@@ -1488,7 +1488,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             active_page="session",
             session_url=f"/sessions/{agent}/{session_id}",
             session_rounds=[
-                {"idx": i + 1, "name": r.title or f"Round {i + 1}",
+                {"idx": i + 1, "name": r.preview_text or f"Round {i + 1}",
                  "status": getattr(r, "status", ""), "is_current": False}
                 for i, r in enumerate(rounds)
             ],
