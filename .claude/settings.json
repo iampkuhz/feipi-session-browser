@@ -1,28 +1,30 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
+    "additionalDirectories": [
+      "/Users/zhehan/Downloads/feipi_session_browser_harness_seed2",
+      "/Users/zhehan/Documents/tools/llm/feipi-session-browser"
+    ],
     "allow": [
-      "Bash(./scripts/session-browser.sh:*)",
-      "Bash(bash scripts/harness/doctor.sh)",
-      "Bash(python3:*)",
-      "Bash(python:*)",
-      "Bash(pip3:*)",
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
-      "Bash(rg:*)",
-      "Bash(find:*)",
-      "Bash(sed:*)",
-      "Bash(chmod +x .claude/hooks/*.sh)",
-      "Read(~/.claude/**)",
-      "Read(~/.codex/**)",
-      "Read(~/.qoder/**)"
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "MultiEdit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "LS(*)",
+      "Task(*)",
+      "TodoWrite(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "NotebookRead(*)",
+      "NotebookEdit(*)",
+      "BashOutput(*)",
+      "KillBash(*)"
     ],
-    "deny": [
-      "Bash(git reset --hard:*)",
-      "Bash(git clean -fdx:*)",
-      "Bash(rm -rf /:*)"
-    ],
-    "defaultMode": "acceptEdits"
+    "ask": [],
+    "deny": []
   },
   "hooks": {
     "PreToolUse": [
@@ -34,6 +36,15 @@
             "command": ".claude/hooks/pre_tool_guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/hooks/guard_openspec_change.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -43,6 +54,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/post_tool_guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "python3 scripts/hooks/log_file_change.py"
           }
         ]
       }

@@ -1,0 +1,10 @@
+project: feipi-session-browser
+workflow: spec-driven
+required_change_files:
+  - proposal.md
+  - tasks.md
+recommended_change_files:
+  - design.md
+spec_root: openspec/specs
+change_root: openspec/changes
+archive_root: openspec/changes/archive

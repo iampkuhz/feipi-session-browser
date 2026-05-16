@@ -45,3 +45,19 @@ bash scripts/harness/doctor.sh
 2. 必要测试或静态检查已运行，并说明结果。
 3. 文档、脚本、harness 与代码保持同步。
 4. 没有提交个人配置、缓存、运行数据或生成物。
+
+## Agent rules
+
+1. Start from `openspec/specs/` for current truth.
+2. Use `openspec/changes/<change-id>/` for every non-trivial change.
+3. Keep task files small, serial, and independently verifiable.
+4. Never overwrite user-local settings.
+5. Preserve existing product code unless a reviewed OpenSpec change explicitly removes it.
+6. Validate before reporting completion.
+
+## Key files
+
+- `CLAUDE.md`: Claude Code entry point.
+- `harness/`: workflow, context packs, prompt templates, quality gates.
+- `openspec/`: specs and change proposals.
+- `.claude/`: project-level Claude Code commands, agents, settings, hooks.
