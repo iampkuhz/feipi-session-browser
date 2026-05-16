@@ -26,3 +26,5 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
+/openspec/changes/
+/harness/archive/

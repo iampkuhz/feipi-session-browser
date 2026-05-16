@@ -1,0 +1,23 @@
+name: session-browser-change
+version: 1
+description: Minimal OpenSpec workflow for feipi-session-browser
+
+artifacts:
+  proposal:
+    path: proposal.md
+    required: true
+  design:
+    path: design.md
+    required: true
+  tasks:
+    path: tasks.md
+    required: true
+  delta_specs:
+    path: specs/**/spec.md
+    required: true
+
+validation:
+  require_requirements: true
+  require_scenarios: true
+  require_task_checkboxes: true
+  require_validation_evidence: true
