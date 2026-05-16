@@ -1,0 +1,7 @@
+{
+  "_comment": "This is an example local settings file. Copy to .claude/settings.local.json and customize.",
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}

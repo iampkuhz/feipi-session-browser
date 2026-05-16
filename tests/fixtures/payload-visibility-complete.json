@@ -1,0 +1,58 @@
+{
+  "llm_calls": [
+    {
+      "id": "msg_call_001",
+      "model": "qwen3.6-plus",
+      "scope": "main",
+      "subagent_id": "",
+      "round_index": 0,
+      "parent_id": "",
+      "parent_tool_name": "",
+      "timestamp": "2026-05-15T10:00:00Z",
+      "status": "ok",
+      "input_tokens": 5200,
+      "output_tokens": 320,
+      "cache_read_tokens": 4800,
+      "cache_write_tokens": 0,
+      "prompt_preview": "User: 帮我分析一下这段代码",
+      "request_preview": "System prompt + user message...",
+      "request_full": "Full request payload with system prompt and user message content",
+      "response_preview": "好的，我来分析...",
+      "response_full": "好的，我来分析这段代码的结构和问题...",
+      "tool_calls": [],
+      "tool_call_count": 0,
+      "failed_tool_count": 0
+    },
+    {
+      "id": "msg_call_002",
+      "model": "qwen3.6-plus",
+      "scope": "main",
+      "subagent_id": "",
+      "round_index": 1,
+      "parent_id": "",
+      "parent_tool_name": "",
+      "timestamp": "2026-05-15T10:01:00Z",
+      "status": "ok",
+      "input_tokens": 8100,
+      "output_tokens": 150,
+      "cache_read_tokens": 7800,
+      "cache_write_tokens": 300,
+      "prompt_preview": "2 tool results: Bash, Read",
+      "request_preview": "Full context with tool results...",
+      "request_full": "Full request payload including tool results",
+      "response_preview": "根据工具执行结果...",
+      "response_full": "根据工具执行结果，我找到了问题的根源...",
+      "tool_calls": [
+        {
+          "name": "Bash",
+          "parameters": {"command": "ls -la"},
+          "result": "total 42",
+          "status": "completed",
+          "tool_use_id": "toolu_001"
+        }
+      ],
+      "tool_call_count": 1,
+      "failed_tool_count": 0
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% set active_page = 'projects' %}
+
+{% block title %}{{ project.project_name }} - Agent Run Profiler{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<a href="/projects">Projects</a>
+<span class="sep">/</span>
+<span class="current">{{ project.project_name }}</span>
+{% endblock %}
+
+{% block content %}
+
+{% set p_input_side = project.total_input_tokens + project.total_cached_tokens + project.total_cache_write_tokens %}
+{% set p_cache_reuse = (project.total_cached_tokens / p_input_side * 100) | round(1) if p_input_side > 0 else 0 %}
+{% set p_tools_per_round = (project.total_tool_calls / project.total_assistant_messages) | round(1) if project.total_assistant_messages > 0 else 0 %}
+
+<!-- Page header -->
+<div class="page-header">
+    <div class="page-header__top">
+        <div class="page-header__left">
+            <a href="/projects" class="page-header__back" title="Back to Projects">&larr;</a>
+            <h1 class="page-header__title">{{ project.project_name }}</h1>
+        </div>
+        <div class="page-header__actions">
+        </div>
+    </div>
+    <p class="page-header__desc mono">
+        <span class="path-text truncate" data-tooltip="{{ project.project_key }}">{{ project.project_key | relative_to_repo | truncate_path }}</span>
+        <button class="path-copy-btn" onclick="copyProjectPath(this, '{{ project.project_key }}')" title="Copy full path">⧉</button>
+    </p>
+</div>
+
+<!-- Project summary metrics -->
+<div class="metrics-grid metrics-grid--run-summary">
+    <div class="metric-card metric-card--compact" data-tooltip="Total sessions in this project">
+        <div class="metric-label">Sessions</div>
+        <div class="metric-value">{{ project.total_sessions }}</div>
+        <div class="metric-sub">
+            <span class="badge badge-claude" style="margin-right:2px">{{ project.claude_sessions }} CC</span>
+            <span class="badge badge-codex" style="margin-right:2px">{{ project.codex_sessions }} CX</span>
+            <span class="badge badge-qoder">{{ project.qoder_sessions }} QD</span>
+        </div>
+    </div>
+    <div class="metric-card metric-card--compact" data-tooltip="Total input-side tokens">
+        <div class="metric-label">Input-side</div>
+        <div class="metric-value">{{ p_input_side | format_number }}</div>
+        <div class="metric-sub">Cache R: {{ p_cache_reuse }}%</div>
+    </div>
+    <div class="metric-card metric-card--compact" data-tooltip="Total output-side tokens">
+        <div class="metric-label">Output</div>
+        <div class="metric-value">{{ project.total_output_tokens | format_number }}</div>
+        <div class="metric-sub">{{ project.total_tool_calls | format_number }} tools · {{ p_tools_per_round }}/R</div>
+    </div>
+    <div class="metric-card metric-card--compact" data-tooltip="Active period of this project">
+        <div class="metric-label">Active Period</div>
+        <div class="metric-value" style="font-size:var(--text-sm)">
+            {% if project.first_seen and project.last_seen %}
+            {{ project.first_seen[:10] }} → {{ project.last_seen | relative_time }}
+            {% else %}
+            N/A
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Sessions table -->
+<div class="page-section">
+    <div class="card-title">Sessions ({{ sessions | length }})</div>
+    {% if sessions %}
+    <div class="table-wrap">
+        <table id="project-sessions-table" class="data-table" data-table-enhanced>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Title</th>
+                    <th>Agent</th>
+                    <th>Model</th>
+                    <th class="numeric">Messages</th>
+                    <th class="numeric">Input</th>
+                    <th class="numeric">Cache R</th>
+                    <th class="numeric">Cache W</th>
+                    <th class="numeric">Output</th>
+                    <th class="numeric">Tools</th>
+                    <th class="numeric">Failed</th>
+                    <th>Duration</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
+                    <td><span class="agent-dot {{ 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' }}"></span></td>
+                    <td>
+                        <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link truncate" style="max-width:260px; display:block" data-tooltip="{{ s.title }}&#10;ID: {{ s.session_id }}">
+                            {{ s.title[:70] or 'Untitled' }}
+                        </a>
+                    </td>
+                    <td><span class="badge {{ 'badge-claude' if s.agent == 'claude_code' else 'badge-qoder' if s.agent == 'qoder' else 'badge-codex' }}">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></td>
+                    <td class="text-xs text-muted mono truncate" style="max-width:160px" data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
+                    <td class="numeric mono text-xs">{{ s.user_message_count + s.assistant_message_count }}</td>
+                    <td class="numeric mono text-xs">{{ s.input_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.cached_input_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.cached_output_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.output_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.tool_call_count }}</td>
+                    <td class="numeric mono text-xs">
+                        {% if s.failed_tool_count > 0 %}
+                        <span class="badge badge-error">{{ s.failed_tool_count }}</span>
+                        {% else %}
+                        <span class="muted-zero">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-xs text-muted">{{ s.duration_seconds | format_duration }}</td>
+                    <td class="text-xs text-muted">{{ s.ended_at | relative_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No sessions found for this project.</div>
+    {% endif %}
+</div>
+
+{% endblock %}

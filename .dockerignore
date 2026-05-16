@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.git
+.gitignore
+.DS_Store
+tests/
+output/
+data/
+.env.example

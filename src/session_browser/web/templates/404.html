@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Not Found - Agent Run Profiler{% endblock %}
+
+{% block content %}
+<div class="state-panel">
+    <div class="state-panel__icon">404</div>
+    <h2 class="state-panel__title">Page Not Found</h2>
+    <p class="state-panel__desc">The page you're looking for doesn't exist or has been removed.</p>
+    <nav class="state-panel__links">
+        <a href="/dashboard" class="state-panel__link">&larr; Dashboard</a>
+        <a href="/projects" class="state-panel__link">Projects</a>
+        <a href="/sessions" class="state-panel__link">Sessions</a>
+        <a href="/agents" class="state-panel__link">Agents</a>
+    </nav>
+</div>
+{% endblock %}

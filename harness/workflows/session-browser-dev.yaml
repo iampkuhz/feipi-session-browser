@@ -1,0 +1,30 @@
+workflow:
+  name: session-browser-dev
+  version: "0.1.0"
+  description: Local development workflow for feipi-session-browser.
+
+  steps:
+    - name: read-project-rules
+      description: Read AGENTS.md and docs/governance/tool-usage.md before editing.
+      required: true
+
+    - name: install-deps
+      command: "./scripts/session-browser.sh deps"
+      required: false
+
+    - name: run-tests
+      command: "./scripts/session-browser.sh test"
+      required: true
+
+    - name: run-doctor
+      command: "bash scripts/harness/doctor.sh"
+      required: true
+
+    - name: local-serve-smoke
+      command: "./scripts/session-browser.sh serve --allow-empty"
+      required: false
+
+  outputs:
+    - "validation result"
+    - "changed file summary"
+    - "remaining risks"

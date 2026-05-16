@@ -1,0 +1,31 @@
+project:
+  name: feipi-session-browser
+  type: python-web-tool
+  description: Local session browser for Claude Code, Codex, and Qoder session data.
+
+entrypoints:
+  deps: "./scripts/session-browser.sh deps"
+  test: "./scripts/session-browser.sh test"
+  scan: "./scripts/session-browser.sh scan"
+  serve: "./scripts/session-browser.sh serve"
+  doctor: "bash scripts/harness/doctor.sh"
+
+quality_gates:
+  - name: python-compile
+    command: "python3 -m compileall -q src"
+    required: true
+  - name: unit-tests
+    command: "./scripts/session-browser.sh test"
+    required: true
+  - name: harness-doctor
+    command: "bash scripts/harness/doctor.sh"
+    required: true
+
+local_only:
+  - ".claude/settings.local.json"
+  - ".mcp.json"
+  - ".env"
+  - ".venv/"
+  - ".pytest_cache/"
+  - "data/"
+  - "output/"

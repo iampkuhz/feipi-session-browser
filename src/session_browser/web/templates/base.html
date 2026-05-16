@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Agent Run Profiler{% endblock %}</title>
+    {% if export_mhtml %}
+    <style>{{ mhtml_css | safe }}</style>
+    {% else %}
+    <link rel="stylesheet" href="/static/style.css">
+    {% endif %}
+
+    <!-- arpStorage bootstrap: defined early so page scripts can use it before shared JS loads -->
+    <script>
+    (function() {
+        'use strict';
+        var STORAGE_PREFIX = 'arp_';
+        window.arpStorage = {
+            get: function(key) {
+                try {
+                    var raw = localStorage.getItem(STORAGE_PREFIX + key);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (e) { return null; }
+            },
+            set: function(key, value) {
+                try {
+                    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+                } catch (e) { /* storage full or disabled */ }
+            },
+            remove: function(key) {
+                try {
+                    localStorage.removeItem(STORAGE_PREFIX + key);
+                } catch (e) {}
+            }
+        };
+    })();
+    </script>
+
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <div class="shell{% block shell_class %}{% endblock %}">
+        <!-- Sidebar: grid column 1 -->
+        <aside class="sidebar">
+            <div class="sidebar-inner">
+                <div class="sidebar-logo">
+                    <a href="/dashboard">
+                        <span class="logo-icon">AP</span>
+                        <div>
+                            <span class="logo-text">Agent Run Profiler</span>
+                            <div class="logo-sub">Read-only · Local</div>
+                        </div>
+                    </a>
+                </div>
+                <nav class="nav">
+                    <div class="nav-label">Core</div>
+
+                    <!-- Trace Workbench -->
+                    {% if active_page in ('session', 'session_detail') %}
+                    <a class="nav-item active" href="{{ session_url }}">
+                        <span class="nav-dot"></span> Trace Workbench
+                    </a>
+                    {% elif active_page == 'sessions' %}
+                    <a class="nav-item active" href="/sessions">
+                        <span class="nav-dot"></span> Trace Workbench
+                    </a>
+                    {% else %}
+                    <a class="nav-item{% if active_page == 'dashboard' %} active{% endif %}" href="/dashboard">
+                        <span class="nav-dot"></span> Trace Workbench
+                    </a>
+                    {% endif %}
+
+                    <a class="nav-item{% if active_page == 'sessions' %} active{% endif %}" href="/sessions">
+                        <span class="nav-dot"></span> Sessions
+                    </a>
+
+                    <a class="nav-item{% if active_page == 'projects' %} active{% endif %}" href="/projects">
+                        <span class="nav-dot"></span> Projects
+                    </a>
+
+                    <a class="nav-item{% if active_page == 'agents' %} active{% endif %}" href="/agents">
+                        <span class="nav-dot"></span> Agents
+                    </a>
+                </nav>
+
+                <!-- Round Map -->
+                <div class="round-map">
+                    <div class="nav-label">Round Map</div>
+                    {% if session_rounds is defined and session_rounds %}
+                        {% for round in session_rounds %}
+                        <a class="map-row{% if round.is_current %} active{% endif %}" href="#r{{ round.idx }}">
+                            <span class="idx">R{{ round.idx }}</span>
+                            <span class="name">{{ round.name | truncate(28) }}</span>
+                            <span class="sig{% if round.status == 'error' %} err{% elif round.status == 'warning' %} warn{% endif %}"></span>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="map-row" style="opacity: 0.5;">
+                            <span class="name" style="font-size: 11px; color: var(--t4);">No session context</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main: grid column 2 -->
+        <main class="main">
+            <!-- Topbar -->
+            <header class="topbar">
+                <nav class="topbar-breadcrumb" aria-label="页面导航">
+                    {% block breadcrumb %}
+                    <a href="/dashboard">Dashboard</a>
+                    {% endblock %}
+                </nav>
+                <div class="topbar-actions" aria-label="全局操作">
+                    <!-- Shell layout toggles -->
+                    <button class="top-btn" onclick="document.body.classList.toggle('hide-left')" title="切换左侧导航">Map</button>
+                    <button class="top-btn" onclick="document.body.classList.toggle('hide-right')" title="切换右侧面板">Inspector</button>
+                    <button class="top-btn" onclick="document.body.classList.toggle('focus')" title="专注模式">Focus</button>
+
+                    <!-- Density toggle -->
+                    <button id="density-toggle" class="density-toggle" onclick="ViewState.toggleDensity()" aria-pressed="false" title="当前：紧凑 · 点击切换为宽松" aria-label="密度切换">
+                        <span class="density-toggle__label" aria-hidden="true">紧凑</span>
+                    </button>
+
+                    <button class="topbar-action topbar-action--placeholder" aria-label="全局搜索" title="全局搜索（待实现）" disabled>
+                        <span class="action-icon" aria-hidden="true">&#8981;</span>
+                    </button>
+                    <button class="topbar-action topbar-action--placeholder" aria-label="刷新" title="刷新" onclick="location.reload()">
+                        <span class="action-icon" aria-hidden="true">&#8635;</span>
+                    </button>
+                    <button class="topbar-action topbar-action--placeholder" aria-label="导出" title="导出（待实现）" disabled>
+                        <span class="action-icon" aria-hidden="true">&#11015;</span>
+                    </button>
+                    <button class="topbar-action topbar-action--placeholder" aria-label="切换主题" title="切换主题（待实现）" disabled>
+                        <span class="action-icon" aria-hidden="true">&#9680;</span>
+                    </button>
+                    {% block topbar_actions %}{% endblock %}
+                </div>
+            </header>
+
+            <!-- Content -->
+            <section class="content">
+                {% block content %}{% endblock %}
+            </section>
+
+            <footer class="footer">
+                Agent Run Profiler · Read-only · Local
+            </footer>
+        </main>
+
+        <!-- Inspector: grid column 3 (常驻，no-inspector 页面不渲染) -->
+        {% set _shell_cls = self.shell_class() | default('') %}
+        {% if 'no-inspector' not in _shell_cls %}
+        <aside class="inspector" aria-label="属性面板">
+            <div class="inspector-inner">
+                {% block inspector %}
+                {% include "components/inspector.html" %}
+                {% endblock %}
+            </div>
+        </aside>
+        {% endif %}
+    </div>
+
+    {% if export_mhtml %}
+    <script>{{ mhtml_js | safe }}</script>
+    {% else %}
+    <script src="/static/js/inspector.js"></script>
+    <script src="/static/js/view-state.js"></script>
+    <script src="/static/js/payload_viewer.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/data-table.js"></script>
+    <script src="/static/js/timeline.js"></script>
+    <script src="/static/js/keyboard.js"></script>
+    {% endif %}
+    <script>ViewState.init();</script>
+    <!-- Shared JS: tab switching, round toggle, show-more, restore state -->
+    <script>
+    (function() {
+        'use strict';
+
+        /* ─── Workbench view switching ─────────────────────────────── */
+        window.switchView = function(name) {
+            // Toggle view containers
+            document.querySelectorAll('.wb-body > [data-view]').forEach(function(el) {
+                el.style.display = el.dataset.view === name ? '' : 'none';
+            });
+            // Toggle switch buttons
+            document.querySelectorAll('.wb-head [data-switch]').forEach(function(btn) {
+                btn.classList.toggle('active', btn.dataset.switch === name);
+            });
+            // Persist like switchTab does
+            if (window._sessionId && typeof arpStorage !== 'undefined') {
+                arpStorage.set('session_view_' + window._sessionId, name);
+            }
+        };
+
+        /* ─── Tab switching (session detail) ───────────────────────── */
+        window.switchTab = function(tabId) {
+            // Bridge: old tab names -> new workbench views
+            var bridgeMap = {
+                'timeline': 'trace',
+                'profile': 'calls',
+                'hotspots': 'hotspots',
+                'conversation': 'trace'
+            };
+            if (bridgeMap[tabId] !== undefined) {
+                // If workbench exists, use switchView
+                if (document.querySelector('.wb-body')) {
+                    window.switchView(bridgeMap[tabId]);
+                    // Still persist old key for backward compat
+                    if (window._sessionId) {
+                        arpStorage.set('session_tab_' + window._sessionId, tabId);
+                    }
+                    return;
+                }
+            }
+            // Legacy path: original tab switching
+            var tabs = document.querySelectorAll('.tab');
+            var contents = document.querySelectorAll('.tab-content');
+            tabs.forEach(function(t) { t.classList.remove('active'); });
+            contents.forEach(function(c) { c.classList.remove('active'); });
+            var target = document.querySelector('[data-tab="' + tabId + '"]');
+            if (target) { target.classList.add('active'); }
+            var content = document.getElementById(tabId);
+            if (content) {
+                // Lazy-load profile tab from <template> on first access
+                if (tabId === 'profile' && !content.dataset.loaded) {
+                    var tpl = document.getElementById('profile-template');
+                    if (tpl) {
+                        content.innerHTML = '';
+                        while (tpl.content.firstChild) {
+                            content.appendChild(tpl.content.firstChild);
+                        }
+                        content.dataset.loaded = '1';
+                    }
+                }
+                content.classList.add('active');
+            }
+            // Persist active tab
+            if (window._sessionId) {
+                arpStorage.set('session_tab_' + window._sessionId, tabId);
+            }
+        };
+
+        /* ─── Round expand/collapse with localStorage persistence ──── */
+        function toggleRound(round) {
+            var wasExpanded = round.classList.contains('expanded');
+            if (wasExpanded) {
+                round.classList.remove('expanded');
+            } else {
+                round.classList.add('expanded');
+            }
+            // Persist state
+            if (window._sessionId && round.dataset.roundIdx) {
+                var key = 'rounds_' + window._sessionId;
+                var expanded = arpStorage.get(key) || [];
+                var idx = round.dataset.roundIdx;
+                var pos = expanded.indexOf(idx);
+                if (wasExpanded) {
+                    if (pos >= 0) expanded.splice(pos, 1);
+                } else {
+                    if (pos < 0) expanded.push(idx);
+                }
+                arpStorage.set(key, expanded);
+            }
+        }
+
+        /* ─── Show more / less ─────────────────────────────────────── */
+        function toggleShowMore(btn) {
+            // Prefer modal if available (session detail page overrides this)
+            if (window.openContentModal && btn.getAttribute('data-content-modal')) {
+                window.openContentModal(btn);
+                return;
+            }
+            var body = btn.previousElementSibling;
+            if (body) {
+                body.classList.toggle('expanded');
+                btn.textContent = body.classList.contains('expanded') ? 'Show less' : 'Show more';
+            }
+        }
+
+        /* ─── Compatible closest helper (polyfill for older WebViews) ─ */
+        function _arpClosest(el, selector) {
+            while (el && el.nodeType === 1) {
+                if (el.matches && el.matches(selector)) return el;
+                if (el.webkitMatchesSelector && el.webkitMatchesSelector(selector)) return el;
+                el = el.parentElement;
+            }
+            return null;
+        }
+
+        /* ─── Global click delegation ──────────────────────────────── */
+        document.addEventListener('click', function(e) {
+            // Skip if already handled by capture-phase content-modal handler
+            if (e.__contentModalHandled) return;
+
+            var header = _arpClosest(e.target, '.round-header');
+            if (header) {
+                var round = _arpClosest(header, '.round');
+                if (round) toggleRound(round);
+                return;
+            }
+            var showMore = _arpClosest(e.target, '.show-more');
+            if (showMore) {
+                toggleShowMore(showMore);
+                return;
+            }
+        });
+
+
+        /* ─── Content modal capture-phase click handler ───────────── */
+        document.addEventListener('click', function(e) {
+            var btn = _arpClosest(e.target, '[data-content-modal]');
+            if (!btn) return;
+            e.__contentModalHandled = true;
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.openContentModal) {
+                window.openContentModal(btn);
+            }
+        }, true);
+
+
+        /* ─── Wide table scroll hints ────────────────────────────── */
+        document.addEventListener('scroll', function(e) {
+            var wrap = e.target.closest('.table-wrap');
+            if (!wrap) return;
+            var isAtRight = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 2;
+            if (isAtRight) {
+                wrap.classList.add('scrolled-right');
+            } else {
+                wrap.classList.remove('scrolled-right');
+            }
+        }, true);
+
+
+        /* ─── Restore session tab / view on load ───────────────────── */
+        if (window._sessionId) {
+            // Restore workbench view (new)
+            var savedView = arpStorage.get('session_view_' + window._sessionId);
+            if (savedView && document.querySelector('.wb-body')) {
+                setTimeout(function() { switchView(savedView); }, 0);
+            }
+            // Restore old session tab (legacy compat)
+            var savedTab = arpStorage.get('session_tab_' + window._sessionId);
+            if (savedTab && !document.querySelector('.wb-body')) {
+                setTimeout(function() { switchTab(savedTab); }, 0);
+            }
+            /* Restore expanded rounds (.trace-row structure) */
+            var savedRounds = arpStorage.get('rounds_' + window._sessionId);
+            if (savedRounds && Array.isArray(savedRounds)) {
+                savedRounds.forEach(function(idx) {
+                    var traceRow = document.querySelector('.trace-row[data-round-idx="' + idx + '"]');
+                    if (traceRow && window.toggleRoundDetail) {
+                        toggleRoundDetail(traceRow);
+                    } else {
+                        // Fallback for old .round structure
+                        var oldRound = document.querySelector('.round[data-round-idx="' + idx + '"]');
+                        if (oldRound) oldRound.classList.add('expanded');
+                    }
+                });
+            }
+        }
+
+        /* ─── Sidebar collapse migration: old sidebar_collapsed → hide-left ── */
+        var savedCollapsed = arpStorage.get('sidebar_collapsed');
+        if (savedCollapsed) {
+            document.body.classList.add('hide-left');
+        }
+
+    })();
+    </script>
+</body>
+</html>

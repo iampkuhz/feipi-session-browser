@@ -1,0 +1,27 @@
+{
+  "llm_calls": [
+    {
+      "id": "msg_call_003",
+      "model": "qwen3.6-plus",
+      "scope": "main",
+      "subagent_id": "",
+      "round_index": 0,
+      "parent_id": "",
+      "parent_tool_name": "",
+      "timestamp": "2026-05-15T11:00:00Z",
+      "status": "ok",
+      "input_tokens": 12500,
+      "output_tokens": 280,
+      "cache_read_tokens": 12000,
+      "cache_write_tokens": 500,
+      "prompt_preview": "",
+      "request_preview": "",
+      "request_full": "",
+      "response_preview": "我来帮你完成...",
+      "response_full": "我来帮你完成这个任务...",
+      "tool_calls": [],
+      "tool_call_count": 0,
+      "failed_tool_count": 0
+    }
+  ]
+}

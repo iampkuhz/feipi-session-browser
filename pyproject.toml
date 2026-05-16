@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "feipi-session-browser"
+dynamic = ["version"]
+description = "Local session browser for Claude Code, Codex, and Qoder session data."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "jinja2",
+  "markdown-it-py",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
+[project.scripts]
+session-browser = "session_browser.cli:main"
+
+[tool.setuptools.dynamic]
+version = {file = ["VERSION"]}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+session_browser = [
+  "web/templates/*.html",
+  "web/templates/components/*.html",
+  "web/static/*.css",
+  "web/static/js/*.js",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

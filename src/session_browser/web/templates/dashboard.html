@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+{% set active_page = 'dashboard' %}
+
+{% block title %}Dashboard - Agent Run Profiler{% endblock %}
+
+{% block breadcrumb %}
+<span class="current">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="page-header">
+    <div class="page-header__top">
+        <div class="page-header__left">
+            <h1 class="page-header__title">Dashboard</h1>
+        </div>
+        <div class="page-header__actions">
+            <span class="text-muted text-xs">{{ stats.total_sessions | format_number }} sessions indexed</span>
+        </div>
+    </div>
+    <div class="page-header__filters">
+        <span class="page-header__filter">Projects: <strong>{{ stats.project_count }}</strong></span>
+        <span class="page-header__filter">Agents: <strong>{{ agent_dist | length }}</strong></span>
+        <span class="page-header__filter">Models: <strong>{{ model_dist | length }}</strong></span>
+    </div>
+</div>
+
+<!-- Metrics strip -->
+<div class="metrics-strip-card">
+    <div class="metrics-strip">
+        <div class="metrics-strip__item">
+            <span class="metrics-strip__label">Input Tokens</span>
+            <span class="metrics-strip__value metrics-strip__value--mono">{{ (aggregate.input_side_total or 0) | format_number }}</span>
+        </div>
+        <div class="metrics-strip__item">
+            <span class="metrics-strip__label">Cache Reuse</span>
+            <span class="metrics-strip__value metrics-strip__value--mono">
+                {% if aggregate.cache_reuse_ratio is not none %}{{ (aggregate.cache_reuse_ratio * 100) | round(1) }}%{% else %}—{% endif %}
+            </span>
+        </div>
+        <div class="metrics-strip__item">
+            <span class="metrics-strip__label">Output Tokens</span>
+            <span class="metrics-strip__value metrics-strip__value--mono">{{ (stats.total_output_tokens or 0) | format_number }}</span>
+        </div>
+        <div class="metrics-strip__item">
+            <span class="metrics-strip__label">Tool Calls</span>
+            <span class="metrics-strip__value metrics-strip__value--mono">{{ stats.total_tool_calls | format_number }}</span>
+        </div>
+        <div class="metrics-strip__item">
+            <span class="metrics-strip__label">Tools/Round</span>
+            <span class="metrics-strip__value metrics-strip__value--mono">
+                {% if aggregate.tools_per_round is not none %}{{ aggregate.tools_per_round }}{% else %}—{% endif %}
+            </span>
+        </div>
+        <div class="metrics-strip__item {% if stats.total_failed_tools > 0 %}metrics-strip__item--error{% endif %}">
+            <span class="metrics-strip__label">Failed</span>
+            <span class="metrics-strip__value metrics-strip__value--mono">{{ stats.total_failed_tools | format_number }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Needs Attention -->
+{% if needs_attention %}
+<div class="card card--attention">
+    <div class="card-title flex justify-between items-center">
+        <span>
+            <span class="attention-icon">!</span> Needs Attention
+            <span class="text-muted fw-400 normal-case no-tracking">({{ needs_attention | length }} sessions)</span>
+        </span>
+        <div class="flex gap-1">
+            <button class="filter-chip filter-chip--active" data-filter="all" onclick="filterNeedsAttention('all', this)">All</button>
+            <button class="filter-chip" data-filter="critical" onclick="filterNeedsAttention('critical', this)">Critical</button>
+            <button class="filter-chip" data-filter="long_duration" onclick="filterNeedsAttention('long_duration', this)">Long</button>
+            <button class="filter-chip" data-filter="cache_write" onclick="filterNeedsAttention('cache_write', this)">Cache Write</button>
+            <button class="filter-chip" data-filter="failed" onclick="filterNeedsAttention('failed', this)">Failed</button>
+        </div>
+    </div>
+    <div id="needs-attention-list">
+        {% for item in needs_attention %}
+        <div class="attention-item" data-severity="{{ item.max_severity }}"
+             data-types="{{ item.anomaly_types | join(',') }}">
+            <div class="attention-item__severity">
+                <span class="severity-dot {{ 'severity--' + item.max_severity }}"></span>
+            </div>
+            <div class="attention-item__content">
+                <a href="/sessions/{{ item.agent }}/{{ item.session_id | urlencode }}" class="attention-item__title">
+                    {{ item.title[:80] or 'Untitled' }}
+                </a>
+                <div class="attention-item__meta">
+                    <span class="badge {{ 'badge-claude' if item.agent == 'claude_code' else 'badge-qoder' if item.agent == 'qoder' else 'badge-codex' }}">
+                        {{ 'CC' if item.agent == 'claude_code' else 'QD' if item.agent == 'qoder' else 'CX' }}
+                    </span>
+                    <span class="attention-item__project" data-tooltip="{{ item.project_key }}">{{ item.project_name }}</span>
+                    <span class="mono text-micro" data-tooltip="{{ item.model }}">{{ (item.model or '?')[:30] }}</span>
+                    <span class="text-muted text-xs">{{ item.ended_at | relative_time }}</span>
+                </div>
+                <div class="attention-item__badges">
+                    {% for i in range(item.anomaly_labels | length) %}
+                    <span class="anomaly-badge {{ item.anomaly_badge_classes[i] }}" data-tooltip="{{ item.anomaly_types[i] }}">
+                        {{ item.anomaly_labels[i] }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="attention-item__reason text-muted text-xs" data-tooltip="{{ item.main_reason }}">
+                {{ item.main_reason[:60] }}…
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Trend chart -->
+<div class="card">
+    <div class="card-title flex justify-between items-center">
+        <span>Session Trend <span class="text-muted fw-400 normal-case no-tracking">(sessions per day by agent)</span></span>
+        <div class="flex gap-1">
+            <button class="tab tab--chart active" onclick="updateChart(30, this)">30d</button>
+            <button class="tab tab--chart" onclick="updateChart(7, this)">7d</button>
+        </div>
+    </div>
+    {% if trend %}
+    <div class="chart-legend">
+        <div class="chart-legend__item">
+            <span class="chart-legend__dot chart-legend__dot--claude"></span> Claude Code
+        </div>
+        <div class="chart-legend__item">
+            <span class="chart-legend__dot chart-legend__dot--codex"></span> Codex
+        </div>
+        <div class="chart-legend__item">
+            <span class="chart-legend__dot chart-legend__dot--qoder"></span> Qoder
+        </div>
+    </div>
+    <div id="trend-chart" class="chart-container" style="height:140px;"></div>
+    {% else %}
+    <p class="text-muted text-sm">No trend data. Run <code class="mono">scan</code> first.</p>
+    {% endif %}
+</div>
+
+<!-- Agent + Model distribution -->
+<div class="card">
+    <div class="card-title">Agent / Model Distribution</div>
+    <div class="dist-agents">
+        {% for agent, count in agent_dist.items() %}
+        <div class="dist-agent">
+            <span class="agent-dot {{ 'claude' if agent == 'claude_code' else 'qoder' if agent == 'qoder' else 'codex' }}"></span>
+            <span>{{ 'Claude Code' if agent == 'claude_code' else 'Qoder' if agent == 'qoder' else 'Codex' }}: <strong>{{ count | format_number }}</strong></span>
+        </div>
+        {% endfor %}
+    </div>
+    {% if model_dist %}
+    <div class="dist-models">
+        {% for model, count in model_dist.items() %}
+        <span class="badge badge-muted dist-model" data-tooltip="{{ count | format_number }} sessions using {{ model }}" title="{{ model }}">{{ model[:40] }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Active Projects -->
+<div class="card">
+    <div class="card-title flex justify-between items-center">
+        Active Projects
+        <a href="/projects" class="link text-sm">View all →</a>
+    </div>
+    {% if projects %}
+    <div style="margin-bottom:8px">
+        <input id="project-search" type="text" placeholder="Search projects…"
+               class="filter-bar__input dashboard-search"
+               oninput="filterDashboardProjects()" />
+    </div>
+    <div class="table-wrap">
+        <table id="dashboard-projects">
+            <thead>
+                <tr>
+                    <th>Project</th>
+                    <th class="numeric">Sessions</th>
+                    <th class="numeric">Claude</th>
+                    <th class="numeric">Codex</th>
+                    <th class="numeric" data-tooltip="Total input-side tokens">Input</th>
+                    <th class="numeric" data-tooltip="Cache reuse ratio: cache_read / input_side_total">Cache R</th>
+                    <th class="numeric" data-tooltip="Input-side cache write">Cache W</th>
+                    <th class="numeric">Tools</th>
+                    <th class="numeric" data-tooltip="Tools per round">Tools/R</th>
+                    <th class="numeric">Failed</th>
+                    <th>Last Active</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in projects %}
+                {% set p_input_side = p.total_input_tokens + p.total_cached_tokens + p.total_cache_write_tokens %}
+                {% set p_cache_reuse = (p.total_cached_tokens / p_input_side * 100) | round(1) if p_input_side > 0 else 0 %}
+                {% set p_tools_per_round = (p.total_tool_calls / p.total_assistant_messages) | round(1) if p.total_assistant_messages > 0 else 0 %}
+                <tr data-project="{{ p.project_name | lower }} {{ p.project_key | lower }}">
+                    <td><a href="/projects/{{ p.project_key | urlencode }}" class="link" data-tooltip="{{ p.project_key }}">{{ p.project_name }}</a></td>
+                    <td class="numeric"><strong>{{ p.total_sessions }}</strong></td>
+                    <td class="numeric"><span class="badge badge-claude">{{ p.claude_sessions }}</span></td>
+                    <td class="numeric"><span class="badge badge-codex">{{ p.codex_sessions }}</span></td>
+                    <td class="numeric mono text-xs">{{ p.total_input_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ p_cache_reuse }}%</td>
+                    <td class="numeric mono text-xs">{{ p.total_cache_write_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs {{ 'highlight-warn' if p.total_tool_calls > 1000 else '' }}">{{ p.total_tool_calls | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ p_tools_per_round }}</td>
+                    <td class="numeric mono text-xs">
+                        {% if p.total_failed_tools > 0 %}
+                        <span class="badge badge-error">{{ p.total_failed_tools }}</span>
+                        {% else %}
+                        <span class="muted-zero">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-xs text-muted">{{ p.last_seen | relative_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No projects indexed yet.</div>
+    {% endif %}
+</div>
+
+<!-- Recent Sessions -->
+<div class="card">
+    <div class="card-title flex justify-between items-center">
+        Recent Sessions
+        <a href="/sessions" class="link text-sm">View all →</a>
+    </div>
+    {% if recent %}
+    <div style="margin-bottom:8px">
+        <input id="session-search" type="text" placeholder="Search sessions…"
+               class="filter-bar__input dashboard-search"
+               oninput="filterDashboardSessions()" />
+    </div>
+    <div class="table-wrap">
+        <table class="data-table" id="dashboard-sessions">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="sortable">Title</th>
+                    <th>Project</th>
+                    <th>Model</th>
+                    <th class="numeric">Input</th>
+                    <th class="numeric">Cache R</th>
+                    <th class="numeric">Cache W</th>
+                    <th class="numeric">Output</th>
+                    <th class="numeric">Tools</th>
+                    <th>Duration</th>
+                    <th>Anomaly</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in recent %}
+                {% set has_anomalies = s.get('anomalies') and s['anomalies'] | length > 0 %}
+                <tr data-title="{{ s.title | lower }}" data-session-id="{{ s.session_id | lower }}"
+                    {% if has_anomalies %}class="row--anomaly"{% endif %}>
+                    <td><span class="agent-dot {{ 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' }}"></span></td>
+                    <td>
+                        <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link truncate" style="max-width:240px; display:block" data-tooltip="{{ s.title }}&#10;ID: {{ s.session_id }}">
+                            {{ s.title[:80] or 'Untitled' }}
+                        </a>
+                    </td>
+                    <td class="text-xs">
+                        <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a>
+                    </td>
+                    <td class="text-xs text-muted mono truncate" style="max-width:120px" data-tooltip="{{ s.model }}">{{ (s.model or '—')[:40] }}</td>
+                    <td class="numeric mono text-xs">{{ s.input_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.cached_input_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.cached_output_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.output_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">
+                        {{ s.tool_call_count | format_number }}
+                        {% if s.failed_tool_count > 0 %}
+                        <span class="badge badge-error">{{ s.failed_tool_count }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-xs text-muted {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>
+                    <td>
+                        {% if has_anomalies %}
+                        {% for a in s.anomalies[:2] %}
+                        <span class="anomaly-badge {{ a.badge_class }}">{{ a.label }}</span>
+                        {% endfor %}
+                        {% if s.anomalies | length > 2 %}
+                        <span class="anomaly-badge anomaly-badge--more">+{{ s.anomalies | length - 2 }}</span>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                    <td class="text-xs text-muted">{{ s.ended_at | relative_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No sessions indexed yet.</div>
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    /* ─── Needs Attention filter ──────────────────────────────────────── */
+    window.filterNeedsAttention = function(filterType, btn) {
+        document.querySelectorAll('.filter-chip').forEach(function(c) {
+            c.classList.remove('filter-chip--active');
+        });
+        if (btn) btn.classList.add('filter-chip--active');
+
+        var items = document.querySelectorAll('.attention-item');
+        items.forEach(function(item) {
+            var types = item.dataset.types || '';
+            var severity = item.dataset.severity || '';
+            var show = true;
+            if (filterType === 'critical' && severity !== 'critical') show = false;
+            if (filterType === 'long_duration' && types.indexOf('long_duration') === -1) show = false;
+            if (filterType === 'cache_write' && types.indexOf('cache_write_spike') === -1) show = false;
+            if (filterType === 'failed' && types.indexOf('failed_run') === -1) show = false;
+            item.style.display = show ? '' : 'none';
+        });
+    };
+
+    /* ─── Trend chart ──────────────────────────────────────────────── */
+    var container = document.getElementById('trend-chart');
+    if (!container) return;
+
+    var rawData = {{ trend | tojson }};
+    var currentDays = 30;
+
+    window.updateChart = function(days, btn) {
+        currentDays = days;
+        var data = rawData.slice(-days);
+        if (!data.length) { container.innerHTML = '<p class="text-muted text-sm">No data</p>'; return; }
+
+        var W = container.clientWidth, H = 140;
+        var pad = {t:10, r:10, b:24, l:36};
+        var cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+        var maxVal = Math.max.apply(null, data.map(function(d){return d.total_count;})) || 1;
+
+        var svg = '<svg width="'+W+'" height="'+H+'" style="display:block">';
+        for (var i = 0; i <= 3; i++) {
+            var y = pad.t + ch - (i/3)*ch;
+            svg += '<line x1="'+pad.l+'" y1="'+y+'" x2="'+(W-pad.r)+'" y2="'+y+'" stroke="#e8ecf0" stroke-width="1"/>';
+            svg += '<text x="'+(pad.l-4)+'" y="'+(y+3)+'" text-anchor="end" font-size="9" fill="#94a3b8" font-family="Inter,sans-serif">'+Math.round(i/3*maxVal)+'</text>';
+        }
+
+        var barW = Math.max(cw / data.length - 2, 2);
+        data.forEach(function(d, i) {
+            var x = pad.l + (i / data.length) * cw;
+            var h = (d.total_count / maxVal) * ch;
+            var y = pad.t + ch - h;
+            var codexH = d.total_count > 0 ? (d.codex_count / d.total_count) * h : 0;
+            var qoderH = d.total_count > 0 ? (d.qoder_count / d.total_count) * h : 0;
+            var claudeH = h - codexH - qoderH;
+            if (d.claude_count > 0) {
+                svg += '<rect x="'+x+'" y="'+y+'" width="'+barW+'" height="'+claudeH+'" fill="#8b5cf6" rx="1" opacity="0.85"/>';
+            }
+            if (d.qoder_count > 0) {
+                svg += '<rect x="'+x+'" y="'+(y+claudeH)+'" width="'+barW+'" height="'+qoderH+'" fill="#f59e0b" rx="1" opacity="0.85"/>';
+            }
+            if (d.codex_count > 0) {
+                svg += '<rect x="'+x+'" y="'+(y+claudeH+qoderH)+'" width="'+barW+'" height="'+codexH+'" fill="#10b981" rx="1" opacity="0.85"/>';
+            }
+            if (i % Math.max(Math.floor(data.length / 8), 1) === 0) {
+                var dateStr = d.date ? d.date.substring(5) : '';
+                svg += '<text x="'+(x+barW/2)+'" y="'+(H-4)+'" text-anchor="middle" font-size="8" fill="#94a3b8" font-family="Inter,sans-serif">'+dateStr+'</text>';
+            }
+        });
+        svg += '</svg>';
+        container.innerHTML = svg;
+
+        document.querySelectorAll('.tab--chart').forEach(function(b) {
+            b.classList.remove('active');
+        });
+        if (btn) btn.classList.add('active');
+    };
+
+    var initBtn = document.querySelector('.tab--chart.active');
+    window.updateChart(30, initBtn);
+
+    /* ─── Dashboard project search ─────────────────────────────────── */
+    window.filterDashboardProjects = function() {
+        var q = document.getElementById('project-search').value.toLowerCase().trim();
+        var rows = document.querySelectorAll('#dashboard-projects tbody tr');
+        rows.forEach(function(row) {
+            var text = (row.dataset.project || '').toLowerCase();
+            row.style.display = (!q || text.indexOf(q) >= 0) ? '' : 'none';
+        });
+    };
+
+    /* ─── Dashboard session search ─────────────────────────────────── */
+    window.filterDashboardSessions = function() {
+        var q = document.getElementById('session-search').value.toLowerCase().trim();
+        var rows = document.querySelectorAll('#dashboard-sessions tbody tr');
+        rows.forEach(function(row) {
+            var title = (row.dataset.title || '');
+            var sid = (row.dataset.sessionId || '');
+            var show = !q || title.indexOf(q) >= 0 || sid.indexOf(q) >= 0;
+            row.style.display = show ? '' : 'none';
+        });
+    };
+})();
+</script>
+
+{% endblock %}

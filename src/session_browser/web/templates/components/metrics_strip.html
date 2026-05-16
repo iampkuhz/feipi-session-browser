@@ -1,0 +1,65 @@
+{# ─────────────────────────────────────────────────────────────
+   Metrics Strip 组件 — 高密度内联指标条
+
+   设计要点：
+   - 最多 6-8 个指标，不使用大卡片布局
+   - 数字 mono 字体，支持 status color
+   - 替代原有沉重的 metric card 区域
+
+   用法 1：直接传入 items 列表
+   ──────────────────────────────────────────────────────────
+   {% from "components/metrics_strip.html" import metrics_strip, metric_item %}
+
+   {% set items = [
+     {"label": "时长", "value": "2m 34s", "mono": true},
+     {"label": "轮次", "value": "12"},
+     {"label": "LLM 调用", "value": "24"},
+     {"label": "错误", "value": "3", "status": "error"},
+     {"label": "缓存命中", "value": "72.5%", "mono": true},
+     {"label": "总 Token", "value": "1.2M", "mono": true},
+   ] %}
+   {{ metrics_strip(items) }}
+
+   用法 2：逐个 item 宏调用
+   ──────────────────────────────────────────────────────────
+   {% call metrics_strip() %}
+     {{ metric_item("时长", "2m 34s", mono=True) }}
+     {{ metric_item("轮次", "12") }}
+     {{ metric_item("LLM 调用", "24") }}
+     {{ metric_item("错误", "3", status="error") }}
+     {{ metric_item("缓存命中", "72.5%", mono=True) }}
+     {{ metric_item("总 Token", "1.2M", mono=True) }}
+   {% endcall %}
+
+   参数（metric_item）：
+     label   — 指标名称（必填）
+     value   — 指标值（必填）
+     status  — "success" | "warning" | "error" | ""（默认空）
+     mono    — 是否使用 mono 字体（默认 False）
+     tooltip — data-tooltip 内容（可选）
+#}
+
+{% macro metric_item(label, value, status="", mono=False, tooltip="") %}
+<div class="metrics-strip__item{% if status %} metrics-strip__item--{{ status }}{% endif %}">
+  <span class="metrics-strip__label">{{ label }}</span>
+  <span class="metrics-strip__value{% if mono %} metrics-strip__value--mono{% endif %}"{% if tooltip %} data-tooltip="{{ tooltip }}"{% endif %}>{{ value }}</span>
+</div>
+{% endmacro %}
+
+{% macro metrics_strip(items=None) %}
+<div class="metrics-strip">
+  {% if items %}
+    {% for item in items %}
+    {{ metric_item(
+      label=item.label,
+      value=item.value,
+      status=item.get("status", ""),
+      mono=item.get("mono", False),
+      tooltip=item.get("tooltip", "")
+    ) }}
+    {% endfor %}
+  {% elif caller is defined %}
+    {{ caller() }}
+  {% endif %}
+</div>
+{% endmacro %}

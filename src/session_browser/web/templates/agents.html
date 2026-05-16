@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% set active_page = 'agents' %}
+
+{% block title %}Agents - Agent Run Profiler{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Agents</span>
+{% endblock %}
+
+{% block content %}
+
+{% if agents %}
+<div class="page-header">
+    <div class="page-header__top">
+        <div class="page-header__left">
+            <h1 class="page-header__title">Agents</h1>
+        </div>
+    </div>
+    <div class="page-header__desc">
+        {{ agents | length }} 个 Agent，覆盖 {{ efficiency | length if efficiency else 0 }} 个模型组合
+    </div>
+</div>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Agent</th>
+            <th class="numeric">Sessions</th>
+            <th class="numeric">Projects</th>
+            <th class="numeric">Tokens</th>
+            <th class="numeric">Tool Calls</th>
+            <th class="numeric">Failed</th>
+            <th>最近活跃</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for a in agents %}
+        <tr>
+            <td>
+                <a href="/agents/{{ a.agent }}" class="link">
+                    <span class="agent-dot {{ 'claude' if a.agent == 'claude_code' else 'qoder' if a.agent == 'qoder' else 'codex' }}"></span>
+                    {{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}
+                </a>
+            </td>
+            <td class="numeric mono">{{ a.session_count | format_number }}</td>
+            <td class="numeric mono">{{ a.project_count }}</td>
+            <td class="numeric mono">{{ a.total_tokens | format_number }}</td>
+            <td class="numeric mono">{{ a.total_tool_calls | format_number }}</td>
+            <td class="numeric mono {{ 'highlight-error' if a.total_failed_tools > 0 else '' }}">{{ a.total_failed_tools }}</td>
+            <td class="text-muted">{{ a.last_active | relative_time }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Agent/Model Efficiency -->
+{% if efficiency %}
+<div class="page-header" style="margin-top:24px; padding-top:12px;">
+    <div class="page-header__top">
+        <div class="page-header__left">
+            <h2 class="page-header__title" style="font-size:var(--text-lg)">Agent/Model Efficiency</h2>
+        </div>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <table class="data-table" id="efficiency-table">
+        <thead>
+            <tr>
+                <th>Agent</th>
+                <th>Model</th>
+                <th class="numeric">Sessions</th>
+                <th class="numeric">Avg Duration</th>
+                <th class="numeric">P95 Duration</th>
+                <th class="numeric">Input-side</th>
+                <th class="numeric">Avg Tools</th>
+                <th class="numeric">Tools/R</th>
+                <th class="numeric">Cache R</th>
+                <th class="numeric">Failed/Session</th>
+                <th>最近活跃</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in efficiency %}
+            <tr>
+                <td>
+                    <span class="agent-dot {{ 'claude' if e.agent == 'claude_code' else 'qoder' if e.agent == 'qoder' else 'codex' }}"></span>
+                    {{ 'Claude Code' if e.agent == 'claude_code' else 'Qoder' if e.agent == 'qoder' else 'Codex' }}
+                </td>
+                <td class="mono" style="max-width:180px" data-tooltip="{{ e.model }}">{{ (e.model or '?')[:50] }}</td>
+                <td class="numeric mono">{{ e.session_count }}</td>
+                <td class="numeric mono">{{ e.avg_duration | format_duration }}</td>
+                <td class="numeric mono">{{ e.p95_duration | format_duration }}</td>
+                <td class="numeric mono">{{ e.avg_input_side | format_number }}</td>
+                <td class="numeric mono">{{ e.avg_tools }}</td>
+                <td class="numeric mono">{{ e.tools_per_round if e.tools_per_round is not none else '—' }}</td>
+                <td class="numeric mono">
+                    {% if e.cache_reuse_ratio is not none %}
+                    {{ (e.cache_reuse_ratio * 100) | round(1) }}%
+                    {% else %}—{% endif %}
+                </td>
+                <td class="numeric mono">
+                    {% if e.failed_per_session is not none %}
+                    {{ e.failed_per_session | round(1) }}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="text-muted">{{ e.last_active | relative_time }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">暂无 Agent 数据，请先运行扫描。</div>
+{% endif %}
+
+{% endblock %}

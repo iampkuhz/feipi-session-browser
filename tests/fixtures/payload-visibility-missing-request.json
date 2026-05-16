@@ -1,0 +1,25 @@
+{
+  "llm_calls": [
+    {
+      "id": "msg_call_004",
+      "model": "qwen3.6-plus",
+      "scope": "main",
+      "subagent_id": "",
+      "round_index": 0,
+      "parent_id": "",
+      "parent_tool_name": "",
+      "timestamp": "2026-05-15T12:00:00Z",
+      "status": "ok",
+      "input_tokens": 8600,
+      "output_tokens": 420,
+      "cache_read_tokens": 8200,
+      "cache_write_tokens": 400,
+      "prompt_preview": "User: 请重构这个模块",
+      "response_preview": "好的，开始重构...",
+      "response_full": "好的，开始重构这个模块的代码...",
+      "tool_calls": [],
+      "tool_call_count": 0,
+      "failed_tool_count": 0
+    }
+  ]
+}

@@ -1,0 +1,224 @@
+{# ─── Content Viewer Component ──────────────────────────────────────
+   Reusable viewer macro supporting markdown / raw / parts modes.
+   Designed for reuse in inspector, content modal, and inline contexts.
+
+   Parameters:
+     - content: raw text string to render
+     - mode: 'markdown' (default) | 'raw' | 'parts'
+     - title: optional header label
+     - id_suffix: optional unique suffix for DOM ids (needed when
+       multiple viewers exist on the same page)
+     - max_height: optional CSS max-height (default 'none')
+
+   Parts mode uses normalize_llm_content to split the input into
+   structured blocks (tool_result, file_code, file_markdown,
+   plain_text) and renders each with a type badge.
+────────────────────────────────────────────────────────────────────── #}
+
+{% macro viewer(content, mode='markdown', title='', id_suffix='', max_height='none') %}
+{% set uid = 'viewer' ~ (id_suffix or '') ~ '-' ~ (mode or 'md') %}
+
+<div class="viewer viewer--{{ mode }}" id="{{ uid }}">
+    {% if title %}
+    <div class="viewer__header">
+        <span class="viewer__title">{{ title }}</span>
+        <button class="viewer__fullscreen-btn" onclick="openViewerFullscreen(this)" title="View in fullscreen">⛶</button>
+    </div>
+    {% endif %}
+
+    <div class="viewer__body" style="max-height:{{ max_height }};{% if max_height != 'none' %}overflow-y:auto;{% endif %}">
+
+        {# ── Markdown mode: single rendered HTML block ── #}
+        {% if mode == 'markdown' %}
+        <div class="viewer__markdown">{{ content | markdown | safe }}</div>
+
+        {# ── Raw mode: plain text / JSON pre block ── #}
+        {% elif mode == 'raw' %}
+        <div class="viewer__raw">
+            <pre class="viewer__raw-pre">{{ content }}</pre>
+        </div>
+
+        {# ── Parts mode: structured content blocks ── #}
+        {% elif mode == 'parts' %}
+        {# Prefer new normalizer if raw text available; fallback to legacy filter #}
+        {% if content and content is string %}
+        {% set blocks = content | parts_mode_from_raw %}
+        {% else %}
+        {% set blocks = content | normalize_llm_content %}
+        {% endif %}
+        {% if blocks | length == 0 %}
+        <div class="viewer__fallback">(No content available)</div>
+        {% else %}
+        {% for block in blocks %}
+        {% set block_kind = block.get('kind', 'unknown') %}
+        {% set block_title = block.get('title', '') %}
+        {% set block_lang = block.get('language', '') %}
+        {% set block_content = block.get('content', '') %}
+        {% set block_context_type = block.get('context_type', '') %}
+        {% set block_bytes = block.get('content_bytes', 0) %}
+        {% set block_token_hint = block.get('token_hint', 0) %}
+        {% set block_raw = block.get('raw', block_content) %}
+
+        <div class="viewer__part viewer__part--{{ block_kind }}">
+            {# ── Part header: context type badge + title + metadata ── #}
+            {% if block_title or block_lang or block_context_type or block_bytes > 0 or block_token_hint > 0 %}
+            <div class="viewer__part-header">
+                {# Context type badge (I-08 multipart) #}
+                {% if block_context_type %}
+                {% if block_context_type == 'system_prompt' %}
+                <span class="viewer__context-type viewer__context-type--system" title="System Prompt">system</span>
+                {% elif block_context_type == 'user_message' %}
+                <span class="viewer__context-type viewer__context-type--user" title="User Message">user</span>
+                {% elif block_context_type == 'assistant_message' %}
+                <span class="viewer__context-type viewer__context-type--assistant" title="Assistant Message">assistant</span>
+                {% elif block_context_type == 'tool_result' %}
+                <span class="viewer__context-type viewer__context-type--tool" title="Tool Result">tool</span>
+                {% elif block_context_type == 'attachment' %}
+                <span class="viewer__context-type viewer__context-type--attachment" title="Attachment">attachment</span>
+                {% else %}
+                <span class="viewer__context-type viewer__context-type--unknown" title="{{ block_context_type }}">{{ block_context_type }}</span>
+                {% endif %}
+                {% endif %}
+
+                {# Content format badge (existing) #}
+                {% if block_kind == 'file_code' %}
+                <span class="viewer__part-type viewer__part-type--code" title="Code file"></span>
+                {% elif block_kind == 'file_markdown' %}
+                <span class="viewer__part-type viewer__part-type--md" title="Markdown file"></span>
+                {% elif block_kind == 'tool_result' %}
+                <span class="viewer__part-type viewer__part-type--tool" title="Tool result"></span>
+                {% elif block_kind == 'plain_text' %}
+                <span class="viewer__part-type viewer__part-type--text" title="Plain text"></span>
+                {% elif block_kind == 'code' %}
+                <span class="viewer__part-type viewer__part-type--code" title="Code"></span>
+                {% elif block_kind == 'json' %}
+                <span class="viewer__part-type viewer__part-type--tool" title="JSON"></span>
+                {% elif block_kind == 'html' %}
+                <span class="viewer__part-type viewer__part-type--md" title="HTML"></span>
+                {% else %}
+                <span class="viewer__part-type viewer__part-type--unknown" title="Unknown"></span>
+                {% endif %}
+
+                {% if block_title %}
+                <span class="viewer__part-title">{{ block_title }}</span>
+                {% endif %}
+                {% if block_lang %}
+                <code class="viewer__lang-tag">{{ block_lang }}</code>
+                {% endif %}
+
+                {# Size hints #}
+                <span class="viewer__part-meta">
+                    {% if block_bytes > 0 %}<span class="viewer__part-size" title="{{ block_bytes }} bytes">{{ block_bytes | format_number }}B</span>{% endif %}
+                    {% if block_token_hint > 0 %}<span class="viewer__part-tokens" title="~{{ block_token_hint }} tokens">{{ block_token_hint | format_number }}t</span>{% endif %}
+                </span>
+
+                {# Raw toggle #}
+                {% if block_raw and block_raw != block_content %}
+                <button class="viewer__raw-toggle" onclick="togglePartRaw(this)" title="View raw content">Raw</button>
+                {% elif block_raw and block_raw == block_content and block_bytes > 200 %}
+                <button class="viewer__raw-toggle" onclick="togglePartRaw(this)" title="View raw content">Raw</button>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="viewer__part-content">
+                {# Rendered view #}
+                <div class="viewer__part-rendered">
+                    {% if block_kind == 'file_code' or block_kind == 'code' %}
+                    <pre class="viewer__code-block"><code class="language-{{ block_lang }}">{{ block_content }}</code></pre>
+
+                    {% elif block_kind == 'json' %}
+                    <pre class="viewer__json-block">{{ block_content }}</pre>
+
+                    {% elif block_kind == 'file_markdown' or block_kind == 'plain_text' %}
+                    <div class="viewer__part-markdown">{{ block_content | markdown | safe }}</div>
+
+                    {% elif block_kind == 'html' %}
+                    <div class="viewer__part-markdown">{{ block_content | markdown | safe }}</div>
+
+                    {% else %}
+                    <div class="viewer__part-markdown">{{ block_content | markdown | safe }}</div>
+                    {% endif %}
+                </div>
+
+                {# Raw view (hidden by default) #}
+                {% if block_raw and block_bytes > 200 %}
+                <div class="viewer__part-raw" style="display:none">
+                    <div class="viewer__part-raw-header">
+                        <span class="viewer__part-raw-label">Raw content</span>
+                        <button class="viewer__raw-toggle viewer__raw-toggle--small" onclick="togglePartRaw(this)" title="Back to rendered view">Rendered</button>
+                    </div>
+                    <pre class="viewer__part-raw-pre">{{ block_raw }}</pre>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% else %}
+        <div class="viewer__fallback">(Unknown viewer mode: {{ mode }})</div>
+        {% endif %}
+
+    </div>
+</div>
+{% endmacro %}
+
+{% macro payload_viewer(parts_data, title='') %}
+{# Full Payload Viewer — two-column layout (Task 12) #}
+<div class="viewer-shell" data-viewer="payload">
+    {% if title %}
+    <div class="viewer-shell__title">{{ title }}</div>
+    {% endif %}
+    <aside class="viewer-side">
+        <div class="nav-label">Parts</div>
+        {% if parts_data.request %}
+        <div class="part active" data-payload-part="request">
+            <span>Request Payload</span>
+            <span class="mono">{{ parts_data.request.size | format_bytes if parts_data.request.size else '—' }}</span>
+        </div>
+        {% endif %}
+        {% if parts_data.rendered %}
+        <div class="part" data-payload-part="rendered">
+            <span>Rendered Context</span>
+            <span class="mono">{{ parts_data.rendered.size | format_bytes if parts_data.rendered.size else '—' }}</span>
+        </div>
+        {% endif %}
+        {% if parts_data.response %}
+        <div class="part" data-payload-part="response">
+            <span>Response Payload</span>
+            <span class="mono">{{ parts_data.response.size | format_bytes if parts_data.response.size else '—' }}</span>
+        </div>
+        {% endif %}
+        {% if parts_data.tools %}
+        <div class="part" data-payload-part="tools">
+            <span>Tool Results</span>
+            <span class="mono">{{ parts_data.tools.count | default(0) }}</span>
+        </div>
+        {% endif %}
+    </aside>
+    <main class="viewer-main">
+        <div class="viewer-toolbar">
+            <div class="view-switch">
+                <button class="active" data-payload-switch="json">JSON</button>
+                <button data-payload-switch="rendered">Rendered</button>
+                <button data-payload-switch="raw">Raw</button>
+                <button data-payload-switch="diff" disabled>Diff</button>
+            </div>
+            <span class="badge warn payload-unavailable" style="display:none">payload unavailable</span>
+        </div>
+        <div class="viewer-content">
+            <div data-payload-view="json" style="padding:12px">
+                <pre class="code">{{ parts_data.request.json | default('') | safe }}</pre>
+            </div>
+            <div data-payload-view="rendered" style="display:none;padding:12px"></div>
+            <div data-payload-view="raw" style="display:none;padding:12px">
+                <pre class="code">{{ parts_data.request.raw | default('') | safe }}</pre>
+            </div>
+        </div>
+    </main>
+    {# Viewer data for JS initialization #}
+    <script type="application/json" data-viewer-data>
+    {{ parts_data | tojson | safe }}
+    </script>
+</div>
+{% endmacro %}

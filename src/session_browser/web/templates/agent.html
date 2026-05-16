@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% set active_page = 'agents' %}
+
+{% block title %}{{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }} - Agent Run Profiler{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<a href="/agents">Agents</a>
+<span class="sep">/</span>
+<span class="current">{{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}</span>
+{% endblock %}
+
+{% block content %}
+
+{% if agent_info %}
+{% set a_input_side = agent_info.total_input_tokens + agent_info.total_cached_tokens + agent_info.total_cache_write_tokens %}
+{% set a_cache_reuse = (agent_info.total_cached_tokens / a_input_side * 100) | round(1) if a_input_side > 0 else 0 %}
+{% set a_tools_per_round = (agent_info.total_tool_calls / agent_info.total_assistant_messages) | round(1) if agent_info.total_assistant_messages > 0 else 0 %}
+
+<div class="page-header">
+    <div class="page-header__top">
+        <div class="page-header__left">
+            <a href="/agents" class="page-header__back" aria-label="返回 Agents 列表">&larr;</a>
+            <h1 class="page-header__title">
+                <span class="agent-dot {{ 'claude' if current_agent == 'claude_code' else 'qoder' if current_agent == 'qoder' else 'codex' }}"></span>
+                {{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}
+            </h1>
+        </div>
+    </div>
+    <div class="page-header__desc">
+        {{ agent_info.session_count | format_number }} 个 Session · {{ agent_info.project_count }} 个项目 ·
+        缓存命中率 {{ a_cache_reuse }}% · {{ a_tools_per_round }} 工具/轮
+    </div>
+</div>
+
+<!-- 核心指标 data-table -->
+<table class="data-table data-table--compact">
+    <thead>
+        <tr>
+            <th>指标</th>
+            <th class="numeric">数值</th>
+            <th>说明</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Sessions</td>
+            <td class="numeric mono">{{ agent_info.session_count | format_number }}</td>
+            <td class="text-muted">该 Agent 的总会话数</td>
+        </tr>
+        <tr>
+            <td>Projects</td>
+            <td class="numeric mono">{{ agent_info.project_count }}</td>
+            <td class="text-muted">涉及的项目数</td>
+        </tr>
+        <tr>
+            <td>Input-side Tokens</td>
+            <td class="numeric mono">{{ a_input_side | format_number }}</td>
+            <td class="text-muted">输入侧 Token 总量（含缓存读/写）</td>
+        </tr>
+        <tr>
+            <td>Cache Reuse</td>
+            <td class="numeric mono">{{ a_cache_reuse }}%</td>
+            <td class="text-muted">缓存命中率</td>
+        </tr>
+        <tr>
+            <td>Output Tokens</td>
+            <td class="numeric mono">{{ agent_info.total_output_tokens | format_number }}</td>
+            <td class="text-muted">输出侧 Token 总量</td>
+        </tr>
+        <tr>
+            <td>Tool Calls</td>
+            <td class="numeric mono">{{ agent_info.total_tool_calls | format_number }}</td>
+            <td class="text-muted">{{ agent_info.total_assistant_messages }} 轮 Assistant 消息，{{ a_tools_per_round }} 工具/轮</td>
+        </tr>
+        <tr>
+            <td>Failed Tools</td>
+            <td class="numeric mono {{ 'highlight-error' if agent_info.total_failed_tools > 0 else '' }}">{{ agent_info.total_failed_tools }}</td>
+            <td class="text-muted">失败的工具调用数</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Model breakdown -->
+{% set models = [] %}
+{% for s in sessions %}
+    {% if s.model and s.model not in models %}
+        {% set _ = models.append(s.model) %}
+    {% endif %}
+{% endfor %}
+{% if models | length > 1 %}
+<div class="page-header" style="margin-top:24px; padding-top:12px;">
+    <div class="page-header__top">
+        <div class="page-header__left">
+            <h2 class="page-header__title" style="font-size:var(--text-lg)">Model Breakdown</h2>
+        </div>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Model</th>
+                <th class="numeric">Sessions</th>
+                <th class="numeric">Input</th>
+                <th class="numeric">Cache R</th>
+                <th class="numeric">Cache W</th>
+                <th class="numeric">Output</th>
+                <th class="numeric">Tools</th>
+                <th class="numeric">Failed</th>
+                <th class="numeric">Avg Duration</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for model in models %}
+            {% set ms = sessions | selectattr("model", "equalto", model) | list %}
+            {% set m_sessions = ms | length %}
+            {% set m_input = ms | sum(attribute="input_tokens") %}
+            {% set m_cache_r = ms | sum(attribute="cached_input_tokens") %}
+            {% set m_cache_w = ms | sum(attribute="cached_output_tokens") %}
+            {% set m_output = ms | sum(attribute="output_tokens") %}
+            {% set m_tools = ms | sum(attribute="tool_call_count") %}
+            {% set m_failed = ms | sum(attribute="failed_tool_count") %}
+            {% set m_dur_total = ms | sum(attribute="duration_seconds") %}
+            {% set m_avg_dur = (m_dur_total / m_sessions) | round if m_sessions > 0 else 0 %}
+            {% set m_input_side = m_input + m_cache_r + m_cache_w %}
+            {% set m_cache_pct = (m_cache_r / m_input_side * 100) | round(1) if m_input_side > 0 else 0 %}
+            <tr>
+                <td class="mono" style="max-width:220px" data-tooltip="{{ model }}">{{ model[:60] }}</td>
+                <td class="numeric mono">{{ m_sessions }}</td>
+                <td class="numeric mono">{{ m_input | format_number }}</td>
+                <td class="numeric mono">{{ m_cache_pct }}%</td>
+                <td class="numeric mono">{{ m_cache_w | format_number }}</td>
+                <td class="numeric mono">{{ m_output | format_number }}</td>
+                <td class="numeric mono">{{ m_tools | format_number }}</td>
+                <td class="numeric mono">
+                    {% if m_failed > 0 %}
+                    <span class="badge badge-error">{{ m_failed }}</span>
+                    {% else %}
+                    <span class="muted-zero">0</span>
+                    {% endif %}
+                </td>
+                <td class="numeric mono">{{ m_avg_dur | format_duration }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Sessions -->
+<div class="page-header" style="margin-top:24px; padding-top:12px;">
+    <div class="page-header__top">
+        <div class="page-header__left">
+            <h2 class="page-header__title" style="font-size:var(--text-lg)">
+                <span class="badge {{ 'badge-claude' if current_agent == 'claude_code' else 'badge-qoder' if current_agent == 'qoder' else 'badge-codex' }}" style="margin-right:8px">
+                    {{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}
+                </span>
+                Sessions ({{ sessions | length }})
+            </h2>
+        </div>
+    </div>
+</div>
+
+{% if sessions %}
+<div class="table-wrap">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Project</th>
+                <th>Model</th>
+                <th class="numeric">Messages</th>
+                <th class="numeric">Input</th>
+                <th class="numeric">Cache R</th>
+                <th class="numeric">Cache W</th>
+                <th class="numeric">Output</th>
+                <th class="numeric">Tools</th>
+                <th class="numeric">Failed</th>
+                <th>Duration</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sessions %}
+            <tr class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
+                <td>
+                    <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link" style="max-width:260px; display:block" data-tooltip="{{ s.title }}">
+                        {{ s.title[:70] or 'Untitled' }}
+                    </a>
+                </td>
+                <td class="text-xs">
+                    <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" style="max-width:160px; display:block" data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a>
+                </td>
+                <td class="text-muted mono" style="max-width:160px" data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
+                <td class="numeric mono">{{ s.user_message_count + s.assistant_message_count }}</td>
+                <td class="numeric mono">{{ s.input_tokens | format_number }}</td>
+                <td class="numeric mono">{{ s.cached_input_tokens | format_number }}</td>
+                <td class="numeric mono">{{ s.cached_output_tokens | format_number }}</td>
+                <td class="numeric mono">{{ s.output_tokens | format_number }}</td>
+                <td class="numeric mono">{{ s.tool_call_count }}</td>
+                <td class="numeric mono">
+                    {% if s.failed_tool_count > 0 %}
+                    <span class="badge badge-error">{{ s.failed_tool_count }}</span>
+                    {% else %}
+                    <span class="muted-zero">0</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted">{{ s.duration_seconds | format_duration }}</td>
+                <td class="text-muted">{{ s.ended_at | relative_time }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">该 Agent 暂无 Session。</div>
+{% endif %}
+
+{% endblock %}

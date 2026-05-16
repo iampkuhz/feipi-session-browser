@@ -1,0 +1,102 @@
+{# ─────────────────────────────────────────────────────────────
+   Token Bar 组件 — 统一的 token 分段条 + tooltip
+
+   用法：
+     从本文件 import token_bar 宏后调用。
+     支持 summary（全宽）和 compact（表格行内）两种尺寸。
+     0 token 安全：不报错、不 NaN。
+
+   参数：
+     fresh          — Fresh Input token 数（必填）
+     cache_read     — Cache Read token 数（默认 0）
+     cache_write    — Cache Write token 数（默认 0）
+     output         — Output token 数（必填）
+     supports_cache — 是否展示 cache 分段（默认 True）
+     size           — "summary" | "compact"（默认 "summary"）
+     bar_scale      — compact 模式下 bar 的相对宽度百分比（可选）
+     show_label     — 是否在 summary 模式下显示总数 label（默认 True）
+#}
+
+{% macro token_bar(fresh=0, cache_read=0, cache_write=0, output=0,
+                   supports_cache=True, size="summary", bar_scale=None,
+                   show_label=True) %}
+
+{# ── 计算总量与百分比（0 token 安全） ── #}
+{% set rt = fresh + cache_read + cache_write + output %}
+{% set fresh_pct = (fresh / rt * 100) if rt > 0 else 0 %}
+{% set cr_pct = (cache_read / rt * 100) if rt > 0 else 0 %}
+{% set cw_pct = (cache_write / rt * 100) if rt > 0 else 0 %}
+{% set out_pct = (output / rt * 100) if rt > 0 else 0 %}
+
+<div class="token-bar-wrapper token-bar--{{ size }}">
+    {# compact 模式：带 scale wrapper #}
+    {% if size == "compact" %}
+        {% if bar_scale is not none %}
+        <div class="round-token-bar-scale" style="width:{{ bar_scale | round(1) }}%">
+        {% endif %}
+        <div class="round-token-bar">
+            {% if rt > 0 %}
+            <div class="round-token-bar__fresh" style="width:{{ fresh_pct | round(1) }}%"></div>
+            {% if supports_cache %}
+            <div class="round-token-bar__cache-read" style="width:{{ cr_pct | round(1) }}%"></div>
+            <div class="round-token-bar__cache-write" style="width:{{ cw_pct | round(1) }}%"></div>
+            {% endif %}
+            <div class="round-token-bar__output" style="width:{{ out_pct | round(1) }}%"></div>
+            {% endif %}
+        </div>
+        {% if bar_scale is not none %}
+        </div>
+        {% endif %}
+    {% else %}
+        {# summary 模式：全宽 bar #}
+        <div class="token-bar token-bar--lg">
+            {% if rt > 0 %}
+            <div class="token-bar__input-fresh" style="width:{{ fresh_pct | round(1) }}%"></div>
+            {% if supports_cache %}
+            <div class="token-bar__cache-read" style="width:{{ cr_pct | round(1) }}%"></div>
+            <div class="token-bar__cache-write" style="width:{{ cw_pct | round(1) }}%"></div>
+            {% endif %}
+            <div class="token-bar__output" style="width:{{ out_pct | round(1) }}%"></div>
+            {% endif %}
+        </div>
+        {% if show_label and rt > 0 %}
+        <div class="token-bar__label">{{ rt | format_number }} tokens</div>
+        {% endif %}
+    {% endif %}
+
+    {# ── Tooltip（两种尺寸共用） ── #}
+    <div class="token-bar-tooltip">
+        <div class="token-bar-tooltip__title">Total: {{ rt | format_number }} tokens</div>
+        <div class="token-bar-tooltip__row">
+            <span class="token-bar-tooltip__dot token-bar-tooltip__dot--fresh"></span>
+            <span class="token-bar-tooltip__name">Fresh</span>
+            <span class="token-bar-tooltip__value">{{ fresh | format_number }}</span>
+            <span class="token-bar-tooltip__pct">{{ fresh_pct | round(1) }}%</span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--fresh" style="width:{{ fresh_pct | round(0) }}%"></span></span>
+        </div>
+        {% if supports_cache %}
+        <div class="token-bar-tooltip__row">
+            <span class="token-bar-tooltip__dot token-bar-tooltip__dot--cr"></span>
+            <span class="token-bar-tooltip__name" data-tooltip="Input tokens cached for future rounds">Cache Read</span>
+            <span class="token-bar-tooltip__value">{{ cache_read | format_number }}</span>
+            <span class="token-bar-tooltip__pct">{{ cr_pct | round(1) }}%</span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cr" style="width:{{ cr_pct | round(0) }}%"></span></span>
+        </div>
+        <div class="token-bar-tooltip__row">
+            <span class="token-bar-tooltip__dot token-bar-tooltip__dot--cw"></span>
+            <span class="token-bar-tooltip__name" data-tooltip="cache_creation_input_tokens: input tokens written to prompt cache for future rounds">Cache Write</span>
+            <span class="token-bar-tooltip__value">{{ cache_write | format_number }}</span>
+            <span class="token-bar-tooltip__pct">{{ cw_pct | round(1) }}%</span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cw" style="width:{{ cw_pct | round(0) }}%"></span></span>
+        </div>
+        {% endif %}
+        <div class="token-bar-tooltip__row">
+            <span class="token-bar-tooltip__dot token-bar-tooltip__dot--out"></span>
+            <span class="token-bar-tooltip__name">Output</span>
+            <span class="token-bar-tooltip__value">{{ output | format_number }}</span>
+            <span class="token-bar-tooltip__pct">{{ out_pct | round(1) }}%</span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--out" style="width:{{ out_pct | round(0) }}%"></span></span>
+        </div>
+    </div>
+</div>
+{% endmacro %}

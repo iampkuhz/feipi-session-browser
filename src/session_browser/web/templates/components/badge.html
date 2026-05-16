@@ -1,0 +1,63 @@
+{# ─────────────────────────────────────────────────────────────
+   Badge 组件 — 统一语义标签
+   ─────────────────────────────────────────────────────────────
+
+   用法：
+     {% from "components/badge.html" import badge %}
+
+     状态 badge:  {{ badge("success", variant="status", value="success") }}
+     Token badge: {{ badge("Input Fresh", variant="token", value="input") }}
+     Agent badge: {{ badge("CC", variant="agent", value="claude") }}
+     Tool badge:  {{ badge("Read", variant="tool") }}
+     Anomaly badge: {{ badge("Long Duration", variant="anomaly", value="warning") }}
+
+   参数：
+     label       — 显示文本（必填）
+     variant     — status | token | agent | tool | anomaly
+     value       — 语义值，如 success / input / claude 等
+     extra_class — 附加 CSS class（可选）
+     tooltip     — data-tooltip 内容（可选）
+#}
+
+{% macro badge(label, variant="status", value="muted", extra_class="", tooltip="") %}
+{% set cls = "badge badge--" + variant %}
+{% if variant != "tool" %}
+  {% set cls = cls + "-" + value %}
+{% endif %}
+{% if extra_class %}
+  {% set cls = cls + " " + extra_class %}
+{% endif %}
+<span class="{{ cls }}"{% if tooltip %} data-tooltip="{{ tooltip }}"{% endif %}>{{ label }}</span>
+{% endmacro %}
+
+{# ─────────────────────────────────────────────────────────────
+   快捷宏：常用场景一行调用
+   ───────────────────────────────────────────────────────────── #}
+
+{% macro status_success(label="成功") %}{{ badge(label, "status", "success") }}{% endmacro %}
+{% macro status_warning(label="警告") %}{{ badge(label, "status", "warning") }}{% endmacro %}
+{% macro status_error(label="错误") %}{{ badge(label, "status", "error") }}{% endmacro %}
+{% macro status_info(label="信息") %}{{ badge(label, "status", "info") }}{% endmacro %}
+{% macro status_muted(label="") %}{{ badge(label, "status", "muted") }}{% endmacro %}
+
+{% macro token_input(label="Input Fresh") %}{{ badge(label, "token", "input") }}{% endmacro %}
+{% macro token_cache_read(label="Cache Read") %}{{ badge(label, "token", "cache-read") }}{% endmacro %}
+{% macro token_cache_write(label="Cache Write") %}{{ badge(label, "token", "cache-write") }}{% endmacro %}
+{% macro token_output(label="Output Visible") %}{{ badge(label, "token", "output") }}{% endmacro %}
+{% macro token_reasoning(label="Reasoning") %}{{ badge(label, "token", "reasoning") }}{% endmacro %}
+
+{% macro agent_claude(label="CC") %}{{ badge(label, "agent", "claude") }}{% endmacro %}
+{% macro agent_codex(label="CX") %}{{ badge(label, "agent", "codex") }}{% endmacro %}
+{% macro agent_qoder(label="QD") %}{{ badge(label, "agent", "qoder") }}{% endmacro %}
+
+{# 根据 agent 名自动选择 #}
+{% macro agent_for(name, label="") %}
+  {% if name == "claude_code" %}{{ agent_claude(label or "CC") }}
+  {% elif name == "qoder" %}{{ agent_qoder(label or "QD") }}
+  {% else %}{{ agent_codex(label or "CX") }}
+  {% endif %}
+{% endmacro %}
+
+{% macro tool(name) %}{{ badge(name, "tool") }}{% endmacro %}
+
+{% macro anomaly(label, level="info") %}{{ badge(label, "anomaly", level) }}{% endmacro %}

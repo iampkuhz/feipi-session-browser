@@ -1,0 +1,151 @@
+{# ─────────────────────────────────────────────────────────────
+   Timeline 节点模型 — Jinja 宏
+
+   为 timeline viewer 提供结构化节点渲染，支持以下节点类型：
+     message   — 用户/助手消息
+     llm_call  — LLM 调用
+     tool_call — 工具调用
+     error     — 错误节点
+
+   节点属性：
+     time        — 时间戳字符串
+     type        — message | llm_call | tool_call | error
+     icon        — 可选，覆盖默认图标
+     summary     — 摘要文本
+     tokens      — token 数（可选）
+     duration    — 持续时间字符串（可选）
+     expanded    — 是否默认展开（默认 False）
+     depth       — 嵌套深度（默认 0，用于缩进）
+     children    — 子节点列表（可选）
+     token_data  — 用于 token bar 的分段数据 dict {fresh, cache_read, cache_write, output}
+
+   用法：
+     {% from "components/timeline.html" import timeline_node, timeline_node_content %}
+     {{ timeline_node(node_data) }}
+#}
+
+{# ── 节点类型 → icon / color / label 映射 ── #}
+{% set _TIMELINE_TYPE_META = {
+    'message':   { 'icon': '💬', 'color_class': 'timeline-node--message',   'label': 'Message' },
+    'llm_call':  { 'icon': '🧠', 'color_class': 'timeline-node--llm-call',  'label': 'LLM Call' },
+    'tool_call': { 'icon': '🔧', 'color_class': 'timeline-node--tool-call', 'label': 'Tool Call' },
+    'error':     { 'icon': '⚠️', 'color_class': 'timeline-node--error',     'label': 'Error' },
+    'assistant': { 'icon': '🤖', 'color_class': 'timeline-node--assistant', 'label': 'Assistant' },
+} %}
+
+{# ── 单个节点内容（可递归调用子节点） ── #}
+{% macro timeline_node_content(node) %}
+    {% set meta = _TIMELINE_TYPE_META.get(node.type, _TIMELINE_TYPE_META['message']) %}
+
+    {# Header row ── #}
+    <div class="timeline-node__header"
+         data-timeline-toggle="{{ node.timeline_id or '' }}">
+        {# Expand toggle ── #}
+        {% if node.children and node.children | length > 0 %}
+        <button class="timeline-node__toggle"
+                type="button"
+                aria-expanded="{{ 'true' if node.expanded else 'false' }}">
+            <span class="timeline-node__chevron">&#8250;</span>
+        </button>
+        {% else %}
+        <span class="timeline-node__spacer"></span>
+        {% endif %}
+
+        {# Type icon ── #}
+        <span class="timeline-node__icon {{ meta.color_class }}"
+              data-tooltip="{{ meta.label }}">
+            {{ node.icon or meta.icon }}
+        </span>
+
+        {# Time ── #}
+        {% if node.time %}
+        <span class="timeline-node__time mono text-xs">{{ node.time }}</span>
+        {% endif %}
+
+        {# Summary ── #}
+        <span class="timeline-node__summary">{{ node.summary or '' }}</span>
+
+        {# Failed / Warning badge ── #}
+        {% if node.is_failed %}
+        <span class="timeline-node__status-badge timeline-node__status-badge--failed"
+              data-tooltip="{{ node.error_message or 'Tool call failed' }}">Failed</span>
+        {% elif node.is_warning %}
+        <span class="timeline-node__status-badge timeline-node__status-badge--warning"
+              data-tooltip="Command returned exit code {{ node.exit_code }} but executed successfully">exit={{ node.exit_code }}</span>
+        {% endif %}
+
+        {# Duration (right-aligned) ── #}
+        {% if node.duration %}
+        <span class="timeline-node__duration mono text-xs" data-tooltip="Duration">{{ node.duration }}</span>
+        {% endif %}
+
+        {# Token count + bar ── #}
+        {% if node.tokens is defined and node.tokens > 0 %}
+        <span class="timeline-node__tokens mono text-xs">
+            {{ node.tokens | format_number }} tok
+        </span>
+        {% endif %}
+    </div>
+
+    {# Token bar (inline, only when token_data provided) ── #}
+    {% if node.token_data %}
+    {% set _td = node.token_data %}
+    {% set _rt = (_td.get('fresh', 0) + _td.get('cache_read', 0) + _td.get('cache_write', 0) + _td.get('output', 0)) %}
+    {% if _rt > 0 %}
+    <div class="timeline-node__token-bar">
+        {% set _f = (_td.get('fresh', 0) / _rt * 100) %}
+        {% set _cr = (_td.get('cache_read', 0) / _rt * 100) %}
+        {% set _cw = (_td.get('cache_write', 0) / _rt * 100) %}
+        {% set _o = (_td.get('output', 0) / _rt * 100) %}
+        <div class="timeline-node__token-bar__fresh" style="width:{{ _f | round(1) }}%" data-tooltip="Fresh: {{ _td.get('fresh', 0) | format_number }}"></div>
+        {% if _td.get('cache_read', 0) > 0 %}
+        <div class="timeline-node__token-bar__cache-read" style="width:{{ _cr | round(1) }}%" data-tooltip="Cache read: {{ _td.get('cache_read', 0) | format_number }}"></div>
+        {% endif %}
+        {% if _td.get('cache_write', 0) > 0 %}
+        <div class="timeline-node__token-bar__cache-write" style="width:{{ _cw | round(1) }}%" data-tooltip="Cache write: {{ _td.get('cache_write', 0) | format_number }}"></div>
+        {% endif %}
+        <div class="timeline-node__token-bar__output" style="width:{{ _o | round(1) }}%" data-tooltip="Output: {{ _td.get('output', 0) | format_number }}"></div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {# Children (nested, only visible when expanded) ── #}
+    {% if node.children and node.children | length > 0 %}
+    <div class="timeline-node__children">
+        {% for child in node.children %}
+        {{ timeline_node(child) }}
+        {% endfor %}
+    </div>
+    {% endif %}
+{% endmacro %}
+
+{# ── 完整节点（wrapper + content） ── #}
+{% macro timeline_node(node) %}
+{% set meta = _TIMELINE_TYPE_META.get(node.type, _TIMELINE_TYPE_META['message']) %}
+{% set depth = node.depth | default(0) %}
+{% set is_failed = node.is_failed | default(false) %}
+{% set is_warning = node.is_warning | default(false) %}
+
+<div class="timeline-node {{ meta.color_class }} depth-{{ depth }}
+            {{ 'is-expanded' if node.expanded else '' }}
+            {{ 'is-selected' if node.selected else '' }}
+            {{ 'has-children' if node.children and node.children | length > 0 else '' }}
+            {{ 'is-leaf' if not node.children or node.children | length == 0 else '' }}
+            {{ 'is-failed' if is_failed else '' }}
+            {{ 'is-warning' if is_warning and not is_failed else '' }}"
+     data-timeline-type="{{ node.type }}"
+     data-timeline-id="{{ node.timeline_id or '' }}"
+     style="--timeline-depth: {{ depth }};">
+    <span class="timeline-node__dot" aria-hidden="true"></span>
+    {{ timeline_node_content(node) }}
+</div>
+{% endmacro %}
+
+{# ── Timeline 容器（包裹一组根节点） ── #}
+{% macro timeline_container(nodes, id_prefix="timeline") %}
+<div class="timeline-structured" id="{{ id_prefix }}">
+    {% for node in nodes %}
+    {{ timeline_node(node) }}
+    {% endfor %}
+</div>
+{% endmacro %}

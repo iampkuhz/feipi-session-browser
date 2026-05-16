@@ -1,0 +1,28 @@
+.DS_Store
+
+# Runtime output
+output/
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# SQLite index
+*.sqlite
+*.sqlite3
+
+# Personal config
+.claude/settings.local.json
+.mcp.json
+.env
+
+# Agent task results
+.agent/task-results/*.md
+
+# IDE
+.idea/
+.vscode/

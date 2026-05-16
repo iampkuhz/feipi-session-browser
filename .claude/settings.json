@@ -1,0 +1,62 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/session-browser.sh:*)",
+      "Bash(bash scripts/harness/doctor.sh)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(pip3:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(sed:*)",
+      "Bash(chmod +x .claude/hooks/*.sh)",
+      "Read(~/.claude/**)",
+      "Read(~/.codex/**)",
+      "Read(~/.qoder/**)"
+    ],
+    "deny": [
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fdx:*)",
+      "Bash(rm -rf /:*)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre_tool_guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/post_tool_guard.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/stop_check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

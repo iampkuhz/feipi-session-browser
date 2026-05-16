@@ -1,0 +1,121 @@
+{# ─────────────────────────────────────────────────────────────
+   Data Table — 统一高密度表格组件
+   ─────────────────────────────────────────────────────────────
+
+   用法：
+     {% from "components/data_table.html" import data_table %}
+
+     {{ data_table(
+         id="projects-table",
+         columns=[
+             {"key": "name",     "label": "Project",   "sortable": true},
+             {"key": "path",     "label": "Path"},
+             {"key": "sessions", "label": "Sessions",  "align": "numeric"},
+             {"key": "tokens",   "label": "Tokens",    "align": "numeric"},
+         ],
+         rows=projects,
+         row_renderer="render_project_row"
+     ) }}
+
+   参数：
+     id            — table 元素的 id
+     columns       — 列定义列表，每项含 key/label/align/sortable
+     extra_classes — 附加 class（如 "data-table--compact"）
+     wrapper_id    — 外层 .table-wrap 的 id（可选）
+     empty_message — 空数据时显示的文本
+     selectable    — 是否显示行选中 checkbox 列（bool）
+     sort_key      — 默认排序列 key（可选）
+     sort_dir      — 默认排序方向 "ascending" / "descending"（可选）
+#}
+
+{% macro data_table(id, columns, extra_classes="", wrapper_id="", empty_message="No data.", selectable=false, sort_key="", sort_dir="") %}
+<div class="table-wrap"{% if wrapper_id %} id="{{ wrapper_id }}"{% endif %}>
+<table id="{{ id }}" class="data-table{% if extra_classes %} {{ extra_classes }}{% endif %}"{% if sort_key or selectable %} data-table-enhanced{% endif %}>
+    <thead>
+        <tr>
+            {% if selectable %}
+            <th class="row-select-cell"><input type="checkbox" id="{{ id }}-select-all" title="Select all" /></th>
+            {% endif %}
+            {% for col in columns %}
+            {% set classes = [] %}
+            {% if col.align == "numeric" %}{% set _ = classes.append("numeric") %}{% endif %}
+            {% if col.sortable %}{% set _ = classes.append("sortable") %}{% endif %}
+            <th{% if classes %} class="{{ classes | join(' ') }}"{% endif %}{% if col.sortable and col.key == sort_key and sort_dir %} aria-sort="{{ sort_dir }}"{% endif %}>{{ col.label }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {{ caller() }}
+    </tbody>
+</table>
+</div>
+<div class="empty-state" style="display:none">{{ empty_message }}</div>
+{% if selectable %}
+<div id="{{ id }}-selection-bar" class="data-table__selection-bar" style="display:none">
+    <span class="selection-count"></span>
+    <button class="data-table__clear-sel-btn" type="button">Clear</button>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{# ─────────────────────────────────────────────────────────────
+   快捷宏：标准行渲染模板
+   业务页面也可直接手写 <tr>，只需给表格加 .data-table class 即可生效。
+#}
+
+{# Row renderer: Project #}
+{% macro project_row(p) %}
+{% set p_total_tokens = p.total_input_tokens + p.total_cached_tokens + p.total_cache_write_tokens + p.total_output_tokens %}
+{% set p_health = 'healthy' %}
+{% set p_health_label = 'Healthy' %}
+{% if p.total_failed_tools > 0 %}
+    {% set p_health = 'warning' %}
+    {% set p_health_label = p.total_failed_tools ~ ' failed' %}
+{% endif %}
+{% if p.total_failed_tools > 5 %}
+    {% set p_health = 'error' %}
+    {% set p_health_label = p.total_failed_tools ~ ' failed' %}
+{% endif %}
+<tr data-name="{{ p.project_name | lower }}"
+    data-path="{{ p.project_key | lower }}"
+    data-last-seen="{{ p.last_seen }}"
+    data-total-sessions="{{ p.total_sessions }}"
+    data-total-tokens="{{ p_total_tokens }}"
+    data-total-tools="{{ p.total_tool_calls }}"
+    data-total-failed="{{ p.total_failed_tools }}">
+    <td><a href="/projects/{{ p.project_key | urlencode }}" class="link">{{ p.project_name }}</a></td>
+    <td class="path-cell">
+        <span class="path-text truncate" data-tooltip="{{ p.project_key }}">{{ p.project_key | truncate_path }}</span>
+        <button class="path-copy-btn" onclick="copyProjectPath(this, '{{ p.project_key }}')" title="Copy full path">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+        </button>
+    </td>
+    <td class="numeric"><strong>{{ p.total_sessions }}</strong></td>
+    <td class="numeric agents-cell">
+        {% if p.claude_sessions > 0 %}<span class="badge badge-claude" data-tooltip="Claude Code">{{ p.claude_sessions }}</span>{% endif %}
+        {% if p.codex_sessions > 0 %}<span class="badge badge-codex" data-tooltip="Codex">{{ p.codex_sessions }}</span>{% endif %}
+        {% if p.qoder_sessions > 0 %}<span class="badge badge-qoder" data-tooltip="Qoder">{{ p.qoder_sessions }}</span>{% endif %}
+        {% if p.claude_sessions == 0 and p.codex_sessions == 0 and p.qoder_sessions == 0 %}
+        <span class="muted-zero">—</span>
+        {% endif %}
+    </td>
+    <td class="numeric mono text-xs">{{ p_total_tokens | format_number }}</td>
+    <td class="numeric mono text-xs">
+        {{ p.total_tool_calls | format_number }}
+        {% if p.total_failed_tools > 0 %}
+        <span class="badge badge-error">{{ p.total_failed_tools }}</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if p_health == 'healthy' %}
+        <span class="health-badge health--healthy">Healthy</span>
+        {% elif p_health == 'warning' %}
+        <span class="health-badge health--warning">{{ p_health_label }}</span>
+        {% else %}
+        <span class="health-badge health--error">{{ p_health_label }}</span>
+        {% endif %}
+    </td>
+    <td class="text-xs text-muted">{{ p.last_seen | relative_time }}</td>
+</tr>
+{% endmacro %}

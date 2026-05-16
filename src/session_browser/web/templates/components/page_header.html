@@ -1,0 +1,46 @@
+{#
+   Page Header 组件 — 全站统一页面顶部
+
+   用法：
+     {% from "components/page_header.html" import page_header %}
+     {{ page_header(
+         title="Session 详情",
+         description="查看单个 agent 会话的对话、时间线与性能指标",
+         back_url="/dashboard"
+     ) }}
+
+     带 actions 插槽：
+     {{ page_header(title="Sessions", back_url="/projects", actions_html='<a href="/search" class="page-header__action">搜索</a>') }}
+
+   参数：
+     title         — 页面标题（必填）
+     description   — 简短说明文字（可选）
+     back_url      — 返回链接 URL（可选，显示为 breadcrumb 左箭头）
+     actions_html  — actions 区域的 HTML（可选，需 safe 过滤）
+     extra_class   — 附加 CSS class（可选）
+#}
+
+{% macro page_header(title="", description="", back_url="", actions_html="", extra_class="", title_tooltip="") %}
+{% set cls = "page-header" %}
+{% if extra_class %}
+  {% set cls = cls + " " + extra_class %}
+{% endif %}
+<header class="{{ cls }}">
+  <div class="page-header__top">
+    <div class="page-header__left">
+      {% if back_url %}
+      <a href="{{ back_url }}" class="page-header__back" title="返回">&#8592;</a>
+      {% endif %}
+      <h1 class="page-header__title" {% if title_tooltip %}title="{{ title_tooltip }}"{% endif %}>{{ title }}</h1>
+    </div>
+    {% if actions_html %}
+    <div class="page-header__actions">
+      {{ actions_html | safe }}
+    </div>
+    {% endif %}
+  </div>
+  {% if description %}
+  <p class="page-header__desc">{{ description }}</p>
+  {% endif %}
+</header>
+{% endmacro %}

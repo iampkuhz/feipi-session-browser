@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% set active_page = 'sessions' %}
+
+{% block title %}Sessions - Agent Run Profiler{% endblock %}
+
+{% block shell_class %} no-inspector{% endblock %}
+{% block inspector %}{% endblock %}
+
+{% block content %}
+
+<section class="card sessions-card">
+    <div class="card-head">
+        <div>
+            <div class="card-title">Sessions</div>
+            <div class="card-sub">Triage session history by failures, token cost, agent, and project.</div>
+        </div>
+        <div class="top-actions">
+            <button class="action-btn" data-quick-filter="failed" onclick="toggleQuickFilter(this)">Failed only</button>
+            <button class="action-btn" data-quick-filter="high-token" onclick="toggleQuickFilter(this)">High token</button>
+            <button class="action-btn primary" id="open-selected-session">Open selected</button>
+        </div>
+    </div>
+    <div class="card-body">
+
+<!-- Filter row -->
+<div class="filter-bar">
+    <input id="session-search" type="text" placeholder="Search title or session ID..."
+           class="filter-bar__input filter-bar__input--search" />
+    <select id="filter-agent" class="filter-bar__select">
+        <option value="">All Agents</option>
+        <option value="claude_code">Claude Code</option>
+        <option value="qoder">Qoder</option>
+        <option value="codex">Codex</option>
+    </select>
+    <select id="filter-model" class="filter-bar__select">
+        <option value="">All Models</option>
+        {% for m in model_list %}
+        <option value="{{ m }}">{{ m }}</option>
+        {% endfor %}
+    </select>
+    <select id="filter-project" class="filter-bar__select filter-bar__select--project">
+        <option value="">All Projects</option>
+        {% for p in project_list %}
+        <option value="{{ p }}">{{ p }}</option>
+        {% endfor %}
+    </select>
+    <select id="sort-by" class="filter-bar__select">
+        <option value="ended_at">Sort: Last Active</option>
+        <option value="total_tokens">Sort: Tokens</option>
+        <option value="output_tokens">Sort: Output Tokens</option>
+        <option value="tool_call_count">Sort: Tool Calls</option>
+        <option value="failed_tool_count">Sort: Failed Tools</option>
+        <option value="duration_seconds">Sort: Duration</option>
+    </select>
+    <button class="filter-bar__btn" id="clear-all-btn" onclick="resetSessionFilters()" style="display:none">Clear All</button>
+    <button class="filter-bar__btn" onclick="resetSessionFilters()">Reset</button>
+</div>
+
+<!-- Sessions grid -->
+<div class="page-section">
+    <div class="card-title">
+        All Sessions <span class="text-muted normal-case">(<span id="sessions-visible-count">{{ sessions | length }}</span>)</span>
+    </div>
+    {% if sessions %}
+    <div class="table-wrap">
+        <div class="data-table sessions-grid" data-sessions-grid>
+            <div class="table-head">
+                <div>Session</div>
+                <div>Agent</div>
+                <div>Project</div>
+                <div>Duration</div>
+                <div>Tokens</div>
+                <div>Failures</div>
+                <div>Rounds</div>
+                <div>Updated</div>
+            </div>
+            {% for s in sessions %}
+            {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+            {% set has_anomalies = s.get('anomalies') and s['anomalies'] | length > 0 %}
+            {% set anomaly_tooltip = '' %}
+            {% if has_anomalies %}
+                {% for a in s.anomalies %}
+                    {% set anomaly_tooltip = anomaly_tooltip + a.label + ': ' + a.reason %}
+                    {% if not loop.last %}{% set anomaly_tooltip = anomaly_tooltip + '&#10;' %}{% endif %}
+                {% endfor %}
+            {% endif %}
+            <div class="table-row {{ 'row--failed' if s.failed_tool_count > 0 else '' }} {{ 'row--anomaly' if has_anomalies else '' }}"
+                 data-agent="{{ s.agent }}"
+                 data-model="{{ s.model }}"
+                 data-project="{{ s.project_key }}"
+                 data-session-id="{{ s.session_id }}"
+                 data-title="{{ s.title | lower }}"
+                 data-ended-at="{{ s.ended_at }}"
+                 data-input-tokens="{{ s.input_tokens }}"
+                 data-output-tokens="{{ s.output_tokens }}"
+                 data-tool-count="{{ s.tool_call_count }}"
+                 data-failed-count="{{ s.failed_tool_count }}"
+                 data-duration="{{ s.duration_seconds }}"
+                 data-has-anomalies="{{ 'true' if has_anomalies else 'false' }}"
+                 data-anomaly-types="{% if has_anomalies %}{% for a in s.anomalies %}{{ a.type }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"
+                 data-total-tokens="{{ total_tokens }}"
+                 data-rounds="{{ s.assistant_message_count }}">
+                <!-- Session -->
+                <div>
+                    <div class="cell-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}" data-tooltip="{{ s.title }}&#10;ID: {{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
+                    <div class="cell-sub mono">{{ s.project_key }}</div>
+                </div>
+                <!-- Agent -->
+                <div><span class="badge agent">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></div>
+                <!-- Project -->
+                <div class="text-xs"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a></div>
+                <!-- Duration -->
+                <div class="text-xs text-muted mono {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
+                <!-- Tokens -->
+                <div class="mono text-xs">{{ total_tokens | format_number }}</div>
+                <!-- Failures -->
+                <div>
+                    {% if s.failed_tool_count > 0 %}
+                    <span class="diag err">{{ s.failed_tool_count }} failed</span>
+                    {% else %}
+                    <span class="diag ok">0</span>
+                    {% endif %}
+                </div>
+                <!-- Rounds -->
+                <div class="mono text-xs">{{ s.assistant_message_count }}</div>
+                <!-- Updated -->
+                <div class="text-xs text-muted mono">{{ s.ended_at | relative_time }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div id="sessions-empty" class="empty-state" style="display:none">No sessions match your filters. Try adjusting or resetting them.</div>
+    {% else %}
+    <div class="empty-state">No sessions indexed yet.</div>
+    {% endif %}
+</div>
+
+<script>
+/* ---------- Inspector demo ------------------------------------------ */
+window.openDemoInspector = function() {
+    if (typeof openInspector !== 'function') {
+        alert('Inspector JS 未加载');
+        return;
+    }
+    openInspector({
+        title: 'Demo Session',
+        metadata: {
+            'Type': { value: 'session' },
+            'Agent': { value: 'claude_code' },
+            'Model': { value: 'claude-sonnet-4-20250514' },
+            'Session ID': { value: 'demo-20250101-abc123', mono: true }
+        },
+        summary: '这是一条演示数据，用于验证 Inspector 面板的打开/关闭、滚动保持与 Esc 关闭功能。',
+        related: [
+            { label: '查看完整 Session', href: '/sessions/claude_code/demo-20250101-abc123' },
+            { label: '所属 Project', href: '/projects/demo-project' }
+        ],
+        viewerHtml: '<p class="text-muted text-xs">Viewer slot 预留区域，后续接入 request/response viewer。</p>'
+    });
+};
+
+(function() {
+    var STORAGE_KEY = 'agent-run-profiler:sessions:filters';
+
+    /* ---------- Quick filter chips ---------------------------------- */
+    var activeQuickFilter = '';
+
+    window.toggleQuickFilter = function(btn) {
+        var filter = btn.dataset.quickFilter;
+        if (activeQuickFilter === filter) {
+            activeQuickFilter = '';
+            btn.classList.remove('active');
+        } else {
+            document.querySelectorAll('[data-quick-filter]').forEach(function(b) {
+                b.classList.remove('active');
+            });
+            activeQuickFilter = filter;
+            btn.classList.add('active');
+        }
+        applyFilters();
+    };
+
+    /* ---------- Open selected --------------------------------------- */
+    function updateOpenSelectedState() {
+        var btn = document.getElementById('open-selected-session');
+        if (!btn) return;
+        var hasSelected = document.querySelector('[data-sessions-grid] .table-row.selected');
+        btn.disabled = !hasSelected;
+        btn.style.opacity = hasSelected ? '' : '0.5';
+        btn.style.cursor = hasSelected ? 'pointer' : 'default';
+    }
+
+    window.openSelectedSession = function() {
+        var row = document.querySelector('[data-sessions-grid] .table-row.selected');
+        if (!row) return;
+        window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
+    };
+
+    /* ---------- Row selection --------------------------------------- */
+    function initSelection() {
+        var grid = document.querySelector('[data-sessions-grid]');
+        if (!grid) return;
+
+        grid.addEventListener('click', function(e) {
+            // Don't toggle selection when clicking links
+            if (e.target.tagName === 'A' || e.target.closest('a')) return;
+
+            var row = e.target.closest('.table-row');
+            if (!row) return;
+
+            // Clear other selections
+            grid.querySelectorAll('.table-row.selected').forEach(function(r) {
+                r.classList.remove('selected');
+                r.removeAttribute('aria-selected');
+            });
+
+            // Set current row selected
+            row.classList.add('selected');
+            row.setAttribute('aria-selected', 'true');
+
+            updateOpenSelectedState();
+        });
+    }
+
+    /* ---------- Apply all filters ----------------------------------- */
+    function applyFilters() {
+        var q = document.getElementById('session-search').value.toLowerCase().trim();
+        var agent = document.getElementById('filter-agent').value;
+        var model = document.getElementById('filter-model').value;
+        var project = document.getElementById('filter-project').value;
+        var sortBy = document.getElementById('sort-by').value;
+
+        var grid = document.querySelector('[data-sessions-grid]');
+        if (!grid) return;
+        var rows = Array.from(grid.querySelectorAll('.table-row'));
+        var visibleCount = 0;
+        var visibleRows = [];
+
+        rows.forEach(function(row) {
+            var show = true;
+            if (agent && row.dataset.agent !== agent) show = false;
+            if (model && row.dataset.model !== model) show = false;
+            if (project && row.dataset.project !== project) show = false;
+            if (q) {
+                var title = (row.dataset.title || '');
+                var sid = (row.dataset.sessionId || '').toLowerCase();
+                if (title.indexOf(q) === -1 && sid.indexOf(q) === -1) show = false;
+                if ((sid === q || sid.startsWith(q) || q.startsWith(sid)) && q.length >= 8) {
+                    var matches = 0;
+                    rows.forEach(function(r2) {
+                        var s2 = (r2.dataset.sessionId || '').toLowerCase();
+                        if (s2.startsWith(q) || s2 === q) matches++;
+                    });
+                    if (matches === 1) {
+                        window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
+                        return;
+                    }
+                }
+            }
+            /* Quick filter */
+            if (show && activeQuickFilter) {
+                switch (activeQuickFilter) {
+                    case 'failed':
+                        if (parseInt(row.dataset.failedCount) <= 0) show = false;
+                        break;
+                    case 'high-token':
+                        if (parseInt(row.dataset.totalTokens) <= 200000) show = false;
+                        break;
+                    case 'anomalies':
+                        if (row.dataset.hasAnomalies !== 'true') show = false;
+                        break;
+                }
+            }
+
+            row.style.display = show ? '' : 'none';
+            if (show) {
+                visibleCount++;
+                visibleRows.push(row);
+            }
+        });
+
+        /* Sort visible rows */
+        visibleRows.sort(function(a, b) {
+            var va, vb;
+            switch (sortBy) {
+                case 'total_tokens':
+                    va = parseInt(a.dataset.totalTokens) || 0; vb = parseInt(b.dataset.totalTokens) || 0; break;
+                case 'output_tokens':
+                    va = parseInt(a.dataset.outputTokens) || 0; vb = parseInt(b.dataset.outputTokens) || 0; break;
+                case 'tool_call_count':
+                    va = parseInt(a.dataset.toolCount) || 0; vb = parseInt(b.dataset.toolCount) || 0; break;
+                case 'failed_tool_count':
+                    va = parseInt(a.dataset.failedCount) || 0; vb = parseInt(b.dataset.failedCount) || 0; break;
+                case 'duration_seconds':
+                    va = parseFloat(a.dataset.duration) || 0; vb = parseFloat(b.dataset.duration) || 0; break;
+                default:
+                    va = a.dataset.endedAt; vb = b.dataset.endedAt;
+                    return vb > va ? 1 : (va > vb ? -1 : 0);
+            }
+            return vb - va;
+        });
+
+        visibleRows.forEach(function(r) { grid.appendChild(r); });
+
+        /* Update counts */
+        var label = document.getElementById('sessions-count-label');
+        if (label) label.textContent = visibleCount + ' of {{ total_count }} sessions';
+        var countEl = document.getElementById('sessions-visible-count');
+        if (countEl) countEl.textContent = visibleCount;
+
+        /* Empty state */
+        var empty = document.getElementById('sessions-empty');
+        if (empty) empty.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        /* Clear All button visibility */
+        var clearBtn = document.getElementById('clear-all-btn');
+        if (clearBtn) {
+            var hasAnyFilter = q || agent || model || project || activeQuickFilter;
+            clearBtn.style.display = hasAnyFilter ? '' : 'none';
+        }
+
+        /* Clear selection if selected row is hidden */
+        var selectedRow = grid.querySelector('.table-row.selected');
+        if (selectedRow && selectedRow.style.display === 'none') {
+            selectedRow.classList.remove('selected');
+            selectedRow.removeAttribute('aria-selected');
+        }
+        updateOpenSelectedState();
+
+        /* Persist */
+        saveFilters();
+    }
+
+    /* ---------- Save / restore filters -------------------------------- */
+    function saveFilters() {
+        var state = {
+            q: document.getElementById('session-search').value,
+            agent: document.getElementById('filter-agent').value,
+            model: document.getElementById('filter-model').value,
+            project: document.getElementById('filter-project').value,
+            sortBy: document.getElementById('sort-by').value,
+            quick: activeQuickFilter
+        };
+        arpStorage.set(STORAGE_KEY, state);
+        /* Sync to URL for bookmarkability */
+        var params = new URLSearchParams(window.location.search);
+        if (activeQuickFilter) {
+            params.set('filter', activeQuickFilter);
+        } else {
+            params.delete('filter');
+        }
+        var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        if (newUrl !== window.location.pathname + window.location.search) {
+            history.replaceState(null, '', newUrl);
+        }
+    }
+
+    function restoreFilters() {
+        var saved = arpStorage.get(STORAGE_KEY);
+        if (saved) {
+            var map = {
+                'session-search': 'q',
+                'filter-agent': 'agent',
+                'filter-model': 'model',
+                'filter-project': 'project',
+                'sort-by': 'sortBy'
+            };
+            for (var id in map) {
+                var el = document.getElementById(id);
+                if (el && saved[map[id]]) {
+                    el.value = saved[map[id]];
+                }
+            }
+            /* Restore quick filter from storage */
+            if (saved.quick) {
+                activeQuickFilter = saved.quick;
+                document.querySelectorAll('[data-quick-filter]').forEach(function(btn) {
+                    if (btn.dataset.quickFilter === saved.quick) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+        }
+        /* URL query param overrides storage (for bookmarkability) */
+        var urlParams = new URLSearchParams(window.location.search);
+        var urlFilter = urlParams.get('filter');
+        if (urlFilter) {
+            activeQuickFilter = urlFilter;
+            document.querySelectorAll('[data-quick-filter]').forEach(function(btn) {
+                if (btn.dataset.quickFilter === urlFilter) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+    }
+
+    /* ---------- Reset filters ----------------------------------------- */
+    window.resetSessionFilters = function() {
+        document.getElementById('session-search').value = '';
+        document.getElementById('filter-agent').value = '';
+        document.getElementById('filter-model').value = '';
+        document.getElementById('filter-project').value = '';
+        document.getElementById('sort-by').value = 'ended_at';
+        activeQuickFilter = '';
+        document.querySelectorAll('[data-quick-filter]').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        arpStorage.remove(STORAGE_KEY);
+        /* Clear URL filter param */
+        var params = new URLSearchParams(window.location.search);
+        params.delete('filter');
+        var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        if (newUrl !== window.location.pathname + window.location.search) {
+            history.replaceState(null, '', newUrl);
+        }
+        applyFilters();
+    };
+
+    /* ---------- Bind events ------------------------------------------- */
+    var filterInputs = [
+        'session-search', 'filter-agent', 'filter-model', 'filter-project', 'sort-by'
+    ];
+    filterInputs.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', applyFilters);
+        }
+    });
+
+    /* Open selected button */
+    var openBtn = document.getElementById('open-selected-session');
+    if (openBtn) {
+        openBtn.addEventListener('click', window.openSelectedSession);
+    }
+
+    /* Row selection */
+    initSelection();
+
+    /* Restore on load */
+    restoreFilters();
+    applyFilters();
+})();
+</script>
+
+{% endblock %}

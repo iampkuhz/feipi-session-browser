@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Error - Agent Run Profiler{% endblock %}
+
+{% block content %}
+<div class="state-panel">
+    <div class="state-panel__icon state-panel__icon--error">!</div>
+    <h2 class="state-panel__title">Something Went Wrong</h2>
+    <p class="state-panel__desc">{{ error }}</p>
+    <nav class="state-panel__links">
+        <a href="/dashboard" class="state-panel__link">&larr; Dashboard</a>
+    </nav>
+    {% if error %}
+    <details class="state-panel__details">
+        <summary>Error details</summary>
+        <pre class="state-panel__raw">{{ error }}</pre>
+    </details>
+    {% endif %}
+</div>
+{% endblock %}
