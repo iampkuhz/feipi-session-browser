@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/zhehan/Documents/tools/llm/feipi-session-browser/.codex/hooks/pre_tool_guard.sh'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/zhehan/Documents/tools/llm/feipi-session-browser/.codex/hooks/post_tool_guard.sh'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/zhehan/Documents/tools/llm/feipi-session-browser/.codex/hooks/stop_check.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}

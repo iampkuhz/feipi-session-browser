@@ -1,16 +1,19 @@
 # Harness
 
-本目录描述 `feipi-session-browser` 的 agent 可执行工作流和验证门禁。
+This directory contains the engineering workflow used to keep the repository controllable under Claude Code.
 
-## 常用入口
+## Directory map
 
-```bash
-bash scripts/harness/doctor.sh
+```text
+harness/
+  workflow/     # lifecycle rules for OpenSpec changes and serial task execution
+  context/      # progressive-loaded context packs
+  prompts/      # reusable prompts for Codex and Claude
+  quality/      # quality gates and validation rules
+  templates/    # task, report, and spec templates
+  migration/    # historical code and seed migration runbooks
 ```
 
-## 文件
+## Rule
 
-| 文件 | 用途 |
-|------|------|
-| `manifest.yaml` | 项目级 harness 清单 |
-| `workflows/session-browser-dev.yaml` | 本地开发与验证工作流 |
+Detailed workflow instructions live here, not in `CLAUDE.md`.
