@@ -4511,20 +4511,25 @@ tr.row--anomaly {
     width: 100%;
 }
 
-/* ─── Token Charts Card: single full-width card with donut + bar chart ── */
-/* ─── Token charts card (DEPRECATED: migrated to hero in task 04) ── */
+/* ─── Token Charts Card: two-panel Hi-Fi layout ── */
 .token-charts-card {
-    display: none;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: linear-gradient(180deg, #fff, #fbfcff);
+    box-shadow: var(--shadow);
+    overflow: hidden;
 }
 
 /* ─── Token charts collapse header ──────────────── */
 .token-charts-card__header {
-    display: none; /* hidden by default when expanded */
+    display: flex;
     cursor: pointer;
     user-select: none;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 0;
+    padding: var(--space-md) var(--space-xl);
+    border-bottom: 1px solid var(--line2);
+    background: linear-gradient(90deg, rgba(91,92,226,.052), transparent 42%), linear-gradient(180deg, #fff, #fbfcff);
 }
 .token-charts-card__header:hover .token-charts-card__title {
     color: var(--text-primary);
@@ -4546,11 +4551,10 @@ tr.row--anomaly {
 
 /* Collapsed state */
 .token-charts-card.is-collapsed {
-    grid-template-columns: 1fr;
-    padding: 12px 20px;
+    padding: 0;
 }
 .token-charts-card.is-collapsed .token-charts-card__header {
-    display: flex;
+    border-bottom: none;
 }
 .token-charts-card.is-collapsed .token-charts-card__chevron {
     transform: rotate(-90deg);
@@ -4559,14 +4563,39 @@ tr.row--anomaly {
     display: none;
 }
 
+/* ─── Token charts body ── */
+.token-charts-card__body {
+    padding: var(--space-lg) var(--space-xl);
+    background: var(--surface);
+}
+
+.token-charts-card__body-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) 1fr;
+    gap: var(--space-xl);
+    align-items: start;
+}
+
+/* ─── Left panel: Token Mix ── */
 .token-charts-card__token-mix {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--space-sm);
+    gap: var(--space-md);
     min-width: 0;
 }
 
+.token-charts-panel__title {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    align-self: flex-start;
+    margin-bottom: 2px;
+}
+
+/* ─── Right panel: Round Distribution ── */
 .token-charts-card__round-chart {
     min-width: 0;
 }
@@ -4578,13 +4607,12 @@ tr.row--anomaly {
     color: var(--text);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin-bottom: 12px;
+    margin-bottom: var(--space-sm);
     display: flex;
     align-items: baseline;
     gap: var(--space-md);
     flex-wrap: wrap;
 }
-
 .round-chart__stats {
     font-size: var(--text-micro);
     color: var(--text-muted);
@@ -4592,6 +4620,68 @@ tr.row--anomaly {
     text-transform: none;
     letter-spacing: normal;
     font-family: var(--font-mono);
+}
+
+/* ─── Empty state ── */
+.token-charts-card__empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-xl) var(--space-lg);
+    min-height: 90px;
+    text-align: center;
+}
+.token-charts-card__empty-icon {
+    font-size: 28px;
+    color: var(--text-muted);
+    opacity: 0.45;
+    margin-bottom: var(--space-sm);
+    line-height: 1;
+}
+.token-charts-card__empty-text {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.token-charts-card__empty-sub {
+    font-size: var(--text-micro);
+    color: var(--text-muted);
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+/* ─── Responsive: token charts ── */
+@media (max-width: 768px) {
+    .token-charts-card__body-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+    .token-charts-card__body {
+        padding: var(--space-md) var(--space-md);
+    }
+    .token-donut__svg {
+        width: 120px;
+        height: 120px;
+    }
+    .token-donut__center-value {
+        font-size: var(--text-sm);
+    }
+    .token-donut__center-label {
+        font-size: var(--text-micro);
+    }
+}
+
+@media (max-width: 480px) {
+    .token-charts-card__body {
+        padding: var(--space-sm) var(--space-sm);
+    }
+    .token-mix__name {
+        min-width: 56px;
+    }
+    .round-chart__header {
+        font-size: var(--text-micro);
+    }
 }
 
 /* Remove old overview__grid and overview__token-mix styles */
@@ -4667,28 +4757,6 @@ tr.row--anomaly {
     text-align: right;
     font-family: var(--font-mono);
     font-size: var(--text-micro);
-}
-
-/* ─── Round chart header ──────────────── */
-.round-chart__header {
-    font-size: var(--text-xs);
-    font-weight: 600;
-    color: var(--text);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: var(--space-sm);
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-md);
-    flex-wrap: wrap;
-}
-.round-chart__stats {
-    font-size: var(--text-micro);
-    color: var(--text-muted);
-    font-weight: 400;
-    text-transform: none;
-    letter-spacing: normal;
-    font-family: var(--font-mono);
 }
 
 /* ─── Markdown rendered content (tables, etc.) ─────────── */

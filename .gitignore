@@ -28,3 +28,4 @@ __pycache__/
 .vscode/
 /openspec/changes/
 /harness/archive/
+/prompts/

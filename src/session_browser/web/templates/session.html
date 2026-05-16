@@ -338,8 +338,10 @@
     </div>
     <!-- Collapsible body -->
     <div class="token-charts-card__body" id="tokenChartsBody">
+    <div class="token-charts-card__body-grid">
     <!-- Left: Token Mix donut -->
     <div class="token-charts-card__token-mix">
+        <div class="token-charts-panel__title">Token Mix</div>
         <div class="token-mix__donut">
             <svg viewBox="0 0 140 140" class="token-donut__svg">
                 {% if session_grand_total > 0 %}
@@ -370,11 +372,14 @@
                         stroke-dasharray="{{ ((out_pct / 100) * c) | round(1) }} {{ c }}"
                         stroke-dashoffset="{{ -(fresh_pct / 100) * c }}" />
                     {% endif %}
+                {% else %}
+                    <circle cx="70" cy="70" r="52" fill="none" stroke="var(--border-light)" stroke-width="1" />
                 {% endif %}
                 <text x="70" y="65" text-anchor="middle" class="token-donut__center-value">{{ session_grand_total | format_number_short }}</text>
                 <text x="70" y="82" text-anchor="middle" class="token-donut__center-label">total tokens</text>
             </svg>
         </div>
+        {% if session_grand_total > 0 %}
         <div class="token-mix__breakdown">
             <div class="token-mix__row">
                 <span class="token-mix__dot token-mix__dot--fresh"></span>
@@ -403,20 +408,26 @@
                 <span class="token-mix__pct">{{ out_pct }}%</span>
             </div>
         </div>
+        {% else %}
+        <div class="token-charts-card__empty-state">
+            <div class="token-charts-card__empty-icon">○</div>
+            <div class="token-charts-card__empty-text">No token breakdown available.</div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Right: Tokens per Round chart -->
     <div class="token-charts-card__round-chart">
+        {% set spark_data2 = [] %}
+        {% for round in rounds %}
+            {% set rb = round.token_breakdown() %}
+            {% set rt = rb.input + rb.cache_read + rb.cache_write + rb.output %}
+            {% if rt > 0 %}
+                {% set _ = spark_data2.append({'idx': loop.index, 'rt': rt, 'fresh': rb.input, 'cr': rb.cache_read, 'cw': rb.cache_write, 'out': rb.output}) %}
+            {% endif %}
+        {% endfor %}
         <div class="round-chart__header">
             <span>Tokens per Round</span>
-            {% set spark_data2 = [] %}
-            {% for round in rounds %}
-                {% set rb = round.token_breakdown() %}
-                {% set rt = rb.input + rb.cache_read + rb.cache_write + rb.output %}
-                {% if rt > 0 %}
-                    {% set _ = spark_data2.append({'idx': loop.index, 'rt': rt, 'fresh': rb.input, 'cr': rb.cache_read, 'cw': rb.cache_write, 'out': rb.output}) %}
-                {% endif %}
-            {% endfor %}
             {% if spark_data2 | length > 0 %}
             <span class="round-chart__stats">
                 Min: {{ spark_data2 | map(attribute='rt') | min | format_number }}
@@ -425,8 +436,8 @@
             </span>
             {% endif %}
         </div>
+        {% if spark_data2 | length > 0 %}
         <div class="round-chart-bars" id="roundChartBars">
-            {% if spark_data2 | length > 0 %}
                 {% set max_rt2 = spark_data2 | map(attribute='rt') | max %}
                 <svg viewBox="-15 -5 630 100" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
                     {% for pct in [0, 25, 50, 75, 100] %}
@@ -465,9 +476,16 @@
                     {% endif %}
                     <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--out"></span> Output</span>
                 </div>
-            {% endif %}
         </div>
+        {% else %}
+        <div class="token-charts-card__empty-state">
+            <div class="token-charts-card__empty-icon">▃</div>
+            <div class="token-charts-card__empty-text">No chart data available.</div>
+            <div class="token-charts-card__empty-sub">This session has no per-round token data.</div>
+        </div>
+        {% endif %}
     </div>
+    </div><!-- /token-charts-card__body-grid -->
     </div><!-- /token-charts-card__body -->
 </div><!-- /token-charts-card -->
 {% endif %}

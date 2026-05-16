@@ -637,6 +637,46 @@ class TestTokenChartsCard:
         assert "tokenChartState" in source, \
             "Token chart collapse state must be persisted to localStorage"
 
+    def test_token_charts_body_grid(self):
+        source = self._source()
+        assert "token-charts-card__body-grid" in source, \
+            "Token charts body must use two-panel grid layout"
+
+    def test_token_charts_panel_titles(self):
+        source = self._source()
+        assert "Token Mix" in source, \
+            "Token charts must have a Token Mix panel title"
+        assert "Tokens per Round" in source, \
+            "Token charts must have a Tokens per Round panel title"
+
+    def test_token_charts_empty_state(self):
+        source = self._source()
+        assert "token-charts-card__empty-state" in source, \
+            "Token charts must have an empty state component"
+
+    def test_token_charts_css_responsive(self):
+        css_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "style.css"
+        css = css_path.read_text(encoding="utf-8")
+        assert "token-charts-card__body-grid" in css, \
+            "CSS must define token-charts-card__body-grid"
+        assert "token-charts-card__empty-state" in css, \
+            "CSS must define token-charts-card__empty-state"
+        # Verify responsive rules exist for token charts
+        assert "@media (max-width: 768px)" in css, \
+            "CSS must have responsive rules at 768px"
+        # Verify the responsive block affects token charts
+        lines = css.split("\n")
+        found_768 = False
+        found_token_grid = False
+        for line in lines:
+            if "@media (max-width: 768px)" in line:
+                found_768 = True
+            if found_768 and "token-charts-card__body-grid" in line:
+                found_token_grid = True
+                break
+        assert found_token_grid, \
+            "768px responsive block must include token-charts-card__body-grid rule"
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Inspector 3-Tab Shell (Task 11: Hi-Fi simplified)
