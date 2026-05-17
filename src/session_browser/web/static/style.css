@@ -929,6 +929,17 @@ body.inspector-open .inspector-overlay-deprecated:not(:empty) {
 }
 
 /* ── Session detail: single-page debug layout, hide sidebar/inspector ── */
+/*
+ * CRITICAL: phase1-shell must override body.hide-left / body.focus / body.hide-right
+ * rules that set grid-template-columns to include a 0px first column.
+ * body.hide-left .shell.no-inspector has specificity (0,3,0), higher than
+ * the old .shell.phase1-shell (0,2,0). All variants below use (0,3,0)+ to win.
+ */
+body.hide-left .shell.phase1-shell,
+body.hide-left .shell.no-inspector.phase1-shell,
+body.hide-right .shell.phase1-shell,
+body.focus .shell.phase1-shell,
+.shell.no-inspector.phase1-shell,
 .shell.phase1-shell {
     grid-template-columns: minmax(0, 1fr);
 }
@@ -940,7 +951,10 @@ body.inspector-open .inspector-overlay-deprecated:not(:empty) {
 }
 
 .shell.phase1-shell .main {
+    grid-column: 1 / -1;
+    width: 100%;
     max-width: none;
+    min-width: 0;
     padding: 0;
 }
 
