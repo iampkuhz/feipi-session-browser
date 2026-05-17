@@ -63,24 +63,34 @@ class TestFixtureDataAttributes:
     """Verify the fixture session has correct data attributes for HIFI wiring."""
 
     def test_view_switch_buttons(self, hifi_fixture_session):
-        """View switch buttons must exist for trace, calls, hotspots."""
+        """Phase 1: no data-switch buttons for calls/hotspots; data-action buttons exist."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = _get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        for view in ("trace", "calls", "hotspots"):
+        # Old view switch buttons must NOT exist
+        for view in ("calls", "hotspots"):
             btn = soup.select_one(f'[data-switch="{view}"]')
-            assert btn is not None, f'missing button with data-switch="{view}"'
+            assert btn is None, f'unexpected button with data-switch="{view}" (should be removed)'
+        # New data-action buttons must exist
+        for action in ("expand-all", "collapse-all", "filter-status"):
+            btn = soup.select_one(f'[data-action="{action}"]')
+            assert btn is not None, f'missing button with data-action="{action}"'
 
     def test_view_panels(self, hifi_fixture_session):
-        """View panels must exist for trace, calls, hotspots."""
+        """Phase 1: trace-panel and issue-summary must exist; old views must not."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = _get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        for view in ("trace", "calls", "hotspots"):
+        panel = soup.select_one("[data-trace-panel]")
+        assert panel is not None, "missing [data-trace-panel]"
+        issue = soup.select_one("[data-issue-summary]")
+        assert issue is not None, "missing [data-issue-summary]"
+        # Old view panels must NOT exist
+        for view in ("calls", "hotspots"):
             panel = soup.select_one(f'[data-view="{view}"]')
-            assert panel is not None, f'missing panel with data-view="{view}"'
+            assert panel is None, f'unexpected panel with data-view="{view}" (should be removed)'
 
 
 class TestFixtureRoundCount:
@@ -171,18 +181,15 @@ class TestFixtureFailedToolCall:
 class TestFixtureLLMCalls:
     """Verify the fixture has multiple LLM calls."""
 
-    def test_calls_view_present(self, hifi_fixture_session):
-        """Calls view should be rendered with LLM call data."""
+    def test_calls_view_removed(self, hifi_fixture_session):
+        """Phase 1: calls view is removed; trace panel with token data should exist."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = _get_html(url)
-        # The calls view should contain some table or list of calls
-        has_calls_data = (
-            "data-view=\"calls\"" in html
-            or "data-table" in html
-            or "llm-call" in html.lower()
-        )
-        assert has_calls_data, "No calls view data found in HTML"
+        # The old calls view should NOT exist
+        assert 'data-view="calls"' not in html, "calls view should be removed in Phase 1"
+        # Token references should still be present in the trace panel
+        assert "token" in html.lower(), "No token references in session HTML"
 
 
 class TestFixtureDirectParser:
@@ -300,35 +307,35 @@ class TestHifiDomSelectors:
         el = soup.select_one("[data-anomaly-banner]")
         assert el is not None, "missing [data-anomaly-banner]"
 
-    def test_data_workbench(self, hifi_fixture_session):
-        """Workbench container must exist."""
+    def test_data_trace_panel(self, hifi_fixture_session):
+        """Trace panel container must exist (replaces old workbench)."""
         soup, _ = self._soup(hifi_fixture_session)
-        el = soup.select_one("[data-workbench]")
-        assert el is not None, "missing [data-workbench]"
+        el = soup.select_one("[data-trace-panel]")
+        assert el is not None, "missing [data-trace-panel]"
 
-    def test_data_workbench_view_trace(self, hifi_fixture_session):
-        """Workbench trace view must exist."""
+    def test_data_trace_list(self, hifi_fixture_session):
+        """Trace list (.trace-list or equivalent container) must exist."""
         soup, _ = self._soup(hifi_fixture_session)
-        el = soup.select_one('[data-workbench-view="trace"]')
-        assert el is not None, 'missing [data-workbench-view="trace"]'
+        el = soup.select_one(".trace-list") or soup.select_one("[data-trace-panel]")
+        assert el is not None, "missing trace list container"
 
-    def test_data_workbench_view_calls(self, hifi_fixture_session):
-        """Workbench calls view must exist."""
+    def test_data_workbench_view_calls_removed(self, hifi_fixture_session):
+        """Workbench calls view must NOT exist (removed in Phase 1)."""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one('[data-workbench-view="calls"]')
-        assert el is not None, 'missing [data-workbench-view="calls"]'
+        assert el is None, 'unexpected [data-workbench-view="calls"] (should be removed)'
 
-    def test_data_workbench_view_hotspots(self, hifi_fixture_session):
-        """Workbench hotspots view must exist."""
+    def test_data_workbench_view_hotspots_removed(self, hifi_fixture_session):
+        """Workbench hotspots view must NOT exist (removed in Phase 1)."""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one('[data-workbench-view="hotspots"]')
-        assert el is not None, 'missing [data-workbench-view="hotspots"]'
+        assert el is None, 'unexpected [data-workbench-view="hotspots"] (should be removed)'
 
     def test_data_context_inspector(self, hifi_fixture_session):
-        """Context inspector must exist."""
+        """Context inspector must NOT exist on session detail (Phase 1 removes default inspector)."""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one("[data-context-inspector]")
-        assert el is not None, "missing [data-context-inspector]"
+        assert el is None, "[data-context-inspector] should not exist on session detail (Phase 1)"
 
 
 class TestLegacyNegativeContract:
@@ -358,25 +365,208 @@ class TestLegacyNegativeContract:
                 f"Legacy tab button found: {text}"
 
     def test_trace_view_no_hotspots_cards(self, hifi_fixture_session):
-        """Trace view must not contain Hotspots cards."""
+        """Trace panel must not contain Hotspots cards."""
         soup, _ = self._soup(hifi_fixture_session)
-        trace_view = soup.select_one('[data-view="trace"]')
-        assert trace_view is not None, "trace view container missing"
+        trace_panel = soup.select_one("[data-trace-panel]")
+        assert trace_panel is not None, "trace panel container missing"
         # Hotspots cards use .hotspot-card or .hot-card classes
-        hotspots_cards = trace_view.select(".hotspot-card, .hot-card, .hotspots-diagnostic")
+        hotspots_cards = trace_panel.select(".hotspot-card, .hot-card, .hotspots-diagnostic")
         assert len(hotspots_cards) == 0, \
-            f"Trace view contains {len(hotspots_cards)} hotspots card(s)"
+            f"Trace panel contains {len(hotspots_cards)} hotspots card(s)"
 
     def test_calls_view_no_inline_large_payload(self, hifi_fixture_session):
-        """Calls view must not inline large request/response bodies."""
+        """Calls view must not exist in Phase 1 (negative test)."""
         soup, html = self._soup(hifi_fixture_session)
         calls_view = soup.select_one('[data-view="calls"]')
-        assert calls_view is not None, "calls view container missing"
-        calls_html = str(calls_view)
-        # Large inline payloads would appear as very long <pre> blocks
-        # Check that no single <pre> inside calls view exceeds 500 chars
-        pres = BeautifulSoup(calls_html, "html.parser").select("pre")
-        for pre in pres:
-            text = pre.get_text(strip=True)
-            assert len(text) < 500, \
-                f"Calls view contains large inline payload ({len(text)} chars)"
+        assert calls_view is None, "calls view should not exist in Phase 1"
+
+
+class TestShellResidue:
+    """Shell residue tests: verify removed entries are not present."""
+
+    def _soup(self, hifi_fixture_session):
+        base_url, agent, session_id = hifi_fixture_session
+        url = f"{base_url}/sessions/{agent}/{session_id}"
+        html = _get_html(url)
+        return BeautifulSoup(html, "html.parser"), html
+
+    def test_no_round_map(self, hifi_fixture_session):
+        """Round Map must not appear in sidebar."""
+        soup, _ = self._soup(hifi_fixture_session)
+        round_map = soup.select_one(".round-map")
+        assert round_map is None, "sidebar Round Map must be removed"
+
+    def test_no_sidebar_extra(self, hifi_fixture_session):
+        """Sidebar extra block must be empty on session detail."""
+        soup, _ = self._soup(hifi_fixture_session)
+        sidebar_extra = soup.select_one("aside .nav-label + .map-row")
+        # More precise: check no sidebar_extra content
+        sidebar_navs = soup.select("aside .nav a")
+        # Should only have Sessions and Dashboard
+        hrefs = [a.get("href", "") for a in sidebar_navs]
+        for h in hrefs:
+            assert h in ("/sessions", "/dashboard", "#"), \
+                f"Unexpected sidebar nav href: {h}"
+
+    def test_no_topbar_toggles(self, hifi_fixture_session):
+        """Topbar toggle buttons (☰ left, ☰ right, focus ●) must not render."""
+        soup, html = self._soup(hifi_fixture_session)
+        # Check that the topbar-actions does NOT contain the toggle buttons
+        topbar_actions = soup.select_one(".topbar-actions")
+        if topbar_actions:
+            top_btns = topbar_actions.select("button.top-btn")
+            for btn in top_btns:
+                title = btn.get("title", "")
+                assert "切换左侧" not in title, \
+                    f"Sidebar toggle still in topbar: {title}"
+                assert "切换右侧" not in title, \
+                    f"Right panel toggle still in topbar: {title}"
+                assert "专注模式" not in title, \
+                    f"Focus toggle still in topbar: {title}"
+
+    def test_no_disabled_placeholders(self, hifi_fixture_session):
+        """No visible disabled placeholder buttons."""
+        soup, html = self._soup(hifi_fixture_session)
+        disabled = soup.select('button[disabled]')
+        visible_disabled = [b for b in disabled
+                           if not (b.get("hidden") or "display:none" in (b.get("style") or ""))]
+        assert len(visible_disabled) == 0, \
+            f"Found {len(visible_disabled)} visible disabled button(s)"
+
+    def test_no_content_modal(self, hifi_fixture_session):
+        """Content-modal element must not exist."""
+        soup, html = self._soup(hifi_fixture_session)
+        modal = soup.select_one("#content-modal")
+        assert modal is None, "content-modal element must be removed"
+        # openContentModal must not be defined as window.openContentModal
+        assert "window.openContentModal = function" not in html, \
+            "window.openContentModal must not be defined"
+
+
+class TestTraceRowAria:
+    """Trace rows must be semantic buttons with proper ARIA."""
+
+    def _soup(self, hifi_fixture_session):
+        base_url, agent, session_id = hifi_fixture_session
+        url = f"{base_url}/sessions/{agent}/{session_id}"
+        html = _get_html(url)
+        return BeautifulSoup(html, "html.parser"), html
+
+    def test_trace_rows_are_buttons(self, hifi_fixture_session):
+        """All trace rows must be <button> elements."""
+        soup, _ = self._soup(hifi_fixture_session)
+        rows = soup.select(".trace-row")
+        assert len(rows) > 0, "No trace rows found"
+        for row in rows:
+            assert row.name == "button", \
+                f"trace-row is <{row.name}>, expected <button>"
+            assert row.get("type") == "button", \
+                "trace-row button must have type='button'"
+
+    def test_trace_rows_have_aria_expanded(self, hifi_fixture_session):
+        """All trace rows must have aria-expanded."""
+        soup, _ = self._soup(hifi_fixture_session)
+        rows = soup.select(".trace-row")
+        for row in rows:
+            assert row.get("aria-expanded") in ("true", "false"), \
+                f"trace-row missing aria-expanded or invalid value: {row.get('aria-expanded')}"
+
+    def test_trace_rows_have_aria_controls(self, hifi_fixture_session):
+        """All trace rows must have aria-controls referencing a valid ID."""
+        soup, _ = self._soup(hifi_fixture_session)
+        rows = soup.select(".trace-row")
+        for row in rows:
+            controls_id = row.get("aria-controls")
+            assert controls_id, "trace-row missing aria-controls"
+            target = soup.select_one(f"#{controls_id}")
+            assert target is not None, \
+                f"aria-controls='{controls_id}' does not match any element"
+            assert "trace-detail" in target.get("class", []), \
+                f"aria-controls target is not a trace-detail"
+
+    def test_trace_detail_has_matching_id(self, hifi_fixture_session):
+        """Each trace-detail must have an id matching the pattern trace-detail-N."""
+        soup, _ = self._soup(hifi_fixture_session)
+        details = soup.select(".trace-detail")
+        for detail in details:
+            detail_id = detail.get("id")
+            assert detail_id and detail_id.startswith("trace-detail-"), \
+                f"trace-detail missing or invalid id: {detail_id}"
+
+
+class TestPayloadButtons:
+    """Payload buttons must exist and reference valid payload keys."""
+
+    def _soup(self, hifi_fixture_session):
+        base_url, agent, session_id = hifi_fixture_session
+        url = f"{base_url}/sessions/{agent}/{session_id}"
+        html = _get_html(url)
+        return BeautifulSoup(html, "html.parser"), html
+
+    def test_at_least_one_payload_button(self, hifi_fixture_session):
+        """At least one payload button must exist (non-vacuous test)."""
+        soup, html = self._soup(hifi_fixture_session)
+        payload_btns = soup.select('button[data-action="open-payload"]')
+        assert len(payload_btns) > 0, \
+            "No payload buttons found — payload viewer unreachable"
+
+    def test_payload_buttons_have_keys(self, hifi_fixture_session):
+        """All payload buttons must have a data-payload-key."""
+        soup, _ = self._soup(hifi_fixture_session)
+        payload_btns = soup.select('button[data-action="open-payload"]')
+        for btn in payload_btns:
+            key = btn.get("data-payload-key")
+            assert key, "payload button missing data-payload-key"
+
+    def test_payload_registry_has_button_keys(self, hifi_fixture_session):
+        """All payload button keys must exist in the payload registry."""
+        soup, html = self._soup(hifi_fixture_session)
+        payload_btns = soup.select('button[data-action="open-payload"]')
+        for btn in payload_btns:
+            key = btn.get("data-payload-key")
+            assert f"'{key}'" in html or f'"{key}"' in html, \
+                f"Payload button key '{key}' not found in registry"
+
+
+class TestDeadButtonGate:
+    """Every visible button must have a supported data-action."""
+
+    def _soup(self, hifi_fixture_session):
+        base_url, agent, session_id = hifi_fixture_session
+        url = f"{base_url}/sessions/{agent}/{session_id}"
+        html = _get_html(url)
+        return BeautifulSoup(html, "html.parser"), html
+
+    SUPPORTED_ACTIONS = {
+        "filter-status", "expand-all", "collapse-all",
+        "open-payload", "payload-mode", "close-modal",
+        "jump-round", "jump-anomaly", "md-toggle",
+    }
+
+    def test_all_buttons_have_supported_data_action(self, hifi_fixture_session):
+        """All visible buttons must have a supported data-action or known role."""
+        soup, _ = self._soup(hifi_fixture_session)
+        buttons = soup.select("button")
+        for btn in buttons:
+            action = btn.get("data-action")
+            title = btn.get("title", "")[:40]
+            cls = btn.get("class", [])
+            # Skip buttons without data-action that have other valid roles
+            if action is None:
+                # Allow type='submit' or type='reset' buttons
+                if btn.get("type") in ("submit", "reset"):
+                    continue
+                # Allow trace-row buttons (they toggle via click)
+                if "trace-row" in cls:
+                    continue
+                # Skip topbar toggles with onclick (legacy base.html patterns)
+                if "top-btn" in cls and btn.get("onclick"):
+                    continue
+                # Skip payload buttons in modal tabs (they use data-mode)
+                if "payload-modal__tab" in cls or "payload-modal__close" in cls:
+                    continue
+                assert False, \
+                    f"Button with no data-action: title='{title}' class={' '.join(cls)}"
+            else:
+                assert action in self.SUPPORTED_ACTIONS, \
+                    f"Button has unsupported data-action='{action}': title='{title}'"

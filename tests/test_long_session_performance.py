@@ -35,12 +35,12 @@ class TestLongSessionRendering:
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         assert resp.status == 200
 
-    def test_long_session_contains_workbench(self, long_session_url):
-        """Long session must contain workbench structure."""
+    def test_long_session_contains_trace_panel(self, long_session_url):
+        """Long session must contain trace panel structure."""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        assert "wb-head" in html
-        assert "wb-body" in html
+        assert "data-trace-panel" in html
+        assert "trace-panel__toolbar" in html
 
     def test_trace_view_present(self, long_session_url):
         """Trace view container must be present."""

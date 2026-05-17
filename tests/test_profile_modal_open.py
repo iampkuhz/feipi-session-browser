@@ -1,10 +1,10 @@
-"""Tests for Profile tab LLM Call modal Open button reliability.
+"""Tests for payload modal and trace structure after Phase 1 simplification.
 
-After profile refactoring (P-01/P-02):
-- Profile no longer has inline Open buttons for request/response.
-- Details are viewed via Inspector (openLLMInspector).
-- Hidden <template> elements exist for Inspector content retrieval.
-- Each row is clickable via onclick="openLLMInspector(this)".
+After Phase 1 simplification:
+- Calls/Hotspots views removed; trace is the primary view
+- Tool spans use openToolInspector for inspection
+- Hidden <template> elements exist for tool result retrieval
+- Payload modal (payload-modal) is the only modal — content-modal removed
 """
 
 import re
@@ -21,94 +21,53 @@ def _base_source():
     return (TEMPLATE_DIR / "base.html").read_text(encoding="utf-8")
 
 
-# ── Profile uses Inspector, not inline Open buttons ──────────────────
+# ── Tool result templates and inspector entry ──────────────────
 
 
-def test_profile_no_inline_detail_rows():
-    """Profile must NOT have inline llm-call-detail expansion rows."""
+def test_has_tool_result_templates():
+    """Trace must have hidden <template> elements for tool result retrieval."""
     source = _session_source()
-    assert 'llm-call-detail' not in source, (
-        "Profile must not contain llm-call-detail rows — "
-        "details belong in Inspector"
+    assert "tool-result-" in source, (
+        "Trace must have tool-result template id pattern"
     )
 
 
-def test_profile_has_inspector_templates():
-    """Profile must have hidden <template> elements for Inspector retrieval."""
+def test_tool_spans_have_data_attrs():
+    """Each tool span must have data attributes for Inspector."""
     source = _session_source()
-    assert "inspect-request" in source, (
-        "Profile must have inspect-request template id pattern"
+    assert "data-tool-name=" in source, (
+        "Tool spans must have data-tool-name"
     )
-    assert "inspect-response" in source, (
-        "Profile must have inspect-response template id pattern"
+    assert "data-tool-status=" in source, (
+        "Tool spans must have data-tool-status"
+    )
+    assert "data-tool-idx=" in source, (
+        "Tool spans must have data-tool-idx"
     )
 
 
-def test_profile_row_has_data_attrs():
-    """Each profile row must have data attributes for Inspector."""
+def test_tool_spans_clickable():
+    """Tool spans must be clickable via openToolInspector."""
     source = _session_source()
-    assert "data-llm-call-id=" in source or "data-call-idx=" in source, (
-        "Profile rows must have identifier data attributes"
-    )
-    assert "data-call-idx=" in source, (
-        "Profile rows must have data-call-idx"
+    assert "openToolInspector" in source, (
+        "Trace must reference openToolInspector function"
     )
 
 
-def test_profile_row_is_clickable():
-    """Profile rows must be clickable via openLLMInspector (no separate inspect-btn)."""
+# ── Content modal removed in Phase 1.1 — negative assertions ────────
+
+
+def test_open_content_modal_removed():
+    """openContentModal must be removed (Phase 1.1)."""
     source = _session_source()
-    assert "openLLMInspector" in source, (
-        "Profile must reference openLLMInspector function"
+    assert "openContentModal" not in source, (
+        "openContentModal must be removed (Phase 1.1)"
     )
-    # The row itself is clickable via onclick
-    assert "onclick=\"openLLMInspector(this)\"" in source, (
-        "Profile rows must have onclick handler for openLLMInspector"
+    assert "switchContentView" not in source, (
+        "switchContentView must be removed (Phase 1.1)"
     )
-
-
-# ── openContentModal compatibility ────────────────────────────────────
-
-
-def test_open_content_modal_supports_template_id():
-    """openContentModal must read data-raw-template-id / data-md-template-id."""
-    source = _session_source()
-
-    assert "_getTemplateTextById" in source, (
-        "openContentModal must use _getTemplateTextById helper"
-    )
-    assert "data-raw-template-id" in source or "_getTemplateTextById" in source, (
-        "openContentModal must support template ID retrieval"
-    )
-    assert "data-md-template-id" in source or "_getTemplateTextById" in source, (
-        "openContentModal must support MD template ID retrieval"
-    )
-
-
-def test_open_content_modal_fallback_nested_template():
-    """openContentModal must fallback to btn.querySelectorAll('template') for old buttons."""
-    source = _session_source()
-
-    assert "querySelectorAll('template')" in source or 'querySelectorAll("template")' in source, (
-        "openContentModal must fallback to nested template querying"
-    )
-
-
-def test_open_content_modal_warns_on_missing_content():
-    """openContentModal must log console.warn when no template content is found."""
-    source = _session_source()
-
-    assert "console.warn" in source, (
-        "openContentModal must call console.warn on failure, not silently return"
-    )
-
-
-def test_open_content_modal_sets_visible():
-    """openContentModal must add 'visible' class to modal."""
-    source = _session_source()
-
-    assert "modal.classList.add('visible')" in source, (
-        "openContentModal must add 'visible' class to modal"
+    assert "closeContentModal" not in source, (
+        "closeContentModal must be removed (Phase 1.1)"
     )
 
 

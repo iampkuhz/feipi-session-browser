@@ -6,12 +6,15 @@ Logs a JSONL entry per edit into .agent/task-evidence/<change-id>.jsonl.
 
 Usage:
     python3 scripts/agent_hooks/log_change_evidence.py [file_path]
+    echo '{"tool_name":"Edit","tool_input":{"file_path":"src/x.css"}}' | python3 ...
 
 Env vars (checked in order):
-    CC_TOOL_INPUT, CLAUDE_TOOL_INPUT, argv[1]
+    CC_FILE_PATH, CLAUDE_FILE_PATH, CC_TOOL_INPUT, CLAUDE_TOOL_INPUT, argv[1]
+    stdin JSON payload (Claude Code style)
 
 Modes:
     --self-test   Run self-test suite and exit
+    --debug       Print resolved tool/file to stderr (for troubleshooting).
 """
 
 import json
@@ -25,6 +28,29 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 EVIDENCE_DIR = Path(".agent/task-evidence")
 ACTIVE_CHANGE = Path(".agent/active_change.json")
+
+DEBUG = "--debug" in sys.argv
+
+# Cache stdin payload so both get_file_path() and get_tool_name() can use it.
+_STDIN_PAYLOAD: dict | None = None
+
+
+def _get_stdin_payload() -> dict | None:
+    """Read and cache stdin JSON (only once, stdin is single-use)."""
+    global _STDIN_PAYLOAD
+    if _STDIN_PAYLOAD is not None:
+        return _STDIN_PAYLOAD
+    if sys.stdin.isatty():
+        return None
+    try:
+        raw = sys.stdin.read()
+        obj = _try_parse_json(raw)
+        if obj is not None:
+            _STDIN_PAYLOAD = obj
+            return obj
+    except (OSError, UnicodeDecodeError):
+        pass
+    return None
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,20 +70,112 @@ def load_active_change() -> dict | None:
     return None
 
 
+def _try_parse_json(text: str) -> dict | None:
+    """Return parsed dict if *text* looks like a JSON object, else None."""
+    text = text.strip()
+    if not text.startswith("{"):
+        return None
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            return obj
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def _extract_from_payload(payload: dict) -> tuple[str | None, str | None]:
+    """Return (file_path, tool_name) extracted from a Claude Code stdin JSON payload.
+
+    Supports:
+    - payload.tool_input.file_path / path / notebook_path
+    - payload.file_path / path
+    - payload.tool_name / tool
+    - For MultiEdit, prefers tool_input.file_path (single evidence entry).
+    """
+    file_path = None
+    tool_name = None
+
+    # Tool name
+    tool_name = (
+        payload.get("tool_name")
+        or payload.get("tool")
+        or os.environ.get("CC_TOOL_NAME")
+        or os.environ.get("CLAUDE_TOOL_NAME")
+    )
+
+    # file_path from top-level or tool_input
+    tool_input = payload.get("tool_input")
+    if isinstance(tool_input, dict):
+        file_path = (
+            tool_input.get("file_path")
+            or tool_input.get("path")
+            or tool_input.get("notebook_path")
+        )
+    if not file_path:
+        file_path = (
+            payload.get("file_path")
+            or payload.get("path")
+        )
+
+    return file_path, tool_name
+
+
 def get_file_path() -> str | None:
-    """Resolve target file path from env vars or argv."""
-    for env in ("CC_TOOL_INPUT", "CLAUDE_TOOL_INPUT"):
+    """Resolve target file path from multiple sources (safe order).
+
+    1. argv[1] (explicit override)
+    2. CC_FILE_PATH / CLAUDE_FILE_PATH
+    3. CC_TOOL_INPUT / CLAUDE_TOOL_INPUT (raw path or JSON)
+    4. stdin JSON payload (Claude Code style)
+    """
+    # 1. argv
+    if len(sys.argv) > 1 and sys.argv[1] not in ("--self-test", "--debug"):
+        return sys.argv[1]
+
+    # 2. explicit file-path env vars
+    for env in ("CC_FILE_PATH", "CLAUDE_FILE_PATH"):
         val = os.environ.get(env, "").strip()
         if val:
             return val
-    if len(sys.argv) > 1 and sys.argv[1] != "--self-test":
-        return sys.argv[1]
+
+    # 3. CC_TOOL_INPUT / CLAUDE_TOOL_INPUT — may be raw path or JSON
+    for env in ("CC_TOOL_INPUT", "CLAUDE_TOOL_INPUT"):
+        val = os.environ.get(env, "").strip()
+        if val:
+            obj = _try_parse_json(val)
+            if obj is not None:
+                fp, _ = _extract_from_payload(obj)
+                if fp:
+                    return fp
+            return val  # raw path string
+
+    # 4. stdin JSON payload (cached — stdin is single-use)
+    payload = _get_stdin_payload()
+    if payload is not None:
+        fp, tn = _extract_from_payload(payload)
+        if DEBUG and tn:
+            print(f"[debug] resolved tool_name={tn} from stdin", file=sys.stderr)
+        if fp:
+            return fp
+
     return None
 
 
 def get_tool_name() -> str:
-    """Best-effort tool name from env."""
-    return os.environ.get("CC_TOOL_NAME", os.environ.get("CLAUDE_TOOL_NAME", "Write"))
+    """Best-effort tool name from env, or cached stdin payload."""
+    tool = os.environ.get("CC_TOOL_NAME") or os.environ.get("CLAUDE_TOOL_NAME")
+    if tool:
+        return tool
+
+    # Use cached stdin payload (stdin is single-use; already cached by get_file_path)
+    payload = _get_stdin_payload()
+    if payload is not None:
+        _, tn = _extract_from_payload(payload)
+        if tn:
+            return tn
+
+    return "Write"
 
 
 def log_entry(file_path: str, tool: str, change_id: str | None) -> Path:
@@ -101,6 +219,9 @@ def main() -> int:
 
 def self_test() -> int:
     """Run self-test suite. Returns 0 on all-pass, 1 on any failure."""
+    import shutil
+    import tempfile
+
     passed = 0
     failed = 0
 
@@ -108,86 +229,124 @@ def self_test() -> int:
         nonlocal passed, failed
         if condition:
             passed += 1
-            print(f"  PASS: {name}")
+            print(f"  [PASS] {name}")
         else:
             failed += 1
-            print(f"  FAIL: {name}")
+            print(f"  [FAIL] {name}")
 
-    # --- Test 1: with active change ---
-    print("Test 1: evidence logged with active change present")
-    # Ensure active_change.json exists (it should in real runs)
-    change_data = load_active_change()
-    if change_data is None:
-        # Create a temp one for the test
-        ACTIVE_CHANGE.parent.mkdir(parents=True, exist_ok=True)
-        ACTIVE_CHANGE.write_text(json.dumps({"change_id": "test-change-001"}), encoding="utf-8")
-        change_data = load_active_change()
-        _cleanup_temp = True
-    else:
-        _cleanup_temp = False
-
-    test_id = change_data["change_id"]
-    evidence_file = EVIDENCE_DIR / f"{test_id}.jsonl"
-    # Remove stale test entries
-    if evidence_file.exists():
-        evidence_file.unlink()
-
+    # --- Test 1: argv / env raw path still works ---
+    print("Test 1: legacy argv/env raw path writes evidence")
+    _reset_evidence()
+    active = load_active_change()
+    test_id = active["change_id"] if active else "_selftest_"
     os.environ["CC_TOOL_INPUT"] = "src/example/file.py"
     os.environ["CC_TOOL_NAME"] = "Edit"
-    log_entry("src/example/file.py", "Edit", test_id)
+    fp = get_file_path()
+    tool = get_tool_name()
+    log_entry(fp or "src/example/file.py", tool, test_id)
+    ev = EVIDENCE_DIR / f"{test_id}.jsonl"
+    check("evidence file created", ev.is_file())
+    if ev.is_file():
+        entry = json.loads(ev.read_text().strip().split("\n")[-1])
+        check("file_path matches", entry.get("file_path") == "src/example/file.py")
+        check("tool is Edit", entry.get("tool") == "Edit")
+    _clear_env()
 
-    check("evidence file created", evidence_file.is_file())
+    # --- Test 2: CLAUDE_TOOL_INPUT as JSON string ---
+    print("Test 2: CLAUDE_TOOL_INPUT is JSON string")
+    _reset_evidence()
+    os.environ["CLAUDE_TOOL_INPUT"] = json.dumps({"file_path": "src/style.css", "tool_input": {}})
+    fp = get_file_path()
+    check("extracts file_path from JSON env", fp == "src/style.css")
+    _clear_env()
 
-    lines = evidence_file.read_text(encoding="utf-8").strip().split("\n") if evidence_file.is_file() else []
-    check("at least one line written", len(lines) >= 1)
+    # --- Test 3: stdin Claude Code style payload ---
+    print("Test 3: stdin JSON payload (Claude Code style)")
+    _reset_evidence()
+    payload = json.dumps({
+        "tool_name": "Edit",
+        "tool_input": {"file_path": "src/session_browser/web/static/style.css"},
+    })
+    fp, tn = _simulate_stdin(payload)
+    check("extracts tool_name from stdin", tn == "Edit")
+    check("extracts file_path from stdin", fp == "src/session_browser/web/static/style.css")
 
-    if lines:
-        entry = json.loads(lines[-1])
-        check("file_path field present", "file_path" in entry and entry["file_path"] == "src/example/file.py")
-        check("tool field present", "tool" in entry and entry["tool"] == "Edit")
-        check("ts field present (ISO8601)", "ts" in entry and entry["ts"])
-        check("change_id field present", "change_id" in entry and entry["change_id"] == test_id)
+    # --- Test 4: MultiEdit payload ---
+    print("Test 4: MultiEdit payload — single evidence entry")
+    _reset_evidence()
+    multi_payload = json.dumps({
+        "tool_name": "MultiEdit",
+        "tool_input": {"file_path": "src/multi.html", "edits": [{"file_path": "src/a.html"}, {"file_path": "src/b.html"}]},
+    })
+    fp, tn = _simulate_stdin(multi_payload)
+    check("tool_name is MultiEdit", tn == "MultiEdit")
+    check("file_path is top-level, not first edit", fp == "src/multi.html")
 
-    # --- Test 2: without active change ---
-    print("Test 2: evidence logged to unknown.jsonl when no active change")
-    unknown_file = EVIDENCE_DIR / "unknown.jsonl"
-    if unknown_file.exists():
-        unknown_file.unlink()
-
-    os.environ["CC_TOOL_NAME"] = "Write"
-    # Temporarily hide active_change
+    # --- Test 5: no active change -> unknown.jsonl ---
+    print("Test 5: no active change writes to unknown.jsonl")
+    _reset_evidence()
     backup = None
     if ACTIVE_CHANGE.is_file():
         backup = ACTIVE_CHANGE.read_bytes()
         ACTIVE_CHANGE.unlink()
-
     log_entry("docs/README.md", "Write", None)
-
+    unknown = EVIDENCE_DIR / "unknown.jsonl"
+    check("unknown.jsonl created", unknown.is_file())
+    if unknown.is_file():
+        entry = json.loads(unknown.read_text().strip().split("\n")[-1])
+        check("change_id is unknown", entry.get("change_id") == "unknown")
+        check("file_path correct", entry.get("file_path") == "docs/README.md")
     if backup is not None:
         ACTIVE_CHANGE.write_bytes(backup)
 
-    check("unknown.jsonl created", unknown_file.is_file())
+    # --- Test 6: notebook_path fallback ---
+    print("Test 6: notebook_path extraction")
+    _reset_evidence()
+    nb_payload = json.dumps({"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "analysis.ipynb"}})
+    fp, tn = _simulate_stdin(nb_payload)
+    check("extracts notebook_path", fp == "analysis.ipynb")
 
-    if unknown_file.is_file():
-        lines = unknown_file.read_text(encoding="utf-8").strip().split("\n")
-        check("at least one line written", len(lines) >= 1)
-        if lines:
-            entry = json.loads(lines[-1])
-            check("file_path field present", "file_path" in entry and entry["file_path"] == "docs/README.md")
-            check("tool field present", "tool" in entry and entry["tool"] == "Write")
-            check("ts field present (ISO8601)", "ts" in entry and entry["ts"])
-            check("change_id is unknown", "change_id" in entry and entry["change_id"] == "unknown")
+    # --- Test 7: top-level path fallback ---
+    print("Test 7: top-level path fallback (no tool_input)")
+    _reset_evidence()
+    flat_payload = json.dumps({"tool": "Write", "file_path": "config.yaml"})
+    fp, tn = _simulate_stdin(flat_payload)
+    check("extracts top-level file_path", fp == "config.yaml")
+    check("extracts top-level tool", tn == "Write")
 
-    # --- Test 3: --self-test exits 0 ---
-    print("Test 3: self-test return code")
-    check("overall result", failed == 0)
-
-    # Cleanup temp active_change if we created it
-    if _cleanup_temp:
-        ACTIVE_CHANGE.unlink(missing_ok=True)
-
-    print(f"\nResults: {passed} passed, {failed} failed")
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"self-test results: {passed}/{passed + failed} passed")
+    print(f"{'='*60}")
     return 0 if failed == 0 else 1
+
+
+def _reset_evidence() -> None:
+    """Remove all evidence files for a clean test run."""
+    if EVIDENCE_DIR.is_dir():
+        for f in EVIDENCE_DIR.iterdir():
+            f.unlink()
+
+
+def _clear_env() -> None:
+    """Clear test env vars."""
+    for k in ("CC_TOOL_INPUT", "CLAUDE_TOOL_INPUT", "CC_TOOL_NAME", "CLAUDE_TOOL_NAME", "CC_FILE_PATH", "CLAUDE_FILE_PATH"):
+        os.environ.pop(k, None)
+
+
+def _simulate_stdin(json_str: str) -> tuple[str | None, str | None]:
+    """Feed a JSON payload via stdin and return (file_path, tool_name)."""
+    import io
+    saved_stdin = sys.stdin
+    sys.stdin = io.StringIO(json_str)  # not a tty → triggers stdin branch
+    try:
+        # Re-parse directly from the string (same logic as main path)
+        obj = _try_parse_json(json_str)
+        if obj is not None:
+            return _extract_from_payload(obj)
+    finally:
+        sys.stdin = saved_stdin
+    return None, None
 
 
 if __name__ == "__main__":

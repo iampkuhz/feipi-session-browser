@@ -1,17 +1,13 @@
-"""TASK-035: Session Detail QA 与回归测试
+"""TASK-035: Session Detail QA 与回归测试 (Phase 1 simplified)
 
 Covers:
-- 3 workbench views: Trace, Calls, Hotspots (migrated from 4 tabs)
-- View switch buttons with data-switch attribute
-- View containers with data-view attribute
-- Viewer modal rendering (content-modal)
-- Profile inspector rendering (LLM inspector modal + openLLMInspector)
-- View switching JS function (switchView)
-- Each view's basic structure elements
-- Metrics strip elements
-- Anomaly banner conditional rendering template
-- Token chart collapse button
-- Inspector 7-tab shell structure
+- Trace-first debug page (single view, no tab switching)
+- Issue Summary section with failed rounds and high-token rounds
+- Trace panel with All/Failed filter, Expand/Collapse
+- Payload modal with Rendered/Raw tabs
+- Content modal compatibility
+- Metrics strip and anomaly banner
+- Inspector integration (tool spans, openToolInspector)
 """
 
 from __future__ import annotations
@@ -31,410 +27,278 @@ def _base_source():
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Workbench View Switch
+# Shell and core structure
 # ──────────────────────────────────────────────────────────────────────
 
-VIEW_NAMES = ["trace", "calls", "hotspots"]
 
-
-class TestTabButtons:
-    """Verify each view has a corresponding switch button with data-switch attribute."""
+class TestShellStructure:
 
     def _source(self):
         return _session_source()
 
-    def test_three_view_switch_buttons_exist(self):
+    def test_session_detail_shell_exists(self):
         source = self._source()
-        for name in VIEW_NAMES:
-            assert f'data-switch="{name}"' in source, f"Missing switch button for: {name}"
+        assert 'data-session-detail-shell' in source, \
+            "Session detail shell must exist"
 
-    def test_tab_buttons_are_buttons_not_divs(self):
+    def test_session_id_set_for_js(self):
         source = self._source()
-        for name in VIEW_NAMES:
-            pattern = f'<button class="tab'
-            # Buttons in workbench are still <button> elements
-            assert pattern in source or f'data-switch="{name}"' in source, \
-                f"Tab/switch buttons must be <button> elements"
+        assert "window._sessionId" in source, \
+            "Session ID must be set for JS state persistence"
 
-    def test_trace_switch_button_active_by_default(self):
+    def test_hero_section_exists(self):
         source = self._source()
-        # The first switch button should have 'active' class
-        assert 'class="active" data-switch="trace"' in source or \
-               'data-switch="trace"' in source, \
-               "Trace switch button should be active by default"
+        assert 'data-session-overview-hero' in source, \
+            "Hero section must exist"
 
-    def test_switchView_js_exists(self):
-        base = _base_source()
-        source = _session_source()
-        assert "switchView" in source or "switchView" in base, \
-            "switchView JS function must exist for view switching"
-
-    def test_switch_button_onclick_calls_switchView(self):
+    def test_no_old_workbench_views(self):
+        """Calls and Hotspots workbench views should be removed."""
         source = self._source()
-        for name in VIEW_NAMES:
-            assert f"onclick=\"switchView('{name}')\"" in source, \
-                f"Switch button for {name} must call switchView('{name}')"
+        assert 'data-workbench-view="calls"' not in source, \
+            "calls view should be removed"
+        assert 'data-workbench-view="hotspots"' not in source, \
+            "hotspots view should be removed"
+        assert 'data-workbench' not in source, \
+            "workbench container should be removed"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Tab 内容面板
+# Issue Summary
 # ──────────────────────────────────────────────────────────────────────
 
-class TestTabContentPanels:
-    """Verify each view has a matching content container with data-view attribute."""
+
+class TestIssueSummary:
 
     def _source(self):
         return _session_source()
 
-    def test_three_view_containers_exist(self):
+    def test_issue_summary_section_exists(self):
         source = self._source()
-        for name in VIEW_NAMES:
-            assert f'data-view="{name}"' in source, f"Missing view container: {name}"
+        assert 'data-issue-summary' in source, \
+            "Issue summary section must exist"
 
-    def test_trace_view_visible_by_default(self):
+    def test_has_issue_cards(self):
         source = self._source()
-        # trace view should NOT have display:none
-        assert 'data-view="trace"' in source, "Trace view container must exist"
-        # The trace view should not be hidden by default (other views have style="display:none")
-        assert 'data-view="calls" style="display:none"' in source or \
-               'data-view="hotspots" style="display:none"' in source, \
-               "Non-trace views should be hidden by default"
+        assert 'class="issue-card"' in source or 'issue-card--' in source, \
+            "Issue summary must have issue-card elements"
 
-    def test_view_id_matches_button_data_switch(self):
-        """Each data-view must match a button's data-switch value."""
+    def test_has_empty_state(self):
         source = self._source()
-        for name in VIEW_NAMES:
-            has_button = f'data-switch="{name}"' in source
-            has_container = f'data-view="{name}"' in source
-            assert has_button and has_container, \
-                f"View {name}: button={has_button}, container={has_container} — both required"
+        assert "No actionable issues detected" in source, \
+            "Issue summary must have empty state"
+
+    def test_issue_cards_have_jump_action(self):
+        source = self._source()
+        assert 'data-action="jump-round"' in source, \
+            "Issue cards must have jump-round action"
+        assert 'data-round=' in source, \
+            "Issue cards must have data-round attribute"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Conversation tab
+# Trace Panel
 # ──────────────────────────────────────────────────────────────────────
 
-class TestConversationTab:
-    """Verify Conversation tab — migrated out of Workbench as of Task 05.
 
-    The conversation view is no longer rendered as a user-visible DOM node.
-    Content-level assertions are marked skip; patterns may still exist in
-    migration comments but are not part of the active page.
-    """
+class TestTracePanel:
 
     def _source(self):
         return _session_source()
 
-    def _assert_migration_comment_exists(self):
+    def test_trace_panel_exists(self):
         source = self._source()
-        assert "DEPRECATED: Conversation tab" in source or \
-               "migrated out of Workbench" in source, \
-            "Conversation tab migration comment should exist"
+        assert 'data-trace-panel' in source or 'class="trace-panel"' in source, \
+            "Trace panel must exist"
 
-    def test_conversation_tab_migrated_out(self):
+    def test_trace_toolbar_exists(self):
         source = self._source()
-        # Conversation should no longer be an active tab
-        assert 'id="conversation" class="tab-content active"' not in source, \
-            "Conversation tab should no longer be active DOM"
+        assert 'class="trace-panel__toolbar"' in source, \
+            "Trace panel must have toolbar"
 
-    def test_has_all_messages_card_title(self):
-        # The title may exist in migration comments or hero section
+    def test_has_all_failed_segmented_control(self):
         source = self._source()
-        assert "All Messages" in source, "Conversation content should exist as migration reference"
-
-    def test_round_index_displayed(self):
-        source = self._source()
-        assert "Round #" in source, "Round index must still appear in migrated content"
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Timeline tab
-# ──────────────────────────────────────────────────────────────────────
-
-class TestTimelineTab:
-    """Verify Timeline tab has conversation flow table and controls."""
-
-    def _source(self):
-        return _session_source()
-
-    def test_has_conversation_flow_title(self):
-        source = self._source()
-        assert "Conversation Flow" in source, "Timeline must have 'Conversation Flow' title"
-
-    def test_has_timeline_toolbar(self):
-        source = self._source()
-        assert 'class="timeline-toolbar"' in source, "Timeline must have toolbar"
+        assert 'data-action="filter-status"' in source, \
+            "Trace must have filter-status action"
+        assert 'data-status="all"' in source, \
+            "Trace must have 'all' filter chip"
+        assert 'data-status="failed"' in source, \
+            "Trace must have 'failed' filter chip"
 
     def test_has_expand_all_button(self):
         source = self._source()
-        assert 'data-action="expand-all"' in source, "Timeline must have Expand All button"
+        assert 'data-action="expand-all"' in source, \
+            "Trace must have Expand All button"
 
     def test_has_collapse_all_button(self):
         source = self._source()
-        assert 'data-action="collapse-all"' in source, "Timeline must have Collapse All button"
+        assert 'data-action="collapse-all"' in source, \
+            "Trace must have Collapse All button"
 
-    def test_has_filter_buttons(self):
+    def test_has_trace_row_structure(self):
         source = self._source()
-        for filt in ["all", "message", "tool", "error"]:
-            assert f'data-filter="{filt}"' in source, \
-                f"Timeline must have filter button for: {filt}"
+        assert 'class="trace-row"' in source, \
+            "Trace must have trace-row elements"
+        assert 'data-round-idx=' in source, \
+            "Trace rows must have data-round-idx"
 
-    def test_has_jump_to_node(self):
+    def test_has_trace_detail(self):
         source = self._source()
-        assert "timeline-jump-input" in source, "Timeline must have jump-to-node input"
+        assert 'class="trace-detail"' in source, \
+            "Trace must have trace-detail elements"
+        assert 'data-round-detail=' in source, \
+            "Trace detail must have data-round-detail attribute"
 
-    def test_has_round_summary_table(self):
+    def test_trace_row_has_status(self):
         source = self._source()
-        # The trace uses trace-head for the round summary header row
-        assert 'class="trace-head"' in source or 'class="trace"' in source, \
-            "Timeline must have trace table structure for round summaries"
+        assert 'data-status=' in source, \
+            "Trace rows must have data-status attribute"
 
-    def test_table_has_required_columns(self):
+    def test_span_list_structure(self):
         source = self._source()
-        # The new trace uses div-based headers in trace-head
-        # Check that key column concepts are present (order may vary)
-        required = ["Round", "Preview", "Diagnostics", "Token", "Time"]
-        found_any = 0
-        for col in required:
-            if col in source:
-                found_any += 1
-        assert found_any >= len(required), \
-            f"Trace must have key column concepts, found {found_any}/{len(required)}"
+        assert 'class="span-list"' in source, \
+            "Trace detail must have span-list"
+        assert 'class="span llm"' in source, \
+            "Span list must have LLM spans"
 
-    def test_has_round_detail_row(self):
+    def test_tool_spans_have_data_attrs(self):
         source = self._source()
-        # Detail rows use trace-detail class with data-round-detail attribute
-        assert "trace-detail" in source, "Must have expandable round detail row"
+        for attr in ["data-tool-name=", "data-tool-status=", "data-tool-idx=",
+                      "data-tool-scope="]:
+            assert attr in source, f"Tool spans must have {attr}"
 
-    def test_has_timeline_container_for_detail(self):
+    def test_tool_spans_have_exit_code(self):
         source = self._source()
-        # Detail rows use data-round-detail attribute for identification
-        assert 'data-round-detail="' in source, "Round detail must have data-round-detail attribute"
+        assert "data-tool-exit-code=" in source, \
+            "Tool spans must have data-tool-exit-code"
+
+    def test_tool_spans_have_duration(self):
+        source = self._source()
+        assert "data-tool-duration-ms=" in source, \
+            "Tool spans must have data-tool-duration-ms"
+
+    def test_tool_spans_have_error(self):
+        source = self._source()
+        assert "data-tool-error=" in source, \
+            "Tool spans must have data-tool-error"
 
     def test_has_build_timeline_nodes_macro(self):
         source = self._source()
-        assert "build_timeline_nodes" in source, "Timeline must define build_timeline_nodes macro"
+        assert "build_timeline_nodes" in source, \
+            "Must define build_timeline_nodes macro"
 
     def test_imports_timeline_component(self):
         source = self._source()
         assert 'from "components/timeline.html" import' in source, \
-            "Timeline must import timeline component macros"
+            "Must import timeline component macros"
+
+    def test_imports_viewer_component(self):
+        source = self._source()
+        assert 'from "components/viewer.html" import viewer' in source, \
+            "Must import viewer component"
 
     def test_toggleRoundDetail_js(self):
         source = self._source()
-        assert "toggleRoundDetail" in source, "Must have toggleRoundDetail JS function"
+        assert "toggleRoundDetail" in source, \
+            "Must have toggleRoundDetail JS function"
 
-    def test_TimelineCtrl_js(self):
+    def test_has_render_tool_result_macro(self):
         source = self._source()
-        assert "TimelineCtrl" in source, "Must have TimelineCtrl JS for expand/collapse/filter"
+        assert "render_tool_result" in source, \
+            "Must have render_tool_result macro"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Hotspots tab
+# Payload Modal
 # ──────────────────────────────────────────────────────────────────────
 
-class TestHotspotsTab:
-    """Verify Hotspots tab has diagnostic card grid layout (Task 10)."""
+
+class TestPayloadModal:
 
     def _source(self):
         return _session_source()
 
-    def test_has_hotspots_container(self):
+    def test_payload_modal_element_exists(self):
         source = self._source()
-        assert 'class="card"' in source, "Hotspots must have card container"
+        assert 'id="payload-modal"' in source, \
+            "payload-modal element must exist"
 
-    def test_has_card_title(self):
+    def test_payload_modal_has_header(self):
         source = self._source()
-        assert "Hotspots View" in source, "Hotspots must have card title"
+        assert 'class="payload-modal__header"' in source, \
+            "Modal must have header"
 
-    def test_has_grid3_layout(self):
+    def test_payload_modal_has_title(self):
         source = self._source()
-        assert 'class="grid3"' in source, "Hotspots must use grid3 layout"
+        assert 'class="payload-modal__title"' in source, \
+            "Modal must have title element"
 
-    def test_has_hot_card_structure(self):
+    def test_payload_modal_has_rendered_tab(self):
         source = self._source()
-        assert 'class="hot-card"' in source, "Hotspots must have hot-card elements"
-        assert 'class="hot-k"' in source, "Hot cards must have hot-k (category key)"
-        assert 'class="hot-v"' in source, "Hot cards must have hot-v (value)"
-        assert 'class="hot-s"' in source, "Hot cards must have hot-s (subtitle)"
+        assert 'data-mode="rendered"' in source, \
+            "Modal must have Rendered tab"
 
-    def test_has_severity_data_attributes(self):
+    def test_payload_modal_has_raw_tab(self):
         source = self._source()
-        assert 'data-severity=' in source, "Hot cards must have data-severity attribute"
-        assert 'data-round-idx=' in source, "Hot cards must have data-round-idx attribute"
+        assert 'data-mode="raw"' in source, \
+            "Modal must have Raw tab"
 
-    def test_has_diag_badge_classes(self):
+    def test_payload_modal_has_close_button(self):
         source = self._source()
-        assert 'class="diag err"' in source or 'class="diag warn"' in source or 'class="diag info"' in source, \
-            "Hot cards must have diag badge with severity class"
+        assert 'data-action="close-modal"' in source, \
+            "Modal must have close button"
 
-    def test_has_empty_state(self):
+    def test_payload_modal_has_rendered_section(self):
         source = self._source()
-        assert "hotspots-diagnostic__empty" in source, "Hotspots must have empty state for no anomalies"
+        assert 'class="payload-modal__rendered"' in source, \
+            "Modal must have rendered section"
 
-    def test_has_HotspotsCtrl_js(self):
+    def test_payload_modal_has_raw_section(self):
         source = self._source()
-        assert "HotspotsCtrl" in source, "Must have HotspotsCtrl JS for jump"
+        assert 'class="payload-modal__raw"' in source, \
+            "Modal must have raw section"
 
-
-# ──────────────────────────────────────────────────────────────────────
-# Profile tab
-# ──────────────────────────────────────────────────────────────────────
-
-class TestProfileTab:
-    """Verify Profile view (Calls) — inlined into data-view="calls" as of Task 05.
-
-    The old lazy-load pattern (profile-template + profile-lazy-placeholder) was
-    replaced by direct rendering in the workbench calls view.
-    """
-
-    def _source(self):
-        return _session_source()
-
-    def test_profile_view_renders_in_calls_container(self):
+    def test_payload_registry_exists(self):
         source = self._source()
-        # The calls view should contain LLM calls table
-        assert 'data-view="calls"' in source, \
-            "Calls view container must exist"
-
-    def test_profile_content_no_longer_lazy(self):
-        source = self._source()
-        # Old lazy pattern removed; content is inlined in data-view="calls"
-        assert 'class="profile-lazy-placeholder"' not in source, \
-            "Profile should no longer use lazy placeholder (migrated to inlined calls view)"
-
-    def test_has_llm_calls_detail_table(self):
-        source = self._source()
-        # The calls view uses a data-table div structure
-        assert "data-table" in source, "Profile must have data-table for LLM calls"
-
-    def test_llm_table_columns(self):
-        source = self._source()
-        # The new calls view uses div-based headers in .data-table .table-head
-        # Check that key column concepts are present
-        for col in ["Round", "Model", "Input", "Output", "Status", "Preview"]:
-            assert f"<div>{col}</div>" in source or col in source, \
-                f"LLM calls table must have column concept: {col}"
-
-    def test_has_inspect_button(self):
-        source = self._source()
-        # Rows are clickable via onclick="openLLMInspector(this)"
-        assert "openLLMInspector" in source, "Calls rows must call openLLMInspector"
-        assert 'onclick="openLLMInspector(this)"' in source, \
-            "Calls rows must have onclick handler for Inspector"
-
-    def test_inspect_button_has_required_data_attrs(self):
-        source = self._source()
-        assert "data-call-idx=" in source, "Inspect button must have data-call-idx"
-        assert "data-model=" in source, "Inspect button must have data-model"
-        assert "data-scope=" in source, "Inspect button must have data-scope"
-        assert "data-round=" in source, "Inspect button must have data-round"
-
-    def test_no_inline_detail_rows(self):
-        """Profile should NOT have inline llm-call-detail rows — details belong in Inspector."""
-        source = self._source()
-        assert 'llm-call-detail' not in source, (
-            "Profile should not contain inline llm-call-detail rows — "
-            "request/response/tool details should be viewed via Inspector"
-        )
-
-    def test_no_request_context_inline(self):
-        """Profile should NOT have inline 'Request Context:' label."""
-        source = self._source()
-        assert "Request Context:" not in source, (
-            "Profile should not expose inline request context — "
-            "use Inspector for request payload"
-        )
-
-    def test_row_has_data_llm_call_id(self):
-        """Each LLM call row must have data-llm-call-id attribute for Inspector."""
-        source = self._source()
-        assert "data-llm-call-id=" in source, (
-            "LLM call rows must have data-llm-call-id for Inspector integration"
-        )
-
-    def test_has_raw_session_data(self):
-        source = self._source()
-        assert "Raw Session Data" in source, "Profile must have Raw Session Data section"
-
-    def test_openLLMInspector_retrieves_templates(self):
-        source = self._source()
-        assert "getElementById('llm-call-" in source, \
-            "openLLMInspector must retrieve content from hidden templates"
-
-    def test_has_inspector_template_ids(self):
-        source = self._source()
-        assert "inspect-request" in source, "Must have inspect-request template id pattern"
-        assert "inspect-response" in source, "Must have inspect-response template id pattern"
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Viewer modal (content-modal)
-# ──────────────────────────────────────────────────────────────────────
-
-class TestContentViewerModal:
-    """Verify shared content modal for viewing message/tool content."""
-
-    def _source(self):
-        return _session_source()
-
-    def test_content_modal_element_exists(self):
-        source = self._source()
-        assert 'id="content-modal"' in source, "content-modal element must exist"
-
-    def test_content_modal_has_header(self):
-        source = self._source()
-        assert 'class="content-modal__header"' in source, "Modal must have header"
-
-    def test_content_modal_has_title(self):
-        source = self._source()
-        assert 'class="content-modal__title"' in source, "Modal must have title element"
-
-    def test_content_modal_has_markdown_tab(self):
-        source = self._source()
-        assert 'data-view="markdown"' in source, "Modal must have Markdown tab"
-
-    def test_content_modal_has_raw_tab(self):
-        source = self._source()
-        assert 'data-view="raw"' in source, "Modal must have Raw tab"
-
-    def test_content_modal_has_close_button(self):
-        source = self._source()
-        assert "content-modal__close" in source, "Modal must have close button"
-
-    def test_content_modal_has_markdown_section(self):
-        source = self._source()
-        assert 'class="content-modal__markdown"' in source, "Modal must have markdown section"
-
-    def test_content_modal_has_raw_section(self):
-        source = self._source()
-        assert 'class="content-modal__raw"' in source, "Modal must have raw section"
-
-    def test_closeContentModal_js(self):
-        source = self._source()
-        assert "closeContentModal" in source, "Must have closeContentModal JS function"
-
-    def test_switchContentView_js(self):
-        source = self._source()
-        assert "switchContentView" in source, "Must have switchContentView JS function"
+        assert "window.__SESSION_PAYLOADS__" in source, \
+            "Must have payload registry script"
 
     def test_escape_key_closes_modal(self):
         source = self._source()
-        # The keydown listener for Escape must be present
-        assert "Escape" in source, "Must handle Escape key"
+        assert "Escape" in source, \
+            "Must handle Escape key for payload modal"
 
-    def test_click_outside_closes(self):
+
+# ──────────────────────────────────────────────────────────────────────
+# Content modal removed in Phase 1.1 — negative assertions
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestContentViewerModalRemoved:
+
+    def _source(self):
+        return _session_source()
+
+    def test_content_modal_element_removed(self):
         source = self._source()
-        # onclick="if(event.target===this)closeContentModal()"
-        assert "event.target===this" in source, "Click outside modal must close it"
+        assert 'id="content-modal"' not in source, \
+            "content-modal element must be removed (Phase 1.1)"
+
+    def test_content_modal_js_removed(self):
+        source = self._source()
+        assert "openContentModal" not in source, \
+            "openContentModal JS must be removed (Phase 1.1)"
+        assert "closeContentModal" not in source, \
+            "closeContentModal JS must be removed (Phase 1.1)"
+        assert "switchContentView" not in source, \
+            "switchContentView JS must be removed (Phase 1.1)"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Profile Inspector modal
+# Tool Inspector integration
 # ──────────────────────────────────────────────────────────────────────
 
-class TestProfileInspector:
-    """Verify inspector modal is properly wired from Profile tab."""
+
+class TestToolInspector:
 
     def _source(self):
         return _session_source()
@@ -445,110 +309,41 @@ class TestProfileInspector:
     def test_openInspector_available(self):
         source = self._source()
         assert "window.openInspector" in source, \
-            "openLLMInspector must check for window.openInspector"
+            "openToolInspector must check for window.openInspector"
 
-    def test_inspector_viewers_rendered(self):
+    def test_openInspector_called(self):
         source = self._source()
-        assert "inspector-sub-viewer" in source, \
-            "Inspector must render sub-viewer panels for request/response"
+        assert "openInspector({" in source, \
+            "Must call openInspector with config object"
 
-    def test_inspector_request_viewer(self):
+    def test_html_escaping(self):
         source = self._source()
-        assert "viewer__raw-pre" in source, \
-            "Inspector must use viewer raw pre for request display"
-
-    def test_inspector_has_metadata(self):
-        source = self._source()
-        assert "openInspector({" in source, "Must call openInspector with config object"
-        assert "'Call #'" in source or '"Call #"' in source, \
-            "Inspector metadata must include Call #"
-
-    def test_inspector_html_escaping(self):
-        source = self._source()
-        # Inspector must escape HTML to prevent XSS in raw viewer
+        # Must escape HTML to prevent XSS in raw viewer
         assert "replace" in source and "&amp;" in source, \
-            "Inspector must escape HTML entities in raw content"
+            "Must escape HTML entities in raw content"
 
-    def test_inspector_base_template_has_modal(self):
+    def test_base_template_has_inspector(self):
         base = self._base()
-        # The actual inspector modal container should be in base.html
-        assert "inspector" in base.lower(), "base.html must contain inspector references"
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Tab 结构完整性（回归）
-# ──────────────────────────────────────────────────────────────────────
-
-class TestTabStructuralIntegrity:
-    """Verify overall workbench structure is consistent and not broken."""
-
-    def _source(self):
-        return _session_source()
-
-    def test_wb_head_exists(self):
-        source = self._source()
-        assert 'class="wb-head"' in source or 'class="wb-head"' in source or 'wb-head' in source, \
-            "Workbench wb-head must exist"
-
-    def test_exactly_three_switch_buttons(self):
-        source = self._source()
-        # Count switch buttons
-        buttons = re.findall(r'data-switch="[^"]*"', source)
-        assert len(buttons) == 3, f"Expected 3 switch buttons, found {len(buttons)}"
-
-    def test_exactly_three_view_containers(self):
-        source = self._source()
-        containers = re.findall(r'data-view="[^"]*"', source)
-        # Filter to only count workbench data-view (not content-modal data-view)
-        wb_containers = [c for c in containers if re.search(r'data-view="(trace|calls|hotspots)"', c)]
-        assert len(wb_containers) == 3, f"Expected 3 view containers, found {len(wb_containers)}"
-
-    def test_only_one_active_switch_button(self):
-        source = self._source()
-        # Only one switch button should have 'active' class
-        active = re.findall(r'class="active" data-switch="[^"]*"', source)
-        assert len(active) == 1, \
-            f"Expected exactly 1 active switch button, found {len(active)}"
-
-    def test_wb_body_wrapper_exists(self):
-        source = self._source()
-        assert 'wb-body' in source, "wb-body wrapper must exist"
-
-    def test_wb_actions_exists(self):
-        source = self._source()
-        assert 'wb-actions' in source, "wb-actions must exist"
-
-    def test_session_id_set_for_js(self):
-        source = self._source()
-        assert "window._sessionId" in source, "Session ID must be set for JS state persistence"
-
-    def test_content_modal_has_visible_class_toggle(self):
-        source = self._source()
-        assert "classList.add('visible')" in source, \
-            "Modal must use classList.add('visible') to show"
-        assert "classList.remove('visible')" in source, \
-            "Modal must use classList.remove('visible') to hide"
+        assert "inspector" in base.lower(), \
+            "base.html must contain inspector references"
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Metrics Strip
 # ──────────────────────────────────────────────────────────────────────
 
-class TestMetricsStrip:
-    """Verify metrics strip card exists with key metric items.
 
-    Note: As of Task 03-01, metrics-strip was merged into the unified .hero card.
-    The metrics now appear as .kpis and .hero-secondary-metrics within the hero section.
-    """
+class TestMetricsStrip:
 
     def _source(self):
         return _session_source()
 
     def test_metrics_strip_card_exists(self):
         source = self._source()
-        # Metrics are now in the unified hero card (.kpis or .hero-secondary-metrics)
-        assert 'class="kpis"' in source or 'class="hero-secondary-metrics"' in source or 'class="metrics-strip-card"' in source, \
-            "Metrics must exist as .kpis or .hero-secondary-metrics within unified hero"
+        assert 'class="kpis"' in source or \
+               'class="hero-secondary-metrics"' in source or \
+               'class="metrics-strip-card"' in source, \
+            "Metrics must exist as .kpis or .hero-secondary-metrics"
 
     def test_has_duration_metric(self):
         source = self._source()
@@ -575,8 +370,8 @@ class TestMetricsStrip:
 # Anomaly Banner
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestAnomalyBanner:
-    """Verify anomaly banner conditional rendering template."""
 
     def _source(self):
         return _session_source()
@@ -585,11 +380,6 @@ class TestAnomalyBanner:
         source = self._source()
         assert 'anomaly-inline anomaly-banner' in source, \
             "Anomaly banner template must exist"
-
-    def test_anomaly_banner_has_jump_to_hotspots(self):
-        source = self._source()
-        assert "switchTab('hotspots')" in source, \
-            "Anomaly banner must have 'Jump to Hotspots' link"
 
     def test_anomaly_banner_has_severity_badges(self):
         source = self._source()
@@ -606,100 +396,30 @@ class TestAnomalyBanner:
         assert "has_anomalies" in source, \
             "Anomaly banner must be conditionally rendered via has_anomalies"
 
-
-# ──────────────────────────────────────────────────────────────────────
-# Token Charts Card
-# ──────────────────────────────────────────────────────────────────────
-
-class TestTokenChartsCard:
-    """Verify token charts card with collapse/expand functionality."""
-
-    def _source(self):
-        return _session_source()
-
-    def test_token_charts_card_exists(self):
+    def test_no_calls_or_hotspots_targets(self):
+        """Hero alerts should not reference calls or hotspots target views."""
         source = self._source()
-        assert 'id="tokenChartsCard"' in source, \
-            "Token charts card must exist with id tokenChartsCard"
-
-    def test_token_charts_collapse_header(self):
-        source = self._source()
-        assert 'id="tokenChartsHeader"' in source, \
-            "Token charts must have collapsible header"
-
-    def test_token_charts_toggle_function(self):
-        source = self._source()
-        assert "TokenChartsToggle" in source, \
-            "Must have TokenChartsToggle JS function for collapse/expand"
-
-    def test_token_charts_collapse_body(self):
-        source = self._source()
-        assert 'id="tokenChartsBody"' in source, \
-            "Token charts must have collapsible body section"
-
-    def test_token_charts_localStorage_persistence(self):
-        source = self._source()
-        assert "tokenChartState" in source, \
-            "Token chart collapse state must be persisted to localStorage"
-
-    def test_token_charts_body_grid(self):
-        source = self._source()
-        assert "token-charts-card__body-grid" in source, \
-            "Token charts body must use two-panel grid layout"
-
-    def test_token_charts_panel_titles(self):
-        source = self._source()
-        assert "Token Mix" in source, \
-            "Token charts must have a Token Mix panel title"
-        assert "Tokens per Round" in source, \
-            "Token charts must have a Tokens per Round panel title"
-
-    def test_token_charts_empty_state(self):
-        source = self._source()
-        assert "token-charts-card__empty-state" in source, \
-            "Token charts must have an empty state component"
-
-    def test_token_charts_css_responsive(self):
-        css_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "style.css"
-        css = css_path.read_text(encoding="utf-8")
-        assert "token-charts-card__body-grid" in css, \
-            "CSS must define token-charts-card__body-grid"
-        assert "token-charts-card__empty-state" in css, \
-            "CSS must define token-charts-card__empty-state"
-        # Verify responsive rules exist for token charts
-        assert "@media (max-width: 768px)" in css, \
-            "CSS must have responsive rules at 768px"
-        # Verify the responsive block affects token charts
-        lines = css.split("\n")
-        found_768 = False
-        found_token_grid = False
-        for line in lines:
-            if "@media (max-width: 768px)" in line:
-                found_768 = True
-            if found_768 and "token-charts-card__body-grid" in line:
-                found_token_grid = True
-                break
-        assert found_token_grid, \
-            "768px responsive block must include token-charts-card__body-grid rule"
+        # The old target_view='calls' and target_view='hotspots' should be gone
+        assert "target_view': 'calls'" not in source, \
+            "Hero alerts should not target calls view"
+        assert "target_view': 'hotspots'" not in source, \
+            "Hero alerts should not target hotspots view"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Inspector 3-Tab Shell (Task 11: Hi-Fi simplified)
+# Inspector component (unchanged)
 # ──────────────────────────────────────────────────────────────────────
 
-class TestInspectorTabs:
-    """Verify Inspector 3-tab shell structure (Task 11)."""
 
-    def _source(self):
-        return _session_source()
-
-    def _inspector_js(self):
-        js_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "js" / "inspector.js"
-        return js_path.read_text(encoding="utf-8")
+class TestInspectorComponent:
 
     def _inspector_component(self):
         comp_path = TEMPLATE_DIR / "components" / "inspector.html"
         return comp_path.read_text(encoding="utf-8")
+
+    def _inspector_js(self):
+        js_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "js" / "inspector.js"
+        return js_path.read_text(encoding="utf-8")
 
     def test_insp_head_structure(self):
         component = self._inspector_component()
@@ -712,7 +432,6 @@ class TestInspectorTabs:
         component = self._inspector_component()
         assert "insp-body" in component, "inspector.html must contain insp-body"
         assert "insp-tabs" in component, "inspector.html must contain insp-tabs"
-        assert "insp-tab-content" in component, "inspector.html must contain insp-tab-content"
 
     def test_three_tab_labels(self):
         component = self._inspector_component()
@@ -722,20 +441,11 @@ class TestInspectorTabs:
 
     def test_empty_state(self):
         component = self._inspector_component()
-        assert "insp-empty-state" in component, "Inspector must have empty state"
-        assert "No object selected" in component, "Inspector empty state must have text"
+        assert "insp-empty-state" in component, \
+            "Inspector must have empty state"
+        assert "No object selected" in component, \
+            "Inspector empty state must have text"
 
     def test_switchTab_js(self):
         js = self._inspector_js()
         assert "switchTab" in js, "Inspector must have switchTab function"
-        assert "Inspector._renderTabContent" in js, "Inspector must have _renderTabContent"
-
-    def test_no_inspector_open_class(self):
-        js = self._inspector_js()
-        assert "inspector-open" not in js, "JS should not use inspector-open class"
-
-    def test_openInspector_new_contract(self):
-        source = self._source()
-        assert "objectType" in source, "openLLMInspector must pass objectType"
-        assert "overview:" in source, "openLLMInspector must pass overview"
-        assert "payload:" in source, "openLLMInspector must pass payload"

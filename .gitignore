@@ -56,3 +56,4 @@ playwright/.cache/
 
 # Node
 node_modules/
+/tmp/

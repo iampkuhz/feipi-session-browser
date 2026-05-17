@@ -2,6 +2,24 @@
 
 {% block title %}{{ session.title[:80] or 'Untitled' }} - Agent Run Profiler{% endblock %}
 
+{% block shell_class %} no-inspector phase1-shell{% endblock %}
+
+{% block topbar_extras %}{% endblock %}
+
+{% block sidebar_nav %}
+<div class="nav-label">Core</div>
+<a class="nav-item active" href="/sessions">
+    <span class="nav-dot"></span> Sessions
+</a>
+<a class="nav-item" href="/dashboard">
+    <span class="nav-dot"></span> Dashboard
+</a>
+{% endblock %}
+
+{% block sidebar_extra %}{% endblock %}
+
+{% block topbar_toggles %}{% endblock %}
+
 {% block breadcrumb %}
 <a href="/dashboard">Dashboard</a>
 <span class="sep">/</span>
@@ -12,7 +30,7 @@
 
 {% block content %}
 
-<!-- Macro for tool result block (avoids duplication across 3 locations) -->
+<!-- Macro for tool result block (avoids duplication across locations) -->
 {% macro render_tool_result(result) %}
 <div class="tool-result-block">
     <div class="tool-result-header">
@@ -204,8 +222,6 @@
 {% set llm_total_output = llm_calls | sum(attribute='output_tokens') %}
 {% set llm_total_cr = llm_calls | sum(attribute='cache_read_tokens') %}
 {% set llm_total_cw = llm_calls | sum(attribute='cache_write_tokens') %}
-{% set main_calls_list = llm_calls | selectattr('scope', 'equalto', 'main') | list %}
-{% set sub_calls_list = llm_calls | selectattr('scope', 'equalto', 'subagent') | list %}
 
 {% set agent_name = 'Claude' if session.agent == 'claude_code' else 'Qoder' if session.agent == 'qoder' else 'Codex' %}
 {% set agent_class = 'overview__agent-badge--claude' if session.agent == 'claude_code' else 'overview__agent-badge--qoder' if session.agent == 'qoder' else 'overview__agent-badge--codex' %}
@@ -218,18 +234,42 @@
 {% set cw_pct = (session.cached_output_tokens / session_grand_total * 100) | round(1) if session_grand_total > 0 else 0 %}
 {% set out_pct = (session.output_tokens / session_grand_total * 100) | round(1) if session_grand_total > 0 else 0 %}
 
+{# ── Compute issue summary data ── #}
+{% set failed_rounds = [] %}
+{% for round in rounds %}
+    {% set round_failed_tools = round.tool_calls | selectattr('is_failed') | list %}
+    {% if round_failed_tools | length > 0 or round.llm_error_count > 0 %}
+        {% set _ = failed_rounds.append({
+            'round_idx': loop.index,
+            'failed_tool_count': round_failed_tools | length,
+            'failed_tools': round_failed_tools,
+            'llm_error': round.llm_error_count > 0
+        }) %}
+    {% endif %}
+{% endfor %}
+
+{% set highest_token_round = namespace(idx=0, tokens=0) %}
+{% for round in rounds %}
+    {% set rb = round.token_breakdown() %}
+    {% set rt = rb.input + rb.cache_read + rb.cache_write + rb.output %}
+    {% if rt > highest_token_round.tokens %}
+        {% set highest_token_round.tokens = rt %}
+        {% set highest_token_round.idx = loop.index %}
+    {% endif %}
+{% endfor %}
+
 {# ── Import reusable components ── #}
 {% from "components/viewer.html" import viewer %}
 {% from "components/timeline.html" import timeline_node, timeline_node_content, timeline_container %}
 
-{# ── Build hero alert data from anomalies ── #}
+{# ── Hero alerts: only keep those targeting trace view ── #}
 {% set hero_alerts = [] %}
 {% if has_anomalies %}
 {% for a in session_anomalies.anomalies %}
   {% if a.type == 'failed_run' or a.severity == 'critical' %}
     {% set _ = hero_alerts.append({'label': a.label, 'reason': a.reason, 'type': a.type, 'severity': 'critical', 'action': 'jump', 'target_view': 'trace'}) %}
   {% elif a.type == 'payload_visibility_mismatch' %}
-    {% set _ = hero_alerts.append({'label': a.label, 'reason': a.reason, 'type': a.type, 'severity': 'warn', 'action': 'inspect', 'target_view': 'calls'}) %}
+    {# Skip calls/hotspots targets — those views are removed #}
   {% else %}
     {% set _ = hero_alerts.append({'label': a.label, 'reason': a.reason, 'type': a.type, 'severity': 'warn', 'action': 'jump', 'target_view': 'trace'}) %}
   {% endif %}
@@ -237,7 +277,7 @@
 {% endif %}
 
 <!-- ── Session Detail Shell ── -->
-<div data-session-detail-shell>
+<div class="session-detail-phase1" data-session-detail-shell>
 
 <!-- ── Unified Overview Hero ─────────────────────────────────── -->
 <section class="hero" data-session-overview-hero>
@@ -319,11 +359,11 @@
       </div>
       <span class="anomaly-banner__severity-label anomaly-badge {{ a.severity }}">{{ a.label }}</span>
       <button class="jump"
-              data-action="{{ a.action }}"
+              data-action="jump-anomaly"
               data-target-view="{{ a.target_view }}"
               data-anomaly-type="{{ a.type }}"
-              onclick="AnomalyBannerCtrl.handle(this)">
-        {% if a.target_view == 'hotspots' %}Jump to Hotspots{% elif a.action == 'jump' %}Jump{% else %}Inspect{% endif %}
+              data-anomaly-reason="{{ a.reason }}">
+        Jump to Trace
       </button>
     </div>
     {% endfor %}
@@ -334,1187 +374,506 @@
 <!-- Hidden raw JSON for copy action -->
 <pre id="raw-json" style="display:none">{{ session_data | safe_json_display }}</pre>
 
-
-
-
-
-
-
-
-<!-- Workbench -->
-<section class="card wb" data-workbench>
-  <div class="wb-head">
-    <div class="wb-viewbar">
-      <div class="view-switch">
-        <button class="active" data-switch="trace" onclick="switchView('trace')">Trace</button>
-        <button data-switch="calls" onclick="switchView('calls')">Calls</button>
-        <button data-switch="hotspots" onclick="switchView('hotspots')">Hotspots</button>
-      </div>
-      <div>
-        <div class="wb-kicker">Workbench</div>
-        <div class="wb-desc">Trace is the primary view. Calls and Hotspots are alternate projections.</div>
-      </div>
-    </div>
-    <div class="wb-actions">
-      <button class="wb-chip">Failed only</button>
-      <button class="wb-chip">High token</button>
-      <button class="wb-chip primary">Open selected</button>
-    </div>
-    <div class="wb-shortcuts-hint" aria-label="Keyboard shortcuts reference">
-      <span class="wb-shortcuts-hint__item"><kbd class="kbd">j</kbd><kbd class="kbd">k</kbd> navigate</span>
-      <span class="wb-shortcuts-hint__item"><kbd class="kbd">Enter</kbd> expand</span>
-      <span class="wb-shortcuts-hint__item"><kbd class="kbd">Esc</kbd> close</span>
-      <span class="wb-shortcuts-hint__item"><kbd class="kbd">/</kbd> search</span>
-      <span class="wb-shortcuts-hint__item"><kbd class="kbd">t</kbd><kbd class="kbd">c</kbd><kbd class="kbd">h</kbd> views</span>
-      <span class="wb-shortcuts-hint__item"><kbd class="kbd">i</kbd> inspector</span>
-    </div>
-  </div>
-  <div class="wb-body">
-    <div data-view="trace" data-workbench-view="trace">
-      {# Migration note: was id="timeline" class="tab-content" #}
-<div class="card">
-        <div class="card-title">Conversation Flow ({{ rounds | length }})</div>
-
-        {# ── Timeline control bar ── #}
-        <div class="timeline-toolbar" role="toolbar" aria-label="Timeline controls">
-            <div class="timeline-toolbar__actions">
-                <button class="timeline-toolbar__btn" data-action="expand-all"
-                        title="Expand all rounds">Expand All</button>
-                <button class="timeline-toolbar__btn" data-action="collapse-all"
-                        title="Collapse all rounds">Collapse All</button>
-            </div>
-            <div class="timeline-toolbar__filters">
-                <button class="timeline-toolbar__filter" data-filter="all"
-                        onclick="TimelineCtrl.filter('all')">All</button>
-                <button class="timeline-toolbar__filter" data-filter="message"
-                        onclick="TimelineCtrl.filter('message')">Message</button>
-                <button class="timeline-toolbar__filter" data-filter="tool"
-                        onclick="TimelineCtrl.filter('tool')">Tool</button>
-                <button class="timeline-toolbar__filter" data-filter="error"
-                        onclick="TimelineCtrl.filter('error')">Error</button>
-            </div>
-            <div class="timeline-toolbar__jump">
-                <input type="text" class="timeline-toolbar__jump-input"
-                       id="timeline-jump-input"
-                       placeholder="Jump to node ID or round #…"
-                       onkeydown="TimelineCtrl.jumpOnKey(event)" />
-                <button class="timeline-toolbar__jump-btn"
-                        onclick="TimelineCtrl.jump()">Go</button>
-            </div>
-        </div>
-
-        {% if rounds %}
-        <div class="trace">
-          <div class="trace-head">
-            <div>Round</div><div>Preview</div><div>Diagnostics</div><div>Token mix</div><div>Time</div>
-          </div>
-
-          {# ── Trace filter bar ── #}
-          <div class="trace-filter-bar">
-            <input type="text" class="trace-filter-bar__input"
-                   id="trace-filter-input"
-                   placeholder="Filter rounds… e.g. R3, user, bash"
-                   oninput="TraceFilter.apply()" />
-            <button class="trace-filter-bar__chip" data-status="all"
-                    onclick="TraceFilter.setStatus('all')">All</button>
-            <button class="trace-filter-bar__chip" data-status="failed"
-                    onclick="TraceFilter.setStatus('failed')">Failed</button>
-            <button class="trace-filter-bar__chip trace-filter-bar__chip--clear"
-                    onclick="TraceFilter.clear()" title="Clear all filters">&times; Clear</button>
-          </div>
-
-          {# ── Global max round tokens for mixbar normalization ── #}
-          {% set max_round_tokens = namespace(value=0) %}
-          {% for _r in rounds %}
-            {% set _rb = _r.token_breakdown() %}
-            {% set _rt = _rb.input + _rb.cache_read + _rb.cache_write + _rb.output %}
-            {% if _rt > max_round_tokens.value %}
-              {% set max_round_tokens.value = _rt %}
-            {% endif %}
-          {% endfor %}
-
-          {% for round in rounds %}
-          {% set rb = round.token_breakdown() %}
-          {% set round_input_total = rb.input + rb.cache_read + rb.cache_write %}
-          {% set has_failed_tools = round.tool_calls | selectattr('is_failed') | list | length > 0 %}
-          {% set has_llm_error = round.llm_error_count > 0 %}
-          {% set rt = round_input_total + rb.output %}
-
-          {% set sigs = round_signals[loop.index0] if round_signals else [] %}
-
-          {# ── Trace row ── #}
-          <div class="trace-row"
-               data-round-idx="{{ loop.index }}"
-               data-round-tokens="{{ rt }}"
-               data-round-input="{{ rb.input }}"
-               data-round-output="{{ rb.output }}"
-               data-round-llm-calls="{{ round.llm_call_count }}"
-               data-round-tools="{{ round.tool_calls | length }}"
-               data-round-failed="{{ 1 if has_failed_tools else 0 }}"
-               data-round-err-sigs="{{ sigs | selectattr('severity', 'equalto', 'critical') | list | length }}"
-               data-round-warn-sigs="{{ sigs | selectattr('severity', 'equalto', 'warning') | list | length }}"
-               data-round-model="{{ round.interactions[0].model if round.interactions else session.model }}"
-               data-round-user-time="{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}">
-            <div class="rid">
-              {% if has_llm_error or has_failed_tools %}<span class="round-failed-dot" aria-hidden="true"></span>{% endif %}
-              <span class="toggle" data-toggle-icon>›</span>
-              R{{ loop.index }}
-            </div>
-            <div class="round-main">
-              <div class="t">
-                {% if round.user_msg.content | trim %}
-                <span class="preview-tag preview-tag--user" data-tooltip="This round includes user input">User</span>
-                {% endif %}
-                {{ round.preview_text | safe }}
-              </div>
-              <div class="d">{{ round.preview_text | striptags | truncate(120) }}</div>
-            </div>
-            <div class="diags">
-              {% for sig in sigs %}
-              <span class="diag {{ sig['severity'] }}" data-tooltip="{{ sig['reason'] }}">{{ sig['label'] }}</span>
-              {% endfor %}
-              {% if round.llm_call_count > 1 %}
-              <span class="diag info">{{ round.llm_call_count }} LLM calls</span>
-              {% endif %}
-            </div>
-            <div class="mix">
-              <div class="mixbar">
-                {% set bar_scale = (rt / max_round_tokens.value * 100) if max_round_tokens.value > 0 else 0 %}
-                {% if rt > 0 %}
-                <span class="fresh" style="width:{{ (rb.input / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
-                {% if supports_cache_tokens and rb.cache_read > 0 %}
-                <span class="cache" style="width:{{ (rb.cache_read / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
-                {% endif %}
-                {% if supports_cache_tokens and rb.cache_write > 0 %}
-                <span class="write" style="width:{{ (rb.cache_write / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
-                {% endif %}
-                <span class="out" style="width:{{ (rb.output / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
-                {% endif %}
-              </div>
-              <span class="mixval">{{ rt | format_number }}</span>
-            </div>
-            <div class="tcell">{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}</div>
-          </div>
-
-          {# ── Trace detail (expanded content) ── #}
-          <div class="trace-detail" data-round-detail="{{ loop.index }}" style="display:none">
-            <div class="span-list">
-              {# ── User message node ── #}
-              {% if round.user_msg.content %}
-              <div class="span llm" data-span-id="R{{ round_idx }}-USER">
-                <div class="sk">USER</div>
-                <div class="sb">
-                  <div class="st">{{ round.user_msg.content | striptags | truncate(120) }}</div>
-                  <div class="sd">{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}</div>
-                </div>
-                <div class="sm"></div>
-              </div>
-              {% endif %}
-
-              {# ── LLM interaction nodes + nested tool calls ── #}
-              {% set round_idx = loop.index %}
-              {% for interaction in round.interactions %}
-                {# LLM node #}
-                {% set ix_index = loop.index %}
-                <div class="span llm" data-span-id="R{{ round_idx }}-IX{{ ix_index }}">
-                  <div class="sk">LLM #{{ ix_index }}</div>
-                  <div class="sb">
-                    <div class="st">
-                      {%- if interaction.scope == "subagent" -%}
-                      Subagent via {{ interaction.parent_tool_name }} · {{ interaction.model[:40] }}
-                      {%- else -%}
-                      {{ interaction.model[:60] }}
-                      {%- endif -%}
-                    </div>
-                    <div class="sd">
-                      {%- if interaction.tool_calls -%}
-                      {{ interaction.tool_calls | length }} tool call{{ 's' if interaction.tool_calls | length > 1 else '' }}
-                      {%- else -%}
-                      No tool calls
-                      {%- endif -%}
-                    </div>
-                  </div>
-                  <div class="sm">
-                    {% if interaction.input_tokens %}
-                    <span class="micro">{{ interaction.input_tokens | format_number }} in</span>
-                    {% endif %}
-                    {% if supports_cache_tokens and interaction.cache_read_tokens %}
-                    <span class="micro">{{ interaction.cache_read_tokens | format_number }} cache</span>
-                    {% endif %}
-                    {% if supports_cache_tokens and interaction.cache_write_tokens %}
-                    <span class="micro">{{ interaction.cache_write_tokens | format_number }} write</span>
-                    {% endif %}
-                    {% if interaction.output_tokens %}
-                    <span class="micro">{{ interaction.output_tokens | format_number }} out</span>
-                    {% endif %}
-                  </div>
-                </div>
-
-                {# Tool call children #}
-                {% for tc in interaction.tool_calls %}
-                  {% set tc_summary = '' %}
-                  {% if tc.name == 'Bash' %}
-                    {% set tc_summary = tc.parameters.get('command', '')[:100] %}
-                  {% elif tc.name == 'Agent' and tc.subagent_summary %}
-                    {% set tc_summary = 'Subagent: ' ~ (tc.subagent_summary.description or tc.subagent_summary.agent_type) %}
-                  {% elif tc.parameters.get('file_path') %}
-                    {% set tc_summary = tc.parameters.file_path | relative_to_repo %}
-                  {% else %}
-                    {% set tc_summary = tc.parameters | tojson_repo | truncate(80) %}
-                  {% endif %}
-                  {% set tc_type = tc.name[:4].upper() %}
-                  {% if tc.is_failed %}
-                  <div class="span fail"
-                       data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-name="{{ tc.name }}"
-                       data-tool-status="error"
-                       data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                       data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                       data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-error="{{ (tc.error_message or '') | striptags | truncate(200) }}"
-                       data-tool-scope="{{ tc.scope }}"
-                       onclick="openToolInspector(this)">
-                    <div class="sk">{{ tc_type }}</div>
-                    <div class="sb">
-                      <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                      <div class="sd">
-                        {{ tc.error_message | default('') | striptags | truncate(120) }}
-                      </div>
-                    </div>
-                    <div class="sm">
-                      <span class="micro">exit {{ tc.exit_code }}</span>
-                      {% if tc.duration_ms %}
-                      <span class="micro">{{ tc.duration_ms }}ms</span>
-                      {% endif %}
-                    </div>
-                  </div>
-                  {% elif tc.has_nonzero_exit and not tc.is_failed %}
-                  <div class="span warn"
-                       data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-name="{{ tc.name }}"
-                       data-tool-status="warn"
-                       data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                       data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                       data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-scope="{{ tc.scope }}"
-                       onclick="openToolInspector(this)">
-                    <div class="sk">{{ tc_type }}</div>
-                    <div class="sb">
-                      <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                      <div class="sd">
-                        {{ tc.duration_ms }}ms
-                      </div>
-                    </div>
-                    <div class="sm">
-                      <span class="micro">exit {{ tc.exit_code }}</span>
-                      {% if tc.duration_ms %}
-                      <span class="micro">{{ tc.duration_ms }}ms</span>
-                      {% endif %}
-                    </div>
-                  </div>
-                  {% else %}
-                  <div class="span tool"
-                       data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-name="{{ tc.name }}"
-                       data-tool-status="ok"
-                       data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                       data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                       data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-scope="{{ tc.scope }}"
-                       onclick="openToolInspector(this)">
-                    <div class="sk">{{ tc_type }}</div>
-                    <div class="sb">
-                      <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                      <div class="sd">
-                        {%- if tc.duration_ms -%}
-                        {{ tc.duration_ms }}ms
-                        {%- endif -%}
-                      </div>
-                    </div>
-                    <div class="sm">
-                      <span class="micro">ok</span>
-                      {% if tc.duration_ms %}
-                      <span class="micro">{{ tc.duration_ms }}ms</span>
-                      {% endif %}
-                    </div>
-                  </div>
-                  {% endif %}
-                {% endfor %}
-              {% endfor %}
-
-              {# ── Assistant response (after LLM calls) ── #}
-              {% if round.assistant_msg.content and round.interactions %}
-              <div class="span llm" data-span-id="R{{ round_idx }}-ASST">
-                <div class="sk">ASST</div>
-                <div class="sb">
-                  <div class="st">{{ round.assistant_msg.content | striptags | truncate(120) }}</div>
-                  <div class="sd">Assistant response</div>
-                </div>
-                <div class="sm"></div>
-              </div>
-              {% endif %}
-
-              {# ── Fallback: no interactions — show assistant msg + direct tool calls ── #}
-              {% if not round.interactions %}
-                {% if round.assistant_msg.content %}
-                <div class="span llm" data-span-id="R{{ round_idx }}-ASST-FB">
-                  <div class="sk">ASST</div>
-                  <div class="sb">
-                    <div class="st">{{ round.assistant_msg.content | striptags | truncate(120) }}</div>
-                    <div class="sd">Assistant: {{ round.assistant_msg.content | striptags | truncate(80) }}</div>
-                  </div>
-                  <div class="sm"></div>
-                </div>
-                {% endif %}
-                {% for tc in round.tool_calls %}
-                  {% set tc_summary = '' %}
-                  {% if tc.name == 'Bash' %}
-                    {% set tc_summary = tc.parameters.get('command', '')[:100] %}
-                  {% elif tc.parameters.get('file_path') %}
-                    {% set tc_summary = tc.parameters.file_path | relative_to_repo %}
-                  {% else %}
-                    {% set tc_summary = tc.parameters | tojson_repo | truncate(80) %}
-                  {% endif %}
-                  {% set tc_type = tc.name[:4].upper() %}
-                  {% if tc.is_failed %}
-                  <div class="span fail"
-                       data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-name="{{ tc.name }}"
-                       data-tool-status="error"
-                       data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                       data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                       data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-error="{{ (tc.error_message or '') | striptags | truncate(200) }}"
-                       data-tool-scope="{{ tc.scope }}"
-                       onclick="openToolInspector(this)">
-                    <div class="sk">{{ tc_type }}</div>
-                    <div class="sb">
-                      <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                      <div class="sd">
-                        {{ tc.error_message | default('') | striptags | truncate(120) }}
-                      </div>
-                    </div>
-                    <div class="sm">
-                      <span class="micro">exit {{ tc.exit_code }}</span>
-                      {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
-                    </div>
-                  </div>
-                  {% elif tc.has_nonzero_exit and not tc.is_failed %}
-                  <div class="span warn"
-                       data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-name="{{ tc.name }}"
-                       data-tool-status="warn"
-                       data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                       data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                       data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-scope="{{ tc.scope }}"
-                       onclick="openToolInspector(this)">
-                    <div class="sk">{{ tc_type }}</div>
-                    <div class="sb">
-                      <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                      <div class="sd"></div>
-                    </div>
-                    <div class="sm">
-                      <span class="micro">exit {{ tc.exit_code }}</span>
-                      {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
-                    </div>
-                  </div>
-                  {% else %}
-                  <div class="span tool"
-                       data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-name="{{ tc.name }}"
-                       data-tool-status="ok"
-                       data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                       data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                       data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                       data-tool-scope="{{ tc.scope }}"
-                       onclick="openToolInspector(this)">
-                    <div class="sk">{{ tc_type }}</div>
-                    <div class="sb">
-                      <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                      <div class="sd"></div>
-                    </div>
-                    <div class="sm">
-                      <span class="micro">ok</span>
-                      {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
-                    </div>
-                  </div>
-                  {% endif %}
-                {% endfor %}
-              {% endif %}
-
-              {# ── Hidden templates: tool call results for Inspector ── #}
-              {% for tc in round.tool_calls %}
-                {% set _tc_num = loop.index %}
-                <template id="tool-result-R{{ round_idx }}-T{{ _tc_num }}">{{ tc.result | default('') | striptags }}</template>
-              {% endfor %}
-            </div>
-          </div>
-
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state">No conversation data available.</div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Tab: Hotspots (diagnostic tool) -->
-    </div>
-
-    <div data-view="calls" style="display:none" data-workbench-view="calls">
-      <div class="calls-card-head">
-        <div class="calls-card-title">Calls View · LLM Call Index</div>
-        <div class="calls-card-sub">Profile is folded into session detail as a call index.</div>
-      </div>
-      {# Migration note: was id="profile" class="tab-content" + profile-template #}
-      {% if llm_calls %}
-      <div class="calls-scroll-wrapper">
-      <div class="data-table" data-calls-table>
-          <div class="table-head">
-              <div>#</div><div>Round</div><div>Model</div><div>Input</div><div>Cache R</div><div>Cache W</div><div>Output</div><div>Status</div><div>Preview</div>
-          </div>
-          {% for call in llm_calls|sort(attribute='round_index') %}
-          {# Compute payload status for data attribute (DRY: mirrors diag logic below) #}
-          {% set call_total = call.input_tokens + call.output_tokens %}
-          {% if call.status == 'error' %}
-          {% set _payload_status = 'error' %}
-          {% elif call.failed_tool_count and call.failed_tool_count > 0 %}
-          {% set _payload_status = 'error' %}
-          {% elif not call.request_full or call.request_full == "" %}
-          {% set _payload_status = 'gap' %}
-          {% elif call_total > 50000 %}
-          {% set _payload_status = 'warn' %}
-          {% else %}
-          {% set _payload_status = 'ok' %}
-          {% endif %}
-          <div class="table-row"
-               data-llm-call-id="{{ session.session_key }}-{{ loop.index }}"
-               data-call-idx="{{ loop.index }}"
-               data-model="{{ call.model[:50] }}"
-               data-scope="{{ call.scope }}"
-               data-round="{{ call.round_index + 1 }}"
-               data-input-tokens="{{ call.input_tokens }}"
-               data-output-tokens="{{ call.output_tokens }}"
-               data-cache-read="{{ call.cache_read_tokens }}"
-               data-cache-write="{{ call.cache_write_tokens }}"
-               data-payload-status="{{ _payload_status }}"
-               data-call-status="{{ _payload_status }}"
-               data-duration-ms="{{ call.duration_ms or 0 }}"
-               onclick="openLLMInspector(this)"
-               tabindex="0">
-              <div class="mono">#{{ loop.index }}</div>
-              <div class="mono">R{{ call.round_index + 1 }}</div>
-              <div class="mono">{{ call.model[:30] }}</div>
-              <div class="mono">{{ call.input_tokens | format_number }}</div>
-              {% if supports_cache_tokens %}
-              <div class="mono">{{ call.cache_read_tokens | format_number }}</div>
-              <div class="mono">{{ call.cache_write_tokens | format_number }}</div>
-              {% else %}
-              <div class="mono">—</div>
-              <div class="mono">—</div>
-              {% endif %}
-              <div class="mono">{{ call.output_tokens | format_number }}</div>
-              <div>
-              {% if call.status == 'error' %}
-              <span class="diag err">error</span>
-              {% elif call.failed_tool_count and call.failed_tool_count > 0 %}
-              <span class="diag err">{{ call.failed_tool_count }} failed</span>
-              {% elif not call.request_full or call.request_full == "" %}
-              <span class="diag warn">payload gap</span>
-              {% elif call_total > 50000 %}
-              <span class="diag warn">~{{ call_total | format_number }}t</span>
-              {% else %}
-              <span class="diag ok">ok</span>
-              {% endif %}
-              </div>
-              <div class="cell-title">{{ call.response_preview[:80] if call.response_preview else '—' }}</div>
-          </div>
-        {# Hidden templates for Inspector — 与旧 profile 同结构 #}
-        <template id="llm-call-{{ loop.index }}-inspect-request">{{ call.request_full if call.request_full else call.prompt_preview }}</template>
-        <template id="llm-call-{{ loop.index }}-inspect-response">{{ call.response_full }}</template>
-        <template id="llm-call-{{ loop.index }}-tool-calls">
-            {%- if call.tool_calls -%}
-            [
-            {%- for tc in call.tool_calls -%}
-            {
-                "name": "{{ tc.name }}",
-                "status": {{ '"failed"' if tc.is_failed else '"ok"' }},
-                "duration_ms": {{ tc.duration_ms or 0 }},
-                "parameters": {{ tc.parameters | tojson }},
-                "result_preview": "{{ (tc.result or '')[:200] | replace('\\', '\\\\') | replace('"', '\\"') | replace('\n', ' ') }}",
-                "result_length": {{ (tc.result or '') | length }}
-                {% if tc.is_failed %},"error_message": "{{ (tc.error_message or '') | replace('\\', '\\\\') | replace('"', '\\"') }}"{% endif %}
-                {% if tc.exit_code is defined %},"exit_code": {{ tc.exit_code or 0 }}{% endif %}
-            }{% if not loop.last %},{% endif %}
-            {% endfor %}
-            ]
-            {%- else -%}[]{%- endif -%}
-        </template>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="empty-state">No LLM calls found for this session.</div>
-      {% endif %}
-      </div><!-- /calls-scroll-wrapper -->
-
-      <!-- Raw session data (collapsible) -->
-      <details class="raw-session">
-          <summary>Raw Session Data</summary>
-          <pre>{
-  "session_key": "{{ session.session_key }}",
-  "agent": "{{ session.agent }}",
-  "title": "{{ session.title[:200] }}",
-  "model": "{{ session.model }}",
-  "cwd": "{{ session.cwd }}",
-  "started_at": "{{ session.started_at }}",
-  "ended_at": "{{ session.ended_at }}",
-  "duration_seconds": {{ session.duration_seconds }},
-  "input_tokens": {{ session.input_tokens }},
-  "output_tokens": {{ session.output_tokens }}{% if supports_cache_tokens %},
-  "cached_input_tokens": {{ session.cached_input_tokens }},
-  "cached_output_tokens": {{ session.cached_output_tokens }}{% endif %}
-}</pre>
-      </details>
-    </div>
-
-    <div data-view="hotspots" style="display:none" data-workbench-view="hotspots">
-      {# Migration note: was id="hotspots" class="tab-content" #}
-<div class="card">
-    <div class="card-head">
-        <div>
-            <div class="card-title">Hotspots View · Diagnostics</div>
-            <div class="card-sub">Aggregated diagnostic hotspots for this session.</div>
-        </div>
-    </div>
-    <div class="card-body">
-        {# ── Aggregate round_signals into hotspot cards ── #}
-        {% set hotspot_cards = [] %}
-        {% set _round_to_call_idx = {} %}
-        {% for _c in llm_calls|sort(attribute='round_index') %}
-            {% set _rkey = _c.round_index + 1 %}
-            {% if _rkey not in _round_to_call_idx %}
-                {% set _ = _round_to_call_idx.__setitem__(_rkey, loop.index) %}
-            {% endif %}
-        {% endfor %}
-        {% for round in rounds %}
-            {% set r_idx = loop.index %}
-            {% set sigs = round_signals[loop.index0] if round_signals else [] %}
-            {% for sig in sigs %}
-                {# Failure: failed-tool, llm-error, long-tool #}
-                {% if sig.key in ['failed-tool', 'llm-error', 'long-tool'] %}
-                    {% set _ = hotspot_cards.append({
-                        'category': 'Failure hotspot',
-                        'value': 'R' ~ r_idx ~ ' · ' ~ sig.reason.split(':')[0] if ':' in sig.reason else sig.reason,
-                        'subtitle': sig.reason,
-                        'label': sig.label,
-                        'severity': 'err' if sig.severity == 'critical' else 'warn',
-                        'round_idx': r_idx,
-                        'hotspot_type': 'failure'
-                    }) %}
-                {% endif %}
-                {# Cost: high-write, large-input, tool-burst #}
-                {% if sig.key in ['high-write', 'large-input', 'tool-burst'] %}
-                    {% set _ = hotspot_cards.append({
-                        'category': 'Cost hotspot',
-                        'value': 'R' ~ r_idx ~ ' · ' ~ sig.label,
-                        'subtitle': sig.reason,
-                        'label': sig.label,
-                        'severity': 'warn' if sig.severity == 'warning' else 'info',
-                        'round_idx': r_idx,
-                        'hotspot_type': 'cost'
-                    }) %}
-                {% endif %}
-            {% endfor %}
-        {% endfor %}
-
-        {# ── Payload hotspot: first LLM call with empty request_full ── #}
-        {% if supports_cache_tokens and llm_total_input > 0 %}
-            {% set payload_gap = namespace(found=False, call_num=0, round_idx=0) %}
-            {% for call in llm_calls %}
-                {% if not payload_gap.found and (not call.request_full or call.request_full == "") %}
-                    {% set payload_gap.found = True %}
-                    {% set payload_gap.call_num = loop.index %}
-                    {% set payload_gap.round_idx = call.round_index + 1 %}
-                {% endif %}
-            {% endfor %}
-            {% if payload_gap.found %}
-                {% set _call_num_for_payload = _round_to_call_idx.get(payload_gap.round_idx, payload_gap.call_num) %}
-                {% set _ = hotspot_cards.append({
-                    'category': 'Payload hotspot',
-                    'value': 'LLM #' ~ payload_gap.call_num ~ ' · request payload missing',
-                    'subtitle': 'Input tokens exist while rendered context is empty.',
-                    'label': 'payload gap',
-                    'severity': 'warn',
-                    'round_idx': payload_gap.round_idx,
-                    'hotspot_type': 'payload',
-                    'call_idx': _call_num_for_payload
-                }) %}
-            {% endif %}
-        {% endif %}
-
-        {# ── Cost-per-round summary: round with highest token count ── #}
-        {% if rounds and rounds | length > 1 %}
-            {% set max_rt = namespace(value=0, idx=0) %}
-            {% for r in rounds %}
-                {% set rb = r.token_breakdown() %}
-                {% set rt = rb.input + rb.cache_read + rb.cache_write + rb.output %}
-                {% if rt > max_rt.value %}
-                    {% set max_rt.value = rt %}
-                    {% set max_rt.idx = loop.index %}
-                {% endif %}
-            {% endfor %}
-            {% if max_rt.value > 0 and max_rt.idx > 0 %}
-                {% set _rb_max = rounds[max_rt.idx - 1].token_breakdown() %}
-                {% set _total_max = _rb_max.input + _rb_max.cache_read + _rb_max.cache_write + _rb_max.output %}
-                {% set _cache_max = _rb_max.cache_read + _rb_max.cache_write %}
-                {% set _cache_ratio = (_cache_max / _total_max * 100) | round(0) if _total_max > 0 else 0 %}
-                {% set _ = hotspot_cards.append({
-                    'category': 'Cost hotspot',
-                    'value': 'R' ~ max_rt.idx ~ ' · ' ~ max_rt.value | format_number ~ ' tokens',
-                    'subtitle': 'Highest token round, ' ~ _cache_ratio ~ '% cache.',
-                    'label': 'high token',
-                    'severity': 'info',
-                    'round_idx': max_rt.idx,
-                    'hotspot_type': 'cost'
-                }) %}
-            {% endif %}
-        {% endif %}
-
-        {# ── Token mix summary card ── #}
-        {% if session_grand_total > 0 and supports_cache_tokens %}
-            {% set _ = hotspot_cards.append({
-                'category': 'Token mix',
-                'value': fresh_pct ~ '% fresh · ' ~ cr_pct ~ '% cache R · ' ~ cw_pct ~ '% cache W',
-                'subtitle': 'Output: ' ~ out_pct ~ '% (' ~ session.output_tokens | format_number ~ ' tokens)',
-                'label': 'mix summary',
-                'severity': 'ok',
-                'round_idx': 0,
-                'hotspot_type': 'token-mix'
-            }) %}
-        {% elif session_grand_total > 0 %}
-            {% set _ = hotspot_cards.append({
-                'category': 'Token mix',
-                'value': fresh_pct ~ '% input · ' ~ out_pct ~ '% output',
-                'subtitle': session.input_tokens | format_number ~ ' in / ' ~ session.output_tokens | format_number ~ ' out',
-                'label': 'mix summary',
-                'severity': 'ok',
-                'round_idx': 0,
-                'hotspot_type': 'token-mix'
-            }) %}
-        {% endif %}
-
-        {% if hotspot_cards | length > 0 %}
-        <div class="grid3">
-            {% for card in hotspot_cards[:9] %}
-            <div class="hot-card{% if card.hotspot_type in ('failure', 'cost', 'payload') %} hot-card--clickable{% endif %}"
-                 {# class="hot-card" is the base class for all diagnostic cards #}
-                 data-hotspot-id="hs-{{ loop.index }}"
-                 data-hotspot-label="{{ card.label | default('') }}"
-                 data-severity="{{ card.severity }}"
-                 data-round-idx="{{ card.round_idx }}"
-                 data-call-idx="{{ card.call_idx | default(0) }}"
-                 data-hotspot-type="{{ card.hotspot_type | default('') }}"
-                 {% if card.hotspot_type in ('failure', 'cost', 'payload') %}
-                 onclick="HotspotsCtrl.handle(this)"
-                 title="Click to jump to the relevant section"
-                 {% endif %}>
-                <div class="hot-k">{{ card.category }}</div>
-                <div class="hot-v">{{ card.value }}</div>
-                <div class="hot-s">{{ card.subtitle }}</div>
-                <br>
-                <span class="diag {{ card.severity }}">{{ card.label }}</span>
-            </div>
-            {% endfor %}
-        </div>
-        {% if hotspot_cards | length > 9 %}
-        <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--t4);">{{ hotspot_cards | length - 9 }} more diagnostics hidden</div>
-        {% endif %}
-        {% else %}
-        <div class="hotspots-diagnostic__empty">
-            <div class="hotspots-diagnostic__empty-icon">&#x2705;</div>
-            <p>未发现异常。本轮会话各项指标均正常。</p>
-        </div>
-        {% endif %}
-    </div>
-</div>
-</div>
-
-<!-- Tab: Profile (LLM calls table + raw data) — lazy-loaded via <template> -->
-    </div>
+<!-- ── Issue Summary ────────────────────────────────────────── -->
+<section class="issue-summary" data-issue-summary>
+  <div class="issue-summary__header">
+    <span class="issue-summary__title">Issues</span>
+    <span class="issue-summary__count">{{ failed_rounds | length }} round{{ 's' if failed_rounds | length != 1 else '' }}</span>
   </div>
 
-  {# ── Token Charts Card (Token Mix + Tokens per Round, single full-width card) ── #}
-  {# Relocated from first-screen position into workbench to demote visual priority #}
-  {% if rounds and rounds | length > 1 %}
-  <div class="token-charts-card" id="tokenChartsCard">
-      <!-- Compact collapsible header (always visible) -->
-      <div class="token-charts-card__header" id="tokenChartsHeader"
-           onclick="TokenChartsToggle()" role="button" tabindex="0"
-           aria-expanded="true" aria-controls="tokenChartsBody">
-          <span class="token-charts-card__title">Token Usage</span>
-          <span class="token-charts-card__chevron">&#9660;</span>
-      </div>
-      <!-- Collapsible body -->
-      <div class="token-charts-card__body" id="tokenChartsBody">
-      <div class="token-charts-card__body-grid">
-      <!-- Left: Token Mix donut -->
-      <div class="token-charts-card__token-mix">
-          <div class="token-charts-panel__title">Token Mix</div>
-          <div class="token-mix__donut">
-              <svg viewBox="0 0 140 140" class="token-donut__svg">
-                  {% if session_grand_total > 0 %}
-                      {% set r = 52 %}
-                      {% set c = 2 * 3.14159 * r %}
-                      <circle class="token-donut__seg" cx="70" cy="70" r="{{ r }}"
-                          stroke="var(--token-input-fresh)"
-                          stroke-dasharray="{{ ((fresh_pct / 100) * c) | round(1) }} {{ c }}"
-                          stroke-dashoffset="0" />
-                      {% if supports_cache_tokens %}
-                      <circle class="token-donut__seg" cx="70" cy="70" r="{{ r }}"
-                          stroke="var(--token-cache-read)"
-                          stroke-dasharray="{{ ((cr_pct / 100) * c) | round(1) }} {{ c }}"
-                          stroke-dashoffset="{{ -(fresh_pct / 100) * c }}" />
-                      <circle class="token-donut__seg" cx="70" cy="70" r="{{ r }}"
-                          stroke="var(--token-cache-write)"
-                          stroke-dasharray="{{ ((cw_pct / 100) * c) | round(1) }} {{ c }}"
-                          stroke-dashoffset="{{ -((fresh_pct + cr_pct) / 100) * c }}" />
-                      {% endif %}
-                      {% if supports_cache_tokens %}
-                      <circle class="token-donut__seg" cx="70" cy="70" r="{{ r }}"
-                          stroke="var(--token-output-visible)"
-                          stroke-dasharray="{{ ((out_pct / 100) * c) | round(1) }} {{ c }}"
-                          stroke-dashoffset="{{ -((fresh_pct + cr_pct + cw_pct) / 100) * c }}" />
-                      {% else %}
-                      <circle class="token-donut__seg" cx="70" cy="70" r="{{ r }}"
-                          stroke="var(--token-output-visible)"
-                          stroke-dasharray="{{ ((out_pct / 100) * c) | round(1) }} {{ c }}"
-                          stroke-dashoffset="{{ -(fresh_pct / 100) * c }}" />
-                      {% endif %}
-                  {% else %}
-                      <circle cx="70" cy="70" r="52" fill="none" stroke="var(--border-light)" stroke-width="1" />
-                  {% endif %}
-                  <text x="70" y="65" text-anchor="middle" class="token-donut__center-value">{{ session_grand_total | format_number_short }}</text>
-                  <text x="70" y="82" text-anchor="middle" class="token-donut__center-label">total tokens</text>
-              </svg>
-          </div>
-          {% if session_grand_total > 0 %}
-          <div class="token-mix__breakdown">
-              <div class="token-mix__row">
-                  <span class="token-mix__dot token-mix__dot--fresh"></span>
-                  <span class="token-mix__name">Fresh Input</span>
-                  <span class="token-mix__val">{{ session.input_tokens | format_number }}</span>
-                  <span class="token-mix__pct">{{ fresh_pct }}%</span>
-              </div>
-              {% if supports_cache_tokens %}
-              <div class="token-mix__row">
-                  <span class="token-mix__dot token-mix__dot--cr"></span>
-                  <span class="token-mix__name">Cache Read</span>
-                  <span class="token-mix__val">{{ session.cached_input_tokens | format_number }}</span>
-                  <span class="token-mix__pct">{{ cr_pct }}%</span>
-              </div>
-              <div class="token-mix__row">
-                  <span class="token-mix__dot token-mix__dot--cw"></span>
-                  <span class="token-mix__name" data-tooltip="cache_creation_input_tokens: input tokens written to prompt cache for future rounds">Cache Write</span>
-                  <span class="token-mix__val">{{ session.cached_output_tokens | format_number }}</span>
-                  <span class="token-mix__pct">{{ cw_pct }}%</span>
-              </div>
-              {% endif %}
-              <div class="token-mix__row">
-                  <span class="token-mix__dot token-mix__dot--out"></span>
-                  <span class="token-mix__name">Output</span>
-                  <span class="token-mix__val">{{ session.output_tokens | format_number }}</span>
-                  <span class="token-mix__pct">{{ out_pct }}%</span>
-              </div>
-          </div>
-          {% else %}
-          <div class="token-charts-card__empty-state">
-              <div class="token-charts-card__empty-icon">○</div>
-              <div class="token-charts-card__empty-text">No token breakdown available.</div>
-          </div>
-          {% endif %}
-      </div>
-
-      <!-- Right: Tokens per Round chart -->
-      <div class="token-charts-card__round-chart">
-          {% set spark_data2 = [] %}
-          {% for round in rounds %}
-              {% set rb = round.token_breakdown() %}
-              {% set rt = rb.input + rb.cache_read + rb.cache_write + rb.output %}
-              {% if rt > 0 %}
-                  {% set _ = spark_data2.append({'idx': loop.index, 'rt': rt, 'fresh': rb.input, 'cr': rb.cache_read, 'cw': rb.cache_write, 'out': rb.output}) %}
-              {% endif %}
+  {% if failed_rounds | length > 0 or highest_token_round.idx > 1 %}
+  <div class="issue-summary__cards">
+    {# Failed round cards #}
+    {% for fr in failed_rounds %}
+    <button class="issue-card issue-card--failed"
+            data-action="jump-round"
+            data-round="{{ fr.round_idx }}"
+            type="button">
+      <div class="issue-card__icon">!</div>
+      <div class="issue-card__body">
+        <div class="issue-card__title">R{{ fr.round_idx }} — {{ fr.failed_tool_count }} failed tool call{{ 's' if fr.failed_tool_count > 1 else '' }}{% if fr.llm_error %}, LLM error{% endif %}</div>
+        <div class="issue-card__sub">
+          {% for ft in fr.failed_tools[:3] %}
+          {{ ft.name }}{% if ft.exit_code is defined and ft.exit_code is not none %} (exit {{ ft.exit_code }}){% endif %}{% if not loop.last %}; {% endif %}
           {% endfor %}
-          <div class="round-chart__header">
-              <span>Tokens per Round</span>
-              {% if spark_data2 | length > 0 %}
-              <span class="round-chart__stats">
-                  Min: {{ spark_data2 | map(attribute='rt') | min | format_number }}
-                  · Avg: {{ (spark_data2 | map(attribute='rt') | sum / spark_data2 | length) | round(0) | format_number }}
-                  · Max: {{ spark_data2 | map(attribute='rt') | max | format_number }}
-              </span>
-              {% endif %}
-          </div>
-          {% if spark_data2 | length > 0 %}
-          <div class="round-chart-bars" id="roundChartBars">
-                  {% set max_rt2 = spark_data2 | map(attribute='rt') | max %}
-                  <svg viewBox="-15 -5 630 100" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
-                      {% for pct in [0, 25, 50, 75, 100] %}
-                          {% set y = 90 - (pct / 100) * 90 %}
-                          <line x1="-15" y1="{{ y }}" x2="615" y2="{{ y }}" stroke="var(--border-light)" stroke-width="0.5" />
-                      {% endfor %}
-                      {% for d in spark_data2 %}
-                          {% set x = ((d.idx - 1) / (spark_data2 | length - 1 if spark_data2 | length > 1 else 1)) * 600 %}
-                          {% set bar_w = max(600 / spark_data2 | length - 1, 2) %}
-                          {% set x_left = x - bar_w / 2 %}
-                          {% set fresh_h = (d.fresh / max_rt2 * 90) if max_rt2 > 0 else 0 %}
-                          {% set out_h = (d.out / max_rt2 * 90) if max_rt2 > 0 else 0 %}
-                          {% if supports_cache_tokens %}
-                          {% set cr_h = (d.cr / max_rt2 * 90) if max_rt2 > 0 else 0 %}
-                          {% set cw_h = (d.cw / max_rt2 * 90) if max_rt2 > 0 else 0 %}
-                          {% endif %}
-                          <rect class="round-bar__seg round-bar__seg--fresh" x="{{ x_left }}" y="{{ 90 - fresh_h }}" width="{{ bar_w }}" height="{{ fresh_h }}" />
-                          {% if supports_cache_tokens %}
-                          <rect class="round-bar__seg round-bar__seg--cr" x="{{ x_left }}" y="{{ 90 - fresh_h - cr_h }}" width="{{ bar_w }}" height="{{ cr_h }}" />
-                          <rect class="round-bar__seg round-bar__seg--cw" x="{{ x_left }}" y="{{ 90 - fresh_h - cr_h - cw_h }}" width="{{ bar_w }}" height="{{ cw_h }}" />
-                          {% endif %}
-                          <rect class="round-bar__seg round-bar__seg--out" x="{{ x_left }}" y="{{ 90 - fresh_h - cr_h - cw_h - out_h if supports_cache_tokens else 90 - fresh_h - out_h }}" width="{{ bar_w }}" height="{{ out_h }}" />
-                      {% endfor %}
-                      {% for d in spark_data2 %}
-                          {% set x = ((d.idx - 1) / (spark_data2 | length - 1 if spark_data2 | length > 1 else 1)) * 600 %}
-                          {% set bar_w = max(600 / spark_data2 | length - 1, 2) %}
-                          <rect class="round-bar__hover" x="{{ x - bar_w / 2 - 3 }}" y="-5" width="{{ bar_w + 6 }}" height="95"
-                              data-round-idx="{{ d.idx }}" data-total="{{ d.rt }}" data-fresh="{{ d.fresh }}" data-cr="{{ d.cr }}" data-cw="{{ d.cw }}" data-out="{{ d.out }}" />
-                      {% endfor %}
-                  </svg>
-                  <div class="chart-legend">
-                      <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--fresh"></span> Fresh</span>
-                      {% if supports_cache_tokens %}
-                      <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--cr"></span> Cache R</span>
-                      <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--cw"></span> Cache W</span>
-                      {% endif %}
-                      <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--out"></span> Output</span>
-                  </div>
-          </div>
-          {% else %}
-          <div class="token-charts-card__empty-state">
-              <div class="token-charts-card__empty-icon">▃</div>
-              <div class="token-charts-card__empty-text">No chart data available.</div>
-              <div class="token-charts-card__empty-sub">This session has no per-round token data.</div>
-          </div>
-          {% endif %}
+          {% if fr.failed_tools | length > 3 %}… +{{ fr.failed_tools | length - 3 }} more{% endif %}
+        </div>
       </div>
-      </div><!-- /token-charts-card__body-grid -->
-      </div><!-- /token-charts-card__body -->
-  </div><!-- /token-charts-card -->
+    </button>
+    {% endfor %}
+
+    {# Highest token round card #}
+    {% if highest_token_round.idx > 1 and highest_token_round.tokens > 0 %}
+    {% set _htr = rounds[highest_token_round.idx - 1].token_breakdown() %}
+    {% set _htr_total = _htr.input + _htr.cache_read + _htr.cache_write + _htr.output %}
+    <button class="issue-card issue-card--cost"
+            data-action="jump-round"
+            data-round="{{ highest_token_round.idx }}"
+            type="button">
+      <div class="issue-card__icon">$</div>
+      <div class="issue-card__body">
+        <div class="issue-card__title">R{{ highest_token_round.idx }} — {{ _htr_total | format_number }} tokens</div>
+        <div class="issue-card__sub">Highest token round across {{ rounds | length }} rounds</div>
+      </div>
+    </button>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="issue-summary__empty">
+    <span class="issue-summary__empty-icon">&#x2705;</span>
+    <span class="issue-summary__empty-text">No actionable issues detected.</span>
+  </div>
   {% endif %}
 </section>
 
-{# ── DEPRECATED: Conversation tab (migrated out of Workbench) ── #}
-{# Former conversation tab (active by default) -- no longer rendered as visible DOM #}
-{# Content was All Messages flow with user/assistant msg blocks and viewer component #}
-
-
-<!-- Content Modal (shared for "Open" buttons) -->
-<div id="content-modal" class="content-modal" onclick="if(event.target===this)closeContentModal()">
-    <div class="content-modal__panel">
-        <div class="content-modal__header">
-            <span class="content-modal__title"></span>
-            <div class="content-modal__tabs">
-                <button class="content-modal__tab-btn active" data-view="markdown" onclick="switchContentView('markdown')">Markdown</button>
-                <button class="content-modal__tab-btn" data-view="raw" onclick="switchContentView('raw')">Raw</button>
-            </div>
-            <button class="content-modal__close" onclick="closeContentModal()" title="Close">&times;</button>
-        </div>
-        <div class="content-modal__markdown"></div>
-        <div class="content-modal__raw"><pre></pre></div>
+<!-- ── Trace Panel ──────────────────────────────────────────── -->
+<section class="trace-panel" data-trace-panel>
+  <header class="trace-panel__toolbar">
+    <div class="trace-panel__segmented">
+      <button class="trace-panel__chip active" data-action="filter-status" data-status="all" type="button">All</button>
+      <button class="trace-panel__chip" data-action="filter-status" data-status="failed" type="button">Failed</button>
     </div>
-</div>
+    <div class="trace-panel__actions">
+      <button class="trace-panel__btn" data-action="expand-all" type="button" title="Expand all rounds">Expand All</button>
+      <button class="trace-panel__btn" data-action="collapse-all" type="button" title="Collapse all rounds">Collapse All</button>
+    </div>
+  </header>
 
+  <div class="trace-list">
+    {# ── Global max round tokens for mixbar normalization ── #}
+    {% set max_round_tokens = namespace(value=0) %}
+    {% for _r in rounds %}
+      {% set _rb = _r.token_breakdown() %}
+      {% set _rt = _rb.input + _rb.cache_read + _rb.cache_write + _rb.output %}
+      {% if _rt > max_round_tokens.value %}
+        {% set max_round_tokens.value = _rt %}
+      {% endif %}
+    {% endfor %}
+
+    {% set first_failed_round_idx = namespace(value=0) %}
+    {% for round in rounds %}
+    {% set rb = round.token_breakdown() %}
+    {% set round_input_total = rb.input + rb.cache_read + rb.cache_write %}
+    {% set has_failed_tools = round.tool_calls | selectattr('is_failed') | list | length > 0 %}
+    {% set has_llm_error = round.llm_error_count > 0 %}
+    {% set rt = round_input_total + rb.output %}
+
+    {% set sigs = round_signals[loop.index0] if round_signals else [] %}
+    {% set round_status = 'failed' if (has_failed_tools or has_llm_error) else 'ok' %}
+
+    {# Track first failed round for auto-expand #}
+    {% if first_failed_round_idx.value == 0 and (has_failed_tools or has_llm_error) %}
+      {% set first_failed_round_idx.value = loop.index %}
+    {% endif %}
+
+    {# ── Trace row (semantic button with aria) ── #}
+    <button class="trace-row"
+         type="button"
+         data-round-idx="{{ loop.index }}"
+         data-round-tokens="{{ rt }}"
+         data-round-input="{{ rb.input }}"
+         data-round-output="{{ rb.output }}"
+         data-round-llm-calls="{{ round.llm_call_count }}"
+         data-round-tools="{{ round.tool_calls | length }}"
+         data-round-failed="{{ 1 if has_failed_tools else 0 }}"
+         data-round-err-sigs="{{ sigs | selectattr('severity', 'equalto', 'critical') | list | length }}"
+         data-round-warn-sigs="{{ sigs | selectattr('severity', 'equalto', 'warning') | list | length }}"
+         data-round-model="{{ round.interactions[0].model if round.interactions else session.model }}"
+         data-round-user-time="{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}"
+         data-status="{{ round_status }}"
+         aria-expanded="false"
+         aria-controls="trace-detail-{{ loop.index }}">
+      <span class="rid">
+        {% if has_llm_error or has_failed_tools %}<span class="round-failed-dot" aria-hidden="true"></span>{% endif %}
+        <span class="toggle" data-toggle-icon aria-hidden="true">&#8250;</span>
+        R{{ loop.index }}
+      </span>
+      <span class="round-main">
+        <span class="t">
+          {% if round.user_msg.content | trim %}
+          <span class="preview-tag preview-tag--user" data-tooltip="This round includes user input">User</span>
+          {% endif %}
+          {{ round.preview_text | safe }}
+        </span>
+        <span class="d">{{ round.preview_text | striptags | truncate(120) }}</span>
+      </span>
+      <span class="diags">
+        {% for sig in sigs %}
+        <span class="diag {{ sig['severity'] }}" data-tooltip="{{ sig['reason'] }}">{{ sig['label'] }}</span>
+        {% endfor %}
+        {% if round.llm_call_count > 1 %}
+        <span class="diag info">{{ round.llm_call_count }} LLM calls</span>
+        {% endif %}
+      </span>
+      <span class="mix">
+        <span class="mixbar">
+          {% set bar_scale = (rt / max_round_tokens.value * 100) if max_round_tokens.value > 0 else 0 %}
+          {% if rt > 0 %}
+          <span class="fresh" style="width:{{ (rb.input / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
+          {% if supports_cache_tokens and rb.cache_read > 0 %}
+          <span class="cache" style="width:{{ (rb.cache_read / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
+          {% endif %}
+          {% if supports_cache_tokens and rb.cache_write > 0 %}
+          <span class="write" style="width:{{ (rb.cache_write / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
+          {% endif %}
+          <span class="out" style="width:{{ (rb.output / rt * 100) | round(1) if rt > 0 else 0 }}%"></span>
+          {% endif %}
+        </span>
+        <span class="mixval">{{ rt | format_number }}</span>
+      </span>
+      <span class="tcell">{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}</span>
+    </button>
+
+    {# ── Trace detail (expanded content) ── #}
+    <div class="trace-detail" id="trace-detail-{{ loop.index }}" data-round-detail="{{ loop.index }}" style="display:none">
+      <div class="span-list">
+        {# ── User message node ── #}
+        {% if round.user_msg.content %}
+        <div class="span llm" data-span-id="R{{ loop.index }}-USER">
+          <div class="sk">USER</div>
+          <div class="sb">
+            <div class="st">{{ round.user_msg.content | striptags | truncate(120) }}</div>
+            <div class="sd">{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}</div>
+          </div>
+          <div class="sm"></div>
+        </div>
+        {% endif %}
+
+        {# ── LLM interaction nodes + nested tool calls ── #}
+        {% set round_idx = loop.index %}
+        {% for interaction in round.interactions %}
+          {# LLM node #}
+          {% set ix_index = loop.index %}
+          <div class="span llm" data-span-id="R{{ round_idx }}-IX{{ ix_index }}">
+            <div class="sk">LLM #{{ ix_index }}</div>
+            <div class="sb">
+              <div class="st">
+                {%- if interaction.scope == "subagent" -%}
+                Subagent via {{ interaction.parent_tool_name }} &middot; {{ interaction.model[:40] }}
+                {%- else -%}
+                {{ interaction.model[:60] }}
+                {%- endif -%}
+              </div>
+              <div class="sd">
+                {%- if interaction.tool_calls -%}
+                {{ interaction.tool_calls | length }} tool call{{ 's' if interaction.tool_calls | length > 1 else '' }}
+                {%- else -%}
+                No tool calls
+                {%- endif -%}
+              </div>
+            </div>
+            <div class="sm">
+              {% if interaction.input_tokens %}
+              <span class="micro">{{ interaction.input_tokens | format_number }} in</span>
+              {% endif %}
+              {% if supports_cache_tokens and interaction.cache_read_tokens %}
+              <span class="micro">{{ interaction.cache_read_tokens | format_number }} cache</span>
+              {% endif %}
+              {% if supports_cache_tokens and interaction.cache_write_tokens %}
+              <span class="micro">{{ interaction.cache_write_tokens | format_number }} write</span>
+              {% endif %}
+              {% if interaction.output_tokens %}
+              <span class="micro">{{ interaction.output_tokens | format_number }} out</span>
+              {% endif %}
+              {% if interaction.request_full or interaction.response_full %}
+              <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}">Payload</button>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Tool call children #}
+          {% for tc in interaction.tool_calls %}
+            {% set tc_summary = '' %}
+            {% if tc.name == 'Bash' %}
+              {% set tc_summary = tc.parameters.get('command', '')[:100] %}
+            {% elif tc.name == 'Agent' and tc.subagent_summary %}
+              {% set tc_summary = 'Subagent: ' ~ (tc.subagent_summary.description or tc.subagent_summary.agent_type) %}
+            {% elif tc.parameters.get('file_path') %}
+              {% set tc_summary = tc.parameters.file_path | relative_to_repo %}
+            {% else %}
+              {% set tc_summary = tc.parameters | tojson_repo | truncate(80) %}
+            {% endif %}
+            {% set tc_type = tc.name[:4].upper() %}
+            {% if tc.is_failed %}
+            <div class="span fail"
+                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-name="{{ tc.name }}"
+                 data-tool-status="error"
+                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
+                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
+                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-error="{{ (tc.error_message or '') | striptags | truncate(200) }}"
+                 data-tool-scope="{{ tc.scope }}"
+                 onclick="openToolInspector(this)">
+              <div class="sk">{{ tc_type }}</div>
+              <div class="sb">
+                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
+                <div class="sd">
+                  {{ tc.error_message | default('') | striptags | truncate(120) }}
+                </div>
+              </div>
+              <div class="sm">
+                <span class="micro">exit {{ tc.exit_code }}</span>
+                {% if tc.duration_ms %}
+                <span class="micro">{{ tc.duration_ms }}ms</span>
+                {% endif %}
+                {% if tc.result %}
+                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                {% endif %}
+              </div>
+            </div>
+            {% elif tc.has_nonzero_exit and not tc.is_failed %}
+            <div class="span warn"
+                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-name="{{ tc.name }}"
+                 data-tool-status="warn"
+                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
+                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
+                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-scope="{{ tc.scope }}"
+                 onclick="openToolInspector(this)">
+              <div class="sk">{{ tc_type }}</div>
+              <div class="sb">
+                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
+                <div class="sd">
+                  {{ tc.duration_ms }}ms
+                </div>
+              </div>
+              <div class="sm">
+                <span class="micro">exit {{ tc.exit_code }}</span>
+                {% if tc.duration_ms %}
+                <span class="micro">{{ tc.duration_ms }}ms</span>
+                {% endif %}
+                {% if tc.result %}
+                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                {% endif %}
+              </div>
+            </div>
+            {% else %}
+            <div class="span tool"
+                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-name="{{ tc.name }}"
+                 data-tool-status="ok"
+                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
+                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
+                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-scope="{{ tc.scope }}"
+                 onclick="openToolInspector(this)">
+              <div class="sk">{{ tc_type }}</div>
+              <div class="sb">
+                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
+                <div class="sd">
+                  {%- if tc.duration_ms -%}
+                  {{ tc.duration_ms }}ms
+                  {%- endif -%}
+                </div>
+              </div>
+              <div class="sm">
+                <span class="micro">ok</span>
+                {% if tc.duration_ms %}
+                <span class="micro">{{ tc.duration_ms }}ms</span>
+                {% endif %}
+                {% if tc.result %}
+                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+
+        {# ── Assistant response (after LLM calls) ── #}
+        {% if round.assistant_msg.content and round.interactions %}
+        <div class="span llm" data-span-id="R{{ round_idx }}-ASST">
+          <div class="sk">ASST</div>
+          <div class="sb">
+            <div class="st">{{ round.assistant_msg.content | striptags | truncate(120) }}</div>
+            <div class="sd">Assistant response</div>
+          </div>
+          <div class="sm"></div>
+        </div>
+        {% endif %}
+
+        {# ── Fallback: no interactions — show assistant msg + direct tool calls ── #}
+        {% if not round.interactions %}
+          {% if round.assistant_msg.content %}
+          <div class="span llm" data-span-id="R{{ round_idx }}-ASST-FB">
+            <div class="sk">ASST</div>
+            <div class="sb">
+              <div class="st">{{ round.assistant_msg.content | striptags | truncate(120) }}</div>
+              <div class="sd">Assistant: {{ round.assistant_msg.content | striptags | truncate(80) }}</div>
+            </div>
+            <div class="sm"></div>
+          </div>
+          {% endif %}
+          {% for tc in round.tool_calls %}
+            {% set tc_summary = '' %}
+            {% if tc.name == 'Bash' %}
+              {% set tc_summary = tc.parameters.get('command', '')[:100] %}
+            {% elif tc.parameters.get('file_path') %}
+              {% set tc_summary = tc.parameters.file_path | relative_to_repo %}
+            {% else %}
+              {% set tc_summary = tc.parameters | tojson_repo | truncate(80) %}
+            {% endif %}
+            {% set tc_type = tc.name[:4].upper() %}
+            {% if tc.is_failed %}
+            <div class="span fail"
+                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-name="{{ tc.name }}"
+                 data-tool-status="error"
+                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
+                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
+                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-error="{{ (tc.error_message or '') | striptags | truncate(200) }}"
+                 data-tool-scope="{{ tc.scope }}"
+                 onclick="openToolInspector(this)">
+              <div class="sk">{{ tc_type }}</div>
+              <div class="sb">
+                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
+                <div class="sd">
+                  {{ tc.error_message | default('') | striptags | truncate(120) }}
+                </div>
+              </div>
+              <div class="sm">
+                <span class="micro">exit {{ tc.exit_code }}</span>
+                {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
+                {% if tc.result %}
+                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                {% endif %}
+              </div>
+            </div>
+            {% elif tc.has_nonzero_exit and not tc.is_failed %}
+            <div class="span warn"
+                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-name="{{ tc.name }}"
+                 data-tool-status="warn"
+                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
+                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
+                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-scope="{{ tc.scope }}"
+                 onclick="openToolInspector(this)">
+              <div class="sk">{{ tc_type }}</div>
+              <div class="sb">
+                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
+                <div class="sd"></div>
+              </div>
+              <div class="sm">
+                <span class="micro">exit {{ tc.exit_code }}</span>
+                {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
+                {% if tc.result %}
+                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                {% endif %}
+              </div>
+            </div>
+            {% else %}
+            <div class="span tool"
+                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-name="{{ tc.name }}"
+                 data-tool-status="ok"
+                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
+                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
+                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
+                 data-tool-scope="{{ tc.scope }}"
+                 onclick="openToolInspector(this)">
+              <div class="sk">{{ tc_type }}</div>
+              <div class="sb">
+                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
+                <div class="sd"></div>
+              </div>
+              <div class="sm">
+                <span class="micro">ok</span>
+                {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
+                {% if tc.result %}
+                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
+        {# ── Hidden templates: tool call results for Inspector ── #}
+        {% for tc in round.tool_calls %}
+          {% set _tc_num = loop.index %}
+          <template id="tool-result-R{{ round_idx }}-T{{ _tc_num }}">{{ tc.result | default('') | striptags }}</template>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% endfor %}
+  </div>
+</section>
+
+</div><!-- /data-session-detail-shell -->
+
+<!-- ── Payload Modal ────────────────────────────────────────── -->
+<dialog id="payload-modal" class="payload-modal" aria-label="Payload viewer">
+  <div class="payload-modal__panel">
+    <header class="payload-modal__header">
+      <span class="payload-modal__title"></span>
+      <div class="payload-modal__tabs">
+        <button type="button" class="payload-modal__tab active" data-action="payload-mode" data-mode="rendered">Rendered</button>
+        <button type="button" class="payload-modal__tab" data-action="payload-mode" data-mode="raw">Raw</button>
+      </div>
+      <button type="button" class="payload-modal__close" data-action="close-modal" aria-label="Close">&times;</button>
+    </header>
+    <div class="payload-modal__rendered"></div>
+    <div class="payload-modal__raw" hidden><pre></pre></div>
+  </div>
+</dialog>
+
+<!-- ── Payload registry ─────────────────────────────────────── -->
+<script>
+(function() {
+  var payloads = {};
+  var payloadIdx = 0;
+
+  // Register LLM request/response payloads
+  {% for interaction in [] %}{% endfor %}
+  {% for round in rounds %}
+  {% set round_idx = loop.index %}
+  {% for interaction in round.interactions %}
+  {% if interaction.request_full or interaction.response_full %}
+  {% set ix_index = loop.index %}
+  payloads['llm-R{{ round_idx }}-IX{{ ix_index }}'] = {
+    title: 'LLM #{{ ix_index }} (R{{ round_idx }})',
+    rendered: {{ interaction.response_preview[:500] | default('') | tojson }},
+    raw: {
+      request: {{ interaction.request_full | default('') | tojson }},
+      response: {{ interaction.response_full | default('') | tojson }}
+    }
+  };
+  {% endif %}
+  {% endfor %}
+  {% endfor %}
+
+  // Register tool result payloads
+  {% for round in rounds %}
+  {% set round_idx = loop.index %}
+  {% for tc in round.tool_calls %}
+  {% if tc.result and tc.result | length > 0 %}
+  payloads['tool-R{{ round_idx }}-T{{ loop.index }}'] = {
+    title: '{{ tc.name }} (R{{ round_idx }}-T{{ loop.index }})',
+    rendered: {{ (tc.result | striptags | truncate(2000)) | tojson }},
+    raw: {
+      result: {{ tc.result | default('') | tojson }}
+    }
+  };
+  {% endif %}
+  {% endfor %}
+  {% endfor %}
+
+  window.__SESSION_PAYLOADS__ = payloads;
+})();
+</script>
 
 <script>
 (function() {
-    /* ─── Anomaly Banner Controller ────────────────────────────── */
-    window.AnomalyBannerCtrl = (function() {
-        /**
-         * Handle a jump/inspect button click from the anomaly banner.
-         * Routes based on data-anomaly-type to the correct workbench view.
-         */
-        function handle(btn) {
-            var type = btn.getAttribute('data-anomaly-type') || '';
-            var targetView = btn.getAttribute('data-target-view') || 'trace';
-            var card = btn.closest('.alert');
-            var reason = card ? (card.querySelector('.alert-sub') || {}).textContent || '' : '';
-
-            if (type === 'failed_run') {
-                jumpToFailedRound(reason);
-            } else if (type === 'payload_visibility_mismatch') {
-                jumpToCalls();
-            } else if (type === 'long_duration') {
-                jumpToLastRound();
-            } else if (type === 'cache_write_spike') {
-                jumpToCalls();
-            } else {
-                // Default: switch to target view
-                if (typeof window.switchView === 'function') {
-                    window.switchView(targetView);
-                } else if (typeof window.switchTab === 'function') {
-                    window.switchTab(targetView);
-                }
-                // For hotspots, also call switchTab for legacy compat
-                if (targetView === 'hotspots') {
-                    switchTab('hotspots');
-                }
-                _toast('Navigated to ' + targetView + ' view.');
-            }
-        }
-
-        /**
-         * Jump to the round containing a failed tool call.
-         * Parses the round index from the anomaly reason text.
-         */
-        function jumpToFailedRound(reason) {
-            var roundIdx = _extractRoundIndex(reason);
-            if (!roundIdx) {
-                if (typeof window.switchView === 'function') {
-                    window.switchView('trace');
-                }
-                _toast('Failed tool — switch to Trace view to investigate.');
-                return;
-            }
-
-            if (typeof window.switchView === 'function') {
-                window.switchView('trace');
-            }
-
-            var traceRow = document.querySelector('.trace-row[data-round-idx="' + roundIdx + '"]');
-            if (!traceRow) {
-                _toast('Round #' + roundIdx + ' not found in Timeline.');
-                return;
-            }
-
-            var detailDiv = traceRow.nextElementSibling;
-            if (detailDiv && detailDiv.classList.contains('trace-detail')) {
-                if (detailDiv.style.display === 'none' || detailDiv.style.display === '') {
-                    if (typeof window.toggleRoundDetail === 'function') {
-                        window.toggleRoundDetail(traceRow);
-                    }
-                }
-            }
-
-            traceRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            _flashHighlight(traceRow);
-        }
-
-        /** Switch to the Calls (LLM calls table) view. */
-        function jumpToCalls() {
-            if (typeof window.switchView === 'function') {
-                window.switchView('calls');
-            }
-            _toast('Switched to Calls view — inspect LLM payloads.');
-        }
-
-        /** Jump to the last round (for long-duration sessions). */
-        function jumpToLastRound() {
-            var rows = document.querySelectorAll('.trace-row');
-            var lastRow = rows[rows.length - 1];
-            if (!lastRow) {
-                if (typeof window.switchView === 'function') {
-                    window.switchView('trace');
-                }
-                return;
-            }
-            if (typeof window.switchView === 'function') {
-                window.switchView('trace');
-            }
-            lastRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            _flashHighlight(lastRow);
-        }
-
-        /** Extract round index number from reason text like "R3 · ..." or "round 3". */
-        function _extractRoundIndex(reason) {
-            var m = reason.match(/\bR(\d+)\b/);
-            if (m) return m[1];
-            m = reason.match(/\bround\s+(\d+)\b/i);
-            if (m) return m[1];
-            return null;
-        }
-
-        /** Flash highlight on a row element. */
-        function _flashHighlight(el) {
-            el.classList.add('is-jump-target');
-            setTimeout(function() {
-                el.classList.remove('is-jump-target');
-            }, 2500);
-        }
-
-        /** Non-destructive inline toast. */
-        function _toast(message) {
-            var existing = document.querySelector('.anomaly-toast');
-            if (existing) existing.remove();
-
-            var toast = document.createElement('div');
-            toast.className = 'anomaly-toast';
-            toast.textContent = message;
-            toast.style.cssText = (
-                'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
-                'background:var(--text, #1a1a2e);color:var(--surface, #f5f5f5);' +
-                'padding:10px 20px;border-radius:8px;font-size:13px;z-index:10000;' +
-                'box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transition:opacity 0.2s;'
-            );
-            document.body.appendChild(toast);
-            requestAnimationFrame(function() { toast.style.opacity = '1'; });
-            setTimeout(function() {
-                toast.style.opacity = '0';
-                setTimeout(function() { toast.remove(); }, 300);
-            }, 3000);
-        }
-
-        return { handle: handle };
-    })();
-
-    /* ─── Round chart hover tooltip ────────────────────────────── */
-    (function() {
-        var container = document.getElementById('roundChartBars');
-        if (!container) return;
-        var svg = container.querySelector('svg');
-        if (!svg) return;
-
-        // Create tooltip element
-        var tooltip = document.createElement('div');
-        tooltip.className = 'round-chart-tooltip';
-        tooltip.style.cssText = 'position:fixed;display:none;background:var(--text);color:var(--surface);padding:8px 12px;border-radius:var(--radius-sm);font-size:var(--text-micro);white-space:nowrap;z-index:9999;pointer-events:none;box-shadow:var(--shadow);font-family:var(--font-mono);line-height:1.6;';
-        document.body.appendChild(tooltip);
-
-        function showTooltip(rect) {
-            var fmt = function(v) {
-                if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
-                if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
-                return v.toString();
-            };
-            var roundIdx = rect.dataset.roundIdx;
-            var total = parseInt(rect.dataset.total) || 0;
-            var fresh = parseInt(rect.dataset.fresh) || 0;
-            var cr = parseInt(rect.dataset.cr) || 0;
-            var cw = parseInt(rect.dataset.cw) || 0;
-            var out = parseInt(rect.dataset.out) || 0;
-
-            tooltip.innerHTML =
-                '<div style="font-weight:bold;padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.15)">Round #' + roundIdx + ': ' + fmt(total) + ' tokens</div>' +
-                '<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--token-input-fresh);margin-right:4px"></span>Fresh: <b>' + fmt(fresh) + '</b></div>' +
-                {% if supports_cache_tokens %}
-                '<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--token-cache-read);margin-right:4px"></span>Cache R: <b>' + fmt(cr) + '</b></div>' +
-                '<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--token-cache-write);margin-right:4px"></span>Cache W: <b>' + fmt(cw) + '</b></div>' +
-                {% endif %}
-                '<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--token-output-visible);margin-right:4px"></span>Output: <b>' + fmt(out) + '</b></div>';
-            tooltip.style.display = 'block';
-        }
-
-        function hideTooltip() {
-            tooltip.style.display = 'none';
-        }
-
-        function positionTooltip(rect, e) {
-            var rectX = parseFloat(rect.getAttribute('x'));
-            var rectW = parseFloat(rect.getAttribute('width'));
-            var svgViewBox = svg.getAttribute('viewBox').split(' ').map(Number);
-            var svgW = svgViewBox[2];
-            var svgRect = svg.getBoundingClientRect();
-            var scaleX = svgRect.width / svgW;
-            var barCenter = svgRect.left + (rectX + rectW / 2) * scaleX;
-
-            var ttW = tooltip.offsetWidth;
-            var ttH = tooltip.offsetHeight;
-
-            // Position above the bar, centered on the bar
-            var left = barCenter - ttW / 2;
-            var top = svgRect.top - ttH - 8;
-
-            // Keep tooltip within viewport horizontally
-            if (left < 4) left = 4;
-            if (left + ttW > window.innerWidth - 4) left = window.innerWidth - ttW - 4;
-
-            tooltip.style.left = left + 'px';
-            tooltip.style.top = top + 'px';
-        }
-
-        var hoverRects = svg.querySelectorAll('.round-bar__hover');
-        hoverRects.forEach(function(rect) {
-            rect.addEventListener('mouseenter', function(e) {
-                showTooltip(rect);
-            });
-            rect.addEventListener('mousemove', function(e) {
-                positionTooltip(rect, e);
-            });
-            rect.addEventListener('mouseleave', function() {
-                hideTooltip();
-            });
-        });
-    })();
-
-    /* ─── Unified selection (backed by ViewState.Selection) ── */
-
-    /**
-     * Selection is managed by ViewState.Selection. The inline functions here
-     * are thin wrappers for backward compat with onclick handlers in the template.
-     *
-     * The single source of truth is:
-     *   ViewState.Selection.get() → { activeView, selectedRoundId, selectedSpanId,
-     *                                 selectedCallId, selectedHotspotId }
-     */
-
-    /** Select a trace row; delegates to ViewState.Selection. */
-    window.selectTraceRow = function(traceRow) {
-        if (!traceRow) return;
-        var roundId = traceRow.getAttribute('data-round-idx');
-        if (roundId) {
-            // Use selectRound but skip auto-expand (onclick handles it)
-            var Sel = window.ViewState && window.ViewState.Selection;
-            if (Sel) {
-                Sel.selectRound(roundId, false /* no auto-expand */);
-            }
-        }
-    };
-
-    /** Clear all selection state; delegates to ViewState.Selection. */
-    window.clearSelection = function() {
-        var Sel = window.ViewState && window.ViewState.Selection;
-        if (Sel) {
-            Sel.clear();
-        }
-    };
-
-    /** Handle click on a trace row: toggle expand + select + open inspector. */
-    window.handleTraceRowClick = function(traceRow, event) {
-        if (!traceRow) return;
-        if (event) event.stopPropagation();
-        var detailDiv = traceRow.nextElementSibling;
-        if (!detailDiv || !detailDiv.classList.contains('trace-detail')) return;
-        var isCurrentlyExpanded = detailDiv.style.display !== 'none' && detailDiv.style.display !== '';
-        var roundId = traceRow.getAttribute('data-round-idx');
-        if (isCurrentlyExpanded) {
-            // Already expanded: just select
-            if (roundId) {
-                var Sel = window.ViewState && window.ViewState.Selection;
-                if (Sel) Sel.selectRound(roundId, false);
-            }
-            if (window.openRoundInspector) window.openRoundInspector(traceRow);
-        } else {
-            // Expand + select + inspector
-            window.toggleRoundDetail(traceRow);
-            if (roundId) {
-                var Sel = window.ViewState && window.ViewState.Selection;
-                if (Sel) Sel.selectRound(roundId, false);
-            }
-            if (window.openRoundInspector) window.openRoundInspector(traceRow);
-        }
-    };
-
     /* ─── Toggle round detail with accordion behavior ─── */
     /**
      * Toggle a single round's detail. When expanding, collapse all other rounds first.
      * @param {HTMLElement} traceRow - The .trace-row element
-     * @param {boolean} [forceState] - Optional: 'expand' or 'collapse' to force a state
+     * @param {string} [forceState] - Optional: 'expand' or 'collapse' to force a state
      */
     window.toggleRoundDetail = function(traceRow, forceState) {
         var detailDiv = traceRow.nextElementSibling;
@@ -1541,7 +900,8 @@
         }
 
         if (isExpanding) {
-            detailDiv.style.display = '';
+            detailDiv.style.display = 'block';
+            traceRow.setAttribute('aria-expanded', 'true');
             if (toggleIcon) toggleIcon.textContent = '⌄';
             // Persist expanded state
             if (window._sessionId && traceRow.dataset.roundIdx) {
@@ -1553,6 +913,7 @@
             }
         } else {
             detailDiv.style.display = 'none';
+            traceRow.setAttribute('aria-expanded', 'false');
             if (toggleIcon) toggleIcon.textContent = '›';
             // Persist collapsed state
             if (window._sessionId && traceRow.dataset.roundIdx) {
@@ -1575,6 +936,7 @@
             if (!detailDiv || !detailDiv.classList.contains('trace-detail')) return;
             if (detailDiv.style.display !== 'none' && detailDiv.style.display !== '') {
                 detailDiv.style.display = 'none';
+                row.setAttribute('aria-expanded', 'false');
                 var toggleIcon = row.querySelector('[data-toggle-icon]');
                 if (toggleIcon) toggleIcon.textContent = '›';
             }
@@ -1587,11 +949,10 @@
         rows.forEach(function(row) {
             var detailDiv = row.nextElementSibling;
             if (detailDiv && detailDiv.classList.contains('trace-detail')) {
-                if (detailDiv.style.display === 'none' || detailDiv.style.display === '') {
-                    detailDiv.style.display = '';
-                    var toggleIcon = row.querySelector('[data-toggle-icon]');
-                    if (toggleIcon) toggleIcon.textContent = '⌄';
-                }
+                detailDiv.style.display = 'block';
+                row.setAttribute('aria-expanded', 'true');
+                var toggleIcon = row.querySelector('[data-toggle-icon]');
+                if (toggleIcon) toggleIcon.textContent = '⌄';
             }
         });
         // Persist all expanded
@@ -1608,6 +969,7 @@
             if (detailDiv && detailDiv.classList.contains('trace-detail')) {
                 if (detailDiv.style.display !== 'none' && detailDiv.style.display !== '') {
                     detailDiv.style.display = 'none';
+                    row.setAttribute('aria-expanded', 'false');
                     var toggleIcon = row.querySelector('[data-toggle-icon]');
                     if (toggleIcon) toggleIcon.textContent = '›';
                 }
@@ -1616,327 +978,26 @@
         arpStorage.set('rounds_' + window._sessionId, []);
     };
 
-    /* ─── Span / tool call click-to-select ─────────────────── */
-    /** Handle click on a span node in trace-detail. */
-    window.handleSpanClick = function(spanEl, event) {
-        if (!spanEl) return;
-        if (event) event.stopPropagation();
-        var spanId = spanEl.getAttribute('data-span-id') || spanEl.getAttribute('data-tool-idx');
-        var Sel = window.ViewState && window.ViewState.Selection;
-        if (Sel && spanId) {
-            Sel.selectSpan(spanId);
+    /* ─── Tool result markdown toggle ─────────────────────── */
+    window.toggleResultMd = function(btn) {
+        var block = btn.closest('.tool-result-block');
+        if (!block) return;
+        var wrapper = block.querySelector('.tool-result-wrapper');
+        var rawEl = block.querySelector('.tool-result-raw');
+        var mdEl = block.querySelector('.tool-result-md');
+        if (!wrapper || !rawEl || !mdEl) return;
+        if (wrapper.classList.contains('is-md')) {
+            wrapper.classList.remove('is-md');
+            btn.textContent = 'MD';
+            btn.classList.remove('active');
         } else {
-            window.clearSelection();
-            spanEl.classList.add('selected');
+            wrapper.classList.add('is-md');
+            btn.textContent = 'Raw';
+            btn.classList.add('active');
         }
-        if (window.openToolInspector) window.openToolInspector(spanEl);
-    };
-
-    /* ─── Table row click-to-select (Calls view) ───────────── */
-    /** Handle click on a table-row in Calls view. */
-    window.handleTableRowClick = function(row, event) {
-        if (!row) return;
-        if (event) event.stopPropagation();
-        var callId = row.getAttribute('data-call-idx');
-        var Sel = window.ViewState && window.ViewState.Selection;
-        if (Sel && callId) {
-            Sel.selectCall(callId);
-        } else {
-            window.clearSelection();
-            row.classList.add('selected');
-        }
-        if (window.openLLMInspector) window.openLLMInspector(row);
-    };
-
-    /* ─── Toggle LLM card (prompt/response expand) ────────────── */
-    window.toggleLLMCard = function(headerEl) {
-        var card = headerEl.closest('.llm-card');
-        if (!card) return;
-        var body = card.querySelector('.llm-card__body');
-        if (!body) return;
-        var chevron = headerEl.querySelector('.llm-card__chevron');
-        if (body.classList.contains('open')) {
-            body.classList.remove('open');
-            if (chevron) chevron.classList.remove('rotated');
-        } else {
-            body.classList.add('open');
-            if (chevron) chevron.classList.add('rotated');
-        }
-    };
-
-    /* ─── Tool detail card expand/collapse ───────────────────── */
-    window.toggleToolDetail = function(headerEl) {
-        var card = headerEl.closest('.tool-detail-card');
-        if (!card) return;
-        var body = card.querySelector('.tool-detail-card__body');
-        if (!body) return;
-        var chevron = headerEl.querySelector('.tool-detail-card__chevron');
-        if (body.classList.contains('open')) {
-            body.classList.remove('open');
-            if (chevron) chevron.style.transform = '';
-        } else {
-            body.classList.add('open');
-            if (chevron) chevron.style.transform = 'rotate(90deg)';
-        }
-    };
-
-    /* ─── LLM call inspector entry ─────────────────────────── */
-    /**
-     * Open the LLM Call Inspector.
-     * @param {HTMLElement} el — either a <tr.llm-call-row> or the inspect <button>.
-     *   Both must carry data-call-idx, data-model, data-scope, data-round.
-     */
-    window.openLLMInspector = function (el) {
-        if (!window.openInspector) return;
-
-        var callIdx = el.getAttribute('data-call-idx') || '?';
-        var model = el.getAttribute('data-model') || '';
-        var scope = el.getAttribute('data-scope') || '';
-        var round = el.getAttribute('data-round') || '';
-
-        // Retrieve raw content from hidden templates
-        var reqTpl = document.getElementById('llm-call-' + callIdx + '-inspect-request');
-        var resTpl = document.getElementById('llm-call-' + callIdx + '-inspect-response');
-        var reqRaw = reqTpl ? (reqTpl.textContent || '') : '(No request content)';
-        var resRaw = resTpl ? (resTpl.textContent || '') : '(No response content)';
-
-        // Extract token data from row's data attributes (set by inspect button)
-        var inputTokens = parseInt(el.getAttribute('data-input-tokens') || '0') || 0;
-        var outputTokens = parseInt(el.getAttribute('data-output-tokens') || '0') || 0;
-        var cacheRead = parseInt(el.getAttribute('data-cache-read') || '0') || 0;
-        var cacheWrite = parseInt(el.getAttribute('data-cache-write') || '0') || 0;
-
-        // Get rendered context length from request content
-        var renderedContextLen = (reqRaw && reqRaw !== '(No request content)') ? reqRaw.length : 0;
-
-        // Build token mix label (HIFI: compact breakdown in inspector)
-        var tokenTotal = inputTokens + outputTokens + cacheRead + cacheWrite;
-        var fmt = function(v) {
-            if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
-            if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
-            return v.toString();
-        };
-        var tokenMixLabel = fmt(tokenTotal) + ' total';
-        if (tokenTotal > 0) {
-            var parts = [];
-            if (inputTokens > 0) parts.push('fresh ' + fmt(inputTokens));
-            if (cacheRead > 0) parts.push('cache-r ' + fmt(cacheRead));
-            if (cacheWrite > 0) parts.push('cache-w ' + fmt(cacheWrite));
-            if (outputTokens > 0) parts.push('out ' + fmt(outputTokens));
-            tokenMixLabel = fmt(tokenTotal) + ' (' + parts.join(', ') + ')';
-        }
-
-        var viewerHtml =
-            '<div class="inspector-sub-viewer">' +
-                '<div class="inspector-sub-viewer__header">Request</div>' +
-                '<div class="viewer viewer--raw">' +
-                    '<div class="viewer__raw">' +
-                        '<pre class="viewer__raw-pre">' +
-                            reqRaw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
-                        '</pre>' +
-                    '</div>' +
-                '</div>' +
-                '<div class="inspector-sub-viewer__header inspector-sub-viewer__header--mt">Response</div>' +
-                '<div class="viewer viewer--raw">' +
-                    '<div class="viewer__raw">' +
-                        '<pre class="viewer__raw-pre">' +
-                            resRaw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
-                        '</pre>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
-
-        // Build tool_calls JSON for Tools tab
-        var toolCallsTpl = document.getElementById('llm-call-' + callIdx + '-tool-calls');
-        var toolCallsData = null;
-        if (toolCallsTpl) {
-            try { toolCallsData = JSON.parse(toolCallsTpl.textContent || ''); } catch(e) {}
-        }
-
-        // Try to parse request content as JSON messages array for multipart parts (I-08).
-        var contentParts = [];
-        try {
-            var reqJson = JSON.parse(reqRaw);
-            if (Array.isArray(reqJson) && reqJson.length > 0 && typeof reqJson[0] === 'object' && 'role' in reqJson[0]) {
-                for (var mi = 0; mi < reqJson.length; mi++) {
-                    var msg = reqJson[mi];
-                    var role = msg.role || 'unknown';
-                    var msgContent = msg.content || '';
-                    if (typeof msgContent !== 'string') msgContent = JSON.stringify(msgContent, null, 2);
-                    var ctxType = role === 'system' ? 'system_prompt' : role === 'user' ? 'user_message' : role === 'assistant' ? 'assistant_message' : role === 'tool' ? 'tool_result' : 'unknown';
-                    var partTitle = ctxType.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
-                    if (mi > 0) partTitle += ' #' + (mi + 1);
-                    contentParts.push({
-                        context_type: ctxType,
-                        title: partTitle,
-                        content: msgContent,
-                        kind: 'markdown',
-                        content_bytes: msgContent.length,
-                        token_hint: Math.max(1, msgContent.length / 4),
-                        language: ''
-                    });
-                }
-            }
-        } catch(e) {}
-
-        // Build debug JSON for Raw tab
-        var debugObj = {
-            call_index: parseInt(callIdx),
-            round: 'R' + round,
-            scope: scope,
-            model: model,
-            input_tokens: inputTokens,
-            output_tokens: outputTokens,
-            cache_read_tokens: cacheRead,
-            cache_write_tokens: cacheWrite,
-            total_tokens: inputTokens + outputTokens + cacheRead + cacheWrite,
-            request_content_length: renderedContextLen,
-            response_content_length: resRaw ? resRaw.length : 0,
-            tool_call_count: toolCallsData ? toolCallsData.length : 0,
-            _note: 'Normalized debug object for LLM Call #' + callIdx
-        };
-
-        window.openInspector({
-            title: 'LLM Call #' + callIdx + ' (R' + round + ')',
-            subtitle: 'call #' + callIdx + ' · R' + round + ' · ' + model,
-            objectType: 'call',
-            objectId: '#' + callIdx,
-            overview: {
-                metadata: {
-                    'Call #': { value: callIdx, mono: true },
-                    'Round': { value: 'R' + round, mono: true },
-                    'Scope': { value: scope },
-                    'Model': { value: model, mono: true },
-                    'Token mix': { value: tokenMixLabel, mono: true },
-                    'Input tokens': { value: inputTokens, mono: true },
-                    'Output tokens': { value: outputTokens, mono: true },
-                    'Cache read': { value: cacheRead, mono: true },
-                    'Cache write': { value: cacheWrite, mono: true },
-                },
-                warnings: [],
-            },
-            payload: {
-                requestRaw: reqRaw,
-                responseRaw: resRaw,
-                contentParts: contentParts,
-                missingReason: '',
-            },
-            tools: toolCallsData || [],
-            // Keep old fields for backward compat with any remaining code
-            content_parts: contentParts,
-            viewerHtml: viewerHtml,
-            rendered_context_raw: reqRaw,
-            rendered_context_missing_reason: reqRaw && reqRaw.length > 0 ? '' : 'No rendered context (request_full/prompt_preview) available for this call.',
-            request_payload_missing_reason: 'Current session data source does not persist raw HTTP request payload.',
-            response_payload_missing_reason: 'Current session data source does not persist raw HTTP response.',
-            tool_calls_raw: toolCallsData ? JSON.stringify(toolCallsData, null, 2) : '',
-            request_payload_raw: '',
-            response_payload_raw: '',
-            tool_calls: toolCallsData,
-            debug_json: debugObj,
-        });
-    };
-
-    /* ─── Round inspector entry ─────────────────────────── */
-    /**
-     * Open the Round Inspector for a clicked trace row.
-     * @param {HTMLElement} row — .trace-row element with data attributes.
-     */
-    window.openRoundInspector = function(row) {
-        if (!window.openInspector) return;
-
-        var roundIdx = row.getAttribute('data-round-idx') || '?';
-        var tokens = parseInt(row.getAttribute('data-round-tokens') || '0') || 0;
-        var inputTokens = parseInt(row.getAttribute('data-round-input') || '0') || 0;
-        var outputTokens = parseInt(row.getAttribute('data-round-output') || '0') || 0;
-        var llmCalls = parseInt(row.getAttribute('data-round-llm-calls') || '0') || 0;
-        var toolCount = parseInt(row.getAttribute('data-round-tools') || '0') || 0;
-        var failedTools = parseInt(row.getAttribute('data-round-failed') || '0') || 0;
-        var errSigs = parseInt(row.getAttribute('data-round-err-sigs') || '0') || 0;
-        var warnSigs = parseInt(row.getAttribute('data-round-warn-sigs') || '0') || 0;
-        var model = row.getAttribute('data-round-model') || '';
-        var userTime = row.getAttribute('data-round-user-time') || '';
-
-        // Gather signal labels from diagnostics
-        var sigLabels = [];
-        var diags = row.querySelector('.diags');
-        if (diags) {
-            diags.querySelectorAll('.diag').forEach(function(el) {
-                sigLabels.push(el.textContent.trim());
-            });
-        }
-
-        var fmt = function(v) {
-            if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
-            if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
-            return v.toString();
-        };
-
-        var statusLabel = 'ok';
-        if (failedTools > 0) statusLabel = failedTools + ' failed tool(s)';
-        else if (errSigs > 0) statusLabel = errSigs + ' error signal(s)';
-        else if (warnSigs > 0) statusLabel = warnSigs + ' warning(s)';
-
-        // Count tool call types
-        var toolTypes = {};
-        var traceDetail = row.nextElementSibling;
-        if (traceDetail && traceDetail.classList.contains('trace-detail')) {
-            traceDetail.querySelectorAll('.span.tool, .span.fail, .span.warn').forEach(function(span) {
-                var name = span.getAttribute('data-tool-name') || 'unknown';
-                toolTypes[name] = (toolTypes[name] || 0) + 1;
-            });
-        }
-        var toolTypeSummary = Object.keys(toolTypes).map(function(k) {
-            return k + (toolTypes[k] > 1 ? '×' + toolTypes[k] : '');
-        }).join(', ') || 'none';
-
-        window.openInspector({
-            title: 'Round R' + roundIdx,
-            subtitle: 'R' + roundIdx + ' · ' + (model || 'unknown model'),
-            objectType: 'round',
-            objectId: 'R' + roundIdx,
-            overview: {
-                metadata: {
-                    'Round': { value: 'R' + roundIdx, mono: true },
-                    'Model': { value: model || 'unknown', mono: true },
-                    'Total tokens': { value: fmt(tokens), mono: true },
-                    'Input tokens': { value: fmt(inputTokens), mono: true },
-                    'Output tokens': { value: fmt(outputTokens), mono: true },
-                    'LLM calls': { value: llmCalls, mono: true },
-                    'Tool calls': { value: toolCount, mono: true },
-                    'Tool types': { value: toolTypeSummary },
-                    'Failed tools': { value: failedTools > 0 ? failedTools + ' failed' : 'none', mono: true },
-                    'Signals': { value: sigLabels.length > 0 ? sigLabels.join(', ') : 'none' },
-                    'Started': { value: userTime || 'unknown', mono: true },
-                },
-                warnings: [],
-            },
-            payload: {
-                requestRaw: '',
-                responseRaw: '',
-                contentParts: [],
-                missingReason: 'Round-level payload is distributed across LLM call payloads. Switch to the Calls view for per-call payload details.',
-            },
-            tools: [],
-            debug_json: {
-                round_index: roundIdx,
-                model: model,
-                total_tokens: tokens,
-                input_tokens: inputTokens,
-                output_tokens: outputTokens,
-                llm_call_count: llmCalls,
-                tool_call_count: toolCount,
-                failed_tool_count: failedTools,
-                _note: 'Normalized debug object for Round R' + roundIdx,
-            },
-        });
     };
 
     /* ─── Tool Call inspector entry ─────────────────────────── */
-    /**
-     * Open the Tool Call Inspector for a clicked tool span.
-     * @param {HTMLElement} span — .span.tool/.span.fail/.span.warn element.
-     */
     window.openToolInspector = function(span) {
         if (!window.openInspector) return;
         event && event.stopPropagation();
@@ -1953,7 +1014,6 @@
         var exitLabel = exitCode !== '' ? 'exit ' + exitCode : 'N/A';
         var durationLabel = durationMs > 0 ? durationMs + 'ms' : 'N/A';
 
-        // Try to find tool result from hidden template
         var resultRaw = '';
         if (tcIdx) {
             var resultTpl = document.getElementById('tool-result-' + tcIdx);
@@ -1999,525 +1059,80 @@
         });
     };
 
-    /* ─── Show More / Less button ──────────────────────────── */
-    window.toggleShowMoreBtn = function(btn) {
-        if (window.openContentModal) {
-            window.openContentModal(btn);
-        }
-    };
+    /* ─── Payload modal ───────────────────────────────────── */
+    function openPayloadModal(key) {
+        var modal = document.getElementById('payload-modal');
+        if (!modal) return;
 
-    /* ─── Content modal ──────────────────────────────────── */
-    function _getTemplateTextById(id) {
-        if (!id) return '';
-        var tpl = document.getElementById(id);
-        if (!tpl) return '';
-        if ('content' in tpl) return tpl.content.textContent || '';
-        return tpl.textContent || '';
-    }
-
-    function _getTemplateHtmlById(id) {
-        if (!id) return '';
-        var tpl = document.getElementById(id);
-        if (!tpl) return '';
-        if ('content' in tpl) {
-            var div = document.createElement('div');
-            div.appendChild(tpl.content.cloneNode(true));
-            return div.innerHTML;
-        }
-        return tpl.innerHTML || tpl.textContent || '';
-    }
-
-    function _getNestedTemplateContent(btn, index) {
-        var templates = btn.querySelectorAll('template');
-        var tpl = templates[index];
-        if (!tpl) return null;
-        if ('content' in tpl) {
-            var frag = tpl.content.cloneNode(true);
-            var div = document.createElement('div');
-            while (frag.firstChild) {
-                div.appendChild(frag.firstChild);
-            }
-            return { textContent: frag.textContent, innerHTML: div.innerHTML };
-        }
-        return { textContent: tpl.textContent, innerHTML: tpl.innerHTML };
-    }
-
-    window.openContentModal = function(btn) {
-        var modal = document.getElementById('content-modal');
-        if (!modal) {
-            console.warn('openContentModal: content-modal element not found');
+        var payload = window.__SESSION_PAYLOADS__ && window.__SESSION_PAYLOADS__[key];
+        if (!payload) {
+            console.warn('Payload not found for key:', key);
             return;
         }
-        var titleEl = modal.querySelector('.content-modal__title');
-        if (titleEl) titleEl.textContent = btn.getAttribute('data-content-modal') || 'Content';
 
-        var rawPre = modal.querySelector('.content-modal__raw pre');
-        var mdContent = modal.querySelector('.content-modal__markdown');
+        var titleEl = modal.querySelector('.payload-modal__title');
+        if (titleEl) titleEl.textContent = payload.title;
 
-        // Prefer new data-*-template-id structure
-        var rawId = btn.getAttribute('data-raw-template-id');
-        var mdId = btn.getAttribute('data-md-template-id');
+        var renderedEl = modal.querySelector('.payload-modal__rendered');
+        var rawEl = modal.querySelector('.payload-modal__raw pre');
 
-        var rawText = _getTemplateTextById(rawId);
-        var mdHtml = _getTemplateHtmlById(mdId);
+        // Set rendered content
+        if (renderedEl) {
+            renderedEl.innerHTML = '<pre style="white-space:pre-wrap;word-break:break-word;">' +
+                _escapeHtml(payload.rendered || '(No rendered content)') + '</pre>';
+        }
 
-        // Fallback to old nested-template structure (Conversation / Timeline buttons)
-        if (!rawText && !mdHtml) {
-            var rawNested = _getNestedTemplateContent(btn, 0);
-            var mdNested = _getNestedTemplateContent(btn, 1);
-            if (rawNested) {
-                rawText = rawNested.textContent || '';
+        // Set raw content using textContent for safety
+        if (rawEl) {
+            var rawContent = '';
+            if (payload.raw) {
+                // Concatenate all raw parts
+                for (var partKey in payload.raw) {
+                    if (payload.raw.hasOwnProperty(partKey)) {
+                        if (rawContent) rawContent += '\n\n--- ' + partKey + ' ---\n\n';
+                        else rawContent += '--- ' + partKey + ' ---\n\n';
+                        rawContent += payload.raw[partKey] || '';
+                    }
+                }
             }
-            if (mdNested) {
-                mdHtml = mdNested.innerHTML || '';
-            }
+            rawEl.textContent = rawContent || '(No raw content)';
         }
 
-        // Final fallback: use raw text for both if only one is available
-        if (!rawText && !mdHtml) {
-            var fallbackRaw = btn.getAttribute('data-raw') || '';
-            if (fallbackRaw) {
-                rawText = fallbackRaw;
-                // Escape raw text for markdown display
-                mdHtml = '<pre>' + fallbackRaw
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    + '</pre>';
-            }
-        }
-
-        // If we still have nothing, show a clear fallback message
-        if (!rawText && !mdHtml) {
-            var fallbackMsg = '(No content available)';
-            rawText = fallbackMsg;
-            mdHtml = '<p>' + fallbackMsg + '</p>';
-            console.warn('openContentModal: no template content found for button', btn);
-        }
-
-        if (rawPre) rawPre.textContent = rawText;
-        if (mdContent) mdContent.innerHTML = mdHtml;
-
-        // Reset to Markdown tab
-        var tabs = modal.querySelectorAll('.content-modal__tab-btn');
-        var rawSection = modal.querySelector('.content-modal__raw');
-        var mdSection = modal.querySelector('.content-modal__markdown');
-        if (tabs.length >= 2) {
-            tabs[0].classList.add('active');
-            tabs[1].classList.remove('active');
-        }
-        if (mdSection) mdSection.style.display = 'block';
-        if (rawSection) rawSection.style.display = 'none';
-
-        modal.classList.add('visible');
-        document.body.style.overflow = 'hidden';
-
-        // Focus the panel for accessibility
-        var panel = modal.querySelector('.content-modal__panel');
-        if (panel) panel.focus();
-    };
-
-    window.closeContentModal = function() {
-        var modal = document.getElementById('content-modal');
-        if (modal) {
-            modal.classList.remove('visible');
-            document.body.style.overflow = '';
-        }
-    };
-
-    window.switchContentView = function(view) {
-        var modal = document.getElementById('content-modal');
-        if (!modal) return;
-        var rawSection = modal.querySelector('.content-modal__raw');
-        var mdSection = modal.querySelector('.content-modal__markdown');
-        var mdBtn = modal.querySelector('[data-view="markdown"]');
-        var rawBtn = modal.querySelector('[data-view="raw"]');
-        if (view === 'markdown') {
-            if (mdSection) mdSection.style.display = 'block';
-            if (rawSection) rawSection.style.display = 'none';
-            if (mdBtn) mdBtn.classList.add('active');
-            if (rawBtn) rawBtn.classList.remove('active');
-        } else {
-            if (rawSection) rawSection.style.display = 'block';
-            if (mdSection) mdSection.style.display = 'none';
-            if (rawBtn) rawBtn.classList.add('active');
-            if (mdBtn) mdBtn.classList.remove('active');
-        }
-    };
-
-    /* ─── Escape key closes modal ────────────────────────── */
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            var modal = document.getElementById('content-modal');
-            if (modal && modal.classList.contains('visible')) {
-                closeContentModal();
-            }
-        }
-    });
-
-    /* ─── Subagent card toggle ─────────────────────────────── */
-    window.toggleSubagentCard = function(headerEl) {
-        var card = headerEl.closest('.subagent-card');
-        if (!card) return;
-        var body = card.querySelector('.subagent-card__body');
-        if (!body) return;
-        var chevron = headerEl.querySelector('.llm-card__chevron, .round-chevron-inline');
-        if (body.classList.contains('open')) {
-            body.classList.remove('open');
-            if (chevron) {
-                if (chevron.classList.contains('llm-card__chevron')) chevron.classList.remove('rotated');
-                else chevron.style.transform = '';
-            }
-        } else {
-            body.classList.add('open');
-            if (chevron) {
-                if (chevron.classList.contains('llm-card__chevron')) chevron.classList.add('rotated');
-                else chevron.style.transform = 'rotate(90deg)';
-            }
-        }
-    };
-
-    /* ─── Tool result markdown toggle ─────────────────────── */
-    window.toggleResultMd = function(btn) {
-        var block = btn.closest('.tool-result-block');
-        if (!block) return;
-        var wrapper = block.querySelector('.tool-result-wrapper');
-        var rawEl = block.querySelector('.tool-result-raw');
-        var mdEl = block.querySelector('.tool-result-md');
-        if (!wrapper || !rawEl || !mdEl) return;
-        if (wrapper.classList.contains('is-md')) {
-            wrapper.classList.remove('is-md');
-            btn.textContent = 'MD';
-            btn.classList.remove('active');
-        } else {
-            wrapper.classList.add('is-md');
-            btn.textContent = 'Raw';
-            btn.classList.add('active');
-        }
-    };
-
-    /* ─── Token charts collapse/expand ────────────────────── */
-    window.TokenChartsToggle = function() {
-        var card = document.getElementById('tokenChartsCard');
-        var header = document.getElementById('tokenChartsHeader');
-        if (!card) return;
-        var collapsed = card.classList.toggle('is-collapsed');
-        if (header) {
-            header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-        }
-        try {
-            localStorage.setItem('tokenChartState', collapsed ? 'collapsed' : 'expanded');
-        } catch (e) {}
-    };
-
-    /* ─── Restore token chart state from localStorage ─────── */
-    (function() {
-        var card = document.getElementById('tokenChartsCard');
-        var header = document.getElementById('tokenChartsHeader');
-        if (!card) return;
-        try {
-            var state = localStorage.getItem('tokenChartState');
-            if (state === 'collapsed') {
-                card.classList.add('is-collapsed');
-                if (header) header.setAttribute('aria-expanded', 'false');
-            }
-        } catch (e) {}
-    })();
-
-    /* ─── Keyboard accessibility for collapse header ──────── */
-    (function() {
-        var header = document.getElementById('tokenChartsHeader');
-        if (!header) return;
-        header.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                window.TokenChartsToggle();
-            }
+        // Reset to Rendered tab
+        var tabs = modal.querySelectorAll('.payload-modal__tab');
+        var renderedSection = modal.querySelector('.payload-modal__rendered');
+        var rawSection = modal.querySelector('.payload-modal__raw');
+        tabs.forEach(function(tab) {
+            tab.classList.toggle('active', tab.dataset.mode === 'rendered');
         });
-    })();
+        if (renderedSection) renderedSection.hidden = false;
+        if (rawSection) rawSection.hidden = true;
 
-    /* ─── Hotspots diagnostic: jump to round / calls / payload ─────── */
-    window.HotspotsCtrl = (function() {
-        /**
-         * Handle click on a hot-card element.
-         * Routes based on data-hotspot-type:
-         *   failure → switchView('trace') + jump to round + expand + highlight
-         *   cost    → switchView('trace') + jump to round + expand + highlight
-         *   payload → switchView('calls') + find call row + open inspector
-         */
-        function handle(cardEl) {
-            var type = cardEl.getAttribute('data-hotspot-type') || '';
-            var roundIdx = cardEl.getAttribute('data-round-idx') || '';
-            var callIdx = cardEl.getAttribute('data-call-idx') || '';
+        modal.showModal();
+    }
 
-            if (type === 'failure' || type === 'cost') {
-                jumpToRound(roundIdx);
-            } else if (type === 'payload' && callIdx && callIdx !== '0') {
-                jumpToCall(callIdx);
-            } else if (type === 'payload' && roundIdx) {
-                // Fallback: if no call index, jump to round in trace view
-                jumpToRound(roundIdx);
-            } else {
-                _showNondestructiveToast('No navigation target for this hotspot.');
-            }
-        }
+    function _escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
 
-        /**
-         * Jump from hotspots diagnostic to a specific round in Trace view.
-         * Switches view, scrolls to the round row, expands it, and highlights it.
-         */
-        function jumpToRound(roundIdx) {
-            // 1. Switch to Trace view
-            if (typeof window.switchView === 'function') {
-                window.switchView('trace');
-            }
+    window.closePayloadModal = function() {
+        var modal = document.getElementById('payload-modal');
+        if (modal) modal.close();
+    };
 
-            // 2. Find the trace row
-            var traceRow = document.querySelector('.trace-row[data-round-idx="' + roundIdx + '"]');
-            if (!traceRow) {
-                _showNondestructiveToast('Round #' + roundIdx + ' not found in Trace view.');
-                return;
-            }
-
-            // 3. Expand the trace detail if collapsed
-            var detailDiv = traceRow.nextElementSibling;
-            if (detailDiv && detailDiv.classList.contains('trace-detail')) {
-                if (detailDiv.style.display === 'none' || detailDiv.style.display === '') {
-                    if (typeof window.toggleRoundDetail === 'function') {
-                        window.toggleRoundDetail(traceRow);
-                    }
-                }
-            }
-
-            // 4. Scroll into view
-            traceRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // 5. Highlight with animation
-            _flashHighlightRow(traceRow);
-        }
-
-        /**
-         * Jump from hotspots to a specific LLM call in Calls view.
-         * Switches to Calls view, finds the row, and opens the Inspector.
-         */
-        function jumpToCall(callIdx) {
-            // 1. Switch to Calls view
-            if (typeof window.switchView === 'function') {
-                window.switchView('calls');
-            }
-
-            // 2. Find the LLM call row by data-call-idx
-            var row = document.querySelector('.table-row[data-call-idx="' + callIdx + '"]');
-            if (!row) {
-                _showNondestructiveToast('Call #' + callIdx + ' not found in Calls view.');
-                return;
-            }
-
-            // 3. Scroll into view
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // 4. Open Inspector
-            if (typeof window.openLLMInspector === 'function') {
-                window.openLLMInspector(row);
-            }
-
-            // 5. Highlight the row
-            _flashHighlightRow(row);
-        }
-
-        /** Add temporary highlight class, auto-remove after animation. */
-        function _flashHighlightRow(el) {
-            el.classList.add('is-jump-target');
-            setTimeout(function() {
-                el.classList.remove('is-jump-target');
-            }, 2500);
-        }
-
-        /** Non-destructive inline toast notification. */
-        function _showNondestructiveToast(message) {
-            var existing = document.querySelector('.hotspot-toast');
-            if (existing) existing.remove();
-
-            var toast = document.createElement('div');
-            toast.className = 'hotspot-toast';
-            toast.textContent = message;
-            toast.style.cssText = (
-                'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
-                'background:var(--text, #1a1a2e);color:var(--surface, #f5f5f5);' +
-                'padding:10px 20px;border-radius:8px;font-size:13px;z-index:10000;' +
-                'box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transition:opacity 0.2s;'
-            );
-            document.body.appendChild(toast);
-            requestAnimationFrame(function() { toast.style.opacity = '1'; });
-            setTimeout(function() {
-                toast.style.opacity = '0';
-                setTimeout(function() { toast.remove(); }, 300);
-            }, 3000);
-        }
-
-        return {
-            handle: handle,
-            jumpToRound: jumpToRound,
-            jumpToCall: jumpToCall
-        };
-    })();
-
-    /* ─── URL parameter auto-jump from search results ─────────── */
-    (function() {
-        /** Safely parse a URL parameter value. Returns null if not present. */
-        function getParam(name) {
-            var params = new URLSearchParams(window.location.search);
-            return params.get(name);
-        }
-
-        /** Flash highlight — reuse HotspotsCtrl's internal pattern. */
-        function flashHighlight(el) {
-            if (!el) return;
-            el.classList.add('is-jump-target');
-            setTimeout(function() {
-                el.classList.remove('is-jump-target');
-            }, 2500);
-        }
-
-        /** Show non-destructive toast (reuse HotspotsCtrl pattern). */
-        function showToast(message) {
-            var existing = document.querySelector('.hotspot-toast');
-            if (existing) existing.remove();
-            var toast = document.createElement('div');
-            toast.className = 'hotspot-toast';
-            toast.textContent = message;
-            toast.style.cssText = (
-                'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
-                'background:var(--text, #1a1a2e);color:var(--surface, #f5f5f5);' +
-                'padding:10px 20px;border-radius:8px;font-size:13px;z-index:10000;' +
-                'box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transition:opacity 0.2s;'
-            );
-            document.body.appendChild(toast);
-            requestAnimationFrame(function() { toast.style.opacity = '1'; });
-            setTimeout(function() {
-                toast.style.opacity = '0';
-                setTimeout(function() { toast.remove(); }, 300);
-            }, 3000);
-        }
-
-        /**
-         * Jump to a round in the Timeline tab.
-         * Uses safe attribute selector — no raw user input in CSS selector.
-         */
-        function jumpToRound(roundIdx) {
-            if (typeof window.switchTab === 'function') {
-                window.switchTab('timeline');
-            }
-            var traceRow = document.querySelector('.trace-row[data-round-idx="' + roundIdx + '"]');
-            if (!traceRow) {
-                showToast('Round #' + roundIdx + ' not found in Timeline.');
-                return;
-            }
-            var detailDiv = traceRow.nextElementSibling;
-            if (detailDiv && detailDiv.classList.contains('trace-detail')) {
-                if (detailDiv.style.display === 'none' || detailDiv.style.display === '') {
-                    if (typeof window.toggleRoundDetail === 'function') {
-                        window.toggleRoundDetail(traceRow);
-                    }
-                }
-            }
-            traceRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            flashHighlight(traceRow);
-        }
-
-        /**
-         * Jump to an LLM call in the Calls view.
-         * Uses safe attribute selector — no raw user input in CSS selector.
-         */
-        function jumpToCall(callIdx) {
-            if (typeof window.switchView === 'function') {
-                window.switchView('calls');
-            }
-            var row = document.querySelector('.table-row[data-call-idx="' + callIdx + '"]');
-            if (!row) {
-                showToast('Call #' + callIdx + ' not found in Calls view.');
-                return;
-            }
-            if (typeof window.openLLMInspector === 'function') {
-                window.openLLMInspector(row);
-            }
-            flashHighlight(row);
-        }
-
-        /**
-         * On page load, check URL parameters for navigation targets.
-         * Supported params:
-         *   view=trace|calls|hotspots  → switch to view
-         *   target=round-N   → jump to round N in Trace view
-         *   call=N           → jump to call N in Calls view
-         */
-        function handleUrlNavigation() {
-            var view = getParam('view');
-            var target = getParam('target');
-            var call = getParam('call');
-
-            if (view && typeof window.switchView === 'function') {
-                var allowedViews = ['trace', 'calls', 'hotspots'];
-                if (allowedViews.indexOf(view) !== -1) {
-                    window.switchView(view);
-                }
-            }
-
-            if (target) {
-                var roundMatch = target.match(/^round-(\d+)$/);
-                if (roundMatch) {
-                    var roundIdx = roundMatch[1];
-                    setTimeout(function() { jumpToRound(roundIdx); }, 100);
-                    return;
-                }
-            }
-
-            if (call) {
-                var callMatch = call.match(/^(\d+)$/);
-                if (callMatch) {
-                    var callIdx = callMatch[1];
-                    setTimeout(function() { jumpToCall(callIdx); }, 100);
-                }
-            }
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(handleUrlNavigation, 50);
-            });
-        } else {
-            setTimeout(handleUrlNavigation, 50);
-        }
-    })();
-
-    /* ─── Trace filter controller ───────────────────────────────── */
+    /* ─── Trace filter (status only: all/failed) ──────────── */
     window.TraceFilter = (function() {
         var currentStatus = 'all';
-        var currentText = '';
 
-        /** Apply both text and status filters to all trace rows. */
         function apply() {
-            var inputEl = document.getElementById('trace-filter-input');
-            currentText = inputEl ? (inputEl.value || '').toLowerCase().trim() : '';
             var rows = document.querySelectorAll('.trace-row');
             for (var i = 0; i < rows.length; i++) {
                 var row = rows[i];
                 var visible = true;
 
-                // Text filter: match against round ID, preview text, diagnostics
-                if (currentText) {
-                    var rid = row.querySelector('.rid') ? row.querySelector('.rid').textContent.toLowerCase() : '';
-                    var preview = row.querySelector('.round-main .t') ? row.querySelector('.round-main .t').textContent.toLowerCase() : '';
-                    var diags = row.querySelector('.diags') ? row.querySelector('.diags').textContent.toLowerCase() : '';
-                    var haystack = rid + ' ' + preview + ' ' + diags;
-                    if (haystack.indexOf(currentText) === -1) visible = false;
-                }
-
-                // Status filter
-                if (currentStatus === 'failed' && visible) {
-                    var hasFailed = row.querySelector('.round-failed-dot') ||
-                                    (row.querySelector('.diags') && row.querySelector('.diags').querySelector('.diag.err'));
-                    if (!hasFailed) visible = false;
+                if (currentStatus === 'failed') {
+                    var isFailed = row.getAttribute('data-status') === 'failed';
+                    if (!isFailed) visible = false;
                 }
 
                 if (visible) {
@@ -2528,10 +1143,9 @@
             }
         }
 
-        /** Set status filter (all | failed). */
         function setStatus(status) {
             currentStatus = status;
-            var chips = document.querySelectorAll('.trace-filter-bar__chip[data-status]');
+            var chips = document.querySelectorAll('.trace-panel__chip[data-status]');
             for (var i = 0; i < chips.length; i++) {
                 var chip = chips[i];
                 chip.classList.toggle('active', chip.getAttribute('data-status') === status);
@@ -2539,105 +1153,235 @@
             apply();
         }
 
-        /** Clear all filters. */
-        function clear() {
-            var inputEl = document.getElementById('trace-filter-input');
-            if (inputEl) inputEl.value = '';
-            currentText = '';
-            currentStatus = 'all';
-            setStatus('all');
-        }
-
-        return { apply: apply, setStatus: setStatus, clear: clear };
+        return { apply: apply, setStatus: setStatus };
     })();
 
-    /* ─── Event delegation: unified click handler ──────────── */
-    /**
-     * A single delegated click handler manages all interactive clicks:
-     *  0. [data-action="expand-all"] → expandAllRounds
-     *  0. [data-action="collapse-all"] → collapseAllRounds
-     *  1. .trace-row → toggle round detail (accordion) + select + inspector
-     *  2. .subagent-card__header → toggle subagent card body
-     *  3. Spans inside trace-detail → selectSpan + openToolInspector
-     *  4. Table rows in Calls view → selectCall + openLLMInspector
-     *  5. Hotspot cards in Hotspots view → selectHotspot
-     *  6. Background click → clearSelection
-     */
-    document.addEventListener('click', function(e) {
-        var target = e.target;
+    /* ─── Jump to round in trace ──────────────────────────── */
+    function jumpToRound(roundIdx) {
+        var traceRow = document.querySelector('.trace-row[data-round-idx="' + roundIdx + '"]');
+        if (!traceRow) {
+            _toast('Round #' + roundIdx + ' not found.');
+            return;
+        }
 
-        // 0a. Expand-all button
-        var expandAllBtn = target.closest('[data-action="expand-all"]');
-        if (expandAllBtn) {
-            e.preventDefault();
+        var detailDiv = traceRow.nextElementSibling;
+        if (detailDiv && detailDiv.classList.contains('trace-detail')) {
+            if (detailDiv.style.display === 'none' || detailDiv.style.display === '') {
+                window.toggleRoundDetail(traceRow);
+            }
+        }
+
+        traceRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        _flashHighlight(traceRow);
+    }
+
+    /* ─── Toast helper ────────────────────────────────────── */
+    function _toast(message) {
+        var existing = document.querySelector('.toast-notification');
+        if (existing) existing.remove();
+
+        var toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.textContent = message;
+        toast.style.cssText = (
+            'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
+            'background:var(--text, #1a1a2e);color:var(--surface, #f5f5f5);' +
+            'padding:10px 20px;border-radius:8px;font-size:13px;z-index:10000;' +
+            'box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transition:opacity 0.2s;'
+        );
+        document.body.appendChild(toast);
+        requestAnimationFrame(function() { toast.style.opacity = '1'; });
+        setTimeout(function() {
+            toast.style.opacity = '0';
+            setTimeout(function() { toast.remove(); }, 300);
+        }, 3000);
+    }
+
+    function _flashHighlight(el) {
+        el.classList.add('is-jump-target');
+        setTimeout(function() {
+            el.classList.remove('is-jump-target');
+        }, 2500);
+    }
+
+    /* ─── Unified event delegation ────────────────────────── */
+    document.addEventListener('click', function(event) {
+        var target = event.target.closest('[data-action]');
+        if (!target) return;
+
+        var action = target.dataset.action;
+
+        // expand-all
+        if (action === 'expand-all') {
+            event.preventDefault();
             window.expandAllRounds();
             return;
         }
 
-        // 0b. Collapse-all button
-        var collapseAllBtn = target.closest('[data-action="collapse-all"]');
-        if (collapseAllBtn) {
-            e.preventDefault();
+        // collapse-all
+        if (action === 'collapse-all') {
+            event.preventDefault();
             window.collapseAllRounds();
             return;
         }
 
-        // 1. Trace row: toggle round detail (accordion) + select + inspector
+        // filter-status (All/Failed chips)
+        if (action === 'filter-status') {
+            event.preventDefault();
+            var status = target.dataset.status;
+            if (status) {
+                window.TraceFilter.setStatus(status);
+            }
+            return;
+        }
+
+        // jump-round (from issue cards)
+        if (action === 'jump-round') {
+            event.preventDefault();
+            var round = target.dataset.round;
+            if (round) {
+                jumpToRound(round);
+            }
+            return;
+        }
+
+        // open-payload
+        if (action === 'open-payload') {
+            event.preventDefault();
+            var key = target.dataset.payloadKey;
+            if (key) {
+                openPayloadModal(key);
+            }
+            return;
+        }
+
+        // payload-mode (Rendered/Raw tabs)
+        if (action === 'payload-mode') {
+            event.preventDefault();
+            var mode = target.dataset.mode;
+            var modal = document.getElementById('payload-modal');
+            if (!modal) return;
+
+            var tabs = modal.querySelectorAll('.payload-modal__tab');
+            var renderedSection = modal.querySelector('.payload-modal__rendered');
+            var rawSection = modal.querySelector('.payload-modal__raw');
+
+            tabs.forEach(function(tab) {
+                tab.classList.toggle('active', tab.dataset.mode === mode);
+            });
+
+            if (mode === 'rendered') {
+                if (renderedSection) renderedSection.hidden = false;
+                if (rawSection) rawSection.hidden = true;
+            } else {
+                if (rawSection) rawSection.hidden = false;
+                if (renderedSection) renderedSection.hidden = true;
+            }
+            return;
+        }
+
+        // close-modal
+        if (action === 'close-modal') {
+            event.preventDefault();
+            window.closePayloadModal();
+            return;
+        }
+
+        // jump-anomaly (from hero alerts)
+        if (action === 'jump-anomaly') {
+            event.preventDefault();
+            var reason = target.dataset.anomalyReason || '';
+            var m = reason.match(/\bR(\d+)\b/);
+            if (m) {
+                jumpToRound(m[1]);
+            } else {
+                _toast('Switched to Trace view — scroll to investigate.');
+            }
+            return;
+        }
+    });
+
+    /* ─── Escape key closes payload modal ─────────────────── */
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var modal = document.getElementById('payload-modal');
+            if (modal && !modal.hasAttribute('hidden')) {
+                window.closePayloadModal();
+            }
+        }
+    });
+
+    /* ─── Click on dialog backdrop closes it ──────────────── */
+    var payloadModalEl = document.getElementById('payload-modal');
+    if (payloadModalEl) {
+        payloadModalEl.addEventListener('click', function(e) {
+            if (e.target === payloadModalEl) {
+                window.closePayloadModal();
+            }
+        });
+    }
+
+    /* ─── Span / tool call click ──────────────────────────── */
+    window.handleSpanClick = function(spanEl, event) {
+        if (!spanEl) return;
+        if (event) event.stopPropagation();
+        var spanId = spanEl.getAttribute('data-span-id') || spanEl.getAttribute('data-tool-idx');
+        if (window.openToolInspector) window.openToolInspector(spanEl);
+    };
+
+    /* ─── Delegated click for trace-row and span ──────────── */
+    document.addEventListener('click', function(e) {
+        var target = e.target;
+
+        // Trace row: toggle round detail (skip if nested interactive element)
         var traceRow = target.closest('.trace-row');
-        if (traceRow && !target.closest('button, a, [role="button"], .md-toggle-btn')) {
+        if (traceRow) {
+            // Let nested buttons, links, data-action handlers fire first
+            var nested = target.closest('button, a, [data-action]');
+            if (nested && nested !== traceRow) {
+                return;
+            }
             e.preventDefault();
-            window.handleTraceRowClick(traceRow, e);
+            var detailDiv = traceRow.nextElementSibling;
+            if (detailDiv && detailDiv.classList.contains('trace-detail')) {
+                window.toggleRoundDetail(traceRow);
+            }
             return;
         }
 
-        // 2. Subagent card header toggle
-        var subagentHeader = target.closest('.subagent-card__header');
-        if (subagentHeader) {
-            e.preventDefault();
-            window.toggleSubagentCard(subagentHeader);
-            return;
-        }
-
-        // 3. Span nodes in trace-detail (but not if the span itself has an inline handler)
+        // Span nodes in trace-detail (but not if onclick already handled)
         var span = target.closest('.span');
         if (span && span.closest('.trace-detail') && !span.getAttribute('onclick')) {
             window.handleSpanClick(span, e);
             return;
         }
-
-        // 4. Table rows in Calls view (skip inline onclick rows)
-        var tRow = target.closest('.table-row');
-        if (tRow && tRow.closest('[data-workbench-view="calls"]') && !tRow.classList.contains('table-head')
-            && !tRow.getAttribute('onclick')) {
-            window.handleTableRowClick(tRow, e);
-            return;
-        }
-
-        // 5. Hotspot cards (skip inline onclick cards — HotspotsCtrl handles selection)
-        var hotCard = target.closest('.hot-card');
-        if (hotCard && hotCard.closest('[data-workbench-view="hotspots"]') && !hotCard.getAttribute('onclick')) {
-            var hsId = hotCard.getAttribute('data-hotspot-id');
-            var Sel = window.ViewState && window.ViewState.Selection;
-            if (Sel && hsId) Sel.selectHotspot(hsId);
-            return;
-        }
-
-        // 6. Background click → clear selection
-        var isSpan = target.closest('.span');
-        var isTableRow = target.closest('.table-row');
-        var isInspector = target.closest('.inspector');
-        var isButton = target.closest('button, a, [role="button"]');
-        var isCardTitle = target.closest('.card-title');
-        var isTimelineToolbar = target.closest('.timeline-toolbar');
-        var isTraceFilterBar = target.closest('.trace-filter-bar');
-        if (!isSpan && !isTableRow && !isInspector && !isButton && !isCardTitle && !isTimelineToolbar && !isTraceFilterBar) {
-            window.clearSelection();
-        }
     });
+
+    /* ─── Auto-expand first failed round (or R1) on load ─── */
+    (function() {
+        function doAutoExpand() {
+            var rows = document.querySelectorAll('.trace-row');
+            var firstFailed = null;
+            rows.forEach(function(row) {
+                if (!firstFailed && row.getAttribute('data-status') === 'failed') {
+                    firstFailed = row;
+                }
+            });
+
+            var targetRow = firstFailed || rows[0];
+            if (targetRow) {
+                window.toggleRoundDetail(targetRow, 'expand');
+            }
+        }
+        // Defer to ensure all other scripts have finished
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', doAutoExpand);
+        } else {
+            requestAnimationFrame(doAutoExpand);
+        }
+    })();
 
 })();
 </script>
-
-</div><!-- /data-session-detail-shell -->
 
 {% endblock %}

@@ -52,37 +52,19 @@
                     </a>
                 </div>
                 <nav class="nav">
+                    {% block sidebar_nav %}
                     <div class="nav-label">Core</div>
-
-                    <!-- Trace Workbench -->
-                    {% if active_page in ('session', 'session_detail') %}
-                    <a class="nav-item active" href="{{ session_url }}">
-                        <span class="nav-dot"></span> Trace Workbench
-                    </a>
-                    {% elif active_page == 'sessions' %}
-                    <a class="nav-item active" href="/sessions">
-                        <span class="nav-dot"></span> Trace Workbench
-                    </a>
-                    {% else %}
-                    <a class="nav-item{% if active_page == 'dashboard' %} active{% endif %}" href="/dashboard">
-                        <span class="nav-dot"></span> Trace Workbench
-                    </a>
-                    {% endif %}
-
                     <a class="nav-item{% if active_page == 'sessions' %} active{% endif %}" href="/sessions">
                         <span class="nav-dot"></span> Sessions
                     </a>
-
-                    <a class="nav-item{% if active_page == 'projects' %} active{% endif %}" href="/projects">
-                        <span class="nav-dot"></span> Projects
+                    <a class="nav-item{% if active_page == 'dashboard' %} active{% endif %}" href="/dashboard">
+                        <span class="nav-dot"></span> Dashboard
                     </a>
-
-                    <a class="nav-item{% if active_page == 'agents' %} active{% endif %}" href="/agents">
-                        <span class="nav-dot"></span> Agents
-                    </a>
+                    {% endblock %}
                 </nav>
 
-                <!-- Round Map -->
+                {% block sidebar_extra %}
+                <!-- Round Map (not rendered on session detail pages) -->
                 <div class="round-map">
                     <div class="nav-label">Round Map</div>
                     {% if session_rounds is defined and session_rounds %}
@@ -99,6 +81,7 @@
                         </div>
                     {% endif %}
                 </div>
+                {% endblock %}
             </div>
         </aside>
 
@@ -112,6 +95,7 @@
                     {% endblock %}
                 </nav>
                 <div class="topbar-actions" aria-label="全局操作">
+                    {% block topbar_toggles %}
                     <!-- Sidebar toggle buttons -->
                     <button class="top-btn" onclick="document.body.classList.toggle('hide-left'); arpStorage.set('sidebar_collapsed', document.body.classList.contains('hide-left'))" title="切换左侧导航">
                         <span class="action-icon" aria-hidden="true">&#9776;</span>
@@ -122,7 +106,9 @@
                     <button class="top-btn" onclick="document.body.classList.toggle('focus')" title="专注模式">
                         <span class="action-icon" aria-hidden="true">&#9679;</span>
                     </button>
+                    {% endblock %}
 
+                    {% block topbar_extras %}
                     <!-- Shell layout toggles -->
                     <button class="top-btn" data-layout-mode="map" onclick="ViewState.setLayoutMode('map')" title="显示左侧导航（Map）">Map</button>
                     <button class="top-btn" data-layout-mode="inspector" onclick="ViewState.setLayoutMode('inspector')" title="隐藏左侧导航，突出 Inspector">Inspector</button>
@@ -136,15 +122,13 @@
                     <button class="topbar-action topbar-action--placeholder" aria-label="全局搜索" title="全局搜索（待实现）" disabled>
                         <span class="action-icon" aria-hidden="true">&#8981;</span>
                     </button>
-                    <button class="topbar-action topbar-action--placeholder" aria-label="刷新" title="刷新" onclick="location.reload()">
-                        <span class="action-icon" aria-hidden="true">&#8635;</span>
-                    </button>
                     <button class="topbar-action topbar-action--placeholder" aria-label="导出" title="导出（待实现）" disabled>
                         <span class="action-icon" aria-hidden="true">&#11015;</span>
                     </button>
                     <button class="topbar-action topbar-action--placeholder" aria-label="切换主题" title="切换主题（待实现）" disabled>
                         <span class="action-icon" aria-hidden="true">&#9680;</span>
                     </button>
+                    {% endblock %}
                     {% block topbar_actions %}{% endblock %}
                 </div>
             </header>

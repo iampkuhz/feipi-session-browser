@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Layout quality scoring for the session detail HIFI layout.
+"""Layout quality scoring for the Phase 1 session detail structure.
 
 Usage:
     python scripts/qa/session_ui/check_layout_quality.py [--url URL] [--html PATH]
 
 Checks:
-    1. Hero: HIFI data selectors, anomaly banner placeholder
-    2. Workbench: container exists above the fold, view switch buttons
-    3. Token chart: NOT a dominant block between hero and workbench
-    4. Legacy tabs: old top-level tabs are not primary layout
-    5. Inspector: contextual inspector exists
+    1. Hero: [data-session-overview-hero], .hero, .hero-alerts (only if failures exist), KPIs
+    2. Trace Panel: [data-trace-panel], .trace-panel__toolbar, All/Failed buttons
+    3. Token KPIs: token total present in hero KPIs (no separate token-charts-card)
+    4. Legacy tabs: no data-workbench, no data-switch="calls", no data-switch="hotspots"
+    5. Inspector: [data-context-inspector] in base.html but session detail uses no-inspector
     6. Overflow: no obvious horizontal overflow markers
-    7. Button roles: buttons are not duplicated across zones
+    7. Button roles: no duplication of expand/collapse, no disabled placeholder buttons
 
 Exits non-zero on any FAIL.
 """
@@ -48,7 +48,7 @@ DEFAULT_URL = "http://localhost:18999/session/93ecbcf2"
 def fetch_html(url: str, timeout: float = 3.0) -> str | None:
     """Try to fetch HTML from a running local server."""
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "layout-quality-check/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "layout-quality-check/2.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, OSError, TimeoutError):
@@ -81,7 +81,7 @@ def load_source(url: str | None, html_path: Path | None):
 # ---------------------------------------------------------------------------
 
 def check_hero(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Hero: HIFI data selectors exist, anomaly banner placeholder."""
+    """Hero: HIFI data selectors, KPIs, anomaly banner placeholder."""
     notes: list[str] = []
     pass_count = 0
 
@@ -93,176 +93,244 @@ def check_hero(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
     else:
         notes.append("[data-session-overview-hero] MISSING")
 
-    # Fallback: check for hero class-based element or session header bar
-    hero_class = soup.select_one(".hero, .hero-main, .session-info-bar, .session-header")
+    # Fallback: check for hero class-based element
+    hero_class = soup.select_one(".hero, .hero-main, .session-header")
     if hero_class:
-        notes.append(f"hero/hero-equivalent element found (.{hero_class.get('class', ['?'])[0]})")
+        notes.append(f"hero element found (.{hero_class.get('class', ['?'])[0]})")
         pass_count += 1
     else:
-        notes.append("hero/hero-equivalent element MISSING")
+        notes.append("hero element MISSING")
 
-    # Anomaly banner placeholder
-    anomaly = soup.select_one(".anomaly-banner, .anomaly-banner__icon, [data-anomaly]")
-    if anomaly:
-        notes.append("anomaly banner placeholder found")
+    # Hero KPIs section
+    kpis = soup.select_one(".kpis")
+    if kpis:
+        kpi_items = kpis.select(".kpi")
+        notes.append(f"hero KPIs found ({len(kpi_items)} items)")
         pass_count += 1
     else:
-        notes.append("anomaly banner placeholder MISSING")
+        notes.append("hero KPIs section MISSING")
 
-    # Hero alerts section
+    # Hero alerts section (only expected when anomalies exist)
     alerts = soup.select_one(".hero-alerts")
     if alerts:
-        notes.append("hero-alerts section found")
+        notes.append("hero-alerts section found (anomalies present)")
         pass_count += 1
     else:
-        notes.append("hero-alerts section MISSING")
+        notes.append("hero-alerts section absent (OK if no anomalies)")
+        # Not a failure — alerts only appear when anomalies exist
 
     status = "PASS" if pass_count >= 3 else ("WARN" if pass_count >= 2 else "FAIL")
     return status, notes
 
 
-def check_workbench(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Workbench: container exists above the fold, view switch buttons."""
+def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
+    """Trace Panel: container exists with toolbar and filter buttons."""
     notes: list[str] = []
     pass_count = 0
 
     # HIFI data attribute
-    wb = soup.select_one("[data-workbench]")
-    if wb:
-        notes.append("[data-workbench] found")
+    panel = soup.select_one("[data-trace-panel]")
+    if panel:
+        notes.append("[data-trace-panel] found")
         pass_count += 1
     else:
-        notes.append("[data-workbench] MISSING")
+        notes.append("[data-trace-panel] MISSING")
 
-    # Fallback: class-based workbench
-    wb_class = soup.select_one(".card.wb, .wb-head, [class*='workbench']")
-    if wb_class:
-        notes.append("workbench container found (.card.wb / .wb-head)")
+    # Toolbar
+    toolbar = soup.select_one(".trace-panel__toolbar")
+    if toolbar:
+        notes.append(".trace-panel__toolbar found")
         pass_count += 1
     else:
-        notes.append("workbench container MISSING")
+        notes.append(".trace-panel__toolbar MISSING")
 
-    # View switch buttons
-    view_switch = soup.select_one(".view-switch")
-    switch_btns = soup.select("[data-switch]")
-    if view_switch or len(switch_btns) >= 2:
-        notes.append(f"view switch found (data-switch count={len(switch_btns)})")
+    # All/Failed filter buttons
+    all_btn = soup.select_one('[data-action="filter-status"][data-status="all"]')
+    failed_btn = soup.select_one('[data-action="filter-status"][data-status="failed"]')
+    if all_btn and failed_btn:
+        notes.append("All/Failed filter buttons found")
         pass_count += 1
     else:
-        notes.append("view switch buttons MISSING")
+        missing = []
+        if not all_btn:
+            missing.append("All")
+        if not failed_btn:
+            missing.append("Failed")
+        notes.append(f"filter buttons MISSING: {', '.join(missing)}")
 
-    # wb-viewbar
-    viewbar = soup.select_one(".wb-viewbar")
-    if viewbar:
-        notes.append("wb-viewbar found")
+    # Expand/Collapse buttons
+    expand_btn = soup.select_one('[data-action="expand-all"]')
+    collapse_btn = soup.select_one('[data-action="collapse-all"]')
+    if expand_btn and collapse_btn:
+        notes.append("Expand All / Collapse All buttons found")
         pass_count += 1
     else:
-        notes.append("wb-viewbar MISSING")
+        notes.append("Expand/Collapse buttons MISSING")
 
-    status = "PASS" if pass_count >= 3 else ("WARN" if pass_count >= 2 else "FAIL")
+    # Trace rows
+    trace_rows = soup.select(".trace-row")
+    if trace_rows:
+        notes.append(f"trace rows found (count={len(trace_rows)})")
+        pass_count += 1
+    else:
+        notes.append("No trace rows found")
+
+    status = "PASS" if pass_count >= 4 else ("WARN" if pass_count >= 3 else "FAIL")
     return status, notes
 
 
-def check_token_chart(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Token chart: token-charts-card__body is NOT a dominant block between hero and workbench."""
+def check_token_kpis(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
+    """Token KPIs: token total appears in hero KPIs (no separate token-charts-card)."""
     notes: list[str] = []
+    pass_count = 0
 
-    # Count token chart body occurrences
-    chart_bodies = soup.select("div.token-charts-card__body")
+    # Verify token-charts-card is NOT present (it was deleted in Phase 1)
     chart_cards = soup.select(".token-charts-card")
-
-    total_body_lines = 0
-    for body in chart_bodies:
-        body_html = str(body)
-        total_body_lines += body_html.count("\n")
-
-    # Total document lines
-    total_lines = html.count("\n")
-
-    # The token chart card should not dominate the space between hero and workbench
     if chart_cards:
-        # Check if token-charts-card exists (it does in current baseline)
-        notes.append(f"token-charts-card found (count={len(chart_cards)})")
-        notes.append(f"token-charts-card__body found (count={len(chart_bodies)})")
-
-        if total_lines > 0:
-            pct = (total_body_lines / total_lines) * 100
-            notes.append(f"token-charts-card__body lines: {total_body_lines}/{total_lines} ({pct:.1f}%)")
-
-            # If the token chart body takes > 5% of total HTML, it's dominant
-            if pct > 5.0:
-                notes.append("WARN: token chart block is dominant between hero and workbench")
-                return "FAIL", notes
-            else:
-                notes.append("OK: token chart block is not dominant")
-                return "PASS", notes
-        else:
-            return "WARN", notes
+        notes.append(f"WARN: token-charts-card still present (count={len(chart_cards)})")
     else:
-        notes.append("token-charts-card NOT found (ideal: HIFI removes this block)")
-        return "PASS", notes
+        notes.append("token-charts-card removed (expected for Phase 1)")
+        pass_count += 1
+
+    # Check for total tokens in hero KPIs
+    kpis = soup.select_one(".kpis")
+    if kpis:
+        kpi_labels = kpis.select(".kpi .l")
+        has_token_kpi = False
+        for label in kpi_labels:
+            text = label.get_text(strip=True).lower()
+            if "token" in text:
+                has_token_kpi = True
+                notes.append(f"token KPI label found: '{label.get_text(strip=True)}'")
+                pass_count += 1
+                break
+        if not has_token_kpi:
+            notes.append("No token-related KPI label found in hero")
+
+        # Check secondary metrics for total token value
+        secondary = soup.select_one(".hero-secondary-metrics")
+        if secondary:
+            sec_text = secondary.get_text(strip=True).lower()
+            if "token" in sec_text:
+                notes.append("total tokens present in secondary metrics strip")
+                pass_count += 1
+            else:
+                notes.append("total tokens NOT found in secondary metrics")
+    else:
+        notes.append("KPIs section not found")
+
+    status = "PASS" if pass_count >= 2 else ("WARN" if pass_count >= 1 else "FAIL")
+    return status, notes
 
 
 def check_legacy_tabs(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Legacy tabs: old top-level tabs (Profile/Timeline/Hotspots) are not primary layout."""
+    """Legacy tabs: negative check — no old workbench or tab switches."""
     notes: list[str] = []
+    violations = 0
 
-    # Check for old-style top-level tab navigation
-    legacy_tabs = soup.select(".tab-nav, .tab-bar, nav[aria-label*='tab']")
-    legacy_labels = []
+    # Check for data-workbench (removed in Phase 1)
+    workbench = soup.select_one("[data-workbench]")
+    if workbench:
+        violations += 1
+        notes.append("VIOLATION: [data-workbench] still present (should be removed)")
+    else:
+        notes.append("OK: [data-workbench] not found (expected)")
 
-    for tab in legacy_tabs:
-        text = tab.get_text(strip=True)
-        if any(kw in text.lower() for kw in ["profile", "timeline", "hotspots"]):
-            legacy_labels.append(text)
+    # Check for data-switch="calls" (removed in Phase 1)
+    calls_switch = soup.select_one('[data-switch="calls"]')
+    if calls_switch:
+        violations += 1
+        notes.append('VIOLATION: [data-switch="calls"] still present')
+    else:
+        notes.append('OK: [data-switch="calls"] not found (expected)')
 
-    # Also check for standalone Profile/Timeline/Hotspots tab buttons
-    tab_buttons = soup.select("button[data-tab], .tab-item, .nav-tab")
-    legacy_tab_buttons = []
-    for btn in tab_buttons:
-        text = btn.get_text(strip=True).lower()
-        if text in ("profile", "timeline", "hotspots"):
-            legacy_tab_buttons.append(text)
+    # Check for data-switch="hotspots" (removed in Phase 1)
+    hotspots_switch = soup.select_one('[data-switch="hotspots"]')
+    if hotspots_switch:
+        violations += 1
+        notes.append('VIOLATION: [data-switch="hotspots"] still present')
+    else:
+        notes.append('OK: [data-switch="hotspots"] not found (expected)')
 
-    if legacy_labels or legacy_tab_buttons:
-        notes.append(f"Legacy tab navigation FOUND: {legacy_labels + legacy_tab_buttons}")
+    # Check for old tab-nav/tab-bar structures
+    old_tabs = soup.select(".tab-nav, .tab-bar, .tab-item, .wb-viewbar")
+    if old_tabs:
+        violations += len(old_tabs)
+        notes.append(f"VIOLATION: old tab/viewbar structures found (count={len(old_tabs)})")
+    else:
+        notes.append("OK: no old tab navigation structures found")
+
+    if violations > 0:
+        notes.append(f"Total legacy violations: {violations}")
         return "FAIL", notes
     else:
-        notes.append("No legacy top-level tab navigation found (good)")
+        notes.append("No legacy tab/workbench artifacts found")
         return "PASS", notes
 
 
 def check_inspector(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Inspector: contextual inspector exists."""
+    """Inspector: should exist in base.html but NOT be rendered on session detail.
+
+    Session detail uses 'no-inspector' class on the shell div to suppress the
+    inspector panel. The base template conditionally renders inspector based on
+    'no-inspector' not being in shell_class.
+    """
     notes: list[str] = []
     pass_count = 0
 
-    # HIFI data attribute
-    inspector = soup.select_one("[data-context-inspector]")
-    if inspector:
-        notes.append("[data-context-inspector] found")
+    # Check that the session detail shell exists
+    detail_shell = soup.select_one("[data-session-detail-shell]")
+    if detail_shell:
+        notes.append("[data-session-detail-shell] found")
         pass_count += 1
     else:
-        notes.append("[data-context-inspector] MISSING")
+        notes.append("[data-session-detail-shell] MISSING")
 
-    # Fallback: class-based inspector
-    inspector_class = soup.select_one("aside.inspector, .inspector, .inspector-inner")
-    if inspector_class:
-        notes.append("inspector element found (class-based)")
-        pass_count += 1
-    else:
-        notes.append("inspector element MISSING")
+    # Check for no-inspector class on the shell or body
+    shell_cls = detail_shell.get("class", []) if detail_shell else []
+    body_cls = soup.body.get("class", []) if soup.body else []
+    has_no_inspector = "no-inspector" in shell_cls or "no-inspector" in body_cls
 
-    # Inspector header/title
-    insp_title = soup.select_one(".insp-title, .inspector-inner .insp-title")
-    if insp_title:
-        notes.append(f"inspector title found: '{insp_title.get_text(strip=True)}'")
+    if has_no_inspector:
+        notes.append("'no-inspector' class found on shell/body (inspector suppressed)")
         pass_count += 1
     else:
-        notes.append("inspector title MISSING")
+        # Inspector may still be rendered — check if it's present
+        inspector = soup.select_one("[data-context-inspector]")
+        if inspector:
+            notes.append("[data-context-inspector] is rendered on session detail")
+            notes.append("WARN: inspector visible — Phase 1 may not need 'no-inspector'")
+            pass_count += 1  # Not a hard fail, just informational
+        else:
+            notes.append("No inspector element found (suppressed via template or class)")
+            pass_count += 1
+
+    # Verify inspector does NOT appear as a visible panel on the detail page
+    # In Phase 1, inspector is conditionally excluded via Jinja template
+    inspector_aside = soup.select_one("aside.inspector")
+    if inspector_aside and detail_shell:
+        # Check if it's inside the detail shell (meaning it's rendered on this page)
+        if inspector_aside.parent and _is_ancestor_of(inspector_aside.parent, detail_shell):
+            notes.append("WARN: aside.inspector is rendered inside session detail shell")
+        else:
+            notes.append("aside.inspector not inside detail shell (OK)")
+            pass_count += 1
+    elif not inspector_aside:
+        notes.append("aside.inspector not rendered (expected for Phase 1)")
+        pass_count += 1
 
     status = "PASS" if pass_count >= 2 else ("WARN" if pass_count >= 1 else "FAIL")
     return status, notes
+
+
+def _is_ancestor_of(potential_ancestor, element) -> bool:
+    """Check if potential_ancestor is an ancestor of element (or is element)."""
+    current = element
+    while current:
+        if current is potential_ancestor:
+            return True
+        current = current.parent
+    return False
 
 
 def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
@@ -292,7 +360,6 @@ def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
     style_tags = soup.find_all("style")
     for tag in style_tags:
         text = tag.string or ""
-        # Look for body/html min-width > viewport typical
         body_mw = re.findall(r'(?:body|html)\s*\{[^}]*min-width\s*:\s*(\d+)px', text)
         for mw in body_mw:
             if int(mw) > 1400:
@@ -318,63 +385,53 @@ def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
 
 
 def check_button_roles(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Button roles: buttons are not duplicated across topbar/hero/workbench."""
+    """Button roles: no duplication of expand/collapse, no disabled placeholder buttons."""
     notes: list[str] = []
-    duplicates = 0
+    issues = 0
 
-    # Collect button text/labels from each zone
-    def get_button_labels(container):
-        if not container:
-            return set()
-        labels = set()
-        for btn in container.find_all("button"):
-            text = btn.get_text(strip=True)
-            aria = btn.get("aria-label", "").strip()
-            title = btn.get("title", "").strip()
-            label = text or aria or title
-            if label:
-                labels.add(label.lower())
-        return labels
+    # Check for expand/collapse button duplication
+    expand_all = soup.select('[data-action="expand-all"]')
+    collapse_all = soup.select('[data-action="collapse-all"]')
 
-    topbar = soup.select_one(".topbar")
-    hero = soup.select_one(".hero, .hero-main")
-    workbench = soup.select_one(".card.wb, .wb-head, [data-workbench]")
+    if len(expand_all) > 1:
+        issues += len(expand_all) - 1
+        notes.append(f"DUPLICATE: [data-action='expand-all'] found {len(expand_all)} times")
+    elif len(expand_all) == 1:
+        notes.append("[data-action='expand-all'] present (single)")
 
-    topbar_btns = get_button_labels(topbar)
-    hero_btns = get_button_labels(hero)
-    wb_btns = get_button_labels(workbench)
+    if len(collapse_all) > 1:
+        issues += len(collapse_all) - 1
+        notes.append(f"DUPLICATE: [data-action='collapse-all'] found {len(collapse_all)} times")
+    elif len(collapse_all) == 1:
+        notes.append("[data-action='collapse-all'] present (single)")
 
-    notes.append(f"topbar buttons: {sorted(topbar_btns)}")
-    notes.append(f"hero buttons: {sorted(hero_btns)}")
-    notes.append(f"workbench buttons: {sorted(wb_btns)}")
-
-    # Check for cross-zone duplicates
-    topbar_hero_overlap = topbar_btns & hero_btns
-    if topbar_hero_overlap:
-        duplicates += len(topbar_hero_overlap)
-        notes.append(f"DUPLICATE topbar <-> hero: {sorted(topbar_hero_overlap)}")
-
-    topbar_wb_overlap = topbar_btns & wb_btns
-    if topbar_wb_overlap:
-        duplicates += len(topbar_wb_overlap)
-        notes.append(f"DUPLICATE topbar <-> workbench: {sorted(topbar_wb_overlap)}")
-
-    hero_wb_overlap = hero_btns & wb_btns
-    if hero_wb_overlap:
-        # Some overlap is expected (e.g., "Jump" / "Inspect" actions)
-        functional_overlap = {l for l in hero_wb_overlap if l in ("jump", "inspect", "open selected")}
-        non_functional = hero_wb_overlap - functional_overlap
-        if non_functional:
-            duplicates += len(non_functional)
-            notes.append(f"DUPLICATE hero <-> workbench: {sorted(non_functional)}")
+    # Check for disabled placeholder buttons (should not have duplicate functional roles)
+    disabled_placeholders = soup.select("button[disabled].topbar-action--placeholder")
+    if disabled_placeholders:
+        notes.append(f"disabled placeholder buttons found (count={len(disabled_placeholders)})")
+        # Check for duplicates by aria-label
+        labels = [b.get("aria-label", "").strip().lower() for b in disabled_placeholders]
+        from collections import Counter
+        dup_labels = {label for label, count in Counter(labels).items() if count > 1 and label}
+        if dup_labels:
+            issues += len(dup_labels)
+            notes.append(f"DUPLICATE disabled placeholder labels: {sorted(dup_labels)}")
         else:
-            notes.append(f"hero <-> workbench overlap is functional (expected): {sorted(functional_overlap)}")
+            notes.append("disabled placeholders have unique roles (OK)")
 
-    if duplicates > 0:
-        notes.append(f"Total button duplicates: {duplicates}")
+    # Check for duplicate "Jump to Trace" buttons
+    jump_buttons = soup.select('button.jump[data-action="jump-anomaly"]')
+    if len(jump_buttons) > len(soup.select(".hero-alerts .alert")):
+        issues += 1
+        notes.append(f"DUPLICATE: more 'Jump to Trace' buttons ({len(jump_buttons)}) than alerts")
+    elif jump_buttons:
+        notes.append(f"'Jump to Trace' buttons match alert count ({len(jump_buttons)})")
+
+    if issues > 0:
+        notes.append(f"Total button role issues: {issues}")
         return "FAIL", notes
     else:
-        notes.append("No button duplication across zones")
+        notes.append("No button role issues detected")
         return "PASS", notes
 
 
@@ -384,8 +441,8 @@ def check_button_roles(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
 
 CHECKS = [
     ("Hero", check_hero),
-    ("Workbench", check_workbench),
-    ("Token chart", check_token_chart),
+    ("Trace Panel", check_trace_panel),
+    ("Token KPIs", check_token_kpis),
     ("Legacy tabs", check_legacy_tabs),
     ("Inspector", check_inspector),
     ("Overflow", check_overflow),
@@ -405,7 +462,7 @@ def run_checks(html: str, source: str) -> dict:
 def print_report(results: dict, source: str) -> bool:
     """Print compact report. Returns True if all PASS/WARN (no FAIL)."""
     print(f"\n{'='*60}")
-    print(f"  Layout Quality Report")
+    print(f"  Layout Quality Report (Phase 1)")
     print(f"  Source: {source}")
     print(f"{'='*60}\n")
 
@@ -440,7 +497,7 @@ def print_report(results: dict, source: str) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Layout quality scoring for session detail HIFI layout")
+    parser = argparse.ArgumentParser(description="Layout quality scoring for Phase 1 session detail")
     parser.add_argument("--url", default=DEFAULT_URL, help="URL to fetch page from (default: %(default)s)")
     parser.add_argument("--html", default=str(DEFAULT_BASELINE), help="Path to baseline HTML file (fallback)")
     args = parser.parse_args()

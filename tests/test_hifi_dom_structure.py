@@ -103,33 +103,37 @@ class TestTopbarModes:
 
 @pytest.mark.playwright
 class TestViewSwitch:
-    """Verify Trace / Calls / Hotspots sub-view switching."""
+    """Verify trace panel toolbar (Phase 1: no sub-view switching)."""
 
-    def test_view_switch_buttons_exist(self, page, live_server_url):
-        """Session Detail should have Trace, Calls, Hotspots buttons."""
+    def test_trace_panel_toolbar_exists(self, page, live_server_url):
+        """Session Detail should have trace panel toolbar with All/Failed and Expand/Collapse."""
         if not _navigate_to_first_session(page, live_server_url):
             pytest.skip("No sessions available")
 
-        for view in ("trace", "calls", "hotspots"):
-            btn = page.query_selector(f'[data-switch="{view}"]')
-            assert btn is not None, f'missing data-switch="{view}" button'
+        # Check for trace panel toolbar
+        toolbar = page.query_selector(".trace-panel__toolbar")
+        assert toolbar is not None, "missing .trace-panel__toolbar"
 
-    def test_calls_view_has_data_table(self, page, live_server_url):
-        """Clicking Calls should show .data-table element."""
+        # Check for filter chips
+        all_btn = page.query_selector('[data-action="filter-status"][data-status="all"]')
+        assert all_btn is not None, 'missing All filter chip'
+        failed_btn = page.query_selector('[data-action="filter-status"][data-status="failed"]')
+        assert failed_btn is not None, 'missing Failed filter chip'
+
+        # Check for expand/collapse buttons
+        expand_btn = page.query_selector('[data-action="expand-all"]')
+        assert expand_btn is not None, 'missing Expand All button'
+        collapse_btn = page.query_selector('[data-action="collapse-all"]')
+        assert collapse_btn is not None, 'missing Collapse All button'
+
+    def test_old_workbench_views_removed(self, page, live_server_url):
+        """Calls and Hotspots workbench views should NOT exist."""
         if not _navigate_to_first_session(page, live_server_url):
             pytest.skip("No sessions available")
 
-        calls_btn = page.query_selector('[data-switch="calls"]')
-        if calls_btn:
-            calls_btn.click()
-            page.wait_for_timeout(300)
-
-            # Check that the calls view is visible
-            calls_view = page.query_selector('[data-view="calls"]')
-            if calls_view:
-                display = calls_view.evaluate("el => getComputedStyle(el).display")
-                # After clicking, it should be visible (not 'none')
-                assert display != "none", "Calls view should be visible after clicking"
+        for view in ("calls", "hotspots"):
+            el = page.query_selector(f'[data-workbench-view="{view}"]')
+            assert el is None, f'unexpected [data-workbench-view="{view}"] (should be removed)'
 
 
 @pytest.mark.playwright

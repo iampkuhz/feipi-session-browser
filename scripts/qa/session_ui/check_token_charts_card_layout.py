@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Token charts card layout placement check.
+"""Token metrics placement check for Phase 1 session detail.
+
+After Phase 1, the token-charts-card is deleted. Token data now appears in:
+  - Hero KPIs (total tokens, cache hit, duration, failed tools)
+  - Issue summary (highest token round card)
+  - Trace rows (per-round mixbar + .mixval, data-round-tokens)
 
 Usage:
     python scripts/qa/session_ui/check_token_charts_card_layout.py [--url URL] [--html PATH]
 
 Checks:
-    1. .token-charts-card__body exists in the DOM
-    2. NOT inside Trace active view primary area (data-view="trace")
-    3. NOT a dominant first-screen block between hero and workbench (DOM ordering)
-    4. Height <= 400px threshold if rendered (inline style or content-line estimate)
-    5. Token diagnostics present in Hotspots/inspector instead
+    1. Token total appears in hero KPIs
+    2. Highest token round appears in issue summary (if any)
+    3. Per-round token data in trace rows (.mixval or data-round-tokens)
+    4. token-charts-card is removed (negative check)
 
 Exits non-zero if any critical violation found.
 """
@@ -38,10 +42,6 @@ DEFAULT_BASELINE = (
 )
 DEFAULT_URL = "http://localhost:18999/session/93ecbcf2"
 
-# Height threshold in pixels — if the token charts body is rendered taller
-# than this, it is considered a dominant first-screen block.
-MAX_ACCEPTABLE_HEIGHT_PX = 400
-
 # ---------------------------------------------------------------------------
 # Data fetching (mirrors check_layout_quality.py pattern)
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ MAX_ACCEPTABLE_HEIGHT_PX = 400
 def fetch_html(url: str, timeout: float = 3.0) -> str | None:
     """Try to fetch HTML from a running local server."""
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "token-charts-check/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "token-metrics-check/2.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, OSError, TimeoutError):
@@ -81,238 +81,173 @@ def load_source(url: str | None, html_path: Path | None):
 # Individual checks
 # ---------------------------------------------------------------------------
 
-def check_token_charts_exists(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Check whether .token-charts-card__body exists."""
-    notes: list[str] = []
-    bodies = soup.select("div.token-charts-card__body")
-    cards = soup.select("div.token-charts-card")
-
-    if bodies:
-        notes.append(f"div.token-charts-card__body found (count={len(bodies)})")
-        notes.append(f"div.token-charts-card found (count={len(cards)})")
-        return "FOUND", notes
-    else:
-        notes.append("div.token-charts-card__body NOT found")
-        if cards:
-            notes.append("div.token-charts-card exists but has no __body wrapper")
-        else:
-            notes.append("div.token-charts-card also NOT found (HIFI target state)")
-        return "MISSING", notes
-
-
-def check_not_in_trace_view(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Token charts card body must NOT be inside the Trace active view primary area."""
-    notes: list[str] = []
-    violations = 0
-
-    # Find all token-charts-card__body elements
-    chart_bodies = soup.select("div.token-charts-card__body")
-
-    for body in chart_bodies:
-        # Walk up the parent chain to check if any ancestor is the trace view
-        parent = body.parent
-        while parent:
-            # Check for data-view="trace" (the trace view container)
-            if parent.get("data-view") == "trace":
-                violations += 1
-                notes.append(
-                    f"VIOLATION: token-charts-card__body is INSIDE data-view=\"trace\" "
-                    f"(parent chain includes trace view primary area)"
-                )
-                break
-            # Also check for class-based trace containers
-            if "trace" in (parent.get("class") or []) and "detail" not in (parent.get("class") or []):
-                # A top-level .trace container would be the trace view
-                if parent.name in ("div", "section"):
-                    violations += 1
-                    notes.append(
-                        f"VIOLATION: token-charts-card__body is INSIDE .trace container"
-                    )
-                    break
-            parent = parent.parent
-
-    if violations == 0:
-        notes.append("OK: token-charts-card__body is NOT inside trace view primary area")
-        return "PASS", notes
-    else:
-        notes.append(f"Total violations: {violations}")
-        return "FAIL", notes
-
-
-def check_not_between_hero_and_workbench(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Token charts card must NOT be a dominant first-screen block between hero and workbench."""
-    notes: list[str] = []
-
-    # Find hero, workbench, and token-charts-card in DOM order
-    # Hero candidates: HIFI-style (.hero, .hero-main, [data-session-overview-hero])
-    # and baseline-style (.session-info-bar, .hero-alerts)
-    hero = soup.select_one(
-        ".hero, .hero-main, [data-session-overview-hero], .session-info-bar, .hero-alerts"
-    )
-    workbench = soup.select_one(".card.wb, [data-workbench], section.wb")
-    chart_cards = soup.select("div.token-charts-card")
-
-    if not chart_cards:
-        notes.append("No token-charts-card found (HIFI target: removed)")
-        return "PASS", notes
-
-    # If both hero and workbench exist, check DOM ordering
-    if hero and workbench:
-        hero_pos = -1
-        wb_pos = -1
-        card_positions = []
-
-        # Build a list of all elements with their source position
-        all_elements = list(soup.find_all())
-        for i, el in enumerate(all_elements):
-            if el is hero:
-                hero_pos = i
-            if el is workbench:
-                wb_pos = i
-            if el in chart_cards:
-                card_positions.append(i)
-
-        if hero_pos >= 0 and wb_pos >= 0:
-            for cp in card_positions:
-                if hero_pos < cp < wb_pos:
-                    # Card is between hero and workbench — compute dominance
-                    card = chart_cards[card_positions.index(cp)]
-                    card_html = str(card)
-                    card_lines = card_html.count("\n")
-                    total_lines = html.count("\n")
-                    pct = (card_lines / total_lines * 100) if total_lines > 0 else 0
-
-                    notes.append(
-                        f"VIOLATION: token-charts-card is positioned between hero and workbench "
-                        f"in DOM (hero@{hero_pos}, card@{cp}, workbench@{wb_pos})"
-                    )
-                    notes.append(
-                        f"  Card size: {card_lines} lines / {total_lines} total ({pct:.1f}%)"
-                    )
-
-                    if pct > 1.0:
-                        notes.append(
-                            f"FAIL: token-charts-card is a DOM-dominant block between hero and workbench "
-                            f"({pct:.1f}% > 1% threshold)"
-                        )
-                        return "FAIL", notes
-                    else:
-                        notes.append(
-                            f"WARN: card is between hero and workbench but not dominant "
-                            f"({pct:.1f}% <= 1%)"
-                        )
-                        return "WARN", notes
-
-            notes.append("OK: token-charts-card is NOT between hero and workbench in DOM")
-            return "PASS", notes
-        else:
-            notes.append("Could not determine hero/workbench positions for DOM ordering check")
-            return "WARN", notes
-    elif hero and not workbench:
-        notes.append("Workbench container not found; cannot verify ordering")
-        return "WARN", notes
-    else:
-        notes.append("Hero container not found; cannot verify ordering")
-        return "WARN", notes
-
-
-def check_height_threshold(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Check that token-charts-card__body height is <= MAX_ACCEPTABLE_HEIGHT_PX.
-
-    NOTE: This check only enforces inline style height. Content-line estimation
-    is unreliable for SVG-heavy templates and has been removed. If the card is
-    inside the workbench (not first-screen), height is informational only.
-    """
-    notes: list[str] = []
-    violations = 0
-
-    chart_bodies = soup.select("div.token-charts-card__body")
-
-    for body in chart_bodies:
-        # Check inline style for height
-        style = body.get("style", "")
-        height_match = re.search(r'height\s*:\s*(\d+)\s*px', style)
-        if height_match:
-            h = int(height_match.group(1))
-            if h > MAX_ACCEPTABLE_HEIGHT_PX:
-                violations += 1
-                notes.append(
-                    f"VIOLATION: token-charts-card__body has inline height={h}px "
-                    f"(> {MAX_ACCEPTABLE_HEIGHT_PX}px threshold)"
-                )
-            else:
-                notes.append(f"OK: inline height={h}px (<= {MAX_ACCEPTABLE_HEIGHT_PX}px)")
-        else:
-            notes.append("OK: no inline height constraint (height determined by CSS/content)")
-
-    if not chart_bodies:
-        notes.append("No token-charts-card__body to check (HIFI target: removed)")
-        return "PASS", notes
-
-    if violations > 0:
-        notes.append(f"Height violations: {violations}/{len(chart_bodies)}")
-        return "FAIL", notes
-    else:
-        return "PASS", notes
-
-
-def check_diagnostics_in_hotspots(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Token diagnostics should be present in Hotspots or inspector instead of standalone chart."""
+def check_token_total_in_kpis(soup: BeautifulSoup) -> tuple[str, list[str]]:
+    """Check that token total appears in hero KPIs."""
     notes: list[str] = []
     pass_count = 0
 
-    # Check for Hotspots diagnostic area
-    hotspots_diagnostic = soup.select_one(".hotspots-diagnostic, .hotspots-diagnostic__list, .hotspots-diagnostic__header")
-    if hotspots_diagnostic:
-        notes.append("Hotspots diagnostic area found")
+    # Check for KPIs section
+    kpis = soup.select_one(".kpis")
+    if kpis:
+        notes.append("hero KPIs section found")
         pass_count += 1
 
-        # Check for diagnostic items inside hotspots
-        diag_items = hotspots_diagnostic.select(".hotspot-item, .hotspot-card, .hot-card")
-        if diag_items:
-            notes.append(f"  Contains {len(diag_items)} diagnostic item(s)")
-            pass_count += 1
-        else:
-            # Also check for any content in hotspots diagnostic
-            diag_text = hotspots_diagnostic.get_text(strip=True)
-            if len(diag_text) > 20:
-                notes.append(f"  Contains diagnostic content ({len(diag_text)} chars)")
+        # Look for a KPI label containing "token"
+        kpi_labels = kpis.select(".kpi .l")
+        token_kpi = None
+        for label in kpi_labels:
+            text = label.get_text(strip=True).lower()
+            if "token" in text:
+                token_kpi = label
+                break
+
+        if token_kpi:
+            # Check the corresponding value
+            value_el = token_kpi.find_previous_sibling(class_="v")
+            if value_el:
+                val_text = value_el.get_text(strip=True)
+                notes.append(f"token KPI value: '{val_text}' (label: '{token_kpi.get_text(strip=True)}')")
                 pass_count += 1
             else:
-                notes.append("  Hotspots diagnostic area is empty")
-    else:
-        notes.append("Hotspots diagnostic area NOT found")
-
-    # Check for data-view="hotspots" container
-    hotspots_view = soup.select_one('[data-view="hotspots"]')
-    if hotspots_view:
-        notes.append('[data-view="hotspots"] container found')
-        pass_count += 1
-    else:
-        notes.append('[data-view="hotspots"] container NOT found')
-
-    # Check for inspector with token/diagnostic info
-    inspector = soup.select_one("[data-context-inspector], .inspector, .inspector-inner")
-    if inspector:
-        insp_text = inspector.get_text(strip=True).lower()
-        has_diag_keywords = any(kw in insp_text for kw in ["token", "diag", "hotspot", "payload"])
-        if has_diag_keywords:
-            notes.append("Inspector contains token/diagnostic-related content")
-            pass_count += 1
+                notes.append(f"token KPI label found but no value sibling")
         else:
-            notes.append("Inspector exists but no token/diagnostic keywords found")
+            notes.append("No KPI label contains 'token'")
+
+        # Also check secondary metrics strip for total tokens
+        secondary = soup.select_one(".hero-secondary-metrics")
+        if secondary:
+            sec_text = secondary.get_text()
+            if "总 Token" in sec_text or "total token" in sec_text.lower():
+                notes.append("total tokens present in secondary metrics strip")
+                pass_count += 1
     else:
-        notes.append("Inspector NOT found")
+        notes.append("hero KPIs section NOT found")
 
     if pass_count >= 2:
-        notes.append(f"OK: token diagnostics available in alternate views ({pass_count} signals)")
         return "PASS", notes
     elif pass_count >= 1:
-        notes.append(f"WARN: partial diagnostic coverage ({pass_count} signal(s))")
         return "WARN", notes
     else:
-        notes.append("FAIL: no token diagnostics found in Hotspots or inspector")
+        notes.append("FAIL: no token total found in hero KPIs")
         return "FAIL", notes
+
+
+def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[str]]:
+    """Check that highest token round appears in issue summary (if data warrants it)."""
+    notes: list[str] = []
+    pass_count = 0
+
+    # Check for issue summary section
+    issue_section = soup.select_one("[data-issue-summary], .issue-summary")
+    if issue_section:
+        notes.append("issue summary section found")
+        pass_count += 1
+    else:
+        notes.append("issue summary section NOT found")
+        return "WARN", notes  # Not a hard failure
+
+    # Look for highest token round card (issue-card--cost)
+    cost_card = issue_section.select_one(".issue-card--cost")
+    if cost_card:
+        title = cost_card.select_one(".issue-card__title")
+        sub = cost_card.select_one(".issue-card__sub")
+        if title:
+            title_text = title.get_text(strip=True)
+            notes.append(f"highest token round card title: '{title_text}'")
+            pass_count += 1
+
+            # Check if it mentions "tokens"
+            if "token" in title_text.lower():
+                notes.append("card title contains 'tokens' keyword")
+                pass_count += 1
+
+        if sub:
+            notes.append(f"card subtitle: '{sub.get_text(strip=True)}'")
+    else:
+        notes.append("No highest-token-round cost card found (may be OK if no data or round < 2)")
+
+    # Also check for data-action="jump-round" buttons that reference rounds
+    jump_buttons = issue_section.select('[data-action="jump-round"][data-round]')
+    if jump_buttons:
+        notes.append(f"jump-round buttons in issue summary: {len(jump_buttons)}")
+
+    if pass_count >= 2:
+        return "PASS", notes
+    elif pass_count >= 1:
+        return "WARN", notes
+    else:
+        return "WARN", notes
+
+
+def check_per_round_token_data(soup: BeautifulSoup) -> tuple[str, list[str]]:
+    """Check that per-round token data appears in trace rows."""
+    notes: list[str] = []
+    pass_count = 0
+
+    trace_rows = soup.select(".trace-row")
+    if not trace_rows:
+        notes.append("No trace rows found")
+        return "FAIL", notes
+
+    notes.append(f"trace rows found (count={len(trace_rows)})")
+    pass_count += 1
+
+    # Check for .mixval in trace rows
+    rows_with_mixval = soup.select(".trace-row .mixval")
+    if rows_with_mixval:
+        notes.append(f".mixval elements found in trace rows (count={len(rows_with_mixval)})")
+        pass_count += 1
+
+        # Verify values are non-empty
+        sample_values = [el.get_text(strip=True) for el in rows_with_mixval[:3]]
+        notes.append(f"sample mixval values: {sample_values}")
+    else:
+        notes.append("No .mixval elements found in trace rows")
+
+    # Check for data-round-tokens attribute on trace rows
+    rows_with_token_data = [r for r in trace_rows if r.get("data-round-tokens")]
+    if rows_with_token_data:
+        notes.append(f"trace rows with data-round-tokens: {len(rows_with_token_data)}")
+        pass_count += 1
+
+        # Sample values
+        sample = [r["data-round-tokens"] for r in rows_with_token_data[:3]]
+        notes.append(f"sample data-round-tokens values: {sample}")
+    else:
+        notes.append("No data-round-tokens attributes on trace rows")
+
+    # Check for mixbar (token composition bar)
+    mixbars = soup.select(".trace-row .mixbar")
+    if mixbars:
+        notes.append(f"mixbar elements found (count={len(mixbars)})")
+        pass_count += 1
+    else:
+        notes.append("No mixbar elements found")
+
+    if pass_count >= 3:
+        return "PASS", notes
+    elif pass_count >= 2:
+        return "WARN", notes
+    else:
+        return "FAIL", notes
+
+
+def check_token_charts_card_removed(soup: BeautifulSoup) -> tuple[str, list[str]]:
+    """Negative check: token-charts-card should NOT be present in Phase 1."""
+    notes: list[str] = []
+
+    chart_cards = soup.select(".token-charts-card")
+    chart_bodies = soup.select("div.token-charts-card__body")
+
+    if chart_cards:
+        notes.append(f"VIOLATION: .token-charts-card still present (count={len(chart_cards)})")
+        return "FAIL", notes
+    elif chart_bodies:
+        notes.append(f"VIOLATION: .token-charts-card__body still present (count={len(chart_bodies)})")
+        return "FAIL", notes
+    else:
+        notes.append("OK: token-charts-card fully removed (Phase 1 target state)")
+        return "PASS", notes
 
 
 # ---------------------------------------------------------------------------
@@ -320,11 +255,10 @@ def check_diagnostics_in_hotspots(soup: BeautifulSoup) -> tuple[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 CHECKS = [
-    ("Token charts card body exists", check_token_charts_exists),
-    ("NOT inside Trace view", check_not_in_trace_view),
-    ("NOT between hero and workbench", check_not_between_hero_and_workbench),
-    ("Height within threshold", check_height_threshold),
-    ("Diagnostics in Hotspots/inspector", check_diagnostics_in_hotspots),
+    ("Token total in hero KPIs", check_token_total_in_kpis),
+    ("Highest token round in issues", check_highest_token_round_in_issues),
+    ("Per-round token data in traces", check_per_round_token_data),
+    ("token-charts-card removed", check_token_charts_card_removed),
 ]
 
 
@@ -332,10 +266,7 @@ def run_checks(html: str, source: str) -> dict:
     soup = BeautifulSoup(html, "html.parser")
     results = {}
     for name, fn in CHECKS:
-        if "html" in fn.__code__.co_varnames:
-            status, notes = fn(soup, html)
-        else:
-            status, notes = fn(soup)
+        status, notes = fn(soup)
         results[name] = {"status": status, "notes": notes}
     return results
 
@@ -343,7 +274,7 @@ def run_checks(html: str, source: str) -> dict:
 def print_report(results: dict, source: str) -> bool:
     """Print compact report. Returns True if no FAIL."""
     print(f"\n{'='*60}")
-    print(f"  Token Charts Card Layout Check")
+    print(f"  Token Metrics Placement Check (Phase 1)")
     print(f"  Source: {source}")
     print(f"{'='*60}\n")
 
@@ -352,7 +283,7 @@ def print_report(results: dict, source: str) -> bool:
         status = data["status"]
         if status == "FAIL":
             any_fail = True
-        icon = {"PASS": "[PASS]", "WARN": "[WARN]", "FAIL": "[FAIL]", "FOUND": "[INFO]", "MISSING": "[INFO]"}.get(status, "[??]")
+        icon = {"PASS": "[PASS]", "WARN": "[WARN]", "FAIL": "[FAIL]"}.get(status, "[??]")
         print(f"  {icon}  {name}")
         for note in data["notes"]:
             print(f"        {note}")
@@ -375,7 +306,7 @@ def print_report(results: dict, source: str) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Token charts card layout placement check")
+    parser = argparse.ArgumentParser(description="Token metrics placement check for Phase 1")
     parser.add_argument("--url", default=DEFAULT_URL, help="URL to fetch page from (default: %(default)s)")
     parser.add_argument("--html", default=str(DEFAULT_BASELINE), help="Path to baseline HTML file (fallback)")
     args = parser.parse_args()

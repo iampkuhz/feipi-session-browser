@@ -108,14 +108,14 @@ class TestSessionDetailRoute:
         resp = urllib.request.urlopen(session_detail_url, timeout=10)
         assert resp.status == 200
 
-    def test_session_detail_contains_workbench(self, session_detail_url):
-        """Session detail page must contain the workbench container."""
+    def test_session_detail_contains_trace_panel(self, session_detail_url):
+        """Session detail page must contain the trace panel."""
         resp = urllib.request.urlopen(session_detail_url, timeout=10)
         html = resp.read().decode("utf-8")
-        assert 'class="wb-head"' in html or 'wb-head' in html, \
-            "Session detail must contain workbench head"
-        assert 'wb-body' in html, \
-            "Session detail must contain workbench body"
+        assert 'trace-panel' in html, \
+            "Session detail must contain trace-panel"
+        assert 'trace-row' in html, \
+            "Session detail must contain trace-row"
 
     def test_session_detail_contains_metrics(self, session_detail_url):
         """Session detail page must contain the metrics strip."""
@@ -123,14 +123,6 @@ class TestSessionDetailRoute:
         html = resp.read().decode("utf-8")
         assert 'metrics-strip' in html, \
             "Session detail must contain metrics strip"
-
-    def test_session_detail_contains_view_switches(self, session_detail_url):
-        """Session detail page must contain view switch buttons."""
-        resp = urllib.request.urlopen(session_detail_url, timeout=10)
-        html = resp.read().decode("utf-8")
-        for view in ("trace", "calls", "hotspots"):
-            assert f'data-switch="{view}"' in html, \
-                f"Session detail must contain switch button for {view}"
 
     def test_session_detail_no_server_error(self, session_detail_url):
         """Session detail page must not render the error.html template."""

@@ -20,21 +20,20 @@ class TestMhtmlTemplateContracts:
     def _read_css(self) -> str:
         return STATIC_CSS.read_text(encoding="utf-8")
 
-    # ── Workbench structure ──
+    # ── Trace panel structure (Phase 1 simplified) ──
 
-    def test_data_switch_buttons_exist(self):
+    def test_trace_panel_exists(self):
         html = self._read("session.html")
-        for view in ("trace", "calls", "hotspots"):
-            assert f'data-switch="{view}"' in html, f'missing data-switch="{view}"'
+        assert 'data-trace-panel' in html, 'missing trace-panel'
 
-    def test_data_view_containers_exist(self):
+    def test_trace_row_structure(self):
         html = self._read("session.html")
-        for view in ("trace", "calls", "hotspots"):
-            assert f'data-view="{view}"' in html, f'missing data-view="{view}"'
+        assert 'class="trace-row"' in html, 'missing trace-row'
+        assert 'class="trace-detail"' in html, 'missing trace-detail'
 
-    def test_switchView_function_exists(self):
+    def test_toggle_round_detail_function_exists(self):
         html = self._read("session.html")
-        assert "switchView" in html, "missing switchView function"
+        assert "toggleRoundDetail" in html, "missing toggleRoundDetail function"
 
     # ── Layout modes ──
 
@@ -124,23 +123,43 @@ class TestMhtmlSelfContained:
                 raise AssertionError(f"Google Fonts URL in CSS: {line.strip()}")
 
 
-class TestOldTabsNotBlocking:
-    """Ensure old Conversation/Timeline/Profile tabs don't block new Workbench."""
+class TestPhase1SimplifiedStructure:
+    """Verify Phase 1 simplified session detail structure (trace-first)."""
 
     def _read(self, rel_path: str) -> str:
         return (TEMPLATES / rel_path).read_text(encoding="utf-8")
 
-    def test_no_old_tab_buttons_as_primary(self):
-        """Old tab IDs should not be the primary view switching mechanism."""
+    def test_has_trace_panel(self):
         html = self._read("session.html")
-        # Old tab IDs may exist as deprecated/legacy anchors but shouldn't be active
-        # The primary switching should be via data-view/data-switch
-        assert 'data-view="trace"' in html, "data-view trace not primary"
-        assert 'data-view="calls"' in html, "data-view calls not primary"
-        assert 'data-view="hotspots"' in html, "data-view hotspots not primary"
+        assert 'class="trace-panel"' in html or 'data-trace-panel' in html, \
+            "missing trace-panel"
 
-    def test_workbench_header_exists(self):
-        """Workbench header with view switch buttons should be present."""
+    def test_has_issue_summary(self):
         html = self._read("session.html")
-        assert "wb-head" in html or "wb-viewbar" in html or "view-switch" in html, \
-            "missing workbench header / view switch buttons"
+        assert 'data-issue-summary' in html, "missing issue-summary section"
+
+    def test_has_payload_modal(self):
+        html = self._read("session.html")
+        assert 'id="payload-modal"' in html, "missing payload-modal"
+
+    def test_has_expand_collapse_buttons(self):
+        html = self._read("session.html")
+        assert 'data-action="expand-all"' in html, "missing expand-all"
+        assert 'data-action="collapse-all"' in html, "missing collapse-all"
+
+    def test_has_all_failed_segmented_control(self):
+        html = self._read("session.html")
+        assert 'data-action="filter-status"' in html, "missing filter-status"
+        assert 'data-status="all"' in html, "missing 'all' filter"
+        assert 'data-status="failed"' in html, "missing 'failed' filter"
+
+    def test_no_old_workbench_views(self):
+        """Calls and Hotspots workbench views should be removed."""
+        html = self._read("session.html")
+        assert 'data-workbench-view="calls"' not in html, "calls view should be removed"
+        assert 'data-workbench-view="hotspots"' not in html, "hotspots view should be removed"
+
+    def test_no_token_charts_card(self):
+        """Token charts card should be removed in Phase 1."""
+        html = self._read("session.html")
+        assert 'id="tokenChartsCard"' not in html, "token-charts-card should be removed"

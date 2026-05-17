@@ -422,6 +422,20 @@ class TestEventDelegationPresent:
             "Event delegation should handle [data-action=collapse-all] clicks."
         )
 
+    def test_delegation_handles_filter_status(self):
+        """Phase 1: filter-status action must exist for All/Failed filtering."""
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        has_filter = 'data-action="filter-status"' in html
+        assert has_filter, (
+            "Phase 1: [data-action=filter-status] must exist for All/Failed filtering."
+        )
+        has_all = 'data-status="all"' in html
+        assert has_all, "Phase 1: [data-status=all] filter chip must exist"
+        has_failed = 'data-status="failed"' in html
+        assert has_failed, "Phase 1: [data-status=failed] filter chip must exist"
+
 
 class TestAccordionBehavior:
     """Verify accordion logic (_collapseAllOtherRounds) exists in session.html."""

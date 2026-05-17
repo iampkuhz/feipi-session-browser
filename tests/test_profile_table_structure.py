@@ -1,15 +1,10 @@
-"""Tests for Profile (Calls) table DOM structure.
+"""Tests for Trace panel DOM structure after Phase 1 simplification.
 
-After profile refactoring, inline LLM call details were moved to the Inspector.
-The Calls view (data-view="calls") uses a div-based data-table structure.
-
-Ensures that:
-- Profile/Calls view does NOT have inline llm-call-detail expansion rows.
-- Profile does NOT contain .llm-call-detail__pre-block elements.
-- Profile does NOT contain "Request Context:" inline label.
-- Each profile row has a clickable entry calling openLLMInspector.
-- Hidden Inspector templates exist for content retrieval.
-- Preview column has truncation class.
+After Phase 1 simplification:
+- Calls/Hotspots views removed; trace is the only workbench view
+- Inline detail expansion is removed — tool inspection uses openToolInspector
+- Tool spans have data attributes for Inspector integration
+- Trace uses trace-row + trace-detail structure for rounds
 """
 
 import re
@@ -22,78 +17,73 @@ def _session_source():
     return (TEMPLATE_DIR / "session.html").read_text(encoding="utf-8")
 
 
-# ── Profile must NOT have inline detail expansion ────────────────────
+# ── Trace must NOT have old inline detail expansion ────────────────────
 
 def test_no_inline_llm_call_detail_rows():
-    """Profile should NOT expand inline detail rows — details belong in Inspector."""
+    """Trace should NOT expand inline llm-call-detail rows."""
     source = _session_source()
     assert 'llm-call-detail' not in source, (
-        "Calls view must not contain llm-call-detail rows — "
-        "inline detail expansion should be removed; use Inspector instead"
+        "Trace must not contain llm-call-detail rows — "
+        "inspection belongs in Inspector"
     )
 
 
 def test_no_pre_block_class():
-    """Profile should NOT contain .llm-call-detail__pre-block — no large inline <pre>."""
+    """Trace should NOT contain .llm-call-detail__pre-block."""
     source = _session_source()
     assert 'llm-call-detail__pre-block' not in source, (
-        "Calls view must not contain .llm-call-detail__pre-block — "
-        "large inline <pre> blocks cause unstable row height"
+        "Trace must not contain .llm-call-detail__pre-block"
     )
 
 
 def test_no_request_context_label():
-    """Profile should NOT contain 'Request Context:' inline label."""
+    """Trace should NOT contain 'Request Context:' inline label."""
     source = _session_source()
     assert 'Request Context:' not in source, (
-        "Calls view must not contain 'Request Context:' label — "
-        "this confuses rendered context with request payload"
+        "Trace must not contain 'Request Context:' label"
     )
 
 
-# ── Profile must have Inspector entry points ─────────────────────────
+# ── Trace has tool inspection entry points ─────────────────────────
 
-def test_rows_call_openLLMInspector():
-    """Each profile row must be clickable via openLLMInspector."""
+def test_spans_call_openToolInspector():
+    """Each tool span must be clickable via openToolInspector."""
     source = _session_source()
-    assert 'openLLMInspector' in source, (
-        "Calls view must reference openLLMInspector function"
+    assert 'openToolInspector' in source, (
+        "Trace must reference openToolInspector function"
     )
 
 
-def test_has_inspector_templates():
-    """Profile must have hidden <template> elements for Inspector retrieval."""
+def test_has_tool_result_templates():
+    """Trace must have hidden <template> elements for tool result retrieval."""
     source = _session_source()
-    assert "inspect-request" in source, (
-        "Calls view must have inspect-request template id pattern"
-    )
-    assert "inspect-response" in source, (
-        "Calls view must have inspect-response template id pattern"
+    assert "tool-result-" in source, (
+        "Trace must have tool-result template id pattern"
     )
 
 
 # ── Marker / data attributes ─────────────────────────────────────────
 
-def test_rows_have_data_attributes():
-    """Each row must have data attributes for Inspector."""
+def test_spans_have_data_attributes():
+    """Each tool span must have data attributes for Inspector."""
     source = _session_source()
-    assert "data-call-idx=" in source, (
-        "Calls rows must have data-call-idx"
+    assert "data-tool-name=" in source, (
+        "Tool spans must have data-tool-name"
     )
-    assert "data-model=" in source, (
-        "Calls rows must have data-model"
+    assert "data-tool-status=" in source, (
+        "Tool spans must have data-tool-status"
     )
-    assert "data-llm-call-id=" in source or "data-call-idx=" in source, (
-        "Calls rows must have an identifier data attribute"
+    assert "data-tool-idx=" in source, (
+        "Tool spans must have data-tool-idx"
     )
 
 
 # ── Preview truncation ───────────────────────────────────────────────
 
 def test_preview_has_truncation():
-    """Preview column must have truncation applied."""
+    """Preview text must have truncation applied."""
     source = _session_source()
     # Check that preview text uses truncation (either via truncate filter or CSS)
     assert "truncate" in source, (
-        "Calls view must have truncation for preview text"
+        "Trace must have truncation for preview text"
     )
