@@ -193,21 +193,33 @@
     var pld = payload.payload || {};
     var requestRaw = pld.requestRaw || payload.request_payload_raw || '';
     var responseRaw = pld.responseRaw || payload.response_payload_raw || '';
-    var renderedCtxRaw = payload.rendered_context_raw || requestRaw;
+    var renderedCtxRaw = payload.rendered_context_raw || '';
+    // Only fall back renderedCtx to requestRaw if explicitly set (they are distinct concepts)
+    if (!renderedCtxRaw && requestRaw) {
+      renderedCtxRaw = requestRaw;
+    }
     var contentParts = pld.contentParts || payload.content_parts || [];
+
+    // Determine whether any payload data is actually available
+    var hasAnyData = !!(requestRaw || responseRaw || renderedCtxRaw || (contentParts && contentParts.length > 0));
 
     // Build parts data for PayloadViewer.register
     var partsData = {
       parts: {
-        request: { raw: requestRaw, json: '', rendered: '' },
-        rendered: { raw: renderedCtxRaw, json: '', rendered: '' },
-        response: { raw: responseRaw, json: '', rendered: '' },
+        request: { raw: requestRaw || '', json: '', rendered: '' },
+        rendered: { raw: renderedCtxRaw || '', json: '', rendered: '' },
+        response: { raw: responseRaw || '', json: '', rendered: '' },
       }
     };
     // Add sizes
     partsData.parts.request.size = requestRaw ? requestRaw.length : 0;
     partsData.parts.rendered.size = renderedCtxRaw ? renderedCtxRaw.length : 0;
     partsData.parts.response.size = responseRaw ? responseRaw.length : 0;
+
+    // Build missing-reason for fallback
+    var missingReason = payload.payload_missing_reason ||
+      pld.missingReason ||
+      'Payload not captured for this agent type or request.';
 
     // Create overlay
     var overlay = document.createElement('div');
@@ -223,21 +235,34 @@
             '<aside class="viewer-side">' +
               '<div class="nav-label">Parts</div>' +
               (requestRaw ? '<div class="part active" data-payload-part="request"><span>Request Payload</span><span class="mono">' + formatBytes(partsData.parts.request.size) + '</span></div>' : '') +
-              (renderedCtxRaw ? '<div class="part" data-payload-part="rendered"><span>Rendered Context</span><span class="mono">' + formatBytes(partsData.parts.rendered.size) + '</span></div>' : '') +
+              (renderedCtxRaw ? '<div class="part' + (requestRaw ? '' : ' active') + '" data-payload-part="rendered"><span>Rendered Context</span><span class="mono">' + formatBytes(partsData.parts.rendered.size) + '</span></div>' : '') +
               (responseRaw ? '<div class="part" data-payload-part="response"><span>Response Payload</span><span class="mono">' + formatBytes(partsData.parts.response.size) + '</span></div>' : '') +
-              (contentParts.length > 0 ? '<div class="part" data-payload-part="tools"><span>Multipart (' + contentParts.length + ')</span><span class="mono">' + contentParts.length + '</span></div>' : '') +
+              (contentParts && contentParts.length > 0 ? '<div class="part" data-payload-part="tools"><span>Multipart (' + contentParts.length + ')</span><span class="mono">' + contentParts.length + '</span></div>' : '') +
             '</aside>' +
             '<main class="viewer-main">' +
               '<div class="viewer-toolbar"><div class="view-switch">' +
                 '<button class="active" data-payload-switch="json">JSON</button>' +
                 '<button data-payload-switch="rendered">Rendered</button>' +
                 '<button data-payload-switch="raw">Raw</button>' +
-              '</div></div>' +
-              '<div class="viewer-content">' +
-                '<div data-payload-view="json" style="padding:12px"><pre class="code">' + escapeHtml(requestRaw || 'No request payload.') + '</pre></div>' +
-                '<div data-payload-view="rendered" style="display:none;padding:12px"><pre class="code">' + escapeHtml(renderedCtxRaw || 'No rendered context.') + '</pre></div>' +
-                '<div data-payload-view="raw" style="display:none;padding:12px"><pre class="code">' + escapeHtml(responseRaw || 'No response payload.') + '</pre></div>' +
+                '<button data-payload-switch="diff" title="Compare two payloads (select two parts first)">Diff</button>' +
               '</div>' +
+              (hasAnyData ? '' : '<span class="badge warn payload-unavailable-badge">payload unavailable</span>') +
+              '</div>' +
+              (hasAnyData
+                ? '<div class="viewer-content">' +
+                    '<div data-payload-view="json" style="padding:12px"><pre class="code">' + escapeHtml(requestRaw || renderedCtxRaw || 'No request payload.') + '</pre></div>' +
+                    '<div data-payload-view="rendered" style="display:none;padding:12px"><pre class="code">' + escapeHtml(renderedCtxRaw || requestRaw || 'No rendered context.') + '</pre></div>' +
+                    '<div data-payload-view="raw" style="display:none;padding:12px"><pre class="code">' + escapeHtml(responseRaw || requestRaw || 'No response payload.') + '</pre></div>' +
+                    '<div data-payload-view="diff" style="display:none;padding:12px"><pre class="code">' + escapeHtml('Diff view: select two parts to compare (e.g., Request vs Response).') + '</pre></div>' +
+                  '</div>'
+                : '<div class="viewer-content">' +
+                    '<div class="empty-state payload-empty-state">' +
+                      '<div class="empty-state__icon">&#x2299;</div>' +
+                      '<div class="empty-state__title">Payload Unavailable</div>' +
+                      '<div class="empty-state__desc">' + escapeHtml(missingReason) + '</div>' +
+                    '</div>' +
+                  '</div>'
+              ) +
             '</main>' +
           '</div>' +
         '</div>' +
@@ -245,10 +270,12 @@
 
     document.body.appendChild(overlay);
 
-    // Init PayloadViewer
-    var shell = overlay.querySelector('.viewer-shell[data-viewer="payload"]');
-    if (shell) {
-      PayloadViewer.register(shell, partsData);
+    // Init PayloadViewer (only if data is available)
+    if (hasAnyData) {
+      var shell = overlay.querySelector('.viewer-shell[data-viewer="payload"]');
+      if (shell) {
+        PayloadViewer.register(shell, partsData);
+      }
     }
   };
 

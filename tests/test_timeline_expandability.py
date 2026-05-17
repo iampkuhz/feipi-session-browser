@@ -335,8 +335,120 @@ class TestChildrenVisibilityCss:
 
 
 # ---------------------------------------------------------------------------
-# Integration: run the full check on the actual repo files
+# Regression: event delegation replaces inline onclick on trace rows
 # ---------------------------------------------------------------------------
+
+# Path to session.html: tests/ is at repo root, so ../src/session_browser/web/templates/
+SESSION_HTML = (Path(__file__).resolve().parent.parent
+                / "src" / "session_browser" / "web" / "templates" / "session.html")
+
+
+class TestNoInlineOnclickOnTraceRows:
+    """Regression: trace rows must NOT have inline onclick; event delegation handles them."""
+
+    def test_trace_row_no_inline_onclick(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        # There should be NO onclick="handleTraceRowClick on .trace-row elements
+        inline_onclick = re.search(
+            r'class="trace-row"[^>]*onclick\s*=\s*["\']handleTraceRowClick',
+            html,
+        )
+        assert inline_onclick is None, (
+            "Regression: .trace-row still has inline onclick for handleTraceRowClick. "
+            "Switch to event delegation in the unified click handler."
+        )
+
+
+class TestExpandCollapseUsesDataAction:
+    """Regression: expand-all/collapse-all buttons use data-action, not inline onclick."""
+
+    def test_expand_all_no_inline_onclick(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        inline = re.search(
+            r'data-action="expand-all"[^>]*onclick\s*=',
+            html,
+        )
+        assert inline is None, (
+            "Regression: expand-all button has inline onclick. "
+            "Use event delegation via [data-action=expand-all]."
+        )
+
+    def test_collapse_all_no_inline_onclick(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        inline = re.search(
+            r'data-action="collapse-all"[^>]*onclick\s*=',
+            html,
+        )
+        assert inline is None, (
+            "Regression: collapse-all button has inline onclick. "
+            "Use event delegation via [data-action=collapse-all]."
+        )
+
+
+class TestEventDelegationPresent:
+    """Verify event delegation handler covers trace rows and expand/collapse buttons."""
+
+    def test_delegation_handles_trace_row(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        # Should have event delegation that handles .trace-row
+        has_delegation = "closest('.trace-row')" in html or 'closest(".trace-row")' in html
+        assert has_delegation, (
+            "Event delegation should handle .trace-row clicks via target.closest('.trace-row')."
+        )
+
+    def test_delegation_handles_expand_all(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        has_delegation = 'data-action="expand-all"' in html and "expandAllRounds" in html
+        assert has_delegation, (
+            "Event delegation should handle [data-action=expand-all] clicks."
+        )
+
+    def test_delegation_handles_collapse_all(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        has_delegation = 'data-action="collapse-all"' in html and "collapseAllRounds" in html
+        assert has_delegation, (
+            "Event delegation should handle [data-action=collapse-all] clicks."
+        )
+
+
+class TestAccordionBehavior:
+    """Verify accordion logic (_collapseAllOtherRounds) exists in session.html."""
+
+    def test_collapse_others_function_exists(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        # Check that the accordion collapse-others helper exists
+        has_collapse_others = "_collapseAllOtherRounds" in html
+        assert has_collapse_others, (
+            "Accordion behavior requires _collapseAllOtherRounds helper function."
+        )
+
+    def test_toggle_round_detail_calls_collapse_others(self):
+        chk._FAIL_COUNT = 0
+        chk._WARN_COUNT = 0
+        html = chk._read(SESSION_HTML)
+        # Find the toggleRoundDetail function and verify it calls _collapseAllOtherRounds
+        toggle_fn = re.search(
+            r"window\.toggleRoundDetail\s*=\s*function\s*\([^)]*\)\s*\{(.*?)\n    \};",
+            html, re.DOTALL,
+        )
+        assert toggle_fn, "toggleRoundDetail function not found"
+        assert "_collapseAllOtherRounds" in toggle_fn.group(1), (
+            "toggleRoundDetail should call _collapseAllOtherRounds for accordion behavior."
+        )
 
 class TestIntegrationOnRepoFiles:
     """Run all checks on the real repo files — expects some known warnings."""

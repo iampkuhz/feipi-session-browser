@@ -2,16 +2,22 @@
  * keyboard.js — 键盘快捷键与焦点模型
  *
  * 快捷键映射：
- *   Esc     关闭 inspector / modal / 收起展开项
+ *   t       切换到 Trace 视图
+ *   c       切换到 Calls 视图
+ *   h       切换到 Hotspots 视图
+ *   i       切换 Inspector 面板（显示/隐藏）
+ *   Esc     关闭 inspector / modal / 收起展开项 / 退出焦点模式
  *   /       聚焦当前页搜索输入框
- *   j       下移高亮行（表格 / 列表）
- *   k       上移高亮行
- *   Enter   打开当前高亮行详情
+ *   j / ↓   在 Trace 视图中向下导航到下一个 round（非 Trace 视图时导航表格行）
+ *   k / ↑   在 Trace 视图中向上导航到上一个 round（非 Trace 视图时导航表格行）
+ *   Enter   展开/选中当前高亮的 round 或打开选中行
  *
  * 约束：
- *   - 在 input / textarea / select 内时，j/k/Esc 不拦截（允许原生行为）。
+ *   - 在 input / textarea / select / contenteditable 内时，快捷键不拦截（允许原生行为）。
  *   - / 快捷键仅在未聚焦输入框时触发。
  *   - 与已有 inspector.js 的 Esc 关闭协作，不重复消费。
+ *
+ * UI 提示：快捷键帮助显示在 session 页工具栏右侧，通过 .kbd 样式展示键帽。
  */
 (function () {
   'use strict';
@@ -126,8 +132,23 @@
     return rows;
   }
 
-  /** 下移一行 */
+  /** Check if trace view is currently visible */
+  function isTraceViewActive() {
+    var traceView = document.querySelector('[data-view="trace"]');
+    if (!traceView) return false;
+    // Check if trace view container is displayed
+    var traceContainer = document.getElementById('trace') || document.querySelector('.wb-body [data-view="trace"]');
+    if (traceContainer && traceContainer.offsetParent === null) return false;
+    if (traceView.offsetParent === null) return false;
+    return getTraceRows().length > 0;
+  }
+
+  /** j → 下一行（Trace 视图内优先导航 round，否则导航表格行） */
   Keyboard.navigateNext = function () {
+    if (isTraceViewActive()) {
+      Keyboard.navigateRoundNext();
+      return;
+    }
     var table = getActiveTable();
     if (!table) return;
     var rows = getNavigableRows(table);
@@ -138,8 +159,12 @@
     highlightRow(rows[idx]);
   };
 
-  /** 上移一行 */
+  /** k → 上一行（Trace 视图内优先导航 round，否则导航表格行） */
   Keyboard.navigatePrev = function () {
+    if (isTraceViewActive()) {
+      Keyboard.navigateRoundPrev();
+      return;
+    }
     var table = getActiveTable();
     if (!table) return;
     var rows = getNavigableRows(table);
@@ -206,29 +231,46 @@
      ────────────────────────────────────────────── */
 
   Keyboard.handleEscape = function () {
-    // 1. 关闭 Inspector
-    if (document.body.classList.contains('inspector-open')) {
-      if (typeof window.closeInspector === 'function') {
-        window.closeInspector();
+    // 1. Close content modal (if open)
+    var contentModal = document.getElementById('content-modal');
+    if (contentModal && contentModal.classList.contains('visible')) {
+      if (typeof window.closeContentModal === 'function') {
+        window.closeContentModal();
         return;
       }
     }
-    // 2. 关闭 modal（如有）
-    var openModal = document.querySelector('.modal-open, [role="dialog"]:not([hidden])');
-    if (openModal) {
-      var closeBtn = openModal.querySelector('[aria-label*="关闭"], .modal-close, [data-dismiss="modal"]');
-      if (closeBtn) { closeBtn.click(); return; }
-      openModal.classList.remove('modal-open');
+    // 2. Close Inspector (via Inspector.close)
+    if (typeof window.closeInspector === 'function' && Inspector._payload) {
+      window.closeInspector();
       return;
     }
-    // 3. 收起展开的 round / collapse
+    // 3. Also try hide-right class approach
+    if (document.body.classList.contains('hide-right')) {
+      // Inspector already hidden, nothing more to do
+    }
+    // 4. Exit focus mode (if active)
+    if (document.body.classList.contains('focus')) {
+      document.body.classList.remove('focus');
+      if (typeof window.setLayoutMode === 'function') {
+        window.setLayoutMode('map');
+      }
+      return;
+    }
+    // 5. Collapse any expanded rounds
     var expanded = document.querySelector('.round.expanded');
     if (expanded) {
       expanded.classList.remove('expanded');
       return;
     }
-    // 4. 清除行高亮
-    clearHighlight();
+    // 6. Clear trace row keyboard focus
+    document.querySelectorAll('.trace-row.keyboard-focus').forEach(function (r) {
+      r.classList.remove('keyboard-focus');
+    });
+    _roundNavIdx = -1;
+    // 7. Clear selection
+    if (typeof window.clearSelection === 'function') {
+      window.clearSelection();
+    }
   };
 
   /* ──────────────────────────────────────────────
@@ -241,6 +283,98 @@
       input.focus();
       // 选中全部文本，方便快速替换
       input.select();
+    }
+  };
+
+  /* ──────────────────────────────────────────────
+     View switching shortcuts
+     ────────────────────────────────────────────── */
+
+  /** t → Trace view */
+  Keyboard.switchToTrace = function () {
+    if (typeof window.switchView === 'function') window.switchView('trace');
+  };
+
+  /** c → Calls view */
+  Keyboard.switchToCalls = function () {
+    if (typeof window.switchView === 'function') window.switchView('calls');
+  };
+
+  /** h → Hotspots view */
+  Keyboard.switchToHotspots = function () {
+    if (typeof window.switchView === 'function') window.switchView('hotspots');
+  };
+
+  /* ──────────────────────────────────────────────
+     Inspector toggle shortcut
+     ────────────────────────────────────────────── */
+
+  /** i → toggle inspector */
+  Keyboard.toggleInspector = function () {
+    if (document.body.classList.contains('hide-right')) {
+      document.body.classList.remove('hide-right');
+    } else {
+      document.body.classList.add('hide-right');
+    }
+  };
+
+  /* ──────────────────────────────────────────────
+     Round navigation shortcuts (Trace view)
+     ────────────────────────────────────────────── */
+
+  var _roundNavIdx = -1;
+
+  function getTraceRows() {
+    var rows = document.querySelectorAll('.trace-row');
+    var visible = [];
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].offsetParent !== null && !rows[i].classList.contains('is-filtered-out')) {
+        visible.push(rows[i]);
+      }
+    }
+    return visible;
+  }
+
+  function highlightTraceRow(row) {
+    document.querySelectorAll('.trace-row.keyboard-focus').forEach(function (r) {
+      r.classList.remove('keyboard-focus');
+    });
+    if (!row) return;
+    row.classList.add('keyboard-focus');
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  /** Arrow Down → next round in trace */
+  Keyboard.navigateRoundNext = function () {
+    var rows = getTraceRows();
+    if (!rows.length) return;
+    _roundNavIdx = (_roundNavIdx + 1) % rows.length;
+    highlightTraceRow(rows[_roundNavIdx]);
+  };
+
+  /** Arrow Up → previous round in trace */
+  Keyboard.navigateRoundPrev = function () {
+    var rows = getTraceRows();
+    if (!rows.length) return;
+    _roundNavIdx = _roundNavIdx <= 0 ? rows.length - 1 : _roundNavIdx - 1;
+    highlightTraceRow(rows[_roundNavIdx]);
+  };
+
+  /** Enter → expand selected round */
+  Keyboard.expandFocusedRound = function () {
+    var rows = getTraceRows();
+    var focused = document.querySelector('.trace-row.keyboard-focus');
+    if (focused && typeof window.toggleRoundDetail === 'function') {
+      window.toggleRoundDetail(focused);
+      if (typeof window.selectTraceRow === 'function') window.selectTraceRow(focused);
+      if (typeof window.openRoundInspector === 'function') window.openRoundInspector(focused);
+    } else if (rows.length > 0) {
+      // No focus yet — select first round
+      _roundNavIdx = 0;
+      highlightTraceRow(rows[0]);
+      if (typeof window.toggleRoundDetail === 'function') window.toggleRoundDetail(rows[0]);
+      if (typeof window.selectTraceRow === 'function') window.selectTraceRow(rows[0]);
+      if (typeof window.openRoundInspector === 'function') window.openRoundInspector(rows[0]);
     }
   };
 
@@ -260,6 +394,58 @@
     // 在可编辑元素内，不拦截其他快捷键
     if (isEditableTarget(target)) {
       return;
+    }
+
+    // t → Trace view
+    if (e.key === 't' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      Keyboard.switchToTrace();
+      return;
+    }
+
+    // c → Calls view
+    if (e.key === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      Keyboard.switchToCalls();
+      return;
+    }
+
+    // h → Hotspots view
+    if (e.key === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      Keyboard.switchToHotspots();
+      return;
+    }
+
+    // i → toggle Inspector
+    if (e.key === 'i' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      Keyboard.toggleInspector();
+      return;
+    }
+
+    // Arrow Down → next round in trace
+    if (e.key === 'ArrowDown' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      Keyboard.navigateRoundNext();
+      return;
+    }
+
+    // Arrow Up → previous round in trace
+    if (e.key === 'ArrowUp' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      Keyboard.navigateRoundPrev();
+      return;
+    }
+
+    // Enter → expand focused round
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      var focused = document.querySelector('.trace-row.keyboard-focus');
+      if (focused) {
+        e.preventDefault();
+        Keyboard.expandFocusedRound();
+        return;
+      }
     }
 
     // / → 聚焦搜索

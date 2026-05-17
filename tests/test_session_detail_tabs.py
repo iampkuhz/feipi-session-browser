@@ -535,35 +535,40 @@ class TestTabStructuralIntegrity:
 # ──────────────────────────────────────────────────────────────────────
 
 class TestMetricsStrip:
-    """Verify metrics strip card exists with key metric items."""
+    """Verify metrics strip card exists with key metric items.
+
+    Note: As of Task 03-01, metrics-strip was merged into the unified .hero card.
+    The metrics now appear as .kpis and .hero-secondary-metrics within the hero section.
+    """
 
     def _source(self):
         return _session_source()
 
     def test_metrics_strip_card_exists(self):
         source = self._source()
-        assert 'class="metrics-strip-card"' in source, \
-            "Metrics strip must be wrapped in metrics-strip-card"
+        # Metrics are now in the unified hero card (.kpis or .hero-secondary-metrics)
+        assert 'class="kpis"' in source or 'class="hero-secondary-metrics"' in source or 'class="metrics-strip-card"' in source, \
+            "Metrics must exist as .kpis or .hero-secondary-metrics within unified hero"
 
     def test_has_duration_metric(self):
         source = self._source()
         assert '时长' in source or 'Duration' in source, \
-            "Metrics strip must include duration metric"
+            "Metrics must include duration metric"
 
     def test_has_rounds_metric(self):
         source = self._source()
         assert '轮次' in source or 'Rounds' in source, \
-            "Metrics strip must include rounds metric"
+            "Metrics must include rounds metric"
 
     def test_has_total_token_metric(self):
         source = self._source()
         assert '总 Token' in source or 'Total Token' in source, \
-            "Metrics strip must include total token metric"
+            "Metrics must include total token metric"
 
     def test_has_tool_call_metric(self):
         source = self._source()
         assert '工具调用' in source or 'Tool Call' in source, \
-            "Metrics strip must include tool call metric"
+            "Metrics must include tool call metric"
 
 
 # ──────────────────────────────────────────────────────────────────────

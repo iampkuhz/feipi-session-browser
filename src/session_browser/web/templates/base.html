@@ -38,7 +38,7 @@
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    <div class="shell{% block shell_class %}{% endblock %}">
+    <div class="shell{% block shell_class %}{% endblock %}" data-session-detail-shell>
         <!-- Sidebar: grid column 1 -->
         <aside class="sidebar">
             <div class="sidebar-inner">
@@ -112,10 +112,21 @@
                     {% endblock %}
                 </nav>
                 <div class="topbar-actions" aria-label="全局操作">
+                    <!-- Sidebar toggle buttons -->
+                    <button class="top-btn" onclick="document.body.classList.toggle('hide-left'); arpStorage.set('sidebar_collapsed', document.body.classList.contains('hide-left'))" title="切换左侧导航">
+                        <span class="action-icon" aria-hidden="true">&#9776;</span>
+                    </button>
+                    <button class="top-btn" onclick="document.body.classList.toggle('hide-right')" title="切换右侧面板">
+                        <span class="action-icon" aria-hidden="true">&#9776;</span>
+                    </button>
+                    <button class="top-btn" onclick="document.body.classList.toggle('focus')" title="专注模式">
+                        <span class="action-icon" aria-hidden="true">&#9679;</span>
+                    </button>
+
                     <!-- Shell layout toggles -->
-                    <button class="top-btn" onclick="document.body.classList.toggle('hide-left')" title="切换左侧导航">Map</button>
-                    <button class="top-btn" onclick="document.body.classList.toggle('hide-right')" title="切换右侧面板">Inspector</button>
-                    <button class="top-btn" onclick="document.body.classList.toggle('focus')" title="专注模式">Focus</button>
+                    <button class="top-btn" data-layout-mode="map" onclick="ViewState.setLayoutMode('map')" title="显示左侧导航（Map）">Map</button>
+                    <button class="top-btn" data-layout-mode="inspector" onclick="ViewState.setLayoutMode('inspector')" title="隐藏左侧导航，突出 Inspector">Inspector</button>
+                    <button class="top-btn" data-layout-mode="focus" onclick="ViewState.setLayoutMode('focus')" title="专注模式：隐藏两侧面板">Focus</button>
 
                     <!-- Density toggle -->
                     <button id="density-toggle" class="density-toggle" onclick="ViewState.toggleDensity()" aria-pressed="false" title="当前：紧凑 · 点击切换为宽松" aria-label="密度切换">
@@ -151,7 +162,7 @@
         <!-- Inspector: grid column 3 (常驻，no-inspector 页面不渲染) -->
         {% set _shell_cls = self.shell_class() | default('') %}
         {% if 'no-inspector' not in _shell_cls %}
-        <aside class="inspector" aria-label="属性面板">
+        <aside class="inspector" data-context-inspector aria-label="属性面板">
             <div class="inspector-inner">
                 {% block inspector %}
                 {% include "components/inspector.html" %}
@@ -188,9 +199,20 @@
             document.querySelectorAll('.wb-head [data-switch]').forEach(function(btn) {
                 btn.classList.toggle('active', btn.dataset.switch === name);
             });
-            // Persist like switchTab does
+            // Persist like switchTab does (per-session, backward compat)
             if (window._sessionId && typeof arpStorage !== 'undefined') {
                 arpStorage.set('session_view_' + window._sessionId, name);
+            }
+            // Update URL hash for bookmarkable links
+            try {
+                if (window.location.hash !== '#' + name) {
+                    history.replaceState(null, '', '#' + name);
+                }
+            } catch (e) {}
+            // Sync selection model: clear cross-view selections when view changes
+            var Sel = window.ViewState && window.ViewState.Selection;
+            if (Sel && typeof Sel.setActiveView === 'function') {
+                Sel.setActiveView(name);
             }
         };
 
@@ -366,6 +388,9 @@
         var savedCollapsed = arpStorage.get('sidebar_collapsed');
         if (savedCollapsed) {
             document.body.classList.add('hide-left');
+            // Also migrate to new layout mode for future loads
+            try { localStorage.setItem('arp_layout_mode', 'inspector'); } catch (e) {}
+            arpStorage.remove('sidebar_collapsed');
         }
 
     })();
