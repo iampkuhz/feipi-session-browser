@@ -16,4 +16,4 @@ if missing:
     for p in missing:
         print(' - ' + p)
     sys.exit(1)
-print('repo structure ok')
+print('openspec layout ok')

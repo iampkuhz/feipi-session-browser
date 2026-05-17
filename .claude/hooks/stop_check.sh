@@ -21,5 +21,17 @@ if [[ -f .agent/task-ledger.md ]] && ! grep -q '|.*ID.*任务.*状态' .agent/ta
   FAIL=1
 fi
 
+# Validate OpenSpec change completeness for protected edits.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT" || exit $EXIT_WARN
+
+python3 "$ROOT/scripts/agent_hooks/stop_validate_change.py" >&2
+HOOK_EXIT=$?
+if [[ $HOOK_EXIT -ne 0 ]]; then
+  hook_log "BLOCK" "stop_validate_change.py blocked stop (exit=$HOOK_EXIT)"
+  FAIL=1
+fi
+
 [[ $FAIL -ne 0 ]] && exit $EXIT_WARN
 exit $EXIT_OK

@@ -1,10 +1,53 @@
+# OpenSpec configuration for feipi-session-browser
+# This file is the single source of truth for spec-driven workflow settings.
+# It MUST be valid YAML and is parsed by harness scripts and hooks.
+
 project: feipi-session-browser
 workflow: spec-driven
+
+# --- Required / recommended files inside each change directory ---
 required_change_files:
   - proposal.md
   - tasks.md
 recommended_change_files:
   - design.md
-spec_root: openspec/specs
-change_root: openspec/changes
-archive_root: openspec/changes/archive
+
+# --- Directory roots ---
+spec_root: openspec/specs          # tracked source of truth for current specs
+change_root: openspec/changes      # local working state for proposed changes
+archive_root: openspec/changes/archive  # completed/archived changes
+
+# --- Tracked source of truth (git-tracked) ---
+# These directories represent the approved, canonical state and MUST be
+# committed to git. They are the authoritative specs, schemas, and templates.
+tracked_paths:
+  - openspec/specs/**          # current approved specifications
+  - openspec/schemas/**        # JSON / YAML schemas for validation
+  - openspec/templates/**      # reusable templates
+
+# --- Local working state (NOT git-tracked by default) ---
+# Changes under change_root are ephemeral work-in-progress. They become
+# git-tracked only after the change is reviewed and archived (merged into specs).
+local_paths:
+  - openspec/changes/**        # proposed changes, active work only
+
+# --- Protected edit rule ---
+# Protected files (spec_root, schemas, templates) MUST NOT be edited directly.
+# An active change directory under change_root is required before modifying
+# any protected file. Hooks (pre-commit / pre-change-edit) enforce this rule.
+protected_edit_rule:
+  enabled: true
+  protected_roots:
+    - openspec/specs
+    - openspec/schemas
+    - openspec/templates
+  require_active_change: true
+
+# --- Final specs update rule ---
+# After a change is archived (approved and merged), its spec deltas MUST be
+# merged into openspec/specs/** to keep the source of truth current.
+# The archive step performs this merge and removes the change directory.
+final_specs_update_rule:
+  enabled: true
+  on_archive: merge_changes_into_specs
+  cleanup: remove_change_directory

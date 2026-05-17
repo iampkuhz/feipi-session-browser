@@ -21,12 +21,36 @@
       "NotebookRead(*)",
       "NotebookEdit(*)",
       "BashOutput(*)",
-      "KillBash(*)"
+      "KillBash(*)",
+      "ExitPlanMode(*)",
+      "TaskCreate(*)"
     ],
     "ask": [],
     "deny": []
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/agent_hooks/inject_session_context.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/agent_hooks/inject_session_context.py"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -42,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/hooks/guard_openspec_change.py"
+            "command": "python3 scripts/agent_hooks/guard_active_openspec_change.py"
           }
         ]
       }
@@ -57,7 +81,7 @@
           },
           {
             "type": "command",
-            "command": "python3 scripts/hooks/log_file_change.py"
+            "command": "python3 scripts/agent_hooks/log_change_evidence.py"
           }
         ]
       }
@@ -69,6 +93,17 @@
           {
             "type": "command",
             "command": ".claude/hooks/stop_check.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/agent_hooks/stop_validate_change.py"
           }
         ]
       }

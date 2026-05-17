@@ -11,4 +11,4 @@ for change in (root/'changes').glob('*') if (root/'changes').exists() else []:
         if not (change/f).exists(): errors.append(f'{change}/{f} missing')
 if errors:
     print('\n'.join(errors)); sys.exit(1)
-print('openspec layout ok')
+print('repo structure ok')

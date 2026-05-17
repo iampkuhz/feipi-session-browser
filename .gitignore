@@ -20,12 +20,39 @@ __pycache__/
 .mcp.json
 .env
 
-# Agent task results
-.agent/task-results/*.md
+# Agent runtime state
+.agent/
 
 # IDE
 .idea/
 .vscode/
-/openspec/changes/
+
+# OpenSpec change artifacts (tracked locally, not committed)
+# .gitkeep keeps the directory itself trackable
+openspec/changes/*
+!openspec/changes/.gitkeep
+
+# Harness archive
 /harness/archive/
+
+# Prompts (input definitions, not authoritative)
 /prompts/
+
+# Reports
+reports/
+
+# Exports
+*.mhtml
+*.mht
+*.zip
+*.tar
+*.tar.gz
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Node
+node_modules/
