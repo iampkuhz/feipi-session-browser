@@ -125,18 +125,36 @@ def _find_running_scan_pid() -> int | None:
 
 
 def _kill_process(pid: int) -> bool:
-    """Try to kill a process, return True if successful."""
+    """Try to kill a process, return True if it actually exits."""
     try:
         os.kill(pid, signal.SIGTERM)
-        return True
     except ProcessLookupError:
-        return False
+        return True  # Already gone
     except PermissionError:
+        # Fall through to SIGKILL below
+        pass
+
+    # Wait for the process to exit, escalate to SIGKILL if needed
+    for _ in range(5):
         try:
-            os.kill(pid, signal.SIGKILL)
-            return True
-        except (ProcessLookupError, PermissionError):
-            return False
+            os.kill(pid, 0)  # Check if still alive
+        except ProcessLookupError:
+            return True  # Exited
+        time.sleep(1)
+
+    # Still alive after waiting — escalate to SIGKILL
+    try:
+        os.kill(pid, signal.SIGKILL)
+        time.sleep(1)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+    # Final check
+    try:
+        os.kill(pid, 0)
+        return False  # Still alive even after SIGKILL
+    except ProcessLookupError:
+        return True
 
 
 def cmd_scan(args: argparse.Namespace) -> None:
@@ -278,6 +296,21 @@ def _ensure_schema_exists(conn) -> None:
     _migrate_tool_execution_seconds(conn)
 
 
+def _is_orphan(pid: int) -> bool:
+    """Check if a process is orphaned (PPID == 1 on macOS/Linux)."""
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "ppid=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode == 0:
+            ppid = int(result.stdout.strip())
+            return ppid == 1
+    except (ValueError, subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return False
+
+
 def _find_pids_on_port(port: int) -> list[int]:
     """Find PIDs of processes listening on the given port."""
     pids = []
@@ -312,29 +345,48 @@ def cmd_serve(args: argparse.Namespace) -> None:
     existing_pids = _find_pids_on_port(port)
     if existing_pids:
         pid_list = ", ".join(str(p) for p in existing_pids)
-        logger.warning(
-            "A process is already listening: host=%s port=%s pids=%s",
-            host,
-            port,
-            pid_list,
-        )
-        if force:
-            logger.warning("--force: killing existing server automatically")
-        else:
-            try:
-                answer = input("Kill it and restart? [y/N]: ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                answer = "n"
-        if force or answer in ("y", "yes"):
-            for pid in existing_pids:
+        orphans = [p for p in existing_pids if _is_orphan(p)]
+        if orphans:
+            orphan_list = ", ".join(str(p) for p in orphans)
+            logger.warning(
+                "Orphaned process(es) detected on port %s: pids=%s (PPID=1, likely fixture servers)",
+                port,
+                orphan_list,
+            )
+            for pid in orphans:
                 if _kill_process(pid):
-                    logger.warning("Killed server process pid=%s", pid)
+                    logger.warning("Killed orphaned process pid=%s", pid)
                 else:
-                    logger.error("Failed to kill server process pid=%s", pid)
+                    logger.error("Failed to kill orphaned process pid=%s", pid)
             time.sleep(1)
-        else:
-            print("Aborted.")
-            sys.exit(0)
+            # Re-check after killing orphans
+            existing_pids = [p for p in existing_pids if p not in orphans]
+
+        if existing_pids:
+            pid_list = ", ".join(str(p) for p in existing_pids)
+            logger.warning(
+                "A process is already listening: host=%s port=%s pids=%s",
+                host,
+                port,
+                pid_list,
+            )
+            if force:
+                logger.warning("--force: killing existing server automatically")
+            else:
+                try:
+                    answer = input("Kill it and restart? [y/N]: ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    answer = "n"
+            if force or answer in ("y", "yes"):
+                for pid in existing_pids:
+                    if _kill_process(pid):
+                        logger.warning("Killed server process pid=%s", pid)
+                    else:
+                        logger.error("Failed to kill server process pid=%s", pid)
+                time.sleep(1)
+            else:
+                print("Aborted.")
+                sys.exit(0)
 
     logger.info(
         "Data paths: index=%s claude=%s codex=%s qoder=%s",

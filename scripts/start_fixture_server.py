@@ -135,6 +135,7 @@ def main():
         [VENV_PYTHON, "-m", "session_browser", "serve", "--allow-empty", "--no-scan"],
         cwd=SB_ROOT,
         env=env,
+        start_new_session=True,  # New process group so we can kill the whole group on exit
     )
 
     # Wait for server to start
@@ -148,8 +149,9 @@ def main():
         except Exception:
             time.sleep(0.5)
     else:
-        proc.terminate()
+        os.killpg(proc.pid, signal.SIGTERM)
         proc.wait()
+        shutil.rmtree(tmpdir, ignore_errors=True)
         print("ERROR: Server did not start within 15 seconds")
         sys.exit(1)
 
@@ -157,9 +159,16 @@ def main():
     print(f"Press Ctrl+C to stop and clean up")
 
     def cleanup(signum=None, frame=None):
-        print(f"\nShutting down server (PID {proc.pid})...")
-        proc.terminate()
-        proc.wait()
+        print(f"\nShutting down server (PGID {proc.pid})...")
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+            proc.wait(timeout=5)
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.wait(timeout=3)
+            except ProcessLookupError:
+                pass
         shutil.rmtree(tmpdir, ignore_errors=True)
         print("Cleaned up.")
         sys.exit(0)
@@ -167,8 +176,30 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
+    # Ensure cleanup runs even if the script exits via normal return (not via signal)
+    import atexit
+
+    def _atexit_cleanup():
+        if proc.poll() is not None:
+            return
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+            proc.wait(timeout=5)
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.wait(timeout=3)
+            except ProcessLookupError:
+                pass
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    atexit.register(_atexit_cleanup)
+
     # Wait for the server process
-    proc.wait()
+    try:
+        proc.wait()
+    except ChildProcessError:
+        pass  # Already reaped by cleanup
     cleanup()
 
 
