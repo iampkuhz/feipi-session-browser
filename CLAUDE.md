@@ -1,58 +1,50 @@
 # Feipi Session Browser
 
-独立会话浏览器项目，用于索引和分析 Claude Code、Codex、Qoder 等本地 agent 会话数据。详细工程约束见 `AGENTS.md`。
+独立会话浏览器项目，用于索引和分析 Claude Code、Codex、Qoder 等本地 agent 会话数据。
 
-## 快速入口
+## 启动协议
 
-| 命令 | 用途 |
-|------|------|
-| `./scripts/session-browser.sh test` | 运行产品测试 |
-| `./scripts/session-browser.sh serve` | 启动本地服务 |
-| `./scripts/session-browser.sh scan` | 扫描会话数据 |
-| `bash scripts/harness/doctor.sh` | Harness 检查 |
-| `/change <需求路径>` | **功能工作默认入口** |
+1. 先读 `AGENTS.md`，获取仓库级约束、OpenSpec 流程和质量门。
+2. 根据任务类型按下方路由加载最少必要文件。
+3. 不要预读全量 `harness/`、`openspec/`、`tests/`。
 
-## OpenSpec 变更流
+## 任务路由
 
-**所有非平凡变更必须走 OpenSpec 流程：**
+| 任务类型 | 先读 |
+|---|---|
+| 功能开发 | `openspec/specs/` + `openspec/changes/<id>/tasks.md` |
+| UI 修改 | `harness/context/ui-context.md` |
+| MHTML 导出 | `harness/context/mhtml-context.md` |
+| Harness/Workflow 修改 | `harness/manifest.yaml` + `harness/workflow/` |
+| 产品代码修改 | `src/session_browser/` 相关模块 |
+| 测试修改 | `tests/` + `scripts/session-browser.sh test` |
+| 文档修改 | `README.md` |
 
-1. 用 `/change <需求或prompt路径>` 启动变更，在本地创建 `openspec/changes/<change-id>/`
-2. 当前行为记录在 `openspec/specs/`，提议行为记录在 `openspec/changes/<change-id>/specs/`
-3. 变更激活时写入 `.agent/active_change.json`，子 agent 通过此文件继承上下文
-4. 受保护文件编辑需要活跃变更（由 PreToolUse hooks 强制执行）
-5. 按 `openspec/changes/<change-id>/tasks.md` 逐条实现
-6. 完成后将最终行为同步至 `openspec/specs/` 作为长期真相
+## Claude 执行约束
 
-详细生命周期：`harness/workflow/openspec-change-lifecycle.md`
-openspec 配置与 change skill：`openspec/README.md`
-
-**领域扩展阅读：**
-- UI 工作：`harness/context/ui-context.md` + `docs/ui/hifi/README.md`
-- MHTML 导出：`harness/context/mhtml-context.md`
-
-## 默认质量门
-
-```bash
-python3 scripts/harness/validate_harness_structure.py
-python3 scripts/harness/validate_openspec_layout.py
-python3 scripts/harness/check_no_unfinished_markers.py
-python3 scripts/harness/validate_task_files.py
-```
-
-有产品测试时一并运行。
-
-## Claude Code 约束
-
-- 不修改或提交 `.claude/settings.local.json`、`.mcp.json`。
+- 对多步骤改造，先给计划，再改文件。
+- 大任务使用 subagent 隔离上下文；主 agent 负责任务分派、验收和总结。
+- 串行任务逐项执行，不跳步，不 busy-wait。
+- 不修改 `.claude/settings.local.json` 和 `.mcp.json`，除非用户明确要求。
 - 不读取或输出真实 session 大文件全文；需要样本时只抽取必要片段。
 - 不回滚用户未提交改动。
+- 不把本地绝对路径、密钥、token 写入仓库文档。
+
+## 质量门禁
+
+完成后必须运行适用的验证：
+
+| 改动类型 | 验证命令 |
+|---|---|
+| 任何改动 | `bash scripts/harness/doctor.sh` |
+| Harness 结构 | `python3 scripts/harness/validate_harness_structure.py` |
+| OpenSpec 布局 | `python3 scripts/harness/validate_openspec_layout.py` |
+| 完成标记 | `python3 scripts/harness/check_no_unfinished_markers.py` |
+| 任务文件 | `python3 scripts/harness/validate_task_files.py` |
+| 产品测试 | `./scripts/session-browser.sh test` |
+
+## 输出要求
+
+- 面向用户输出默认简体中文。
 - 结束前检查 `git status --short`，确认没有缓存、数据、密钥、index 被纳入。
-
-## Agent 规则
-
-1. 从 `openspec/specs/` 获取当前真相
-2. 每个非平凡变更使用 `openspec/changes/<change-id>/`
-3. 保持任务文件小巧、串行、可独立验证
-4. 绝不覆盖用户本地设置
-5. 除非变更明确要求，否则保留现有产品代码
-6. 汇报完成前先验证
+- 总结必须包含：改了什么、为什么、验证结果、剩余风险。
