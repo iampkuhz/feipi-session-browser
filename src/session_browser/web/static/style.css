@@ -779,6 +779,14 @@ body.sidebar-collapsed .sidebar-toggle-expand {
     letter-spacing: 0.04em;
 }
 .card-title.flex { flex-wrap: wrap; }
+.card-subtitle-inline {
+    font-size: var(--text-xs);
+    font-weight: 400;
+    color: var(--text-muted);
+    text-transform: none;
+    letter-spacing: normal;
+    margin-left: 4px;
+}
 .card-subtitle {
     font-size: var(--text-micro);
     color: var(--text-muted);

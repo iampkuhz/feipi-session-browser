@@ -9,12 +9,6 @@
 {% block content %}
 
 <section class="card sessions-card">
-    <div class="card-head">
-        <div>
-            <div class="card-title">Sessions</div>
-            <div class="card-sub">Triage session history by failures, token cost, agent, and project.</div>
-        </div>
-    </div>
     <div class="card-body">
 
 <!-- Filter row (server-side) -->
@@ -46,9 +40,8 @@
 
 <!-- Sessions grid -->
 <div class="page-section">
-    <div class="card-title">
-        All Sessions <span class="text-muted normal-case">(<span id="sessions-visible-count">{{ page_start }}–{{ page_end }}</span> of <span id="sessions-total-count">{{ total_count | default(0, true) }}</span>)</span>
-    </div>
+    <div class="card-title flex">All Sessions <span class="card-subtitle-inline">(<span id="sessions-visible-count">{{ page_start }}–{{ page_end }}</span> of <span id="sessions-total-count">{{ total_count | default(0, true) }}</span>)</span></div>
+    <div class="card-sub">Triage session history by failures, token cost, agent, and project.</div>
     {% if sessions %}
     <div class="table-wrap">
         <div class="data-table sessions-grid" data-sessions-grid>
