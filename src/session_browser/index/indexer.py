@@ -715,6 +715,7 @@ def list_sessions(
     agent: str | None = None,
     project_key: str | None = None,
     model: str | None = None,
+    title_like: str | None = None,
     limit: int = 50,
     offset: int = 0,
     order_by: str = "ended_at",  # "ended_at" | "input_tokens" | "tool_call_count" | "duration_seconds" | "failed_tool_count"
@@ -732,6 +733,9 @@ def list_sessions(
     if model:
         clauses.append("model = ?")
         params.append(model)
+    if title_like:
+        clauses.append("title LIKE ?")
+        params.append(f"%{title_like}%")
 
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     valid_orders = {
@@ -754,6 +758,8 @@ def count_sessions(
     conn: sqlite3.Connection,
     agent: str | None = None,
     project_key: str | None = None,
+    model: str | None = None,
+    title_like: str | None = None,
 ) -> int:
     """Count sessions with optional filtering."""
     clauses = []
@@ -764,6 +770,12 @@ def count_sessions(
     if project_key:
         clauses.append("project_key = ?")
         params.append(project_key)
+    if model:
+        clauses.append("model = ?")
+        params.append(model)
+    if title_like:
+        clauses.append("title LIKE ?")
+        params.append(f"%{title_like}%")
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     row = conn.execute(f"SELECT COUNT(*) FROM sessions {where}", params).fetchone()
     return row[0]

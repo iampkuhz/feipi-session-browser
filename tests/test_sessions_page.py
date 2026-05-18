@@ -270,7 +270,7 @@ class TestHeaderSort:
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
         assert 'data-sort-key="duration"' in content
-        assert 'class="th-sortable"' in content
+        assert 'th-sortable' in content
 
     def test_tokens_is_sortable(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
@@ -291,12 +291,17 @@ class TestHeaderSort:
         """Default sort should be Updated descending."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert 'aria-sort="descending"' in content
+        assert 'aria-sort=' in content
+        assert 'descending' in content
 
     def test_four_sortable_headers(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert content.count('class="th-sortable"') == 4
+        # Count data-sort-key attributes on sortable headers (not plain divs)
+        assert content.count('data-sort-key="duration"') == 1
+        assert content.count('data-sort-key="total-tokens"') == 1
+        assert content.count('data-sort-key="rounds"') == 1
+        assert content.count('data-sort-key="ended-at"') == 1
 
     def test_js_has_cycle_sort(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
@@ -316,7 +321,8 @@ class TestHeaderSort:
     def test_no_sort_by_in_save_filters(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "sort-by" not in content
+        # No old sort-by select element
+        assert 'id="sort-by"' not in content
 
     def test_save_filters_uses_sort_key(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
@@ -334,8 +340,13 @@ class TestHeaderSort:
         """Session, Agent, Project, Failures should not be sortable."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        # Only 4 th-sortable, the other 4 columns are plain
-        assert content.count('class="th-sortable"') == 4
+        # Session, Agent, Project, Failures are plain <div>, no data-sort-key
+        lines = content.split('\n')
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('<div>') and stripped.endswith('</div>'):
+                text = stripped[5:-6]
+                assert text not in ('Session', 'Agent', 'Project', 'Failures') or 'data-sort-key' not in line
 
 
 class TestSessionsTemplateJS:

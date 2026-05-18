@@ -17,36 +17,37 @@
     </div>
     <div class="card-body">
 
-<!-- Filter row -->
-<div class="filter-bar">
-    <input id="session-search" type="text" placeholder="Search title or session ID..."
-           class="filter-bar__input filter-bar__input--search" />
-    <select id="filter-agent" class="filter-bar__select">
+<!-- Filter row (server-side) -->
+<form id="session-filter-form" class="filter-bar" method="get" action="/sessions">
+    <input id="session-search" type="text" name="q" placeholder="Search title or session ID..."
+           class="filter-bar__input filter-bar__input--search" value="{{ filter_q }}" />
+    <select id="filter-agent" name="agent" class="filter-bar__select">
         <option value="">All Agents</option>
-        <option value="claude_code">Claude Code</option>
-        <option value="qoder">Qoder</option>
-        <option value="codex">Codex</option>
+        <option value="claude_code" {% if filter_agent == 'claude_code' %}selected{% endif %}>Claude Code</option>
+        <option value="qoder" {% if filter_agent == 'qoder' %}selected{% endif %}>Qoder</option>
+        <option value="codex" {% if filter_agent == 'codex' %}selected{% endif %}>Codex</option>
     </select>
-    <select id="filter-model" class="filter-bar__select">
+    <select id="filter-model" name="model" class="filter-bar__select">
         <option value="">All Models</option>
         {% for m in model_list %}
-        <option value="{{ m }}">{{ m }}</option>
+        <option value="{{ m }}" {% if filter_model == m %}selected{% endif %}>{{ m }}</option>
         {% endfor %}
     </select>
-    <select id="filter-project" class="filter-bar__select filter-bar__select--project">
+    <select id="filter-project" name="project" class="filter-bar__select filter-bar__select--project">
         <option value="">All Projects</option>
         {% for p in project_list %}
-        <option value="{{ p }}">{{ p }}</option>
+        <option value="{{ p }}" {% if filter_project == p %}selected{% endif %}>{{ p }}</option>
         {% endfor %}
     </select>
-    <button class="filter-bar__btn" id="clear-all-btn" onclick="resetSessionFilters()" style="display:none">Clear All</button>
-    <button class="filter-bar__btn" onclick="resetSessionFilters()">Reset</button>
-</div>
+    <input type="hidden" id="sort-input" name="sort" value="{{ sort_by }}" />
+    <button class="filter-bar__btn" id="clear-all-btn" type="button" style="display:{% if filter_q or filter_agent or filter_model or filter_project %}''{% else %}none{% endif %}" onclick="resetSessionFilters()">Clear All</button>
+    <button class="filter-bar__btn" type="submit">Apply</button>
+</form>
 
 <!-- Sessions grid -->
 <div class="page-section">
     <div class="card-title">
-        All Sessions <span class="text-muted normal-case">(<span id="sessions-visible-count">{{ sessions | length }}</span>)</span>
+        All Sessions <span class="text-muted normal-case">(<span id="sessions-visible-count">{{ page_start }}–{{ page_end }}</span> of <span id="sessions-total-count">{{ total_count | default(0, true) }}</span>)</span>
     </div>
     {% if sessions %}
     <div class="table-wrap">
@@ -122,6 +123,39 @@
     {% endif %}
 </div>
 
+<!-- Pagination -->
+{% if total_count is defined and total_count > 0 %}
+<nav class="pagination-bar" id="pagination-bar">
+    <div class="pagination-bar__info">
+        Showing {{ page_start }}–{{ page_end }} of {{ total_count | default(0, true) }}
+    </div>
+    <div class="pagination-bar__controls">
+        <button class="pagination-bar__btn" id="pagination-prev"
+                {% if not has_prev %}disabled{% endif %}
+                onclick="goToPage({{ page - 1 if has_prev else page }})">
+            &laquo; Prev
+        </button>
+        {% if page_size != 'all' %}
+        <span class="pagination-bar__page-info">
+            Page {{ page }} of {{ total_pages }}
+        </span>
+        {% endif %}
+        <button class="pagination-bar__btn" id="pagination-next"
+                {% if not has_next %}disabled{% endif %}
+                onclick="goToPage({{ page + 1 if has_next else page }})">
+            Next &raquo;
+        </button>
+        <select id="pagination-page-size" class="pagination-bar__select"
+                onchange="changePageSize(this.value)">
+            <option value="20" {% if page_size == 20 %}selected{% endif %}>20 / page</option>
+            <option value="50" {% if page_size == 50 %}selected{% endif %}>50 / page</option>
+            <option value="100" {% if page_size == 100 %}selected{% endif %}>100 / page</option>
+            <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+        </select>
+    </div>
+</nav>
+{% endif %}
+
 <script>
 /* ---------- Inspector demo ------------------------------------------ */
 window.openDemoInspector = function() {
@@ -152,7 +186,7 @@ window.openDemoInspector = function() {
     /* ---------- Sort state ------------------------------------------ */
     var DEFAULT_SORT_KEY = 'ended-at';
     var DEFAULT_SORT_DIR = 'desc';
-    var sortKey = DEFAULT_SORT_KEY;
+    var sortKey = '{{ sort_by | default("ended-at") }}' || DEFAULT_SORT_KEY;
     var sortDir = DEFAULT_SORT_DIR;
 
     function cycleSort(clickedKey) {
@@ -189,34 +223,6 @@ window.openDemoInspector = function() {
         }
     }
 
-    function initHeaderSort() {
-        var head = document.querySelector('.table-head');
-        if (!head) return;
-
-        head.addEventListener('click', function(e) {
-            var th = e.target.closest('.th-sortable');
-            if (!th) return;
-            cycleSort(th.dataset.sortKey);
-            applyFilters();
-        });
-    }
-
-    /* ---------- Row click → session detail -------------------------- */
-    function initRowClick() {
-        var grid = document.querySelector('[data-sessions-grid]');
-        if (!grid) return;
-
-        grid.addEventListener('click', function(e) {
-            // Don't hijack link clicks or sort header clicks
-            if (e.target.tagName === 'A' || e.target.closest('a')) return;
-
-            var row = e.target.closest('.table-row');
-            if (!row) return;
-
-            window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
-        });
-    }
-
     /* ---------- Sort helpers ---------------------------------------- */
     function sortComparator(a, b) {
         var va, vb;
@@ -236,72 +242,34 @@ window.openDemoInspector = function() {
         return sortDir === 'desc' ? vb - va : va - vb;
     }
 
-    /* ---------- Apply all filters ----------------------------------- */
-    function applyFilters() {
-        var q = document.getElementById('session-search').value.toLowerCase().trim();
-        var agent = document.getElementById('filter-agent').value;
-        var model = document.getElementById('filter-model').value;
-        var project = document.getElementById('filter-project').value;
+    function initHeaderSort() {
+        var head = document.querySelector('.table-head');
+        if (!head) return;
 
-        var grid = document.querySelector('[data-sessions-grid]');
-        if (!grid) return;
-        var rows = Array.from(grid.querySelectorAll('.table-row'));
-        var visibleCount = 0;
-        var visibleRows = [];
-
-        rows.forEach(function(row) {
-            var show = true;
-            if (agent && row.dataset.agent !== agent) show = false;
-            if (model && row.dataset.model !== model) show = false;
-            if (project && row.dataset.project !== project) show = false;
-            if (q) {
-                var title = (row.dataset.title || '');
-                var sid = (row.dataset.sessionId || '').toLowerCase();
-                if (title.indexOf(q) === -1 && sid.indexOf(q) === -1) show = false;
-                if ((sid === q || sid.startsWith(q) || q.startsWith(sid)) && q.length >= 8) {
-                    var matches = 0;
-                    rows.forEach(function(r2) {
-                        var s2 = (r2.dataset.sessionId || '').toLowerCase();
-                        if (s2.startsWith(q) || s2 === q) matches++;
-                    });
-                    if (matches === 1) {
-                        window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
-                        return;
-                    }
-                }
-            }
-
-            row.style.display = show ? '' : 'none';
-            if (show) {
-                visibleCount++;
-                visibleRows.push(row);
-            }
+        head.addEventListener('click', function(e) {
+            var th = e.target.closest('.th-sortable');
+            if (!th) return;
+            cycleSort(th.dataset.sortKey);
+            submitFilters();
         });
-
-        /* Sort visible rows */
-        visibleRows.sort(sortComparator);
-        visibleRows.forEach(function(r) { grid.appendChild(r); });
-
-        /* Update counts */
-        var countEl = document.getElementById('sessions-visible-count');
-        if (countEl) countEl.textContent = visibleCount;
-
-        /* Empty state */
-        var empty = document.getElementById('sessions-empty');
-        if (empty) empty.style.display = visibleCount === 0 ? 'block' : 'none';
-
-        /* Clear All button visibility */
-        var clearBtn = document.getElementById('clear-all-btn');
-        if (clearBtn) {
-            var hasAnyFilter = q || agent || model || project;
-            clearBtn.style.display = hasAnyFilter ? '' : 'none';
-        }
-
-        /* Persist */
-        saveFilters();
     }
 
-    /* ---------- Save / restore filters -------------------------------- */
+    /* ---------- Row click → session detail -------------------------- */
+    function initRowClick() {
+        var grid = document.querySelector('[data-sessions-grid]');
+        if (!grid) return;
+
+        grid.addEventListener('click', function(e) {
+            if (e.target.tagName === 'A' || e.target.closest('a')) return;
+
+            var row = e.target.closest('.table-row');
+            if (!row) return;
+
+            window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
+        });
+    }
+
+    /* ---------- Save / restore filters (local storage) ---------------- */
     function saveFilters() {
         var state = {
             q: document.getElementById('session-search').value,
@@ -314,37 +282,55 @@ window.openDemoInspector = function() {
         arpStorage.set(STORAGE_KEY, state);
     }
 
-    function restoreFilters() {
-        var saved = arpStorage.get(STORAGE_KEY);
-        if (saved) {
-            var map = {
-                'session-search': 'q',
-                'filter-agent': 'agent',
-                'filter-model': 'model',
-                'filter-project': 'project'
-            };
-            for (var id in map) {
-                var el = document.getElementById(id);
-                if (el && saved[map[id]]) {
-                    el.value = saved[map[id]];
-                }
-            }
-            if (saved.sortKey) sortKey = saved.sortKey;
-            if (saved.sortDir) sortDir = saved.sortDir;
-        }
+    /* ---------- Server-side filter submission ----------------------- */
+    var filterDebounceTimer = null;
+
+    function submitFilters() {
+        var params = new URLSearchParams();
+        var q = document.getElementById('session-search').value;
+        var agent = document.getElementById('filter-agent').value;
+        var model = document.getElementById('filter-model').value;
+        var project = document.getElementById('filter-project').value;
+
+        if (q) params.set('q', q);
+        if (agent) params.set('agent', agent);
+        if (model) params.set('model', model);
+        if (project) params.set('project', project);
+        if (sortKey && sortKey !== DEFAULT_SORT_KEY) params.set('sort', sortKey);
+
+        var currentParams = new URLSearchParams(window.location.search);
+        var page = currentParams.get('page');
+        if (page && page !== '1') params.set('page', page);
+
+        var pageSize = currentParams.get('page_size');
+        if (pageSize) params.set('page_size', pageSize);
+
+        var qs = params.toString();
+        window.location.href = '/sessions' + (qs ? '?' + qs : '');
     }
+
+    function submitFiltersDebounced() {
+        clearTimeout(filterDebounceTimer);
+        filterDebounceTimer = setTimeout(submitFilters, 400);
+    }
+
+    /* ---------- Pagination helpers ---------------------------------- */
+    window.goToPage = function(targetPage) {
+        var params = new URLSearchParams(window.location.search);
+        params.set('page', String(targetPage));
+        window.location.href = '/sessions?' + params.toString();
+    };
+
+    window.changePageSize = function(newSize) {
+        var params = new URLSearchParams(window.location.search);
+        params.set('page_size', newSize);
+        params.set('page', '1');
+        window.location.href = '/sessions?' + params.toString();
+    };
 
     /* ---------- Reset filters ----------------------------------------- */
     window.resetSessionFilters = function() {
-        document.getElementById('session-search').value = '';
-        document.getElementById('filter-agent').value = '';
-        document.getElementById('filter-model').value = '';
-        document.getElementById('filter-project').value = '';
-        sortKey = DEFAULT_SORT_KEY;
-        sortDir = DEFAULT_SORT_DIR;
-        updateHeaderStates();
-        arpStorage.remove(STORAGE_KEY);
-        applyFilters();
+        window.location.href = '/sessions';
     };
 
     /* ---------- Bind events ------------------------------------------- */
@@ -354,20 +340,33 @@ window.openDemoInspector = function() {
     filterInputs.forEach(function(id) {
         var el = document.getElementById(id);
         if (el) {
-            el.addEventListener('input', applyFilters);
+            el.addEventListener('change', submitFilters);
         }
     });
+
+    // Debounced input for search field
+    var searchEl = document.getElementById('session-search');
+    if (searchEl) {
+        searchEl.addEventListener('input', submitFiltersDebounced);
+    }
 
     /* Row click navigation */
     initRowClick();
 
     /* Sortable headers */
     initHeaderSort();
-
-    /* Restore on load */
-    restoreFilters();
     updateHeaderStates();
-    applyFilters();
+
+    /* Clear All button visibility */
+    var clearBtn = document.getElementById('clear-all-btn');
+    if (clearBtn) {
+        var q = document.getElementById('session-search').value;
+        var agent = document.getElementById('filter-agent').value;
+        var model = document.getElementById('filter-model').value;
+        var project = document.getElementById('filter-project').value;
+        var hasAnyFilter = q || agent || model || project;
+        clearBtn.style.display = hasAnyFilter ? '' : 'none';
+    }
 })();
 </script>
 

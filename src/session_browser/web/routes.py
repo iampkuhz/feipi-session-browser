@@ -1566,13 +1566,98 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(filepath.read_bytes())
 
-    def _serve_all_sessions(self, sort_by: str = "ended_at") -> None:
+    def _serve_all_sessions(self) -> None:
         """Global sessions page — all sessions across all projects."""
         conn = _get_connection()
-        sessions = list_sessions(conn, limit=200, order_by=sort_by)
-        total_count = count_sessions(conn)
 
-        # Get distinct models and projects for filters
+        # ── Parse query parameters ──────────────────────────────────
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+
+        # Pagination
+        try:
+            page = int(params.get("page", ["1"])[0])
+            if page < 1:
+                page = 1
+        except (ValueError, IndexError):
+            page = 1
+
+        VALID_PAGE_SIZES = {20, 50, 100}
+        raw_size = params.get("page_size", ["20"])[0].strip().lower()
+        if raw_size == "all":
+            page_size = "all"
+        else:
+            try:
+                page_size_int = int(raw_size)
+                if page_size_int in VALID_PAGE_SIZES:
+                    page_size = page_size_int
+                else:
+                    page_size = 20
+            except ValueError:
+                page_size = 20
+
+        # Filters (server-side)
+        filter_agent = params.get("agent", [""])[0].strip() or None
+        filter_model = params.get("model", [""])[0].strip() or None
+        filter_project = params.get("project", [""])[0].strip() or None
+        filter_q = params.get("q", [""])[0].strip() or None
+
+        # Sort
+        raw_sort = params.get("sort", [""])[0].strip().lower()
+        SORT_KEY_MAP = {
+            "ended-at": "ended_at",
+            "duration": "duration_seconds",
+            "total-tokens": "input_tokens",
+            "rounds": "assistant_message_count",
+        }
+        sort_by = SORT_KEY_MAP.get(raw_sort, "ended_at")
+
+        # ── Compute limit/offset ────────────────────────────────────
+        total_count = count_sessions(
+            conn,
+            agent=filter_agent,
+            project_key=filter_project,
+            model=filter_model,
+            title_like=filter_q,
+        )
+
+        if page_size == "all":
+            limit = total_count if total_count > 0 else 2000
+            offset = 0
+            effective_page_size = total_count
+            total_pages = 1
+        else:
+            limit = page_size
+            total_pages = max(1, (total_count + page_size - 1) // page_size)
+            if page > total_pages:
+                page = total_pages
+            offset = (page - 1) * page_size
+            effective_page_size = page_size
+
+        # Fetch paginated sessions
+        sessions = list_sessions(
+            conn,
+            agent=filter_agent,
+            project_key=filter_project,
+            model=filter_model,
+            title_like=filter_q,
+            limit=limit,
+            offset=offset,
+            order_by=sort_by,
+        )
+
+        # Pagination metadata
+        if total_count == 0:
+            page_start = 0
+            page_end = 0
+        else:
+            page_start = offset + 1
+            page_end = min(offset + len(sessions), total_count)
+
+        has_prev = page > 1
+        has_next = page_start < total_count if page_size != "all" else False
+
+        # ── Filter dropdowns (unfiltered lists) ────────────────────
         models = conn.execute(
             "SELECT DISTINCT model FROM sessions WHERE model != '' ORDER BY model"
         ).fetchall()
@@ -1580,7 +1665,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             "SELECT DISTINCT project_key, project_name FROM sessions ORDER BY project_name"
         ).fetchall()
 
-        # Anomaly detection for all sessions
+        # ── Anomaly detection (scoped to filtered set for performance) ──
         all_sessions_raw = list_sessions(conn, limit=2000, order_by="ended_at")
         sessions_data = []
         sessions_lookup = {}
@@ -1601,6 +1686,18 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             "sessions.html",
             sessions=sessions_enriched,
             total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            page_start=page_start,
+            page_end=page_end,
+            has_prev=has_prev,
+            has_next=has_next,
+            filter_agent=filter_agent or "",
+            filter_model=filter_model or "",
+            filter_project=filter_project or "",
+            filter_q=filter_q or "",
+            sort_by=raw_sort or "ended-at",
             model_list=model_list,
             project_list=[p[0] for p in project_list],
             active_page="sessions",

@@ -1,0 +1,248 @@
+"""Tests for sessions list pagination."""
+
+from __future__ import annotations
+
+import os
+import sqlite3
+import pytest
+
+from session_browser.index.indexer import (
+    init_schema,
+    upsert_session,
+    list_sessions,
+    count_sessions,
+)
+from session_browser.domain.models import SessionSummary
+
+
+def _make_summary(sid: str, title: str = "", agent: str = "claude_code",
+                  project: str = "proj-a", model: str = "model-x") -> SessionSummary:
+    return SessionSummary(
+        agent=agent,
+        session_id=sid,
+        title=title or f"Session {sid}",
+        project_key=project,
+        project_name=project,
+        cwd="",
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at=f"2026-01-{int(sid):02d}T00:00:00+00:00",
+        duration_seconds=60,
+        model_execution_seconds=30,
+        tool_execution_seconds=30,
+        model=model,
+        git_branch="",
+        source="",
+        user_message_count=1,
+        assistant_message_count=1,
+        tool_call_count=1,
+        input_tokens=100,
+        output_tokens=100,
+        cached_input_tokens=0,
+        cached_output_tokens=0,
+        failed_tool_count=0,
+    )
+
+
+@pytest.fixture
+def populated_db(tmp_path):
+    """Create a SQLite DB with 55 sessions across 3 agents and 3 projects."""
+    db_path = tmp_path / "test_index.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    init_schema(conn)
+
+    agents = ["claude_code", "qoder", "codex"]
+    projects = ["proj-a", "proj-b", "proj-c"]
+    models = ["model-x", "model-y"]
+
+    for i in range(1, 56):
+        agent = agents[(i - 1) % 3]
+        project = projects[(i - 1) % 3]
+        model = models[i % 2]
+        s = _make_summary(str(i), title=f"Test Session {i:03d}",
+                          agent=agent, project=project, model=model)
+        upsert_session(conn, s)
+
+    conn.commit()
+    yield conn
+    conn.close()
+
+
+# ─── Pagination: limit / offset ──────────────────────────────────────────
+
+class TestListSessionsPagination:
+    def test_default_limit_returns_50(self, populated_db):
+        rows = list_sessions(populated_db)
+        assert len(rows) == 50
+
+    def test_limit_20_returns_20(self, populated_db):
+        rows = list_sessions(populated_db, limit=20)
+        assert len(rows) == 20
+
+    def test_offset_skips_first_page(self, populated_db):
+        first_page = list_sessions(populated_db, limit=20, offset=0)
+        second_page = list_sessions(populated_db, limit=20, offset=20)
+        first_ids = {r.session_id for r in first_page}
+        second_ids = {r.session_id for r in second_page}
+        assert first_ids.isdisjoint(second_ids)
+
+    def test_offset_20_returns_remaining(self, populated_db):
+        rows = list_sessions(populated_db, limit=20, offset=20)
+        assert len(rows) == 20
+
+    def test_offset_50_returns_last_5(self, populated_db):
+        rows = list_sessions(populated_db, limit=20, offset=50)
+        assert len(rows) == 5
+
+    def test_offset_beyond_data_returns_empty(self, populated_db):
+        rows = list_sessions(populated_db, limit=20, offset=100)
+        assert len(rows) == 0
+
+
+# ─── Count with filters ──────────────────────────────────────────────────
+
+class TestCountSessionsFilters:
+    def test_total_count(self, populated_db):
+        assert count_sessions(populated_db) == 55
+
+    def test_count_by_agent(self, populated_db):
+        count = count_sessions(populated_db, agent="claude_code")
+        assert count > 0
+
+    def test_count_by_model(self, populated_db):
+        count = count_sessions(populated_db, model="model-x")
+        assert count > 0
+
+    def test_count_by_title(self, populated_db):
+        count = count_sessions(populated_db, title_like="Test Session 001")
+        assert count == 1
+
+    def test_count_by_title_wildcard(self, populated_db):
+        # Sessions 001-009 all have "Session 00" in their title
+        count = count_sessions(populated_db, title_like="Session 00")
+        assert count == 9  # 001-009
+
+    def test_count_combined_filters(self, populated_db):
+        count = count_sessions(populated_db, agent="claude_code", model="model-x")
+        assert count > 0
+
+
+# ─── Pagination with filters ─────────────────────────────────────────────
+
+class TestListSessionsWithFilters:
+    def test_filter_by_agent(self, populated_db):
+        rows = list_sessions(populated_db, agent="claude_code", limit=100)
+        assert all(r.agent == "claude_code" for r in rows)
+
+    def test_filter_by_model(self, populated_db):
+        rows = list_sessions(populated_db, model="model-y", limit=100)
+        assert all(r.model == "model-y" for r in rows)
+
+    def test_filter_by_title_like(self, populated_db):
+        rows = list_sessions(populated_db, title_like="Test Session 00", limit=100)
+        assert all("Test Session 00" in r.title for r in rows)
+
+
+# ─── Template: pagination controls ──────────────────────────────────────
+
+class TestPaginationTemplate:
+    """Verify sessions.html contains pagination controls."""
+
+    def test_pagination_bar_nav(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'class="pagination-bar"' in content
+        assert 'id="pagination-bar"' in content
+
+    def test_pagination_prev_button(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'id="pagination-prev"' in content
+        assert "goToPage" in content
+
+    def test_pagination_next_button(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'id="pagination-next"' in content
+
+    def test_pagination_page_size_select(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'id="pagination-page-size"' in content
+        assert 'value="20"' in content
+        assert 'value="50"' in content
+        assert 'value="100"' in content
+        assert 'value="all"' in content
+
+    def test_pagination_info_display(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "Showing" in content
+        assert "page_start" in content
+        assert "page_end" in content
+        assert "total_count" in content
+
+    def test_page_info_text(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "Page" in content
+        assert "of" in content
+        assert "total_pages" in content
+
+    def test_filter_form_has_name_attributes(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'name="q"' in content
+        assert 'name="agent"' in content
+        assert 'name="model"' in content
+        assert 'name="project"' in content
+        assert 'name="sort"' in content
+
+    def test_filter_form_uses_preselected_values(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "filter_agent" in content
+        assert "filter_model" in content
+        assert "filter_project" in content
+        assert "filter_q" in content
+
+    def test_disabled_attribute_on_prev(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "{% if not has_prev %}disabled{% endif %}" in content
+
+    def test_disabled_attribute_on_next(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "{% if not has_next %}disabled{% endif %}" in content
+
+    def test_change_page_size_js(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "changePageSize" in content
+        assert "page_size" in content
+
+    def test_pagination_css_exists(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".pagination-bar" in content
+        assert ".pagination-bar__btn" in content
+        assert ".pagination-bar__select" in content
+
+    def test_no_client_side_apply_filters(self):
+        """Old client-side applyFilters should be removed."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        # The old applyFilters function that filtered DOM rows should be gone
+        assert "function applyFilters()" not in content
+
+    def test_submit_filters_function(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "submitFilters" in content
+
+    def test_go_to_page_function(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "goToPage" in content
