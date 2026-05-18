@@ -60,58 +60,6 @@
     </div>
 </div>
 
-<!-- Needs Attention -->
-{% if needs_attention %}
-<div class="card card--attention">
-    <div class="card-title flex justify-between items-center">
-        <span>
-            <span class="attention-icon">!</span> Needs Attention
-            <span class="text-muted fw-400 normal-case no-tracking">({{ needs_attention | length }} sessions)</span>
-        </span>
-        <div class="flex gap-1">
-            <button class="filter-chip filter-chip--active" data-filter="all" onclick="filterNeedsAttention('all', this)">All</button>
-            <button class="filter-chip" data-filter="critical" onclick="filterNeedsAttention('critical', this)">Critical</button>
-            <button class="filter-chip" data-filter="long_duration" onclick="filterNeedsAttention('long_duration', this)">Long</button>
-            <button class="filter-chip" data-filter="cache_write" onclick="filterNeedsAttention('cache_write', this)">Cache Write</button>
-            <button class="filter-chip" data-filter="failed" onclick="filterNeedsAttention('failed', this)">Failed</button>
-        </div>
-    </div>
-    <div id="needs-attention-list">
-        {% for item in needs_attention %}
-        <div class="attention-item" data-severity="{{ item.max_severity }}"
-             data-types="{{ item.anomaly_types | join(',') }}">
-            <div class="attention-item__severity">
-                <span class="severity-dot {{ 'severity--' + item.max_severity }}"></span>
-            </div>
-            <div class="attention-item__content">
-                <a href="/sessions/{{ item.agent }}/{{ item.session_id | urlencode }}" class="attention-item__title">
-                    {{ item.title[:80] or 'Untitled' }}
-                </a>
-                <div class="attention-item__meta">
-                    <span class="badge {{ 'badge-claude' if item.agent == 'claude_code' else 'badge-qoder' if item.agent == 'qoder' else 'badge-codex' }}">
-                        {{ 'CC' if item.agent == 'claude_code' else 'QD' if item.agent == 'qoder' else 'CX' }}
-                    </span>
-                    <span class="attention-item__project" data-tooltip="{{ item.project_key }}">{{ item.project_name }}</span>
-                    <span class="mono text-micro" data-tooltip="{{ item.model }}">{{ (item.model or '?')[:30] }}</span>
-                    <span class="text-muted text-xs">{{ item.ended_at | relative_time }}</span>
-                </div>
-                <div class="attention-item__badges">
-                    {% for i in range(item.anomaly_labels | length) %}
-                    <span class="anomaly-badge {{ item.anomaly_badge_classes[i] }}" data-tooltip="{{ item.anomaly_types[i] }}">
-                        {{ item.anomaly_labels[i] }}
-                    </span>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="attention-item__reason text-muted text-xs" data-tooltip="{{ item.main_reason }}">
-                {{ item.main_reason[:60] }}…
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
-
 <!-- Trend chart -->
 <div class="card">
     <div class="card-title flex justify-between items-center">
@@ -300,26 +248,6 @@
 
 <script>
 (function() {
-    /* ─── Needs Attention filter ──────────────────────────────────────── */
-    window.filterNeedsAttention = function(filterType, btn) {
-        document.querySelectorAll('.filter-chip').forEach(function(c) {
-            c.classList.remove('filter-chip--active');
-        });
-        if (btn) btn.classList.add('filter-chip--active');
-
-        var items = document.querySelectorAll('.attention-item');
-        items.forEach(function(item) {
-            var types = item.dataset.types || '';
-            var severity = item.dataset.severity || '';
-            var show = true;
-            if (filterType === 'critical' && severity !== 'critical') show = false;
-            if (filterType === 'long_duration' && types.indexOf('long_duration') === -1) show = false;
-            if (filterType === 'cache_write' && types.indexOf('cache_write_spike') === -1) show = false;
-            if (filterType === 'failed' && types.indexOf('failed_run') === -1) show = false;
-            item.style.display = show ? '' : 'none';
-        });
-    };
-
     /* ─── Trend chart ──────────────────────────────────────────────── */
     var container = document.getElementById('trend-chart');
     if (!container) return;

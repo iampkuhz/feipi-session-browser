@@ -186,8 +186,3 @@ class TestStaticAssets:
         """js/app.js must be served with HTTP 200."""
         resp = urllib.request.urlopen(f"{static_base_url}/static/js/app.js", timeout=5)
         assert resp.status == 200
-
-    def test_js_inspector_asset_returns_200(self, static_base_url):
-        """js/inspector.js must be served with HTTP 200."""
-        resp = urllib.request.urlopen(f"{static_base_url}/static/js/inspector.js", timeout=5)
-        assert resp.status == 200

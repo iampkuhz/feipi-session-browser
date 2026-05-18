@@ -280,8 +280,6 @@ body.focus .shell                      { grid-template-columns: 0 minmax(0, 1fr)
 
 body.hide-left .sidebar,
 body.focus .sidebar                    { display: none; }
-body.hide-right .inspector,
-body.focus .inspector                  { display: none; }
 
 /* ─── Sidebar: sticky 内嵌容器 ─────────────────────────────── */
 .sidebar {
@@ -305,21 +303,6 @@ body.focus .inspector                  { display: none; }
     min-width: 0;
     display: flex;
     flex-direction: column;
-}
-
-/* Inspector: grid column child (Task 11) */
-.inspector {
-    background: var(--bg-app);
-    border-left: 1px solid var(--line);
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-width: 0;
-    max-width: var(--inspector);
-    width: var(--inspector);
-}
-
-body.hide-right .inspector {
-    display: none;
 }
 
 /* ─── Top-btn: shell layout toggle buttons ─────────────────── */
@@ -513,6 +496,7 @@ a:focus-visible, button:focus-visible {
 
 /* ─── Round Map ────────────────────────────────────────────── */
 .round-map {
+    display: none; /* hidden by default, shown via layout mode */
     border-top: 1px solid var(--line2, #e8eef6);
     padding: 10px;
     overflow: auto;
@@ -674,69 +658,6 @@ body.sidebar-collapsed .sidebar-toggle-expand {
     display: block;
     min-height: 0;
     position: relative;
-}
-
-/* ─── Inspector backdrop (DEPRECATED: task 02) ─────────────── */
-.inspector-backdrop {
-    /* overlay no longer needed — inspector is a grid column */
-    display: none;
-}
-body.inspector-open .inspector-backdrop {
-    /* deprecated */
-    display: none;
-}
-
-/* ─── Inspector overlay (DEPRECATED: task 02) ──────────────── */
-.inspector-overlay-deprecated {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: var(--inspector-w);
-    min-width: 0;
-    background: var(--bg-surface);
-    border-left: 1px solid var(--border);
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
-    transform: translateX(100%);
-    transition: transform 0.2s ease;
-    display: none;
-}
-body.inspector-open .inspector-overlay-deprecated:not(:empty) {
-    display: block;
-    transform: translateX(0);
-}
-
-.inspector-close-btn {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 6px 8px;
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border);
-}
-.inspector-close-btn button {
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-app);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: var(--text-sm);
-    line-height: 1;
-    transition: background 150ms ease, color 150ms ease;
-}
-.inspector-close-btn button:hover {
-    background: var(--bg-surface-hover);
-    color: var(--text-primary);
 }
 
 /* ─── Topbar actions ──────────────────────────────────────────── */
@@ -945,7 +866,6 @@ body.focus .shell.phase1-shell,
 }
 
 .shell.phase1-shell .sidebar,
-.shell.phase1-shell .inspector,
 .shell.phase1-shell .topbar-actions {
     display: none;
 }
@@ -3408,91 +3328,6 @@ tr.row--anomaly {
     display: flex;
     gap: 4px;
     align-items: center;
-}
-
-/* ─── Needs Attention card ──────────────────────────────────── */
-.card--attention {
-    border-left: 3px solid var(--status-warning);
-}
-.attention-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    background: var(--status-warning);
-    color: white;
-    border-radius: 50%;
-    font-size: 11px;
-    font-weight: 700;
-    margin-right: 6px;
-}
-
-
-/* ─── Attention item ────────────────────────────────────────── */
-.attention-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border-light);
-}
-.attention-item:last-child {
-    border-bottom: none;
-}
-.attention-item__severity {
-    flex-shrink: 0;
-    padding-top: 2px;
-}
-.severity-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-.severity--critical { background: var(--status-error); box-shadow: 0 0 4px rgba(239,68,68,0.4); }
-.severity--warning { background: var(--status-warning); }
-.severity--info { background: var(--accent); opacity: 0.6; }
-.attention-item__content {
-    flex: 1;
-    min-width: 0;
-}
-.attention-item__title {
-    display: block;
-    color: var(--text);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: var(--text-sm);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.attention-item__title:hover { color: var(--accent); }
-.attention-item__meta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 3px;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-}
-.attention-item__project {
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.attention-item__badges {
-    display: flex;
-    gap: 4px;
-    margin-top: 4px;
-    flex-wrap: wrap;
-}
-.attention-item__reason {
-    flex-shrink: 0;
-    max-width: 160px;
-    text-align: right;
-    padding-top: 4px;
 }
 
 /* ─── Session header v2 (layered) ──────────────────────────── */
@@ -6447,127 +6282,6 @@ details.raw-session pre {
     height: 28px;
     color: var(--text-muted);
     letter-spacing: 2px;
-}
-
-/* ─── Inspector sections & content ──────────────────────────── */
-.inspector-body {
-    padding: 0 var(--space-lg) var(--space-lg);
-}
-
-.inspector-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-sm) 0 var(--space-md);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: var(--space-md);
-}
-
-.inspector-title {
-    margin: 0;
-    font-size: var(--text-base);
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 80%;
-}
-
-.inspector-section {
-    padding: var(--space-sm) 0;
-    border-bottom: 1px solid var(--border-light);
-}
-
-.inspector-section:last-child {
-    border-bottom: none;
-}
-
-.inspector-section-title {
-    margin: 0 0 var(--space-sm);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-}
-
-.inspector-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.inspector-meta .meta-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: 12px;
-    line-height: 1.4;
-}
-
-.inspector-meta .meta-label {
-    color: var(--text-muted);
-    flex-shrink: 0;
-    margin-right: var(--space-sm);
-}
-
-.inspector-meta .meta-value {
-    color: var(--text-primary);
-    text-align: right;
-    word-break: break-all;
-    max-width: 60%;
-}
-
-.inspector-summary {
-    font-size: var(--text-sm);
-    color: var(--text-primary);
-    line-height: var(--lh-loose);
-}
-
-.inspector-summary p {
-    margin: 0 0 var(--space-xs);
-}
-
-.inspector-related-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-}
-
-.inspector-related-list li a {
-    font-size: var(--text-sm);
-    display: block;
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-xs);
-    transition: background 120ms ease;
-}
-
-.inspector-related-list li a:hover {
-    background: var(--bg-surface-hover);
-}
-
-.inspector-viewer-slot {
-    min-height: 80px;
-    border: 1px dashed var(--border-light);
-    border-radius: var(--radius-sm);
-    padding: var(--space-sm);
-    background: var(--bg-app);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    max-width: 100%;
-    overflow-x: auto;
-}
-
-/* Raw pre blocks inside inspector must not overflow */
-.inspector-viewer-slot pre,
-.inspector pre {
-    max-width: 100%;
-    overflow-x: auto;
-    margin: 0;
 }
 
 /* ─── Row inspector trigger (demo / general) ───────────────── */

@@ -63,18 +63,12 @@ class TestBaseHtml:
             "base.html lacks .main container",
         )
 
-    def test_no_inspector_logic(self, base_text):
-        """no-inspector logic must not block session detail .main rendering."""
-        # Check that there's conditional logic around no-inspector
-        # (e.g., inspector only renders when no-inspector is not present)
-        assert_contains_any(
-            base_text,
-            [
-                "no-inspector",
-                "_shell_cls",
-            ],
-            "base.html lacks no-inspector guard logic",
-        )
+    def test_no_inspector_removed(self, base_text):
+        """Inspector element must not be rendered in base.html."""
+        assert "data-context-inspector" not in base_text, \
+            "base.html must not contain inspector element"
+        assert "inspector.html" not in base_text, \
+            "base.html must not include inspector component"
 
 
 # ── session.html checks ──

@@ -1,41 +1,10 @@
-"""Tests for sidebar collapse toggle in base.html.
+"""Tests for sidebar collapse infrastructure in base.html.
 
-The sidebar collapse mechanism uses topbar buttons that toggle `hide-left`
-on <body>. Old `.sidebar-toggle` / `.sidebar-toggle-expand` buttons are
-deprecated and hidden via CSS. State persistence uses arpStorage with
-the 'sidebar_collapsed' key (mapped to hide-left at init time).
+The sidebar collapse mechanism uses body.hide-left class to toggle visibility.
+Sidebar toggle buttons have been removed from the topbar; only CSS infrastructure remains.
 """
 
 from __future__ import annotations
-
-
-class TestSidebarToggleButtons:
-    """Verify sidebar toggle buttons exist in topbar."""
-
-    def test_hide_left_button_exists(self):
-        """A topbar button for hiding sidebar should be present."""
-        with open("src/session_browser/web/templates/base.html") as f:
-            content = f.read()
-        assert 'title="切换左侧导航"' in content
-
-    def test_toggle_toggles_hide_left(self):
-        """Toggle button must toggle the hide-left class."""
-        with open("src/session_browser/web/templates/base.html") as f:
-            content = f.read()
-        assert "classList.toggle('hide-left')" in content
-
-    def test_hide_right_button_exists(self):
-        """A topbar button for hiding inspector should be present."""
-        with open("src/session_browser/web/templates/base.html") as f:
-            content = f.read()
-        assert 'title="切换右侧面板"' in content
-        assert "classList.toggle('hide-right')" in content
-
-    def test_focus_mode_button_exists(self):
-        """A topbar button for focus mode should be present."""
-        with open("src/session_browser/web/templates/base.html") as f:
-            content = f.read()
-        assert 'title="专注模式"' in content
 
 
 class TestSidebarCollapsedCSS:
@@ -62,28 +31,6 @@ class TestSidebarCollapsedCSS:
         assert "display: none" in content
 
 
-class TestSidebarPersistence:
-    """Verify sidebar collapse state persistence uses arpStorage."""
-
-    def test_persistence_key(self):
-        """Should use 'sidebar_collapsed' as the localStorage key."""
-        with open("src/session_browser/web/templates/base.html") as f:
-            content = f.read()
-        assert "'sidebar_collapsed'" in content
-
-    def test_uses_arpstorage_get(self):
-        """Should restore state via arpStorage.get."""
-        with open("src/session_browser/web/templates/base.html") as f:
-            content = f.read()
-        assert "arpStorage.get(" in content
-
-    def test_restores_hide_left_on_load(self):
-        """Should add hide-left class when sidebar was previously collapsed."""
-        with open("src/session_browser/web/templates/base.html") as f:
-            content = f.read()
-        assert "classList.add('hide-left')" in content
-
-
 class TestOldSidebarToggleDeprecated:
     """Verify old sidebar toggle buttons are deprecated and not rendered."""
 
@@ -104,5 +51,5 @@ class TestOldSidebarToggleDeprecated:
         """CSS should explicitly hide old toggle buttons."""
         with open("src/session_browser/web/static/style.css") as f:
             content = f.read()
-        assert ".sidebar-toggle {" in content
+        assert ".sidebar-toggle" in content
         assert "display: none" in content

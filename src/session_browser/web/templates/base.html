@@ -95,38 +95,12 @@
                     {% endblock %}
                 </nav>
                 <div class="topbar-actions" aria-label="全局操作">
-                    {% block topbar_toggles %}
-                    <!-- Sidebar toggle buttons -->
-                    <button class="top-btn" onclick="document.body.classList.toggle('hide-left'); arpStorage.set('sidebar_collapsed', document.body.classList.contains('hide-left'))" title="切换左侧导航">
-                        <span class="action-icon" aria-hidden="true">&#9776;</span>
-                    </button>
-                    <button class="top-btn" onclick="document.body.classList.toggle('hide-right')" title="切换右侧面板">
-                        <span class="action-icon" aria-hidden="true">&#9776;</span>
-                    </button>
-                    <button class="top-btn" onclick="document.body.classList.toggle('focus')" title="专注模式">
-                        <span class="action-icon" aria-hidden="true">&#9679;</span>
-                    </button>
-                    {% endblock %}
+                    {% block topbar_toggles %}{% endblock %}
 
                     {% block topbar_extras %}
-                    <!-- Shell layout toggles -->
-                    <button class="top-btn" data-layout-mode="map" onclick="ViewState.setLayoutMode('map')" title="显示左侧导航（Map）">Map</button>
-                    <button class="top-btn" data-layout-mode="inspector" onclick="ViewState.setLayoutMode('inspector')" title="隐藏左侧导航，突出 Inspector">Inspector</button>
-                    <button class="top-btn" data-layout-mode="focus" onclick="ViewState.setLayoutMode('focus')" title="专注模式：隐藏两侧面板">Focus</button>
-
                     <!-- Density toggle -->
                     <button id="density-toggle" class="density-toggle" onclick="ViewState.toggleDensity()" aria-pressed="false" title="当前：紧凑 · 点击切换为宽松" aria-label="密度切换">
                         <span class="density-toggle__label" aria-hidden="true">紧凑</span>
-                    </button>
-
-                    <button class="topbar-action topbar-action--placeholder" aria-label="全局搜索" title="全局搜索（待实现）" disabled>
-                        <span class="action-icon" aria-hidden="true">&#8981;</span>
-                    </button>
-                    <button class="topbar-action topbar-action--placeholder" aria-label="导出" title="导出（待实现）" disabled>
-                        <span class="action-icon" aria-hidden="true">&#11015;</span>
-                    </button>
-                    <button class="topbar-action topbar-action--placeholder" aria-label="切换主题" title="切换主题（待实现）" disabled>
-                        <span class="action-icon" aria-hidden="true">&#9680;</span>
                     </button>
                     {% endblock %}
                     {% block topbar_actions %}{% endblock %}
@@ -142,24 +116,11 @@
                 Agent Run Profiler · Read-only · Local
             </footer>
         </main>
-
-        <!-- Inspector: grid column 3 (常驻，no-inspector 页面不渲染) -->
-        {% set _shell_cls = self.shell_class() | default('') %}
-        {% if 'no-inspector' not in _shell_cls %}
-        <aside class="inspector" data-context-inspector aria-label="属性面板">
-            <div class="inspector-inner">
-                {% block inspector %}
-                {% include "components/inspector.html" %}
-                {% endblock %}
-            </div>
-        </aside>
-        {% endif %}
     </div>
 
     {% if export_mhtml %}
     <script>{{ mhtml_js | safe }}</script>
     {% else %}
-    <script src="/static/js/inspector.js"></script>
     <script src="/static/js/view-state.js"></script>
     <script src="/static/js/payload_viewer.js"></script>
     <script src="/static/js/app.js"></script>

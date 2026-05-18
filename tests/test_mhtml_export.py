@@ -39,29 +39,15 @@ class TestMhtmlTemplateContracts:
 
     def test_layout_mode_classes(self):
         html = self._read("base.html")
-        for cls in ("hide-left", "hide-right", "focus"):
-            assert cls in html, f'missing {cls} toggle support'
+        # hide-left is still referenced in JS migration code
+        assert "hide-left" in html, 'missing hide-left toggle support'
 
     def test_css_has_shell_grid(self):
         css = self._read_css()
         assert ".shell" in css, "missing .shell grid"
         assert "grid-template-columns" in css, "missing grid-template-columns"
 
-    # ── Inspector structure ──
-
-    def test_inspector_hi_fi_structure(self):
-        html = self._read("components/inspector.html")
-        for cls in ("insp-head", "insp-close", "insp-title", "insp-sub", "insp-tabs"):
-            assert cls in html, f"missing {cls} in inspector.html"
-
-    def test_inspector_has_tabs(self):
-        html = self._read("components/inspector.html")
-        for tab in ("Overview", "Payload", "Tools"):
-            assert tab in html, f"missing {tab} tab in inspector.html"
-
-    def test_inspector_js_has_switchTab(self):
-        js = self._read_js("inspector.js")
-        assert "switchTab" in js, "missing switchTab in inspector.js"
+    # Inspector removed — MHTML export no longer requires inspector components
 
     # ── MHTML export infrastructure ──
 
@@ -104,13 +90,8 @@ class TestMhtmlSelfContained:
     def test_key_functions_present_in_template(self):
         """Verify key JS functions are referenced in session.html for MHTML inclusion."""
         html = self._read("session.html")
-        # openInspector is called (via window.openInspector guard and invocation)
-        assert "openInspector" in html, "openInspector missing from session.html"
         # toggleRoundDetail is defined inline
         assert "toggleRoundDetail" in html, "toggleRoundDetail missing from session.html"
-        # closeInspector is defined in inspector.js and referenced in inspector.html
-        inspector = self._read("components/inspector.html")
-        assert "closeInspector" in inspector, "closeInspector missing from inspector.html"
 
     def test_no_google_fonts_reference(self):
         """No Google Fonts references in either mode."""
