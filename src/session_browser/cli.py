@@ -406,7 +406,9 @@ def cmd_serve(args: argparse.Namespace) -> None:
         logger.info("Running startup incremental scan before serving")
         start = time.time()
         try:
-            result = incremental_scan(conn, verbose=False)
+            # Only scan recent sessions at startup to avoid blocking the server.
+            # The background scanner will pick up older changed sessions over time.
+            result = incremental_scan(conn, verbose=False, max_age_seconds=2 * 3600)
             count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
             logger.info(
                 "Startup scan complete: total_indexed=%s updated=%s new=%s skipped=%s elapsed=%.1fs",
