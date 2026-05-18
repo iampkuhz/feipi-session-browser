@@ -1,69 +1,69 @@
-# Repository Context
+# 仓库上下文
 
-## Overview
+## 概览
 
-feipi-session-browser is a local session browser for indexing and analyzing Claude Code, Codex, Qoder, and other local agent session history. It emphasizes traceability, payload visibility, UI diagnosis, and offline export.
+feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Claude Code、Codex、Qoder 等本地 agent 的会话历史。它强调可追溯性、payload 可见性、UI 诊断和离线导出。
 
-## Tech Stack
+## 技术栈
 
-- **Backend**: Python 3 (Flask-based web server)
-- **Frontend**: HTML templates + CSS + vanilla JavaScript
-- **Testing**: Playwright (E2E), pytest (unit)
-- **Data**: JSONL session history files
+- **后端**：Python 3（基于 Flask 的 Web 服务器）
+- **前端**：HTML 模板 + CSS + 原生 JavaScript
+- **测试**：Playwright（E2E）、pytest（单元测试）
+- **数据**：JSONL 格式会话历史文件
 
-## Directory Structure
+## 目录结构
 
-| Path | Purpose |
-|------|---------|
-| `src/session_browser/` | Application source (server, templates, static assets) |
-| `tests/` | Unit tests, Playwright E2E tests, fixture data |
-| `scripts/` | Build, test, harness, and quality scripts |
-| `scripts/agent_hooks/` | Claude Code lifecycle hooks (PreToolUse, PostToolUse, Stop, etc.) |
-| `scripts/quality/` | Repo structure and health validators |
-| `scripts/harness/` | Harness validation and doctor scripts |
-| `.claude/` | Project-level Claude Code config, hooks, skills, commands, agents |
-| `.agent/` | Local agent state (active change, evidence, task ledger) -- not committed |
-| `openspec/` | OpenSpec specs, changes, config, and schema |
-| `harness/` | Agent workflow documentation, context packs, templates |
-| `docs/` | Development norms and UI specifications |
-| `prompts/` | Input prompt packs -- NOT authoritative; route through `/change` |
+| 路径 | 用途 |
+|------|------|
+| `src/session_browser/` | 应用源码（服务器、模板、静态资源） |
+| `tests/` | 单元测试、Playwright E2E 测试、fixture 数据 |
+| `scripts/` | 构建、测试、harness 和质量门禁脚本 |
+| `scripts/agent_hooks/` | Claude Code 生命周期钩子（PreToolUse、PostToolUse、Stop 等） |
+| `scripts/quality/` | 仓库结构与健康度验证 |
+| `scripts/harness/` | Harness 验证和 doctor 脚本 |
+| `.claude/` | 项目级 Claude Code 配置、hooks、skills、commands、agents |
+| `.agent/` | 本地 agent 状态（活跃变更、证据、任务账本）——不提交 |
+| `openspec/` | OpenSpec 规格、变更、配置和 schema |
+| `harness/` | Agent 流程文档、上下文包、模板 |
+| `docs/` | 开发规范和 UI 规格 |
+| `prompts/` | 输入提示词包——非权威入口；请通过 `/change` 路由 |
 
-## OpenSpec Workflow
+## OpenSpec 工作流
 
-All non-trivial changes go through `/change <requirement-path>`:
+所有非平凡变更都通过 `/change <requirement-path>`：
 
-1. Creates `openspec/changes/<change-id>/` with proposal, design, tasks.
-2. Records `.agent/active_change.json`.
-3. Protected file edits require active change (enforced by PreToolUse hooks).
-4. Edits auto-logged to `.agent/task-evidence/<change-id>.jsonl`.
-5. QA verifier validates before stop.
-6. Stop hook blocks if change is incomplete.
+1. 在 `openspec/changes/<change-id>/` 下创建 proposal、design、tasks。
+2. 记录 `.agent/active_change.json`。
+3. 受保护文件编辑需有活跃变更（由 PreToolUse hooks 强制执行）。
+4. 编辑自动记录到 `.agent/task-evidence/<change-id>.jsonl`。
+5. QA verifier 在 stop 前验证。
+6. Stop hook 在变更未完成时阻塞。
 
-See `harness/workflow/change-lifecycle.md` and `harness/workflow/hook-enforcement.md`.
+详见 `harness/workflow/change-lifecycle.md` 和 `harness/workflow/hook-enforcement.md`。
 
-## Default Agents
+## 默认 Agent
 
-| Agent | Purpose |
-|-------|---------|
-| openspec-planner | Design OpenSpec changes (proposal, design, tasks, spec deltas) |
-| implementer | Execute one bounded task from tasks.md |
-| qa-verifier | Final verification gate (workflow + technical correctness) |
+| Agent | 用途 |
+|-------|------|
+| openspec-planner | 设计 OpenSpec 变更（proposal、design、tasks、spec 增量） |
+| implementer | 从 tasks.md 执行单个有界的任务 |
+| qa-verifier | 最终验证门禁（流程 + 技术正确性） |
 
-Specialty agents under `.claude/agents/specialty/` are for domain-specific work.
+`.claude/agents/specialty/` 下的 specialty agent 用于领域特定工作。
 
-## Local-Only State
+## 本地状态
 
-The following are intentionally `.gitignore`'d:
-- `.agent/` -- agent state (active change, evidence, task results)
-- `openspec/changes/*` -- local change proposals (except `.gitkeep`)
-- `reports/` -- non-baseline report output
-- `test-results/`, `playwright-report/` -- test runner output
+以下文件被有意 `.gitignore`：
+- `.agent/` — agent 状态（活跃变更、证据、任务结果）
+- `openspec/changes/*` — 本地变更提议（除 `.gitkeep` 外）
+- `reports/` — 非基线报告输出
+- `test-results/`、`playwright-report/` — 测试运行器输出
 
-## Quality Gates
+## 质量门禁
 
-Run `bash scripts/harness/doctor.sh` for full health check.
+运行 `bash scripts/harness/doctor.sh` 进行完整健康检查。
 
-Individual validators:
+单独验证器：
 ```bash
 python3 scripts/harness/validate_harness_structure.py
 python3 scripts/harness/validate_openspec_layout.py

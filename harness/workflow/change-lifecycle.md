@@ -1,85 +1,85 @@
-# Change Lifecycle
+# 变更生命周期
 
-This document describes the full OpenSpec change lifecycle for the feipi-session-browser repository.
+本文件描述 feipi-session-browser 仓库的 OpenSpec 变更完整生命周期。
 
-## Overview
+## 概览
 
-All non-trivial changes follow this flow:
+所有非平凡变更遵循以下流程：
 
 ```
-/CHANGE -> PROPOSE -> DESIGN -> TASK FILES -> IMPLEMENT SERIAL -> VALIDATE -> ARCHIVE
+/CHANGE -> 提案 -> 设计 -> 任务文件 -> 串行实现 -> 验证 -> 归档
 ```
 
-The single entry point is `/change <requirement or prompt path>`. Do NOT start work by reading `prompts/` directly; always route through `/change`.
+单一入口为 `/change <需求描述或提示词文件路径>`。不要直接读取 `prompts/` 启动工作；始终通过 `/change` 路由。
 
-## 1. Start a Change
+## 1. 启动变更
 
-Run `/change <requirement-path>` which:
-- Creates `openspec/changes/<change-id>/` with `proposal.md`, `design.md`, `tasks.md`.
-- Writes `.agent/active_change.json` to record the active change.
-- Updates the change skill reference under `.claude/skills/change/`.
+运行 `/change <需求路径>`，它会：
+- 在 `openspec/changes/<change-id>/` 下创建 `proposal.md`、`design.md`、`tasks.md`。
+- 写入 `.agent/active_change.json` 记录活跃变更。
+- 更新 `.claude/skills/change/` 下的变更技能引用。
 
-## 2. Propose
+## 2. 提案
 
-The openspec-planner agent writes `proposal.md`:
-- One-paragraph summary of what and why.
-- Scope boundaries and non-goals.
-- Validation approach.
+openspec-planner agent 编写 `proposal.md`：
+- 一段话总结变更内容及原因。
+- 范围边界和非目标。
+- 验证方式。
 
-## 3. Design
+## 3. 设计
 
-The openspec-planner writes `design.md`:
-- Technical approach and constraints.
-- Trade-offs and alternatives considered.
-- Implementation boundaries (which files, which subsystems).
+openspec-planner 编写 `design.md`：
+- 技术方法和约束。
+- 权衡和备选方案。
+- 实现边界（哪些文件、哪些子系统）。
 
-## 4. Task Files
+## 4. 任务文件
 
-The openspec-planner decomposes the change into `tasks.md`:
-- Each task is independently verifiable.
-- Each task references a validation command.
-- Tasks are ordered serially (no parallel execution within a change).
+openspec-planner 将变更分解为 `tasks.md`：
+- 每个任务可独立验证。
+- 每个任务引用一个验证命令。
+- 任务按串行排序（变更内无并行执行）。
 
-## 5. Implement
+## 5. 实现
 
-The implementer agent executes one task at a time:
-- **Preflight**: reads `.agent/active_change.json`, validates active change exists.
-- **Scope**: implements exactly the assigned task, no more.
-- **Validation**: runs the task's validation command after implementation.
-- **Evidence**: all file edits under protected roots are auto-logged to `.agent/task-evidence/<change-id>.jsonl`.
+implementer agent 逐个执行任务：
+- **预检**：读取 `.agent/active_change.json`，验证活跃变更存在。
+- **范围**：仅实现分配的任务，不多做。
+- **验证**：实现后运行任务的验证命令。
+- **证据**：受保护根目录下的所有文件编辑自动记录到 `.agent/task-evidence/<change-id>.jsonl`。
 
-## 6. Validate
+## 6. 验证
 
-The qa-verifier agent checks:
-- Active change completeness (proposal, design, tasks).
-- Evidence entries match edited files.
-- `git diff --stat` scope matches tasks.
-- All validation commands pass.
-- Product tests pass.
-- No generated artifacts in the diff.
+qa-verifier agent 检查：
+- 活跃变更完整性（proposal、design、tasks）。
+- 证据条目与编辑文件匹配。
+- `git diff --stat` 范围与任务匹配。
+- 所有验证命令通过。
+- 产品测试通过。
+- diff 中无生成的产物。
 
-Output: PASS / FAIL / BLOCKED with reasons.
+输出：PASS / FAIL / BLOCKED 及原因。
 
-## 7. Archive
+## 7. 归档
 
-After validation:
-- Merge final behavior into `openspec/specs/`.
-- Move `openspec/changes/<change-id>/` to `openspec/changes/archive/`.
-- Clear `.agent/active_change.json`.
+验证通过后：
+- 将最终行为合并到 `openspec/specs/`。
+- 将 `openspec/changes/<change-id>/` 移至 `openspec/changes/archive/`。
+- 清除 `.agent/active_change.json`。
 
-## Local-Only Changes
+## 本地变更
 
-OpenSpec changes under `openspec/changes/` are local to the branch. They are not committed to the repository until merged to `openspec/specs/` and archived. The `.gitignore` ensures change artifacts do not leak into commits accidentally.
+`openspec/changes/` 下的 OpenSpec 变更是分支本地的。在合并到 `openspec/specs/` 并归档之前，不会提交到仓库。`.gitignore` 确保变更产物不会意外泄漏到提交中。
 
-## Hooks and Enforcement
+## Hook 强制执行
 
-The lifecycle is enforced by Claude Code hooks wired in `.claude/settings.json`:
+生命周期由 `.claude/settings.json` 中配置的 Claude Code hooks 强制执行：
 
-| Hook | Script | Purpose |
-|------|--------|---------|
-| SessionStart/SubagentStart | `inject_session_context.py` | Inject active change status |
-| PreToolUse (Write/Edit/MultiEdit) | `guard_active_openspec_change.py` | Block protected edits without active change |
-| PostToolUse (Write/Edit/MultiEdit) | `log_change_evidence.py` | Auto-log file edits to evidence |
-| Stop/SubagentStop | `stop_validate_change.py` | Block stop if change is incomplete |
+| Hook | 脚本 | 用途 |
+|------|------|------|
+| SessionStart/SubagentStart | `inject_session_context.py` | 注入活跃变更状态 |
+| PreToolUse (Write/Edit/MultiEdit) | `guard_active_openspec_change.py` | 无活跃变更时阻止受保护文件编辑 |
+| PostToolUse (Write/Edit/MultiEdit) | `log_change_evidence.py` | 自动将文件编辑记录到证据 |
+| Stop/SubagentStop | `stop_validate_change.py` | 变更未完成时阻止 stop |
 
-See `harness/workflow/hook-enforcement.md` for details.
+详见 `harness/workflow/hook-enforcement.md`。

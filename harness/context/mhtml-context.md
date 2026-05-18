@@ -1,3 +1,3 @@
-# MHTML Context
+# MHTML 上下文
 
-A session page export must be self-contained and preserve current-session tab switching without backend requests. Inline CSS, JS, and session data for export.
+会话页面导出必须是自包含的，在不向后端发请求的情况下保留当前会话 tab 切换。将 CSS、JS 和会话数据内联到导出文件中。

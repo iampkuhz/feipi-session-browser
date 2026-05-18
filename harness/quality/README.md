@@ -1,38 +1,38 @@
-# Quality Gates
+# 质量门禁
 
-Deterministic validation before success reports.
-LLM diagnostics are optional/on-demand and must not be wired into hooks.
-Runtime artifacts live under `.agent/quality/<change-id>/` and are not source docs.
+成功报告前的确定性验证。
+LLM 诊断为按需/可选，不得接入 hook。
+运行时产物位于 `.agent/quality/<change-id>/`，非源文档。
 
-## Structure
+## 结构
 
-| File | Purpose |
+| 文件 | 用途 |
 |---|---|
-| [quality-gate-matrix.md](./quality-gate-matrix.md) | Which gates run for which change types |
-| [ui-layout-contract.md](./ui-layout-contract.md) | Session detail layout hard metrics |
-| [ui-gate-diagnostic.md](./ui-gate-diagnostic.md) | On-demand LLM diagnostic boundary |
-| [gates.yaml](./gates.yaml) | Harness gate configuration |
-| [gates.md](./gates.md) | Gate definitions and status |
+| [quality-gate-matrix.md](./quality-gate-matrix.md) | 各类变更运行哪些门禁 |
+| [ui-layout-contract.md](./ui-layout-contract.md) | 会话详情页布局硬指标 |
+| [ui-gate-diagnostic.md](./ui-gate-diagnostic.md) | 按需 LLM 诊断边界 |
+| [gates.yaml](./gates.yaml) | Harness 门禁配置 |
+| [gates.md](./gates.md) | 门禁定义与状态 |
 
-## Running Gates
+## 运行门禁
 
 ```bash
-# Unified runner
+# 统一运行器
 python3 scripts/quality/run_quality_gate.py --target session-detail
 
-# Individual gates
+# 单个门禁
 python3 scripts/quality/check_session_detail_static.py
 python3 -m pytest tests/test_session_detail_layout_contract.py
 python3 scripts/quality/run_session_detail_layout_gate.py --url ...
 
-# Stop hook enforcement
+# Stop hook 强制执行
 python3 scripts/hooks/stop_quality_gate.py
 ```
 
-## On-Demand LLM Diagnostic
+## 按需 LLM 诊断
 
 ```
 /diagnose-ui-gate
 ```
 
-This reads failed gate artifacts and suggests minimal fixes. It is NOT a gate — it cannot pass or block a stop hook.
+读取失败的门禁产物并建议最小修复。它不是门禁——不能通过或阻塞 stop hook。

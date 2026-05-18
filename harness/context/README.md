@@ -1,3 +1,3 @@
-# Context Packs
+# 上下文包
 
-Progressively loaded context files. Do not load all packs for every task.
+渐进式加载的上下文文件。不必为每个任务加载所有包。

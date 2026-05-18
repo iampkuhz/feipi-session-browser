@@ -1,69 +1,69 @@
-# Subagent Execution
+# 子 Agent 执行
 
-This document describes how subagents operate within the OpenSpec workflow.
+本文档描述子 agent 在 OpenSpec 流程中的操作方式。
 
-## Subagent Model
+## 子 Agent 模型
 
-Subagents in this repo are defined under `.claude/agents/`. Each agent has:
-- `name`: Unique identifier.
-- `description`: When to use.
-- `tools`: Allowed Claude Code tools.
-- `model`: `inherit` means use the same model as the main session.
+本仓库的子 agent 定义在 `.claude/agents/` 下。每个 agent 包含：
+- `name`：唯一标识符。
+- `description`：何时使用。
+- `tools`：允许的 Claude Code 工具。
+- `model`：`inherit` 表示使用与主会话相同的模型。
 
-## Default Agents
+## 默认 Agent
 
-Three agents form the core OpenSpec workflow:
+三个 agent 构成 OpenSpec 工作流核心：
 
 ### openspec-planner
 
-- **Purpose**: Design OpenSpec changes (proposal, design, tasks, spec deltas).
-- **Scope**: `openspec/changes/`, `.agent/active_change.json`, `openspec/specs/`.
-- **Prohibited**: Product source files, CLAUDE.md, AGENTS.md, code implementation.
-- **Active change**: Creates and records active change via `/change` or `create_active_change.py`.
+- **用途**：设计 OpenSpec 变更（proposal、design、tasks、spec 增量）。
+- **范围**：`openspec/changes/`、`.agent/active_change.json`、`openspec/specs/`。
+- **禁止**：产品源文件、CLAUDE.md、AGENTS.md、代码实现。
+- **活跃变更**：通过 `/change` 或 `create_active_change.py` 创建和记录活跃变更。
 
 ### implementer
 
-- **Purpose**: Execute exactly one task from a change's `tasks.md`.
-- **Preflight**: Must verify `.agent/active_change.json` exists and is valid.
-- **Scope**: Only the files required for the assigned task.
-- **Evidence**: Auto-logged by PostToolUse hook to `.agent/task-evidence/<change-id>.jsonl`.
-- **Prohibited**: Scope expansion, skipping validation, modifying OpenSpec artifacts.
+- **用途**：从变更的 `tasks.md` 中精确执行一个任务。
+- **预检**：必须验证 `.agent/active_change.json` 存在且有效。
+- **范围**：仅分配任务所需的文件。
+- **证据**：由 PostToolUse hook 自动记录到 `.agent/task-evidence/<change-id>.jsonl`。
+- **禁止**：扩大范围、跳过验证、修改 OpenSpec 产物。
 
 ### qa-verifier
 
-- **Purpose**: Final verification gate before session stop.
-- **Checks**: Active change completeness, evidence entries, diff scope, validation gates, generated artifacts.
-- **Output**: PASS / FAIL / BLOCKED with structured reasons.
-- **Tools**: Read-only analysis (Read, Grep, Glob, LS, Bash).
+- **用途**：会话停止前的最终验证门禁。
+- **检查**：活跃变更完整性、证据条目、diff 范围、验证门禁、生成的产物。
+- **输出**：PASS / FAIL / BLOCKED 及结构化原因。
+- **工具**：只读分析（Read、Grep、Glob、LS、Bash）。
 
-## Specialty Agents
+## Specialty Agent
 
-Specialty agents live under `.claude/agents/specialty/` and are used for domain-specific work (UI, MHTML export, migration). They are not part of the default OpenSpec loop.
+Specialty agent 位于 `.claude/agents/specialty/` 下，用于领域特定工作（UI、MHTML 导出、迁移）。它们不属于默认 OpenSpec 循环。
 
-## Context Inheritance
+## 上下文继承
 
-Every subagent receives the session context injected by `inject_session_context.py`:
-- Repo root path.
-- Active change ID and status.
-- Evidence path and entry count.
-- Protected roots and workflow default.
+每个子 agent 接收由 `inject_session_context.py` 注入的会话上下文：
+- 仓库根路径。
+- 活跃变更 ID 和状态。
+- 证据路径和条目数。
+- 受保护根目录和工作流默认值。
 
-This ensures subagents cannot operate without knowledge of the current OpenSpec state.
+这确保子 agent 无法在缺乏当前 OpenSpec 状态知识的情况下操作。
 
-## Guard Enforcement
+## 守卫强制执行
 
-The `guard_active_openspec_change.py` PreToolUse hook runs before every Write/Edit/MultiEdit to protected roots. If no active change exists, the edit is blocked. This applies to subagents equally.
+`guard_active_openspec_change.py` PreToolUse hook 在每次对受保护根目录执行 Write/Edit/MultiEdit 之前运行。如果不存在活跃变更，编辑将被阻止。这同样适用于子 agent。
 
-## Evidence Tracking
+## 证据追踪
 
-The `log_change_evidence.py` PostToolUse hook logs every protected file edit. Evidence is written to `.agent/task-evidence/<change-id>.jsonl`. The qa-verifier reads this file to confirm all edits are accounted for.
+`log_change_evidence.py` PostToolUse hook 记录每次受保护文件编辑。证据写入 `.agent/task-evidence/<change-id>.jsonl`。qa-verifier 读取此文件以确认所有编辑都有据可查。
 
-## Stop Validation
+## Stop 验证
 
-When a subagent finishes, `stop_validate_change.py` checks:
-- If protected changes exist, the active change must be complete.
-- Required files (proposal.md, design.md, tasks.md) must be present.
-- Evidence entries must exist.
-- If incomplete, the stop is blocked (exit 1).
+子 agent 完成时，`stop_validate_change.py` 检查：
+- 如果存在受保护变更，活跃变更必须已完成。
+- 所需文件（proposal.md、design.md、tasks.md）必须存在。
+- 必须有证据条目。
+- 如果不完整，阻止 stop（exit 1）。
 
-Emergency bypass: `FEIPI_SKIP_STOP_HOOK=1`.
+紧急绕过：`FEIPI_SKIP_STOP_HOOK=1`。

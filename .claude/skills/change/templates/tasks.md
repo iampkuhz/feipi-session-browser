@@ -1,33 +1,33 @@
-# Tasks: <change-id>
+# 任务：<change-id>
 
-Walk these tasks top to bottom. Do not skip or reorder. For each task, do the work, mark it done (`- [x]`), and add a short validation note.
+从上到下遍历任务。不要跳过或重排。对每个任务：完成工作、标记完成（`- [x]`），并添加简短验证说明。
 
-## Task 1: <title>
+## 任务 1：<标题>
 
-- [ ] <Description of what to do>
+- [ ] <做什么的描述>
 
-  **Validation:** <How to verify this step is correct>
+  **验证：** <如何验证此步骤正确>
 
-## Task 2: <title>
+## 任务 2：<标题>
 
-- [ ] <Description of what to do>
+- [ ] <做什么的描述>
 
-  **Validation:** <How to verify this step is correct>
+  **验证：** <如何验证此步骤正确>
 
-## Task 3: <title>
+## 任务 3：<标题>
 
-- [ ] <Description of what to do>
+- [ ] <做什么的描述>
 
-  **Validation:** <How to verify this step is correct>
+  **验证：** <如何验证此步骤正确>
 
-## Task 4: <title>
+## 任务 4：<标题>
 
-- [ ] <Description of what to do>
+- [ ] <做什么的描述>
 
-  **Validation:** <How to verify this step is correct>
+  **验证：** <如何验证此步骤正确>
 
-## Task 5: <title>
+## 任务 5：<标题>
 
-- [ ] <Description of what to do>
+- [ ] <做什么的描述>
 
-  **Validation:** <How to verify this step is correct>
+  **验证：** <如何验证此步骤正确>

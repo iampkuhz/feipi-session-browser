@@ -1,30 +1,30 @@
-# Spec Delta: <change-id> / <capability>
+# 规格增量：<change-id> / <capability>
 
-## Requirements
+## 需求
 
-### Requirement: <name>
+### 需求：<名称>
 
-<Description of the requirement. Use SHALL/MUST for mandatory behavior.>
+<需求描述。对强制性行为使用 SHALL/MUST。>
 
-#### Scenario: <name>
+#### 场景：<名称>
 
-- **Given** <initial context>
-- **When** <action or event>
-- **Then** <expected outcome>
+- **已知** <初始上下文>
+- **当** <动作或事件>
+- **则** <预期结果>
 
-### Requirement: <name>
+### 需求：<名称>
 
-<Description of the requirement.>
+<需求描述。>
 
-#### Scenario: <name>
+#### 场景：<名称>
 
-- **Given** <initial context>
-- **When** <action or event>
-- **Then** <expected outcome>
+- **已知** <初始上下文>
+- **当** <动作或事件>
+- **则** <预期结果>
 
 ---
 
-## Notes
+## 说明
 
-- These are delta specs that describe the proposed change relative to `openspec/specs/`.
-- After the change is approved and archived, these deltas are merged into `openspec/specs/` per `openspec/config.yaml`.
+- 这些是增量规格，描述相对于 `openspec/specs/` 的提议变更。
+- 变更获批并归档后，这些增量将按 `openspec/config.yaml` 合并到 `openspec/specs/` 中。

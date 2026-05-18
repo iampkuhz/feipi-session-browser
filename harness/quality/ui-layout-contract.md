@@ -1,55 +1,55 @@
-# UI Layout Contract: Session Detail
+# UI 布局契约：会话详情页
 
-## Hard Metrics (1440x1100 viewport)
+## 硬指标（1440x1100 视口）
 
-These thresholds are **deterministic** — they come from `getComputedStyle` / `getBoundingClientRect`,
-not subjective screenshot comparison.
+这些阈值是**确定性的**——来自 `getComputedStyle` / `getBoundingClientRect`，
+而非主观的截图对比。
 
-| Metric | Threshold | Failure Code |
+| 指标 | 阈值 | 失败代码 |
 |---|---|---|
 | `scrollOk` | `scrollWidth <= viewportWidth + 2` | `HORIZONTAL_SCROLL` |
-| `shellGrid` | must NOT start with `0px` | `SHELL_ZERO_COLUMN` |
+| `shellGrid` | 不能以 `0px` 开头 | `SHELL_ZERO_COLUMN` |
 | `main.width` | >= 1200px | `MAIN_WIDTH_TOO_SMALL` |
 | `detail.width` (.session-detail-phase1) | >= 1100px | `DETAIL_WIDTH_TOO_SMALL` |
 | `hero.width` | >= 900px | `HERO_WIDTH_TOO_SMALL` |
 | `titleBeforeKpis` | `title.bottom <= kpis.top + 4` | `TITLE_OVERLAPS_KPIS` |
 | `title.height` | <= 180px | `TITLE_TOO_TALL` |
 
-## Static CSS Contract
+## 静态 CSS 契约
 
-These are text-based checks on `style.css` and templates:
+这些是对 `style.css` 和模板的文本检查：
 
-| Check | Requirement | Failure Code |
+| 检查项 | 要求 | 失败代码 |
 |---|---|---|
-| phase1 hide-left override | `body.hide-left .shell.phase1-shell` with grid-template-columns | `MISSING_PHASE1_HIDE_LEFT_OVERRIDE` |
-| phase1 main grid | `.shell.phase1-shell .main` with `grid-column: 1 / -1` | `MISSING_PHASE1_MAIN_GRID_COLUMN` |
-| detail width contract | `.session-detail-phase1` with width/max-width | `MISSING_SESSION_DETAIL_WIDTH_CONTRACT` |
-| hero single column | `.session-detail-phase1 .hero-main` with `grid-template-columns: 1fr` | `HERO_MAIN_STILL_TWO_COLUMN` |
-| title wrapping | no `overflow-wrap: anywhere` or `word-break: break-all` | `HERO_TITLE_UNSAFE_ANYWHERE_WRAP` |
-| session shell class hook | `session.html` declares `{% block shell_class %}` with phase1-shell + no-inspector | `MISSING_SESSION_SHELL_CLASS_HOOK` |
-| base shell application | `base.html` applies shell_class to .shell | `MISSING_BASE_SHELL_CLASS_APPLICATION` |
+| phase1 hide-left 覆盖 | `body.hide-left .shell.phase1-shell` 带 grid-template-columns | `MISSING_PHASE1_HIDE_LEFT_OVERRIDE` |
+| phase1 main 网格 | `.shell.phase1-shell .main` 带 `grid-column: 1 / -1` | `MISSING_PHASE1_MAIN_GRID_COLUMN` |
+| 详情页宽度契约 | `.session-detail-phase1` 带 width/max-width | `MISSING_SESSION_DETAIL_WIDTH_CONTRACT` |
+| hero 单列 | `.session-detail-phase1 .hero-main` 带 `grid-template-columns: 1fr` | `HERO_MAIN_STILL_TWO_COLUMN` |
+| 标题换行 | 不含 `overflow-wrap: anywhere` 或 `word-break: break-all` | `HERO_TITLE_UNSAFE_ANYWHERE_WRAP` |
+| session shell class 钩子 | `session.html` 声明 `{% block shell_class %}` 含 phase1-shell + no-inspector | `MISSING_SESSION_SHELL_CLASS_HOOK` |
+| base shell 应用 | `base.html` 将 shell_class 应用于 .shell | `MISSING_BASE_SHELL_CLASS_APPLICATION` |
 
-## Template Contract
+## 模板契约
 
-These are pytest checks on template structure:
+这些是对模板结构的 pytest 检查：
 
-| Check | File | Requirement |
+| 检查项 | 文件 | 要求 |
 |---|---|---|
-| .shell container | base.html | exists with shell_class block |
-| .main container | base.html | exists |
-| shell_class declaration | session.html | phase1-shell + no-inspector |
-| detail root | session.html | .session-detail-phase1 exists |
-| hero title | session.html | .hero-title class hook |
-| KPI/metrics | session.html | .kpis or .metrics-strip |
-| trace rows | session.html | .trace-row class hook |
+| .shell 容器 | base.html | 存在且带 shell_class block |
+| .main 容器 | base.html | 存在 |
+| shell_class 声明 | session.html | phase1-shell + no-inspector |
+| 详情页根节点 | session.html | .session-detail-phase1 存在 |
+| hero 标题 | session.html | .hero-title class 钩子 |
+| KPI/指标 | session.html | .kpis 或 .metrics-strip |
+| trace 行 | session.html | .trace-row class 钩子 |
 
-## Why These Are Deterministic
+## 为什么这些是确定性的
 
-All metrics come from browser APIs that return exact pixel values:
+所有指标都来自返回精确像素值的浏览器 API：
 
-- `getComputedStyle().gridTemplateColumns` — resolved CSS grid track sizes
-- `getBoundingClientRect()` — layout box geometry in viewport coordinates
-- `document.documentElement.scrollWidth` — total scrollable width
+- `getComputedStyle().gridTemplateColumns` — 解析后的 CSS grid 轨道尺寸
+- `getBoundingClientRect()` — 视口坐标中的布局盒几何
+- `document.documentElement.scrollWidth` — 总可滚动宽度
 
-No screenshot comparison, no subjective "looks wrong" judgment.
-If a metric violates a threshold, the gate fails with a specific failure code and `nextInspection` guidance.
+没有截图对比，没有主观"看起来不对"的判断。
+如果某个指标违反了阈值，门禁会失败，并给出具体的失败代码和 `nextInspection` 指引。

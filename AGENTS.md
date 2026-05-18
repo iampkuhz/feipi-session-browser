@@ -98,6 +98,16 @@ python3 scripts/quality/run_quality_gate.py --target session-detail
 - 代码、命令、路径、API 名称保持英文原样。
 - 面向用户的 UI 文本使用中文。
 
+## 规约文件语言策略
+
+- **所有规约/规格/提示词/模板/流程文档必须中文优先**，仅以下情况可保留英文：
+  - 技术术语（如 `OpenSpec`、`PreToolUse`、`grid-template-columns`、`getBoundingClientRect`）。
+  - 代码标识符（变量名、函数名、CSS 选择器、失败代码如 `MAIN_WIDTH_TOO_SMALL`）。
+  - 外部工具/服务的原生名称（如 `Claude Code`、`Playwright`、`pytest`、`Flask`）。
+- 新建任何 `.md` 规约文件时，默认使用中文编写。
+- 模板中的占位符说明（如 `<change-id>`、`<描述>`）使用中文。
+- 此策略适用于 `harness/`、`.claude/`、`openspec/`、`docs/`、`prompts/` 下的所有文档。
+
 ## prompts/ 目录策略
 
 `prompts/` 目录是 **输入定义，非权威入口**。

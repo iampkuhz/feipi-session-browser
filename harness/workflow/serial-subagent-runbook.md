@@ -1,13 +1,13 @@
-# Serial Subagent Runbook
+# 串行子 Agent 运行手册
 
-Use subagents for bounded work, not uncontrolled parallelism.
+使用子 agent 处理有边界的工作，而非无控并行。
 
-Recommended sequence:
+推荐顺序：
 
-1. `repo-mapper` inspects current state.
-2. `openspec-planner` creates or reviews change plan.
-3. `task-slicer` creates task files.
-4. `implementer` executes one task at a time.
-5. `qa-verifier` validates each completed task.
+1. `repo-mapper` 检查当前状态。
+2. `openspec-planner` 创建或评审变更计划。
+3. `task-slicer` 创建任务文件。
+4. `implementer` 逐个执行任务。
+5. `qa-verifier` 验证每个已完成的任务。
 
-The main agent should not busy-wait. It should delegate a bounded task and only continue after a completed report is returned.
+主 agent 不应 busy-wait。应委派有边界的任务，仅在完成报告返回后继续。

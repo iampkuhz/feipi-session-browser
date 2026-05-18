@@ -1,23 +1,23 @@
 # OpenSpec
 
-This repository uses OpenSpec-style spec-driven development.
+本仓库使用 OpenSpec 风格的规格驱动开发。
 
 ```text
 openspec/
-  config.yaml        # workflow settings and policy configuration
-  specs/             # current source of truth (git-tracked)
-  schemas/           # validation schemas (git-tracked)
-  templates/         # reusable templates (git-tracked)
-  changes/           # local working state for proposed changes
-    archive/         # completed/archived changes
+  config.yaml        # 工作流设置与策略配置
+  specs/             # 当前真相源（git 追踪）
+  schemas/           # 验证 schema（git 追踪）
+  templates/         # 可复用模板（git 追踪）
+  changes/           # 本地工作态（提议中的变更）
+    archive/         # 已完成/已归档变更
 ```
 
-Every non-trivial change starts under `openspec/changes/<change-id>/`.
+每个非平凡变更都从 `openspec/changes/<change-id>/` 下开始。
 
-## Policies
+## 策略
 
-- **Tracked vs local**: `specs/`, `schemas/`, `templates/` are git-tracked and represent the approved canonical state. `changes/` is local working state and is not git-tracked by default.
-- **Protected edit rule**: Protected directories (`specs/`, `schemas/`, `templates/`) must not be edited directly. An active change directory under `changes/` is required before modifying any protected file.
-- **Final specs update**: After a change is approved and archived, its spec deltas are merged into `specs/` and the change directory is removed.
+- **追踪 vs 本地**：`specs/`、`schemas/`、`templates/` 是 git 追踪的，代表已批准的规范态。`changes/` 是本地工作态，默认不纳入 git 追踪。
+- **受保护编辑规则**：受保护目录（`specs/`、`schemas/`、`templates/`）不能直接编辑。编辑任何受保护文件前，必须先在 `changes/` 下存在活跃的变更目录。
+- **最终规格更新**：变更获批并归档后，其规格增量会合并到 `specs/` 中，变更目录会被移除。
 
-See `openspec/config.yaml` for the full machine-readable configuration.
+完整机器可读配置见 `openspec/config.yaml`。

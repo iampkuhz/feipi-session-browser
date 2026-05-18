@@ -1,64 +1,64 @@
-# UI Gate Diagnostic Boundary
+# UI 门禁诊断边界
 
-## Overview
+## 概览
 
-The quality gate system has two tiers:
+质量门禁系统分为两层：
 
-| Tier | Type | Trigger | Examples |
+| 层级 | 类型 | 触发方式 | 示例 |
 |---|---|---|---|
-| **Deterministic gates** | Automated scripts | Stop hook, quality runner | static CSS check, template contract pytest, browser layout gate |
-| **On-demand LLM diagnostic** | Manual trigger | User invokes `/diagnose-ui-gate` | root cause analysis, fix suggestion |
+| **确定性门禁** | 自动化脚本 | Stop hook、质量运行器 | 静态 CSS 检查、模板契约 pytest、浏览器布局门禁 |
+| **按需 LLM 诊断** | 手动触发 | 用户调用 `/diagnose-ui-gate` | 根因分析、修复建议 |
 
-## Deterministic Gates
+## 确定性门禁
 
-These run automatically and can block the stop hook:
+这些自动运行并可阻塞 stop hook：
 
-- `scripts/quality/check_session_detail_static.py` — static CSS/template text checks
-- `scripts/quality/run_session_detail_layout_gate.py` — Playwright computed layout metrics
-- `tests/test_session_detail_layout_contract.py` — template structure pytest
-- `scripts/quality/run_quality_gate.py` — unified runner that orchestrates all gates
+- `scripts/quality/check_session_detail_static.py` — 静态 CSS/模板文本检查
+- `scripts/quality/run_session_detail_layout_gate.py` — Playwright 计算布局指标
+- `tests/test_session_detail_layout_contract.py` — 模板结构 pytest
+- `scripts/quality/run_quality_gate.py` — 统一运行器，编排所有门禁
 
-**Properties:**
-- No LLM inference required.
-- Output is structured JSON.
-- Results written to `.agent/quality/<change-id>/`.
-- Stop hook reads these artifacts to enforce gates.
+**属性：**
+- 无需 LLM 推断。
+- 输出为结构化 JSON。
+- 结果写入 `.agent/quality/<change-id>/`。
+- Stop hook 读取这些产物以执行门禁。
 
-## On-Demand LLM Diagnostic
+## 按需 LLM 诊断
 
-Triggered by `/diagnose-ui-gate` command.
+由 `/diagnose-ui-gate` 命令触发。
 
-**Properties:**
-- Manual trigger only — never called by stop hook.
-- Reads deterministic gate output JSON, then uses LLM reasoning to interpret failures.
-- Can suggest fixes but does NOT modify files unless user explicitly asks.
-- Cannot override or伪造 deterministic gate results.
+**属性：**
+- 仅手动触发——stop hook 永远不会调用。
+- 读取确定性门禁输出的 JSON，然后使用 LLM 推理来解读失败。
+- 可建议修复，但除非用户明确要求，否则不修改文件。
+- 不能覆盖或伪造确定性门禁结果。
 
-**Allowed to infer:**
-- Complex CSS cascade root cause.
-- Difference between failure screenshot and layout intent.
-- Trade-offs between multiple fix approaches.
-- Which files are most likely relevant.
+**允许推断：**
+- 复杂 CSS cascade 根因。
+- 失败截图与布局意图的差异。
+- 多种修复方案之间的权衡。
+- 哪些文件最可能需要处理。
 
-**NOT allowed to伪造:**
-- `quality-gate-summary.json` PASS status.
-- Browser computed metrics.
-- Screenshot artifacts.
-- Stop hook evidence.
+**不允许伪造：**
+- `quality-gate-summary.json` PASS 状态。
+- 浏览器计算指标。
+- 截图产物。
+- Stop hook 证据。
 
-## Forbidden
+## 禁止
 
-- Stop hook MUST NOT call LLM diagnostic commands.
-- Stop hook MUST NOT start subagents, call Claude, Codex, or Qoder.
-- Stop hook MUST NOT run browser tests directly.
-- LLM diagnostic MUST NOT replace deterministic gates with subjective judgement.
+- Stop hook 不得调用 LLM 诊断命令。
+- Stop hook 不得启动子 agent、调用 Claude、Codex 或 Qoder。
+- Stop hook 不得直接运行浏览器测试。
+- LLM 诊断不得用主观判断替代确定性门禁。
 
-## Diagnostic Command
+## 诊断命令
 
-Location: `.claude/commands/diagnose-ui-gate.md`
+位置：`.claude/commands/diagnose-ui-gate.md`
 
-Usage:
+用法：
 ```
-/diagnose-ui-gate           # uses current active change
-/diagnose-ui-gate fix-xyz   # specific change id
+/diagnose-ui-gate           # 使用当前活跃变更
+/diagnose-ui-gate fix-xyz   # 指定变更 ID
 ```

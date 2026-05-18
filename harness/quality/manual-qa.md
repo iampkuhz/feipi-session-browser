@@ -1,3 +1,3 @@
-# Manual QA
+# 手动 QA
 
-For UI changes, check Trace, Calls, Hotspots, Inspector hide/show, Focus mode, and Full Payload Viewer.
+对于 UI 变更，需检查 Trace、Calls、Hotspots、Inspector 的显示/隐藏、Focus 模式和 Full Payload Viewer。

@@ -1,19 +1,17 @@
 # Harness
 
-This directory contains the engineering workflow used to keep the repository controllable under Claude Code.
+本目录包含用于在 Claude Code 下保持仓库可控性的工程流程。
 
-## Directory map
+## 目录结构
 
 ```text
 harness/
-  workflow/     # lifecycle rules for OpenSpec changes and serial task execution
-  context/      # progressive-loaded context packs
-  prompts/      # reusable prompts for Codex and Claude
-  quality/      # quality gates and validation rules
-  templates/    # task, report, and spec templates
-  migration/    # historical code and seed migration runbooks
+  workflow/     # OpenSpec 变更生命周期与串行任务执行规则
+  context/      # 渐进式加载上下文包
+  quality/      # 质量门禁与验证规则
+  manifest.yaml # 项目入口配置
 ```
 
-## Rule
+## 规则
 
-Detailed workflow instructions live here, not in `CLAUDE.md`.
+详细的工程流程指引保存在这里，而非 `CLAUDE.md` 中。

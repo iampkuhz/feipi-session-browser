@@ -1,31 +1,31 @@
-# Design: <change-id>
+# 设计：<change-id>
 
-## Current State
+## 当前状态
 
-<Describe the current behavior and architecture relevant to this change. Reference specific files, functions, or flows.>
+<描述与此变更相关的当前行为和技术架构。引用具体的文件、函数或流程。>
 
-## Proposed Approach
+## 提议的方法
 
-<Describe the technical approach. What will change and how? Include architecture decisions, data flow changes, or UI modifications.>
+<描述技术方法。哪些将改变、如何改变？包含架构决策、数据流变更或 UI 修改。>
 
-### Key Decisions
+### 关键决策
 
-1. <Decision 1 and rationale>
-2. <Decision 2 and rationale>
+1. <决策 1 及理由>
+2. <决策 2 及理由>
 
-## Risks
+## 风险
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| <Risk description> | <Low/Med/High> | <Low/Med/High> | <How to reduce or handle> |
+| 风险 | 可能性 | 影响 | 缓解措施 |
+|------|--------|------|----------|
+| <风险描述> | <低/中/高> | <低/中/高> | <如何降低或处理> |
 
-## Rollback
+## 回滚
 
-<If this change needs to be reverted, what is the rollback path? Are there data migrations or config changes that need reversal?>
+<如果需要撤销此变更，回滚路径是什么？是否有数据迁移或配置变更需要回退？>
 
-## Validation
+## 验证
 
-<How will correctness be verified? Reference tests, manual checks, or automated gates.>
+<如何验证正确性？引用测试、手动检查或自动化门禁。>
 
-- [ ] <Validation check 1>
-- [ ] <Validation check 2>
+- [ ] <验证检查 1>
+- [ ] <验证检查 2>

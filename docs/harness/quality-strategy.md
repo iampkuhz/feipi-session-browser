@@ -1,3 +1,3 @@
-# Quality Strategy
+# 质量策略
 
-Prefer validation scripts and task-level acceptance criteria over broad final review.
+优先使用验证脚本和任务级验收标准，而非宽泛的最终评审。

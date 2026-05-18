@@ -43,23 +43,30 @@
 | 任务文件 | `python3 scripts/harness/validate_task_files.py` |
 | 产品测试 | `./scripts/session-browser.sh test` |
 
-## UI quality gates
+## UI 质量门禁
 
-For changes under `src/session_browser/web/templates/`,
-`src/session_browser/web/static/*.css`, or `src/session_browser/web/static/js/`,
-run:
+修改 `src/session_browser/web/templates/`、
+`src/session_browser/web/static/*.css` 或 `src/session_browser/web/static/js/` 时，
+运行：
 
 ```bash
 python3 scripts/quality/run_quality_gate.py --target session-detail
 ```
 
-A UI task is not complete unless `.agent/quality/<change-id>/quality-gate-summary.json`
-reports `status: PASS`.
+UI 任务完成的前提是 `.agent/quality/<change-id>/quality-gate-summary.json`
+报告 `status: PASS`。
 
-Details:
+详见：
 - `harness/quality/quality-gate-matrix.md`
 - `harness/quality/ui-layout-contract.md`
 - `harness/quality/ui-gate-diagnostic.md`
+
+## 规约文件语言策略
+
+- **所有规约/规格/提示词/模板/流程文档必须中文优先**。
+- 仅技术术语（如 `OpenSpec`、`PreToolUse`）、代码标识符、外部工具名称可保留英文。
+- 新建 `.md` 规约文件默认使用中文编写。
+- 详见 `AGENTS.md` 中的「规约文件语言策略」章节。
 
 ## 输出要求
 

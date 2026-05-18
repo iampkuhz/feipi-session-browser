@@ -1,32 +1,32 @@
-# Proposal: <change-id>
+# 提案：<change-id>
 
-## Problem
+## 问题
 
-<Describe the problem or opportunity. What is broken, missing, or inefficient? Include concrete examples or user scenarios.>
+<描述问题或机会。哪里有问题、缺失或低效？给出具体例子或用户场景。>
 
-## Scope
+## 范围
 
-**In scope:**
+**包含：**
 
-- <List what this change will address.>
-- <Be specific about boundaries.>
+- <列出此变更将处理的内容。>
+- <明确边界。>
 
-**Out of scope (non-goals):**
+**不包含（非目标）：**
 
-- <List what this change explicitly will not address.>
-- <These may be future changes or are intentionally deprioritized.>
+- <列出此变更明确不处理的内容。>
+- <这些可能是后续变更或有意降级处理。>
 
-## User Impact
+## 用户影响
 
-<Who is affected and how? What will users notice or experience differently? Include before/after if applicable.>
+<谁受影响？用户会注意到或体验到什么不同？如适用，包含前后对比。>
 
-## Affected Components
+## 受影响的组件
 
-- <List source files, modules, or systems that will change.>
+- <列出将变更的源文件、模块或系统。>
 
-## Validation Strategy
+## 验证策略
 
-<How will this change be validated? List specific tests, scripts, or manual checks.>
+<如何验证此变更？列出具体的测试、脚本或手动检查。>
 
-1. <Validation step 1>
-2. <Validation step 2>
+1. <验证步骤 1>
+2. <验证步骤 2>

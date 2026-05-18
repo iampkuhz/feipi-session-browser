@@ -1,14 +1,14 @@
-# OpenSpec Change Lifecycle
+# OpenSpec 变更生命周期
 
-Every non-trivial repository change follows:
+每个非平凡的仓库变更都遵循以下流程：
 
 ```text
-propose -> design -> task files -> implement serially -> validate -> archive
+提案 -> 设计 -> 任务文件 -> 串行实现 -> 验证 -> 归档
 ```
 
-## Propose
+## 提案
 
-Create:
+创建：
 
 ```text
 openspec/changes/<change-id>/proposal.md
@@ -17,10 +17,10 @@ openspec/changes/<change-id>/tasks.md
 openspec/changes/<change-id>/specs/<capability>/spec.md
 ```
 
-## Implement
+## 实现
 
-Implementation agents read the change and execute `tasks.md` sequentially. If tasks are too large, create task files under `tasks/changes/<change-id>/`.
+实现 agent 读取变更并串行执行 `tasks.md`。如果任务过大，在 `tasks/changes/<change-id>/` 下创建任务文件。
 
-## Archive
+## 归档
 
-After validation, merge final behavior into `openspec/specs/` and move the change to `openspec/changes/archive/`.
+验证通过后，将最终行为合并到 `openspec/specs/`，并将变更移至 `openspec/changes/archive/`。

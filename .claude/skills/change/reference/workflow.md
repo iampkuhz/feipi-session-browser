@@ -1,163 +1,163 @@
-# OpenSpec Change Workflow — 7 Phases
+# OpenSpec 变更流程 — 7 阶段
 
-This document describes the canonical 7-phase workflow for driving an OpenSpec change. It is referenced by the `change` skill and provides detailed guidance for each phase.
+本文档描述了 OpenSpec 变更的标准 7 阶段流程。它被 `change` skill 引用，提供每个阶段的详细指引。
 
-## Overview
+## 概览
 
 ```
-Phase 0: Intake  →  Phase 1: Create  →  Phase 2: Inspect  →  Phase 3: Propose
-                                                                          ↓
-Phase 7: Report  ←  Phase 6: Validate  ←  Phase 5: Implement  ←  Phase 4: Plan
+阶段 0：接收  →  阶段 1：创建  →  阶段 2：检查  →  阶段 3：提案
+                                                                    ↓
+阶段 7：汇报  ←  阶段 6：验证  ←  阶段 5：实现  ←  阶段 4：规划
 ```
 
-Each phase has entry criteria, steps, and exit criteria. Do not skip phases.
+每个阶段都有入口条件、步骤和出口条件。不要跳过任何阶段。
 
 ---
 
-## Phase 0: Intake
+## 阶段 0：接收（Intake）
 
-**Entry:** User provides a request (free-form text or file path).
+**入口：** 用户提供请求（自由文本或文件路径）。
 
-**Steps:**
+**步骤：**
 
-1. Parse the request. If a file path is provided, read it for content.
-2. Derive a `<change-id>` in kebab-case.
-3. Check `openspec/changes/` for existing matching change.
-4. Read `CLAUDE.md` and `openspec/config.yaml` for constraints.
+1. 解析请求。如果是文件路径，读取其内容。
+2. 从请求派生 `<change-id>`（kebab-case）。
+3. 检查 `openspec/changes/` 是否已有匹配的变更。
+4. 读取 `CLAUDE.md` 和 `openspec/config.yaml` 获取约束。
 
-**Exit:** A clear `<change-id>` and understanding of project constraints.
+**出口：** 明确的 `<change-id>` 和对项目约束的理解。
 
 ---
 
-## Phase 1: Create
+## 阶段 1：创建（Create）
 
-**Entry:** Valid `<change-id>` from Intake.
+**入口：** 来自接收阶段的有效 `<change-id>`。
 
-**Steps:**
+**步骤：**
 
-1. Create `openspec/changes/<change-id>/` directory if it does not exist.
-2. Write `.agent/active_change.json` to register the active change:
+1. 如果 `openspec/changes/<change-id>/` 不存在，创建目录。
+2. 写入 `.agent/active_change.json` 注册活跃变更：
    ```json
    {
      "change_id": "<change-id>",
      "change_path": "openspec/changes/<change-id>/",
      "started_at": "<ISO 8601 timestamp>",
-     "source_request": "<original user request or prompt file path>",
+     "source_request": "<原始用户请求或提示文件路径>",
      "protected_roots": ["openspec/", "harness/", ".claude/", "CLAUDE.md"],
      "required_gates": ["scripts/openspec/validate_layout.py", ...]
    }
    ```
-   See `.agent/SCHEMA.md` for the full field specification.
+   完整字段规范见 `.agent/SCHEMA.md`。
 
-**Exit:** Change directory exists and `.agent/active_change.json` is written.
-
----
-
-## Phase 2: Inspect
-
-**Entry:** Active change is registered.
-
-**Steps:**
-
-1. Read `CLAUDE.md`, `AGENTS.md` for repository constraints.
-2. Read relevant specs under `openspec/specs/` for current behavior.
-3. Inspect source files, tests, and configs relevant to the change.
-4. Run `python3 scripts/harness/validate_openspec_layout.py` to confirm structure.
-
-**Exit:** Clear understanding of current state and relevant files.
+**出口：** 变更目录已创建，`.agent/active_change.json` 已写入。
 
 ---
 
-## Phase 3: Propose
+## 阶段 2：检查（Inspect）
 
-**Entry:** Inspection complete.
+**入口：** 活跃变更已注册。
 
-**Steps:**
+**步骤：**
 
-1. Write `proposal.md` — Problem, Scope, Non-goals, User impact, Validation strategy.
-2. Write `design.md` — Current state, Proposed approach, Risks, Rollback, Validation.
-3. Write `tasks.md` — Granular, sequential tasks with validation steps.
-4. Write delta specs under `openspec/changes/<change-id>/specs/`.
+1. 读取 `CLAUDE.md`、`AGENTS.md` 获取仓库约束。
+2. 读取 `openspec/specs/` 中相关规格，了解当前行为。
+3. 检查与变更相关的源码、测试和配置文件。
+4. 运行 `python3 scripts/harness/validate_openspec_layout.py` 确认结构正确。
 
-**Exit:** All proposal documents and spec deltas are written.
-
----
-
-## Phase 4: Plan (Validate Plan)
-
-**Entry:** Proposal and spec deltas are written.
-
-**Steps:**
-
-1. Run `python3 scripts/openspec/validate_layout.py`
-2. Run `python3 scripts/openspec/validate_schema.py`
-3. Run `python3 scripts/harness/validate_harness_structure.py`
-4. Fix any validation failures.
-5. Present the plan to the user for approval.
-
-**Exit:** All validators pass and user approves the plan.
+**出口：** 对当前状态和相关文件有清晰理解。
 
 ---
 
-## Phase 5: Implement (Serial)
+## 阶段 3：提案（Propose）
 
-**Entry:** Plan is approved.
+**入口：** 检查完成。
 
-**Steps:**
+**步骤：**
 
-1. Walk `openspec/changes/<change-id>/tasks.md` top to bottom.
-2. For each task:
-   - Do the work.
-   - Mark the checkbox as done (`- [x]`).
-   - Add a validation note.
-3. Do NOT skip or reorder tasks.
-4. Do NOT expand scope beyond what the change describes.
-5. For large tasks, delegate to subagents with explicit scope (see `subagent-contract.md`).
+1. 写 `proposal.md` — 问题、范围、非目标、用户影响、验证策略。
+2. 写 `design.md` — 当前状态、提案方法、风险、回滚、验证。
+3. 写 `tasks.md` — 带验证步骤的细粒度顺序任务。
+4. 在 `openspec/changes/<change-id>/specs/` 下写规格增量。
 
-**Exit:** All tasks are complete and marked done.
+**出口：** 所有提案文档和规格增量已写入。
 
 ---
 
-## Phase 6: Validate
+## 阶段 4：规划（验证计划）
 
-**Entry:** All implementation tasks are done.
+**入口：** 提案和规格增量已写入。
 
-**Steps:**
+**步骤：**
 
-1. Run `python3 scripts/openspec/validate_layout.py`
-2. Run `python3 scripts/openspec/validate_schema.py`
-3. Run `python3 scripts/openspec/validate_active_change.py --change-id <change-id>`
-4. Run `python3 scripts/harness/validate_harness_structure.py`
-5. Run `python3 scripts/harness/check_no_unfinished_markers.py`
-6. Run `python3 scripts/harness/validate_task_files.py`
-7. Run product tests if they exist.
-8. Fix any failures and re-run until all gates pass.
+1. 运行 `python3 scripts/openspec/validate_layout.py`
+2. 运行 `python3 scripts/openspec/validate_schema.py`
+3. 运行 `python3 scripts/harness/validate_harness_structure.py`
+4. 修复任何验证失败。
+5. 向用户展示计划等待批准。
 
-**Exit:** All quality gates pass.
+**出口：** 所有验证器通过且用户批准计划。
 
 ---
 
-## Phase 7: Report
+## 阶段 5：实现（串行）
 
-**Entry:** All quality gates pass.
+**入口：** 计划已批准。
 
-**Steps:**
+**步骤：**
 
-1. Summarize what changed (files created, modified, deleted).
-2. Report validation results (pass/fail per gate).
-3. Note remaining risks or follow-ups.
-4. Ask the user before committing.
+1. 从上到下遍历 `openspec/changes/<change-id>/tasks.md`。
+2. 每个任务：
+   - 执行工作。
+   - 勾选复选框（`- [x]`）。
+   - 添加验证说明。
+3. 不要跳过或重排任务。
+4. 不要超出变更描述的范围。
+5. 对于大型任务，委派给子代理并明确范围（见 `subagent-contract.md`）。
 
-**Exit:** User has the report and decides on commit.
+**出口：** 所有任务完成并标记为已done。
 
 ---
 
-## Post-Change: Archive
+## 阶段 6：验证（Validate）
 
-After the change is committed and approved:
+**入口：** 所有实现任务已完成。
 
-1. Merge spec deltas from `openspec/changes/<change-id>/specs/` into `openspec/specs/`.
-2. Move the change directory to `openspec/changes/archive/<change-id>/`.
-3. Remove `.agent/active_change.json` or update it if another change is active.
+**步骤：**
 
-This is governed by `openspec/config.yaml` under `final_specs_update_rule`.
+1. 运行 `python3 scripts/openspec/validate_layout.py`
+2. 运行 `python3 scripts/openspec/validate_schema.py`
+3. 运行 `python3 scripts/openspec/validate_active_change.py --change-id <change-id>`
+4. 运行 `python3 scripts/harness/validate_harness_structure.py`
+5. 运行 `python3 scripts/harness/check_no_unfinished_markers.py`
+6. 运行 `python3 scripts/harness/validate_task_files.py`
+7. 运行产品测试（如有）。
+8. 修复任何失败项并重新运行直到全部通过。
+
+**出口：** 所有质量门禁通过。
+
+---
+
+## 阶段 7：汇报（Report）
+
+**入口：** 所有质量门禁通过。
+
+**步骤：**
+
+1. 总结变更内容（创建、修改、删除的文件）。
+2. 汇报验证结果（每个门禁通过/失败）。
+3. 注明剩余风险或后续事项。
+4. 提交前询问用户。
+
+**出口：** 用户收到汇报并决定是否提交。
+
+---
+
+## 变更后：归档（Archive）
+
+变更已提交并批准后：
+
+1. 将 `openspec/changes/<change-id>/specs/` 中的规格增量合并到 `openspec/specs/`。
+2. 将变更目录移至 `openspec/changes/archive/<change-id>/`。
+3. 删除 `.agent/active_change.json` 或更新为下一个活跃变更。
+
+这由 `openspec/config.yaml` 中的 `final_specs_update_rule` 管控。

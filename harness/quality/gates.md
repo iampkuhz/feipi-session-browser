@@ -1,55 +1,55 @@
-# Quality Gates
+# 质量门禁
 
-This document describes all quality gates for the feipi-session-browser repository.
+本文件描述 feipi-session-browser 仓库的所有质量门禁。
 
-## Gate Levels
+## 门禁层级
 
-### Level 1: Harness Structure
+### 层级 1：Harness 结构
 
 ```bash
 python3 scripts/harness/validate_harness_structure.py
 ```
 
-Verifies that the harness directory structure and required files exist.
+验证 harness 目录结构和所需文件是否存在。
 
-### Level 2: OpenSpec Layout
+### 层级 2：OpenSpec 布局
 
 ```bash
 python3 scripts/harness/validate_openspec_layout.py
 ```
 
-Validates the OpenSpec directory structure and schema compliance.
+验证 OpenSpec 目录结构和 schema 合规性。
 
-### Level 3: Marker Cleanup
+### 层级 3：标记清理
 
 ```bash
 python3 scripts/harness/check_no_unfinished_markers.py
 ```
 
-Ensures no TODO, HACK, FIXME markers remain without tracking.
+确保所有待办事项、临时方案、需修复标记都有追踪，不残留。
 
-### Level 4: Task File Validation
+### 层级 4：任务文件验证
 
 ```bash
 python3 scripts/harness/validate_task_files.py
 ```
 
-Validates that task files are well-formed and executable.
+验证任务文件格式正确且可执行。
 
-### Level 5: Repo Structure
+### 层级 5：仓库结构
 
 ```bash
 python3 scripts/quality/validate_repo_structure.py
 ```
 
-Deterministic check that command/skill/hook/spec structure is properly installed:
-- `.claude/commands/change.md` exists.
-- `.claude/skills/change/SKILL.md` exists.
-- All hook scripts exist and are wired in `.claude/settings.json`.
-- Default agents exist and reference active_change.
-- Harness validation scripts exist.
+确定性检查 command/skill/hook/spec 结构是否正确安装：
+- `.claude/commands/change.md` 存在。
+- `.claude/skills/change/SKILL.md` 存在。
+- 所有 hook 脚本存在并在 `.claude/settings.json` 中接线。
+- 默认 agent 存在且引用 active_change。
+- Harness 验证脚本存在。
 
-### Level 6: Hook Self-Tests
+### 层级 6：Hook 自测
 
 ```bash
 python3 scripts/agent_hooks/guard_active_openspec_change.py --self-test
@@ -58,22 +58,22 @@ python3 scripts/agent_hooks/inject_session_context.py --self-test
 python3 scripts/agent_hooks/log_change_evidence.py --self-test
 ```
 
-Proves that hooks correctly handle positive and negative cases.
+证明 hook 能正确处理正例和反例。
 
-### Level 7: Doctor
+### 层级 7：Doctor
 
 ```bash
 bash scripts/harness/doctor.sh
 ```
 
-Single-entry health check that runs all above gates.
+单一入口健康检查，运行以上所有门禁。
 
-## When to Run
+## 何时运行
 
-| Event | Gates |
-|-------|-------|
-| After any harness change | Level 1-5 |
-| Before session stop | Level 3 (via Stop hook) |
-| Before commit | Level 1-5 |
-| After repo migration | Level 1-7 |
-| Onboarding / first run | Level 7 (doctor) |
+| 事件 | 门禁 |
+|-------|------|
+| 任何 harness 变更后 | 层级 1-5 |
+| 会话停止前 | 层级 3（通过 Stop hook） |
+| 提交前 | 层级 1-5 |
+| 仓库迁移后 | 层级 1-7 |
+| 上手/首次运行 | 层级 7（doctor） |
