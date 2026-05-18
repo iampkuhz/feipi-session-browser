@@ -19,6 +19,7 @@ from typing import Optional
 
 from session_browser.config import INDEX_PATH, ensure_index_dir
 from session_browser.domain.models import SessionSummary, ProjectStats
+from session_browser.domain.normalizer import sanitize_list_title
 from session_browser.sources import claude as claude_source
 from session_browser.sources import codex as codex_source
 from session_browser.sources import qoder as qoder_source
@@ -746,7 +747,7 @@ def list_sessions(
     params.extend([limit, offset])
 
     rows = conn.execute(query, params).fetchall()
-    return [_row_to_summary(r) for r in rows]
+    return [_row_to_summary(r, truncate_title=True) for r in rows]
 
 
 def count_sessions(
@@ -1002,18 +1003,21 @@ def search_sessions(
         """,
         (q, q, q, q, limit),
     ).fetchall()
-    return [_row_to_summary(r) for r in rows]
+    return [_row_to_summary(r, truncate_title=True) for r in rows]
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────
 
 
-def _row_to_summary(row: sqlite3.Row) -> SessionSummary:
+def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSummary:
     """Convert a DB row to SessionSummary."""
+    title = row["title"]
+    if truncate_title:
+        title = sanitize_list_title(title)
     return SessionSummary(
         agent=row["agent"],
         session_id=row["session_id"],
-        title=row["title"],
+        title=title,
         project_key=row["project_key"],
         project_name=row["project_name"],
         cwd=row["cwd"],

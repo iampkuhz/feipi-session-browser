@@ -529,3 +529,33 @@ def _parse_code_fence(block: str) -> tuple[str, str]:
         lines = lines[:-1]  # Remove closing fence.
 
     return lang, "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Title sanitization for list views
+# ---------------------------------------------------------------------------
+
+_LIST_TITLE_MAX = 120
+
+
+def sanitize_list_title(text: str, max_len: int = _LIST_TITLE_MAX) -> str:
+    """Sanitize a session title for list-view display.
+
+    Normalizes whitespace (newlines → space, collapses runs of whitespace,
+    strips ends) and truncates to *max_len* characters with an ellipsis
+    suffix when the title exceeds the limit.
+
+    - ``None`` or ``""`` → ``""`` (caller handles "Untitled" fallback).
+    - Short titles pass through unchanged (after whitespace normalization).
+    - Over-long titles get truncated with ``…`` appended.
+    """
+    if not text:
+        return ""
+    text = str(text)
+    # Replace all whitespace runs (including newlines) with a single space.
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return ""
+    if len(text) > max_len:
+        return text[:max_len].rstrip() + "…"
+    return text
