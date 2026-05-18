@@ -5,6 +5,7 @@ and asserts the page renders successfully (HTTP 200, key DOM elements present).
 """
 
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -20,7 +21,13 @@ DEFAULT_TEST_INDEX = os.path.expanduser(
     "~/.local/share/feipi/session-browser/local-test-index/index.sqlite"
 )
 
-TEST_PORT = 18897  # Unique port to avoid conflicts
+
+def _find_free_port():
+    """Find an available TCP port on localhost."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        s.listen(1)
+        return s.getsockname()[1]
 
 
 def _find_test_session(index_path: str) -> tuple[str, str] | None:
@@ -65,11 +72,12 @@ def session_detail_url():
 
     agent, session_id = test_session
 
+    port = _find_free_port()
     env = os.environ.copy()
     env["PYTHONPATH"] = SRC_DIR
     env["INDEX_DIR"] = index_dir
     env["SERVER_HOST"] = "127.0.0.1"
-    env["SERVER_PORT"] = str(TEST_PORT)
+    env["SERVER_PORT"] = str(port)
     env["SESSION_BROWSER_LOG_LEVEL"] = "WARNING"
 
     proc = subprocess.Popen(
@@ -81,7 +89,7 @@ def session_detail_url():
     )
 
     # Wait for server to be ready
-    base_url = f"http://127.0.0.1:{TEST_PORT}"
+    base_url = f"http://127.0.0.1:{port}"
     for _ in range(30):
         try:
             resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)
@@ -142,11 +150,12 @@ class TestStaticAssets:
     @pytest.fixture(scope="class")
     def static_base_url(self):
         """Start a minimal server for static asset testing."""
+        port = _find_free_port()
         env = os.environ.copy()
         env["PYTHONPATH"] = SRC_DIR
         env["INDEX_DIR"] = os.path.dirname(DEFAULT_TEST_INDEX)
         env["SERVER_HOST"] = "127.0.0.1"
-        env["SERVER_PORT"] = str(TEST_PORT + 1)
+        env["SERVER_PORT"] = str(port)
         env["SESSION_BROWSER_LOG_LEVEL"] = "WARNING"
 
         proc = subprocess.Popen(
@@ -157,7 +166,7 @@ class TestStaticAssets:
             stderr=subprocess.DEVNULL,
         )
 
-        base_url = f"http://127.0.0.1:{TEST_PORT + 1}"
+        base_url = f"http://127.0.0.1:{port}"
         for _ in range(30):
             try:
                 resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)

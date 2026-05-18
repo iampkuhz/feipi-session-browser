@@ -596,6 +596,26 @@ def _tojson_repo_html(v: Any, indent: int | None = None) -> str:
 _template_env.filters["tojson_repo"] = _tojson_repo_html
 
 
+def _display_path(path: str) -> str:
+    """Replace the user's home prefix with ``~`` for display.
+
+    Only affects paths that start with the current user's home directory.
+    Non-home and short paths are returned unchanged.
+    """
+    if not path:
+        return path or ""
+    home = os.path.expanduser("~")
+    if path == home:
+        return "~"
+    sep = os.sep
+    if path.startswith(home + sep):
+        return "~" + path[len(home):]
+    return path
+
+
+_template_env.filters["display_path"] = _display_path
+
+
 def _truncate_path(path: str) -> str:
     """Truncate a long path, keeping first and last segments."""
     if not path or len(path) <= 40:

@@ -17,7 +17,6 @@ import pytest
 
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(SB_ROOT, "src")
-TEST_PORT = 18904
 
 
 @pytest.fixture(scope="module")

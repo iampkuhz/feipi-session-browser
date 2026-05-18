@@ -217,9 +217,16 @@ def full_scan(
             print("Scanning Claude Code...")
         # Pre-load history to build session→project mapping
         history = claude_source.parse_history()
-        session_projects = {e["session_id"]: e["project"] for e in history}
-
+        # Deduplicate by session_id — history.jsonl can have multiple entries
+        # for the same session (continuations). Keep the last (most recent).
+        seen = {}
         for entry in history:
+            seen[entry["session_id"]] = entry
+        unique_history = list(seen.values())
+
+        session_projects = {e["session_id"]: e["project"] for e in unique_history}
+
+        for entry in unique_history:
             sid = entry["session_id"]
             project = entry["project"]
             summary, _msgs, _tcs, _sa = claude_source.parse_session_detail(
@@ -452,10 +459,16 @@ def incremental_scan(
     # ── Scan Claude ──────────────────────────────────────────────────
     if scan_claude:
         history = claude_source.parse_history()
-        if verbose:
-            print(f"Incremental scan: {len(history)} Claude sessions in history...")
-
+        # Deduplicate by session_id — history.jsonl can have multiple entries
+        # for the same session (continuations). Keep the last (most recent).
+        seen = {}
         for entry in history:
+            seen[entry["session_id"]] = entry
+        unique_history = list(seen.values())
+        if verbose:
+            print(f"Incremental scan: {len(unique_history)} Claude sessions in history...")
+
+        for entry in unique_history:
             sid = entry["session_id"]
             project = entry["project"]
             skey = f"claude_code:{sid}"

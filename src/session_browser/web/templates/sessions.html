@@ -14,11 +14,6 @@
             <div class="card-title">Sessions</div>
             <div class="card-sub">Triage session history by failures, token cost, agent, and project.</div>
         </div>
-        <div class="top-actions">
-            <button class="action-btn" data-quick-filter="failed" onclick="toggleQuickFilter(this)">Failed only</button>
-            <button class="action-btn" data-quick-filter="high-token" onclick="toggleQuickFilter(this)">High token</button>
-            <button class="action-btn primary" id="open-selected-session">Open selected</button>
-        </div>
     </div>
     <div class="card-body">
 
@@ -103,7 +98,7 @@
                 <!-- Session -->
                 <div>
                     <div class="cell-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}" data-tooltip="{{ s.title }}&#10;ID: {{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
-                    <div class="cell-sub mono">{{ s.project_key }}</div>
+                    <div class="cell-sub mono" data-tooltip="{{ s.project_key }}">{{ s.project_key | display_path }}</div>
                 </div>
                 <!-- Agent -->
                 <div><span class="badge agent">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></div>
@@ -162,63 +157,19 @@ window.openDemoInspector = function() {
 (function() {
     var STORAGE_KEY = 'agent-run-profiler:sessions:filters';
 
-    /* ---------- Quick filter chips ---------------------------------- */
-    var activeQuickFilter = '';
-
-    window.toggleQuickFilter = function(btn) {
-        var filter = btn.dataset.quickFilter;
-        if (activeQuickFilter === filter) {
-            activeQuickFilter = '';
-            btn.classList.remove('active');
-        } else {
-            document.querySelectorAll('[data-quick-filter]').forEach(function(b) {
-                b.classList.remove('active');
-            });
-            activeQuickFilter = filter;
-            btn.classList.add('active');
-        }
-        applyFilters();
-    };
-
-    /* ---------- Open selected --------------------------------------- */
-    function updateOpenSelectedState() {
-        var btn = document.getElementById('open-selected-session');
-        if (!btn) return;
-        var hasSelected = document.querySelector('[data-sessions-grid] .table-row.selected');
-        btn.disabled = !hasSelected;
-        btn.style.opacity = hasSelected ? '' : '0.5';
-        btn.style.cursor = hasSelected ? 'pointer' : 'default';
-    }
-
-    window.openSelectedSession = function() {
-        var row = document.querySelector('[data-sessions-grid] .table-row.selected');
-        if (!row) return;
-        window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
-    };
-
-    /* ---------- Row selection --------------------------------------- */
-    function initSelection() {
+    /* ---------- Row click → session detail -------------------------- */
+    function initRowClick() {
         var grid = document.querySelector('[data-sessions-grid]');
         if (!grid) return;
 
         grid.addEventListener('click', function(e) {
-            // Don't toggle selection when clicking links
+            // Don't hijack link clicks
             if (e.target.tagName === 'A' || e.target.closest('a')) return;
 
             var row = e.target.closest('.table-row');
             if (!row) return;
 
-            // Clear other selections
-            grid.querySelectorAll('.table-row.selected').forEach(function(r) {
-                r.classList.remove('selected');
-                r.removeAttribute('aria-selected');
-            });
-
-            // Set current row selected
-            row.classList.add('selected');
-            row.setAttribute('aria-selected', 'true');
-
-            updateOpenSelectedState();
+            window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
         });
     }
 
@@ -255,20 +206,6 @@ window.openDemoInspector = function() {
                         window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
                         return;
                     }
-                }
-            }
-            /* Quick filter */
-            if (show && activeQuickFilter) {
-                switch (activeQuickFilter) {
-                    case 'failed':
-                        if (parseInt(row.dataset.failedCount) <= 0) show = false;
-                        break;
-                    case 'high-token':
-                        if (parseInt(row.dataset.totalTokens) <= 200000) show = false;
-                        break;
-                    case 'anomalies':
-                        if (row.dataset.hasAnomalies !== 'true') show = false;
-                        break;
                 }
             }
 
@@ -315,17 +252,9 @@ window.openDemoInspector = function() {
         /* Clear All button visibility */
         var clearBtn = document.getElementById('clear-all-btn');
         if (clearBtn) {
-            var hasAnyFilter = q || agent || model || project || activeQuickFilter;
+            var hasAnyFilter = q || agent || model || project;
             clearBtn.style.display = hasAnyFilter ? '' : 'none';
         }
-
-        /* Clear selection if selected row is hidden */
-        var selectedRow = grid.querySelector('.table-row.selected');
-        if (selectedRow && selectedRow.style.display === 'none') {
-            selectedRow.classList.remove('selected');
-            selectedRow.removeAttribute('aria-selected');
-        }
-        updateOpenSelectedState();
 
         /* Persist */
         saveFilters();
@@ -338,18 +267,10 @@ window.openDemoInspector = function() {
             agent: document.getElementById('filter-agent').value,
             model: document.getElementById('filter-model').value,
             project: document.getElementById('filter-project').value,
-            sortBy: document.getElementById('sort-by').value,
-            quick: activeQuickFilter
+            sortBy: document.getElementById('sort-by').value
         };
         arpStorage.set(STORAGE_KEY, state);
-        /* Sync to URL for bookmarkability */
-        var params = new URLSearchParams(window.location.search);
-        if (activeQuickFilter) {
-            params.set('filter', activeQuickFilter);
-        } else {
-            params.delete('filter');
-        }
-        var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        var newUrl = window.location.pathname + (new URLSearchParams(window.location.search).toString() ? '?' + new URLSearchParams(window.location.search).toString() : '');
         if (newUrl !== window.location.pathname + window.location.search) {
             history.replaceState(null, '', newUrl);
         }
@@ -371,26 +292,6 @@ window.openDemoInspector = function() {
                     el.value = saved[map[id]];
                 }
             }
-            /* Restore quick filter from storage */
-            if (saved.quick) {
-                activeQuickFilter = saved.quick;
-                document.querySelectorAll('[data-quick-filter]').forEach(function(btn) {
-                    if (btn.dataset.quickFilter === saved.quick) {
-                        btn.classList.add('active');
-                    }
-                });
-            }
-        }
-        /* URL query param overrides storage (for bookmarkability) */
-        var urlParams = new URLSearchParams(window.location.search);
-        var urlFilter = urlParams.get('filter');
-        if (urlFilter) {
-            activeQuickFilter = urlFilter;
-            document.querySelectorAll('[data-quick-filter]').forEach(function(btn) {
-                if (btn.dataset.quickFilter === urlFilter) {
-                    btn.classList.add('active');
-                }
-            });
         }
     }
 
@@ -401,10 +302,6 @@ window.openDemoInspector = function() {
         document.getElementById('filter-model').value = '';
         document.getElementById('filter-project').value = '';
         document.getElementById('sort-by').value = 'ended_at';
-        activeQuickFilter = '';
-        document.querySelectorAll('[data-quick-filter]').forEach(function(btn) {
-            btn.classList.remove('active');
-        });
         arpStorage.remove(STORAGE_KEY);
         /* Clear URL filter param */
         var params = new URLSearchParams(window.location.search);
@@ -427,14 +324,8 @@ window.openDemoInspector = function() {
         }
     });
 
-    /* Open selected button */
-    var openBtn = document.getElementById('open-selected-session');
-    if (openBtn) {
-        openBtn.addEventListener('click', window.openSelectedSession);
-    }
-
-    /* Row selection */
-    initSelection();
+    /* Row click navigation */
+    initRowClick();
 
     /* Restore on load */
     restoreFilters();

@@ -157,15 +157,20 @@ class TestTraceDetailSiblingAfterTraceRow:
 
         # Both trace-row and trace-detail should be in the same for-loop
         # (indicating they are siblings, not nested)
-        for_loop = re.compile(
-            r'for.*round.*in.*%}'
-            r'.*?'
-            r'class="trace-row"'
-            r'.*?'
-            r'class="trace-detail"',
-            re.DOTALL
-        )
-        assert for_loop.search(template_source), (
+        # Simple approach: find all {% for round in rounds %} blocks and check
+        # if any block contains both trace-row and trace-detail
+        sections = template_source.split("{% for round in rounds %}")
+        found_shared_loop = False
+        for section in sections[1:]:  # skip preamble
+            # Truncate at the first {% endfor %} that matches this level
+            # A simpler check: both strings appear before the next major section
+            has_row = "trace-row" in section[:2000]
+            has_detail = "trace-detail" in section[:2000]
+            if has_row and has_detail:
+                found_shared_loop = True
+                break
+
+        assert found_shared_loop, (
             "trace-row and trace-detail should both be inside the same round for-loop"
         )
 

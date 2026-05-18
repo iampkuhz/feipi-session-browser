@@ -1,5 +1,6 @@
 """Shared pytest fixtures for session-browser tests."""
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -10,6 +11,14 @@ import sqlite3
 import pytest
 
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _find_free_port() -> int:
+    """Find an available TCP port on localhost."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        s.listen(1)
+        return s.getsockname()[1]
 
 
 @pytest.fixture(scope="module")
@@ -23,7 +32,7 @@ def live_server_url():
     if not db_path or not os.path.exists(db_path):
         pytest.skip("SB_TEST_DB not set or file not found")
 
-    port = 18899
+    port = _find_free_port()
     proc = subprocess.Popen(
         [sys.executable, "-m", "session_browser", "--db", db_path, "--port", str(port)],
         cwd=SB_ROOT,
@@ -139,7 +148,8 @@ def hifi_fixture_session():
         env["INDEX_DIR"] = index_dir
         env["CLAUDE_DATA_DIR"] = data_dir
         env["SERVER_HOST"] = "127.0.0.1"
-        env["SERVER_PORT"] = "18902"
+        port = _find_free_port()
+        env["SERVER_PORT"] = str(port)
         env["SESSION_BROWSER_LOG_LEVEL"] = "WARNING"
 
         proc = subprocess.Popen(
@@ -150,7 +160,7 @@ def hifi_fixture_session():
             stderr=subprocess.DEVNULL,
         )
 
-        base_url = "http://127.0.0.1:18902"
+        base_url = f"http://127.0.0.1:{port}"
         for _ in range(30):
             try:
                 resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)
@@ -239,7 +249,8 @@ def long_fixture_session():
         env["INDEX_DIR"] = index_dir
         env["CLAUDE_DATA_DIR"] = data_dir
         env["SERVER_HOST"] = "127.0.0.1"
-        env["SERVER_PORT"] = "18903"
+        port = _find_free_port()
+        env["SERVER_PORT"] = str(port)
         env["SESSION_BROWSER_LOG_LEVEL"] = "WARNING"
 
         proc = subprocess.Popen(
@@ -250,7 +261,7 @@ def long_fixture_session():
             stderr=subprocess.DEVNULL,
         )
 
-        base_url = "http://127.0.0.1:18903"
+        base_url = f"http://127.0.0.1:{port}"
         for _ in range(30):
             try:
                 resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)

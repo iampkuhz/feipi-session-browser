@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import pytest
+
+from session_browser.web.routes import _display_path
 
 
 class TestSessionsTemplateColumns:
@@ -291,64 +294,114 @@ class TestSessionsTemplateJS:
 
 
 class TestSessionsListActions:
-    """Verify triage action buttons exist."""
+    """Verify triage action buttons have been removed."""
 
-    def test_has_failed_only_button(self):
+    def test_no_failed_only_button(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "Failed only" in content
-        assert 'data-quick-filter="failed"' in content
+        assert "Failed only" not in content
 
-    def test_has_high_token_button(self):
+    def test_no_high_token_button(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "High token" in content
-        assert 'data-quick-filter="high-token"' in content
+        assert "High token" not in content
 
-    def test_has_open_selected_button(self):
+    def test_no_open_selected_button(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "Open selected" in content
-        assert 'id="open-selected-session"' in content
+        assert "Open selected" not in content
+        assert 'id="open-selected-session"' not in content
 
-    def test_action_buttons_use_action_btn_class(self):
-        """Triage buttons should use .action-btn, not old .filter-chip."""
+    def test_no_top_actions(self):
+        """The .top-actions container should not exist."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert 'class="action-btn"' in content
-        assert 'class="action-btn primary"' in content
+        assert "top-actions" not in content
 
-    def test_open_selected_has_click_handler(self):
-        """Open selected should have JS wiring."""
+    def test_no_toggle_quick_filter_js(self):
+        """toggleQuickFilter function should be removed."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "openSelectedSession" in content
-        assert "open-selected-session" in content
+        assert "toggleQuickFilter" not in content
 
-
-class TestSessionsListSelection:
-    """Verify row selection state support."""
-
-    def test_selected_css_exists(self):
-        """style.css should have .table-row.selected styling."""
-        with open("src/session_browser/web/static/style.css") as f:
-            content = f.read()
-        assert ".table-row.selected" in content or ".table-row.selected" in content.replace(" ", "")
-
-    def test_js_sets_selected_class(self):
-        """JS should add/remove .selected class on rows."""
+    def test_no_open_selected_session_js(self):
+        """openSelectedSession function should be removed."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "classList.add('selected')" in content or 'classList.add("selected")' in content
+        assert "openSelectedSession" not in content
 
-    def test_js_sets_aria_selected(self):
-        """JS should set aria-selected attribute."""
+
+class TestSessionsListRowClick:
+    """Verify session row click navigates to detail page."""
+
+    def test_row_has_data_agent(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "aria-selected" in content
+        assert 'data-agent="{{ s.agent }}"' in content
 
-    def test_action_btn_active_state(self):
-        """Quick filter active state should use .action-btn.active."""
-        with open("src/session_browser/web/static/style.css") as f:
+    def test_row_has_data_session_id(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert ".action-btn.active" in content or ".action-btn.active" in content.replace(" ", "")
+        assert 'data-session-id="{{ s.session_id }}"' in content
+
+    def test_js_has_init_row_click(self):
+        """JS should have initRowClick for row-level navigation."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "initRowClick" in content
+
+    def test_js_navigates_to_session_url(self):
+        """JS click handler should build /sessions/<agent>/<session_id> URL."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "/sessions/" in content
+        assert "row.dataset.agent" in content
+        assert "row.dataset.sessionId" in content
+
+    def test_js_skips_links_on_click(self):
+        """JS should not hijack clicks on <a> elements."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        # Should check for A tag and bail out
+        assert "tagName === 'A'" in content or 'tagName === "A"' in content
+
+    def test_no_selection_js_leftover(self):
+        """Should not have .selected class manipulation or aria-selected."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert ".selected" not in content
+        assert "aria-selected" not in content
+        assert "classList.add('selected')" not in content
+
+
+class TestDisplayPathFilter:
+    """Verify the display_path Jinja filter replaces home prefix with ~."""
+
+    def test_home_path_becomes_tilde(self):
+        home = os.path.expanduser("~")
+        assert _display_path(home) == "~"
+
+    def test_sub_home_path_becomes_tilde_slash(self):
+        home = os.path.expanduser("~")
+        result = _display_path(f"{home}/Documents/tools/feipi")
+        assert result == "~/Documents/tools/feipi"
+
+    def test_non_home_path_unchanged(self):
+        assert _display_path("/opt/local/project") == "/opt/local/project"
+
+    def test_empty_string_unchanged(self):
+        assert _display_path("") == ""
+
+    def test_none_returns_empty_string(self):
+        assert _display_path(None) == ""
+
+    def test_template_uses_display_path_on_cell_sub(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "display_path" in content
+
+    def test_data_project_keeps_raw_path(self):
+        """data-project attribute must retain the original project_key."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'data-project="{{ s.project_key }}"' in content
