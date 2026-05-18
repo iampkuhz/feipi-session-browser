@@ -83,13 +83,12 @@
                  data-rounds="{{ s.assistant_message_count }}">
                 <!-- Session -->
                 <div>
-                    <div class="cell-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}" data-tooltip="{{ s.title }}&#10;ID: {{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
-                    <div class="cell-sub mono" data-tooltip="{{ s.project_key }}">{{ s.project_key | display_path }}</div>
+                    <div class="cell-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
                 </div>
                 <!-- Agent -->
                 <div><span class="badge agent">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></div>
                 <!-- Project -->
-                <div class="text-xs"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a></div>
+                <div class="project-cell text-xs"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a></div>
                 <!-- Duration -->
                 <div class="text-xs text-muted mono {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
                 <!-- Tokens -->

@@ -1527,7 +1527,7 @@ a.link-muted:hover { color: var(--accent); }
 /* ─── Tooltip (general) ───────────────────────────────────────── */
 [data-tooltip] {
     position: relative;
-    cursor: help;
+    cursor: pointer;
 }
 [data-tooltip]::after {
     content: attr(data-tooltip);
@@ -2350,6 +2350,30 @@ a.link-muted:hover { color: var(--accent); }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Project cell: truncate long project names, tooltip shows full path */
+.data-table.sessions-grid .project-cell {
+    overflow: hidden;
+    min-width: 0;
+}
+.data-table.sessions-grid .project-cell a {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.data-table.sessions-grid .project-cell:hover {
+    background: var(--surface-hover, rgba(0,0,0,0.04));
+    border-radius: var(--radius-sm, 4px);
+}
+
+/* Session cell with single child: keep vertical alignment stable */
+.data-table.sessions-grid .table-row > div:only-child > .cell-title,
+.data-table.sessions-grid .table-row > div > .cell-title:only-child {
+    padding-top: 2px;
+    padding-bottom: 2px;
 }
 
 /* Agent badge in sessions grid */
@@ -4461,7 +4485,7 @@ tr.row--anomaly {
 .round-summary-table .token-bar-wrapper {
     position: relative;
     display: block;
-    cursor: help;
+    cursor: pointer;
 }
 .round-summary-table .round-token-bar {
     display: flex;
@@ -4489,7 +4513,7 @@ tr.row--anomaly {
     position: relative;
     display: inline-block;
     width: 100%;
-    cursor: help;
+    cursor: pointer;
 }
 .token-bar-wrapper:hover .token-bar-tooltip {
     opacity: 1;
@@ -5147,7 +5171,7 @@ tr.row--anomaly {
     fill: var(--accent);
     stroke: var(--surface);
     stroke-width: 1.5;
-    cursor: help;
+    cursor: pointer;
 }
 .sparkline__labels {
     display: flex;
@@ -5173,7 +5197,7 @@ tr.row--anomaly {
     align-items: stretch;
     justify-content: flex-end;
     min-width: 2px;
-    cursor: help;
+    cursor: pointer;
 }
 .round-chart-bar__stack {
     display: flex;
@@ -5206,7 +5230,7 @@ tr.row--anomaly {
 .round-bar__seg--out { fill: var(--token-output-visible); }
 .round-bar__hover {
     fill: transparent;
-    cursor: help;
+    cursor: pointer;
 }
 .round-chart-labels {
     display: flex;
@@ -6142,7 +6166,7 @@ details.raw-session pre {
     font-size: var(--text-metric-sm);
 }
 .metrics-strip__value[data-tooltip] {
-    cursor: help;
+    cursor: pointer;
 }
 
 /* Status colors */
@@ -8811,7 +8835,7 @@ body:not(.density-comfortable) .trace-row > div {
 .info-icon {
     font-size: 10px;
     color: var(--t3, var(--text-muted));
-    cursor: help;
+    cursor: pointer;
     vertical-align: super;
 }
 
@@ -8979,7 +9003,7 @@ body:not(.density-comfortable) .trace-row > div {
     border-radius: 6px;
 }
 .th-sortable:hover {
-    background: var(--gray-100, #e4e7ed);
+    background: var(--gray-200, #d8dbe0);
 }
 .th-sortable--active {
     color: var(--brand, #5b5ce2);
@@ -8997,7 +9021,7 @@ body:not(.density-comfortable) .trace-row > div {
     border-radius: 1px;
 }
 .th-sortable--active:hover {
-    background: var(--brand-light, #eef2ff);
+    background: var(--brand-light, #e0e6f8);
 }
 .th-sort-arrow {
     font-size: 0.85em;

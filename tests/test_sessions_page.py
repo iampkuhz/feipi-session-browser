@@ -145,9 +145,13 @@ class TestSessionsTemplateGridStructure:
         assert 'class="cell-title"' in content
 
     def test_has_cell_sub(self):
+        """cell-sub class may exist elsewhere but NOT in Session column."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert 'class="cell-sub' in content
+        # cell-sub must not appear in the Session column (the first <div> after <!-- Session -->)
+        # Extract the Session cell block and verify no cell-sub mono
+        assert 'class="cell-sub mono"' not in content, \
+            "Session column should not contain cell-sub mono for project path"
 
     def test_has_badge_agent(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
@@ -478,13 +482,61 @@ class TestDisplayPathFilter:
     def test_none_returns_empty_string(self):
         assert _display_path(None) == ""
 
-    def test_template_uses_display_path_on_cell_sub(self):
+    def test_template_project_column_no_tooltip(self):
+        """Project column should not have data-tooltip; hover effect shows full path via title/link."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "display_path" in content
+        assert 'project-cell' in content
+        # No data-tooltip on project-cell div
+        lines = content.split('\n')
+        for line in lines:
+            if 'project-cell' in line and 'class=' in line:
+                assert 'data-tooltip' not in line, f"project-cell should not have data-tooltip: {line}"
 
     def test_data_project_keeps_raw_path(self):
         """data-project attribute must retain the original project_key."""
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
         assert 'data-project="{{ s.project_key }}"' in content
+
+
+class TestProjectColumnTooltip:
+    """Verify Project column shows project name with full-path tooltip."""
+
+    def test_project_cell_has_project_cell_class(self):
+        """Project column cell should have project-cell class for CSS targeting."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'project-cell' in content
+
+    def test_project_cell_no_data_tooltip(self):
+        """Project cell should not use data-tooltip; hover background effect replaces tooltip."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'project-cell' in content
+        assert 'data-tooltip="{{ s.project_key | display_path }}"' not in content
+
+    def test_project_link_href_uses_urlencode(self):
+        """Project link href should point to /projects/<encoded project_key>."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'href="/projects/{{ s.project_key | urlencode }}"' in content
+
+    def test_project_link_uses_project_name(self):
+        """Project link display text should use project_name (short name)."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert '{{ s.project_name }}' in content
+
+    def test_session_cell_no_project_path(self):
+        """Session column should NOT contain cell-sub mono with project path."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        # The pattern that used to show project path under Session title
+        assert 'cell-sub mono' not in content
+
+    def test_css_has_project_cell_rules(self):
+        """CSS should define project-cell styling for truncation."""
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert '.project-cell' in content
