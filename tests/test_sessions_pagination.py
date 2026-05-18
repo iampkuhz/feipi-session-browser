@@ -14,6 +14,19 @@ from session_browser.index.indexer import (
 )
 from session_browser.domain.models import SessionSummary
 
+# Grid + pagination content is now in the partial template.
+_TEMPLATE_PATH = "src/session_browser/web/templates/sessions.html"
+_PARTIAL_PATH = "src/session_browser/web/templates/partials/sessions_grid.html"
+
+
+def _read_sessions_templates():
+    """Read sessions.html and its grid partial, return combined content."""
+    with open(_TEMPLATE_PATH) as f:
+        main = f.read()
+    with open(_PARTIAL_PATH) as f:
+        partial = f.read()
+    return main + "\n" + partial
+
 
 def _make_summary(sid: str, title: str = "", agent: str = "claude_code",
                   project: str = "proj-a", model: str = "model-x") -> SessionSummary:
@@ -150,25 +163,21 @@ class TestPaginationTemplate:
     """Verify sessions.html contains pagination controls."""
 
     def test_pagination_bar_nav(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert 'class="pagination-bar"' in content
         assert 'id="pagination-bar"' in content
 
     def test_pagination_prev_button(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert 'id="pagination-prev"' in content
         assert "goToPage" in content
 
     def test_pagination_next_button(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert 'id="pagination-next"' in content
 
     def test_pagination_page_size_select(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert 'id="pagination-page-size"' in content
         assert 'value="20"' in content
         assert 'value="50"' in content
@@ -176,23 +185,20 @@ class TestPaginationTemplate:
         assert 'value="all"' in content
 
     def test_pagination_info_display(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "Showing" in content
         assert "page_start" in content
         assert "page_end" in content
         assert "total_count" in content
 
     def test_page_info_text(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "Page" in content
         assert "of" in content
         assert "total_pages" in content
 
     def test_filter_form_has_name_attributes(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert 'name="q"' in content
         assert 'name="agent"' in content
         assert 'name="model"' in content
@@ -200,26 +206,22 @@ class TestPaginationTemplate:
         assert 'name="sort"' in content
 
     def test_filter_form_uses_preselected_values(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "filter_agent" in content
         assert "filter_model" in content
         assert "filter_project" in content
         assert "filter_q" in content
 
     def test_disabled_attribute_on_prev(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "{% if not has_prev %}disabled{% endif %}" in content
 
     def test_disabled_attribute_on_next(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "{% if not has_next %}disabled{% endif %}" in content
 
     def test_change_page_size_js(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "changePageSize" in content
         assert "page_size" in content
 
@@ -232,17 +234,14 @@ class TestPaginationTemplate:
 
     def test_no_client_side_apply_filters(self):
         """Old client-side applyFilters should be removed."""
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         # The old applyFilters function that filtered DOM rows should be gone
         assert "function applyFilters()" not in content
 
     def test_submit_filters_function(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "submitFilters" in content
 
     def test_go_to_page_function(self):
-        with open("src/session_browser/web/templates/sessions.html") as f:
-            content = f.read()
+        content = _read_sessions_templates()
         assert "goToPage" in content

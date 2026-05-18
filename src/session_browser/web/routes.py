@@ -1679,6 +1679,27 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         conn.close()
 
+        # ── AJAX partial response (X-Requested-With header) ─────────
+        is_ajax = self.headers.get("X-Requested-With") == "XMLHttpRequest"
+        if is_ajax:
+            html = self._render_template(
+                "partials/sessions_grid.html",
+                sessions=sessions_enriched,
+                total_count=total_count,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                page_start=page_start,
+                page_end=page_end,
+                has_prev=has_prev,
+                has_next=has_next,
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+            return
+
         model_list = [r["model"] for r in models]
         project_list = [(r["project_key"], r["project_name"]) for r in projects]
 

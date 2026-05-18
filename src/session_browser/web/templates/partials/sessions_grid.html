@@ -1,0 +1,109 @@
+<!-- Sessions grid + pagination — included by sessions.html and served as AJAX partial -->
+{% if sessions %}
+<div class="page-section">
+    <div class="card-title flex">All Sessions <span class="card-subtitle-inline">(<span id="sessions-visible-count">{{ page_start }}–{{ page_end }}</span> of <span id="sessions-total-count">{{ total_count | default(0, true) }}</span>)</span></div>
+    <div class="card-sub">Triage session history by failures, token cost, agent, and project.</div>
+    <div class="table-wrap">
+        <div class="data-table sessions-grid" data-sessions-grid>
+            <div class="table-head">
+                <div>Session</div>
+                <div>Agent</div>
+                <div>Project</div>
+                <div class="th-sortable" data-sort-key="duration">Duration</div>
+                <div class="th-sortable" data-sort-key="total-tokens">Tokens</div>
+                <div>Failures</div>
+                <div class="th-sortable" data-sort-key="rounds">Rounds</div>
+                <div class="th-sortable" data-sort-key="ended-at" aria-sort="descending">Updated</div>
+            </div>
+            {% for s in sessions %}
+            {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+            {% set has_anomalies = s.get('anomalies') and s['anomalies'] | length > 0 %}
+            {% set anomaly_tooltip = '' %}
+            {% if has_anomalies %}
+                {% for a in s.anomalies %}
+                    {% set anomaly_tooltip = anomaly_tooltip + a.label + ': ' + a.reason %}
+                    {% if not loop.last %}{% set anomaly_tooltip = anomaly_tooltip + '&#10;' %}{% endif %}
+                {% endfor %}
+            {% endif %}
+            <div class="table-row {{ 'row--failed' if s.failed_tool_count > 0 else '' }} {{ 'row--anomaly' if has_anomalies else '' }}"
+                 data-agent="{{ s.agent }}"
+                 data-model="{{ s.model }}"
+                 data-project="{{ s.project_key }}"
+                 data-session-id="{{ s.session_id }}"
+                 data-title="{{ s.title | lower }}"
+                 data-ended-at="{{ s.ended_at }}"
+                 data-input-tokens="{{ s.input_tokens }}"
+                 data-output-tokens="{{ s.output_tokens }}"
+                 data-tool-count="{{ s.tool_call_count }}"
+                 data-failed-count="{{ s.failed_tool_count }}"
+                 data-duration="{{ s.duration_seconds }}"
+                 data-has-anomalies="{{ 'true' if has_anomalies else 'false' }}"
+                 data-anomaly-types="{% if has_anomalies %}{% for a in s.anomalies %}{{ a.type }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"
+                 data-total-tokens="{{ total_tokens }}"
+                 data-rounds="{{ s.assistant_message_count }}">
+                <!-- Session -->
+                <div>
+                    <div class="cell-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
+                </div>
+                <!-- Agent -->
+                <div><span class="badge agent">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></div>
+                <!-- Project -->
+                <div class="project-cell text-xs"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a></div>
+                <!-- Duration -->
+                <div class="text-xs text-muted mono {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
+                <!-- Tokens -->
+                <div class="mono text-xs">{{ total_tokens | format_number }}</div>
+                <!-- Failures -->
+                <div>
+                    {% if s.failed_tool_count > 0 %}
+                    <span class="diag err">{{ s.failed_tool_count }} failed</span>
+                    {% else %}
+                    <span class="diag ok">0</span>
+                    {% endif %}
+                </div>
+                <!-- Rounds -->
+                <div class="mono text-xs">{{ s.assistant_message_count }}</div>
+                <!-- Updated -->
+                <div class="text-xs text-muted mono">{{ s.ended_at | relative_time }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div id="sessions-empty" class="empty-state" style="display:none">No sessions match your filters. Try adjusting or resetting them.</div>
+</div>
+{% else %}
+<div class="empty-state">No sessions indexed yet.</div>
+{% endif %}
+
+<!-- Pagination -->
+{% if total_count is defined and total_count > 0 %}
+<nav class="pagination-bar" id="pagination-bar">
+    <div class="pagination-bar__info">
+        Showing {{ page_start }}–{{ page_end }} of {{ total_count | default(0, true) }}
+    </div>
+    <div class="pagination-bar__controls">
+        <button class="pagination-bar__btn" id="pagination-prev"
+                {% if not has_prev %}disabled{% endif %}
+                onclick="goToPage({{ page - 1 if has_prev else page }})">
+            &laquo; Prev
+        </button>
+        {% if page_size != 'all' %}
+        <span class="pagination-bar__page-info">
+            Page {{ page }} of {{ total_pages }}
+        </span>
+        {% endif %}
+        <button class="pagination-bar__btn" id="pagination-next"
+                {% if not has_next %}disabled{% endif %}
+                onclick="goToPage({{ page + 1 if has_next else page }})">
+            Next &raquo;
+        </button>
+        <select id="pagination-page-size" class="pagination-bar__select"
+                onchange="changePageSize(this.value)">
+            <option value="20" {% if page_size == 20 %}selected{% endif %}>20 / page</option>
+            <option value="50" {% if page_size == 50 %}selected{% endif %}>50 / page</option>
+            <option value="100" {% if page_size == 100 %}selected{% endif %}>100 / page</option>
+            <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+        </select>
+    </div>
+</nav>
+{% endif %}
