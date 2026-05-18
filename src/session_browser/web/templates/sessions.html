@@ -39,14 +39,6 @@
         <option value="{{ p }}">{{ p }}</option>
         {% endfor %}
     </select>
-    <select id="sort-by" class="filter-bar__select">
-        <option value="ended_at">Sort: Last Active</option>
-        <option value="total_tokens">Sort: Tokens</option>
-        <option value="output_tokens">Sort: Output Tokens</option>
-        <option value="tool_call_count">Sort: Tool Calls</option>
-        <option value="failed_tool_count">Sort: Failed Tools</option>
-        <option value="duration_seconds">Sort: Duration</option>
-    </select>
     <button class="filter-bar__btn" id="clear-all-btn" onclick="resetSessionFilters()" style="display:none">Clear All</button>
     <button class="filter-bar__btn" onclick="resetSessionFilters()">Reset</button>
 </div>
@@ -63,11 +55,11 @@
                 <div>Session</div>
                 <div>Agent</div>
                 <div>Project</div>
-                <div>Duration</div>
-                <div>Tokens</div>
+                <div class="th-sortable" data-sort-key="duration">Duration</div>
+                <div class="th-sortable" data-sort-key="total-tokens">Tokens</div>
                 <div>Failures</div>
-                <div>Rounds</div>
-                <div>Updated</div>
+                <div class="th-sortable" data-sort-key="rounds">Rounds</div>
+                <div class="th-sortable" data-sort-key="ended-at" aria-sort="descending">Updated</div>
             </div>
             {% for s in sessions %}
             {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
@@ -157,13 +149,65 @@ window.openDemoInspector = function() {
 (function() {
     var STORAGE_KEY = 'agent-run-profiler:sessions:filters';
 
+    /* ---------- Sort state ------------------------------------------ */
+    var DEFAULT_SORT_KEY = 'ended-at';
+    var DEFAULT_SORT_DIR = 'desc';
+    var sortKey = DEFAULT_SORT_KEY;
+    var sortDir = DEFAULT_SORT_DIR;
+
+    function cycleSort(clickedKey) {
+        if (clickedKey === sortKey) {
+            if (sortDir === 'desc') {
+                sortDir = 'asc';
+            } else {
+                sortKey = DEFAULT_SORT_KEY;
+                sortDir = DEFAULT_SORT_DIR;
+            }
+        } else {
+            sortKey = clickedKey;
+            sortDir = 'desc';
+        }
+        updateHeaderStates();
+    }
+
+    function updateHeaderStates() {
+        document.querySelectorAll('.table-head .th-sortable').forEach(function(th) {
+            th.classList.remove('th-sortable--active');
+            th.removeAttribute('aria-sort');
+            var existing = th.querySelector('.th-sort-arrow');
+            if (existing) existing.remove();
+        });
+
+        var active = document.querySelector('.table-head .th-sortable[data-sort-key="' + sortKey + '"]');
+        if (active) {
+            active.classList.add('th-sortable--active');
+            active.setAttribute('aria-sort', sortDir === 'desc' ? 'descending' : 'ascending');
+            var arrow = document.createElement('span');
+            arrow.className = 'th-sort-arrow';
+            arrow.textContent = sortDir === 'desc' ? ' ↓' : ' ↑';
+            active.appendChild(arrow);
+        }
+    }
+
+    function initHeaderSort() {
+        var head = document.querySelector('.table-head');
+        if (!head) return;
+
+        head.addEventListener('click', function(e) {
+            var th = e.target.closest('.th-sortable');
+            if (!th) return;
+            cycleSort(th.dataset.sortKey);
+            applyFilters();
+        });
+    }
+
     /* ---------- Row click → session detail -------------------------- */
     function initRowClick() {
         var grid = document.querySelector('[data-sessions-grid]');
         if (!grid) return;
 
         grid.addEventListener('click', function(e) {
-            // Don't hijack link clicks
+            // Don't hijack link clicks or sort header clicks
             if (e.target.tagName === 'A' || e.target.closest('a')) return;
 
             var row = e.target.closest('.table-row');
@@ -173,13 +217,31 @@ window.openDemoInspector = function() {
         });
     }
 
+    /* ---------- Sort helpers ---------------------------------------- */
+    function sortComparator(a, b) {
+        var va, vb;
+        switch (sortKey) {
+            case 'total-tokens':
+                va = parseInt(a.dataset.totalTokens) || 0; vb = parseInt(b.dataset.totalTokens) || 0; break;
+            case 'duration':
+                va = parseFloat(a.dataset.duration) || 0; vb = parseFloat(b.dataset.duration) || 0; break;
+            case 'rounds':
+                va = parseInt(a.dataset.rounds) || 0; vb = parseInt(b.dataset.rounds) || 0; break;
+            default:
+                va = a.dataset.endedAt; vb = b.dataset.endedAt;
+                return sortDir === 'desc'
+                    ? (vb > va ? 1 : (va > vb ? -1 : 0))
+                    : (va > vb ? 1 : (vb > va ? -1 : 0));
+        }
+        return sortDir === 'desc' ? vb - va : va - vb;
+    }
+
     /* ---------- Apply all filters ----------------------------------- */
     function applyFilters() {
         var q = document.getElementById('session-search').value.toLowerCase().trim();
         var agent = document.getElementById('filter-agent').value;
         var model = document.getElementById('filter-model').value;
         var project = document.getElementById('filter-project').value;
-        var sortBy = document.getElementById('sort-by').value;
 
         var grid = document.querySelector('[data-sessions-grid]');
         if (!grid) return;
@@ -217,31 +279,10 @@ window.openDemoInspector = function() {
         });
 
         /* Sort visible rows */
-        visibleRows.sort(function(a, b) {
-            var va, vb;
-            switch (sortBy) {
-                case 'total_tokens':
-                    va = parseInt(a.dataset.totalTokens) || 0; vb = parseInt(b.dataset.totalTokens) || 0; break;
-                case 'output_tokens':
-                    va = parseInt(a.dataset.outputTokens) || 0; vb = parseInt(b.dataset.outputTokens) || 0; break;
-                case 'tool_call_count':
-                    va = parseInt(a.dataset.toolCount) || 0; vb = parseInt(b.dataset.toolCount) || 0; break;
-                case 'failed_tool_count':
-                    va = parseInt(a.dataset.failedCount) || 0; vb = parseInt(b.dataset.failedCount) || 0; break;
-                case 'duration_seconds':
-                    va = parseFloat(a.dataset.duration) || 0; vb = parseFloat(b.dataset.duration) || 0; break;
-                default:
-                    va = a.dataset.endedAt; vb = b.dataset.endedAt;
-                    return vb > va ? 1 : (va > vb ? -1 : 0);
-            }
-            return vb - va;
-        });
-
+        visibleRows.sort(sortComparator);
         visibleRows.forEach(function(r) { grid.appendChild(r); });
 
         /* Update counts */
-        var label = document.getElementById('sessions-count-label');
-        if (label) label.textContent = visibleCount + ' of {{ total_count }} sessions';
         var countEl = document.getElementById('sessions-visible-count');
         if (countEl) countEl.textContent = visibleCount;
 
@@ -267,13 +308,10 @@ window.openDemoInspector = function() {
             agent: document.getElementById('filter-agent').value,
             model: document.getElementById('filter-model').value,
             project: document.getElementById('filter-project').value,
-            sortBy: document.getElementById('sort-by').value
+            sortKey: sortKey,
+            sortDir: sortDir
         };
         arpStorage.set(STORAGE_KEY, state);
-        var newUrl = window.location.pathname + (new URLSearchParams(window.location.search).toString() ? '?' + new URLSearchParams(window.location.search).toString() : '');
-        if (newUrl !== window.location.pathname + window.location.search) {
-            history.replaceState(null, '', newUrl);
-        }
     }
 
     function restoreFilters() {
@@ -283,8 +321,7 @@ window.openDemoInspector = function() {
                 'session-search': 'q',
                 'filter-agent': 'agent',
                 'filter-model': 'model',
-                'filter-project': 'project',
-                'sort-by': 'sortBy'
+                'filter-project': 'project'
             };
             for (var id in map) {
                 var el = document.getElementById(id);
@@ -292,6 +329,8 @@ window.openDemoInspector = function() {
                     el.value = saved[map[id]];
                 }
             }
+            if (saved.sortKey) sortKey = saved.sortKey;
+            if (saved.sortDir) sortDir = saved.sortDir;
         }
     }
 
@@ -301,21 +340,16 @@ window.openDemoInspector = function() {
         document.getElementById('filter-agent').value = '';
         document.getElementById('filter-model').value = '';
         document.getElementById('filter-project').value = '';
-        document.getElementById('sort-by').value = 'ended_at';
+        sortKey = DEFAULT_SORT_KEY;
+        sortDir = DEFAULT_SORT_DIR;
+        updateHeaderStates();
         arpStorage.remove(STORAGE_KEY);
-        /* Clear URL filter param */
-        var params = new URLSearchParams(window.location.search);
-        params.delete('filter');
-        var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-        if (newUrl !== window.location.pathname + window.location.search) {
-            history.replaceState(null, '', newUrl);
-        }
         applyFilters();
     };
 
     /* ---------- Bind events ------------------------------------------- */
     var filterInputs = [
-        'session-search', 'filter-agent', 'filter-model', 'filter-project', 'sort-by'
+        'session-search', 'filter-agent', 'filter-model', 'filter-project'
     ];
     filterInputs.forEach(function(id) {
         var el = document.getElementById(id);
@@ -327,8 +361,12 @@ window.openDemoInspector = function() {
     /* Row click navigation */
     initRowClick();
 
+    /* Sortable headers */
+    initHeaderSort();
+
     /* Restore on load */
     restoreFilters();
+    updateHeaderStates();
     applyFilters();
 })();
 </script>

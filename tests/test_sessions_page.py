@@ -29,12 +29,12 @@ class TestSessionsTemplateColumns:
     def test_has_tokens_column(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "<div>Tokens</div>" in content
+        assert "Tokens" in content
 
     def test_has_duration_column(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "<div>Duration</div>" in content
+        assert "Duration" in content
 
     def test_has_failures_column(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
@@ -44,12 +44,12 @@ class TestSessionsTemplateColumns:
     def test_has_rounds_column(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "<div>Rounds</div>" in content
+        assert "Rounds" in content
 
     def test_has_updated_column(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "<div>Updated</div>" in content
+        assert "Updated" in content
 
 
 class TestSessionsTemplateRemovedColumns:
@@ -248,22 +248,94 @@ class TestSessionsTemplateAnomalyData:
 
 
 class TestSessionsTemplateSortOptions:
-    """Verify sort options are correct."""
+    """Verify sort-by select has been removed."""
 
-    def test_has_total_tokens_sort(self):
+    def test_no_sort_by_select(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "Sort: Tokens" in content
+        assert 'id="sort-by"' not in content
 
-    def test_no_input_tokens_sort(self):
+    def test_no_sort_select_options(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "Sort: Input Tokens" not in content
+        assert "Sort: Last Active" not in content
+        assert "Sort: Tokens" not in content
+        assert "Sort: Duration" not in content
 
-    def test_has_failed_tools_sort(self):
+
+class TestHeaderSort:
+    """Verify clickable header-based sorting."""
+
+    def test_duration_is_sortable(self):
         with open("src/session_browser/web/templates/sessions.html") as f:
             content = f.read()
-        assert "Sort: Failed Tools" in content
+        assert 'data-sort-key="duration"' in content
+        assert 'class="th-sortable"' in content
+
+    def test_tokens_is_sortable(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'data-sort-key="total-tokens"' in content
+
+    def test_rounds_is_sortable(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'data-sort-key="rounds"' in content
+
+    def test_updated_is_sortable(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'data-sort-key="ended-at"' in content
+
+    def test_updated_has_default_desc(self):
+        """Default sort should be Updated descending."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert 'aria-sort="descending"' in content
+
+    def test_four_sortable_headers(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert content.count('class="th-sortable"') == 4
+
+    def test_js_has_cycle_sort(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "cycleSort" in content
+
+    def test_js_has_update_header_states(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "updateHeaderStates" in content
+
+    def test_js_has_sort_comparator(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "sortComparator" in content
+
+    def test_no_sort_by_in_save_filters(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "sort-by" not in content
+
+    def test_save_filters_uses_sort_key(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "sortKey:" in content
+        assert "sortDir:" in content
+
+    def test_default_sort_is_ended_at_desc(self):
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        assert "DEFAULT_SORT_KEY = 'ended-at'" in content
+        assert "DEFAULT_SORT_DIR = 'desc'" in content
+
+    def test_non_sortable_headers_no_class(self):
+        """Session, Agent, Project, Failures should not be sortable."""
+        with open("src/session_browser/web/templates/sessions.html") as f:
+            content = f.read()
+        # Only 4 th-sortable, the other 4 columns are plain
+        assert content.count('class="th-sortable"') == 4
 
 
 class TestSessionsTemplateJS:

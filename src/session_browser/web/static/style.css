@@ -2115,7 +2115,6 @@ a.link-muted:hover { color: var(--accent); }
     display: grid;
     grid-template-columns: 70px 80px 140px 110px 110px 110px 90px 130px minmax(240px, 1fr);
     align-items: center;
-    padding: 8px 12px;
     font-size: 11px;
     font-weight: 710;
     color: var(--t4);
@@ -2129,9 +2128,9 @@ a.link-muted:hover { color: var(--accent); }
 }
 
 .data-table > .table-head > div {
+    padding: 8px 12px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    transition: background 0.15s ease;
 }
 
 .data-table > .table-row {
@@ -2172,7 +2171,7 @@ a.link-muted:hover { color: var(--accent); }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 2px 4px;
+    padding: 2px 12px;
 }
 
 /* Diag status pills */
@@ -2260,12 +2259,11 @@ a.link-muted:hover { color: var(--accent); }
 }
 
 .data-table.sessions-grid[data-sessions-grid] > .table-head {
-    grid-template-columns: minmax(200px, 2fr) 80px minmax(120px, 1.2fr) 100px 90px 100px 70px 110px;
-    cursor: default;
+    grid-template-columns: minmax(200px, 2fr) 80px minmax(90px, 1fr) 100px 100px 100px 80px 120px;
 }
 
 .data-table.sessions-grid[data-sessions-grid] > .table-row {
-    grid-template-columns: minmax(200px, 2fr) 80px minmax(120px, 1.2fr) 100px 90px 100px 70px 110px;
+    grid-template-columns: minmax(200px, 2fr) 80px minmax(90px, 1fr) 100px 100px 100px 80px 120px;
 }
 
 /* Session cell: title link + sub line */
@@ -6046,10 +6044,6 @@ details.raw-session pre {
 .metrics-strip {
     display: none;
 }
-    gap: 0;
-    padding: 8px 0;
-    align-items: center;
-}
 .metrics-strip__item {
     display: flex;
     flex-direction: column;
@@ -8911,4 +8905,38 @@ body:not(.density-comfortable) .trace-row > div {
     border-color: var(--brand, #3b82f6);
     color: var(--brand, #3b82f6);
     background: var(--gray-50, #fafbfc);
+}
+
+/* ── Sortable table headers (sessions list) ───────────────────────── */
+.th-sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    border-radius: 6px;
+}
+.th-sortable:hover {
+    background: var(--gray-100, #e4e7ed);
+}
+.th-sortable--active {
+    color: var(--brand, #5b5ce2);
+    font-weight: 700;
+}
+.th-sortable--active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 2px;
+    background: var(--brand, #5b5ce2);
+    border-radius: 1px;
+}
+.th-sortable--active:hover {
+    background: var(--brand-light, #eef2ff);
+}
+.th-sort-arrow {
+    font-size: 0.85em;
+    margin-left: 3px;
+    opacity: 0.8;
 }
