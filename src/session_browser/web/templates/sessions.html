@@ -1,326 +1,280 @@
 {% extends "base.html" %}
+{% import "components/ui_primitives.html" as ui %}
+{% import "components/sessions_list_components.html" as sl %}
 {% set active_page = 'sessions' %}
+{% set _sl_sort = 'updated' if sort_by == 'ended-at' else sort_by %}
 
 {% block title %}Sessions - Agent Run Profiler{% endblock %}
 
 {% block shell_class %} no-inspector{% endblock %}
 {% block inspector %}{% endblock %}
 
+{% block sidebar_extra %}{% endblock %}
+{% block topbar_toggles %}{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Agent Run Profiler</a> / Sessions
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ui-primitives.css">
+<link rel="stylesheet" href="/static/css/sessions-list.css">
+{% endblock %}
+
 {% block content %}
 
-<section class="card sessions-card">
-    <div class="card-body">
+<section class="content sessions-page">
 
-<!-- Filter row (server-side) -->
-<form id="session-filter-form" class="filter-bar" method="get" action="/sessions">
-    <input id="session-search" type="text" name="q" placeholder="Search by Session ID..."
-           class="filter-bar__input filter-bar__input--search" value="{{ filter_q }}" />
-    <span class="search-hint">仅支持 Session ID</span>
-    <select id="filter-agent" name="agent" class="filter-bar__select">
-        <option value="">All Agents</option>
-        <option value="claude_code" {% if filter_agent == 'claude_code' %}selected{% endif %}>Claude Code</option>
-        <option value="qoder" {% if filter_agent == 'qoder' %}selected{% endif %}>Qoder</option>
-        <option value="codex" {% if filter_agent == 'codex' %}selected{% endif %}>Codex</option>
-    </select>
-    <select id="filter-model" name="model" class="filter-bar__select">
-        <option value="">All Models</option>
-        {% for m in model_list %}
-        <option value="{{ m }}" {% if filter_model == m %}selected{% endif %}>{{ m }}</option>
-        {% endfor %}
-    </select>
-    <select id="filter-project" name="project" class="filter-bar__select filter-bar__select--project">
-        <option value="">All Projects</option>
-        {% for p in project_list %}
-        <option value="{{ p }}" {% if filter_project == p %}selected{% endif %}>{{ p }}</option>
-        {% endfor %}
-    </select>
-    <input type="hidden" id="sort-input" name="sort" value="{{ sort_by }}" />
-    <button class="filter-bar__btn" id="clear-all-btn" type="button" style="display:{% if filter_q or filter_agent or filter_model or filter_project %}''{% else %}none{% endif %}" onclick="resetSessionFilters()">Clear All</button>
-    <button class="filter-bar__btn" id="apply-filter-btn" type="submit">Apply</button>
-</form>
+<!-- Page title -->
+{{ sl.page_title(
+    total_sessions=total_count,
+    total_projects=project_list | length,
+    total_tokens=0
+) }}
 
-<!-- Grid + pagination (server-rendered, AJAX-replaceable) -->
-<div id="sessions-grid-container">{% include "partials/sessions_grid.html" %}</div>
+<!-- Filter card -->
+<section class="sessions-filter-card">
+    <form id="session-filter-form" method="get" action="/sessions">
+        <div class="sessions-filter-head">
+            <label class="sessions-search">
+                <span class="sessions-search__icon">&#x2315;</span>
+                <input id="session-search" type="text" name="q" placeholder="Search by Session ID..." value="{{ filter_q }}" />
+            </label>
+            <span class="sessions-search-hint">仅支持 Session ID</span>
+        </div>
+        <div class="sessions-control-row">
+            <label class="ui-select">
+                <span class="ui-select__label">Agent</span>
+                <select class="ui-select__control" id="filter-agent" name="agent">
+                    <option value="">All Agents</option>
+                    <option value="claude_code" {% if filter_agent == 'claude_code' %}selected{% endif %}>Claude Code</option>
+                    <option value="qoder" {% if filter_agent == 'qoder' %}selected{% endif %}>Qoder</option>
+                    <option value="codex" {% if filter_agent == 'codex' %}selected{% endif %}>Codex</option>
+                </select>
+            </label>
+            <label class="ui-select">
+                <span class="ui-select__label">Model</span>
+                <select class="ui-select__control" id="filter-model" name="model">
+                    <option value="">All Models</option>
+                    {% for m in model_list %}
+                    <option value="{{ m }}" {% if filter_model == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="ui-select">
+                <span class="ui-select__label">Project</span>
+                <select class="ui-select__control" id="filter-project" name="project">
+                    <option value="">All Projects</option>
+                    {% for p in project_list %}
+                    <option value="{{ p }}" {% if filter_project == p %}selected{% endif %}>{{ p }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <input type="hidden" id="sort-input" name="sort" value="{{ sort_by }}" />
+            <span class="sessions-control-row__push"></span>
+            {{ ui.btn('Clear All', 'secondary', 'sm', extra_class='js-clear-all') }}
+            {{ ui.btn('Apply', 'primary', 'sm', type='submit') }}
+        </div>
+        {{ sl.active_filters(
+            session_id=filter_q,
+            agent=filter_agent,
+            project=filter_project,
+            count_label=('Showing ' ~ page_start ~ '–' ~ page_end ~ ' of ' ~ total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions')
+        ) }}
+    </form>
+</section>
 
+<!-- Table card -->
+<section class="sessions-table-card">
+    <form id="sessions-table-form" method="get" action="/sessions">
+        <div class="sessions-table-toolbar">
+            <div class="sessions-table-title">All Sessions</div>
+            <div class="sessions-table-sub">描述列用于识别 session；metrics 列支持排序。</div>
+        </div>
+        <div class="sessions-table-scroll">
+            <div class="sessions-grid" role="table" aria-label="Sessions table" data-sessions-grid>
+                {{ sl.table_header(sort_key=_sl_sort, sort_dir='desc') }}
+                {% if sessions %}
+                {% for s in sessions %}
+                {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+                {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                <div class="sessions-row"
+                     data-agent="{{ s.agent }}"
+                     data-model="{{ s.model }}"
+                     data-project="{{ s.project_key }}"
+                     data-session-id="{{ s.session_id }}"
+                     data-title="{{ s.title | lower }}"
+                     data-ended-at="{{ s.ended_at }}"
+                     data-total-tokens="{{ total_tokens }}"
+                     data-rounds="{{ s.assistant_message_count }}"
+                     data-tool-count="{{ s.tool_call_count }}"
+                     data-duration="{{ s.duration_seconds }}">
+                    <!-- Title -->
+                    <div class="sessions-td">
+                        <div class="sessions-cell-main">
+                            <div class="sessions-title">
+                                <a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a>
+                            </div>
+                            <div class="sessions-meta">
+                                <span class="sessions-id">{{ s.session_id[:12] }}</span>
+                                {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Project -->
+                    <div class="sessions-td">
+                        <div class="sessions-cell-main">
+                            <div class="sessions-project-name">
+                                <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a>
+                            </div>
+                            {% if s.cwd %}<div class="sessions-project-parent">{{ s.cwd | display_path }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <!-- Agent -->
+                    <div class="sessions-td">
+                        <span class="sessions-agent-badge">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
+                    </div>
+                    <!-- Model -->
+                    <div class="sessions-td"><span class="sessions-model">{{ s.model }}</span></div>
+                    <!-- Tokens -->
+                    <div class="sessions-td sessions-td--num">
+                        {{ ui.token_total(total_tokens | format_number, fresh_pct, cache_pct, output_pct) }}
+                    </div>
+                    <!-- Rounds -->
+                    <div class="sessions-td sessions-td--num">{{ s.assistant_message_count }}</div>
+                    <!-- Tools -->
+                    <div class="sessions-td sessions-td--num">{{ s.tool_call_count }}</div>
+                    <!-- Duration -->
+                    <div class="sessions-td sessions-td--num" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
+                    <!-- Updated -->
+                    <div class="sessions-td sessions-td--num">{{ s.ended_at | relative_time }}</div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty-state">No sessions indexed yet.</div>
+                {% endif %}
+            </div>
+        </div>
+        {% if total_count is defined and total_count > 0 %}
+        {{ sl.footer(
+            start_label=page_start,
+            end_label=page_end,
+            total_label=total_count
+        ) }}
+        {% endif %}
+    </form>
+</section>
+
+</section>
+
+<script src="/static/js/ui_primitives.js"></script>
 <script>
-/* ---------- Inspector demo ------------------------------------------ */
-window.openDemoInspector = function() {
-    if (typeof openInspector !== 'function') {
-        alert('Inspector JS 未加载');
-        return;
-    }
-    openInspector({
-        title: 'Demo Session',
-        metadata: {
-            'Type': { value: 'session' },
-            'Agent': { value: 'claude_code' },
-            'Model': { value: 'claude-sonnet-4-20250514' },
-            'Session ID': { value: 'demo-20250101-abc123', mono: true }
-        },
-        summary: '这是一条演示数据，用于验证 Inspector 面板的打开/关闭、滚动保持与 Esc 关闭功能。',
-        related: [
-            { label: '查看完整 Session', href: '/sessions/claude_code/demo-20250101-abc123' },
-            { label: '所属 Project', href: '/projects/demo-project' }
-        ],
-        viewerHtml: '<p class="text-muted text-xs">Viewer slot 预留区域，后续接入 request/response viewer。</p>'
-    });
-};
-
 (function() {
-    var STORAGE_KEY = 'agent-run-profiler:sessions:filters';
-
-    /* ---------- Sort state ------------------------------------------ */
     var DEFAULT_SORT_KEY = 'ended-at';
-    var DEFAULT_SORT_DIR = 'desc';
     var sortKey = '{{ sort_by | default("ended-at") }}' || DEFAULT_SORT_KEY;
-    var sortDir = DEFAULT_SORT_DIR;
 
-    function cycleSort(clickedKey) {
-        if (clickedKey === sortKey) {
-            if (sortDir === 'desc') {
-                sortDir = 'asc';
-            } else {
-                sortKey = DEFAULT_SORT_KEY;
-                sortDir = DEFAULT_SORT_DIR;
-            }
-        } else {
-            sortKey = clickedKey;
-            sortDir = 'desc';
-        }
+    /* ---------- Sort key sync for AJAX submission ----------------- */
+    function syncSortKey(key) {
+        var sortInput = document.getElementById('sort-input');
+        if (sortInput) sortInput.value = key;
     }
 
-    /* ---------- Sort helpers ---------------------------------------- */
-    function initHeaderSort() {
-        var grid = document.querySelector('[data-sessions-grid]');
-        if (!grid) return;
-        var head = grid.querySelector('.table-head');
-        if (!head) return;
-
-        head.addEventListener('click', function(e) {
-            var th = e.target.closest('.th.sortable');
-            if (!th) return;
-            cycleSort(th.dataset.sortKey);
-            updateHeaderStates();
-            submitFilters();
-        });
-    }
-
-    function updateHeaderStates() {
-        var currentParams = new URLSearchParams(window.location.search);
-        var currentSort = currentParams.get('sort') || DEFAULT_SORT_KEY;
-
-        document.querySelectorAll('.table-head .th.sortable').forEach(function(th) {
-            th.setAttribute('aria-sort', 'none');
-            var icon = th.querySelector('.sort-icon');
-            if (icon) {
-                icon.textContent = '↕';
-                icon.classList.remove('active');
-            }
-            var btn = th.querySelector('button');
-            if (btn) btn.removeAttribute('data-sort-dir');
-        });
-
-        var active = document.querySelector('.table-head .th.sortable[data-sort-key="' + currentSort + '"]');
-        if (active) {
-            var dir = (currentSort === DEFAULT_SORT_KEY && !currentParams.get('sort')) ? 'desc' : 'desc';
-            active.setAttribute('aria-sort', dir === 'desc' ? 'descending' : 'ascending');
-            var icon = active.querySelector('.sort-icon');
-            if (icon) {
-                icon.textContent = dir === 'desc' ? '↓' : '↑';
-                icon.classList.add('active');
-            }
-        }
-    }
-
-    /* ---------- Row click → session detail -------------------------- */
-    function initRowClick() {
-        var grid = document.querySelector('[data-sessions-grid]');
-        if (!grid) return;
-
-        grid.addEventListener('click', function(e) {
-            if (e.target.tagName === 'A' || e.target.closest('a')) return;
-
-            var row = e.target.closest('.table-row');
-            if (!row) return;
-
-            window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
-        });
-    }
-
-    /* ---------- Save / restore filters (local storage) ---------------- */
-    function saveFilters() {
-        var state = {
-            q: document.getElementById('session-search').value,
-            agent: document.getElementById('filter-agent').value,
-            model: document.getElementById('filter-model').value,
-            project: document.getElementById('filter-project').value,
-            sortKey: sortKey,
-            sortDir: sortDir
-        };
-        arpStorage.set(STORAGE_KEY, state);
-    }
-
-    /* ---------- AJAX filter submission ------------------------------ */
-    var filterDebounceTimer = null;
-    var isSubmitting = false;
-
+    /* ---------- Submit filters via AJAX --------------------------- */
     function submitFilters() {
-        if (isSubmitting) return;
-        isSubmitting = true;
-
-        var btn = document.getElementById('apply-filter-btn');
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = '…';
-        }
-
         var params = new URLSearchParams();
         var q = document.getElementById('session-search').value;
         var agent = document.getElementById('filter-agent').value;
         var model = document.getElementById('filter-model').value;
         var project = document.getElementById('filter-project').value;
+        var sort = document.getElementById('sort-input').value;
 
         if (q) params.set('q', q);
         if (agent) params.set('agent', agent);
         if (model) params.set('model', model);
         if (project) params.set('project', project);
-        if (sortKey && sortKey !== DEFAULT_SORT_KEY) params.set('sort', sortKey);
-
-        var currentParams = new URLSearchParams(window.location.search);
-        var pageSize = currentParams.get('page_size');
-        if (pageSize) params.set('page_size', pageSize);
+        if (sort && sort !== DEFAULT_SORT_KEY) params.set('sort', sort);
 
         var qs = params.toString();
         var url = '/sessions' + (qs ? '?' + qs : '');
 
-        fetch(url, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function(resp) {
             if (!resp.ok) throw new Error('Network error: ' + resp.status);
             return resp.text();
         })
         .then(function(html) {
             var container = document.getElementById('sessions-grid-container');
-            if (container) {
-                container.innerHTML = html;
-            }
-            // Re-bind dynamic listeners on new content
-            initRowClick();
-            initHeaderSort();
-            updateHeaderStates();
-            updateClearButtonVisibility();
-            // Update URL without reload
+            if (container) container.innerHTML = html;
             history.pushState({ url: url }, '', url);
         })
-        .catch(function(err) {
-            console.error('[sessions] AJAX filter failed:', err);
-            // Fallback: full navigation
+        .catch(function() {
             window.location.href = url;
-        })
-        .finally(function() {
-            isSubmitting = false;
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = 'Apply';
-            }
         });
     }
 
-    function submitFiltersDebounced() {
-        clearTimeout(filterDebounceTimer);
-        filterDebounceTimer = setTimeout(submitFilters, 400);
+    /* ---------- Bind filter change events ------------------------- */
+    ['session-search', 'filter-agent', 'filter-model', 'filter-project'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', submitFilters);
+    });
+
+    var searchEl = document.getElementById('session-search');
+    if (searchEl) {
+        var debounceTimer;
+        searchEl.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(submitFilters, 400);
+        });
     }
 
-    /* ---------- Pagination helpers ---------------------------------- */
+    /* Prevent default form submission */
+    document.getElementById('session-filter-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitFilters();
+    });
+
+    /* ---------- Clear All button ---------------------------------- */
+    var clearBtn = document.querySelector('.js-clear-all');
+    if (clearBtn) {
+        var hasAnyFilter = '{{ filter_q }}' || '{{ filter_agent }}' || '{{ filter_model }}' || '{{ filter_project }}';
+        clearBtn.style.display = hasAnyFilter ? '' : 'none';
+        clearBtn.addEventListener('click', function() { window.location.href = '/sessions'; });
+    }
+
+    /* ---------- Row click navigation ------------------------------ */
+    var grid = document.querySelector('[data-sessions-grid]');
+    if (grid) {
+        grid.addEventListener('click', function(e) {
+            if (e.target.tagName === 'A' || e.target.closest('a')) return;
+            var row = e.target.closest('.sessions-row');
+            if (!row) return;
+            window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
+        });
+    }
+
+    /* ---------- Sort button clicks: sync + AJAX submit ------------ */
+    document.addEventListener('click', function(e) {
+        var sortBtn = e.target.closest('[data-sort-key]');
+        if (!sortBtn) return;
+        e.preventDefault();
+        syncSortKey(sortBtn.dataset.sortKey);
+        submitFilters();
+    });
+
+    /* ---------- Pagination helpers -------------------------------- */
     window.goToPage = function(targetPage) {
         var params = new URLSearchParams(window.location.search);
         params.set('page', String(targetPage));
         window.location.href = '/sessions?' + params.toString();
     };
-
     window.changePageSize = function(newSize) {
         var params = new URLSearchParams(window.location.search);
         params.set('page_size', newSize);
         params.set('page', '1');
         window.location.href = '/sessions?' + params.toString();
     };
-
-    /* ---------- Reset filters ----------------------------------------- */
-    window.resetSessionFilters = function() {
-        window.location.href = '/sessions';
-    };
-
-    /* ---------- Clear All button visibility --------------------------- */
-    function updateClearButtonVisibility() {
-        var clearBtn = document.getElementById('clear-all-btn');
-        if (clearBtn) {
-            var q = document.getElementById('session-search').value;
-            var agent = document.getElementById('filter-agent').value;
-            var model = document.getElementById('filter-model').value;
-            var project = document.getElementById('filter-project').value;
-            var hasAnyFilter = q || agent || model || project;
-            clearBtn.style.display = hasAnyFilter ? '' : 'none';
-        }
-    }
-
-    /* ---------- Bind events ------------------------------------------- */
-    var filterInputs = [
-        'session-search', 'filter-agent', 'filter-model', 'filter-project'
-    ];
-    filterInputs.forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('change', submitFilters);
-        }
-    });
-
-    // Debounced input for search field
-    var searchEl = document.getElementById('session-search');
-    if (searchEl) {
-        searchEl.addEventListener('input', submitFiltersDebounced);
-    }
-
-    // Prevent default form submission (use AJAX instead)
-    var form = document.getElementById('session-filter-form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            submitFilters();
-        });
-    }
-
-    /* Row click navigation */
-    initRowClick();
-
-    /* Sortable headers */
-    initHeaderSort();
-    updateHeaderStates();
-
-    /* Clear All button visibility */
-    updateClearButtonVisibility();
-
-    /* ---------- Browser Back/Forward support ------------------------ */
-    window.addEventListener('popstate', function(e) {
-        if (e.state && e.state.url) {
-            fetch(e.state.url, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(function(resp) { return resp.text(); })
-            .then(function(html) {
-                var container = document.getElementById('sessions-grid-container');
-                if (container) {
-                    container.innerHTML = html;
-                }
-                initRowClick();
-                initHeaderSort();
-                updateHeaderStates();
-                updateClearButtonVisibility();
-            });
-        } else {
-            window.location.reload();
-        }
-    });
 })();
 </script>
 

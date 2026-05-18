@@ -1560,7 +1560,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             self._send_404()
             return
 
-        content_type = "text/css" if filename.endswith(".css") else "application/javascript"
+        content_type = "text/css" if filename.endswith(".css") else (
+            "application/javascript" if filename.endswith(".js") else "text/plain"
+        )
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.end_headers()
@@ -1607,6 +1609,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         SORT_KEY_MAP = {
             "ended-at": "ended_at",
             "duration": "duration_seconds",
+            "tokens": "input_tokens",
             "total-tokens": "input_tokens",
             "rounds": "assistant_message_count",
             "tools": "tool_call_count",

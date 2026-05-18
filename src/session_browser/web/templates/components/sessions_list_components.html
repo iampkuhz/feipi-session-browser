@@ -1,0 +1,59 @@
+{#
+  Sessions List HIFI components.
+  Usage:
+    {% import "components/ui_primitives.html" as ui %}
+    {% import "components/sessions_list_components.html" as sl %}
+#}
+{% import "components/ui_primitives.html" as ui %}
+
+{% macro page_title(total_sessions, total_projects, total_tokens) -%}
+  <div class="sessions-page-title">
+    <div>
+      <h1>Sessions</h1>
+      <div class="sessions-page-title__sub">查看本地 agent session 记录；当前阶段只支持按 Session ID 搜索，并保留核心 metrics 排序。</div>
+    </div>
+    <div class="sessions-page-title__stats">
+      <span class="ui-stat-pill"><b>{{ total_sessions }}</b> sessions</span>
+      <span class="ui-stat-pill"><b>{{ total_projects }}</b> projects</span>
+      <span class="ui-stat-pill"><b>{{ total_tokens }}</b> tokens</span>
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro active_filters(session_id='', agent='', project='', count_label='') -%}
+  <div class="sessions-active-filters" aria-live="polite">
+    <span class="sessions-active-filters__label">Active filters</span>
+    {%- if session_id %}
+      <span class="ui-filter-chip">Session ID: {{ session_id }} <button type="submit" name="remove_filter" value="session_id" aria-label="Remove session id filter">×</button></span>
+    {%- endif %}
+    {%- if agent %}
+      <span class="ui-filter-chip">Agent: {{ agent }} <button type="submit" name="remove_filter" value="agent" aria-label="Remove agent filter">×</button></span>
+    {%- endif %}
+    {%- if project %}
+      <span class="ui-filter-chip">Project: {{ project }} <button type="submit" name="remove_filter" value="project" aria-label="Remove project filter">×</button></span>
+    {%- endif %}
+    <span class="sessions-results-status">{{ count_label }}</span>
+  </div>
+{%- endmacro %}
+
+{% macro table_header(sort_key='updated', sort_dir='desc') -%}
+  {{ ui.th_static('Title') }}
+  {{ ui.th_static('Project') }}
+  {{ ui.th_static('Agent') }}
+  {{ ui.th_static('Model') }}
+  {{ ui.th_sort('Tokens', 'tokens', sort_key, sort_dir) }}
+  {{ ui.th_sort('Rounds', 'rounds', sort_key, sort_dir) }}
+  {{ ui.th_sort('Tools', 'tools', sort_key, sort_dir) }}
+  {{ ui.th_sort('Duration', 'duration', sort_key, sort_dir) }}
+  {{ ui.th_sort('Updated', 'updated', sort_key, sort_dir) }}
+{%- endmacro %}
+
+{% macro footer(start_label, end_label, total_label) -%}
+  <div class="sessions-table-footer">
+    <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" name="page" value="prev">Previous</button>
+    <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" name="page" value="next">Next</button>
+    <span class="sessions-page-range">Rows {{ start_label }}–{{ end_label }}</span>
+    <span class="sessions-footer-spacer"></span>
+    <span class="sessions-footer-total">{{ total_label }} matching sessions</span>
+  </div>
+{%- endmacro %}

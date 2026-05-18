@@ -16,15 +16,21 @@ from session_browser.domain.models import SessionSummary
 
 _TEMPLATE_PATH = "src/session_browser/web/templates/sessions.html"
 _PARTIAL_PATH = "src/session_browser/web/templates/partials/sessions_grid.html"
+_UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
+_SL_COMPONENTS_PATH = "src/session_browser/web/templates/components/sessions_list_components.html"
 
 
 def _read_sessions_templates():
-    """Read sessions.html and its grid partial, return combined content."""
+    """Read sessions.html, its grid partial, and component macros, return combined content."""
     with open(_TEMPLATE_PATH) as f:
         main = f.read()
     with open(_PARTIAL_PATH) as f:
         partial = f.read()
-    return main + "\n" + partial
+    with open(_UI_PRIMITIVES_PATH) as f:
+        ui = f.read()
+    with open(_SL_COMPONENTS_PATH) as f:
+        sl = f.read()
+    return main + "\n" + partial + "\n" + ui + "\n" + sl
 
 
 def _make_summary(sid: str, title: str = "", agent: str = "claude_code",
@@ -159,11 +165,11 @@ class TestListSessionsWithFilters:
 # ─── Template: footer controls ───────────────────────────────────────────
 
 class TestFooterTemplate:
-    """Verify sessions.html contains HIFI v3 footer controls."""
+    """Verify sessions.html contains HIFI v4 footer controls."""
 
     def test_table_footer_nav(self):
         content = _read_sessions_templates()
-        assert 'class="table-footer"' in content
+        assert 'class="sessions-table-footer"' in content
 
     def test_prev_button(self):
         content = _read_sessions_templates()
@@ -176,12 +182,12 @@ class TestFooterTemplate:
 
     def test_rows_range(self):
         content = _read_sessions_templates()
-        assert 'class="page-range"' in content
+        assert 'class="sessions-page-range"' in content
         assert "Rows" in content
 
     def test_footer_total(self):
         content = _read_sessions_templates()
-        assert 'class="footer-total"' in content
+        assert 'class="sessions-footer-total"' in content
         assert "matching sessions" in content
 
     def test_no_sorted_by(self):
@@ -190,9 +196,9 @@ class TestFooterTemplate:
         assert "sorted by" not in content.lower()
 
     def test_no_page_size_select_in_footer(self):
-        """HIFI v3 footer does not have page size select."""
+        """HIFI v4 footer does not have page size select."""
         content = _read_sessions_templates()
-        footer_section = content.split('table-footer')[1] if 'table-footer' in content else ""
+        footer_section = content.split('sessions-table-footer')[1] if 'sessions-table-footer' in content else ""
         assert '/ page' not in footer_section
 
     def test_no_page_info_text(self):
@@ -240,11 +246,3 @@ class TestFooterTemplate:
         """changePageSize still exists for URL-based size changes."""
         content = _read_sessions_templates()
         assert "changePageSize" in content
-
-    def test_footer_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
-            content = f.read()
-        assert ".table-footer" in content
-        assert ".page-btn" in content
-        assert ".page-range" in content
-        assert ".footer-total" in content

@@ -95,9 +95,7 @@
                     {% endblock %}
                 </nav>
                 <div class="topbar-actions" aria-label="全局操作">
-                    {% block topbar_toggles %}{% endblock %}
-
-                    {% block topbar_extras %}
+                    {% block topbar_toggles %}
                     <!-- Density toggle -->
                     <button id="density-toggle" class="density-toggle" onclick="ViewState.toggleDensity()" aria-pressed="false" title="当前：紧凑 · 点击切换为宽松" aria-label="密度切换">
                         <span class="density-toggle__label" aria-hidden="true">紧凑</span>

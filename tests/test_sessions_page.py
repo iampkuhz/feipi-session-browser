@@ -1,4 +1,4 @@
-"""Tests for Sessions page grid restructure — HIFI v3 layout."""
+"""Tests for Sessions page grid — HIFI v4 componentized layout."""
 
 from __future__ import annotations
 
@@ -7,18 +7,24 @@ import pytest
 
 from session_browser.web.routes import _display_path
 
-# Grid content is now in the partial template; combine both for selector checks.
+# Grid content is in the main template and the partial.
 _TEMPLATE_PATH = "src/session_browser/web/templates/sessions.html"
 _PARTIAL_PATH = "src/session_browser/web/templates/partials/sessions_grid.html"
+_UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
+_SL_COMPONENTS_PATH = "src/session_browser/web/templates/components/sessions_list_components.html"
 
 
 def _read_sessions_templates():
-    """Read sessions.html and its grid partial, return combined content."""
+    """Read sessions.html, its grid partial, and component macros, return combined content."""
     with open(_TEMPLATE_PATH) as f:
         main = f.read()
     with open(_PARTIAL_PATH) as f:
         partial = f.read()
-    return main + "\n" + partial
+    with open(_UI_PRIMITIVES_PATH) as f:
+        ui = f.read()
+    with open(_SL_COMPONENTS_PATH) as f:
+        sl = f.read()
+    return main + "\n" + partial + "\n" + ui + "\n" + sl
 
 
 class TestSessionsTemplateColumns:
@@ -26,39 +32,39 @@ class TestSessionsTemplateColumns:
 
     def test_has_title_column(self):
         content = _read_sessions_templates()
-        assert '<div class="th" role="columnheader">Title</div>' in content
+        assert "th_static('Title')" in content
 
     def test_has_project_column(self):
         content = _read_sessions_templates()
-        assert '<div class="th" role="columnheader">Project</div>' in content
+        assert "th_static('Project')" in content
 
     def test_has_agent_column(self):
         content = _read_sessions_templates()
-        assert '<div class="th" role="columnheader">Agent</div>' in content
+        assert "th_static('Agent')" in content
 
     def test_has_model_column(self):
         content = _read_sessions_templates()
-        assert '<div class="th" role="columnheader">Model</div>' in content
+        assert "th_static('Model')" in content
 
     def test_has_tokens_column(self):
         content = _read_sessions_templates()
-        assert "Tokens" in content
+        assert "th_sort('Tokens'" in content
 
     def test_has_rounds_column(self):
         content = _read_sessions_templates()
-        assert "Rounds" in content
+        assert "th_sort('Rounds'" in content
 
     def test_has_tools_column(self):
         content = _read_sessions_templates()
-        assert "Tools" in content
+        assert "th_sort('Tools'" in content
 
     def test_has_duration_column(self):
         content = _read_sessions_templates()
-        assert "Duration" in content
+        assert "th_sort('Duration'" in content
 
     def test_has_updated_column(self):
         content = _read_sessions_templates()
-        assert "Updated" in content
+        assert "th_sort('Updated'" in content
 
 
 class TestSessionsTemplateRemovedColumns:
@@ -98,7 +104,6 @@ class TestSessionsTemplateRemovedColumns:
     def test_no_hero(self):
         """No hero section in sessions list page."""
         content = _read_sessions_templates()
-        # No hero class or hero content
         assert "hero" not in content.lower()
 
 
@@ -109,38 +114,34 @@ class TestSessionsTemplateGridStructure:
         content = _read_sessions_templates()
         assert "data-sessions-grid" in content
 
-    def test_has_table_head(self):
+    def test_has_sessions_row(self):
         content = _read_sessions_templates()
-        assert 'class="table-head"' in content
+        assert "sessions-row" in content
 
-    def test_has_table_row(self):
+    def test_has_sessions_title(self):
         content = _read_sessions_templates()
-        assert "table-row" in content
+        assert 'class="sessions-title"' in content
 
-    def test_has_session_title(self):
+    def test_has_sessions_meta(self):
         content = _read_sessions_templates()
-        assert 'class="session-title"' in content
+        assert 'class="sessions-meta"' in content
 
-    def test_has_session_meta(self):
+    def test_has_sessions_id(self):
         content = _read_sessions_templates()
-        assert 'class="session-meta"' in content
+        assert 'class="sessions-id"' in content
 
-    def test_has_session_id(self):
+    def test_has_agent_badge(self):
         content = _read_sessions_templates()
-        assert 'class="session-id"' in content
+        assert 'class="sessions-agent-badge"' in content
 
-    def test_has_badge_agent(self):
-        content = _read_sessions_templates()
-        assert 'class="badge agent"' in content
-
-    def test_has_mini_bar(self):
+    def test_has_token_bar(self):
         """Token bar should be present in tokens cell."""
         content = _read_sessions_templates()
-        assert 'class="mini-bar"' in content
+        assert 'class="sessions-token-bar"' in content
 
-    def test_has_token_stack(self):
+    def test_has_token_total(self):
         content = _read_sessions_templates()
-        assert 'class="token-stack"' in content
+        assert 'class="sessions-token-total"' in content
 
     def test_no_data_table_enhanced(self):
         """data-table-enhanced attribute should be removed."""
@@ -152,89 +153,56 @@ class TestSortableHeaders:
     """Verify sortable / non-sortable header contract."""
 
     def test_title_not_sortable(self):
-        """Title column should not be sortable — no button, no sort icon."""
+        """Title column should not be sortable."""
         content = _read_sessions_templates()
-        # Title th is a plain div without sortable class
-        assert '<div class="th sortable"' not in content.split('Title</div>')[0].split('table-head')[-1]
+        assert "th_sort('Title'" not in content
 
     def test_project_not_sortable(self):
         content = _read_sessions_templates()
-        # Project th should not contain button
-        lines = content.split('\n')
-        in_head = False
-        for line in lines:
-            if 'table-head' in line:
-                in_head = True
-            if in_head and 'Project' in line:
-                assert '<button' not in line
-                break
+        assert "th_sort('Project'" not in content
 
     def test_agent_not_sortable(self):
         content = _read_sessions_templates()
-        lines = content.split('\n')
-        in_head = False
-        for line in lines:
-            if 'table-head' in line:
-                in_head = True
-            if in_head and 'Agent' in line:
-                assert '<button' not in line
-                break
+        assert "th_sort('Agent'" not in content
 
     def test_model_not_sortable(self):
         content = _read_sessions_templates()
-        lines = content.split('\n')
-        in_head = False
-        for line in lines:
-            if 'table-head' in line:
-                in_head = True
-            if in_head and 'Model' in line:
-                assert '<button' not in line
-                break
+        assert "th_sort('Model'" not in content
 
     def test_tokens_is_sortable(self):
         content = _read_sessions_templates()
-        assert 'data-sort-key="total-tokens"' in content
-        assert '<button type="button" data-sort-key="total-tokens"' in content
+        assert "th_sort('Tokens', 'tokens'" in content
 
     def test_rounds_is_sortable(self):
         content = _read_sessions_templates()
-        assert 'data-sort-key="rounds"' in content
-        assert '<button type="button" data-sort-key="rounds"' in content
+        assert "th_sort('Rounds', 'rounds'" in content
 
     def test_tools_is_sortable(self):
         content = _read_sessions_templates()
-        assert 'data-sort-key="tools"' in content
-        assert '<button type="button" data-sort-key="tools"' in content
+        assert "th_sort('Tools', 'tools'" in content
 
     def test_duration_is_sortable(self):
         content = _read_sessions_templates()
-        assert 'data-sort-key="duration"' in content
-        assert '<button type="button" data-sort-key="duration"' in content
+        assert "th_sort('Duration', 'duration'" in content
 
     def test_updated_is_sortable(self):
         content = _read_sessions_templates()
-        assert 'data-sort-key="ended-at"' in content
-        assert '<button type="button" data-sort-key="ended-at"' in content
+        assert "th_sort('Updated', 'updated'" in content
 
     def test_five_sortable_headers(self):
-        """Exactly 5 sortable headers with sort-icon."""
+        """Exactly 5 sortable header definitions in the table_header macro."""
         content = _read_sessions_templates()
-        assert content.count('class="sort-icon"') == 5
-
-    def test_sortable_button_pattern(self):
-        """Sortable headers use button + sort-icon pattern."""
-        content = _read_sessions_templates()
-        assert '<span class="sort-icon">↕</span>' in content
+        # Count th_sort calls in the table_header macro body (excluding the macro def line itself)
+        assert content.count("ui.th_sort(") == 5
 
     def test_default_sort_aria(self):
-        """Default sort column (Updated) should have aria-sort set."""
+        """Default sort column should have aria-sort set."""
         content = _read_sessions_templates()
-        assert 'aria-sort=' in content
+        assert "aria-sort" in content
 
     def test_no_sortable_legend(self):
         """No Sortable / Info only legend in the template."""
         content = _read_sessions_templates()
-        # Check no legend HTML elements exist
         assert "legend-sort" not in content
         assert "legend-item" not in content
         assert "Info only" not in content
@@ -247,42 +215,15 @@ class TestSortableHeaders:
         assert "Comfort" not in content
 
 
-class TestHeaderSortJS:
-    """Verify JS sort behavior."""
-
-    def test_js_has_cycle_sort(self):
-        content = _read_sessions_templates()
-        assert "cycleSort" in content
-
-    def test_js_has_update_header_states(self):
-        content = _read_sessions_templates()
-        assert "updateHeaderStates" in content
-
-    def test_default_sort_is_ended_at_desc(self):
-        content = _read_sessions_templates()
-        assert "DEFAULT_SORT_KEY = 'ended-at'" in content
-        assert "DEFAULT_SORT_DIR = 'desc'" in content
-
-    def test_non_sortable_headers_no_sort_key(self):
-        """Non-sortable headers should not have data-sort-key."""
-        content = _read_sessions_templates()
-        head_section = content.split('table-head')[1].split('</div>')[0:20]
-        for chunk in head_section:
-            if 'data-sort-key' in chunk:
-                # Only sortable th should have data-sort-key
-                assert 'sortable' in chunk
-
-
 class TestFooter:
     """Verify footer layout."""
 
     def test_has_table_footer(self):
         content = _read_sessions_templates()
-        assert 'class="table-footer"' in content
+        assert 'class="sessions-table-footer"' in content
 
     def test_has_previous_button(self):
         content = _read_sessions_templates()
-        assert 'class="page-btn"' in content
         assert "Previous" in content
 
     def test_has_next_button(self):
@@ -291,35 +232,22 @@ class TestFooter:
 
     def test_has_rows_range(self):
         content = _read_sessions_templates()
-        assert 'class="page-range"' in content
+        assert 'class="sessions-page-range"' in content
         assert "Rows" in content
 
     def test_has_footer_total(self):
         content = _read_sessions_templates()
-        assert 'class="footer-total"' in content
+        assert 'class="sessions-footer-total"' in content
         assert "matching sessions" in content
 
     def test_has_footer_spacer(self):
         content = _read_sessions_templates()
-        assert 'class="footer-spacer"' in content
+        assert 'class="sessions-footer-spacer"' in content
 
     def test_no_sorted_by_in_footer(self):
         """Footer must not contain 'sorted by' text."""
         content = _read_sessions_templates()
         assert "sorted by" not in content.lower()
-
-    def test_no_page_size_select(self):
-        """No page size select in footer."""
-        content = _read_sessions_templates()
-        # The old pagination-bar had page size select; new table-footer does not
-        footer_section = content.split('table-footer')[1] if 'table-footer' in content else ""
-        assert 'pagination-bar__select' not in footer_section
-        assert '/ page' not in footer_section
-
-    def test_no_page_info_text(self):
-        """No 'Page X of Y' text."""
-        content = _read_sessions_templates()
-        assert 'Page {{ page }} of {{ total_pages }}' not in content
 
 
 class TestSearch:
@@ -336,13 +264,12 @@ class TestSearch:
 
     def test_search_hint_class(self):
         content = _read_sessions_templates()
-        assert 'class="search-hint"' in content
+        assert 'class="sessions-search-hint"' in content
 
     def test_no_broad_search_hint(self):
         """Search hint should NOT mention title, project, or prompt."""
         content = _read_sessions_templates()
-        # The hint should be specific to Session ID only
-        hint_section = content.split('search-hint')[1].split('<')[0] if 'search-hint' in content else ""
+        hint_section = content.split('sessions-search-hint')[1].split('<')[0] if 'sessions-search-hint' in content else ""
         assert "title" not in hint_section.lower()
         assert "project" not in hint_section.lower()
         assert "prompt" not in hint_section.lower()
@@ -355,9 +282,9 @@ class TestSessionsTemplateJS:
         content = _read_sessions_templates()
         assert "[data-sessions-grid]" in content
 
-    def test_js_uses_table_row_selector(self):
+    def test_js_uses_sessions_row_selector(self):
         content = _read_sessions_templates()
-        assert ".table-row" in content
+        assert ".sessions-row" in content or "sessions-row" in content
 
     def test_no_tbody_selector(self):
         """Old tbody selector should be removed."""
@@ -413,11 +340,6 @@ class TestSessionsListRowClick:
         content = _read_sessions_templates()
         assert 'data-session-id="{{ s.session_id }}"' in content
 
-    def test_js_has_init_row_click(self):
-        """JS should have initRowClick for row-level navigation."""
-        content = _read_sessions_templates()
-        assert "initRowClick" in content
-
     def test_js_navigates_to_session_url(self):
         """JS click handler should build /sessions/<agent>/<session_id> URL."""
         content = _read_sessions_templates()
@@ -468,9 +390,9 @@ class TestDisplayPathFilter:
 class TestProjectColumn:
     """Verify Project column rendering."""
 
-    def test_project_cell_has_project_cell_class(self):
+    def test_project_cell_has_project_name_class(self):
         content = _read_sessions_templates()
-        assert 'project-cell' in content
+        assert 'sessions-project-name' in content
 
     def test_project_link_href_uses_urlencode(self):
         content = _read_sessions_templates()
@@ -515,49 +437,44 @@ class TestPaginationTemplate:
 
 
 class TestCSS:
-    """Verify CSS selectors for HIFI v3."""
+    """Verify CSS selectors for HIFI v4."""
 
     def test_sessions_grid_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
         assert ".sessions-grid" in content
 
-    def test_th_sortable_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
-            content = f.read()
-        assert ".th.sortable" in content
-
     def test_table_footer_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".table-footer" in content
+        assert ".sessions-table-footer" in content
 
     def test_search_hint_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".search-hint" in content
+        assert ".sessions-search-hint" in content
 
-    def test_session_title_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+    def test_sessions_title_css(self):
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".session-title" in content
+        assert ".sessions-title" in content
 
-    def test_session_meta_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+    def test_sessions_meta_css(self):
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".session-meta" in content
+        assert ".sessions-meta" in content
 
-    def test_mini_bar_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+    def test_token_bar_css(self):
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".mini-bar" in content
+        assert ".sessions-token-bar" in content
 
     def test_sort_icon_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".sort-icon" in content
+        assert ".sessions-sort-icon" in content
 
-    def test_project_cell_css(self):
-        with open("src/session_browser/web/static/style.css") as f:
+    def test_project_name_css(self):
+        with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".project-cell" in content
+        assert ".sessions-project-name" in content

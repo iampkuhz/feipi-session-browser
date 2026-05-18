@@ -1,105 +1,82 @@
-<!-- Sessions grid + pagination — included by sessions.html and served as AJAX partial -->
+<!-- Sessions grid + pagination — included via AJAX and replaced into sessions-grid-container -->
 {% if sessions %}
-<div class="page-section">
-    <div class="table-wrap">
-        <div class="data-table sessions-grid" data-sessions-grid>
-            <div class="table-head">
-                <div class="th" role="columnheader">Title</div>
-                <div class="th" role="columnheader">Project</div>
-                <div class="th" role="columnheader">Agent</div>
-                <div class="th" role="columnheader">Model</div>
-                <div class="th sortable" role="columnheader" aria-sort="none">
-                    <button type="button" data-sort-key="total-tokens">Tokens <span class="sort-icon">↕</span></button>
-                </div>
-                <div class="th sortable" role="columnheader" aria-sort="none">
-                    <button type="button" data-sort-key="rounds">Rounds <span class="sort-icon">↕</span></button>
-                </div>
-                <div class="th sortable" role="columnheader" aria-sort="none">
-                    <button type="button" data-sort-key="tools">Tools <span class="sort-icon">↕</span></button>
-                </div>
-                <div class="th sortable" role="columnheader" aria-sort="none">
-                    <button type="button" data-sort-key="duration">Duration <span class="sort-icon">↕</span></button>
-                </div>
-                <div class="th sortable" role="columnheader" aria-sort="none">
-                    <button type="button" data-sort-key="ended-at">Updated <span class="sort-icon">↕</span></button>
-                </div>
-            </div>
-            {% for s in sessions %}
-            {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-            {% set has_anomalies = s.get('anomalies') and s['anomalies'] | length > 0 %}
-            <div class="table-row {{ 'row--failed' if s.failed_tool_count > 0 else '' }} {{ 'row--anomaly' if has_anomalies else '' }}"
-                 data-agent="{{ s.agent }}"
-                 data-model="{{ s.model }}"
-                 data-project="{{ s.project_key }}"
-                 data-session-id="{{ s.session_id }}"
-                 data-title="{{ s.title | lower }}"
-                 data-ended-at="{{ s.ended_at }}"
-                 data-input-tokens="{{ s.input_tokens }}"
-                 data-output-tokens="{{ s.output_tokens }}"
-                 data-tool-count="{{ s.tool_call_count }}"
-                 data-failed-count="{{ s.failed_tool_count }}"
-                 data-duration="{{ s.duration_seconds }}"
-                 data-has-anomalies="{{ 'true' if has_anomalies else 'false' }}"
-                 data-anomaly-types="{% if has_anomalies %}{% for a in s.anomalies %}{{ a.type }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"
-                 data-total-tokens="{{ total_tokens }}"
-                 data-rounds="{{ s.assistant_message_count }}">
-                <!-- Title -->
-                <div class="td">
-                    <div class="session-cell">
-                        <div class="session-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
-                        <div class="session-meta">
-                            <span class="session-id">{{ s.session_id[:12] }}</span>
-                            {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
-                        </div>
+<div class="sessions-table-scroll">
+    <div class="sessions-grid" role="table" aria-label="Sessions table" data-sessions-grid>
+        {% for s in sessions %}
+        {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+        {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+        {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+        {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+        <div class="sessions-row"
+             data-agent="{{ s.agent }}"
+             data-model="{{ s.model }}"
+             data-project="{{ s.project_key }}"
+             data-session-id="{{ s.session_id }}"
+             data-title="{{ s.title | lower }}"
+             data-ended-at="{{ s.ended_at }}"
+             data-total-tokens="{{ total_tokens }}"
+             data-rounds="{{ s.assistant_message_count }}"
+             data-tool-count="{{ s.tool_call_count }}"
+             data-duration="{{ s.duration_seconds }}">
+            <!-- Title -->
+            <div class="sessions-td">
+                <div class="sessions-cell-main">
+                    <div class="sessions-title">
+                        <a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a>
+                    </div>
+                    <div class="sessions-meta">
+                        <span class="sessions-id">{{ s.session_id[:12] }}</span>
+                        {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
                     </div>
                 </div>
-                <!-- Project -->
-                <div class="td">
-                    <div class="project-cell">
+            </div>
+            <!-- Project -->
+            <div class="sessions-td">
+                <div class="sessions-cell-main">
+                    <div class="sessions-project-name">
                         <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a>
-                        {% if s.cwd %}<div class="project-sub">{{ s.cwd | display_path }}</div>{% endif %}
                     </div>
+                    {% if s.cwd %}<div class="sessions-project-parent">{{ s.cwd | display_path }}</div>{% endif %}
                 </div>
-                <!-- Agent -->
-                <div class="td"><span class="badge agent">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></div>
-                <!-- Model -->
-                <div class="td"><span class="model">{{ s.model }}</span></div>
-                <!-- Tokens -->
-                <div class="td num">
-                    <div class="token-stack">
-                        <span class="strong">{{ total_tokens | format_number }}</span>
-                        <span class="mini-bar">
-                            <span class="fresh" style="width:{{ (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
-                            <span class="cache" style="width:{{ ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
-                            <span class="out" style="width:{{ (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
-                        </span>
-                    </div>
-                </div>
-                <!-- Rounds -->
-                <div class="td num">{{ s.assistant_message_count }}</div>
-                <!-- Tools -->
-                <div class="td num">{{ s.tool_call_count }}</div>
-                <!-- Duration -->
-                <div class="td time {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
-                <!-- Updated -->
-                <div class="td time">{{ s.ended_at | relative_time }}</div>
             </div>
-            {% endfor %}
+            <!-- Agent -->
+            <div class="sessions-td">
+                <span class="sessions-agent-badge">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
+            </div>
+            <!-- Model -->
+            <div class="sessions-td"><span class="sessions-model">{{ s.model }}</span></div>
+            <!-- Tokens -->
+            <div class="sessions-td sessions-td--num">
+                <div class="sessions-token-total">
+                    <span class="sessions-token-total__value">{{ total_tokens | format_number }}</span>
+                    <span class="sessions-token-bar" aria-hidden="true">
+                        <span class="sessions-token-bar__fresh" style="width:{{ fresh_pct }}%"></span>
+                        <span class="sessions-token-bar__cache" style="width:{{ cache_pct }}%"></span>
+                        <span class="sessions-token-bar__out" style="width:{{ output_pct }}%"></span>
+                    </span>
+                </div>
+            </div>
+            <!-- Rounds -->
+            <div class="sessions-td sessions-td--num">{{ s.assistant_message_count }}</div>
+            <!-- Tools -->
+            <div class="sessions-td sessions-td--num">{{ s.tool_call_count }}</div>
+            <!-- Duration -->
+            <div class="sessions-td sessions-td--num" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
+            <!-- Updated -->
+            <div class="sessions-td sessions-td--num">{{ s.ended_at | relative_time }}</div>
         </div>
+        {% endfor %}
     </div>
-    <div id="sessions-empty" class="empty-state" style="display:none">No sessions match your filters. Try adjusting or resetting them.</div>
+    {% if total_count is defined and total_count > 0 %}
+    <div class="sessions-table-footer">
+        <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" {% if not has_prev %}disabled{% endif %} onclick="goToPage({{ page - 1 if has_prev else page }})">Previous</button>
+        <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" {% if not has_next %}disabled{% endif %} onclick="goToPage({{ page + 1 if has_next else page }})">Next</button>
+        <span class="sessions-page-range">Rows {{ page_start }}–{{ page_end }}</span>
+        <span class="sessions-footer-spacer"></span>
+        <span class="sessions-footer-total">{{ total_count }} matching sessions</span>
+    </div>
+    {% endif %}
 </div>
 {% else %}
 <div class="empty-state">No sessions indexed yet.</div>
-{% endif %}
-
-<!-- Footer -->
-{% if total_count is defined and total_count > 0 %}
-<div class="table-footer">
-    <button class="page-btn" {% if not has_prev %}disabled{% endif %} onclick="goToPage({{ page - 1 if has_prev else page }})">Previous</button>
-    <button class="page-btn" {% if not has_next %}disabled{% endif %} onclick="goToPage({{ page + 1 if has_next else page }})">Next</button>
-    <span class="page-range">Rows {{ page_start }}–{{ page_end }}</span>
-    <span class="footer-spacer"></span>
-    <span class="footer-total">{{ total_count | default(0, true) }} matching sessions</span>
-</div>
 {% endif %}

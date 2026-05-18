@@ -1,0 +1,85 @@
+/* ───────────────────────────────────────────────────────────────
+ * UI primitives — component-level reusable building blocks
+ * Keep these primitives generic. Page-specific styling belongs in sessions-list.css.
+ * ─────────────────────────────────────────────────────────────── */
+:root {
+  --ui-radius-btn: 9px;
+  --ui-radius-pill: 999px;
+  --ui-h-control-sm: 28px;
+  --ui-h-control-md: 30px;
+  --ui-font-ui: var(--font-sans, Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Noto Sans SC", "Noto Sans", sans-serif);
+  --ui-font-mono: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace);
+  --ui-brand: var(--brand, #5b5ce2);
+  --ui-brand-bg: var(--brand-light, #eef2ff);
+  --ui-line: var(--border, #d9e2ef);
+  --ui-line-soft: var(--border-light, #e8eef6);
+  --ui-text: var(--text-primary, #111827);
+  --ui-text-2: var(--text-secondary, #334155);
+  --ui-text-3: var(--text-muted, #64748b);
+  --ui-surface: var(--surface, #fff);
+  --ui-shadow-sm: var(--shadow-sm, 0 1px 3px rgba(15, 23, 42, .07));
+}
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ui-radius-btn);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-family: var(--ui-font-ui);
+  font-size: 12px;
+  font-weight: 760;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--ui-shadow-sm);
+  white-space: nowrap;
+}
+.ui-btn--sm { height: var(--ui-h-control-sm); padding: 0 9px; }
+.ui-btn--md { height: var(--ui-h-control-md); padding: 0 10px; }
+.ui-btn--primary { border-color: var(--ui-brand); background: var(--ui-brand); color: #fff; }
+.ui-btn--secondary { border-color: var(--ui-line); background: #fff; color: var(--ui-text-2); }
+.ui-btn:hover,.ui-btn:focus-visible { outline: 0; border-color: var(--ui-brand); color: var(--ui-brand); }
+.ui-btn--primary:hover,.ui-btn--primary:focus-visible { color: #fff; filter: brightness(.98); }
+.ui-select {
+  height: var(--ui-h-control-md);
+  border: 1px solid var(--ui-line);
+  background: #fff;
+  border-radius: var(--ui-radius-btn);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--ui-text-2);
+  font-size: 12px;
+}
+.ui-select__label {
+  color: var(--ui-text-3);
+  font-weight: 780;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-size: 10px;
+}
+.ui-select__control { border: 0; outline: 0; background: transparent; color: var(--ui-text-2); font-size: 12px; max-width: 190px; }
+.ui-filter-chip {
+  height: 24px;
+  border: 1px solid #dfe3ff;
+  background: #eff1ff;
+  color: var(--ui-brand);
+  border-radius: var(--ui-radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 760;
+}
+.ui-filter-chip button {
+  width: 16px;height: 16px;border: 0;background: rgba(91, 92, 226, .10);color: var(--ui-brand);
+  border-radius: var(--ui-radius-pill);display: grid;place-items: center;line-height: 1;padding: 0;cursor: pointer;font-weight: 900;
+}
+.ui-stat-pill {
+  height: 28px;display: inline-flex;align-items: center;gap: 6px;border: 1px solid var(--ui-line);
+  background: #fff;border-radius: var(--ui-radius-pill);padding: 0 10px;font-size: 12px;color: var(--ui-text-2);box-shadow: var(--ui-shadow-sm);
+}
+.ui-stat-pill b { font-family: var(--ui-font-mono);font-size: 12px;color: var(--ui-text); }

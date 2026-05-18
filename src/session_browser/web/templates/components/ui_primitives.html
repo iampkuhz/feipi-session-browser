@@ -1,0 +1,53 @@
+{# 
+  UI primitives for Agent Run Profiler.
+  Purpose: centralize button/select/chip/table-header composition so Sessions List does not hand-roll styles.
+  Usage:
+    {% import "components/ui_primitives.html" as ui %}
+#}
+
+{% macro btn(label, variant='secondary', size='md', type='button', href=None, extra_class='') -%}
+  {%- set cls = 'ui-btn ui-btn--' ~ variant ~ ' ui-btn--' ~ size ~ (' ' ~ extra_class if extra_class else '') -%}
+  {%- if href -%}
+    <a class="{{ cls }}" href="{{ href }}">{{ label }}</a>
+  {%- else -%}
+    <button type="{{ type }}" class="{{ cls }}">{{ label }}</button>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro select_control(label, name, options, selected='', extra_class='') -%}
+  <label class="ui-select {{ extra_class }}">
+    <span class="ui-select__label">{{ label }}</span>
+    <select class="ui-select__control" name="{{ name }}">
+      {%- for opt in options %}
+        {%- set opt_value = opt.value if opt.value is defined else opt[0] if opt is sequence and opt is not string else opt -%}
+        {%- set opt_label = opt.label if opt.label is defined else opt[1] if opt is sequence and opt is not string and opt|length > 1 else opt_value -%}
+        <option value="{{ opt_value }}" {% if opt_value == selected %}selected{% endif %}>{{ opt_label }}</option>
+      {%- endfor %}
+    </select>
+  </label>
+{%- endmacro %}
+
+{% macro stat_pill(value, label) -%}
+  <span class="ui-stat-pill"><b>{{ value }}</b> {{ label }}</span>
+{%- endmacro %}
+
+{% macro th_static(label) -%}
+  <div class="sessions-th" role="columnheader">{{ label }}</div>
+{%- endmacro %}
+
+{% macro th_sort(label, key, sort_key='', sort_dir='desc') -%}
+  {%- set active = (sort_key == key) -%}
+  {%- set aria = ' aria-sort="' ~ ('ascending' if sort_dir == 'asc' else 'descending') ~ '"' if active else '' -%}
+  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}>{{ label }}<button type="submit" name="sort" value="{{ key }}" class="sessions-th__sort-btn" data-sort-key="{{ key }}"><span class="sessions-sort-icon {% if active %}sessions-sort-icon--active{% endif %}" aria-hidden="true">{%- if active -%}{{ '↑' if sort_dir == 'asc' else '↓' }}{%- else -%}↕{%- endif -%}</span></button></div>
+{%- endmacro %}
+
+{% macro token_total(total, fresh_pct=0, cache_pct=0, output_pct=0) -%}
+  <div class="sessions-token-total">
+    <span class="sessions-token-total__value">{{ total }}</span>
+    <span class="sessions-token-bar" aria-hidden="true">
+      <span class="sessions-token-bar__fresh" style="width: {{ fresh_pct|default(0) }}%"></span>
+      <span class="sessions-token-bar__cache" style="width: {{ cache_pct|default(0) }}%"></span>
+      <span class="sessions-token-bar__out" style="width: {{ output_pct|default(0) }}%"></span>
+    </span>
+  </div>
+{%- endmacro %}

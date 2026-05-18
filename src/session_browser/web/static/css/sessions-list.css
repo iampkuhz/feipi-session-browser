@@ -1,0 +1,69 @@
+/* ───────────────────────────────────────────────────────────────
+ * Sessions List HIFI v4 — page-scoped component CSS
+ * Scope: only `.sessions-page` descendants. Do not style session detail here.
+ * ─────────────────────────────────────────────────────────────── */
+.sessions-page {
+  --sessions-line: var(--border, #d9e2ef);
+  --sessions-line-soft: var(--border-light, #e8eef6);
+  --sessions-text: var(--text-primary, #111827);
+  --sessions-text-2: var(--text-secondary, #334155);
+  --sessions-text-3: var(--text-muted, #64748b);
+  --sessions-brand: var(--brand, #5b5ce2);
+  --sessions-row-h: 48px;
+  --sessions-card-radius: 18px;
+  --sessions-shadow: 0 10px 26px rgba(15,23,42,.065);
+}
+.sessions-page .sessions-page-title{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:12px}
+.sessions-page .sessions-page-title h1{margin:0;font-size:19px;line-height:1.2;font-weight:850;letter-spacing:-.03em}
+.sessions-page .sessions-page-title__sub{margin-top:4px;color:var(--sessions-text-3);font-size:12px}
+.sessions-page .sessions-page-title__stats{display:flex;gap:8px;align-items:center}
+.sessions-page .sessions-filter-card,.sessions-page .sessions-table-card{background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--sessions-line);border-radius:var(--sessions-card-radius);box-shadow:var(--sessions-shadow);overflow:hidden}
+.sessions-page .sessions-filter-card{margin-bottom:12px}
+.sessions-page .sessions-filter-head{height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--sessions-line-soft);background:linear-gradient(90deg,rgba(91,92,226,.045),transparent 44%),#fff}
+.sessions-page .sessions-search{flex:1;min-width:260px;height:30px;border:1px solid var(--sessions-line);border-radius:10px;background:#fff;display:flex;align-items:center;padding:0 10px;gap:8px}
+.sessions-page .sessions-search__icon{color:var(--sessions-text-3);font-size:12px}
+.sessions-page .sessions-search input{border:0;outline:0;width:100%;min-width:0;color:var(--sessions-text);background:transparent;font-size:13px}
+.sessions-page .sessions-search-hint{height:22px;display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;background:#f8fafc;border:1px solid var(--sessions-line-soft);color:var(--sessions-text-3);font-size:11px;font-weight:760}
+.sessions-page .sessions-control-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--sessions-line-soft);background:#fff}
+.sessions-page .sessions-control-row__push{margin-left:auto}
+.sessions-page .sessions-active-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;background:#fbfcff}
+.sessions-page .sessions-active-filters__label{font-size:11px;font-weight:820;color:var(--sessions-text-3);text-transform:uppercase;letter-spacing:.07em}
+.sessions-page .sessions-results-status{margin-left:auto;color:var(--sessions-text-3);font-size:12px}
+.sessions-page .sessions-table-toolbar{height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--sessions-line-soft);background:linear-gradient(180deg,#fff,#fbfcff)}
+.sessions-page .sessions-table-title{font-weight:840;color:var(--sessions-text);font-size:13px}
+.sessions-page .sessions-table-sub{color:var(--sessions-text-3);font-size:12px}
+.sessions-page .sessions-table-scroll{overflow:auto;background:#fff}
+.sessions-page .sessions-grid{min-width:1120px;display:grid;grid-template-columns:minmax(340px,2fr) minmax(190px,1fr) 98px 126px 104px 82px 82px 108px 94px}
+.sessions-page .sessions-th,.sessions-page .sessions-td{min-width:0;padding:0 10px;border-bottom:1px solid var(--sessions-line-soft)}
+.sessions-page .sessions-th{height:34px;display:flex;align-items:center;background:#f8fafc;color:var(--sessions-text-3);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.065em;position:sticky;top:0;z-index:3}
+.sessions-page .sessions-th--sortable{background:linear-gradient(180deg,#f6f8ff,#f3f6ff);color:var(--sessions-text-2)}
+.sessions-page .sessions-th__sort-btn{min-height:25px;border:1px solid transparent;background:transparent;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:flex;align-items:center;gap:6px;padding:0 5px;margin-left:-5px;border-radius:8px;cursor:pointer}
+.sessions-page .sessions-th__sort-btn:hover,.sessions-page .sessions-th__sort-btn:focus-visible{outline:0;border-color:#dfe3ff;background:#fff;color:var(--sessions-brand);box-shadow:0 1px 3px rgba(15,23,42,.07)}
+.sessions-page .sessions-sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);font-size:11px;font-weight:900}
+.sessions-page .sessions-sort-icon--active{background:var(--sessions-brand);border-color:var(--sessions-brand);color:#fff}
+.sessions-page .sessions-row{display:contents}
+.sessions-page .sessions-row:hover .sessions-td{background:#fbfdff}
+.sessions-page .sessions-row.is-selected .sessions-td{background:linear-gradient(90deg,#f7f9ff,#fff)}
+.sessions-page .sessions-row.is-selected .sessions-td:first-child{box-shadow:inset 3px 0 0 var(--sessions-brand)}
+.sessions-page .sessions-td{height:var(--sessions-row-h);display:flex;align-items:center;font-size:12.5px;color:var(--sessions-text-2);background:#fff}
+.sessions-page .sessions-cell-main{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
+.sessions-page .sessions-title{font-weight:790;color:var(--sessions-text);font-size:13px;line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sessions-page .sessions-meta{display:flex;align-items:center;gap:6px;min-width:0;color:var(--sessions-text-3);font-size:11.5px}
+.sessions-page .sessions-id{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);color:var(--sessions-text-3)}
+.sessions-page .sessions-project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
+.sessions-page .sessions-project-parent{font-size:11.5px;color:var(--sessions-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sessions-page .sessions-agent-badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;padding:0 8px;background:var(--agent-claude-bg,#f5f3ff);color:var(--agent-claude,#7c3aed);border:1px solid #ddd6fe;font-weight:780;font-size:11.5px}
+.sessions-page .sessions-model{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
+.sessions-page .sessions-td--num{justify-content:flex-end;font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);font-variant-numeric:tabular-nums;color:var(--sessions-text-2)}
+.sessions-page .sessions-td--strong{font-weight:800;color:var(--sessions-text)}
+.sessions-page .sessions-token-total{display:flex;align-items:center;gap:7px;justify-content:flex-end;width:100%}
+.sessions-page .sessions-token-total__value{font-weight:800;color:var(--sessions-text)}
+.sessions-page .sessions-token-bar{width:46px;height:7px;border-radius:999px;overflow:hidden;display:flex;background:#f2f5fa;border:1px solid var(--sessions-line-soft)}
+.sessions-page .sessions-token-bar span{height:100%;display:block}
+.sessions-page .sessions-token-bar__fresh{background:var(--token-input-fresh,#2563eb)}
+.sessions-page .sessions-token-bar__cache{background:var(--token-cache-read,#f59e0b)}
+.sessions-page .sessions-token-bar__out{background:var(--token-output-visible,#059669)}
+.sessions-page .sessions-table-footer{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--sessions-line-soft);background:#fbfcff;color:var(--sessions-text-3);font-size:12px}
+.sessions-page .sessions-page-range{margin-left:4px;color:var(--sessions-text-2);font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);font-weight:720}
+.sessions-page .sessions-footer-spacer{flex:1}
+.sessions-page .sessions-footer-total{color:var(--sessions-text-3)}
