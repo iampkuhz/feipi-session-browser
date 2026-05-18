@@ -57,14 +57,14 @@ def test_llm_call_card_has_metrics():
     )
 
 
-def test_llm_call_card_has_request_response_actions():
-    """Each .llm-call-card must have Request and Response action buttons."""
+def test_llm_call_card_has_context_output_actions():
+    """Each .llm-call-card must have Context and Output action buttons."""
     source = _session_source()
-    assert 'data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-request"' in source, (
-        "LLM call card must have Request button with llm-...-request payload key"
+    assert 'data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-context"' in source, (
+        "LLM call card must have Context button with llm-...-context payload key"
     )
-    assert 'data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-response"' in source, (
-        "LLM call card must have Response button with llm-...-response payload key"
+    assert 'data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-output"' in source, (
+        "LLM call card must have Output button with llm-...-output payload key"
     )
 
 
@@ -169,19 +169,19 @@ def test_no_llm_calls_fallback():
 # ── Payload registry ────────────────────────────────────────────────
 
 
-def test_payload_registry_has_llm_request_key():
-    """Payload registry must register llm-R{N}-IX{N}-request key."""
+def test_payload_registry_has_llm_context_key():
+    """Payload registry must register llm-R{N}-IX{N}-context key."""
     source = _session_source()
-    assert "llm-R{{ round_idx }}-IX{{ ix_index }}-request" in source, (
-        "Payload registry must include llm-...-request key"
+    assert "llm-R{{ round_idx }}-IX{{ ix_index }}-context" in source, (
+        "Payload registry must include llm-...-context key"
     )
 
 
-def test_payload_registry_has_llm_response_key():
-    """Payload registry must register llm-R{N}-IX{N}-response key."""
+def test_payload_registry_has_llm_output_key():
+    """Payload registry must register llm-R{N}-IX{N}-output key."""
     source = _session_source()
-    assert "llm-R{{ round_idx }}-IX{{ ix_index }}-response" in source, (
-        "Payload registry must include llm-...-response key"
+    assert "llm-R{{ round_idx }}-IX{{ ix_index }}-output" in source, (
+        "Payload registry must include llm-...-output key"
     )
 
 

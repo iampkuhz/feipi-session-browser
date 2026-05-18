@@ -115,9 +115,12 @@ class TestComputePreviewLLMResponse:
             tool_calls=tools,
         )]
         r.compute_preview()
+        # preview_text: text only, NO tool badges
         assert "Let me check" in r.preview_text
-        assert "Read * 1" in r.preview_text or '<span class="preview-tool">Read</span>×1' in r.preview_text
-        assert "Bash * 1" in r.preview_text or '<span class="preview-tool">Bash</span>×1' in r.preview_text
+        assert "preview-tool" not in r.preview_text
+        # Tool counts in tool_summary_html
+        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
+        assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
 
     def test_response_truncated_when_long(self):
         long_response = "word " * 50  # 250 chars
@@ -132,12 +135,14 @@ class TestComputePreviewLLMResponse:
             tool_calls=tools,
         )]
         r.compute_preview()
-        # Response is truncated to 100 chars, then tool summary appended
-        assert '<span class="preview-tool">Read</span>×1' in r.preview_text
-        assert "…" in r.preview_text  # ellipsis present due to truncation
+        # preview_text: truncated response, no tool badges
+        assert "…" in r.preview_text
+        assert "preview-tool" not in r.preview_text
+        # Tool count in tool_summary_html
+        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
 
     def test_response_long_with_no_tools(self):
-        """When response text is long but there are no tools, it gets truncated."""
+        """When response text is long but there are no tools, preview shows truncated assistant."""
         long_response = "word " * 50  # 250 chars
         assistant = ChatMessage(role="assistant", content=long_response, timestamp="")
         user = ChatMessage(role="user", content="q", timestamp="")
@@ -148,22 +153,24 @@ class TestComputePreviewLLMResponse:
             timestamp="", status="ok", response_preview=long_response,
         )]
         r.compute_preview()
-        # No tools + has user input → shows user input
-        assert "q" in r.preview_text
+        # Has assistant content → show assistant (truncated)
+        assert "…" in r.preview_text
+        assert r.tool_summary_html == ""
 
     def test_user_input_only_when_no_tools(self):
-        """When there are no tool calls, preview falls back to user input text."""
-        assistant = ChatMessage(role="assistant", content="Here is the answer", timestamp="")
+        """When assistant content is empty, preview falls back to user input text."""
+        assistant = ChatMessage(role="assistant", content="", timestamp="")
         user = ChatMessage(role="user", content="Please explain this", timestamp="")
         r = ConversationRound(user_msg=user, assistant_msg=assistant)
         r.interactions = [LLMCall(
             id="1", model="test", scope="main", subagent_id="",
             round_index=0, parent_id="", parent_tool_name="",
-            timestamp="", status="ok", response_preview="Here is the answer",
+            timestamp="", status="ok", response_preview="",
         )]
         r.compute_preview()
-        # No tools + has user input → shows user input as preview
+        # No assistant content + no tools → shows user input
         assert "Please explain this" in r.preview_text
+        assert r.tool_summary_html == ""
 
 
 class TestComputePreviewSubagent:
@@ -194,7 +201,9 @@ class TestComputePreviewSubagent:
         )]
         r.compute_preview()
         assert "Done" in r.preview_text
-        assert '<span class="preview-tool">Read</span>×2' in r.preview_text
+        # Tool counts in tool_summary_html, not in preview_text
+        assert "preview-tool" not in r.preview_text
+        assert '<span class="preview-tool">Read</span>×2' in r.tool_summary_html
 
     def test_subagent_no_response_text(self):
         assistant = ChatMessage(role="assistant", content="", timestamp="")
@@ -210,7 +219,9 @@ class TestComputePreviewSubagent:
         r.compute_preview()
         assert "Subagent" in r.preview_text
         assert "Agent" in r.preview_text
-        assert '<span class="preview-tool">Bash</span>×1' in r.preview_text
+        # Tool counts in tool_summary_html
+        assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
+        assert "preview-tool" not in r.preview_text
 
 
 class TestComputePreviewFallback:
@@ -240,8 +251,10 @@ class TestComputePreviewFallback:
             tool_calls=tools,
         )]
         r.compute_preview()
-        assert '<span class="preview-tool">Read</span>×1' in r.preview_text
-        assert '<span class="preview-tool">Bash</span>×1' in r.preview_text
+        # Both assistant and user empty → tool_summary_html only
+        assert r.preview_text == ""
+        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
+        assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
 
 
 class TestComputePreviewNoHTML:
@@ -255,7 +268,7 @@ class TestComputePreviewNoHTML:
         assert "`<code>`" in result
 
     def test_preview_text_from_integration(self):
-        """Integration test: compute_preview() uses assistant_msg.content + tools."""
+        """Integration test: compute_preview() splits text and tool summary."""
         assistant = ChatMessage(role="assistant", content="See the code section", timestamp="")
         user = ChatMessage(role="user", content="task", timestamp="")
         tools = [ToolCall(name="Read")]
@@ -267,6 +280,8 @@ class TestComputePreviewNoHTML:
             tool_calls=tools,
         )]
         r.compute_preview()
-        # Main agent: assistant_msg.content + tool summary
+        # preview_text: text only, no tool badges
         assert "See the code section" in r.preview_text
-        assert '<span class="preview-tool">Read</span>×1' in r.preview_text
+        assert "preview-tool" not in r.preview_text
+        # tool_summary_html: tool chips
+        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html

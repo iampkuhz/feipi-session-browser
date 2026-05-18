@@ -231,7 +231,10 @@ class ConversationRound:
     llm_call_count: int = 0
     llm_error_count: int = 0
     interactions: list[LLMCall] = field(default_factory=list)
-    preview_text: str = ""  # concise human-readable summary for timeline table
+    # Preview fields — keep separate to avoid duplication in template
+    preview_text: str = ""           # text-only: user message or assistant response, NO tool badges
+    tool_summary_html: str = ""      # structured tool chips: <span class="preview-tool">Read</span>×2
+    preview_text_legacy: str = ""    # backward compat: old HTML-embedded preview_text
 
     @staticmethod
     def _compact_preview_text(text: str, limit: int = 120) -> str:
@@ -261,71 +264,54 @@ class ConversationRound:
         return ' · '.join(parts)
 
     def compute_preview(self) -> None:
-        """Derive a short preview from interactions/tool_calls after they are assigned.
+        """Derive preview fields from interactions/tool_calls after they are assigned.
 
-        Priority:
-        1. LLM response text (+ tool counts if present)
-        2. User input text (+ tool counts if present)
-        3. Tool counts only
+        Splits preview into two orthogonal parts:
+        - preview_text: text-only summary (user msg or assistant response), NO tool badges
+        - tool_summary_html: structured tool count chips
+        - preview_text_legacy: backward-compat HTML with tools embedded (for old templates)
         """
-        all_tools: list[ToolCall] = []
-        has_subagent = False
+        # Use round.tool_calls (authoritative), not interactions[].tool_calls
+        # to avoid double-counting when multiple interactions exist in one round.
+        all_tools = self.tool_calls if self.tool_calls else []
+        tool_summary_html = self._format_tool_counts(all_tools) if all_tools else ""
+
+        has_subagent = any(ix.scope == "subagent" for ix in self.interactions)
         subagent_response = ""
         for ix in self.interactions:
-            if ix.scope == "main":
-                all_tools.extend(ix.tool_calls)
-            elif ix.scope == "subagent":
-                has_subagent = True
-                all_tools.extend(ix.tool_calls)
-                if not subagent_response and ix.response_preview:
-                    subagent_response = ix.response_preview
+            if ix.scope == "subagent" and ix.response_preview and not subagent_response:
+                subagent_response = ix.response_preview
 
-        # No tools, no user input — only assistant response
         has_user_input = bool(self.user_msg.content)
-        if not all_tools and not has_user_input:
-            content = self.assistant_msg.content
-            if content:
-                self.preview_text = self._compact_preview_text(content, 120)
-            return
+        has_assistant_content = bool(self.assistant_msg.content)
 
-        tool_summary = self._format_tool_counts(all_tools) if all_tools else ""
-
-        # Subagent: prefer response text over generic subagent label
         if has_subagent:
             if subagent_response:
                 preview = self._compact_preview_text(subagent_response, 100)
-                if tool_summary:
-                    preview = f"{preview} · {tool_summary}"
             else:
-                # Fallback: show subagent label + tools
                 sub_desc = ""
                 for ix in self.interactions:
                     if ix.scope == "subagent" and ix.parent_tool_name:
                         sub_desc = ix.parent_tool_name
                         break
-                if tool_summary:
-                    preview = f"Subagent({sub_desc}) · {tool_summary}"
-                else:
-                    preview = f"Subagent({sub_desc})"
-            self.preview_text = preview
-            return
+                preview = f"Subagent({sub_desc})" if sub_desc else "Subagent"
+        elif has_assistant_content:
+            preview = self._compact_preview_text(self.assistant_msg.content, 100)
+        elif has_user_input:
+            preview = self._compact_preview_text(self.user_msg.content, 120)
+        else:
+            preview = ""
 
-        # Main agent with tool calls
-        if all_tools:
-            content = self.assistant_msg.content
-            if content:
-                # Response + tools
-                preview = self._compact_preview_text(content, 100)
-                self.preview_text = f"{preview} · {tool_summary}"
-            else:
-                # Tools only
-                self.preview_text = tool_summary
-            return
-
-        # No tool calls but has user input — show truncated user message
-        content = self.user_msg.content
-        if content:
-            self.preview_text = self._compact_preview_text(content, 120)
+        # Text-only summary for template
+        self.preview_text = preview
+        self.tool_summary_html = tool_summary_html
+        # Legacy: old HTML-embedded format (backward compat)
+        if tool_summary_html and preview:
+            self.preview_text_legacy = f"{preview} · {tool_summary_html}"
+        elif tool_summary_html:
+            self.preview_text_legacy = tool_summary_html
+        else:
+            self.preview_text_legacy = preview
 
     @property
     def input_tokens(self) -> int:

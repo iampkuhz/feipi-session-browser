@@ -570,6 +570,9 @@
           <span class="preview-tag preview-tag--user" data-tooltip="This round includes user input">User</span>
           {% endif %}
           {{ round.preview_text | safe }}
+          {% if round.tool_summary_html %}
+          <span class="round-tools">{{ round.tool_summary_html | safe }}</span>
+          {% endif %}
         </span>
         <span class="d">{{ round.preview_text | striptags | truncate(120) }}</span>
       </span>
@@ -654,15 +657,15 @@
           <div class="llm-call-card__actions">
             {% if interaction.request_full %}
             <button type="button" class="llm-call-card__action-btn" data-action="open-payload"
-                    data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-request"
-                    data-payload-type="llm.request"
-                    data-payload-title="R{{ round_idx }} · LLM Call #{{ ix_index }} · Request">Request</button>
+                    data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-context"
+                    data-payload-type="llm.context"
+                    data-payload-title="R{{ round_idx }} · LLM Call #{{ ix_index }} · Context">Context</button>
             {% endif %}
             {% if interaction.response_full %}
             <button type="button" class="llm-call-card__action-btn" data-action="open-payload"
-                    data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-response"
-                    data-payload-type="llm.response"
-                    data-payload-title="R{{ round_idx }} · LLM Call #{{ ix_index }} · Response">Response</button>
+                    data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-output"
+                    data-payload-type="llm.output"
+                    data-payload-title="R{{ round_idx }} · LLM Call #{{ ix_index }} · Output">Output</button>
             {% endif %}
             {% if interaction.request_payload_raw or interaction.response_payload_raw %}
             <button type="button" class="llm-call-card__action-btn" data-action="open-payload"
@@ -672,7 +675,22 @@
             {% endif %}
             {# Show missing-reason text when all three are unavailable #}
             {% if not interaction.request_full and not interaction.response_full and not interaction.request_payload_raw and not interaction.response_payload_raw %}
-            <div class="llm-call-card__payload-unavailable">Payload not captured by source log</div>
+            <div class="llm-call-card__payload-unavailable">
+              <div>Raw HTTP payloads not persisted by source log</div>
+              {% if interaction.request_payload_missing_reason %}
+              <div class="llm-call-card__missing-reason">{{ interaction.request_payload_missing_reason }}</div>
+              {% endif %}
+            </div>
+            {% endif %}
+            {# Partial capture warning: high input tokens but small captured context #}
+            {% if interaction.input_tokens and interaction.input_tokens > 10000 and interaction.request_full | default('') | length < 5000 %}
+            <div class="llm-call-card__capture-warning">
+              <span class="info-icon" data-tooltip="Provider-reported input tokens include system prompts and tool schemas">!</span>
+              Partial context captured — full request payload not persisted by source log
+              {% if interaction.request_payload_missing_reason %}
+              <div class="llm-call-card__missing-reason">{{ interaction.request_payload_missing_reason }}</div>
+              {% endif %}
+            </div>
             {% endif %}
           </div>
 
@@ -875,9 +893,9 @@
 {% set _ix = loop.index %}
 {% if interaction.request_full %}
 {% set _ = _pmap_serialized.append({
-  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-request',
-  'type': 'llm.request',
-  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Request',
+  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-context',
+  'type': 'llm.context',
+  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Context',
   'rendered': interaction.request_full | default(''),
   'raw': '',
   'missing_reason': ''
@@ -885,9 +903,9 @@
 {% endif %}
 {% if interaction.response_full %}
 {% set _ = _pmap_serialized.append({
-  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-response',
-  'type': 'llm.response',
-  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Response',
+  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-output',
+  'type': 'llm.output',
+  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Output',
   'rendered': interaction.response_full | default(''),
   'raw': '',
   'missing_reason': ''
@@ -1210,8 +1228,8 @@
     function renderRawFallback(raw, type) {
         var parsed = tryParseJson(raw);
         if (parsed) {
-            if (type === "llm.request") return renderLlmRequestJson(parsed);
-            if (type === "llm.response") return renderLlmResponseJson(parsed);
+            if (type === "llm.context") return renderLlmRequestJson(parsed);
+            if (type === "llm.output") return renderLlmResponseJson(parsed);
             if (type && type.startsWith("tool.")) return renderToolJson(parsed, type);
             return renderPrettyJson(parsed);
         }

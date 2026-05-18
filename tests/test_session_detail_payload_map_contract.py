@@ -137,8 +137,8 @@ def test_payload_type_taxonomy():
         'message.user.raw',
         'message.assistant',
         'message.assistant.raw',
-        'llm.request',
-        'llm.response',
+        'llm.context',
+        'llm.output',
         'llm.raw',
         'tool.result',
     ]
@@ -151,44 +151,43 @@ def test_payload_type_taxonomy():
 # ── LLM call card explicit buttons ─────────────────────────────────────
 
 
-def test_llm_call_card_has_request_button():
-    """LLM call card must have an explicit Request button."""
+def test_llm_call_card_has_context_button():
+    """LLM call card must have an explicit Context button."""
     source = _session_source()
-    assert 'data-payload-type="llm.request"' in source, (
-        "LLM call card must have Request button with data-payload-type='llm.request'"
+    assert 'data-payload-type="llm.context"' in source, (
+        "LLM call card must have Context button with data-payload-type='llm.context'"
     )
 
 
-def test_llm_call_card_has_response_button():
-    """LLM call card must have an explicit Response button."""
+def test_llm_call_card_has_output_button():
+    """LLM call card must have an explicit Output button."""
     source = _session_source()
-    assert 'data-payload-type="llm.response"' in source, (
-        "LLM call card must have Response button with data-payload-type='llm.response'"
+    assert 'data-payload-type="llm.output"' in source, (
+        "LLM call card must have Output button with data-payload-type='llm.output'"
     )
 
 
-def test_llm_call_request_button_label():
-    """Request button must show 'Request' as visible text."""
+def test_llm_call_context_button_label():
+    """Context button must show 'Context' as visible text."""
     source = _session_source()
-    # The button with llm.request type should have >Request< text
     match = re.search(
-        r'data-payload-type="llm.request"[^>]*>\s*Request\s*<',
+        r'data-payload-type="llm.context"[^>]*>\s*Context\s*<',
         source
     )
     assert match, (
-        "Request button must display 'Request' as visible label"
+        "Context button must display 'Context' as visible label"
     )
 
 
-def test_llm_call_response_button_label():
-    """Response button must show 'Response' as visible text."""
+def test_llm_call_output_button_label():
+    """Output button must show 'Output' as visible text."""
     source = _session_source()
     match = re.search(
-        r'data-payload-type="llm.response"[^>]*>\s*Response\s*<',
+        r'data-payload-type="llm.output"[^>]*>\s*Output\s*<',
         source
     )
     assert match, (
-        "Response button must display 'Response' as visible label"
+        "Output button must display 'Output' as visible label"
     )
 
 

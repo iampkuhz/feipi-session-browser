@@ -7490,6 +7490,14 @@ tr.keyboard-focus a {
 }
 
 /* Preview cell */
+.round-main {
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .round-main .t {
     font-size: 13px;
     font-weight: 770;
@@ -8693,9 +8701,19 @@ body:not(.density-comfortable) .trace-row > div {
     color: var(--t2, var(--text-primary));
 }
 
+/* Round-main — strong boundary for grid cell, prevents overflow into mix/time */
+.session-detail-phase1 .round-main {
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .session-detail-phase1 .round-main .t,
 .session-detail-phase1 .round-main .d {
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -8993,6 +9011,36 @@ body:not(.density-comfortable) .trace-row > div {
     background: #f8f8f8;
     border-radius: 6px;
     border: 1px dashed var(--line, #e5e7eb);
+}
+
+/* Partial context capture warning */
+.llm-call-card__capture-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+.capture-warning__icon {
+    flex-shrink: 0;
+    font-size: 13px;
+    margin-top: 1px;
+}
+.capture-warning__text {
+    color: #92400e;
+}
+
+/* Info icon for metrics */
+.info-icon {
+    font-size: 10px;
+    color: var(--t3, var(--text-muted));
+    cursor: help;
+    vertical-align: super;
 }
 
 /* ── Tool call row (nested under LLM call) ─────────────────── */
