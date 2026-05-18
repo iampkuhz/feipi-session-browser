@@ -1,4 +1,4 @@
-"""Tests for sessions list pagination."""
+"""Tests for sessions list pagination — HIFI v3 footer."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from session_browser.index.indexer import (
 )
 from session_browser.domain.models import SessionSummary
 
-# Grid + pagination content is now in the partial template.
 _TEMPLATE_PATH = "src/session_browser/web/templates/sessions.html"
 _PARTIAL_PATH = "src/session_browser/web/templates/partials/sessions_grid.html"
 
@@ -157,45 +156,61 @@ class TestListSessionsWithFilters:
         assert all("Test Session 00" in r.title for r in rows)
 
 
-# ─── Template: pagination controls ──────────────────────────────────────
+# ─── Template: footer controls ───────────────────────────────────────────
 
-class TestPaginationTemplate:
-    """Verify sessions.html contains pagination controls."""
+class TestFooterTemplate:
+    """Verify sessions.html contains HIFI v3 footer controls."""
 
-    def test_pagination_bar_nav(self):
+    def test_table_footer_nav(self):
         content = _read_sessions_templates()
-        assert 'class="pagination-bar"' in content
-        assert 'id="pagination-bar"' in content
+        assert 'class="table-footer"' in content
 
-    def test_pagination_prev_button(self):
+    def test_prev_button(self):
         content = _read_sessions_templates()
-        assert 'id="pagination-prev"' in content
+        assert "Previous" in content
         assert "goToPage" in content
 
-    def test_pagination_next_button(self):
+    def test_next_button(self):
         content = _read_sessions_templates()
-        assert 'id="pagination-next"' in content
+        assert "Next" in content
 
-    def test_pagination_page_size_select(self):
+    def test_rows_range(self):
         content = _read_sessions_templates()
-        assert 'id="pagination-page-size"' in content
-        assert 'value="20"' in content
-        assert 'value="50"' in content
-        assert 'value="100"' in content
-        assert 'value="all"' in content
+        assert 'class="page-range"' in content
+        assert "Rows" in content
 
-    def test_pagination_info_display(self):
+    def test_footer_total(self):
         content = _read_sessions_templates()
-        assert "Showing" in content
-        assert "page_start" in content
-        assert "page_end" in content
-        assert "total_count" in content
+        assert 'class="footer-total"' in content
+        assert "matching sessions" in content
 
-    def test_page_info_text(self):
+    def test_no_sorted_by(self):
+        """Footer must not contain 'sorted by' text."""
         content = _read_sessions_templates()
-        assert "Page" in content
-        assert "of" in content
-        assert "total_pages" in content
+        assert "sorted by" not in content.lower()
+
+    def test_no_page_size_select_in_footer(self):
+        """HIFI v3 footer does not have page size select."""
+        content = _read_sessions_templates()
+        footer_section = content.split('table-footer')[1] if 'table-footer' in content else ""
+        assert '/ page' not in footer_section
+
+    def test_no_page_info_text(self):
+        """No 'Page X of Y' text."""
+        content = _read_sessions_templates()
+        assert 'Page {{ page }} of {{ total_pages }}' not in content
+
+    def test_disabled_on_prev(self):
+        content = _read_sessions_templates()
+        assert "{% if not has_prev %}disabled{% endif %}" in content
+
+    def test_disabled_on_next(self):
+        content = _read_sessions_templates()
+        assert "{% if not has_next %}disabled{% endif %}" in content
+
+    def test_go_to_page_js(self):
+        content = _read_sessions_templates()
+        assert "goToPage" in content
 
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()
@@ -212,36 +227,24 @@ class TestPaginationTemplate:
         assert "filter_project" in content
         assert "filter_q" in content
 
-    def test_disabled_attribute_on_prev(self):
-        content = _read_sessions_templates()
-        assert "{% if not has_prev %}disabled{% endif %}" in content
-
-    def test_disabled_attribute_on_next(self):
-        content = _read_sessions_templates()
-        assert "{% if not has_next %}disabled{% endif %}" in content
-
-    def test_change_page_size_js(self):
-        content = _read_sessions_templates()
-        assert "changePageSize" in content
-        assert "page_size" in content
-
-    def test_pagination_css_exists(self):
-        with open("src/session_browser/web/static/style.css") as f:
-            content = f.read()
-        assert ".pagination-bar" in content
-        assert ".pagination-bar__btn" in content
-        assert ".pagination-bar__select" in content
-
     def test_no_client_side_apply_filters(self):
         """Old client-side applyFilters should be removed."""
         content = _read_sessions_templates()
-        # The old applyFilters function that filtered DOM rows should be gone
         assert "function applyFilters()" not in content
 
     def test_submit_filters_function(self):
         content = _read_sessions_templates()
         assert "submitFilters" in content
 
-    def test_go_to_page_function(self):
+    def test_change_page_size_js(self):
+        """changePageSize still exists for URL-based size changes."""
         content = _read_sessions_templates()
-        assert "goToPage" in content
+        assert "changePageSize" in content
+
+    def test_footer_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".table-footer" in content
+        assert ".page-btn" in content
+        assert ".page-range" in content
+        assert ".footer-total" in content

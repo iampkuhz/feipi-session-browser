@@ -2348,11 +2348,11 @@ a.link-muted:hover { color: var(--accent); }
 }
 
 .data-table.sessions-grid[data-sessions-grid] > .table-head {
-    grid-template-columns: minmax(200px, 2fr) 80px minmax(90px, 1fr) 100px 100px 100px 80px 120px;
+    grid-template-columns: minmax(280px, 2fr) minmax(140px, 1fr) 90px minmax(140px, 1fr) 120px 80px 80px 110px 100px;
 }
 
 .data-table.sessions-grid[data-sessions-grid] > .table-row {
-    grid-template-columns: minmax(200px, 2fr) 80px minmax(90px, 1fr) 100px 100px 100px 80px 120px;
+    grid-template-columns: minmax(280px, 2fr) minmax(140px, 1fr) 90px minmax(140px, 1fr) 120px 80px 80px 110px 100px;
 }
 
 /* Session cell: title link + sub line */
@@ -2433,6 +2433,263 @@ a.link-muted:hover { color: var(--accent); }
 }
 
 /* ── End Sessions Grid ───────────────────────────────────────── */
+
+/* ── HIFI v3: Table header sortable / non-sortable ──────────── */
+.data-table.sessions-grid .table-head .th {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    height: 34px;
+    background: #f8fafc;
+    color: var(--t4, #94a3b8);
+    font-size: 10px;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: .065em;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    user-select: none;
+}
+
+.data-table.sessions-grid .table-head .th.sortable {
+    background: linear-gradient(180deg, #f6f8ff, #f3f6ff);
+    color: var(--text-2, #334155);
+}
+
+.data-table.sessions-grid .table-head .th.sortable button {
+    min-height: 25px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 5px;
+    margin-left: -5px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.data-table.sessions-grid .table-head .th.sortable button:hover {
+    outline: 0;
+    border-color: var(--brand-100, #dfe3ff);
+    background: #fff;
+    color: var(--brand, #5b5ce2);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .07);
+}
+
+.data-table.sessions-grid .table-head .sort-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 7px;
+    background: var(--brand-50, #eff1ff);
+    border: 1px solid var(--brand-100, #dfe3ff);
+    color: var(--brand, #5b5ce2);
+    display: grid;
+    place-items: center;
+    font-family: var(--mono, monospace);
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.data-table.sessions-grid .table-head .th.sortable[aria-sort="descending"] .sort-icon,
+.data-table.sessions-grid .table-head .th.sortable[aria-sort="ascending"] .sort-icon {
+    background: var(--brand, #5b5ce2);
+    border-color: var(--brand, #5b5ce2);
+    color: #fff;
+}
+
+/* ── HIFI v3: Table row cells ───────────────────────────────── */
+.data-table.sessions-grid .table-row > .td {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    height: 48px;
+    font-size: 12.5px;
+    color: var(--text-2, #334155);
+    background: #fff;
+    min-width: 0;
+}
+
+.data-table.sessions-grid .table-row:hover > .td {
+    background: #fbfdff;
+}
+
+.data-table.sessions-grid .session-cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    width: 100%;
+}
+
+.data-table.sessions-grid .session-title {
+    font-weight: 790;
+    color: var(--text, #111827);
+    font-size: 13px;
+    line-height: 1.24;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.data-table.sessions-grid .session-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.data-table.sessions-grid .session-title a:hover {
+    color: var(--brand, #5b5ce2);
+    text-decoration: underline;
+}
+
+.data-table.sessions-grid .session-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-3, #64748b);
+    font-size: 11.5px;
+}
+
+.data-table.sessions-grid .session-id {
+    font-family: var(--mono, monospace);
+    color: var(--t4, #94a3b8);
+}
+
+.data-table.sessions-grid .session-branch {
+    color: var(--text-3, #64748b);
+}
+
+.data-table.sessions-grid .project-sub {
+    font-size: 11.5px;
+    color: var(--t4, #94a3b8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.data-table.sessions-grid .model {
+    font-family: var(--mono, monospace);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-2, #334155);
+    font-size: 12px;
+}
+
+.data-table.sessions-grid .td.num {
+    justify-content: flex-end;
+    font-family: var(--mono, monospace);
+    font-variant-numeric: tabular-nums;
+}
+
+.data-table.sessions-grid .td.time {
+    font-family: var(--mono, monospace);
+    color: var(--text-3, #64748b);
+    justify-content: flex-end;
+    font-size: 11.5px;
+}
+
+.data-table.sessions-grid .token-stack {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.data-table.sessions-grid .mini-bar {
+    width: 46px;
+    height: 7px;
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+    background: var(--surface-3, #f2f5fa);
+    border: 1px solid var(--line-soft, #e8eef6);
+}
+
+.data-table.sessions-grid .mini-bar span {
+    height: 100%;
+    display: block;
+}
+
+.data-table.sessions-grid .mini-bar .fresh { background: var(--blue, #2563eb); }
+.data-table.sessions-grid .mini-bar .cache { background: #f59e0b; }
+.data-table.sessions-grid .mini-bar .out { background: var(--green, #059669); }
+
+/* ── HIFI v3: Table footer ──────────────────────────────────── */
+.table-footer {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-top: 1px solid var(--line-soft, #e8eef6);
+    background: #fbfcff;
+    color: var(--text-3, #64748b);
+    font-size: 12px;
+}
+
+.table-footer .page-btn {
+    height: 28px;
+    border: 1px solid var(--line, #d9e2ef);
+    background: #fff;
+    border-radius: 8px;
+    color: var(--text-2, #334155);
+    padding: 0 9px;
+    font-size: 12px;
+    font-weight: 760;
+    cursor: pointer;
+}
+
+.table-footer .page-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.table-footer .page-btn:hover:not(:disabled) {
+    border-color: var(--brand-100, #dfe3ff);
+    color: var(--brand, #5b5ce2);
+}
+
+.table-footer .page-range {
+    margin-left: 4px;
+    color: var(--text-2, #334155);
+    font-family: var(--mono, monospace);
+    font-weight: 720;
+}
+
+.table-footer .footer-spacer {
+    flex: 1;
+}
+
+.table-footer .footer-total {
+    color: var(--text-4, #94a3b8);
+    font-size: 12px;
+}
+
+/* ── HIFI v3: Search hint ───────────────────────────────────── */
+.search-hint {
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid var(--line-soft, #e8eef6);
+    color: var(--text-4, #94a3b8);
+    font-size: 11px;
+    font-weight: 760;
+    white-space: nowrap;
+    margin-left: 4px;
+}
 
 /* Empty state override for calls view */
 .data-table + .empty-state,

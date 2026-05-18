@@ -1609,6 +1609,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             "duration": "duration_seconds",
             "total-tokens": "input_tokens",
             "rounds": "assistant_message_count",
+            "tools": "tool_call_count",
         }
         sort_by = SORT_KEY_MAP.get(raw_sort, "ended_at")
 

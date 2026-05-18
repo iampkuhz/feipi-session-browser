@@ -1,4 +1,4 @@
-"""Tests for Sessions page grid restructure."""
+"""Tests for Sessions page grid restructure — HIFI v3 layout."""
 
 from __future__ import annotations
 
@@ -22,35 +22,39 @@ def _read_sessions_templates():
 
 
 class TestSessionsTemplateColumns:
-    """Verify sessions.html has the correct restructured 8-column grid headers."""
+    """Verify sessions.html has the correct 9-column grid headers."""
 
-    def test_has_session_column(self):
+    def test_has_title_column(self):
         content = _read_sessions_templates()
-        assert "<div>Session</div>" in content
+        assert '<div class="th" role="columnheader">Title</div>' in content
 
     def test_has_project_column(self):
         content = _read_sessions_templates()
-        assert "<div>Project</div>" in content
+        assert '<div class="th" role="columnheader">Project</div>' in content
 
     def test_has_agent_column(self):
         content = _read_sessions_templates()
-        assert "<div>Agent</div>" in content
+        assert '<div class="th" role="columnheader">Agent</div>' in content
+
+    def test_has_model_column(self):
+        content = _read_sessions_templates()
+        assert '<div class="th" role="columnheader">Model</div>' in content
 
     def test_has_tokens_column(self):
         content = _read_sessions_templates()
         assert "Tokens" in content
 
-    def test_has_duration_column(self):
-        content = _read_sessions_templates()
-        assert "Duration" in content
-
-    def test_has_failures_column(self):
-        content = _read_sessions_templates()
-        assert "<div>Failures</div>" in content
-
     def test_has_rounds_column(self):
         content = _read_sessions_templates()
         assert "Rounds" in content
+
+    def test_has_tools_column(self):
+        content = _read_sessions_templates()
+        assert "Tools" in content
+
+    def test_has_duration_column(self):
+        content = _read_sessions_templates()
+        assert "Duration" in content
 
     def test_has_updated_column(self):
         content = _read_sessions_templates()
@@ -60,58 +64,42 @@ class TestSessionsTemplateColumns:
 class TestSessionsTemplateRemovedColumns:
     """Verify old table columns are no longer present in grid."""
 
-    def test_no_table_element(self):
-        """No <table> element in the grid area."""
+    def test_no_failures_column(self):
         content = _read_sessions_templates()
-        assert "<table" not in content
-
-    def test_no_model_column(self):
-        """Model column not in grid (kept as data-*)."""
-        content = _read_sessions_templates()
-        # Should not have Model as a visible column header
-        assert "<div>Model</div>" not in content
-
-    def test_no_anomaly_column(self):
-        """Anomaly column not in grid (kept as data-*)."""
-        content = _read_sessions_templates()
-        assert "<div>Anomaly</div>" not in content
+        assert "<div>Failures</div>" not in content
+        assert '<div class="th" role="columnheader">Failures</div>' not in content
 
     def test_no_output_column(self):
         content = _read_sessions_templates()
         assert "<div>Output</div>" not in content
 
-    def test_no_tools_column(self):
+    def test_no_msgs_column(self):
         content = _read_sessions_templates()
-        assert "<div>Tools</div>" not in content
-
-    def test_no_time_column(self):
-        content = _read_sessions_templates()
-        assert "<div>Time</div>" not in content
-
-    def test_no_standalone_dot_column(self):
-        """No empty dot th element."""
-        content = _read_sessions_templates()
-        assert "class=\"agent-dot" not in content
+        assert "<div>Msgs</div>" not in content
 
     def test_no_cache_r_column(self):
         content = _read_sessions_templates()
         assert ">Cache R</th>" not in content
+        assert '<div class="th" role="columnheader">Cache R</div>' not in content
 
     def test_no_cache_w_column(self):
         content = _read_sessions_templates()
         assert ">Cache W</th>" not in content
+        assert '<div class="th" role="columnheader">Cache W</div>' not in content
 
     def test_no_output_percent_column(self):
         content = _read_sessions_templates()
         assert ">Output%</th>" not in content
 
-    def test_no_standalone_failed_column(self):
+    def test_no_signals_column(self):
         content = _read_sessions_templates()
-        assert ">Failed</th>" not in content
+        assert "<div>Signals</div>" not in content
 
-    def test_no_tools_per_round_column(self):
+    def test_no_hero(self):
+        """No hero section in sessions list page."""
         content = _read_sessions_templates()
-        assert ">Tools/R</th>" not in content
+        # No hero class or hero content
+        assert "hero" not in content.lower()
 
 
 class TestSessionsTemplateGridStructure:
@@ -129,29 +117,30 @@ class TestSessionsTemplateGridStructure:
         content = _read_sessions_templates()
         assert "table-row" in content
 
-    def test_has_cell_title(self):
+    def test_has_session_title(self):
         content = _read_sessions_templates()
-        assert 'class="cell-title"' in content
+        assert 'class="session-title"' in content
 
-    def test_has_cell_sub(self):
-        """cell-sub class may exist elsewhere but NOT in Session column."""
+    def test_has_session_meta(self):
         content = _read_sessions_templates()
-        # cell-sub must not appear in the Session column (the first <div> after <!-- Session -->)
-        # Extract the Session cell block and verify no cell-sub mono
-        assert 'class="cell-sub mono"' not in content, \
-            "Session column should not contain cell-sub mono for project path"
+        assert 'class="session-meta"' in content
+
+    def test_has_session_id(self):
+        content = _read_sessions_templates()
+        assert 'class="session-id"' in content
 
     def test_has_badge_agent(self):
         content = _read_sessions_templates()
         assert 'class="badge agent"' in content
 
-    def test_has_diag_ok(self):
+    def test_has_mini_bar(self):
+        """Token bar should be present in tokens cell."""
         content = _read_sessions_templates()
-        assert 'class="diag ok"' in content
+        assert 'class="mini-bar"' in content
 
-    def test_has_diag_err(self):
+    def test_has_token_stack(self):
         content = _read_sessions_templates()
-        assert 'class="diag err"' in content
+        assert 'class="token-stack"' in content
 
     def test_no_data_table_enhanced(self):
         """data-table-enhanced attribute should be removed."""
@@ -159,117 +148,107 @@ class TestSessionsTemplateGridStructure:
         assert "data-table-enhanced" not in content
 
 
-class TestSessionsTemplateFailuresMerged:
-    """Verify failures column uses diag pills."""
+class TestSortableHeaders:
+    """Verify sortable / non-sortable header contract."""
 
-    def test_diag_err_shown_when_failed(self):
+    def test_title_not_sortable(self):
+        """Title column should not be sortable — no button, no sort icon."""
         content = _read_sessions_templates()
-        assert "diag err" in content
+        # Title th is a plain div without sortable class
+        assert '<div class="th sortable"' not in content.split('Title</div>')[0].split('table-head')[-1]
 
-    def test_diag_ok_shown_when_zero(self):
+    def test_project_not_sortable(self):
         content = _read_sessions_templates()
-        assert "diag ok" in content
+        # Project th should not contain button
+        lines = content.split('\n')
+        in_head = False
+        for line in lines:
+            if 'table-head' in line:
+                in_head = True
+            if in_head and 'Project' in line:
+                assert '<button' not in line
+                break
 
-    def test_failed_tool_count_used(self):
+    def test_agent_not_sortable(self):
         content = _read_sessions_templates()
-        assert "failed_tool_count" in content
+        lines = content.split('\n')
+        in_head = False
+        for line in lines:
+            if 'table-head' in line:
+                in_head = True
+            if in_head and 'Agent' in line:
+                assert '<button' not in line
+                break
 
-
-class TestSessionsTemplateDataAttributes:
-    """Verify data attributes are preserved and updated."""
-
-    def test_has_total_tokens_data_attr(self):
+    def test_model_not_sortable(self):
         content = _read_sessions_templates()
-        assert "data-total-tokens=" in content
-
-    def test_has_rounds_data_attr(self):
-        content = _read_sessions_templates()
-        assert "data-rounds=" in content
-
-    def test_has_data_agent(self):
-        content = _read_sessions_templates()
-        assert "data-agent=" in content
-
-    def test_has_data_session_id(self):
-        content = _read_sessions_templates()
-        assert "data-session-id=" in content
-
-    def test_has_data_model(self):
-        """Model data retained as data-* attribute."""
-        content = _read_sessions_templates()
-        assert "data-model=" in content
-
-    def test_has_data_anomaly(self):
-        """Anomaly data retained as data-* attributes."""
-        content = _read_sessions_templates()
-        assert "data-has-anomalies=" in content
-
-    def test_no_cache_data_attrs(self):
-        content = _read_sessions_templates()
-        assert "data-total-cache-r=" not in content
-        assert "data-total-cache-w=" not in content
-
-
-class TestSessionsTemplateAnomalyData:
-    """Verify anomaly info retained in data-* attributes."""
-
-    def test_anomaly_has_data_attribute(self):
-        content = _read_sessions_templates()
-        assert "data-anomaly-types=" in content
-
-    def test_anomaly_limits_types(self):
-        """Should limit anomaly types in data attribute."""
-        content = _read_sessions_templates()
-        assert "s.anomalies" in content
-
-
-class TestSessionsTemplateSortOptions:
-    """Verify sort-by select has been removed."""
-
-    def test_no_sort_by_select(self):
-        content = _read_sessions_templates()
-        assert 'id="sort-by"' not in content
-
-    def test_no_sort_select_options(self):
-        content = _read_sessions_templates()
-        assert "Sort: Last Active" not in content
-        assert "Sort: Tokens" not in content
-        assert "Sort: Duration" not in content
-
-
-class TestHeaderSort:
-    """Verify clickable header-based sorting."""
-
-    def test_duration_is_sortable(self):
-        content = _read_sessions_templates()
-        assert 'data-sort-key="duration"' in content
-        assert 'th-sortable' in content
+        lines = content.split('\n')
+        in_head = False
+        for line in lines:
+            if 'table-head' in line:
+                in_head = True
+            if in_head and 'Model' in line:
+                assert '<button' not in line
+                break
 
     def test_tokens_is_sortable(self):
         content = _read_sessions_templates()
         assert 'data-sort-key="total-tokens"' in content
+        assert '<button type="button" data-sort-key="total-tokens"' in content
 
     def test_rounds_is_sortable(self):
         content = _read_sessions_templates()
         assert 'data-sort-key="rounds"' in content
+        assert '<button type="button" data-sort-key="rounds"' in content
+
+    def test_tools_is_sortable(self):
+        content = _read_sessions_templates()
+        assert 'data-sort-key="tools"' in content
+        assert '<button type="button" data-sort-key="tools"' in content
+
+    def test_duration_is_sortable(self):
+        content = _read_sessions_templates()
+        assert 'data-sort-key="duration"' in content
+        assert '<button type="button" data-sort-key="duration"' in content
 
     def test_updated_is_sortable(self):
         content = _read_sessions_templates()
         assert 'data-sort-key="ended-at"' in content
+        assert '<button type="button" data-sort-key="ended-at"' in content
 
-    def test_updated_has_default_desc(self):
-        """Default sort should be Updated descending."""
+    def test_five_sortable_headers(self):
+        """Exactly 5 sortable headers with sort-icon."""
+        content = _read_sessions_templates()
+        assert content.count('class="sort-icon"') == 5
+
+    def test_sortable_button_pattern(self):
+        """Sortable headers use button + sort-icon pattern."""
+        content = _read_sessions_templates()
+        assert '<span class="sort-icon">↕</span>' in content
+
+    def test_default_sort_aria(self):
+        """Default sort column (Updated) should have aria-sort set."""
         content = _read_sessions_templates()
         assert 'aria-sort=' in content
-        assert 'descending' in content
 
-    def test_four_sortable_headers(self):
+    def test_no_sortable_legend(self):
+        """No Sortable / Info only legend in the template."""
         content = _read_sessions_templates()
-        # Count data-sort-key attributes on sortable headers (not plain divs)
-        assert content.count('data-sort-key="duration"') == 1
-        assert content.count('data-sort-key="total-tokens"') == 1
-        assert content.count('data-sort-key="rounds"') == 1
-        assert content.count('data-sort-key="ended-at"') == 1
+        # Check no legend HTML elements exist
+        assert "legend-sort" not in content
+        assert "legend-item" not in content
+        assert "Info only" not in content
+
+    def test_no_density_toggle(self):
+        """No Compact / Comfort density toggle."""
+        content = _read_sessions_templates()
+        assert "density-toggle" not in content
+        assert "Compact" not in content
+        assert "Comfort" not in content
+
+
+class TestHeaderSortJS:
+    """Verify JS sort behavior."""
 
     def test_js_has_cycle_sort(self):
         content = _read_sessions_templates()
@@ -279,37 +258,94 @@ class TestHeaderSort:
         content = _read_sessions_templates()
         assert "updateHeaderStates" in content
 
-    def test_js_has_sort_cycle(self):
-        """Sort should use cycleSort + server-side submit (no client-side comparator)."""
-        content = _read_sessions_templates()
-        assert "cycleSort" in content
-        assert "submitFilters" in content
-
-    def test_no_sort_by_in_save_filters(self):
-        content = _read_sessions_templates()
-        # No old sort-by select element
-        assert 'id="sort-by"' not in content
-
-    def test_save_filters_uses_sort_key(self):
-        content = _read_sessions_templates()
-        assert "sortKey:" in content
-        assert "sortDir:" in content
-
     def test_default_sort_is_ended_at_desc(self):
         content = _read_sessions_templates()
         assert "DEFAULT_SORT_KEY = 'ended-at'" in content
         assert "DEFAULT_SORT_DIR = 'desc'" in content
 
-    def test_non_sortable_headers_no_class(self):
-        """Session, Agent, Project, Failures should not be sortable."""
+    def test_non_sortable_headers_no_sort_key(self):
+        """Non-sortable headers should not have data-sort-key."""
         content = _read_sessions_templates()
-        # Session, Agent, Project, Failures are plain <div>, no data-sort-key
-        lines = content.split('\n')
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith('<div>') and stripped.endswith('</div>'):
-                text = stripped[5:-6]
-                assert text not in ('Session', 'Agent', 'Project', 'Failures') or 'data-sort-key' not in line
+        head_section = content.split('table-head')[1].split('</div>')[0:20]
+        for chunk in head_section:
+            if 'data-sort-key' in chunk:
+                # Only sortable th should have data-sort-key
+                assert 'sortable' in chunk
+
+
+class TestFooter:
+    """Verify footer layout."""
+
+    def test_has_table_footer(self):
+        content = _read_sessions_templates()
+        assert 'class="table-footer"' in content
+
+    def test_has_previous_button(self):
+        content = _read_sessions_templates()
+        assert 'class="page-btn"' in content
+        assert "Previous" in content
+
+    def test_has_next_button(self):
+        content = _read_sessions_templates()
+        assert "Next" in content
+
+    def test_has_rows_range(self):
+        content = _read_sessions_templates()
+        assert 'class="page-range"' in content
+        assert "Rows" in content
+
+    def test_has_footer_total(self):
+        content = _read_sessions_templates()
+        assert 'class="footer-total"' in content
+        assert "matching sessions" in content
+
+    def test_has_footer_spacer(self):
+        content = _read_sessions_templates()
+        assert 'class="footer-spacer"' in content
+
+    def test_no_sorted_by_in_footer(self):
+        """Footer must not contain 'sorted by' text."""
+        content = _read_sessions_templates()
+        assert "sorted by" not in content.lower()
+
+    def test_no_page_size_select(self):
+        """No page size select in footer."""
+        content = _read_sessions_templates()
+        # The old pagination-bar had page size select; new table-footer does not
+        footer_section = content.split('table-footer')[1] if 'table-footer' in content else ""
+        assert 'pagination-bar__select' not in footer_section
+        assert '/ page' not in footer_section
+
+    def test_no_page_info_text(self):
+        """No 'Page X of Y' text."""
+        content = _read_sessions_templates()
+        assert 'Page {{ page }} of {{ total_pages }}' not in content
+
+
+class TestSearch:
+    """Verify search input contract."""
+
+    def test_search_placeholder_session_id(self):
+        content = _read_sessions_templates()
+        assert "Search by Session ID" in content
+
+    def test_search_hint_chinese(self):
+        """Search hint should be in Chinese: 仅支持 Session ID."""
+        content = _read_sessions_templates()
+        assert "仅支持 Session ID" in content
+
+    def test_search_hint_class(self):
+        content = _read_sessions_templates()
+        assert 'class="search-hint"' in content
+
+    def test_no_broad_search_hint(self):
+        """Search hint should NOT mention title, project, or prompt."""
+        content = _read_sessions_templates()
+        # The hint should be specific to Session ID only
+        hint_section = content.split('search-hint')[1].split('<')[0] if 'search-hint' in content else ""
+        assert "title" not in hint_section.lower()
+        assert "project" not in hint_section.lower()
+        assert "prompt" not in hint_section.lower()
 
 
 class TestSessionsTemplateJS:
@@ -331,7 +367,6 @@ class TestSessionsTemplateJS:
     def test_no_tr_selector_in_filter(self):
         """Old 'tr' query selector should be removed."""
         content = _read_sessions_templates()
-        # Make sure we're not using the old tbody.querySelectorAll('tr') pattern
         assert "tbody.querySelectorAll" not in content
 
 
@@ -393,7 +428,6 @@ class TestSessionsListRowClick:
     def test_js_skips_links_on_click(self):
         """JS should not hijack clicks on <a> elements."""
         content = _read_sessions_templates()
-        # Should check for A tag and bail out
         assert "tagName === 'A'" in content or 'tagName === "A"' in content
 
     def test_no_selection_js_leftover(self):
@@ -425,54 +459,105 @@ class TestDisplayPathFilter:
     def test_none_returns_empty_string(self):
         assert _display_path(None) == ""
 
-    def test_template_project_column_no_tooltip(self):
-        """Project column should not have data-tooltip; hover effect shows full path via title/link."""
-        content = _read_sessions_templates()
-        assert 'project-cell' in content
-        # No data-tooltip on project-cell div
-        lines = content.split('\n')
-        for line in lines:
-            if 'project-cell' in line and 'class=' in line:
-                assert 'data-tooltip' not in line, f"project-cell should not have data-tooltip: {line}"
-
     def test_data_project_keeps_raw_path(self):
         """data-project attribute must retain the original project_key."""
         content = _read_sessions_templates()
         assert 'data-project="{{ s.project_key }}"' in content
 
 
-class TestProjectColumnTooltip:
-    """Verify Project column shows project name with full-path tooltip."""
+class TestProjectColumn:
+    """Verify Project column rendering."""
 
     def test_project_cell_has_project_cell_class(self):
-        """Project column cell should have project-cell class for CSS targeting."""
         content = _read_sessions_templates()
         assert 'project-cell' in content
-
-    def test_project_cell_no_data_tooltip(self):
-        """Project cell should not use data-tooltip; hover background effect replaces tooltip."""
-        content = _read_sessions_templates()
-        assert 'project-cell' in content
-        assert 'data-tooltip="{{ s.project_key | display_path }}"' not in content
 
     def test_project_link_href_uses_urlencode(self):
-        """Project link href should point to /projects/<encoded project_key>."""
         content = _read_sessions_templates()
         assert 'href="/projects/{{ s.project_key | urlencode }}"' in content
 
     def test_project_link_uses_project_name(self):
-        """Project link display text should use project_name (short name)."""
         content = _read_sessions_templates()
         assert '{{ s.project_name }}' in content
 
-    def test_session_cell_no_project_path(self):
-        """Session column should NOT contain cell-sub mono with project path."""
-        content = _read_sessions_templates()
-        # The pattern that used to show project path under Session title
-        assert 'cell-sub mono' not in content
 
-    def test_css_has_project_cell_rules(self):
-        """CSS should define project-cell styling for truncation."""
+class TestPaginationTemplate:
+    """Verify pagination-related template changes."""
+
+    def test_no_client_side_apply_filters(self):
+        """Old client-side applyFilters should be removed."""
+        content = _read_sessions_templates()
+        assert "function applyFilters()" not in content
+
+    def test_submit_filters_function(self):
+        content = _read_sessions_templates()
+        assert "submitFilters" in content
+
+    def test_go_to_page_function(self):
+        content = _read_sessions_templates()
+        assert "goToPage" in content
+
+    def test_filter_form_has_name_attributes(self):
+        content = _read_sessions_templates()
+        assert 'name="q"' in content
+        assert 'name="agent"' in content
+        assert 'name="model"' in content
+        assert 'name="project"' in content
+        assert 'name="sort"' in content
+
+    def test_disabled_attribute_on_prev(self):
+        content = _read_sessions_templates()
+        assert "{% if not has_prev %}disabled{% endif %}" in content
+
+    def test_disabled_attribute_on_next(self):
+        content = _read_sessions_templates()
+        assert "{% if not has_next %}disabled{% endif %}" in content
+
+
+class TestCSS:
+    """Verify CSS selectors for HIFI v3."""
+
+    def test_sessions_grid_css(self):
         with open("src/session_browser/web/static/style.css") as f:
             content = f.read()
-        assert '.project-cell' in content
+        assert ".sessions-grid" in content
+
+    def test_th_sortable_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".th.sortable" in content
+
+    def test_table_footer_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".table-footer" in content
+
+    def test_search_hint_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".search-hint" in content
+
+    def test_session_title_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".session-title" in content
+
+    def test_session_meta_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".session-meta" in content
+
+    def test_mini_bar_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".mini-bar" in content
+
+    def test_sort_icon_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".sort-icon" in content
+
+    def test_project_cell_css(self):
+        with open("src/session_browser/web/static/style.css") as f:
+            content = f.read()
+        assert ".project-cell" in content

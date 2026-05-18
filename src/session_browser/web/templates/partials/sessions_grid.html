@@ -1,30 +1,32 @@
 <!-- Sessions grid + pagination — included by sessions.html and served as AJAX partial -->
 {% if sessions %}
 <div class="page-section">
-    <div class="card-title flex">All Sessions <span class="card-subtitle-inline">(<span id="sessions-visible-count">{{ page_start }}–{{ page_end }}</span> of <span id="sessions-total-count">{{ total_count | default(0, true) }}</span>)</span></div>
-    <div class="card-sub">Triage session history by failures, token cost, agent, and project.</div>
     <div class="table-wrap">
         <div class="data-table sessions-grid" data-sessions-grid>
             <div class="table-head">
-                <div>Session</div>
-                <div>Agent</div>
-                <div>Project</div>
-                <div class="th-sortable" data-sort-key="duration">Duration</div>
-                <div class="th-sortable" data-sort-key="total-tokens">Tokens</div>
-                <div>Failures</div>
-                <div class="th-sortable" data-sort-key="rounds">Rounds</div>
-                <div class="th-sortable" data-sort-key="ended-at" aria-sort="descending">Updated</div>
+                <div class="th" role="columnheader">Title</div>
+                <div class="th" role="columnheader">Project</div>
+                <div class="th" role="columnheader">Agent</div>
+                <div class="th" role="columnheader">Model</div>
+                <div class="th sortable" role="columnheader" aria-sort="none">
+                    <button type="button" data-sort-key="total-tokens">Tokens <span class="sort-icon">↕</span></button>
+                </div>
+                <div class="th sortable" role="columnheader" aria-sort="none">
+                    <button type="button" data-sort-key="rounds">Rounds <span class="sort-icon">↕</span></button>
+                </div>
+                <div class="th sortable" role="columnheader" aria-sort="none">
+                    <button type="button" data-sort-key="tools">Tools <span class="sort-icon">↕</span></button>
+                </div>
+                <div class="th sortable" role="columnheader" aria-sort="none">
+                    <button type="button" data-sort-key="duration">Duration <span class="sort-icon">↕</span></button>
+                </div>
+                <div class="th sortable" role="columnheader" aria-sort="none">
+                    <button type="button" data-sort-key="ended-at">Updated <span class="sort-icon">↕</span></button>
+                </div>
             </div>
             {% for s in sessions %}
             {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
             {% set has_anomalies = s.get('anomalies') and s['anomalies'] | length > 0 %}
-            {% set anomaly_tooltip = '' %}
-            {% if has_anomalies %}
-                {% for a in s.anomalies %}
-                    {% set anomaly_tooltip = anomaly_tooltip + a.label + ': ' + a.reason %}
-                    {% if not loop.last %}{% set anomaly_tooltip = anomaly_tooltip + '&#10;' %}{% endif %}
-                {% endfor %}
-            {% endif %}
             <div class="table-row {{ 'row--failed' if s.failed_tool_count > 0 else '' }} {{ 'row--anomaly' if has_anomalies else '' }}"
                  data-agent="{{ s.agent }}"
                  data-model="{{ s.model }}"
@@ -41,30 +43,46 @@
                  data-anomaly-types="{% if has_anomalies %}{% for a in s.anomalies %}{{ a.type }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"
                  data-total-tokens="{{ total_tokens }}"
                  data-rounds="{{ s.assistant_message_count }}">
-                <!-- Session -->
-                <div>
-                    <div class="cell-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
+                <!-- Title -->
+                <div class="td">
+                    <div class="session-cell">
+                        <div class="session-title"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
+                        <div class="session-meta">
+                            <span class="session-id">{{ s.session_id[:12] }}</span>
+                            {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <!-- Project -->
+                <div class="td">
+                    <div class="project-cell">
+                        <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a>
+                        {% if s.cwd %}<div class="project-sub">{{ s.cwd | display_path }}</div>{% endif %}
+                    </div>
                 </div>
                 <!-- Agent -->
-                <div><span class="badge agent">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></div>
-                <!-- Project -->
-                <div class="project-cell text-xs"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a></div>
-                <!-- Duration -->
-                <div class="text-xs text-muted mono {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
+                <div class="td"><span class="badge agent">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></div>
+                <!-- Model -->
+                <div class="td"><span class="model">{{ s.model }}</span></div>
                 <!-- Tokens -->
-                <div class="mono text-xs">{{ total_tokens | format_number }}</div>
-                <!-- Failures -->
-                <div>
-                    {% if s.failed_tool_count > 0 %}
-                    <span class="diag err">{{ s.failed_tool_count }} failed</span>
-                    {% else %}
-                    <span class="diag ok">0</span>
-                    {% endif %}
+                <div class="td num">
+                    <div class="token-stack">
+                        <span class="strong">{{ total_tokens | format_number }}</span>
+                        <span class="mini-bar">
+                            <span class="fresh" style="width:{{ (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
+                            <span class="cache" style="width:{{ ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
+                            <span class="out" style="width:{{ (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
+                        </span>
+                    </div>
                 </div>
                 <!-- Rounds -->
-                <div class="mono text-xs">{{ s.assistant_message_count }}</div>
+                <div class="td num">{{ s.assistant_message_count }}</div>
+                <!-- Tools -->
+                <div class="td num">{{ s.tool_call_count }}</div>
+                <!-- Duration -->
+                <div class="td time {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
                 <!-- Updated -->
-                <div class="text-xs text-muted mono">{{ s.ended_at | relative_time }}</div>
+                <div class="td time">{{ s.ended_at | relative_time }}</div>
             </div>
             {% endfor %}
         </div>
@@ -75,35 +93,13 @@
 <div class="empty-state">No sessions indexed yet.</div>
 {% endif %}
 
-<!-- Pagination -->
+<!-- Footer -->
 {% if total_count is defined and total_count > 0 %}
-<nav class="pagination-bar" id="pagination-bar">
-    <div class="pagination-bar__info">
-        Showing {{ page_start }}–{{ page_end }} of {{ total_count | default(0, true) }}
-    </div>
-    <div class="pagination-bar__controls">
-        <button class="pagination-bar__btn" id="pagination-prev"
-                {% if not has_prev %}disabled{% endif %}
-                onclick="goToPage({{ page - 1 if has_prev else page }})">
-            &laquo; Prev
-        </button>
-        {% if page_size != 'all' %}
-        <span class="pagination-bar__page-info">
-            Page {{ page }} of {{ total_pages }}
-        </span>
-        {% endif %}
-        <button class="pagination-bar__btn" id="pagination-next"
-                {% if not has_next %}disabled{% endif %}
-                onclick="goToPage({{ page + 1 if has_next else page }})">
-            Next &raquo;
-        </button>
-        <select id="pagination-page-size" class="pagination-bar__select"
-                onchange="changePageSize(this.value)">
-            <option value="20" {% if page_size == 20 %}selected{% endif %}>20 / page</option>
-            <option value="50" {% if page_size == 50 %}selected{% endif %}>50 / page</option>
-            <option value="100" {% if page_size == 100 %}selected{% endif %}>100 / page</option>
-            <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
-        </select>
-    </div>
-</nav>
+<div class="table-footer">
+    <button class="page-btn" {% if not has_prev %}disabled{% endif %} onclick="goToPage({{ page - 1 if has_prev else page }})">Previous</button>
+    <button class="page-btn" {% if not has_next %}disabled{% endif %} onclick="goToPage({{ page + 1 if has_next else page }})">Next</button>
+    <span class="page-range">Rows {{ page_start }}–{{ page_end }}</span>
+    <span class="footer-spacer"></span>
+    <span class="footer-total">{{ total_count | default(0, true) }} matching sessions</span>
+</div>
 {% endif %}

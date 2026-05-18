@@ -13,8 +13,9 @@
 
 <!-- Filter row (server-side) -->
 <form id="session-filter-form" class="filter-bar" method="get" action="/sessions">
-    <input id="session-search" type="text" name="q" placeholder="Search title or session ID..."
+    <input id="session-search" type="text" name="q" placeholder="Search by Session ID..."
            class="filter-bar__input filter-bar__input--search" value="{{ filter_q }}" />
+    <span class="search-hint">仅支持 Session ID</span>
     <select id="filter-agent" name="agent" class="filter-bar__select">
         <option value="">All Agents</option>
         <option value="claude_code" {% if filter_agent == 'claude_code' %}selected{% endif %}>Claude Code</option>
@@ -96,7 +97,7 @@ window.openDemoInspector = function() {
         if (!head) return;
 
         head.addEventListener('click', function(e) {
-            var th = e.target.closest('.th-sortable');
+            var th = e.target.closest('.th.sortable');
             if (!th) return;
             cycleSort(th.dataset.sortKey);
             updateHeaderStates();
@@ -105,21 +106,29 @@ window.openDemoInspector = function() {
     }
 
     function updateHeaderStates() {
-        document.querySelectorAll('.table-head .th-sortable').forEach(function(th) {
-            th.classList.remove('th-sortable--active');
-            th.removeAttribute('aria-sort');
-            var existing = th.querySelector('.th-sort-arrow');
-            if (existing) existing.remove();
+        var currentParams = new URLSearchParams(window.location.search);
+        var currentSort = currentParams.get('sort') || DEFAULT_SORT_KEY;
+
+        document.querySelectorAll('.table-head .th.sortable').forEach(function(th) {
+            th.setAttribute('aria-sort', 'none');
+            var icon = th.querySelector('.sort-icon');
+            if (icon) {
+                icon.textContent = '↕';
+                icon.classList.remove('active');
+            }
+            var btn = th.querySelector('button');
+            if (btn) btn.removeAttribute('data-sort-dir');
         });
 
-        var active = document.querySelector('.table-head .th-sortable[data-sort-key="' + sortKey + '"]');
+        var active = document.querySelector('.table-head .th.sortable[data-sort-key="' + currentSort + '"]');
         if (active) {
-            active.classList.add('th-sortable--active');
-            active.setAttribute('aria-sort', sortDir === 'desc' ? 'descending' : 'ascending');
-            var arrow = document.createElement('span');
-            arrow.className = 'th-sort-arrow';
-            arrow.textContent = sortDir === 'desc' ? ' ↓' : ' ↑';
-            active.appendChild(arrow);
+            var dir = (currentSort === DEFAULT_SORT_KEY && !currentParams.get('sort')) ? 'desc' : 'desc';
+            active.setAttribute('aria-sort', dir === 'desc' ? 'descending' : 'ascending');
+            var icon = active.querySelector('.sort-icon');
+            if (icon) {
+                icon.textContent = dir === 'desc' ? '↓' : '↑';
+                icon.classList.add('active');
+            }
         }
     }
 
