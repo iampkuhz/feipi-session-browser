@@ -126,8 +126,9 @@ class TestTracePanel:
 
     def test_has_expand_all_button(self):
         source = self._source()
-        assert 'data-action="expand-all"' in source, \
-            "Trace must have Expand All button"
+        # Renamed to 'expand-visible' — only expands non-filtered rows
+        assert 'data-action="expand-visible"' in source, \
+            "Trace must have Expand Visible button"
 
     def test_has_collapse_all_button(self):
         source = self._source()
@@ -155,10 +156,11 @@ class TestTracePanel:
 
     def test_span_list_structure(self):
         source = self._source()
-        assert 'class="span-list"' in source, \
+        assert 'span-list' in source, \
             "Trace detail must have span-list"
-        assert 'class="span llm"' in source, \
-            "Span list must have LLM spans"
+        # After Task 03, LLM spans are rendered as .llm-call-card instead of .span.llm
+        assert 'class="llm-call-card"' in source, \
+            "LLM calls must be rendered as .llm-call-card"
 
     def test_tool_spans_have_data_attrs(self):
         source = self._source()
@@ -215,7 +217,7 @@ class TestTracePanel:
 class TestPayloadModal:
 
     def _source(self):
-        return _session_source()
+        return _base_source()
 
     def test_payload_modal_element_exists(self):
         source = self._source()
@@ -258,14 +260,14 @@ class TestPayloadModal:
             "Modal must have raw section"
 
     def test_payload_registry_exists(self):
-        source = self._source()
+        source = _session_source()
         assert "window.__SESSION_PAYLOADS__" in source, \
-            "Must have payload registry script"
+            "Must have payload registry script in session.html"
 
     def test_escape_key_closes_modal(self):
-        source = self._source()
+        source = _session_source()
         assert "Escape" in source, \
-            "Must handle Escape key for payload modal"
+            "Must handle Escape key for payload modal in session.html"
 
 
 # ──────────────────────────────────────────────────────────────────────

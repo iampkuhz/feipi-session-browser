@@ -139,12 +139,12 @@ class TestPhase1SimplifiedStructure:
         assert 'data-issue-summary' in html, "missing issue-summary section"
 
     def test_has_payload_modal(self):
-        html = self._read("session.html")
-        assert 'id="payload-modal"' in html, "missing payload-modal"
+        html = self._read("base.html")
+        assert 'id="payload-modal"' in html, "missing payload-modal in base.html"
 
     def test_has_expand_collapse_buttons(self):
         html = self._read("session.html")
-        assert 'data-action="expand-all"' in html, "missing expand-all"
+        assert 'data-action="expand-visible"' in html, "missing expand-visible"
         assert 'data-action="collapse-all"' in html, "missing collapse-all"
 
     def test_has_all_failed_segmented_control(self):

@@ -248,6 +248,21 @@
     {% endif %}
 {% endfor %}
 
+{# ── Compute issue summary aggregation (group by tool+exit) ── #}
+{% set _issue_groups = {} %}
+{% for fr in failed_rounds %}
+    {% for ft in fr.failed_tools %}
+        {% set _key = ft.name ~ '|exit_' ~ (ft.exit_code if ft.exit_code is not none else 'unknown') %}
+        {% if _key not in _issue_groups %}
+            {% set _ = _issue_groups.update({_key: {'tool_name': ft.name, 'exit_code': ft.exit_code, 'rounds': [], 'count': 0}}) %}
+        {% endif %}
+        {% set _ = _issue_groups[_key].rounds.append(fr.round_idx) %}
+        {% set _ = _issue_groups[_key].update({'count': _issue_groups[_key].count + 1}) %}
+    {% endfor %}
+{% endfor %}
+{# Sort groups by count descending #}
+{% set _issue_groups_sorted = _issue_groups.values() | sort(attribute='count', reverse=True) %}
+
 {% set highest_token_round = namespace(idx=0, tokens=0) %}
 {% for round in rounds %}
     {% set rb = round.token_breakdown() %}
@@ -314,6 +329,21 @@
         <span class="sec-metric mono" title="Output / input ratio">out/in {{ output_ratio }}%</span>
         <span class="sec-metric mono" title="Avg tools per round">{{ tools_per_round }} tools/round</span>
       </div>
+      {# ── Quick access: first request / first response ── #}
+      <div class="hero-quick-access" data-quick-access>
+        {% if rounds | length > 0 and rounds[0].user_msg.content %}
+        <button type="button" class="quick-access-btn" data-action="open-payload"
+                data-payload-key="msg-R1-user"
+                data-payload-type="message.user"
+                data-payload-title="First user request">First user request</button>
+        {% endif %}
+        {% if rounds | length > 0 and rounds[0].assistant_msg.content %}
+        <button type="button" class="quick-access-btn" data-action="open-payload"
+                data-payload-key="msg-R1-assistant"
+                data-payload-type="message.assistant"
+                data-payload-title="First assistant response">First assistant response</button>
+        {% endif %}
+      </div>
     </div>
     <div class="kpis">
       <div class="kpi">
@@ -371,8 +401,8 @@
   {% endif %}
 </section>
 
-<!-- Hidden raw JSON for copy action -->
-<pre id="raw-json" style="display:none">{{ session_data | safe_json_display }}</pre>
+<!-- Hidden raw JSON for copy action — moved to script tag to avoid visible <pre> in page flow -->
+<script type="application/json" id="raw-json">{{ session_data | safe_json_display }}</script>
 
 <!-- ── Issue Summary ────────────────────────────────────────── -->
 <section class="issue-summary" data-issue-summary>
@@ -382,10 +412,27 @@
   </div>
 
   {% if failed_rounds | length > 0 or highest_token_round.idx > 1 %}
-  <div class="issue-summary__cards">
-    {# Failed round cards #}
-    {% for fr in failed_rounds %}
-    <button class="issue-card issue-card--failed"
+  {# ── Aggregated issue summary (top N default, expandable) ── #}
+  {% set ISSUE_MAX_DEFAULT = 8 %}
+  {% if _issue_groups_sorted | length > 0 %}
+  <div class="issue-summary__aggregate" data-issue-aggregate>
+    {% for g in _issue_groups_sorted[:10] %}
+    <div class="issue-summary__agg-row">
+      <span class="issue-summary__agg-icon" aria-hidden="true">!</span>
+      <span class="issue-summary__agg-label">
+        <strong>{{ g.tool_name }}</strong>
+        {% if g.exit_code is not none %}exit {{ g.exit_code }}{% endif %}
+        &times; {{ g.count }} round{{ 's' if g.count > 1 else '' }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="issue-summary__cards" data-issue-cards>
+    {# Failed round cards — capped at ISSUE_MAX_DEFAULT #}
+    {% for fr in failed_rounds[:ISSUE_MAX_DEFAULT] %}
+    <button class="issue-card issue-card--failed issue-card--detailed"
             data-action="jump-round"
             data-round="{{ fr.round_idx }}"
             type="button">
@@ -417,6 +464,32 @@
       </div>
     </button>
     {% endif %}
+
+    {# Hidden cards for expansion #}
+    {% if failed_rounds | length > ISSUE_MAX_DEFAULT %}
+    <div class="issue-summary__cards--hidden" data-issue-cards-hidden style="display:none">
+      {% for fr in failed_rounds[ISSUE_MAX_DEFAULT:] %}
+      <button class="issue-card issue-card--failed issue-card--detailed"
+              data-action="jump-round"
+              data-round="{{ fr.round_idx }}"
+              type="button">
+        <div class="issue-card__icon">!</div>
+        <div class="issue-card__body">
+          <div class="issue-card__title">R{{ fr.round_idx }} — {{ fr.failed_tool_count }} failed tool call{{ 's' if fr.failed_tool_count > 1 else '' }}{% if fr.llm_error %}, LLM error{% endif %}</div>
+          <div class="issue-card__sub">
+            {% for ft in fr.failed_tools[:3] %}
+            {{ ft.name }}{% if ft.exit_code is defined and ft.exit_code is not none %} (exit {{ ft.exit_code }}){% endif %}{% if not loop.last %}; {% endif %}
+            {% endfor %}
+            {% if fr.failed_tools | length > 3 %}… +{{ fr.failed_tools | length - 3 }} more{% endif %}
+          </div>
+        </div>
+      </button>
+      {% endfor %}
+    </div>
+    <button type="button" class="issue-summary__expand-btn" data-action="toggle-issue-expand" aria-expanded="false">
+      Show affected rounds ({{ failed_rounds | length - ISSUE_MAX_DEFAULT }} more)
+    </button>
+    {% endif %}
   </div>
   {% else %}
   <div class="issue-summary__empty">
@@ -430,12 +503,12 @@
 <section class="trace-panel" data-trace-panel>
   <header class="trace-panel__toolbar">
     <div class="trace-panel__segmented">
-      <button class="trace-panel__chip active" data-action="filter-status" data-status="all" type="button">All</button>
-      <button class="trace-panel__chip" data-action="filter-status" data-status="failed" type="button">Failed</button>
+      <button class="trace-panel__chip active" data-action="filter-status" data-status="all" type="button" aria-pressed="true">All</button>
+      <button class="trace-panel__chip" data-action="filter-status" data-status="failed" type="button" aria-pressed="false">Failed</button>
     </div>
     <div class="trace-panel__actions">
-      <button class="trace-panel__btn" data-action="expand-all" type="button" title="Expand all rounds">Expand All</button>
-      <button class="trace-panel__btn" data-action="collapse-all" type="button" title="Collapse all rounds">Collapse All</button>
+      <button class="trace-panel__btn" data-action="expand-visible" type="button" title="Expand visible rounds">Expand visible</button>
+      <button class="trace-panel__btn" data-action="collapse-all" type="button" title="Collapse all rounds">Collapse all</button>
     </div>
   </header>
 
@@ -466,9 +539,8 @@
       {% set first_failed_round_idx.value = loop.index %}
     {% endif %}
 
-    {# ── Trace row (semantic button with aria) ── #}
-    <button class="trace-row"
-         type="button"
+    {# ── Trace row (div with dedicated toggle button) ── #}
+    <div class="trace-row"
          data-round-idx="{{ loop.index }}"
          data-round-tokens="{{ rt }}"
          data-round-input="{{ rb.input }}"
@@ -480,14 +552,18 @@
          data-round-warn-sigs="{{ sigs | selectattr('severity', 'equalto', 'warning') | list | length }}"
          data-round-model="{{ round.interactions[0].model if round.interactions else session.model }}"
          data-round-user-time="{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}"
-         data-status="{{ round_status }}"
-         aria-expanded="false"
-         aria-controls="trace-detail-{{ loop.index }}">
-      <span class="rid">
+         data-status="{{ round_status }}">
+      <div class="trace-row__toggle-cell">
         {% if has_llm_error or has_failed_tools %}<span class="round-failed-dot" aria-hidden="true"></span>{% endif %}
-        <span class="toggle" data-toggle-icon aria-hidden="true">&#8250;</span>
-        R{{ loop.index }}
-      </span>
+        <button type="button"
+                class="trace-round-toggle"
+                data-action="toggle-round"
+                aria-expanded="false"
+                aria-controls="trace-detail-{{ loop.index }}">
+          <span class="trace-round-toggle__chevron" data-toggle-icon aria-hidden="true">&#8250;</span>
+          <span class="trace-round-toggle__label">R{{ loop.index }}</span>
+        </button>
+      </div>
       <span class="round-main">
         <span class="t">
           {% if round.user_msg.content | trim %}
@@ -522,189 +598,177 @@
         <span class="mixval">{{ rt | format_number }}</span>
       </span>
       <span class="tcell">{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}</span>
-    </button>
+    </div>
 
     {# ── Trace detail (expanded content) ── #}
     <div class="trace-detail" id="trace-detail-{{ loop.index }}" data-round-detail="{{ loop.index }}" style="display:none">
-      <div class="span-list">
-        {# ── User message node ── #}
+      <div class="span-list round-detail">
+        {# ── User message card ── #}
         {% if round.user_msg.content %}
-        <div class="span llm" data-span-id="R{{ loop.index }}-USER">
-          <div class="sk">USER</div>
-          <div class="sb">
-            <div class="st">{{ round.user_msg.content | striptags | truncate(120) }}</div>
-            <div class="sd">{{ round.user_msg.timestamp | local_time if round.user_msg.timestamp else '' }}</div>
+        <article class="message-card message-card--user">
+          <header class="message-card__header">User message</header>
+          <div class="message-card__preview">{{ round.user_msg.content | striptags | truncate(200) }}</div>
+          <div class="message-card__actions">
+            <button type="button" class="message-card__btn" data-action="open-payload"
+                    data-payload-key="msg-R{{ loop.index }}-user"
+                    data-payload-type="message.user"
+                    data-payload-title="R{{ loop.index }} · User request">Open request</button>
+            <button type="button" class="message-card__btn" data-action="open-payload"
+                    data-payload-key="msg-R{{ loop.index }}-user-raw"
+                    data-payload-type="message.user.raw"
+                    data-payload-title="R{{ loop.index }} · User request · Raw">Raw</button>
           </div>
-          <div class="sm"></div>
-        </div>
+        </article>
         {% endif %}
 
-        {# ── LLM interaction nodes + nested tool calls ── #}
+        {# ── LLM call cards with nested tool calls ── #}
         {% set round_idx = loop.index %}
         {% for interaction in round.interactions %}
-          {# LLM node #}
           {% set ix_index = loop.index %}
-          <div class="span llm" data-span-id="R{{ round_idx }}-IX{{ ix_index }}">
-            <div class="sk">LLM #{{ ix_index }}</div>
-            <div class="sb">
-              <div class="st">
-                {%- if interaction.scope == "subagent" -%}
-                Subagent via {{ interaction.parent_tool_name }} &middot; {{ interaction.model[:40] }}
-                {%- else -%}
-                {{ interaction.model[:60] }}
-                {%- endif -%}
-              </div>
-              <div class="sd">
-                {%- if interaction.tool_calls -%}
-                {{ interaction.tool_calls | length }} tool call{{ 's' if interaction.tool_calls | length > 1 else '' }}
-                {%- else -%}
-                No tool calls
-                {%- endif -%}
-              </div>
-            </div>
-            <div class="sm">
-              {% if interaction.input_tokens %}
-              <span class="micro">{{ interaction.input_tokens | format_number }} in</span>
-              {% endif %}
-              {% if supports_cache_tokens and interaction.cache_read_tokens %}
-              <span class="micro">{{ interaction.cache_read_tokens | format_number }} cache</span>
-              {% endif %}
-              {% if supports_cache_tokens and interaction.cache_write_tokens %}
-              <span class="micro">{{ interaction.cache_write_tokens | format_number }} write</span>
-              {% endif %}
-              {% if interaction.output_tokens %}
-              <span class="micro">{{ interaction.output_tokens | format_number }} out</span>
-              {% endif %}
-              {% if interaction.request_full or interaction.response_full %}
-              <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}">Payload</button>
-              {% endif %}
-            </div>
+        <article class="llm-call-card" data-call-id="R{{ round_idx }}-IX{{ ix_index }}" data-round-idx="{{ round_idx }}" data-call-idx="{{ ix_index }}">
+          <header class="llm-call-card__header">
+            <span class="llm-call-card__title">LLM Call #{{ ix_index }}</span>
+            <span class="llm-call-card__model">{{ interaction.model[:40] }}</span>
+            <span class="llm-call-card__scope {{ 'scope--main' if interaction.scope == 'main' else 'scope--subagent' }}">{{ interaction.scope }}</span>
+            <span class="llm-call-card__status status--{{ interaction.status | lower if interaction.status else 'ok' }}">{{ interaction.status or 'ok' }}</span>
+          </header>
+
+          <dl class="llm-call-card__metrics">
+            {% if interaction.input_tokens %}
+            <div class="llm-call-card__metric"><dt>Input</dt><dd>{{ interaction.input_tokens | format_number }}</dd></div>
+            {% endif %}
+            {% if supports_cache_tokens and interaction.cache_read_tokens %}
+            <div class="llm-call-card__metric"><dt>Cache read</dt><dd>{{ interaction.cache_read_tokens | format_number }}</dd></div>
+            {% endif %}
+            {% if supports_cache_tokens and interaction.cache_write_tokens %}
+            <div class="llm-call-card__metric"><dt>Cache write</dt><dd>{{ interaction.cache_write_tokens | format_number }}</dd></div>
+            {% endif %}
+            {% if interaction.output_tokens %}
+            <div class="llm-call-card__metric"><dt>Output</dt><dd>{{ interaction.output_tokens | format_number }}</dd></div>
+            {% endif %}
+            {% if interaction.finish_reason %}
+            <div class="llm-call-card__metric"><dt>Finish</dt><dd class="mono">{{ interaction.finish_reason }}</dd></div>
+            {% endif %}
+          </dl>
+
+          <div class="llm-call-card__actions">
+            {% if interaction.request_full %}
+            <button type="button" class="llm-call-card__action-btn" data-action="open-payload"
+                    data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-request"
+                    data-payload-type="llm.request"
+                    data-payload-title="R{{ round_idx }} · LLM Call #{{ ix_index }} · Request">Request</button>
+            {% endif %}
+            {% if interaction.response_full %}
+            <button type="button" class="llm-call-card__action-btn" data-action="open-payload"
+                    data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-response"
+                    data-payload-type="llm.response"
+                    data-payload-title="R{{ round_idx }} · LLM Call #{{ ix_index }} · Response">Response</button>
+            {% endif %}
+            {% if interaction.request_payload_raw or interaction.response_payload_raw %}
+            <button type="button" class="llm-call-card__action-btn" data-action="open-payload"
+                    data-payload-key="llm-R{{ round_idx }}-IX{{ ix_index }}-raw"
+                    data-payload-type="llm.raw"
+                    data-payload-title="R{{ round_idx }} · LLM Call #{{ ix_index }} · Raw">Raw</button>
+            {% endif %}
+            {# Show missing-reason text when all three are unavailable #}
+            {% if not interaction.request_full and not interaction.response_full and not interaction.request_payload_raw and not interaction.response_payload_raw %}
+            <div class="llm-call-card__payload-unavailable">Payload not captured by source log</div>
+            {% endif %}
           </div>
 
-          {# Tool call children #}
-          {% for tc in interaction.tool_calls %}
-            {% set tc_summary = '' %}
-            {% if tc.name == 'Bash' %}
-              {% set tc_summary = tc.parameters.get('command', '')[:100] %}
-            {% elif tc.name == 'Agent' and tc.subagent_summary %}
-              {% set tc_summary = 'Subagent: ' ~ (tc.subagent_summary.description or tc.subagent_summary.agent_type) %}
-            {% elif tc.parameters.get('file_path') %}
-              {% set tc_summary = tc.parameters.file_path | relative_to_repo %}
-            {% else %}
-              {% set tc_summary = tc.parameters | tojson_repo | truncate(80) %}
-            {% endif %}
-            {% set tc_type = tc.name[:4].upper() %}
-            {% if tc.is_failed %}
-            <div class="span fail"
-                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-name="{{ tc.name }}"
-                 data-tool-status="error"
-                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-error="{{ (tc.error_message or '') | striptags | truncate(200) }}"
-                 data-tool-scope="{{ tc.scope }}"
-                 onclick="openToolInspector(this)">
-              <div class="sk">{{ tc_type }}</div>
-              <div class="sb">
-                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                <div class="sd">
-                  {{ tc.error_message | default('') | striptags | truncate(120) }}
-                </div>
-              </div>
-              <div class="sm">
-                <span class="micro">exit {{ tc.exit_code }}</span>
-                {% if tc.duration_ms %}
-                <span class="micro">{{ tc.duration_ms }}ms</span>
-                {% endif %}
-                {% if tc.result %}
-                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
-                {% endif %}
-              </div>
+          {# Nested tool calls under this LLM call #}
+          {% if interaction.tool_calls %}
+          <section class="llm-call-card__tools">
+            <div class="llm-call-card__tools-header">
+              <span class="llm-call-card__tools-title">{{ interaction.tool_calls | length }} tool call{{ 's' if interaction.tool_calls | length > 1 else '' }}</span>
             </div>
-            {% elif tc.has_nonzero_exit and not tc.is_failed %}
-            <div class="span warn"
-                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-name="{{ tc.name }}"
-                 data-tool-status="warn"
-                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-scope="{{ tc.scope }}"
-                 onclick="openToolInspector(this)">
-              <div class="sk">{{ tc_type }}</div>
-              <div class="sb">
-                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                <div class="sd">
-                  {{ tc.duration_ms }}ms
-                </div>
+            {% for tc in interaction.tool_calls %}
+              {% set tc_summary = '' %}
+              {% if tc.name == 'Bash' %}
+                {% set tc_summary = tc.parameters.get('command', '')[:100] %}
+              {% elif tc.name == 'Agent' and tc.subagent_summary %}
+                {% set tc_summary = 'Subagent: ' ~ (tc.subagent_summary.description or tc.subagent_summary.agent_type) %}
+              {% elif tc.parameters.get('file_path') %}
+                {% set tc_summary = tc.parameters.file_path | relative_to_repo %}
+              {% else %}
+                {% set tc_summary = tc.parameters | tojson_repo | truncate(80) %}
+              {% endif %}
+              {% set tc_type = tc.name[:4].upper() %}
+              <div class="tool-call-row {{ 'tool-call-row--error' if tc.is_failed else 'tool-call-row--warn' if tc.has_nonzero_exit and not tc.is_failed else '' }}"
+                   data-tool-name="{{ tc.name }}"
+                   data-tool-status="{{ 'error' if tc.is_failed else 'warn' if tc.has_nonzero_exit and not tc.is_failed else 'ok' }}"
+                   data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
+                   data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
+                   data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
+                   data-tool-error="{{ (tc.error_message or '') | striptags | truncate(200) }}"
+                   data-tool-scope="{{ tc.scope }}"
+                   onclick="openToolInspector(this)">
+                <span class="tool-call-row__type">{{ tc_type }}</span>
+                <span class="tool-call-row__name">{{ tc.name }}: {{ tc_summary }}</span>
+                <span class="tool-call-row__meta">
+                  {% if tc.is_failed and tc.error_message %}
+                  <span class="tool-call-row__error">{{ tc.error_message | striptags | truncate(80) }}</span>
+                  {% endif %}
+                  {% if tc.duration_ms %}
+                  <span class="micro">{{ tc.duration_ms }}ms</span>
+                  {% endif %}
+                  <span class="micro">exit {{ tc.exit_code if tc.exit_code is not none else 0 }}</span>
+                  {% if tc.result %}
+                  <button type="button" class="payload-btn" data-action="open-payload"
+                          data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}"
+                          data-payload-type="tool.result"
+                          data-payload-title="R{{ round_idx }} · {{ tc.name }} · Result">Result</button>
+                  {% endif %}
+                </span>
               </div>
-              <div class="sm">
-                <span class="micro">exit {{ tc.exit_code }}</span>
-                {% if tc.duration_ms %}
-                <span class="micro">{{ tc.duration_ms }}ms</span>
-                {% endif %}
-                {% if tc.result %}
-                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
-                {% endif %}
-              </div>
-            </div>
-            {% else %}
-            <div class="span tool"
-                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-name="{{ tc.name }}"
-                 data-tool-status="ok"
-                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-scope="{{ tc.scope }}"
-                 onclick="openToolInspector(this)">
-              <div class="sk">{{ tc_type }}</div>
-              <div class="sb">
-                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                <div class="sd">
-                  {%- if tc.duration_ms -%}
-                  {{ tc.duration_ms }}ms
-                  {%- endif -%}
-                </div>
-              </div>
-              <div class="sm">
-                <span class="micro">ok</span>
-                {% if tc.duration_ms %}
-                <span class="micro">{{ tc.duration_ms }}ms</span>
-                {% endif %}
-                {% if tc.result %}
-                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
-                {% endif %}
-              </div>
-            </div>
-            {% endif %}
-          {% endfor %}
+            {% endfor %}
+          </section>
+          {% else %}
+          <section class="llm-call-card__tools">
+            <div class="llm-call-card__no-tools">No tool calls</div>
+          </section>
+          {% endif %}
+        </article>
         {% endfor %}
 
-        {# ── Assistant response (after LLM calls) ── #}
+        {# ── Assistant response card ── #}
         {% if round.assistant_msg.content and round.interactions %}
-        <div class="span llm" data-span-id="R{{ round_idx }}-ASST">
-          <div class="sk">ASST</div>
-          <div class="sb">
-            <div class="st">{{ round.assistant_msg.content | striptags | truncate(120) }}</div>
-            <div class="sd">Assistant response</div>
+        <article class="message-card message-card--assistant">
+          <header class="message-card__header">Assistant response</header>
+          <div class="message-card__preview">{{ round.assistant_msg.content | striptags | truncate(300) }}</div>
+          <div class="message-card__actions">
+            <button type="button" class="message-card__btn" data-action="open-payload"
+                    data-payload-key="msg-R{{ round_idx }}-assistant"
+                    data-payload-type="message.assistant"
+                    data-payload-title="R{{ round_idx }} · Assistant response">Open response</button>
+            <button type="button" class="message-card__btn" data-action="open-payload"
+                    data-payload-key="msg-R{{ round_idx }}-assistant-raw"
+                    data-payload-type="message.assistant.raw"
+                    data-payload-title="R{{ round_idx }} · Assistant response · Raw">Raw</button>
           </div>
-          <div class="sm"></div>
-        </div>
+        </article>
         {% endif %}
 
-        {# ── Fallback: no interactions — show assistant msg + direct tool calls ── #}
+        {# ── No LLM calls fallback ── #}
         {% if not round.interactions %}
+        <div class="llm-call-card__empty">
+          No LLM calls captured for this round
+        </div>
           {% if round.assistant_msg.content %}
-          <div class="span llm" data-span-id="R{{ round_idx }}-ASST-FB">
-            <div class="sk">ASST</div>
-            <div class="sb">
-              <div class="st">{{ round.assistant_msg.content | striptags | truncate(120) }}</div>
-              <div class="sd">Assistant: {{ round.assistant_msg.content | striptags | truncate(80) }}</div>
+          <article class="message-card message-card--assistant">
+            <header class="message-card__header">Assistant response</header>
+            <div class="message-card__preview">{{ round.assistant_msg.content | striptags | truncate(300) }}</div>
+            <div class="message-card__actions">
+              <button type="button" class="message-card__btn" data-action="open-payload"
+                      data-payload-key="msg-R{{ round_idx }}-assistant"
+                      data-payload-type="message.assistant"
+                      data-payload-title="R{{ round_idx }} · Assistant response">Open response</button>
+              <button type="button" class="message-card__btn" data-action="open-payload"
+                      data-payload-key="msg-R{{ round_idx }}-assistant-raw"
+                      data-payload-type="message.assistant.raw"
+                      data-payload-title="R{{ round_idx }} · Assistant response · Raw">Raw</button>
             </div>
-            <div class="sm"></div>
-          </div>
+          </article>
           {% endif %}
           {% for tc in round.tool_calls %}
             {% set tc_summary = '' %}
@@ -716,79 +780,33 @@
               {% set tc_summary = tc.parameters | tojson_repo | truncate(80) %}
             {% endif %}
             {% set tc_type = tc.name[:4].upper() %}
-            {% if tc.is_failed %}
-            <div class="span fail"
-                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
+            <div class="tool-call-row {{ 'tool-call-row--error' if tc.is_failed else 'tool-call-row--warn' if tc.has_nonzero_exit and not tc.is_failed else '' }}"
                  data-tool-name="{{ tc.name }}"
-                 data-tool-status="error"
+                 data-tool-status="{{ 'error' if tc.is_failed else 'warn' if tc.has_nonzero_exit and not tc.is_failed else 'ok' }}"
                  data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
                  data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
                  data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
                  data-tool-error="{{ (tc.error_message or '') | striptags | truncate(200) }}"
                  data-tool-scope="{{ tc.scope }}"
                  onclick="openToolInspector(this)">
-              <div class="sk">{{ tc_type }}</div>
-              <div class="sb">
-                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                <div class="sd">
-                  {{ tc.error_message | default('') | striptags | truncate(120) }}
-                </div>
-              </div>
-              <div class="sm">
-                <span class="micro">exit {{ tc.exit_code }}</span>
-                {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
-                {% if tc.result %}
-                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+              <span class="tool-call-row__type">{{ tc_type }}</span>
+              <span class="tool-call-row__name">{{ tc.name }}: {{ tc_summary }}</span>
+              <span class="tool-call-row__meta">
+                {% if tc.is_failed and tc.error_message %}
+                <span class="tool-call-row__error">{{ tc.error_message | striptags | truncate(80) }}</span>
                 {% endif %}
-              </div>
-            </div>
-            {% elif tc.has_nonzero_exit and not tc.is_failed %}
-            <div class="span warn"
-                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-name="{{ tc.name }}"
-                 data-tool-status="warn"
-                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-scope="{{ tc.scope }}"
-                 onclick="openToolInspector(this)">
-              <div class="sk">{{ tc_type }}</div>
-              <div class="sb">
-                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                <div class="sd"></div>
-              </div>
-              <div class="sm">
-                <span class="micro">exit {{ tc.exit_code }}</span>
-                {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
-                {% if tc.result %}
-                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                {% if tc.duration_ms %}
+                <span class="micro">{{ tc.duration_ms }}ms</span>
                 {% endif %}
-              </div>
-            </div>
-            {% else %}
-            <div class="span tool"
-                 data-span-id="{{ tc.name[:4] }}-R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-name="{{ tc.name }}"
-                 data-tool-status="ok"
-                 data-tool-exit-code="{{ tc.exit_code if tc.exit_code is not none else '' }}"
-                 data-tool-duration-ms="{{ tc.duration_ms if tc.duration_ms else 0 }}"
-                 data-tool-idx="R{{ round_idx }}-T{{ loop.index }}"
-                 data-tool-scope="{{ tc.scope }}"
-                 onclick="openToolInspector(this)">
-              <div class="sk">{{ tc_type }}</div>
-              <div class="sb">
-                <div class="st">{{ tc.name }}: {{ tc_summary }}</div>
-                <div class="sd"></div>
-              </div>
-              <div class="sm">
-                <span class="micro">ok</span>
-                {% if tc.duration_ms %}<span class="micro">{{ tc.duration_ms }}ms</span>{% endif %}
+                <span class="micro">exit {{ tc.exit_code if tc.exit_code is not none else 0 }}</span>
                 {% if tc.result %}
-                <button type="button" class="payload-btn" data-action="open-payload" data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}">Payload</button>
+                <button type="button" class="payload-btn" data-action="open-payload"
+                        data-payload-key="tool-R{{ round_idx }}-T{{ loop.index }}"
+                        data-payload-type="tool.result"
+                        data-payload-title="R{{ round_idx }} · {{ tc.name }} · Result">Result</button>
                 {% endif %}
-              </div>
+              </span>
             </div>
-            {% endif %}
           {% endfor %}
         {% endif %}
 
@@ -806,64 +824,163 @@
 
 </div><!-- /data-session-detail-shell -->
 
-<!-- ── Payload Modal ────────────────────────────────────────── -->
-<dialog id="payload-modal" class="payload-modal" aria-label="Payload viewer">
-  <div class="payload-modal__panel">
-    <header class="payload-modal__header">
-      <span class="payload-modal__title"></span>
-      <div class="payload-modal__tabs">
-        <button type="button" class="payload-modal__tab active" data-action="payload-mode" data-mode="rendered">Rendered</button>
-        <button type="button" class="payload-modal__tab" data-action="payload-mode" data-mode="raw">Raw</button>
-      </div>
-      <button type="button" class="payload-modal__close" data-action="close-modal" aria-label="Close">&times;</button>
-    </header>
-    <div class="payload-modal__rendered"></div>
-    <div class="payload-modal__raw" hidden><pre></pre></div>
-  </div>
-</dialog>
+<!-- ── Payload map (canonical JSON data source) ─────────────────── -->
+{# Build payload map as a Python dict, then serialize as safe JSON #}
+{% set _pmap = namespace(map={}) %}
+{% set _pmap_serialized = [] %}
+{% for round in rounds %}
+{% if round.user_msg.content %}
+{% set _ = _pmap_serialized.append({
+  'key': 'msg-R' ~ loop.index ~ '-user',
+  'type': 'message.user',
+  'title': 'R' ~ loop.index ~ ' · User request',
+  'rendered': round.user_msg.content | default(''),
+  'raw': '',
+  'missing_reason': ''
+}) %}
+{% set _ = _pmap_serialized.append({
+  'key': 'msg-R' ~ loop.index ~ '-user-raw',
+  'type': 'message.user.raw',
+  'title': 'R' ~ loop.index ~ ' · User request · Raw',
+  'rendered': round.user_msg.content | default(''),
+  'raw': round.user_msg.content | default(''),
+  'missing_reason': ''
+}) %}
+{% endif %}
+{% endfor %}
+{# ── Assistant response payload entries ── #}
+{% for round in rounds %}
+{% if round.assistant_msg.content %}
+{% set _ = _pmap_serialized.append({
+  'key': 'msg-R' ~ loop.index ~ '-assistant',
+  'type': 'message.assistant',
+  'title': 'R' ~ loop.index ~ ' · Assistant response',
+  'rendered': round.assistant_msg.content | striptags | default(''),
+  'raw': '',
+  'missing_reason': ''
+}) %}
+{% set _ = _pmap_serialized.append({
+  'key': 'msg-R' ~ loop.index ~ '-assistant-raw',
+  'type': 'message.assistant.raw',
+  'title': 'R' ~ loop.index ~ ' · Assistant response · Raw',
+  'rendered': round.assistant_msg.content | striptags | default(''),
+  'raw': round.assistant_msg.content | default(''),
+  'missing_reason': ''
+}) %}
+{% endif %}
+{% endfor %}
+{% for round in rounds %}
+{% set _rd = loop.index %}
+{% for interaction in round.interactions %}
+{% set _ix = loop.index %}
+{% if interaction.request_full %}
+{% set _ = _pmap_serialized.append({
+  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-request',
+  'type': 'llm.request',
+  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Request',
+  'rendered': interaction.request_full | default(''),
+  'raw': '',
+  'missing_reason': ''
+}) %}
+{% endif %}
+{% if interaction.response_full %}
+{% set _ = _pmap_serialized.append({
+  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-response',
+  'type': 'llm.response',
+  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Response',
+  'rendered': interaction.response_full | default(''),
+  'raw': '',
+  'missing_reason': ''
+}) %}
+{% endif %}
+{% if interaction.request_payload_raw or interaction.response_payload_raw %}
+{% set _raw_val = interaction.request_payload_raw or interaction.response_payload_raw or '' %}
+{% set _ = _pmap_serialized.append({
+  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-raw',
+  'type': 'llm.raw',
+  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Raw',
+  'rendered': _raw_val | default(''),
+  'raw': _raw_val,
+  'missing_reason': ''
+}) %}
+{% else %}
+{% set _ = _pmap_serialized.append({
+  'key': 'llm-R' ~ _rd ~ '-IX' ~ _ix ~ '-raw',
+  'type': 'llm.raw',
+  'title': 'R' ~ _rd ~ ' · LLM Call #' ~ _ix ~ ' · Raw',
+  'rendered': '',
+  'raw': '',
+  'missing_reason': 'Raw payload not captured by source log'
+}) %}
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% for round in rounds %}
+{% set _rd = loop.index %}
+{% for tc in round.tool_calls %}
+{% if tc.result and tc.result | length > 0 %}
+{% set _ = _pmap_serialized.append({
+  'key': 'tool-R' ~ _rd ~ '-T' ~ loop.index,
+  'type': 'tool.result',
+  'title': 'R' ~ _rd ~ ' · ' ~ tc.name ~ ' · Result',
+  'rendered': (tc.result | striptags | truncate(2000)) | default(''),
+  'raw': tc.result | default(''),
+  'missing_reason': ''
+}) %}
+{% endif %}
+{% endfor %}
+{% endfor %}
+{# Convert list to dict keyed by 'key' field #}
+{% set _pmap_dict = {} %}
+{% for item in _pmap_serialized %}
+{% set _ = _pmap_dict.update({item.key: {'type': item.type, 'title': item.title, 'rendered': item.rendered, 'raw': item.raw, 'missing_reason': item.missing_reason}}) %}
+{% endfor %}
+<script type="application/json" id="session-payload-map">{{ _pmap_dict | tojson }}</script>
 
-<!-- ── Payload registry ─────────────────────────────────────── -->
+<!-- ── Payload registry (backward-compatible JS wrapper) ────────── -->
 <script>
 (function() {
-  var payloads = {};
-  var payloadIdx = 0;
+  // Read from canonical JSON script element
+  var mapEl = document.getElementById('session-payload-map');
+  var payloadMap = mapEl ? JSON.parse(mapEl.textContent) : {};
 
-  // Register LLM request/response payloads
-  {% for interaction in [] %}{% endfor %}
+  // Build backward-compatible window.__SESSION_PAYLOADS__ shape
+  var payloads = {};
+  for (var key in payloadMap) {
+    if (payloadMap.hasOwnProperty(key)) {
+      var entry = payloadMap[key];
+      payloads[key] = {
+        title: entry.title,
+        type: entry.type,
+        rendered: entry.rendered,
+        raw: entry.raw || null,
+        missing_reason: entry.missing_reason || ''
+      };
+    }
+  }
+
+  // Legacy compound LLM payload for old inspector code
   {% for round in rounds %}
   {% set round_idx = loop.index %}
   {% for interaction in round.interactions %}
-  {% if interaction.request_full or interaction.response_full %}
   {% set ix_index = loop.index %}
+  {% if interaction.request_full or interaction.response_full %}
   payloads['llm-R{{ round_idx }}-IX{{ ix_index }}'] = {
     title: 'LLM #{{ ix_index }} (R{{ round_idx }})',
+    type: 'llm.compound',
     rendered: {{ interaction.response_preview[:500] | default('') | tojson }},
     raw: {
       request: {{ interaction.request_full | default('') | tojson }},
       response: {{ interaction.response_full | default('') | tojson }}
-    }
-  };
-  {% endif %}
-  {% endfor %}
-  {% endfor %}
-
-  // Register tool result payloads
-  {% for round in rounds %}
-  {% set round_idx = loop.index %}
-  {% for tc in round.tool_calls %}
-  {% if tc.result and tc.result | length > 0 %}
-  payloads['tool-R{{ round_idx }}-T{{ loop.index }}'] = {
-    title: '{{ tc.name }} (R{{ round_idx }}-T{{ loop.index }})',
-    rendered: {{ (tc.result | striptags | truncate(2000)) | tojson }},
-    raw: {
-      result: {{ tc.result | default('') | tojson }}
-    }
+    },
+    missing_reason: ''
   };
   {% endif %}
   {% endfor %}
   {% endfor %}
 
   window.__SESSION_PAYLOADS__ = payloads;
+  window.__SESSION_PAYLOAD_MAP__ = payloadMap;
 })();
 </script>
 
@@ -872,13 +989,14 @@
     /* ─── Toggle round detail with accordion behavior ─── */
     /**
      * Toggle a single round's detail. When expanding, collapse all other rounds first.
-     * @param {HTMLElement} traceRow - The .trace-row element
+     * @param {HTMLElement} toggleBtn - The .trace-round-toggle button
      * @param {string} [forceState] - Optional: 'expand' or 'collapse' to force a state
      */
-    window.toggleRoundDetail = function(traceRow, forceState) {
+    window.toggleRoundDetail = function(toggleBtn, forceState) {
+        var traceRow = toggleBtn.closest('.trace-row');
+        if (!traceRow) return;
         var detailDiv = traceRow.nextElementSibling;
         if (!detailDiv || !detailDiv.classList.contains('trace-detail')) return;
-        var toggleIcon = traceRow.querySelector('[data-toggle-icon]');
         var isCurrentlyExpanded = detailDiv.style.display !== 'none' && detailDiv.style.display !== '';
 
         // If forcing collapse of others, collapse all rounds except this one
@@ -901,8 +1019,9 @@
 
         if (isExpanding) {
             detailDiv.style.display = 'block';
-            traceRow.setAttribute('aria-expanded', 'true');
-            if (toggleIcon) toggleIcon.textContent = '⌄';
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            var chevron = toggleBtn.querySelector('[data-toggle-icon]');
+            if (chevron) chevron.textContent = '⌄';
             // Persist expanded state
             if (window._sessionId && traceRow.dataset.roundIdx) {
                 var key = 'rounds_' + window._sessionId;
@@ -913,8 +1032,9 @@
             }
         } else {
             detailDiv.style.display = 'none';
-            traceRow.setAttribute('aria-expanded', 'false');
-            if (toggleIcon) toggleIcon.textContent = '›';
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            var chevron = toggleBtn.querySelector('[data-toggle-icon]');
+            if (chevron) chevron.textContent = '›';
             // Persist collapsed state
             if (window._sessionId && traceRow.dataset.roundIdx) {
                 var key = 'rounds_' + window._sessionId;
@@ -936,21 +1056,26 @@
             if (!detailDiv || !detailDiv.classList.contains('trace-detail')) return;
             if (detailDiv.style.display !== 'none' && detailDiv.style.display !== '') {
                 detailDiv.style.display = 'none';
-                row.setAttribute('aria-expanded', 'false');
+                var toggleBtn = row.querySelector('.trace-round-toggle');
+                if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
                 var toggleIcon = row.querySelector('[data-toggle-icon]');
                 if (toggleIcon) toggleIcon.textContent = '›';
             }
         });
     }
 
-    /* ─── Expand/Collapse all rounds ─────────────────────────── */
+    /* ─── Expand visible / Collapse all rounds ─────────────────────────── */
     window.expandAllRounds = function() {
+        // Renamed semantically: only expands rows that are currently visible (not filtered out)
         var rows = document.querySelectorAll('.trace-row');
         rows.forEach(function(row) {
+            // Skip filtered-out rows
+            if (row.classList.contains('is-filtered-out')) return;
             var detailDiv = row.nextElementSibling;
             if (detailDiv && detailDiv.classList.contains('trace-detail')) {
                 detailDiv.style.display = 'block';
-                row.setAttribute('aria-expanded', 'true');
+                var toggleBtn = row.querySelector('.trace-round-toggle');
+                if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
                 var toggleIcon = row.querySelector('[data-toggle-icon]');
                 if (toggleIcon) toggleIcon.textContent = '⌄';
             }
@@ -969,7 +1094,8 @@
             if (detailDiv && detailDiv.classList.contains('trace-detail')) {
                 if (detailDiv.style.display !== 'none' && detailDiv.style.display !== '') {
                     detailDiv.style.display = 'none';
-                    row.setAttribute('aria-expanded', 'false');
+                    var toggleBtn = row.querySelector('.trace-round-toggle');
+                    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
                     var toggleIcon = row.querySelector('[data-toggle-icon]');
                     if (toggleIcon) toggleIcon.textContent = '›';
                 }
@@ -1060,7 +1186,276 @@
     };
 
     /* ─── Payload modal ───────────────────────────────────── */
-    function openPayloadModal(key) {
+
+    /* ── Payload rendering engine ── */
+    function renderPayload(payload) {
+        if (!payload) return renderMissing("Payload key not found");
+
+        if (payload.rendered && payload.rendered.trim()) {
+            return '<div class="rendered-text-block">' + _escapeHtml(payload.rendered) + '</div>';
+        }
+
+        if (payload.raw && payload.raw.trim && payload.raw.trim()) {
+            return renderRawFallback(payload.raw, payload.type);
+        }
+
+        if (payload.raw && typeof payload.raw === 'object') {
+            // Compound payload (e.g. {request: "...", response: "..."})
+            return renderRawFallback(JSON.stringify(payload.raw, null, 2), payload.type);
+        }
+
+        return renderMissing(payload.missing_reason || "No payload content captured");
+    }
+
+    function renderRawFallback(raw, type) {
+        var parsed = tryParseJson(raw);
+        if (parsed) {
+            if (type === "llm.request") return renderLlmRequestJson(parsed);
+            if (type === "llm.response") return renderLlmResponseJson(parsed);
+            if (type && type.startsWith("tool.")) return renderToolJson(parsed, type);
+            return renderPrettyJson(parsed);
+        }
+        return renderPlainText(raw);
+    }
+
+    function tryParseJson(raw) {
+        if (typeof raw !== 'string') return null;
+        try {
+            var obj = JSON.parse(raw);
+            if (obj && typeof obj === 'object') return obj;
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+
+    /* ── LLM Request renderer ── */
+    function renderLlmRequestJson(obj) {
+        var html = '';
+
+        // Model
+        if (obj.model) {
+            html += '<div class="rendered-section"><div class="rendered-section__title">Model</div>';
+            html += '<div class="rendered-row"><span class="rendered-row__value">' + _escapeHtml(String(obj.model)) + '</span></div></div>';
+        }
+
+        // Messages
+        var messages = obj.messages || [];
+        if (messages.length > 0) {
+            html += '<div class="rendered-section"><div class="rendered-section__title">Messages (' + messages.length + ')</div>';
+            html += '<ul class="rendered-message-list">';
+            for (var i = 0; i < Math.min(messages.length, 50); i++) {
+                var msg = messages[i];
+                var role = msg.role || 'unknown';
+                var content = '';
+                if (typeof msg.content === 'string') {
+                    content = msg.content.length > 200 ? msg.content.substring(0, 200) + '...' : msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    content = '[multipart: ' + msg.content.length + ' parts]';
+                } else if (msg.content) {
+                    content = String(msg.content).substring(0, 200);
+                }
+                html += '<li><span class="msg-role">' + _escapeHtml(role) + '</span>' + _escapeHtml(content) + '</li>';
+            }
+            if (messages.length > 50) {
+                html += '<li><em>... and ' + (messages.length - 50) + ' more (see Raw tab)</em></li>';
+            }
+            html += '</ul></div>';
+        }
+
+        // Tools
+        var tools = obj.tools || [];
+        if (tools.length > 0) {
+            html += '<div class="rendered-section"><div class="rendered-section__title">Tools (' + tools.length + ')</div>';
+            html += '<ul class="rendered-message-list">';
+            for (var j = 0; j < tools.length; j++) {
+                var toolName = (tools[j] && tools[j].name) ? tools[j].name : (typeof tools[j] === 'string' ? tools[j] : 'unknown');
+                html += '<li><span class="msg-role">&#9881;</span>' + _escapeHtml(String(toolName)) + '</li>';
+            }
+            html += '</ul></div>';
+        }
+
+        if (!obj.model && messages.length === 0 && tools.length === 0) {
+            return renderPrettyJson(obj);
+        }
+
+        return html;
+    }
+
+    /* ── LLM Response renderer ── */
+    function renderLlmResponseJson(obj) {
+        var html = '';
+
+        // Try various response shapes (OpenAI-style, Anthropic-style, etc.)
+        var choices = obj.choices || [];
+        var message = null;
+        var toolCalls = [];
+        var finishReason = obj.finish_reason || '';
+        var usage = obj.usage || null;
+
+        // OpenAI shape
+        if (choices.length > 0 && choices[0]) {
+            message = choices[0].message || choices[0].delta;
+            if (choices[0].finish_reason) finishReason = choices[0].finish_reason;
+            if (message && message.tool_calls) toolCalls = message.tool_calls;
+        }
+
+        // Anthropic shape
+        if (!message && obj.content) {
+            if (Array.isArray(obj.content)) {
+                // Extract text blocks
+                var textParts = [];
+                for (var i = 0; i < obj.content.length; i++) {
+                    var block = obj.content[i];
+                    if (block.type === 'text') textParts.push(block.text || '');
+                    else if (block.type === 'tool_use') toolCalls.push(block);
+                }
+                message = { role: 'assistant', content: textParts.join('\n') };
+            } else {
+                message = { role: 'assistant', content: String(obj.content) };
+            }
+        }
+
+        // Generic fallback
+        if (!message) {
+            message = obj.message || { content: '', role: 'unknown' };
+        }
+
+        // Assistant response
+        if (message && message.content) {
+            var contentStr = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+            var displayContent = contentStr.length > 1000 ? contentStr.substring(0, 1000) + '...' : contentStr;
+            html += '<div class="rendered-section"><div class="rendered-section__title">Assistant Response</div>';
+            html += '<div class="rendered-code-block">' + _escapeHtml(displayContent) + '</div></div>';
+        }
+
+        // Tool calls
+        if (toolCalls.length > 0) {
+            html += '<div class="rendered-section"><div class="rendered-section__title">Tool Calls (' + toolCalls.length + ')</div>';
+            html += '<ul class="rendered-message-list">';
+            for (var k = 0; k < toolCalls.length; k++) {
+                var tc = toolCalls[k];
+                var tcName = tc.name || tc.function_name || (tc.function && tc.function.name) || 'unknown';
+                var tcId = tc.id || '';
+                html += '<li><span class="msg-role">&#9881;</span>' + _escapeHtml(String(tcName)) + (tcId ? ' <span style="color:var(--t2,#6b7280)">' + _escapeHtml(String(tcId)) + '</span>' : '') + '</li>';
+            }
+            html += '</ul></div>';
+        }
+
+        // Finish reason
+        if (finishReason) {
+            html += '<div class="rendered-section"><div class="rendered-section__title">Finish Reason</div>';
+            html += '<div class="rendered-row"><span class="rendered-row__value">' + _escapeHtml(String(finishReason)) + '</span></div></div>';
+        }
+
+        // Usage
+        if (usage) {
+            html += '<div class="rendered-section"><div class="rendered-section__title">Usage</div>';
+            if (usage.prompt_tokens != null) html += '<div class="rendered-row"><span class="rendered-row__label">Prompt</span><span class="rendered-row__value">' + Number(usage.prompt_tokens).toLocaleString() + '</span></div>';
+            if (usage.completion_tokens != null) html += '<div class="rendered-row"><span class="rendered-row__label">Completion</span><span class="rendered-row__value">' + Number(usage.completion_tokens).toLocaleString() + '</span></div>';
+            if (usage.total_tokens != null) html += '<div class="rendered-row"><span class="rendered-row__label">Total</span><span class="rendered-row__value">' + Number(usage.total_tokens).toLocaleString() + '</span></div>';
+            if (usage.cache_read_input_tokens != null) html += '<div class="rendered-row"><span class="rendered-row__label">Cache read</span><span class="rendered-row__value">' + Number(usage.cache_read_input_tokens).toLocaleString() + '</span></div>';
+            html += '</div>';
+        }
+
+        if (!html) {
+            return renderPrettyJson(obj);
+        }
+
+        return html;
+    }
+
+    /* ── Tool Input/Result renderer ── */
+    function renderToolJson(parsed, type) {
+        var html = '';
+
+        if (type === "tool.result") {
+            // Tool result — show status, exit code, output
+            html += '<div class="rendered-section"><div class="rendered-section__title">Tool Result</div>';
+
+            var exitCode = parsed.exit_code;
+            if (exitCode !== undefined && exitCode !== null) {
+                var statusClass = exitCode === 0 ? 'rendered-status-ok' : 'rendered-status-error';
+                html += '<div class="rendered-row"><span class="rendered-row__label">Exit code</span>';
+                html += '<span class="rendered-row__value ' + statusClass + '">' + _escapeHtml(String(exitCode)) + '</span></div>';
+            }
+
+            var status = parsed.status || (exitCode === 0 ? 'success' : 'failed');
+            var sClass = status === 'success' || status === 'ok' ? 'rendered-status-ok' : 'rendered-status-error';
+            html += '<div class="rendered-row"><span class="rendered-row__label">Status</span>';
+            html += '<span class="rendered-row__value ' + sClass + '">' + _escapeHtml(String(status)) + '</span></div>';
+
+            var output = parsed.output || parsed.result || parsed.stdout || '';
+            if (output) {
+                var displayOutput = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+                if (displayOutput.length > 2000) displayOutput = displayOutput.substring(0, 2000) + '...';
+                html += '<div class="rendered-code-block">' + _escapeHtml(displayOutput) + '</div>';
+            }
+            html += '</div>';
+        } else if (type === "tool.input" || type === "tool.call") {
+            // Tool input — show command, file path, parameters
+            html += '<div class="rendered-section"><div class="rendered-section__title">Tool Input</div>';
+
+            var command = parsed.command || parsed.cmd;
+            if (command) {
+                html += '<div class="rendered-section__body">Command:</div>';
+                html += '<div class="rendered-code-block">' + _escapeHtml(String(command)) + '</div>';
+            }
+
+            var filePath = parsed.file_path || parsed.path || parsed.file;
+            if (filePath) {
+                html += '<div class="rendered-row"><span class="rendered-row__label">File</span>';
+                html += '<span class="rendered-row__value">' + _escapeHtml(String(filePath)) + '</span></div>';
+            }
+
+            var timeout = parsed.timeout;
+            if (timeout != null) {
+                html += '<div class="rendered-row"><span class="rendered-row__label">Timeout</span>';
+                html += '<span class="rendered-row__value">' + _escapeHtml(String(timeout)) + '</span></div>';
+            }
+
+            // Show remaining parameters not covered above
+            var skipKeys = new Set(['command', 'cmd', 'file_path', 'path', 'file', 'timeout', 'type']);
+            var otherParams = {};
+            for (var key in parsed) {
+                if (parsed.hasOwnProperty(key) && !skipKeys.has(key)) {
+                    otherParams[key] = parsed[key];
+                }
+            }
+            if (Object.keys(otherParams).length > 0) {
+                html += '<div class="rendered-code-block">' + _escapeHtml(JSON.stringify(otherParams, null, 2)) + '</div>';
+            }
+            html += '</div>';
+        } else {
+            // Generic tool type — just show pretty JSON
+            return renderPrettyJson(parsed);
+        }
+
+        return html;
+    }
+
+    /* ── Pretty JSON renderer ── */
+    function renderPrettyJson(obj) {
+        var formatted = JSON.stringify(obj, null, 2);
+        if (formatted.length > 5000) {
+            formatted = formatted.substring(0, 5000) + '\n\n... (truncated, see Raw tab for full content)';
+        }
+        return '<div class="rendered-code-block">' + _escapeHtml(formatted) + '</div>';
+    }
+
+    /* ── Plain text renderer ── */
+    function renderPlainText(raw) {
+        var display = typeof raw === 'string' ? raw : String(raw);
+        if (display.length > 5000) {
+            display = display.substring(0, 5000) + '\n\n... (truncated, see Raw tab for full content)';
+        }
+        return '<div class="rendered-text-block">' + _escapeHtml(display) + '</div>';
+    }
+
+    /* ── Missing content renderer ── */
+    function renderMissing(reason) {
+        return '<div class="rendered-missing">' + _escapeHtml(reason || "No payload content captured") + '</div>';
+    }
+
+    function openPayloadModal(key, button) {
         var modal = document.getElementById('payload-modal');
         if (!modal) return;
 
@@ -1070,43 +1465,58 @@
             return;
         }
 
+        // Prefer data-payload-title from the button, fall back to payload entry
+        var titleText = (button && button.dataset.payloadTitle)
+            ? button.dataset.payloadTitle
+            : (payload.title || key);
         var titleEl = modal.querySelector('.payload-modal__title');
-        if (titleEl) titleEl.textContent = payload.title;
+        if (titleEl) titleEl.textContent = titleText;
+
+        // Prefer data-payload-type from the button, fall back to payload entry
+        var payloadType = (button && button.dataset.payloadType)
+            ? button.dataset.payloadType
+            : (payload.type || '');
 
         var renderedEl = modal.querySelector('.payload-modal__rendered');
         var rawEl = modal.querySelector('.payload-modal__raw pre');
 
-        // Set rendered content
+        // Set rendered content using the new renderer engine
         if (renderedEl) {
-            renderedEl.innerHTML = '<pre style="white-space:pre-wrap;word-break:break-word;">' +
-                _escapeHtml(payload.rendered || '(No rendered content)') + '</pre>';
+            renderedEl.innerHTML = renderPayload(payload);
         }
 
-        // Set raw content using textContent for safety
+        // Set raw content
         if (rawEl) {
             var rawContent = '';
             if (payload.raw) {
-                // Concatenate all raw parts
-                for (var partKey in payload.raw) {
-                    if (payload.raw.hasOwnProperty(partKey)) {
-                        if (rawContent) rawContent += '\n\n--- ' + partKey + ' ---\n\n';
-                        else rawContent += '--- ' + partKey + ' ---\n\n';
-                        rawContent += payload.raw[partKey] || '';
+                if (typeof payload.raw === 'string') {
+                    rawContent = payload.raw;
+                } else {
+                    // Concatenate all raw parts (for compound payloads)
+                    for (var partKey in payload.raw) {
+                        if (payload.raw.hasOwnProperty(partKey)) {
+                            if (rawContent) rawContent += '\n\n--- ' + partKey + ' ---\n\n';
+                            else rawContent += '--- ' + partKey + ' ---\n\n';
+                            rawContent += payload.raw[partKey] || '';
+                        }
                     }
                 }
             }
             rawEl.textContent = rawContent || '(No raw content)';
         }
 
-        // Reset to Rendered tab
+        // Determine default tab: types ending with .raw default to Raw tab
+        var defaultMode = payloadType.endsWith('.raw') ? 'raw' : 'rendered';
         var tabs = modal.querySelectorAll('.payload-modal__tab');
         var renderedSection = modal.querySelector('.payload-modal__rendered');
         var rawSection = modal.querySelector('.payload-modal__raw');
         tabs.forEach(function(tab) {
-            tab.classList.toggle('active', tab.dataset.mode === 'rendered');
+            var isActive = tab.dataset.mode === defaultMode;
+            tab.classList.toggle('active', isActive);
+            tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
-        if (renderedSection) renderedSection.hidden = false;
-        if (rawSection) rawSection.hidden = true;
+        if (renderedSection) renderedSection.hidden = (defaultMode !== 'rendered');
+        if (rawSection) rawSection.hidden = (defaultMode !== 'raw');
 
         modal.showModal();
     }
@@ -1148,7 +1558,9 @@
             var chips = document.querySelectorAll('.trace-panel__chip[data-status]');
             for (var i = 0; i < chips.length; i++) {
                 var chip = chips[i];
-                chip.classList.toggle('active', chip.getAttribute('data-status') === status);
+                var isActive = chip.getAttribute('data-status') === status;
+                chip.classList.toggle('active', isActive);
+                chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             }
             apply();
         }
@@ -1164,10 +1576,13 @@
             return;
         }
 
+        var toggleBtn = traceRow.querySelector('.trace-round-toggle');
         var detailDiv = traceRow.nextElementSibling;
         if (detailDiv && detailDiv.classList.contains('trace-detail')) {
             if (detailDiv.style.display === 'none' || detailDiv.style.display === '') {
-                window.toggleRoundDetail(traceRow);
+                if (toggleBtn) {
+                    window.toggleRoundDetail(toggleBtn);
+                }
             }
         }
 
@@ -1211,8 +1626,16 @@
 
         var action = target.dataset.action;
 
-        // expand-all
-        if (action === 'expand-all') {
+        // toggle-round (left chevron button)
+        if (action === 'toggle-round') {
+            event.preventDefault();
+            event.stopPropagation();
+            window.toggleRoundDetail(target);
+            return;
+        }
+
+        // expand-visible (expand only non-filtered rows)
+        if (action === 'expand-visible' || action === 'expand-all') {
             event.preventDefault();
             window.expandAllRounds();
             return;
@@ -1250,7 +1673,7 @@
             event.preventDefault();
             var key = target.dataset.payloadKey;
             if (key) {
-                openPayloadModal(key);
+                openPayloadModal(key, target);
             }
             return;
         }
@@ -1267,15 +1690,38 @@
             var rawSection = modal.querySelector('.payload-modal__raw');
 
             tabs.forEach(function(tab) {
-                tab.classList.toggle('active', tab.dataset.mode === mode);
+                var isActive = tab.dataset.mode === mode;
+                tab.classList.toggle('active', isActive);
+                tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
             });
 
             if (mode === 'rendered') {
-                if (renderedSection) renderedSection.hidden = false;
-                if (rawSection) rawSection.hidden = true;
+                if (renderedSection) { renderedSection.hidden = false; }
+                if (rawSection) { rawSection.hidden = true; }
             } else {
-                if (rawSection) rawSection.hidden = false;
-                if (renderedSection) renderedSection.hidden = true;
+                if (rawSection) { rawSection.hidden = false; }
+                if (renderedSection) { renderedSection.hidden = true; }
+            }
+            return;
+        }
+
+        // toggle-issue-expand (show/hide extra issue cards)
+        if (action === 'toggle-issue-expand') {
+            event.preventDefault();
+            var hiddenContainer = document.querySelector('[data-issue-cards-hidden]');
+            if (!hiddenContainer) return;
+            var isCurrentlyExpanded = target.getAttribute('aria-expanded') === 'true';
+            if (isCurrentlyExpanded) {
+                hiddenContainer.style.display = 'none';
+                target.setAttribute('aria-expanded', 'false');
+                target.textContent = target.textContent.replace('Hide', 'Show').replace('Hide', 'Show');
+                // Rebuild label
+                var totalRounds = hiddenContainer.querySelectorAll('.issue-card').length;
+                target.textContent = 'Show affected rounds (' + totalRounds + ' more)';
+            } else {
+                hiddenContainer.style.display = '';
+                target.setAttribute('aria-expanded', 'true');
+                target.textContent = 'Hide affected rounds';
             }
             return;
         }
@@ -1329,25 +1775,9 @@
         if (window.openToolInspector) window.openToolInspector(spanEl);
     };
 
-    /* ─── Delegated click for trace-row and span ──────────── */
+    /* ─── Delegated click for span ────────────────────────── */
     document.addEventListener('click', function(e) {
         var target = e.target;
-
-        // Trace row: toggle round detail (skip if nested interactive element)
-        var traceRow = target.closest('.trace-row');
-        if (traceRow) {
-            // Let nested buttons, links, data-action handlers fire first
-            var nested = target.closest('button, a, [data-action]');
-            if (nested && nested !== traceRow) {
-                return;
-            }
-            e.preventDefault();
-            var detailDiv = traceRow.nextElementSibling;
-            if (detailDiv && detailDiv.classList.contains('trace-detail')) {
-                window.toggleRoundDetail(traceRow);
-            }
-            return;
-        }
 
         // Span nodes in trace-detail (but not if onclick already handled)
         var span = target.closest('.span');
@@ -1370,7 +1800,10 @@
 
             var targetRow = firstFailed || rows[0];
             if (targetRow) {
-                window.toggleRoundDetail(targetRow, 'expand');
+                var toggleBtn = targetRow.querySelector('.trace-round-toggle');
+                if (toggleBtn) {
+                    window.toggleRoundDetail(toggleBtn, 'expand');
+                }
             }
         }
         // Defer to ensure all other scripts have finished

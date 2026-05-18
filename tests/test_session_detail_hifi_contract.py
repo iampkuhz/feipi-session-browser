@@ -73,7 +73,7 @@ class TestFixtureDataAttributes:
             btn = soup.select_one(f'[data-switch="{view}"]')
             assert btn is None, f'unexpected button with data-switch="{view}" (should be removed)'
         # New data-action buttons must exist
-        for action in ("expand-all", "collapse-all", "filter-status"):
+        for action in ("expand-visible", "collapse-all", "filter-status"):
             btn = soup.select_one(f'[data-action="{action}"]')
             assert btn is not None, f'missing button with data-action="{action}"'
 
@@ -452,32 +452,39 @@ class TestTraceRowAria:
         html = _get_html(url)
         return BeautifulSoup(html, "html.parser"), html
 
-    def test_trace_rows_are_buttons(self, hifi_fixture_session):
-        """All trace rows must be <button> elements."""
+    def test_trace_rows_are_not_buttons(self, hifi_fixture_session):
+        """Trace rows must be <div> elements, NOT <button> (to avoid nested button conflict)."""
         soup, _ = self._soup(hifi_fixture_session)
         rows = soup.select(".trace-row")
         assert len(rows) > 0, "No trace rows found"
         for row in rows:
-            assert row.name == "button", \
-                f"trace-row is <{row.name}>, expected <button>"
-            assert row.get("type") == "button", \
-                "trace-row button must have type='button'"
+            assert row.name != "button", \
+                f"trace-row is <button>, expected <div> or <article>"
 
-    def test_trace_rows_have_aria_expanded(self, hifi_fixture_session):
-        """All trace rows must have aria-expanded."""
+    def test_trace_rows_have_toggle_buttons(self, hifi_fixture_session):
+        """Each trace-row must contain a .trace-round-toggle button."""
         soup, _ = self._soup(hifi_fixture_session)
         rows = soup.select(".trace-row")
         for row in rows:
-            assert row.get("aria-expanded") in ("true", "false"), \
-                f"trace-row missing aria-expanded or invalid value: {row.get('aria-expanded')}"
+            toggle = row.select_one(".trace-round-toggle")
+            assert toggle is not None, \
+                f"trace-row missing .trace-round-toggle button"
 
-    def test_trace_rows_have_aria_controls(self, hifi_fixture_session):
-        """All trace rows must have aria-controls referencing a valid ID."""
+    def test_trace_toggle_buttons_have_aria_expanded(self, hifi_fixture_session):
+        """All toggle buttons must have aria-expanded."""
         soup, _ = self._soup(hifi_fixture_session)
-        rows = soup.select(".trace-row")
-        for row in rows:
-            controls_id = row.get("aria-controls")
-            assert controls_id, "trace-row missing aria-controls"
+        toggles = soup.select(".trace-round-toggle")
+        for toggle in toggles:
+            assert toggle.get("aria-expanded") in ("true", "false"), \
+                f"toggle missing aria-expanded or invalid value: {toggle.get('aria-expanded')}"
+
+    def test_trace_toggle_buttons_have_aria_controls(self, hifi_fixture_session):
+        """All toggle buttons must have aria-controls referencing a valid ID."""
+        soup, _ = self._soup(hifi_fixture_session)
+        toggles = soup.select(".trace-round-toggle")
+        for toggle in toggles:
+            controls_id = toggle.get("aria-controls")
+            assert controls_id, "toggle missing aria-controls"
             target = soup.select_one(f"#{controls_id}")
             assert target is not None, \
                 f"aria-controls='{controls_id}' does not match any element"
@@ -538,9 +545,10 @@ class TestDeadButtonGate:
         return BeautifulSoup(html, "html.parser"), html
 
     SUPPORTED_ACTIONS = {
-        "filter-status", "expand-all", "collapse-all",
+        "filter-status", "expand-all", "expand-visible", "collapse-all",
         "open-payload", "payload-mode", "close-modal",
         "jump-round", "jump-anomaly", "md-toggle",
+        "toggle-round", "toggle-issue-expand",
     }
 
     def test_all_buttons_have_supported_data_action(self, hifi_fixture_session):
@@ -555,9 +563,6 @@ class TestDeadButtonGate:
             if action is None:
                 # Allow type='submit' or type='reset' buttons
                 if btn.get("type") in ("submit", "reset"):
-                    continue
-                # Allow trace-row buttons (they toggle via click)
-                if "trace-row" in cls:
                     continue
                 # Skip topbar toggles with onclick (legacy base.html patterns)
                 if "top-btn" in cls and btn.get("onclick"):

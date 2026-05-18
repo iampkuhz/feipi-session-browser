@@ -379,5 +379,22 @@
 
     })();
     </script>
+
+<!-- ── Payload Modal (always available) ────────────────────── -->
+<dialog id="payload-modal" class="payload-modal" aria-labelledby="payload-modal-title" aria-label="Payload viewer">
+  <div class="payload-modal__panel">
+    <header class="payload-modal__header">
+      <span class="payload-modal__title" id="payload-modal-title">Payload</span>
+      <div class="payload-modal__tabs" role="tablist">
+        <button type="button" class="payload-modal__tab active" data-action="payload-mode" data-mode="rendered" role="tab" aria-selected="true">Rendered</button>
+        <button type="button" class="payload-modal__tab" data-action="payload-mode" data-mode="raw" role="tab" aria-selected="false">Raw</button>
+      </div>
+      <button type="button" class="payload-modal__close" data-action="close-modal" aria-label="Close payload viewer">&times;</button>
+    </header>
+    <div class="payload-modal__rendered" role="tabpanel"></div>
+    <div class="payload-modal__raw" role="tabpanel" hidden><pre></pre></div>
+  </div>
+</dialog>
+
 </body>
 </html>

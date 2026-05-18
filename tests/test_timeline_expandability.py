@@ -408,9 +408,10 @@ class TestEventDelegationPresent:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         html = chk._read(SESSION_HTML)
-        has_delegation = 'data-action="expand-all"' in html and "expandAllRounds" in html
+        # Renamed to expand-visible — JS handles both for backward compat
+        has_delegation = 'data-action="expand-visible"' in html and "expandAllRounds" in html
         assert has_delegation, (
-            "Event delegation should handle [data-action=expand-all] clicks."
+            "Event delegation should handle [data-action=expand-visible] clicks."
         )
 
     def test_delegation_handles_collapse_all(self):
