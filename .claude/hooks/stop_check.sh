@@ -33,5 +33,13 @@ if [[ $HOOK_EXIT -ne 0 ]]; then
   FAIL=1
 fi
 
+# Quality gate artifact enforcement for UI changes.
+python3 "$ROOT/scripts/hooks/stop_quality_gate.py" >&2
+QG_EXIT=$?
+if [[ $QG_EXIT -ne 0 ]]; then
+  hook_log "BLOCK" "stop_quality_gate.py blocked stop (exit=$QG_EXIT)"
+  FAIL=1
+fi
+
 [[ $FAIL -ne 0 ]] && exit $EXIT_WARN
 exit $EXIT_OK

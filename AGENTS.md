@@ -40,6 +40,19 @@ python3 scripts/harness/validate_task_files.py
 
 有产品测试时一并运行 `./scripts/session-browser.sh test`。
 
+### UI quality gates
+
+对 `src/session_browser/web/templates/`、`src/session_browser/web/static/*.css` 或 `src/session_browser/web/static/js/` 的修改，
+必须运行：
+
+```bash
+python3 scripts/quality/run_quality_gate.py --target session-detail
+```
+
+除非 `.agent/quality/<change-id>/quality-gate-summary.json` 报告 `status: PASS`，否则 UI 任务未完成。
+
+详见 `harness/quality/quality-gate-matrix.md`、`harness/quality/ui-layout-contract.md`。
+
 ## 生成物策略
 
 以下类别不提交：

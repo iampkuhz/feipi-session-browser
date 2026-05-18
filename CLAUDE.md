@@ -43,6 +43,24 @@
 | 任务文件 | `python3 scripts/harness/validate_task_files.py` |
 | 产品测试 | `./scripts/session-browser.sh test` |
 
+## UI quality gates
+
+For changes under `src/session_browser/web/templates/`,
+`src/session_browser/web/static/*.css`, or `src/session_browser/web/static/js/`,
+run:
+
+```bash
+python3 scripts/quality/run_quality_gate.py --target session-detail
+```
+
+A UI task is not complete unless `.agent/quality/<change-id>/quality-gate-summary.json`
+reports `status: PASS`.
+
+Details:
+- `harness/quality/quality-gate-matrix.md`
+- `harness/quality/ui-layout-contract.md`
+- `harness/quality/ui-gate-diagnostic.md`
+
 ## 输出要求
 
 - 面向用户输出默认简体中文。
