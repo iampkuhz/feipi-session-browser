@@ -2,7 +2,6 @@
 {% import "components/ui_primitives.html" as ui %}
 {% import "components/sessions_list_components.html" as sl %}
 {% set active_page = 'sessions' %}
-{% set _sl_sort = 'updated' if sort_by == 'ended-at' else sort_by %}
 
 {% block title %}Sessions - Agent Run Profiler{% endblock %}
 
@@ -70,101 +69,107 @@
                     {% endfor %}
                 </select>
             </label>
-            <input type="hidden" id="sort-input" name="sort" value="{{ sort_by }}" />
+            <input type="hidden" name="sort" value="{{ sort_by }}" />
+            <input type="hidden" name="dir" value="{{ sort_dir }}" />
             <span class="sessions-control-row__push"></span>
-            {{ ui.btn('Clear All', 'secondary', 'sm', extra_class='js-clear-all') }}
+            {% if filter_q or filter_agent or filter_model or filter_project %}
+            {{ ui.btn('Clear All', 'secondary', 'sm', href=actions.clear_all_url, extra_class='js-clear-all') }}
+            {% endif %}
             {{ ui.btn('Apply', 'primary', 'sm', type='submit') }}
         </div>
         {{ sl.active_filters(
             session_id=filter_q,
             agent=filter_agent,
+            model=filter_model,
             project=filter_project,
-            count_label=('Showing ' ~ page_start ~ '–' ~ page_end ~ ' of ' ~ total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions')
+            count_label=('Showing ' ~ page_start ~ '–' ~ page_end ~ ' of ' ~ total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions'),
+            remove_urls=actions.remove_filter_urls
         ) }}
     </form>
 </section>
 
 <!-- Table card -->
 <section class="sessions-table-card">
-    <form id="sessions-table-form" method="get" action="/sessions">
-        <div class="sessions-table-toolbar">
-            <div class="sessions-table-title">All Sessions</div>
-            <div class="sessions-table-sub">描述列用于识别 session；metrics 列支持排序。</div>
-        </div>
-        <div class="sessions-table-scroll">
-            <div class="sessions-grid" role="table" aria-label="Sessions table" data-sessions-grid>
-                {{ sl.table_header(sort_key=_sl_sort, sort_dir='desc') }}
-                {% if sessions %}
-                {% for s in sessions %}
-                {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-                {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-                {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-                {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-                <div class="sessions-row"
-                     data-agent="{{ s.agent }}"
-                     data-model="{{ s.model }}"
-                     data-project="{{ s.project_key }}"
-                     data-session-id="{{ s.session_id }}"
-                     data-title="{{ s.title | lower }}"
-                     data-ended-at="{{ s.ended_at }}"
-                     data-total-tokens="{{ total_tokens }}"
-                     data-rounds="{{ s.assistant_message_count }}"
-                     data-tool-count="{{ s.tool_call_count }}"
-                     data-duration="{{ s.duration_seconds }}">
-                    <!-- Title -->
-                    <div class="sessions-td">
-                        <div class="sessions-cell-main">
-                            <div class="sessions-title">
-                                <a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a>
-                            </div>
-                            <div class="sessions-meta">
-                                <span class="sessions-id">{{ s.session_id[:12] }}</span>
-                                {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
-                            </div>
+    <div class="sessions-table-toolbar">
+        <div class="sessions-table-title">All Sessions</div>
+        <div class="sessions-table-sub">描述列用于识别 session；metrics 列支持排序。</div>
+        <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.refresh_url }}" id="refresh-link">&#x21bb; Refresh</a>
+    </div>
+    <div class="sessions-table-scroll">
+        <div class="sessions-grid" role="table" aria-label="Sessions table" data-sessions-grid>
+            {{ sl.table_header(sort_key=sort_by, sort_dir=sort_dir, sort_urls=actions.sort_urls) }}
+            {% if sessions %}
+            {% for s in sessions %}
+            {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+            {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+            {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+            {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+            <div class="sessions-row"
+                 data-agent="{{ s.agent }}"
+                 data-model="{{ s.model }}"
+                 data-project="{{ s.project_key }}"
+                 data-session-id="{{ s.session_id }}"
+                 data-title="{{ s.title | lower }}"
+                 data-ended-at="{{ s.ended_at }}"
+                 data-total-tokens="{{ total_tokens }}"
+                 data-rounds="{{ s.assistant_message_count }}"
+                 data-tool-count="{{ s.tool_call_count }}"
+                 data-duration="{{ s.duration_seconds }}">
+                <!-- Title -->
+                <div class="sessions-td">
+                    <div class="sessions-cell-main">
+                        <div class="sessions-title">
+                            <a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a>
+                        </div>
+                        <div class="sessions-meta">
+                            <span class="sessions-id">{{ s.session_id[:12] }}</span>
+                            {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
                         </div>
                     </div>
-                    <!-- Project -->
-                    <div class="sessions-td">
-                        <div class="sessions-cell-main">
-                            <div class="sessions-project-name">
-                                <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a>
-                            </div>
-                            {% if s.cwd %}<div class="sessions-project-parent">{{ s.cwd | display_path }}</div>{% endif %}
-                        </div>
-                    </div>
-                    <!-- Agent -->
-                    <div class="sessions-td">
-                        <span class="sessions-agent-badge">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
-                    </div>
-                    <!-- Model -->
-                    <div class="sessions-td"><span class="sessions-model">{{ s.model }}</span></div>
-                    <!-- Tokens -->
-                    <div class="sessions-td sessions-td--num">
-                        {{ ui.token_total(total_tokens | format_number, fresh_pct, cache_pct, output_pct) }}
-                    </div>
-                    <!-- Rounds -->
-                    <div class="sessions-td sessions-td--num">{{ s.assistant_message_count }}</div>
-                    <!-- Tools -->
-                    <div class="sessions-td sessions-td--num">{{ s.tool_call_count }}</div>
-                    <!-- Duration -->
-                    <div class="sessions-td sessions-td--num" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
-                    <!-- Updated -->
-                    <div class="sessions-td sessions-td--num">{{ s.ended_at | relative_time }}</div>
                 </div>
-                {% endfor %}
-                {% else %}
-                <div class="empty-state">No sessions indexed yet.</div>
-                {% endif %}
+                <!-- Project -->
+                <div class="sessions-td">
+                    <div class="sessions-cell-main">
+                        <div class="sessions-project-name">
+                            <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a>
+                        </div>
+                        {% if s.cwd %}<div class="sessions-project-parent">{{ s.cwd | display_path }}</div>{% endif %}
+                    </div>
+                </div>
+                <!-- Agent -->
+                <div class="sessions-td">
+                    <span class="sessions-agent-badge">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
+                </div>
+                <!-- Model -->
+                <div class="sessions-td"><span class="sessions-model">{{ s.model }}</span></div>
+                <!-- Tokens -->
+                <div class="sessions-td sessions-td--num">
+                    {{ ui.token_total(total_tokens | format_number, fresh_pct, cache_pct, output_pct) }}
+                </div>
+                <!-- Rounds -->
+                <div class="sessions-td sessions-td--num">{{ s.assistant_message_count }}</div>
+                <!-- Tools -->
+                <div class="sessions-td sessions-td--num">{{ s.tool_call_count }}</div>
+                <!-- Duration -->
+                <div class="sessions-td sessions-td--num" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
+                <!-- Updated -->
+                <div class="sessions-td sessions-td--num">{{ s.ended_at | relative_time }}</div>
             </div>
+            {% endfor %}
+            {% else %}
+            <div class="empty-state">No sessions indexed yet.</div>
+            {% endif %}
         </div>
-        {% if total_count is defined and total_count > 0 %}
-        {{ sl.footer(
-            start_label=page_start,
-            end_label=page_end,
-            total_label=total_count
-        ) }}
-        {% endif %}
-    </form>
+    </div>
+    {% if total_count is defined and total_count > 0 %}
+    {{ sl.footer(
+        start_label=page_start,
+        end_label=page_end,
+        total_label=total_count,
+        prev_url=actions.prev_url,
+        next_url=actions.next_url
+    ) }}
+    {% endif %}
 </section>
 
 </section>
@@ -172,77 +177,6 @@
 <script src="/static/js/ui_primitives.js"></script>
 <script>
 (function() {
-    var DEFAULT_SORT_KEY = 'ended-at';
-    var sortKey = '{{ sort_by | default("ended-at") }}' || DEFAULT_SORT_KEY;
-
-    /* ---------- Sort key sync for AJAX submission ----------------- */
-    function syncSortKey(key) {
-        var sortInput = document.getElementById('sort-input');
-        if (sortInput) sortInput.value = key;
-    }
-
-    /* ---------- Submit filters via AJAX --------------------------- */
-    function submitFilters() {
-        var params = new URLSearchParams();
-        var q = document.getElementById('session-search').value;
-        var agent = document.getElementById('filter-agent').value;
-        var model = document.getElementById('filter-model').value;
-        var project = document.getElementById('filter-project').value;
-        var sort = document.getElementById('sort-input').value;
-
-        if (q) params.set('q', q);
-        if (agent) params.set('agent', agent);
-        if (model) params.set('model', model);
-        if (project) params.set('project', project);
-        if (sort && sort !== DEFAULT_SORT_KEY) params.set('sort', sort);
-
-        var qs = params.toString();
-        var url = '/sessions' + (qs ? '?' + qs : '');
-
-        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(function(resp) {
-            if (!resp.ok) throw new Error('Network error: ' + resp.status);
-            return resp.text();
-        })
-        .then(function(html) {
-            var container = document.getElementById('sessions-grid-container');
-            if (container) container.innerHTML = html;
-            history.pushState({ url: url }, '', url);
-        })
-        .catch(function() {
-            window.location.href = url;
-        });
-    }
-
-    /* ---------- Bind filter change events ------------------------- */
-    ['session-search', 'filter-agent', 'filter-model', 'filter-project'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.addEventListener('change', submitFilters);
-    });
-
-    var searchEl = document.getElementById('session-search');
-    if (searchEl) {
-        var debounceTimer;
-        searchEl.addEventListener('input', function() {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(submitFilters, 400);
-        });
-    }
-
-    /* Prevent default form submission */
-    document.getElementById('session-filter-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        submitFilters();
-    });
-
-    /* ---------- Clear All button ---------------------------------- */
-    var clearBtn = document.querySelector('.js-clear-all');
-    if (clearBtn) {
-        var hasAnyFilter = '{{ filter_q }}' || '{{ filter_agent }}' || '{{ filter_model }}' || '{{ filter_project }}';
-        clearBtn.style.display = hasAnyFilter ? '' : 'none';
-        clearBtn.addEventListener('click', function() { window.location.href = '/sessions'; });
-    }
-
     /* ---------- Row click navigation ------------------------------ */
     var grid = document.querySelector('[data-sessions-grid]');
     if (grid) {
@@ -253,28 +187,6 @@
             window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
         });
     }
-
-    /* ---------- Sort button clicks: sync + AJAX submit ------------ */
-    document.addEventListener('click', function(e) {
-        var sortBtn = e.target.closest('[data-sort-key]');
-        if (!sortBtn) return;
-        e.preventDefault();
-        syncSortKey(sortBtn.dataset.sortKey);
-        submitFilters();
-    });
-
-    /* ---------- Pagination helpers -------------------------------- */
-    window.goToPage = function(targetPage) {
-        var params = new URLSearchParams(window.location.search);
-        params.set('page', String(targetPage));
-        window.location.href = '/sessions?' + params.toString();
-    };
-    window.changePageSize = function(newSize) {
-        var params = new URLSearchParams(window.location.search);
-        params.set('page_size', newSize);
-        params.set('page', '1');
-        window.location.href = '/sessions?' + params.toString();
-    };
 })();
 </script>
 

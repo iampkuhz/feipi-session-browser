@@ -174,7 +174,6 @@ class TestFooterTemplate:
     def test_prev_button(self):
         content = _read_sessions_templates()
         assert "Previous" in content
-        assert "goToPage" in content
 
     def test_next_button(self):
         content = _read_sessions_templates()
@@ -206,17 +205,16 @@ class TestFooterTemplate:
         content = _read_sessions_templates()
         assert 'Page {{ page }} of {{ total_pages }}' not in content
 
-    def test_disabled_on_prev(self):
+    def test_pagination_uses_anchor_links(self):
+        """Pagination uses <a> links with href from actions."""
         content = _read_sessions_templates()
-        assert "{% if not has_prev %}disabled{% endif %}" in content
+        assert "prev_url" in content
+        assert "next_url" in content
 
-    def test_disabled_on_next(self):
+    def test_no_button_based_pagination(self):
+        """No button with name=page (old form-based pagination)."""
         content = _read_sessions_templates()
-        assert "{% if not has_next %}disabled{% endif %}" in content
-
-    def test_go_to_page_js(self):
-        content = _read_sessions_templates()
-        assert "goToPage" in content
+        assert 'name="page"' not in content or 'value="prev"' not in content
 
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()
@@ -238,11 +236,12 @@ class TestFooterTemplate:
         content = _read_sessions_templates()
         assert "function applyFilters()" not in content
 
-    def test_submit_filters_function(self):
+    def test_no_submit_filters_function(self):
+        """submitFilters removed in favor of link-based navigation."""
         content = _read_sessions_templates()
-        assert "submitFilters" in content
+        assert "submitFilters" not in content
 
-    def test_change_page_size_js(self):
-        """changePageSize still exists for URL-based size changes."""
+    def test_actions_dict_passed(self):
+        """Template must receive actions dict for URL building."""
         content = _read_sessions_templates()
-        assert "changePageSize" in content
+        assert "actions." in content

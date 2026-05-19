@@ -74,10 +74,12 @@
   font-size: 12px;
   font-weight: 760;
 }
-.ui-filter-chip button {
+.ui-filter-chip button,
+.ui-filter-chip a {
   width: 16px;height: 16px;border: 0;background: rgba(91, 92, 226, .10);color: var(--ui-brand);
-  border-radius: var(--ui-radius-pill);display: grid;place-items: center;line-height: 1;padding: 0;cursor: pointer;font-weight: 900;
+  border-radius: var(--ui-radius-pill);display: grid;place-items: center;line-height: 1;padding: 0;cursor: pointer;font-weight: 900;text-decoration:none;
 }
+.ui-filter-chip a:hover { background: rgba(91, 92, 226, .20); }
 .ui-stat-pill {
   height: 28px;display: inline-flex;align-items: center;gap: 6px;border: 1px solid var(--ui-line);
   background: #fff;border-radius: var(--ui-radius-pill);padding: 0 10px;font-size: 12px;color: var(--ui-text-2);box-shadow: var(--ui-shadow-sm);

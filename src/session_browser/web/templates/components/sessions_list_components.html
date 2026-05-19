@@ -20,38 +20,49 @@
   </div>
 {%- endmacro %}
 
-{% macro active_filters(session_id='', agent='', project='', count_label='') -%}
+{% macro active_filters(session_id='', agent='', project='', model='', count_label='', remove_urls=None) -%}
   <div class="sessions-active-filters" aria-live="polite">
     <span class="sessions-active-filters__label">Active filters</span>
     {%- if session_id %}
-      <span class="ui-filter-chip">Session ID: {{ session_id }} <button type="submit" name="remove_filter" value="session_id" aria-label="Remove session id filter">×</button></span>
+      <span class="ui-filter-chip">Session ID: {{ session_id }} <a href="{{ remove_urls.q if remove_urls else '#' }}" aria-label="Remove session id filter">×</a></span>
     {%- endif %}
     {%- if agent %}
-      <span class="ui-filter-chip">Agent: {{ agent }} <button type="submit" name="remove_filter" value="agent" aria-label="Remove agent filter">×</button></span>
+      <span class="ui-filter-chip">Agent: {{ agent }} <a href="{{ remove_urls.agent if remove_urls else '#' }}" aria-label="Remove agent filter">×</a></span>
+    {%- endif %}
+    {%- if model %}
+      <span class="ui-filter-chip">Model: {{ model }} <a href="{{ remove_urls.model if remove_urls else '#' }}" aria-label="Remove model filter">×</a></span>
     {%- endif %}
     {%- if project %}
-      <span class="ui-filter-chip">Project: {{ project }} <button type="submit" name="remove_filter" value="project" aria-label="Remove project filter">×</button></span>
+      <span class="ui-filter-chip">Project: {{ project }} <a href="{{ remove_urls.project if remove_urls else '#' }}" aria-label="Remove project filter">×</a></span>
     {%- endif %}
     <span class="sessions-results-status">{{ count_label }}</span>
   </div>
 {%- endmacro %}
 
-{% macro table_header(sort_key='updated', sort_dir='desc') -%}
+{% macro table_header(sort_key='updated', sort_dir='desc', sort_urls=None) -%}
   {{ ui.th_static('Title') }}
   {{ ui.th_static('Project') }}
   {{ ui.th_static('Agent') }}
   {{ ui.th_static('Model') }}
-  {{ ui.th_sort('Tokens', 'tokens', sort_key, sort_dir) }}
-  {{ ui.th_sort('Rounds', 'rounds', sort_key, sort_dir) }}
-  {{ ui.th_sort('Tools', 'tools', sort_key, sort_dir) }}
-  {{ ui.th_sort('Duration', 'duration', sort_key, sort_dir) }}
-  {{ ui.th_sort('Updated', 'updated', sort_key, sort_dir) }}
+  {{ ui.th_sort('Tokens', 'tokens', sort_key, sort_dir, href=sort_urls.tokens if sort_urls else '') }}
+  {{ ui.th_sort('Rounds', 'rounds', sort_key, sort_dir, href=sort_urls.rounds if sort_urls else '') }}
+  {{ ui.th_sort('Tools', 'tools', sort_key, sort_dir, href=sort_urls.tools if sort_urls else '') }}
+  {{ ui.th_sort('Duration', 'duration', sort_key, sort_dir, href=sort_urls.duration if sort_urls else '') }}
+  {{ ui.th_sort('Updated', 'updated', sort_key, sort_dir, href=sort_urls.updated if sort_urls else '') }}
 {%- endmacro %}
 
-{% macro footer(start_label, end_label, total_label) -%}
+{% macro footer(start_label, end_label, total_label, prev_url='', next_url='') -%}
   <div class="sessions-table-footer">
-    <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" name="page" value="prev">Previous</button>
-    <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" name="page" value="next">Next</button>
+    {%- if prev_url %}
+    <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ prev_url }}">Previous</a>
+    {%- else %}
+    <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Previous</span>
+    {%- endif %}
+    {%- if next_url %}
+    <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ next_url }}">Next</a>
+    {%- else %}
+    <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Next</span>
+    {%- endif %}
     <span class="sessions-page-range">Rows {{ start_label }}–{{ end_label }}</span>
     <span class="sessions-footer-spacer"></span>
     <span class="sessions-footer-total">{{ total_label }} matching sessions</span>

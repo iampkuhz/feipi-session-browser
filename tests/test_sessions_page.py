@@ -411,13 +411,16 @@ class TestPaginationTemplate:
         content = _read_sessions_templates()
         assert "function applyFilters()" not in content
 
-    def test_submit_filters_function(self):
+    def test_no_submit_filters_function(self):
+        """submitFilters AJAX function removed in favor of link-based navigation."""
         content = _read_sessions_templates()
-        assert "submitFilters" in content
+        assert "submitFilters" not in content
 
-    def test_go_to_page_function(self):
+    def test_pagination_uses_links(self):
+        """Pagination should use <a> links, not button forms."""
         content = _read_sessions_templates()
-        assert "goToPage" in content
+        assert 'name="page"' not in content or 'value="prev"' not in content
+        assert 'actions.prev_url' in content or 'actions.next_url' in content
 
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()
@@ -427,13 +430,10 @@ class TestPaginationTemplate:
         assert 'name="project"' in content
         assert 'name="sort"' in content
 
-    def test_disabled_attribute_on_prev(self):
+    def test_link_based_pagination(self):
+        """Pagination uses anchor links with href."""
         content = _read_sessions_templates()
-        assert "{% if not has_prev %}disabled{% endif %}" in content
-
-    def test_disabled_attribute_on_next(self):
-        content = _read_sessions_templates()
-        assert "{% if not has_next %}disabled{% endif %}" in content
+        assert "href=" in content and ("Previous" in content or "Next" in content)
 
 
 class TestCSS:

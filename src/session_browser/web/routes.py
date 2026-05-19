@@ -506,6 +506,142 @@ def _renumber_lines(text: str) -> str:
         lines.append(f"{i + 1}{tab}{cleaned}")
     return "\n".join(lines) + "\n"
 
+
+# ── Query state / URL builder for /sessions ────────────────────────
+
+_SESSIONS_URL_PARAM_ORDER = [
+    "q", "agent", "model", "project",
+    "sort", "dir", "page", "page_size",
+]
+
+
+def build_sessions_url(
+    *,
+    current: dict[str, str] | None = None,
+    updates: dict[str, str | None] | None = None,
+    reset_page: bool = False,
+) -> str:
+    """Build a /sessions URL preserving query state.
+
+    Args:
+        current: Existing query params (e.g. from template context).
+        updates: Keys to add/override. Value ``None`` removes the key.
+        reset_page: When filters/sort change, reset page to 1.
+    """
+    current = current or {}
+    updates = updates or {}
+
+    merged = dict(current)
+
+    # Apply updates (None means delete)
+    for key, value in updates.items():
+        if value is None:
+            merged.pop(key, None)
+        else:
+            merged[key] = str(value)
+
+    if reset_page:
+        merged.pop("page", None)
+
+    # Filter out empty values
+    params = [(k, v) for k, v in merged.items() if v and v.strip()]
+
+    # Stable ordering
+    ordered = []
+    for key in _SESSIONS_URL_PARAM_ORDER:
+        if key in {k for k, _ in params}:
+            ordered.append((key, merged[key]))
+    # Append any keys not in the standard order
+    seen = {k for k, _ in ordered}
+    for k, v in params:
+        if k not in seen:
+            ordered.append((k, v))
+
+    qs = urllib.parse.urlencode(ordered)
+    return "/sessions" + ("?" + qs if qs else "")
+
+
+def _build_view_actions(
+    filters: dict[str, str],
+    sort_key: str,
+    sort_dir: str,
+    page: int,
+    page_size: int | str,
+    has_prev: bool,
+    has_next: bool,
+) -> dict:
+    """Build action URLs for template rendering."""
+    current = {k: v for k, v in filters.items() if v}
+    if sort_key:
+        current["sort"] = sort_key
+    if sort_dir:
+        current["dir"] = sort_dir
+    if page > 1:
+        current["page"] = str(page)
+    if page_size and page_size != 20:
+        current["page_size"] = str(page_size)
+
+    # Sort URLs: toggle dir on active column, set new column otherwise
+    sort_keys = ["tokens", "rounds", "tools", "duration", "updated"]
+    sort_urls = {}
+    for sk in sort_keys:
+        new_dir = "asc" if (sk == sort_key and sort_dir == "asc") else "desc"
+        sort_urls[sk] = build_sessions_url(
+            current=current,
+            updates={"sort": sk, "dir": new_dir},
+            reset_page=True,
+        )
+
+    # Pagination URLs
+    prev_url = ""
+    next_url = ""
+    if has_prev:
+        prev_url = build_sessions_url(
+            current=current,
+            updates={"page": str(page - 1)},
+        )
+    if has_next:
+        next_url = build_sessions_url(
+            current=current,
+            updates={"page": str(page + 1)},
+        )
+
+    # Filter chip removal URLs
+    remove_urls = {}
+    for fk in ("q", "agent", "model", "project"):
+        if filters.get(fk):
+            remove_urls[fk] = build_sessions_url(
+                current=current,
+                updates={fk: None},
+                reset_page=True,
+            )
+
+    # Clear All: remove all filters, keep sort
+    clear_all_url = build_sessions_url(
+        current={},
+        updates={"sort": sort_key} if sort_key else None,
+    )
+
+    # Clear Session ID only
+    clear_session_id_url = build_sessions_url(
+        current=current,
+        updates={"q": None},
+        reset_page=True,
+    )
+
+    # Refresh: current URL exactly
+    refresh_url = build_sessions_url(current=current)
+
+    return {
+        "refresh_url": refresh_url,
+        "clear_session_id_url": clear_session_id_url,
+        "clear_all_url": clear_all_url,
+        "sort_urls": sort_urls,
+        "remove_filter_urls": remove_urls,
+        "prev_url": prev_url,
+        "next_url": next_url,
+    }
+
 _template_env.filters["renumber_lines"] = _renumber_lines
 _template_env.filters["normalize_llm_content"] = normalize_llm_content
 
@@ -1606,6 +1742,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         # Sort
         raw_sort = params.get("sort", [""])[0].strip().lower()
+        raw_dir = params.get("dir", ["desc"])[0].strip().lower()
+        if raw_dir not in ("asc", "desc"):
+            raw_dir = "desc"
         SORT_KEY_MAP = {
             "ended-at": "ended_at",
             "duration": "duration_seconds",
@@ -1686,6 +1825,23 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         # ── AJAX partial response (X-Requested-With header) ─────────
         is_ajax = self.headers.get("X-Requested-With") == "XMLHttpRequest"
         if is_ajax:
+            # Normalize sort key for template (ui uses 'updated' for 'ended-at')
+            ui_sort_ajax = "updated" if raw_sort == "ended-at" else (raw_sort or "ended-at")
+            filters_for_actions_ajax = {
+                "q": filter_q or "",
+                "agent": filter_agent or "",
+                "model": filter_model or "",
+                "project": filter_project or "",
+            }
+            actions_ajax = _build_view_actions(
+                filters=filters_for_actions_ajax,
+                sort_key=ui_sort_ajax,
+                sort_dir=raw_dir,
+                page=page,
+                page_size=page_size,
+                has_prev=has_prev,
+                has_next=has_next,
+            )
             html = self._render_template(
                 "partials/sessions_grid.html",
                 sessions=sessions_enriched,
@@ -1697,6 +1853,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 page_end=page_end,
                 has_prev=has_prev,
                 has_next=has_next,
+                sort_key=ui_sort_ajax,
+                sort_dir=raw_dir,
+                actions=actions_ajax,
             )
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1706,6 +1865,25 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         model_list = [r["model"] for r in models]
         project_list = [(r["project_key"], r["project_name"]) for r in projects]
+
+        # Normalize sort key for template (ui uses 'updated' for 'ended-at')
+        ui_sort = "updated" if raw_sort == "ended-at" else (raw_sort or "ended-at")
+
+        filters_for_actions = {
+            "q": filter_q or "",
+            "agent": filter_agent or "",
+            "model": filter_model or "",
+            "project": filter_project or "",
+        }
+        actions = _build_view_actions(
+            filters=filters_for_actions,
+            sort_key=ui_sort,
+            sort_dir=raw_dir,
+            page=page,
+            page_size=page_size,
+            has_prev=has_prev,
+            has_next=has_next,
+        )
 
         html = self._render_template(
             "sessions.html",
@@ -1722,10 +1900,12 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             filter_model=filter_model or "",
             filter_project=filter_project or "",
             filter_q=filter_q or "",
-            sort_by=raw_sort or "ended-at",
+            sort_by=ui_sort,
+            sort_dir=raw_dir,
             model_list=model_list,
             project_list=[p[0] for p in project_list],
             active_page="sessions",
+            actions=actions,
         )
         self._send_html(html)
 

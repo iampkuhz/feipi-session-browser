@@ -35,10 +35,16 @@
   <div class="sessions-th" role="columnheader">{{ label }}</div>
 {%- endmacro %}
 
-{% macro th_sort(label, key, sort_key='', sort_dir='desc') -%}
+{% macro th_sort(label, key, sort_key='', sort_dir='desc', href='') -%}
   {%- set active = (sort_key == key) -%}
   {%- set aria = ' aria-sort="' ~ ('ascending' if sort_dir == 'asc' else 'descending') ~ '"' if active else '' -%}
-  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}>{{ label }}<button type="submit" name="sort" value="{{ key }}" class="sessions-th__sort-btn" data-sort-key="{{ key }}"><span class="sessions-sort-icon {% if active %}sessions-sort-icon--active{% endif %}" aria-hidden="true">{%- if active -%}{{ '↑' if sort_dir == 'asc' else '↓' }}{%- else -%}↕{%- endif -%}</span></button></div>
+  {%- set icon = '↑' if active and sort_dir == 'asc' else ('↓' if active else '↕') -%}
+  {%- set icon_cls = 'sessions-sort-icon' ~ (' sessions-sort-icon--active' if active else '') -%}
+  {%- if href -%}
+  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}><a class="sessions-th__sort-btn" href="{{ href }}">{{ label }} <span class="{{ icon_cls }}" aria-hidden="true">{{ icon }}</span></a></div>
+  {%- else -%}
+  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}>{{ label }} <button type="submit" name="sort" value="{{ key }}" class="sessions-th__sort-btn" data-sort-key="{{ key }}"><span class="{{ icon_cls }}" aria-hidden="true">{{ icon }}</span></button></div>
+  {%- endif -%}
 {%- endmacro %}
 
 {% macro token_total(total, fresh_pct=0, cache_pct=0, output_pct=0) -%}

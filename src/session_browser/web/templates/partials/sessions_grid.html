@@ -69,8 +69,16 @@
     </div>
     {% if total_count is defined and total_count > 0 %}
     <div class="sessions-table-footer">
-        <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" {% if not has_prev %}disabled{% endif %} onclick="goToPage({{ page - 1 if has_prev else page }})">Previous</button>
-        <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" {% if not has_next %}disabled{% endif %} onclick="goToPage({{ page + 1 if has_next else page }})">Next</button>
+        {%- if actions and actions.prev_url %}
+        <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.prev_url }}">Previous</a>
+        {% else %}
+        <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Previous</span>
+        {% endif %}
+        {%- if actions and actions.next_url %}
+        <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.next_url }}">Next</a>
+        {% else %}
+        <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Next</span>
+        {% endif %}
         <span class="sessions-page-range">Rows {{ page_start }}–{{ page_end }}</span>
         <span class="sessions-footer-spacer"></span>
         <span class="sessions-footer-total">{{ total_count }} matching sessions</span>
