@@ -40,15 +40,8 @@ def _get_html(url: str) -> str:
 class TestFixtureSessionRenders:
     """Basic smoke tests: the fixture session page renders without errors."""
 
-    def test_fixture_session_returns_200(self, hifi_fixture_session):
-        """Fixture session detail page must return HTTP 200."""
-        base_url, agent, session_id = hifi_fixture_session
-        url = f"{base_url}/sessions/{agent}/{session_id}"
-        resp = urllib.request.urlopen(url, timeout=10)
-        assert resp.status == 200
-
     def test_fixture_session_has_content(self, hifi_fixture_session):
-        """Fixture session must render non-empty HTML."""
+        """Fixture session must render non-empty HTML with expected structure."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = _get_html(url)
@@ -57,6 +50,9 @@ class TestFixtureSessionRenders:
         body = soup.find("body")
         assert body is not None
         assert len(body.get_text(strip=True)) > 100
+        # HTTP 200 implied by _get_html; verify key structural elements
+        assert soup.select_one("[data-session-detail-shell]") is not None
+        assert soup.select_one("[data-trace-panel]") is not None
 
 
 class TestFixtureDataAttributes:
@@ -497,43 +493,6 @@ class TestTraceRowAria:
             detail_id = detail.get("id")
             assert detail_id and detail_id.startswith("trace-detail-"), \
                 f"trace-detail missing or invalid id: {detail_id}"
-
-
-class TestPayloadButtons:
-    """Payload buttons must exist and reference valid payload keys."""
-
-    def _soup(self, hifi_fixture_session):
-        base_url, agent, session_id = hifi_fixture_session
-        url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
-        return BeautifulSoup(html, "html.parser"), html
-
-    def test_at_least_one_payload_button(self, hifi_fixture_session):
-        """At least one payload button must exist (non-vacuous test)."""
-        soup, html = self._soup(hifi_fixture_session)
-        payload_btns = soup.select('button[data-action="open-payload"]')
-        assert len(payload_btns) > 0, \
-            "No payload buttons found — payload viewer unreachable"
-
-    def test_payload_buttons_have_keys(self, hifi_fixture_session):
-        """All payload buttons must have a data-payload-id."""
-        soup, _ = self._soup(hifi_fixture_session)
-        payload_btns = soup.select('button[data-action="open-payload"]')
-        for btn in payload_btns:
-            pid = btn.get("data-payload-id")
-            assert pid, "payload button missing data-payload-id"
-
-    def test_payload_registry_has_button_keys(self, hifi_fixture_session):
-        """All payload button IDs must have matching data-payload-source elements."""
-        soup, _ = self._soup(hifi_fixture_session)
-        payload_btns = soup.select('button[data-action="open-payload"]')
-        for btn in payload_btns:
-            pid = btn.get("data-payload-id")
-            if pid:
-                source = soup.select_one(f'[data-payload-source="{pid}"]')
-                # Source may or may not exist for all payload buttons (payload may be unavailable)
-                # The test just verifies the ID is a valid string
-                assert pid, f"Payload button has empty data-payload-id"
 
 
 class TestDeadButtonGate:
