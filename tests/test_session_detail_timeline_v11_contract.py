@@ -305,16 +305,24 @@ class TestV11TemplateContract:
 
     def test_v11_css_linked_in_session(self):
         sp = self._session_page()
+        # v15 CSS loaded globally via base.html with v11/v12 compatibility aliases
+        base = self._base()
+        has_v15 = "session-browser-v15.css" in base
         assert (
             "session-detail-timeline-v11.css" in sp
             or "session-detail-response-blocks-v12.css" in sp
+            or has_v15
         ), "session.html missing session detail CSS link"
 
     def test_v11_js_linked_in_session(self):
         sp = self._session_page()
+        # v15 JS loaded globally via base.html with v11/v12 compatibility
+        base = self._base()
+        has_v15 = "session_browser_ui_v15.js" in base
         assert (
             "session_detail_timeline_v11.js" in sp
             or "session_detail_response_blocks_v12.js" in sp
+            or has_v15
         ), "session.html missing session detail JS link"
 
     def test_no_forbidden_attrs_in_timeline(self):

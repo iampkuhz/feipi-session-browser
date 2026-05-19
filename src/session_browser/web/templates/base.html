@@ -7,6 +7,7 @@
     <style>{{ mhtml_css | safe }}</style>
     {% else %}
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/session-browser-v15.css">
     {% endif %}
 
     <!-- arpStorage bootstrap: defined early so page scripts can use it before shared JS loads -->
@@ -126,6 +127,7 @@
     <script src="/static/js/data-table.js"></script>
     <script src="/static/js/timeline.js"></script>
     <script src="/static/js/keyboard.js"></script>
+    <script src="/static/js/session_browser_ui_v15.js"></script>
     {% endif %}
     <script>ViewState.init();</script>
     <!-- Shared JS: tab switching, round toggle, show-more, restore state -->

@@ -1,5 +1,7 @@
 # TODO
 
+- [ ] subagent 没有在 session 中展示。
+
 ## 1. 提示词没有渐进式披露
 
 AGENTS.md 里面有太多和执行无关的东西

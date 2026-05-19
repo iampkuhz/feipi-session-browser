@@ -1,0 +1,29 @@
+{
+  "change_id": "upgrade-session-browser-ui-v15",
+  "class": "C",
+  "target_pages": [
+    "dashboard",
+    "sessions-list",
+    "session-detail",
+    "projects",
+    "agents"
+  ],
+  "allowed_files": [
+    "src/session_browser/web/templates/**/*.html",
+    "src/session_browser/web/static/css/session-browser-v15.css",
+    "src/session_browser/web/static/js/session_browser_ui_v15.js",
+    "src/session_browser/web/routes.py",
+    "src/session_browser/index/**/*.py",
+    "harness/quality/ui-*.md",
+    "harness/context/ui-context-v15.md",
+    "scripts/qa/ui/*.py",
+    "tests/**/*"
+  ],
+  "forbidden_files": [
+    "src/session_browser/web/static/style.css"
+  ],
+  "visual_baselines_required": true,
+  "dom_contract_required": true,
+  "interaction_contract_required": true,
+  "notes": "Implement UI first, then payload button/data logic."
+}

@@ -13,9 +13,6 @@
 <a class="nav-item active" href="/sessions">
     <span class="nav-dot"></span> Sessions
 </a>
-<a class="nav-item" href="/dashboard">
-    <span class="nav-dot"></span> Dashboard
-</a>
 {% endblock %}
 
 {% block sidebar_extra %}{% endblock %}
@@ -29,12 +26,10 @@ Agent Run Profiler <span class="sep">/</span> Session Detail <span class="sep">/
 {% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/session-detail-response-blocks-v12.css">
 <meta name="payload-api-base" content="/api/sessions/{{ current_agent }}/{{ session.session_id }}">
 {% endblock %}
 
 {% block script_extra %}
-<script src="/static/js/session_detail_response_blocks_v12.js" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -43,8 +38,6 @@ Agent Run Profiler <span class="sep">/</span> Session Detail <span class="sep">/
 <script type="application/json" id="raw-json">{{ session_data | safe_json_display }}</script>
 
 {# ── Payload sources (hidden, read by JS via [data-payload-source]) ── #}
-{# Note: We don't embed raw payload content here to avoid leaking forbidden text.
-   The JS will show "payload unavailable" when no data-payload-source is found. #}
 
 <section class="sd-content session-detail-page" data-trace-page>
   {{ sdt.hero(session_summary, hero_metrics, issue_links) }}

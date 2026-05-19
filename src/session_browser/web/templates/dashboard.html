@@ -9,242 +9,60 @@
 
 {% block content %}
 
-<!-- Page header -->
-<div class="page-header">
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <h1 class="page-header__title">Dashboard</h1>
+<!-- Page header - v15 hero -->
+<div class="hero page-header">
+    <div class="hero-top page-header__top">
+        <div>
+            <div class="hero-id">
+                <span class="agent">Local</span>
+                <h1 class="page-header__title">Dashboard</h1>
+            </div>
+            <div class="hero-meta page-header__filters">
+                <span class="chip">{{ stats.project_count }} projects</span>
+                <span class="chip">{{ agent_dist | length }} agents</span>
+                <span class="chip mono">{{ stats.total_sessions | format_number }} sessions</span>
+            </div>
         </div>
-        <div class="page-header__actions">
-            <span class="text-muted text-xs">{{ stats.total_sessions | format_number }} sessions indexed</span>
-        </div>
-    </div>
-    <div class="page-header__filters">
-        <span class="page-header__filter">Projects: <strong>{{ stats.project_count }}</strong></span>
-        <span class="page-header__filter">Agents: <strong>{{ agent_dist | length }}</strong></span>
-        <span class="page-header__filter">Models: <strong>{{ model_dist | length }}</strong></span>
-    </div>
-</div>
-
-<!-- Metrics strip -->
-<div class="metrics-strip-card">
-    <div class="metrics-strip">
-        <div class="metrics-strip__item">
-            <span class="metrics-strip__label">Input Tokens</span>
-            <span class="metrics-strip__value metrics-strip__value--mono">{{ (aggregate.input_side_total or 0) | format_number }}</span>
-        </div>
-        <div class="metrics-strip__item">
-            <span class="metrics-strip__label">Cache Reuse</span>
-            <span class="metrics-strip__value metrics-strip__value--mono">
-                {% if aggregate.cache_reuse_ratio is not none %}{{ (aggregate.cache_reuse_ratio * 100) | round(1) }}%{% else %}—{% endif %}
-            </span>
-        </div>
-        <div class="metrics-strip__item">
-            <span class="metrics-strip__label">Output Tokens</span>
-            <span class="metrics-strip__value metrics-strip__value--mono">{{ (stats.total_output_tokens or 0) | format_number }}</span>
-        </div>
-        <div class="metrics-strip__item">
-            <span class="metrics-strip__label">Tool Calls</span>
-            <span class="metrics-strip__value metrics-strip__value--mono">{{ stats.total_tool_calls | format_number }}</span>
-        </div>
-        <div class="metrics-strip__item">
-            <span class="metrics-strip__label">Tools/Round</span>
-            <span class="metrics-strip__value metrics-strip__value--mono">
-                {% if aggregate.tools_per_round is not none %}{{ aggregate.tools_per_round }}{% else %}—{% endif %}
-            </span>
-        </div>
-        <div class="metrics-strip__item {% if stats.total_failed_tools > 0 %}metrics-strip__item--error{% endif %}">
-            <span class="metrics-strip__label">Failed</span>
-            <span class="metrics-strip__value metrics-strip__value--mono">{{ stats.total_failed_tools | format_number }}</span>
+        <div class="kpis">
+            <div class="kpi"><div class="v">{{ stats.project_count }}</div><div class="l">projects</div></div>
+            <div class="kpi"><div class="v">{{ agent_dist | length }}</div><div class="l">agents</div></div>
+            <div class="kpi"><div class="v">{{ stats.total_sessions | format_number }}</div><div class="l">sessions</div></div>
+            <div class="kpi"><div class="v">{{ stats.total_failed_tools | format_number }}</div><div class="l">errors</div></div>
         </div>
     </div>
 </div>
 
-<!-- Trend chart -->
-<div class="card">
-    <div class="card-title flex justify-between items-center">
-        <span>Session Trend <span class="text-muted fw-400 normal-case no-tracking">(sessions per day by agent)</span></span>
-        <div class="flex gap-1">
-            <button class="tab tab--chart active" onclick="updateChart(30, this)">30d</button>
-            <button class="tab tab--chart" onclick="updateChart(7, this)">7d</button>
+<!-- v15 trend card -->
+<section class="trend-card">
+    <div class="trend-head">
+        <div>
+            <span class="trend-title">Session Trend</span>
+            <span class="trend-sub">(sessions per day by agent)</span>
+        </div>
+        <div class="trend-actions">
+            <button class="trend-btn active" onclick="updateChart(30, this)">30d</button>
+            <button class="trend-btn" onclick="updateChart(7, this)">7d</button>
         </div>
     </div>
     {% if trend %}
-    <div class="chart-legend">
-        <div class="chart-legend__item">
-            <span class="chart-legend__dot chart-legend__dot--claude"></span> Claude Code
-        </div>
-        <div class="chart-legend__item">
-            <span class="chart-legend__dot chart-legend__dot--codex"></span> Codex
-        </div>
-        <div class="chart-legend__item">
-            <span class="chart-legend__dot chart-legend__dot--qoder"></span> Qoder
-        </div>
+    <div class="trend-legend">
+        <span class="legend-item"><i class="legend-dot claude"></i>Claude Code</span>
+        <span class="legend-item"><i class="legend-dot codex"></i>Codex</span>
+        <span class="legend-item"><i class="legend-dot qoder"></i>Qoder</span>
     </div>
-    <div id="trend-chart" class="chart-container" style="height:140px;"></div>
+    <div class="trend-chart" id="trend-chart" style="height:220px;"></div>
     {% else %}
-    <p class="text-muted text-sm">No trend data. Run <code class="mono">scan</code> first.</p>
+    <p class="text-muted text-sm" style="padding:12px">No trend data. Run <code class="mono">scan</code> first.</p>
     {% endif %}
-</div>
+</section>
 
-<!-- Agent + Model distribution -->
-<div class="card">
-    <div class="card-title">Agent / Model Distribution</div>
-    <div class="dist-agents">
-        {% for agent, count in agent_dist.items() %}
-        <div class="dist-agent">
-            <span class="agent-dot {{ 'claude' if agent == 'claude_code' else 'qoder' if agent == 'qoder' else 'codex' }}"></span>
-            <span>{{ 'Claude Code' if agent == 'claude_code' else 'Qoder' if agent == 'qoder' else 'Codex' }}: <strong>{{ count | format_number }}</strong></span>
-        </div>
-        {% endfor %}
-    </div>
-    {% if model_dist %}
-    <div class="dist-models">
-        {% for model, count in model_dist.items() %}
-        <span class="badge badge-muted dist-model" data-tooltip="{{ count | format_number }} sessions using {{ model }}" title="{{ model }}">{{ model[:40] }}</span>
-        {% endfor %}
-    </div>
-    {% endif %}
-</div>
-
-<!-- Active Projects -->
-<div class="card">
-    <div class="card-title flex justify-between items-center">
-        Active Projects
-        <a href="/projects" class="link text-sm">View all →</a>
-    </div>
-    {% if projects %}
-    <div style="margin-bottom:8px">
-        <input id="project-search" type="text" placeholder="Search projects…"
-               class="filter-bar__input dashboard-search"
-               oninput="filterDashboardProjects()" />
-    </div>
-    <div class="table-wrap">
-        <table id="dashboard-projects">
-            <thead>
-                <tr>
-                    <th>Project</th>
-                    <th class="numeric">Sessions</th>
-                    <th class="numeric">Claude</th>
-                    <th class="numeric">Codex</th>
-                    <th class="numeric" data-tooltip="Total input-side tokens">Input</th>
-                    <th class="numeric" data-tooltip="Cache reuse ratio: cache_read / input_side_total">Cache R</th>
-                    <th class="numeric" data-tooltip="Input-side cache write">Cache W</th>
-                    <th class="numeric">Tools</th>
-                    <th class="numeric" data-tooltip="Tools per round">Tools/R</th>
-                    <th class="numeric">Failed</th>
-                    <th>Last Active</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in projects %}
-                {% set p_input_side = p.total_input_tokens + p.total_cached_tokens + p.total_cache_write_tokens %}
-                {% set p_cache_reuse = (p.total_cached_tokens / p_input_side * 100) | round(1) if p_input_side > 0 else 0 %}
-                {% set p_tools_per_round = (p.total_tool_calls / p.total_assistant_messages) | round(1) if p.total_assistant_messages > 0 else 0 %}
-                <tr data-project="{{ p.project_name | lower }} {{ p.project_key | lower }}">
-                    <td><a href="/projects/{{ p.project_key | urlencode }}" class="link" data-tooltip="{{ p.project_key }}">{{ p.project_name }}</a></td>
-                    <td class="numeric"><strong>{{ p.total_sessions }}</strong></td>
-                    <td class="numeric"><span class="badge badge-claude">{{ p.claude_sessions }}</span></td>
-                    <td class="numeric"><span class="badge badge-codex">{{ p.codex_sessions }}</span></td>
-                    <td class="numeric mono text-xs">{{ p.total_input_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ p_cache_reuse }}%</td>
-                    <td class="numeric mono text-xs">{{ p.total_cache_write_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs {{ 'highlight-warn' if p.total_tool_calls > 1000 else '' }}">{{ p.total_tool_calls | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ p_tools_per_round }}</td>
-                    <td class="numeric mono text-xs">
-                        {% if p.total_failed_tools > 0 %}
-                        <span class="badge badge-error">{{ p.total_failed_tools }}</span>
-                        {% else %}
-                        <span class="muted-zero">0</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-xs text-muted">{{ p.last_seen | relative_time }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">No projects indexed yet.</div>
-    {% endif %}
-</div>
-
-<!-- Recent Sessions -->
-<div class="card">
-    <div class="card-title flex justify-between items-center">
-        Recent Sessions
-        <a href="/sessions" class="link text-sm">View all →</a>
-    </div>
-    {% if recent %}
-    <div style="margin-bottom:8px">
-        <input id="session-search" type="text" placeholder="Search sessions…"
-               class="filter-bar__input dashboard-search"
-               oninput="filterDashboardSessions()" />
-    </div>
-    <div class="table-wrap">
-        <table class="data-table" id="dashboard-sessions">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th class="sortable">Title</th>
-                    <th>Project</th>
-                    <th>Model</th>
-                    <th class="numeric">Input</th>
-                    <th class="numeric">Cache R</th>
-                    <th class="numeric">Cache W</th>
-                    <th class="numeric">Output</th>
-                    <th class="numeric">Tools</th>
-                    <th>Duration</th>
-                    <th>Anomaly</th>
-                    <th>Time</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in recent %}
-                {% set has_anomalies = s.get('anomalies') and s['anomalies'] | length > 0 %}
-                <tr data-title="{{ s.title | lower }}" data-session-id="{{ s.session_id | lower }}"
-                    {% if has_anomalies %}class="row--anomaly"{% endif %}>
-                    <td><span class="agent-dot {{ 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' }}"></span></td>
-                    <td>
-                        <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link truncate" style="max-width:240px; display:block" data-tooltip="{{ s.title }}&#10;ID: {{ s.session_id }}">
-                            {{ s.title[:80] or 'Untitled' }}
-                        </a>
-                    </td>
-                    <td class="text-xs">
-                        <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a>
-                    </td>
-                    <td class="text-xs text-muted mono truncate" style="max-width:120px" data-tooltip="{{ s.model }}">{{ (s.model or '—')[:40] }}</td>
-                    <td class="numeric mono text-xs">{{ s.input_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ s.cached_input_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ s.cached_output_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ s.output_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">
-                        {{ s.tool_call_count | format_number }}
-                        {% if s.failed_tool_count > 0 %}
-                        <span class="badge badge-error">{{ s.failed_tool_count }}</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-xs text-muted {{ 'highlight-warn' if s.duration_seconds > 3600 else '' }}" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>
-                    <td>
-                        {% if has_anomalies %}
-                        {% for a in s.anomalies[:2] %}
-                        <span class="anomaly-badge {{ a.badge_class }}">{{ a.label }}</span>
-                        {% endfor %}
-                        {% if s.anomalies | length > 2 %}
-                        <span class="anomaly-badge anomaly-badge--more">+{{ s.anomalies | length - 2 }}</span>
-                        {% endif %}
-                        {% endif %}
-                    </td>
-                    <td class="text-xs text-muted">{{ s.ended_at | relative_time }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">No sessions indexed yet.</div>
-    {% endif %}
-</div>
+<!-- Recent activity card -->
+<section class="card" style="margin-top:10px"><div class="card-head"><div><div class="card-title">Recent activity</div><div class="card-sub">和 Sessions list 共用表格密度</div></div></div><table class="session-table"><thead><tr><th>Time</th><th>Agent</th><th>Task</th><th>Result</th><th>Tokens</th></tr></thead><tbody>
+{% for s in recent[:5] %}
+<tr><td class="num mono">{{ s.ended_at | relative_time }}</td><td><span class="badge pur">{{ 'Claude' if s.agent == 'claude_code' else 'Qoder' if s.agent == 'qoder' else 'Codex' }}</span></td><td class="title-cell"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link" style="text-decoration:none"><div class="title-main">{{ s.title[:80] or 'Untitled' }}</div></a></td><td><span class="badge ok">pass</span></td><td class="num mono">{{ (s.input_tokens + s.output_tokens + s.cached_input_tokens + s.cached_output_tokens) | format_number }}</td></tr>
+{% endfor %}
+{% if not recent %}<tr><td colspan="5" class="text-muted">No sessions indexed yet.</td></tr>{% endif %}
+</tbody></table></section>
 
 <script>
 (function() {
@@ -260,7 +78,7 @@
         var data = rawData.slice(-days);
         if (!data.length) { container.innerHTML = '<p class="text-muted text-sm">No data</p>'; return; }
 
-        var W = container.clientWidth, H = 140;
+        var W = container.clientWidth, H = 220;
         var pad = {t:10, r:10, b:24, l:36};
         var cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
         var maxVal = Math.max.apply(null, data.map(function(d){return d.total_count;})) || 1;
@@ -297,13 +115,13 @@
         svg += '</svg>';
         container.innerHTML = svg;
 
-        document.querySelectorAll('.tab--chart').forEach(function(b) {
+        document.querySelectorAll('.trend-btn').forEach(function(b) {
             b.classList.remove('active');
         });
         if (btn) btn.classList.add('active');
     };
 
-    var initBtn = document.querySelector('.tab--chart.active');
+    var initBtn = document.querySelector('.trend-btn.active');
     window.updateChart(30, initBtn);
 
     /* ─── Dashboard project search ─────────────────────────────────── */

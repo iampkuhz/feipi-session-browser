@@ -59,8 +59,20 @@ class TestV12StaticContract:
         source = _session_template()
         assert "session_detail_primitives_v12.html" in source
         assert "session_detail_timeline_v12.html" in source
-        assert "session-detail-response-blocks-v12.css" in source
-        assert "session_detail_response_blocks_v12.js" in source
+        # v15 assets loaded via base.html with v11/v12 compatibility aliases
+        base_path = os.path.join(TEMPLATES_DIR, "base.html")
+        with open(base_path, encoding="utf-8") as f:
+            base_source = f.read()
+        has_v15_css = "session-browser-v15.css" in base_source
+        has_v15_js = "session_browser_ui_v15.js" in base_source
+        assert (
+            "session-detail-response-blocks-v12.css" in source
+            or has_v15_css
+        ), "session page missing response-blocks CSS"
+        assert (
+            "session_detail_response_blocks_v12.js" in source
+            or has_v15_js
+        ), "session page missing response-blocks JS"
         assert "session_detail_timeline_v11.html" not in source
 
     def test_payload_modal_has_no_tabs(self):
