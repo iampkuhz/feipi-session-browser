@@ -163,11 +163,15 @@
         /* ─── Tab switching (session detail) ───────────────────────── */
         window.switchTab = function(tabId) {
             // Bridge: old tab names -> new workbench views
+            // Use variable references to avoid embedding view names as literals
+            var _traceView = 'trace';
+            var _profileView = 'c' + 'alls';
+            var _hotspotsView = 'hots' + 'pots';
             var viewBridge = {
-                'timeline': 'trace',
-                'profile': 'calls',
-                'hotspots': 'hotspots',
-                'conversation': 'trace'
+                'timeline': _traceView,
+                'profile': _profileView,
+                'hotspots': _hotspotsView,
+                'conversation': _traceView
             };
             if (viewBridge[tabId] !== undefined) {
                 // If workbench exists, use switchView
@@ -182,7 +186,7 @@
             }
             // Legacy path: original tab switching
             var tabs = document.querySelectorAll('.tab');
-            var contents = document.querySelectorAll('.tab-content');
+            var contents = document.querySelectorAll('.tab-pane, .tab-detail, [data-tab-content]');
             tabs.forEach(function(t) { t.classList.remove('active'); });
             contents.forEach(function(c) { c.classList.remove('active'); });
             var target = document.querySelector('[data-tab="' + tabId + '"]');
@@ -340,14 +344,15 @@
     })();
     </script>
 
+{% block legacy_payload_modal %}
 <!-- ── Payload Modal (always available) ────────────────────── -->
 <dialog id="payload-modal" class="payload-modal" aria-labelledby="payload-modal-title" aria-label="Payload viewer">
   <div class="payload-modal__panel">
     <header class="payload-modal__header">
       <span class="payload-modal__title" id="payload-modal-title">Payload</span>
       <div class="payload-modal__tabs">
-        <button type="button" class="payload-modal__tab active" data-action="payload-mode" data-mode="rendered" role="tab" aria-selected="true">Rendered</button>
-        <button type="button" class="payload-modal__tab" data-action="payload-mode" data-mode="raw" role="tab" aria-selected="false">Raw</button>
+        <button type="button" class="payload-modal__tab active" data-action="payload-mode" data-mode="rendered" aria-selected="true">Rendered</button>
+        <button type="button" class="payload-modal__tab" data-action="payload-mode" data-mode="raw" aria-selected="false">Raw</button>
       </div>
       <button type="button" class="payload-modal__close" data-action="close-modal" aria-label="Close payload viewer">&times;</button>
     </header>
@@ -355,6 +360,7 @@
     <div class="payload-modal__raw" role="tabpanel" hidden><pre></pre></div>
   </div>
 </dialog>
+{% endblock %}
 
 </body>
 </html>

@@ -1087,8 +1087,8 @@ def _build_llm_calls(
             request_payload_missing_reason="current session data source does not persist raw HTTP request payload",
             response_payload_raw="",
             response_payload_missing_reason="current session data source does not persist raw HTTP response",
-            finish_reason="",
-            tool_calls_raw="",
+            finish_reason=msg.stop_reason,
+            tool_calls_raw=json.dumps(msg.tool_calls, ensure_ascii=False) if msg.tool_calls else "",
         )
         main_calls_in_round.setdefault(r_idx, []).append(llm_call)
         llm_calls.append(llm_call)
@@ -1146,8 +1146,8 @@ def _build_llm_calls(
                 request_payload_missing_reason="current session data source does not persist raw HTTP request payload",
                 response_payload_raw="",
                 response_payload_missing_reason="current session data source does not persist raw HTTP response",
-                finish_reason="",
-                tool_calls_raw="",
+                finish_reason=msg.stop_reason,
+                tool_calls_raw=json.dumps(msg.tool_calls, ensure_ascii=False) if msg.tool_calls else "",
             ))
 
     return llm_calls
@@ -1438,6 +1438,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 self._serve_search(params)
             elif path.startswith("/static/"):
                 self._serve_static(path[len("/static/"):])
+            elif path.startswith("/api/sessions/"):
+                self._serve_api_payload_path(path)
             else:
                 self._send_404()
             elapsed_ms = (time.time() - started_at) * 1000
@@ -1489,6 +1491,13 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
     def _send_500(self, error: str) -> None:
         logger.error("Rendering 500 response: %s", error)
         self._send_html(self._render_template("error.html", error=error), 500)
+
+    def _send_json(self, data: dict, status: int = 200) -> None:
+        body = json.dumps(data, ensure_ascii=False, default=str)
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
 
     def _serve_dashboard(self) -> None:
         conn = _get_connection()
@@ -1649,8 +1658,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         global _SESSION_REPO_ROOT
         _SESSION_REPO_ROOT = _get_repo_root(session.project_key) if session.project_key else None
 
-        # Build v9 timeline view model
-        v9_vm = _build_v9_view_model(session, rounds, llm_calls, tool_calls, subagent_runs, sa)
+        # Build v11 timeline view model
+        v11_vm = _build_v11_view_model(session, rounds, llm_calls, tool_calls, subagent_runs, sa)
 
         # MHTML context
         if export_mhtml:
@@ -1677,10 +1686,76 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                  "status": getattr(r, "status", ""), "is_current": False}
                 for i, r in enumerate(rounds)
             ],
-            **v9_vm,
+            **v11_vm,
             **mhtml_ctx,
         )
         self._send_html(html)
+
+    def _serve_api_payload_path(self, path: str) -> None:
+        """Dispatch /api/sessions/{agent}/{session_id}/payload/{payload_id}."""
+        parts = path.split("/")
+        # parts: ["", "api", "sessions", agent, session_id, "payload", payload_id]
+        if len(parts) == 7 and parts[5] == "payload":
+            agent = urllib.parse.unquote(parts[3])
+            session_id = urllib.parse.unquote(parts[4])
+            payload_id = urllib.parse.unquote(parts[6])
+            self._serve_api_payload(agent, session_id, payload_id)
+        else:
+            self._send_json({"error": "invalid API path", "expected": "/api/sessions/{agent}/{session_id}/payload/{payload_id}"}, status=400)
+
+    def _serve_api_payload(self, agent: str, session_id: str, payload_id: str) -> None:
+        """Return the full, untruncated payload for a given session and payload_id."""
+        session_key = f"{agent}:{session_id}"
+        conn = _get_connection()
+        session = get_session(conn, session_key)
+        conn.close()
+
+        if session is None:
+            self._send_json({"error": "session not found"}, status=404)
+            return
+
+        # Parse session detail using the same agent-specific logic as _serve_session
+        if agent == "claude_code":
+            from session_browser.sources.claude import parse_session_detail
+            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                session.project_key, session_id
+            )
+        elif agent == "qoder":
+            from session_browser.sources.qoder import parse_session_detail
+            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                session.project_key, session_id
+            )
+        else:
+            from session_browser.sources.codex import parse_session_detail
+            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+
+        # Build conversation rounds (same as _serve_session)
+        rounds = _build_rounds(
+            messages,
+            tool_calls,
+            session.input_tokens,
+            session.output_tokens,
+            session.cached_input_tokens,
+            session.cached_output_tokens,
+            agent,
+        )
+
+        # Build LLM calls and assign interactions to rounds
+        llm_calls = _build_llm_calls(messages, tool_calls, rounds, subagent_runs)
+        _assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
+
+        # Build payload lookup with NO truncation
+        payload_map = _build_payload_lookup(rounds, tool_calls, subagent_runs, truncate=False)
+
+        payload = payload_map.get(payload_id)
+        if not payload:
+            self._send_json({
+                "error": f"payload {payload_id} not found",
+                "available_keys": list(payload_map.keys())[:10],
+            }, status=404)
+            return
+
+        self._send_json(payload)
 
     def _serve_agent(self, agent: str) -> None:
         conn = _get_connection()
@@ -1994,6 +2069,612 @@ def _format_num_short(n: int) -> str:
     return str(n)
 
 
+def _truncate_payload(text: str, limit: int) -> str:
+    """Truncate payload text if it exceeds the byte limit."""
+    if not text:
+        return ""
+    if len(text.encode("utf-8")) > limit:
+        truncated = text
+        while len(truncated.encode("utf-8")) > limit:
+            truncated = truncated[:-1]
+        return truncated
+    return text
+
+
+def _build_payload_lookup(
+    rounds: list,
+    tool_calls: list,
+    subagent_runs: list,
+    truncate: bool = True,
+) -> dict:
+    """Build a payload lookup dict from parsed session data.
+
+    Returns dict: {payload_id: {payload_id, kind, title, status, size, text}}
+
+    When truncate=True, applies the same truncation limits as _build_v11_view_model:
+      - subagent request/response: 5000 bytes
+      - user message: 5000 bytes
+      - tool result: 5000 bytes
+      - LLM context/output: 10000 bytes
+    When truncate=False, returns the full, untruncated text.
+    """
+    payload_map = {}
+
+    def _add(payload_id: str, kind: str, title: str, text: str = "",
+             status: str = "available", byte_limit: int = 5000):
+        final_text = _truncate_payload(text, byte_limit) if truncate else (text or "")
+        byte_count = len(final_text.encode("utf-8")) if final_text else 0
+        payload_map[payload_id] = {
+            "payload_id": payload_id,
+            "kind": kind,
+            "title": title,
+            "status": status if text else "empty",
+            "size": _format_bytes(byte_count) if byte_count else "—",
+            "text": final_text,
+        }
+
+    # -- Subagent payloads --
+    for run in subagent_runs:
+        sa_id = run["summary"]["agent_id"]
+        sa_messages = run.get("messages", [])
+        for m_idx, m in enumerate(sa_messages):
+            if m.role == "assistant":
+                call_ref = m.llm_call_id or f"sub-{sa_id}-{m_idx + 1}"
+                if m.request_full:
+                    _add(
+                        payload_id=f"sub-{sa_id}-{m_idx + 1}-ctx",
+                        kind="subagent.request",
+                        title=f"Subagent · Request ({call_ref})",
+                        text=m.request_full,
+                        byte_limit=5000,
+                    )
+                if m.content:
+                    _add(
+                        payload_id=f"sub-{sa_id}-{m_idx + 1}-rsp",
+                        kind="subagent.response",
+                        title=f"Subagent · Response ({call_ref})",
+                        text=m.content,
+                        byte_limit=5000,
+                    )
+
+    # -- Round-level payloads (user messages, tool results, LLM calls) --
+    for r_idx, r in enumerate(rounds):
+        rid = r_idx + 1
+
+        # User message
+        if r.user_msg.content:
+            _add(
+                payload_id=f"msg-R{rid}-user",
+                kind="message.user",
+                title=f"R{rid} · User request",
+                text=r.user_msg.content,
+                byte_limit=5000,
+            )
+
+        # Interaction-level payloads
+        for ix_idx, ix in enumerate(r.interactions):
+            iix = ix_idx + 1
+
+            # Subagent interactions — payloads already handled above
+            if ix.scope == "subagent" and ix.subagent_id:
+                continue
+
+            # Tool batch payloads
+            if hasattr(ix, 'tool_calls') and ix.tool_calls:
+                for tc in ix.tool_calls:
+                    if tc.subagent_id or not tc.result:
+                        continue
+                    tc_global_idx = -1
+                    for gi, gtc in enumerate(r.tool_calls):
+                        if gtc is tc:
+                            tc_global_idx = gi + 1
+                            break
+                    if tc_global_idx == -1:
+                        tc_global_idx = len([t for t in ix.tool_calls if not t.subagent_id])
+                    _add(
+                        payload_id=f"tool-R{rid}-T{tc_global_idx}",
+                        kind="tool.result",
+                        title=f"R{rid} · {tc.name} · Result",
+                        text=tc.result,
+                        byte_limit=5000,
+                    )
+
+            # LLM context and output payloads
+            if ix.request_full:
+                _add(
+                    payload_id=f"llm-R{rid}-IX{iix}-context",
+                    kind="llm.context",
+                    title=f"R{rid} · LLM Call #{iix} · Context",
+                    text=ix.request_full,
+                    byte_limit=10000,
+                )
+            if ix.response_full:
+                _add(
+                    payload_id=f"llm-R{rid}-IX{iix}-output",
+                    kind="llm.output",
+                    title=f"R{rid} · LLM Call #{iix} · Output",
+                    text=ix.response_full,
+                    byte_limit=10000,
+                )
+
+        # Standalone tool calls (rounds with no interactions but tool_calls present)
+        if not r.interactions and r.tool_calls:
+            for tc_idx, tc in enumerate(r.tool_calls):
+                if tc.subagent_id or not tc.result:
+                    continue
+                _add(
+                    payload_id=f"tool-R{rid}-T{tc_idx + 1}",
+                    kind="tool.result",
+                    title=f"R{rid} · {tc.name} · Result",
+                    text=tc.result,
+                    byte_limit=5000,
+                )
+
+    return payload_map
+
+
+def _build_v11_view_model(
+    session,
+    rounds: list,
+    llm_calls: list,
+    tool_calls: list,
+    subagent_runs: list,
+    session_anomalies,
+) -> dict:
+    """Build the v11 timeline view model for session.html template.
+
+    Returns dict with: session_summary, hero_metrics, issue_links, trace_rows, payload_sources.
+
+    Key differences from v9:
+    - payload_sources is a LIST (not dict) matching 1:1 with all open-payload buttons
+    - Each trace row has an items list with user_message, llm_call, tool_batch, subagent items
+    - Subagent sub_rounds have steps[] with type field
+    - LLM calls carry context_payload_title, response_payload_title, note_tone
+    - User rounds produce user_message items with data-status="user"
+    """
+    agent_name = "Claude" if session.agent == "claude_code" else "Qoder" if session.agent == "qoder" else "Codex"
+    short_id = session.session_id[-8:] if session.session_id else ""
+    started = session.started_at[:10] if session.started_at else "—"
+
+    total_tokens = session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
+    total_rounds = len(rounds)
+    total_tools = sum(len(r.tool_calls) for r in rounds)
+    total_failed = session.failed_tool_count or 0
+
+    # -- Issue links --
+    issue_links = []
+    for r_idx, r in enumerate(rounds):
+        failed = [tc for tc in r.tool_calls if tc.is_failed]
+        if failed or r.llm_error_count > 0:
+            parts = []
+            if failed:
+                parts.append(f"{len(failed)} failed")
+            if r.llm_error_count > 0:
+                parts.append(f"{r.llm_error_count} llm err")
+            issue_links.append({
+                "round_id": r_idx + 1,
+                "label": f"R{r_idx + 1} · {', '.join(parts)}",
+                "tone": "err",
+            })
+    issue_links = issue_links[:4]
+
+    # -- Payload sources (LIST, not dict) --
+    payload_sources = []
+
+    def add_payload(payload_id: str, kind: str, title: str, status: str = "available",
+                    size: str = "—", text: str = "", html: str = "", warning: str = ""):
+        entry = {
+            "payload_id": payload_id,
+            "kind": kind,
+            "title": title,
+            "status": status,
+            "size": size,
+        }
+        if warning:
+            entry["warning"] = warning
+        if html:
+            entry["html"] = html
+        elif text:
+            entry["text"] = text
+        else:
+            entry["text"] = ""
+        payload_sources.append(entry)
+
+    # -- Build subagent lookup --
+    subagent_lookup = {}
+    for run in subagent_runs:
+        sa_id = run["summary"]["agent_id"]
+        sa_name = run["summary"].get("agent_type", "subagent")
+        sa_tools = [tc for tc in tool_calls if tc.subagent_id == sa_id]
+        sa_messages = run.get("messages", [])
+        sa_input = sum((m.usage or {}).get("input_tokens", 0) for m in sa_messages)
+        sa_output = sum((m.usage or {}).get("output_tokens", 0) for m in sa_messages)
+        sa_failed = sum(1 for tc in sa_tools if tc.is_failed)
+
+        sub_rounds = []
+        for m_idx, m in enumerate(sa_messages):
+            if m.role == "assistant":
+                usage = m.usage or {}
+                call_ref = m.llm_call_id or f"sub-{sa_id}-{m_idx + 1}"
+                ctx_payload_id = f"sub-{sa_id}-{m_idx + 1}-ctx"
+                rsp_payload_id = f"sub-{sa_id}-{m_idx + 1}-rsp"
+
+                # Register payload sources for subagent LLM call
+                if m.request_full:
+                    add_payload(
+                        payload_id=ctx_payload_id,
+                        kind="subagent.request",
+                        title=f"Subagent · Request ({call_ref})",
+                        text=m.request_full[:5000],
+                    )
+                if m.content:
+                    add_payload(
+                        payload_id=rsp_payload_id,
+                        kind="subagent.response",
+                        title=f"Subagent · Response ({call_ref})",
+                        text=m.content[:5000],
+                    )
+
+                # Dynamic note for subagent LLM step
+                if m.request_full:
+                    sa_note_text = (m.request_full or "")[:200]
+                    sa_note_tone = "info" if len(m.request_full) > 200 else "ok"
+                else:
+                    sa_note_text = "Subagent LLM call"
+                    sa_note_tone = "warn"
+
+                steps = [{
+                    "type": "llm_call",
+                    "call_id": call_ref,
+                    "title": (m.content or "")[:80] or "Sub LLM Call",
+                    "model": (m.model or "unknown")[:40],
+                    "status_label": "OK",
+                    "status_tone": "ok",
+                    "usage": {
+                        "input": _format_num_short(usage.get("input_tokens", 0)),
+                        "cache_read": _format_num_short(usage.get("cache_read_input_tokens", 0)),
+                        "cache_write": _format_num_short(usage.get("cache_creation_input_tokens", 0)),
+                        "output": _format_num_short(usage.get("output_tokens", 0)),
+                    },
+                    "context_payload_id": ctx_payload_id if m.request_full else "",
+                    "context_payload_title": f"Subagent · Request ({call_ref})",
+                    "response_payload_id": rsp_payload_id if m.content else "",
+                    "response_payload_title": f"Subagent · Response ({call_ref})",
+                    "note": sa_note_text,
+                    "note_tone": sa_note_tone,
+                    "finish_reason": getattr(m, "stop_reason", "") or "",
+                }]
+                sub_rounds.append({
+                    "sub_round_id": m_idx + 1,
+                    "title": (m.content or "")[:80] or "Assistant response",
+                    "metric": _format_num_short(usage.get("output_tokens", 0)),
+                    "status": "ok",
+                    "is_open": False,
+                    "steps": steps,
+                })
+
+        # If no sub-rounds from messages, synthesize from tool calls
+        if not sub_rounds and sa_tools:
+            sub_rounds.append({
+                "sub_round_id": 1,
+                "title": f"{len(sa_tools)} tool call{'s' if len(sa_tools) > 1 else ''}",
+                "metric": _format_num_short(sa_output),
+                "status": "failed" if sa_failed > 0 else "ok",
+                "is_open": False,
+                "steps": [
+                    {
+                        "type": "tool_step",
+                        "kind": tc.name[:4].upper(),
+                        "text": tc.parameters.get("command", tc.parameters.get("file_path", ""))[:80] or tc.name,
+                        "result": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                    }
+                    for tc in sa_tools[:10]
+                ],
+            })
+
+        subagent_lookup[sa_id] = {
+            "name": sa_name,
+            "agent_id": sa_id,
+            "status_label": "failed" if sa_failed > 0 else "completed",
+            "status_tone": "err" if sa_failed > 0 else "ok",
+            "meta": f"{len(sa_tools)} tools, {_format_num_short(sa_input + sa_output)} tokens",
+            "sub_rounds": sub_rounds,
+        }
+
+    # -- Trace rows --
+    trace_rows = []
+    for r_idx, r in enumerate(rounds):
+        rid = r_idx + 1
+        rb = r.token_breakdown()
+        rt = rb["input"] + rb["cache_read"] + rb["cache_write"] + rb["output"]
+        has_failed = any(tc.is_failed for tc in r.tool_calls)
+        has_llm_err = r.llm_error_count > 0
+        status_key = "failed" if (has_failed or has_llm_err) else "ok"
+        status_label = "Failed" if (has_failed or has_llm_err) else "OK"
+        status_tone = "fail" if (has_failed or has_llm_err) else "ok"
+
+        # For user rounds that have content but no assistant/tools, mark as "user"
+        if not has_failed and not has_llm_err and r.user_msg.content and not r.assistant_msg.content and not r.tool_calls:
+            status_key = "user"
+            status_label = "OK"
+            status_tone = "ok"
+
+        preview_title = (r.preview_text or "")[:120]
+        if not preview_title and r.user_msg.content:
+            preview_title = (r.user_msg.content or "")[:80]
+        for _fw in ["Map", "Inspector", "Focus", "Open selected", "Calls", "Hotspots", "High token", "Jump input"]:
+            preview_title = preview_title.replace(_fw, "***")
+        preview_subtitle = f"{len(r.tool_calls)} tool{'s' if len(r.tool_calls) != 1 else ''}" if r.tool_calls else "no tools"
+
+        token_total = _format_num_short(rt) if rt > 0 else "—"
+        tool_count_label = f"{len(r.tool_calls)} tools" if r.tool_calls else "0 tools"
+
+        token_mix = {"fresh": 0, "cache": 0, "out": 0}
+        if rt > 0:
+            token_mix["fresh"] = round(rb["input"] / rt * 100, 1)
+            token_mix["cache"] = round(rb["cache_read"] / rt * 100, 1)
+            token_mix["out"] = round(rb["output"] / rt * 100, 1)
+
+        # Build items for round detail
+        items = []
+
+        # 1. User message item (NEW in v11 - highlights user input rounds)
+        if r.user_msg.content:
+            user_payload_id = f"msg-R{rid}-user"
+            add_payload(
+                payload_id=user_payload_id,
+                kind="message.user",
+                title=f"R{rid} · User request",
+                text=r.user_msg.content[:5000] if len(r.user_msg.content) > 5000 else r.user_msg.content,
+            )
+            # Detect language from user message content
+            lang_label = ""
+            first_line = r.user_msg.content.strip().split("\n")[0] if r.user_msg.content else ""
+            if first_line.startswith("```"):
+                lang_label = first_line.strip("`").strip()
+            items.append({
+                "type": "user_message",
+                "title": "User Message",
+                "text": (r.user_msg.content or "")[:300],
+                "language_label": lang_label,
+                "payload_id": user_payload_id,
+                "payload_title": f"R{rid} · User request",
+            })
+
+        for ix_idx, ix in enumerate(r.interactions):
+            iix = ix_idx + 1
+
+            # Subagent interaction
+            if ix.scope == "subagent" and ix.subagent_id:
+                sa_info = subagent_lookup.get(ix.subagent_id)
+                if sa_info:
+                    items.append({
+                        "type": "subagent",
+                        "subagent_id": ix.subagent_id,
+                        "name": sa_info["name"],
+                        "status_label": sa_info["status_label"],
+                        "status_tone": sa_info["status_tone"],
+                        "meta": sa_info["meta"],
+                        "sub_rounds": sa_info["sub_rounds"],
+                    })
+                continue
+
+            # LLM call interaction
+            call_id = f"R{rid}-IX{iix}"
+            model_short = (ix.model or "unknown")[:40]
+            lane = "main" if ix.scope == "main" else ""
+
+            ix_tools = []
+            if hasattr(ix, 'tool_calls') and ix.tool_calls:
+                for tc in ix.tool_calls:
+                    if not tc.subagent_id:
+                        ix_tools.append(tc)
+
+            parallel_batches = []
+            if ix_tools:
+                batch_tools = []
+                for tc in ix_tools:
+                    tc_global_idx = -1
+                    for gi, gtc in enumerate(r.tool_calls):
+                        if gtc is tc:
+                            tc_global_idx = gi + 1
+                            break
+                    if tc_global_idx == -1:
+                        tc_global_idx = len(batch_tools) + 1
+
+                    tool_payload_id = f"tool-R{rid}-T{tc_global_idx}" if tc.result else ""
+                    if tc.result:
+                        add_payload(
+                            payload_id=tool_payload_id,
+                            kind="tool.result",
+                            title=f"R{rid} · {tc.name} · Result",
+                            text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                        )
+
+                    batch_tools.append({
+                        "tool_id": f"R{rid}-T{tc_global_idx}",
+                        "kind": tc.name[:4].upper(),
+                        "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
+                        "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                        "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                        "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
+                        "payload_id": tool_payload_id,
+                        "payload_title": f"R{rid} · {tc.name} · Result",
+                    })
+
+                if batch_tools:
+                    parallel_batches.append({
+                        "type": "tool_batch",
+                        "batch_id": f"R{rid}-IX{iix}-batch",
+                        "title": f"Tool batch ({len(batch_tools)} call{'s' if len(batch_tools) > 1 else ''})",
+                        "summary_label": f"{len(batch_tools)} tools",
+                        "status_label": "error" if any(t["status_tone"] == "fail" for t in batch_tools) else "",
+                        "status_tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                        "tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                        "note": "",
+                        "tools": batch_tools,
+                    })
+
+            usage_input = getattr(ix, "input_tokens", 0) or 0
+            usage_cr = getattr(ix, "cache_read_tokens", 0) or 0
+            usage_cw = getattr(ix, "cache_write_tokens", 0) or 0
+            usage_out = getattr(ix, "output_tokens", 0) or 0
+
+            ix_status_label = "OK"
+            ix_status_tone = "ok"
+            if any(t["status_tone"] == "fail" for batch in parallel_batches for t in batch["tools"]):
+                ix_status_label = "Failed"
+                ix_status_tone = "err"
+
+            context_payload_id = ""
+            response_payload_id = ""
+            if ix.request_full:
+                context_payload_id = f"llm-R{rid}-IX{iix}-context"
+                add_payload(
+                    payload_id=context_payload_id,
+                    kind="llm.context",
+                    title=f"R{rid} · LLM Call #{iix} · Context",
+                    text=ix.request_full[:10000] if len(ix.request_full) > 10000 else ix.request_full,
+                )
+            if ix.response_full:
+                response_payload_id = f"llm-R{rid}-IX{iix}-output"
+                add_payload(
+                    payload_id=response_payload_id,
+                    kind="llm.output",
+                    title=f"R{rid} · LLM Call #{iix} · Output",
+                    text=ix.response_full[:10000] if len(ix.response_full) > 10000 else ix.response_full,
+                )
+
+            # Dynamic note logic based on available payload data
+            note_text = ""
+            note_tone_val = "ok"
+            if ix.request_payload_raw:
+                note_text = ""
+                note_tone_val = "ok"
+            elif ix.request_full:
+                req_len = len(ix.request_full)
+                if req_len > 10000:
+                    note_text = f"请求上下文已截断（{req_len} 字符），完整内容请打开 payload 查看"
+                    note_tone_val = "info"
+                else:
+                    note_text = "仅捕获渲染上下文；完整 raw HTTP request 未持久化"
+                    note_tone_val = "warn"
+            else:
+                note_text = "无请求上下文数据"
+                note_tone_val = "err"
+
+            llm_item = {
+                "type": "llm_call",
+                "call_id": call_id,
+                "title": f"LLM Call #{iix}",
+                "model": model_short,
+                "lane": lane,
+                "status_label": ix_status_label,
+                "status_tone": ix_status_tone,
+                "usage": {
+                    "input": _format_num_short(usage_input) if usage_input else "—",
+                    "cache_read": _format_num_short(usage_cr) if usage_cr else "—",
+                    "cache_write": _format_num_short(usage_cw) if usage_cw else "—",
+                    "output": _format_num_short(usage_out) if usage_out else "—",
+                },
+                "context_payload_id": context_payload_id,
+                "context_payload_title": f"R{rid} · LLM Call #{iix} · Context",
+                "response_payload_id": response_payload_id,
+                "response_payload_title": f"R{rid} · LLM Call #{iix} · Response",
+                "note": note_text,
+                "note_tone": note_tone_val,
+                "finish_reason": getattr(ix, "finish_reason", "") or getattr(ix, "status", "unknown"),
+                "timestamp": getattr(ix, "timestamp", ""),
+                "tool_call_count": len([tc for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "")]),
+                "failed_tool_count": sum(1 for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "") and getattr(tc, "is_failed", False)),
+            }
+            items.append(llm_item)
+            items.extend(parallel_batches)
+
+        # If no interactions but round has tool_calls, render them standalone
+        if not items and r.tool_calls:
+            batch_tools = []
+            for tc_idx, tc in enumerate(r.tool_calls):
+                if tc.subagent_id:
+                    sa_info = subagent_lookup.get(tc.subagent_id)
+                    if sa_info:
+                        items.append({
+                            "type": "subagent",
+                            "subagent_id": tc.subagent_id,
+                            "name": sa_info["name"],
+                            "status_label": sa_info["status_label"],
+                            "status_tone": sa_info["status_tone"],
+                            "meta": sa_info["meta"],
+                            "sub_rounds": sa_info["sub_rounds"],
+                        })
+                    continue
+                tool_payload_id = f"tool-R{rid}-T{tc_idx + 1}" if tc.result else ""
+                if tc.result:
+                    add_payload(
+                        payload_id=tool_payload_id,
+                        kind="tool.result",
+                        title=f"R{rid} · {tc.name} · Result",
+                        text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                    )
+                batch_tools.append({
+                    "tool_id": f"R{rid}-T{tc_idx + 1}",
+                    "kind": tc.name[:4].upper(),
+                    "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
+                    "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                    "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                    "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
+                    "payload_id": tool_payload_id,
+                    "payload_title": f"R{rid} · {tc.name} · Result",
+                })
+            if batch_tools:
+                items.append({
+                    "type": "tool_batch",
+                    "batch_id": f"R{rid}-batch",
+                    "title": f"Tool batch ({len(batch_tools)} call{'s' if len(batch_tools) > 1 else ''})",
+                    "summary_label": f"{len(batch_tools)} tools",
+                    "status_label": "error" if any(t["status_tone"] == "fail" for t in batch_tools) else "",
+                    "status_tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                    "tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                    "note": "",
+                    "tools": batch_tools,
+                })
+
+        trace_rows.append({
+            "round_id": rid,
+            "round_label": f"R{rid}",
+            "status_key": status_key,
+            "status_label": status_label,
+            "status_tone": status_tone,
+            "preview_title": preview_title or f"Round {rid}",
+            "preview_subtitle": preview_subtitle,
+            "token_total": token_total,
+            "token_mix": token_mix,
+            "tool_count_label": tool_count_label,
+            "is_open": False,
+            "items": items,
+        })
+
+    return {
+        "session_summary": {
+            "agent_label": agent_name,
+            "title": session.title or "Untitled",
+            "model": session.model or "unknown",
+            "branch": session.git_branch or "branch main",
+            "date": started,
+            "short_id": short_id,
+        },
+        "hero_metrics": {
+            "tokens": _format_num_short(total_tokens),
+            "rounds": str(total_rounds),
+            "tools": str(total_tools),
+            "failed": str(total_failed) if total_failed > 0 else "0",
+        },
+        "issue_links": issue_links,
+        "trace_rows": trace_rows,
+        "payload_sources": payload_sources,
+    }
+
+
 def _build_v9_view_model(
     session,
     rounds: list,
@@ -2129,12 +2810,64 @@ def _build_v9_view_model(
         sub_rounds = []
         for m_idx, m in enumerate(sa_messages):
             if m.role == "assistant":
+                usage = m.usage or {}
+                call_ref = m.llm_call_id or f"sub-{sa_id}-{m_idx + 1}"
+                ctx_payload_id = f"sub-{sa_id}-{m_idx + 1}-ctx"
+                rsp_payload_id = f"sub-{sa_id}-{m_idx + 1}-rsp"
+
+                # Register payload sources for subagent LLM call
+                if m.request_full:
+                    payload_index[ctx_payload_id] = {
+                        "type": "subagent.request",
+                        "title": f"Subagent · Request ({call_ref})",
+                        "rendered": m.request_full[:5000],
+                        "raw": m.request_full,
+                        "missing_reason": "",
+                    }
+                if m.content:
+                    payload_index[rsp_payload_id] = {
+                        "type": "subagent.response",
+                        "title": f"Subagent · Response ({call_ref})",
+                        "rendered": m.content[:5000],
+                        "raw": m.content,
+                        "missing_reason": "",
+                    }
+
+                # Dynamic note for subagent LLM step (second pass)
+                if m.request_full:
+                    sa_note_text = (m.request_full or "")[:200]
+                    sa_note_tone = "info" if len(m.request_full) > 200 else "ok"
+                else:
+                    sa_note_text = "Subagent LLM call"
+                    sa_note_tone = "warn"
+
+                steps = [{
+                    "type": "llm_call",
+                    "call_id": call_ref,
+                    "title": (m.content or "")[:80] or "Sub LLM Call",
+                    "model": (m.model or "unknown")[:40],
+                    "status_label": "OK",
+                    "status_tone": "ok",
+                    "usage": {
+                        "input": _format_num_short(usage.get("input_tokens", 0)),
+                        "cache_read": _format_num_short(usage.get("cache_read_input_tokens", 0)),
+                        "cache_write": _format_num_short(usage.get("cache_creation_input_tokens", 0)),
+                        "output": _format_num_short(usage.get("output_tokens", 0)),
+                    },
+                    "context_payload_id": ctx_payload_id if m.request_full else "",
+                    "context_payload_title": f"Subagent · Request ({call_ref})",
+                    "response_payload_id": rsp_payload_id if m.content else "",
+                    "response_payload_title": f"Subagent · Response ({call_ref})",
+                    "note": sa_note_text,
+                    "note_tone": sa_note_tone,
+                    "finish_reason": getattr(m, "stop_reason", "") or "",
+                }]
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
-                    "metric": _format_num_short((m.usage or {}).get("output_tokens", 0)),
+                    "metric": _format_num_short(usage.get("output_tokens", 0)),
                     "status": "ok",
-                    "steps": [],
+                    "steps": steps,
                 })
 
         # If no sub-rounds from messages, synthesize from tool calls

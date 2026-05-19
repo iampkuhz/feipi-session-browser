@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% import "components/session_detail_primitives.html" as sdp %}
-{% import "components/session_detail_timeline.html" as sdt %}
+{% import "components/session_detail_primitives_v11.html" as sdp %}
+{% import "components/session_detail_timeline_v11.html" as sdt %}
 
 {% block title %}{{ session.title[:80] or 'Untitled' }} - Agent Run Profiler{% endblock %}
 
@@ -20,6 +20,8 @@
 
 {% block sidebar_extra %}{% endblock %}
 
+{% block legacy_payload_modal %}{% endblock %}
+
 {% block topbar_toggles %}{% endblock %}
 
 {% block breadcrumb %}
@@ -27,11 +29,12 @@ Agent Run Profiler <span class="sep">/</span> Session Detail <span class="sep">/
 {% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/session-detail-timeline.css">
+<link rel="stylesheet" href="/static/css/session-detail-timeline-v11.css">
+<meta name="payload-api-base" content="/api/sessions/{{ current_agent }}/{{ session.session_id }}">
 {% endblock %}
 
 {% block script_extra %}
-<script src="/static/js/session_detail_timeline.js" defer></script>
+<script src="/static/js/session_detail_timeline_v11.js" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -55,15 +58,8 @@ Agent Run Profiler <span class="sep">/</span> Session Detail <span class="sep">/
     </div>
   </section>
 
-  <dialog class="sd-payload-modal" id="sd-payload-modal">
-    <div class="sd-modal-panel">
-      <div class="sd-modal-head">
-        <span class="sd-modal-title" data-payload-title>Payload</span>
-        <button type="button" class="sd-btn sd-btn--sm sd-modal-close" data-action="close-modal">&times;</button>
-      </div>
-      <div class="sd-modal-body" data-payload-body></div>
-    </div>
-  </dialog>
+  {{ sdt.payload_sources(payload_sources | default([])) }}
+  {{ sdt.payload_modal() }}
 </section>
 
 {% endblock %}

@@ -665,6 +665,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                     token_breakdown=token_bd,
                     llm_call_id=rec.get("id", ""),
                     request_full=request_full,
+                    stop_reason=rec.get("stop_reason", ""),
                 ))
 
     return messages

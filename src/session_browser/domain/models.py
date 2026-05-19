@@ -137,6 +137,7 @@ class ChatMessage:
     llm_call_id: str = ""  # provider/Claude message id, one logical LLM call
     llm_status: str = "ok"  # "ok" | "error"
     request_full: str = ""  # logged request context preceding this assistant response
+    stop_reason: str = ""  # e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
     content_parts: list["ContentPart"] = field(default_factory=list)  # typed content parts
 
 

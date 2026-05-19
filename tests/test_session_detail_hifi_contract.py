@@ -63,7 +63,7 @@ class TestFixtureDataAttributes:
     """Verify the fixture session has correct data attributes for HIFI wiring."""
 
     def test_view_switch_buttons(self, hifi_fixture_session):
-        """v9: no data-switch buttons for calls/hotspots; collapse-all and filter-status exist."""
+        """v11: no data-switch buttons for calls/hotspots; toggle-all and filter-status exist."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = _get_html(url)
@@ -72,8 +72,8 @@ class TestFixtureDataAttributes:
         for view in ("calls", "hotspots"):
             btn = soup.select_one(f'[data-switch="{view}"]')
             assert btn is None, f'unexpected button with data-switch="{view}" (should be removed)'
-        # v9 action buttons
-        for action in ("collapse-all", "filter-status"):
+        # v11 action buttons
+        for action in ("toggle-all", "filter-status"):
             btn = soup.select_one(f'[data-action="{action}"]')
             assert btn is not None, f'missing button with data-action="{action}"'
         # expand-visible was removed in v9
@@ -546,10 +546,10 @@ class TestDeadButtonGate:
         return BeautifulSoup(html, "html.parser"), html
 
     SUPPORTED_ACTIONS = {
-        "filter-status", "expand-all", "expand-visible", "collapse-all",
-        "open-payload", "payload-mode", "close-modal",
+        "filter-status", "toggle-all", "expand-all", "expand-visible", "collapse-all",
+        "open-payload", "payload-mode", "close-modal", "close-payload", "payload-tab",
         "jump-round", "jump-anomaly", "md-toggle",
-        "toggle-round", "toggle-issue-expand",
+        "toggle-round", "toggle-issue-expand", "toggle-sub-round",
     }
 
     def test_all_buttons_have_supported_data_action(self, hifi_fixture_session):
