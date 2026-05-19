@@ -16,7 +16,7 @@ Env vars:
 
 Exit codes:
     0  ALLOW  – clean stop or change is complete
-    1  BLOCK  – protected changes detected but change/evidence is incomplete
+    2  BLOCK  – protected changes detected but change/evidence is incomplete
 """
 
 from __future__ import annotations
@@ -49,6 +49,8 @@ EVIDENCE_DIR = Path(".agent/task-evidence")
 
 # Required files inside openspec/changes/<change-id>/
 REQUIRED_CHANGE_FILES = ["proposal.md", "design.md", "tasks.md"]
+EXIT_ALLOW = 0
+EXIT_BLOCK = 2
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -138,6 +140,18 @@ def has_completed_tasks(change_id: str) -> bool:
     return False
 
 
+def repair_messages(change_id: str | None = None) -> list[str]:
+    """Return concise instructions that Claude can turn into next actions."""
+    target = f" '{change_id}'" if change_id else ""
+    return [
+        "Continue instead of stopping: repair the OpenSpec state, then retry stop.",
+        f"  1. Ensure .agent/active_change.json points to the intended active change{target}.",
+        "  2. Ensure proposal.md, design.md, and tasks.md exist under that change.",
+        "  3. Record or preserve edit evidence in .agent/task-evidence/<change-id>.jsonl.",
+        "  4. Mark completed tasks in tasks.md before final stop.",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Core validation
 # ---------------------------------------------------------------------------
@@ -147,7 +161,7 @@ def validate() -> tuple[int, list[str]]:
     """Run the stop-validation gate.
 
     Returns (exit_code, messages).
-    exit_code 0 = allow, 1 = block/warn.
+    exit_code 0 = allow, 2 = block.
     """
     messages: list[str] = []
 
@@ -170,17 +184,20 @@ def validate() -> tuple[int, list[str]]:
             "BLOCK: protected files changed without active change "
             "(.agent/active_change.json missing or invalid)."
         )
-        return 1, messages
+        messages.extend(repair_messages())
+        return EXIT_BLOCK, messages
 
     cid = change_id_from_active(active)
     if not cid:
         messages.append("BLOCK: .agent/active_change.json missing 'change_id'.")
-        return 1, messages
+        messages.extend(repair_messages())
+        return EXIT_BLOCK, messages
 
     # Check change directory exists
     if not change_dir_exists(cid):
         messages.append(f"BLOCK: openspec/changes/{cid}/ directory not found.")
-        return 1, messages
+        messages.extend(repair_messages(cid))
+        return EXIT_BLOCK, messages
 
     # Check required files
     missing = required_files_present(cid)
@@ -206,7 +223,8 @@ def validate() -> tuple[int, list[str]]:
         messages.append(
             "Result: BLOCK – protected changes exist but change/evidence is incomplete."
         )
-        return 1, messages
+        messages.extend(repair_messages(cid))
+        return EXIT_BLOCK, messages
 
     messages.append(f"Result: ALLOW – change '{cid}' has required files and evidence.")
     return 0, messages
@@ -291,7 +309,7 @@ def _run_self_test() -> int:
         os.chdir(saved_cwd)
         if saved_skip is not None:
             os.environ["FEIPI_SKIP_STOP_HOOK"] = saved_skip
-        check("exit code is 1 (BLOCK)", exit_code == 1, f"exit={exit_code}")
+        check("exit code is 2 (BLOCK)", exit_code == EXIT_BLOCK, f"exit={exit_code}")
         has_block_msg = any("BLOCK" in m or "block" in m.lower() for m in msgs)
         check("message contains BLOCK", has_block_msg,
               "messages: " + "; ".join(msgs[:3]))
@@ -363,7 +381,7 @@ def _run_self_test() -> int:
         os.chdir(saved_cwd)
         if saved_skip is not None:
             os.environ["FEIPI_SKIP_STOP_HOOK"] = saved_skip
-        check("exit code is 1 (BLOCK)", exit_code == 1, f"exit={exit_code}")
+        check("exit code is 2 (BLOCK)", exit_code == EXIT_BLOCK, f"exit={exit_code}")
         has_block_msg = any("BLOCK" in m or "block" in m.lower() or "WARN" in m for m in msgs)
         check("message indicates incomplete", has_block_msg,
               "messages: " + "; ".join(msgs[:3]))

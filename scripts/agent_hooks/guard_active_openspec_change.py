@@ -46,6 +46,7 @@ CREATION_EXCEPTIONS = [
 ]
 
 ACTIVE_CHANGE_FILE = ".agent/active_change.json"
+REQUIRED_CHANGE_FILES = ("proposal.md", "design.md", "tasks.md")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -131,6 +132,16 @@ def check_active_change(repo_root: Path) -> tuple[bool, str]:
             "Create the change or fix active_change.json."
         )
 
+    change_dir = matching[0]
+    missing = [name for name in REQUIRED_CHANGE_FILES if not (change_dir / name).is_file()]
+    if missing:
+        return False, (
+            f"BLOCKED: Active change '{change_id}' is incomplete; missing "
+            f"{', '.join(missing)}.\n"
+            f"Before editing protected files, complete openspec/changes/{change_id}/ "
+            "or run scripts/openspec/create_active_change.py with the intended change id."
+        )
+
     return True, f"Active change '{change_id}' verified."
 
 
@@ -210,7 +221,10 @@ def run_self_test() -> int:
         (tmp / ACTIVE_CHANGE_FILE).write_text(
             json.dumps(active_change_data, indent=2), encoding="utf-8"
         )
-        (tmp / "openspec" / "changes" / "test-change").mkdir(parents=True)
+        change_b = tmp / "openspec" / "changes" / "test-change"
+        change_b.mkdir(parents=True)
+        for required in REQUIRED_CHANGE_FILES:
+            (change_b / required).write_text(f"# {required}\n", encoding="utf-8")
 
         target_b = str(tmp / "src" / "main.py")
         ret_b = guard(target_b, repo_root=tmp)

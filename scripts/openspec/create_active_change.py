@@ -7,8 +7,10 @@ Usage:
         --source "<source description>" \\
         [--title "<optional title, defaults to change-id>"]
 
-This script is idempotent: re-running with the same --change-id does not
-overwrite existing files.
+This script is idempotent for change files: re-running with the same
+--change-id does not overwrite existing change files.  The active sentinel is
+always updated to the requested change because only one OpenSpec change can be
+active for protected edits.
 """
 import argparse
 import json
@@ -144,6 +146,7 @@ def create_active_change(
 
     created: list[str] = []
     existed: list[str] = []
+    updated: list[str] = []
 
     # --- Change directory and templates ---
     if not change_dir.exists():
@@ -185,24 +188,26 @@ def create_active_change(
         created.append(".agent/active_change.json")
     else:
         existed.append(".agent/active_change.json")
-        # Merge: update started_at only if not set, keep other fields as-is.
-        # Idempotent: do NOT overwrite existing sentinel.
-        existing = json.loads(active_change_file.read_text(encoding="utf-8"))
-        if "started_at" not in existing or not existing.get("started_at"):
-            existing["started_at"] = now
-        existing.setdefault("change_id", change_id)
-        existing.setdefault("change_path", sentinel["change_path"])
-        existing.setdefault("source_request", source)
-        existing.setdefault("protected_roots", PROTECTED_ROOTS)
-        existing.setdefault("required_gates", REQUIRED_GATES)
+        try:
+            existing = json.loads(active_change_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            existing = {}
+
+        if existing.get("change_id") == change_id:
+            sentinel["started_at"] = existing.get("started_at") or now
+            sentinel["source_request"] = existing.get("source_request") or source
+        else:
+            updated.append(".agent/active_change.json")
+
         active_change_file.write_text(
-            json.dumps(existing, indent=2) + "\n", encoding="utf-8"
+            json.dumps(sentinel, indent=2) + "\n", encoding="utf-8"
         )
 
     return {
         "change_id": change_id,
         "created": created,
         "existed": existed,
+        "updated": updated,
         "sentinel_path": str(active_change_file),
     }
 
@@ -256,7 +261,11 @@ def main() -> int:
         print(f"Already existed (skipped):")
         for p in result["existed"]:
             print(f"    {p}")
-    if not result["created"]:
+    if result["updated"]:
+        print("Updated active change:")
+        for p in result["updated"]:
+            print(f"  ~ {p}")
+    if not result["created"] and not result["updated"]:
         print(f"Change '{result['change_id']}' already fully exists — no-op.")
 
     print(f"\nSentinel: {result['sentinel_path']}")
