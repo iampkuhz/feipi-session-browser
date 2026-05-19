@@ -51,8 +51,20 @@
   {{ ui.th_sort('Updated', 'updated', sort_key, sort_dir, href=sort_urls.updated if sort_urls else '') }}
 {%- endmacro %}
 
-{% macro footer(start_label, end_label, total_label, prev_url='', next_url='') -%}
+{% macro footer(start_label, end_label, total_label, prev_url='', next_url='', page_size_urls=None, current_page_size=20) -%}
   <div class="sessions-table-footer">
+    {%- if page_size_urls %}
+    <span class="sessions-footer-page-size">
+      <label>Rows per page:
+        <select class="sessions-footer-page-size__select" onchange="if(this.value)window.location.href=this.value">
+          <option value="{{ page_size_urls['20'] }}" {% if current_page_size == 20 or current_page_size == '20' %}selected{% endif %}>20</option>
+          <option value="{{ page_size_urls['100'] }}" {% if current_page_size == 100 or current_page_size == '100' %}selected{% endif %}>100</option>
+          <option value="{{ page_size_urls['500'] }}" {% if current_page_size == 500 or current_page_size == '500' %}selected{% endif %}>500</option>
+          <option value="{{ page_size_urls['all'] }}" {% if current_page_size == 'all' %}selected{% endif %}>All</option>
+        </select>
+      </label>
+    </span>
+    {%- endif %}
     {%- if prev_url %}
     <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ prev_url }}">Previous</a>
     {%- else %}

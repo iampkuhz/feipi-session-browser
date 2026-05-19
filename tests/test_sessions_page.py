@@ -132,7 +132,9 @@ class TestSessionsTemplateGridStructure:
 
     def test_has_agent_badge(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-agent-badge"' in content
+        # Badge uses base class + agent-specific modifier
+        assert 'sessions-agent-badge' in content
+        assert 'sessions-agent-badge--' in content
 
     def test_has_token_bar(self):
         """Token bar should be present in tokens cell."""

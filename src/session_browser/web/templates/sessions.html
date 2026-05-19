@@ -27,8 +27,8 @@
 <!-- Page title -->
 {{ sl.page_title(
     total_sessions=total_count,
-    total_projects=project_list | length,
-    total_tokens=0
+    total_projects=sessions_aggregate.project_count,
+    total_tokens=sessions_aggregate.total_tokens | format_number
 ) }}
 
 <!-- Filter card -->
@@ -93,7 +93,6 @@
     <div class="sessions-table-toolbar">
         <div class="sessions-table-title">All Sessions</div>
         <div class="sessions-table-sub">描述列用于识别 session；metrics 列支持排序。</div>
-        <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.refresh_url }}" id="refresh-link">&#x21bb; Refresh</a>
     </div>
     <div class="sessions-table-scroll">
         <div class="sessions-grid" role="table" aria-label="Sessions table" data-sessions-grid>
@@ -138,7 +137,7 @@
                 </div>
                 <!-- Agent -->
                 <div class="sessions-td">
-                    <span class="sessions-agent-badge">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
+                    <span class="sessions-agent-badge sessions-agent-badge--{{ s.agent }}">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
                 </div>
                 <!-- Model -->
                 <div class="sessions-td"><span class="sessions-model">{{ s.model }}</span></div>
@@ -167,7 +166,9 @@
         end_label=page_end,
         total_label=total_count,
         prev_url=actions.prev_url,
-        next_url=actions.next_url
+        next_url=actions.next_url,
+        page_size_urls=actions.page_size_urls,
+        current_page_size=page_size
     ) }}
     {% endif %}
 </section>

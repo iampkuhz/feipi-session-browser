@@ -133,9 +133,3 @@ class TestBuildViewActions:
         assert "project" not in url
         assert "sort=updated" in url
 
-    def test_refresh_url(self):
-        a = self._actions()
-        url = a["refresh_url"]
-        assert "agent=cc" in url
-        assert "sort=updated" in url
-        assert "dir=desc" in url

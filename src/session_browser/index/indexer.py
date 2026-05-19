@@ -735,7 +735,8 @@ def list_sessions(
     title_like: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    order_by: str = "ended_at",  # "ended_at" | "input_tokens" | "tool_call_count" | "duration_seconds" | "failed_tool_count"
+    order_by: str = "ended_at",
+    order_dir: str = "desc",
 ) -> list[SessionSummary]:
     """List sessions with filtering and pagination."""
     clauses = []
@@ -756,13 +757,17 @@ def list_sessions(
 
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     valid_orders = {
-        "ended_at": "ended_at DESC",
-        "input_tokens": "input_tokens DESC",
-        "tool_call_count": "tool_call_count DESC",
-        "duration_seconds": "duration_seconds DESC",
-        "failed_tool_count": "failed_tool_count DESC",
+        "ended_at": "ended_at",
+        "input_tokens": "input_tokens",
+        "total_tokens": "(input_tokens + cached_input_tokens + cached_output_tokens + output_tokens)",
+        "assistant_message_count": "assistant_message_count",
+        "tool_call_count": "tool_call_count",
+        "duration_seconds": "duration_seconds",
+        "failed_tool_count": "failed_tool_count",
     }
-    order = valid_orders.get(order_by, "ended_at DESC")
+    order_expr = valid_orders.get(order_by, "ended_at")
+    safe_dir = "ASC" if order_dir == "asc" else "DESC"
+    order = f"{order_expr} {safe_dir}"
 
     query = f"SELECT * FROM sessions {where} ORDER BY {order} LIMIT ? OFFSET ?"
     params.extend([limit, offset])
@@ -796,6 +801,43 @@ def count_sessions(
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     row = conn.execute(f"SELECT COUNT(*) FROM sessions {where}", params).fetchone()
     return row[0]
+
+
+def get_sessions_list_aggregate(
+    conn: sqlite3.Connection,
+    agent: str | None = None,
+    project_key: str | None = None,
+    model: str | None = None,
+    title_like: str | None = None,
+) -> dict:
+    """Get aggregate stats for filtered sessions list."""
+    clauses = []
+    params: list = []
+    if agent:
+        clauses.append("agent = ?")
+        params.append(agent)
+    if project_key:
+        clauses.append("project_key = ?")
+        params.append(project_key)
+    if model:
+        clauses.append("model = ?")
+        params.append(model)
+    if title_like:
+        clauses.append("title LIKE ?")
+        params.append(f"%{title_like}%")
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    row = conn.execute(
+        f"SELECT COUNT(*) as session_count, "
+        f"COUNT(DISTINCT project_key) as project_count, "
+        f"COALESCE(SUM(input_tokens + cached_input_tokens + cached_output_tokens + output_tokens), 0) as total_tokens "
+        f"FROM sessions {where}",
+        params,
+    ).fetchone()
+    return {
+        "session_count": row["session_count"],
+        "project_count": row["project_count"],
+        "total_tokens": row["total_tokens"],
+    }
 
 
 def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStats:

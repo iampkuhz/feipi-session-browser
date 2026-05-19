@@ -24,6 +24,7 @@ from session_browser.index.indexer import (
     get_dashboard_stats,
     list_sessions,
     count_sessions,
+    get_sessions_list_aggregate,
     list_projects,
     get_project_stats,
     get_session,
@@ -606,6 +607,15 @@ def _build_view_actions(
             updates={"page": str(page + 1)},
         )
 
+    # Page size URLs
+    page_size_urls = {}
+    for ps in ("20", "100", "500", "all"):
+        page_size_urls[ps] = build_sessions_url(
+            current=current,
+            updates={"page_size": ps},
+            reset_page=True,
+        )
+
     # Filter chip removal URLs
     remove_urls = {}
     for fk in ("q", "agent", "model", "project"):
@@ -629,17 +639,14 @@ def _build_view_actions(
         reset_page=True,
     )
 
-    # Refresh: current URL exactly
-    refresh_url = build_sessions_url(current=current)
-
     return {
-        "refresh_url": refresh_url,
         "clear_session_id_url": clear_session_id_url,
         "clear_all_url": clear_all_url,
         "sort_urls": sort_urls,
         "remove_filter_urls": remove_urls,
         "prev_url": prev_url,
         "next_url": next_url,
+        "page_size_urls": page_size_urls,
     }
 
 _template_env.filters["renumber_lines"] = _renumber_lines
@@ -1825,7 +1832,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         except (ValueError, IndexError):
             page = 1
 
-        VALID_PAGE_SIZES = {20, 50, 100}
+        VALID_PAGE_SIZES = {20, 100, 500}
         raw_size = params.get("page_size", ["20"])[0].strip().lower()
         if raw_size == "all":
             page_size = "all"
@@ -1853,8 +1860,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         SORT_KEY_MAP = {
             "ended-at": "ended_at",
             "duration": "duration_seconds",
-            "tokens": "input_tokens",
-            "total-tokens": "input_tokens",
+            "tokens": "total_tokens",
+            "total-tokens": "total_tokens",
             "rounds": "assistant_message_count",
             "tools": "tool_call_count",
         }
@@ -1862,6 +1869,14 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         # ── Compute limit/offset ────────────────────────────────────
         total_count = count_sessions(
+            conn,
+            agent=filter_agent,
+            project_key=filter_project,
+            model=filter_model,
+            title_like=filter_q,
+        )
+
+        sessions_aggregate = get_sessions_list_aggregate(
             conn,
             agent=filter_agent,
             project_key=filter_project,
@@ -1892,6 +1907,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             limit=limit,
             offset=offset,
             order_by=sort_by,
+            order_dir=raw_dir,
         )
 
         # Pagination metadata
@@ -1961,6 +1977,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 sort_key=ui_sort_ajax,
                 sort_dir=raw_dir,
                 actions=actions_ajax,
+                sessions_aggregate=sessions_aggregate,
             )
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -2011,6 +2028,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             project_list=[p[0] for p in project_list],
             active_page="sessions",
             actions=actions,
+            sessions_aggregate=sessions_aggregate,
         )
         self._send_html(html)
 

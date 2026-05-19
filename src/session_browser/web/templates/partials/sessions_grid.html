@@ -41,7 +41,7 @@
             </div>
             <!-- Agent -->
             <div class="sessions-td">
-                <span class="sessions-agent-badge">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
+                <span class="sessions-agent-badge sessions-agent-badge--{{ s.agent }}">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
             </div>
             <!-- Model -->
             <div class="sessions-td"><span class="sessions-model">{{ s.model }}</span></div>
