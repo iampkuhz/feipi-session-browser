@@ -39,8 +39,6 @@
 | 任何改动 | `bash scripts/harness/doctor.sh` |
 | Harness 结构 | `python3 scripts/harness/validate_harness_structure.py` |
 | OpenSpec 布局 | `python3 scripts/harness/validate_openspec_layout.py` |
-| 完成标记 | `python3 scripts/harness/check_no_unfinished_markers.py` |
-| 任务文件 | `python3 scripts/harness/validate_task_files.py` |
 | 产品测试 | `./scripts/session-browser.sh test` |
 
 ## UI 质量门禁

@@ -38,8 +38,6 @@ REQUIRED_GATES = [
     "scripts/openspec/validate_schema.py",
     "scripts/openspec/validate_active_change.py",
     "scripts/harness/validate_harness_structure.py",
-    "scripts/harness/check_no_unfinished_markers.py",
-    "scripts/harness/validate_task_files.py",
 ]
 
 TEMPLATE_FILES = {

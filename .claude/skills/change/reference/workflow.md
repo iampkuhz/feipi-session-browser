@@ -128,10 +128,8 @@
 2. 运行 `python3 scripts/openspec/validate_schema.py`
 3. 运行 `python3 scripts/openspec/validate_active_change.py --change-id <change-id>`
 4. 运行 `python3 scripts/harness/validate_harness_structure.py`
-5. 运行 `python3 scripts/harness/check_no_unfinished_markers.py`
-6. 运行 `python3 scripts/harness/validate_task_files.py`
-7. 运行产品测试（如有）。
-8. 修复任何失败项并重新运行直到全部通过。
+5. 运行产品测试（如有）。
+6. 修复任何失败项并重新运行直到全部通过。
 
 **出口：** 所有质量门禁通过。
 

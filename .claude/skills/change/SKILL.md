@@ -79,9 +79,7 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
 2. `python3 scripts/openspec/validate_schema.py`
 3. `python3 scripts/openspec/validate_active_change.py --change-id <change-id>`
 4. `python3 scripts/harness/validate_harness_structure.py`
-5. `python3 scripts/harness/check_no_unfinished_markers.py`
-6. `python3 scripts/harness/validate_task_files.py`
-7. 如果存在产品测试，也运行它们（例如 `./scripts/session-browser.sh test`）。
+5. 如果存在产品测试，也运行它们（例如 `./scripts/session-browser.sh test`）。
 
 如果有门禁失败，修复问题并重新运行所有门禁直到全部通过。
 

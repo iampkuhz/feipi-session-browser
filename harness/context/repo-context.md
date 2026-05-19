@@ -67,7 +67,5 @@ feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Cla
 ```bash
 python3 scripts/harness/validate_harness_structure.py
 python3 scripts/harness/validate_openspec_layout.py
-python3 scripts/harness/check_no_unfinished_markers.py
-python3 scripts/harness/validate_task_files.py
 python3 scripts/quality/validate_repo_structure.py
 ```

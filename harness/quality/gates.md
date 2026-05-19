@@ -20,23 +20,7 @@ python3 scripts/harness/validate_openspec_layout.py
 
 验证 OpenSpec 目录结构和 schema 合规性。
 
-### 层级 3：标记清理
-
-```bash
-python3 scripts/harness/check_no_unfinished_markers.py
-```
-
-确保所有待办事项、临时方案、需修复标记都有追踪，不残留。
-
-### 层级 4：任务文件验证
-
-```bash
-python3 scripts/harness/validate_task_files.py
-```
-
-验证任务文件格式正确且可执行。
-
-### 层级 5：仓库结构
+### 层级 3：仓库结构
 
 ```bash
 python3 scripts/quality/validate_repo_structure.py
@@ -49,7 +33,7 @@ python3 scripts/quality/validate_repo_structure.py
 - 默认 agent 存在且引用 active_change。
 - Harness 验证脚本存在。
 
-### 层级 6：Hook 自测
+### 层级 4：Hook 自测
 
 ```bash
 python3 scripts/agent_hooks/guard_active_openspec_change.py --self-test
@@ -60,13 +44,24 @@ python3 scripts/agent_hooks/log_change_evidence.py --self-test
 
 证明 hook 能正确处理正例和反例。
 
-### 层级 7：Doctor
+### 层级 5：Doctor
 
 ```bash
 bash scripts/harness/doctor.sh
 ```
 
 单一入口健康检查，运行以上所有门禁。
+
+## 可选诊断
+
+以下脚本保留为专项诊断工具，但不属于默认完成门禁：
+
+```bash
+python3 scripts/harness/check_no_unfinished_markers.py
+python3 scripts/harness/validate_task_files.py
+```
+
+它们分别用于全仓未完成标记清理和旧式 `tasks/` 目录任务模板检查。由于当前仓库包含历史文档、报告产物和 OpenSpec change task 文件，默认强制运行会产生与当前工作无关的失败。
 
 ## 何时运行
 

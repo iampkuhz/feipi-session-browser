@@ -78,8 +78,6 @@ def main() -> int:
     print("--- harness validators ---")
     _run("harness structure", "python3 scripts/harness/validate_harness_structure.py")
     _run("openspec layout", "python3 scripts/harness/validate_openspec_layout.py")
-    _run("unfinished markers", "python3 scripts/harness/check_no_unfinished_markers.py")
-    _run("task files", "python3 scripts/harness/validate_task_files.py")
     print()
 
     # Section 3: Hook self-tests
