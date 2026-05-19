@@ -509,7 +509,7 @@ def _extract_cwd_from_events(events: list[dict]) -> str:
 
 
 def _discover_sessions() -> list[tuple[str, str, Path]]:
-    """Walk ~/.qoder/projects/ and discover all session files.
+    """Walk ~/.qoder/projects/ and discover all CLI session files.
 
     Returns list of (project_key, session_id, file_path).
     project_key is URL-decoded from the directory name.
@@ -528,6 +528,36 @@ def _discover_sessions() -> list[tuple[str, str, Path]]:
                 raw_key = str(Path(root).relative_to(projects_dir))
                 project_key = _url_decode_path(raw_key)
                 results.append((project_key, session_id, fpath))
+    return results
+
+
+def _discover_cache_sessions() -> list[tuple[str, str, Path]]:
+    """Walk ~/.qoder/cache/projects/ and discover GUI session files.
+
+    GUI sessions are stored as:
+      cache/projects/{project-name}/conversation-history/{session_id}/{session_id}.jsonl
+
+    Returns list of (project_key, session_id, file_path).
+    """
+    cache_dir = QODER_DATA_DIR / "cache" / "projects"
+    if not cache_dir.exists():
+        return []
+
+    results = []
+    for root, _dirs, files in os.walk(cache_dir):
+        for fname in files:
+            if fname.endswith(".jsonl"):
+                fpath = Path(root) / fname
+                session_id = fname[:-6]  # strip .jsonl
+                # project_key is the relative path from cache/projects/,
+                # but only the project name (first segment under cache/projects/)
+                rel = Path(root).relative_to(cache_dir)
+                # rel could be like "my-project-abc123/conversation-history/session-id"
+                # We only want the project name (first segment), cleaned of hash suffix
+                project_name = rel.parts[0] if rel.parts else ""
+                # Strip trailing hash: "project-name-462acd20" → "project-name"
+                project_name = re.sub(r'-[0-9a-f]{6,}$', '', project_name)
+                results.append((project_name, session_id, fpath))
     return results
 
 
@@ -1013,10 +1043,92 @@ def _extract_tool_calls(
     return tool_calls
 
 
+def _parse_cache_session(
+    project_key: str,
+    session_id: str,
+    session_file: Path,
+) -> SessionSummary:
+    """Parse a cache-format JSONL session into a minimal SessionSummary.
+
+    Cache format uses {"role": "user|assistant", "message": {"content": [...]}}
+    with no timestamps, tool calls, or usage data. Returns best-effort summary.
+    """
+    events = _parse_session_events(session_file)
+
+    # Extract user text for title
+    user_texts = []
+    for ev in events:
+        if ev.get("role") == "user":
+            msg = ev.get("message", {})
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                user_texts.append(content)
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        user_texts.append(item.get("text", ""))
+
+    # Estimate tokens
+    input_tokens = 0
+    output_tokens = 0
+    user_count = 0
+    assistant_count = 0
+    for ev in events:
+        role = ev.get("role", "")
+        msg = ev.get("message", {})
+        content = msg.get("content", "")
+        text = ""
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "\n".join(
+                item.get("text", "")
+                for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            )
+        if not text:
+            continue
+        tok = _count_tokens(text)
+        if role == "user":
+            user_count += 1
+            input_tokens += tok
+        elif role == "assistant":
+            assistant_count += 1
+            output_tokens += tok
+
+    title = _extract_readable_title(user_texts[0]) if user_texts else ""
+
+    return SessionSummary(
+        agent="qoder",
+        session_id=session_id,
+        title=title,
+        project_key=project_key,
+        project_name=project_key if project_key else "unknown",
+        cwd="",
+        started_at="",
+        ended_at="",
+        duration_seconds=0,
+        model_execution_seconds=0,
+        tool_execution_seconds=0,
+        model="",
+        git_branch="",
+        source="qoder",
+        user_message_count=user_count,
+        assistant_message_count=assistant_count,
+        tool_call_count=0,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cached_input_tokens=0,
+        cached_output_tokens=0,
+        failed_tool_count=0,
+    )
+
+
 def scan_all_sessions() -> Iterator[SessionSummary]:
     """Scan all Qoder sessions and yield SessionSummary for each.
 
-    Walks ~/.qoder/projects/ to discover session files, then parses each.
+    Walks ~/.qoder/projects/ (CLI sessions) and ~/.qoder/cache/projects/
+    (GUI sessions) to discover session files, then parses each.
     """
     discovered = _discover_sessions()
 
@@ -1024,4 +1136,10 @@ def scan_all_sessions() -> Iterator[SessionSummary]:
         summary, _msgs, _tcs, _sa = parse_session_detail(
             project_key, session_id, session_file=fpath
         )
+        yield summary
+
+    # Scan cache (GUI) sessions
+    cache_sessions = _discover_cache_sessions()
+    for project_key, session_id, fpath in cache_sessions:
+        summary = _parse_cache_session(project_key, session_id, fpath)
         yield summary

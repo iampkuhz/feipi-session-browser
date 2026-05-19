@@ -364,22 +364,30 @@ def _locate_codex_session_file(session_id: str, rollout_path: str = "") -> Path 
 
 
 def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None:
-    """Find a Qoder session .jsonl file on disk."""
+    """Find a Qoder session .jsonl file on disk.
+
+    Searches both projects/ (CLI) and cache/projects/ (GUI) directories.
+    """
     from session_browser.config import QODER_DATA_DIR
 
+    # Try projects/ first
     projects_dir = QODER_DATA_DIR / "projects"
-    if not projects_dir.exists():
-        return None
+    if projects_dir.exists():
+        candidate = projects_dir / project_key / f"{session_id}.jsonl"
+        if candidate.exists():
+            return candidate
 
-    # Try direct match
-    candidate = projects_dir / project_key / f"{session_id}.jsonl"
-    if candidate.exists():
-        return candidate
+        for root, _dirs, files in os.walk(projects_dir):
+            if f"{session_id}.jsonl" in files:
+                return Path(root) / f"{session_id}.jsonl"
 
-    # Walk all subdirectories
-    for root, _dirs, files in os.walk(projects_dir):
-        if f"{session_id}.jsonl" in files:
-            return Path(root) / f"{session_id}.jsonl"
+    # Fall back to cache/projects/
+    cache_dir = QODER_DATA_DIR / "cache" / "projects"
+    if cache_dir.exists():
+        for root, _dirs, files in os.walk(cache_dir):
+            if f"{session_id}.jsonl" in files:
+                return Path(root) / f"{session_id}.jsonl"
+
     return None
 
 
@@ -622,10 +630,12 @@ def incremental_scan(
     # ── Scan Qoder ───────────────────────────────────────────────────
     if scan_qoder:
         discovered = qoder_source._discover_sessions()
+        cache_discovered = qoder_source._discover_cache_sessions()
+        all_discovered = discovered + cache_discovered
         if verbose:
-            print(f"Incremental scan: {len(discovered)} Qoder sessions...")
+            print(f"Incremental scan: {len(all_discovered)} Qoder sessions...")
 
-        for project_key, sid, fpath in discovered:
+        for project_key, sid, fpath in all_discovered:
             skey = f"qoder:{sid}"
 
             info = existing.get(skey)
@@ -665,9 +675,16 @@ def incremental_scan(
             else:
                 new_count += 1
 
-            summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
-                project_key, sid, session_file=fpath
-            )
+            # Cache sessions use a simpler format without timing data
+            is_cache = str(fpath).startswith(str(QODER_DATA_DIR / "cache"))
+            if is_cache:
+                summary = qoder_source._parse_cache_session(
+                    project_key, sid, fpath
+                )
+            else:
+                summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
+                    project_key, sid, session_file=fpath
+                )
 
             file_mtime = 0.0
             file_path_str = ""
