@@ -75,6 +75,107 @@ class TestV11CssContract:
         assert re.search(r"\.sd-note--warn", css), "CSS missing .sd-note--warn"
 
 
+class TestSessionDetailLayoutCss:
+    """Validate shell grid override and content width constraints.
+
+    These tests prevent regression where session detail CSS forgets to
+    override the base 3-column shell grid (sidebar + main + inspector),
+    causing .sd-hero and .sd-trace-panel to become unexpectedly narrow.
+    """
+
+    def _v11_css(self):
+        with open(CSS_PATH, encoding="utf-8") as f:
+            return f.read()
+
+    def _v12_css_path(self):
+        return os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "css",
+                            "session-detail-response-blocks-v12.css")
+
+    def _v12_css(self):
+        path = self._v12_css_path()
+        if not os.path.exists(path):
+            pytest.skip("v12 CSS not yet available")
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+
+    def _check_shell_grid(self, css, name):
+        """Verify CSS overrides the base 3-column shell with 2-column grid."""
+        # Find the .sd-shell rule block and verify it has grid-template-columns
+        # with exactly 2 space-separated track values (sidebar + content, no inspector)
+        matches = re.findall(r"\.sd-shell\s*\{([^}]*)\}", css)
+        assert matches, f"{name}: CSS missing .sd-shell rule block"
+        combined = " ".join(matches)
+        assert "grid-template-columns" in combined, (
+            f"{name}: .sd-shell missing grid-template-columns — "
+            "base 3-column grid will leak through and narrow the content"
+        )
+        # Extract the grid-template-columns value
+        gtc = re.search(r"grid-template-columns\s*:\s*([^;]+)", combined)
+        assert gtc, f"{name}: .sd-shell grid-template-columns value not found"
+        value = gtc.group(1).strip()
+        # Should have exactly 2 tracks (e.g., "220px minmax(0,1fr)")
+        tracks = value.split()
+        assert len(tracks) == 2, (
+            f"{name}: .sd-shell grid-template-columns has {len(tracks)} tracks ({value}), "
+            f"expected 2 (sidebar + content, no inspector)"
+        )
+        # Sidebar width should be at least 200px or use variable
+        sidebar = tracks[0]
+        assert "220" in sidebar or "200" in sidebar or "var(" in sidebar, (
+            f"{name}: .sd-shell sidebar track '{sidebar}' seems too narrow"
+        )
+
+    def test_v11_shell_grid_override(self):
+        """v11 CSS must override shell grid with 2-column layout."""
+        self._check_shell_grid(self._v11_css(), "v11 CSS")
+
+    def test_v12_shell_grid_override(self):
+        """v12 CSS must override shell grid with 2-column layout."""
+        self._check_shell_grid(self._v12_css(), "v12 CSS")
+
+    def _check_content_width(self, css, name):
+        """Verify .sd-content has max-width constraint."""
+        matches = re.findall(r"\.sd-content\s*\{([^}]*)\}", css)
+        assert matches, f"{name}: CSS missing .sd-content rule block"
+        combined = " ".join(matches)
+        assert "max-width" in combined, (
+            f"{name}: .sd-content missing max-width — "
+            "panel width will depend entirely on viewport"
+        )
+
+    def test_v11_content_max_width(self):
+        """v11 CSS must constrain .sd-content width."""
+        self._check_content_width(self._v11_css(), "v11 CSS")
+
+    def test_v12_content_max_width(self):
+        """v12 CSS must constrain .sd-content width."""
+        self._check_content_width(self._v12_css(), "v12 CSS")
+
+    def _check_hero_width(self, css, name):
+        """Verify .sd-hero has border/background (indirect width visibility check)."""
+        assert re.search(r"\.sd-hero\s*[{,]", css), f"{name}: CSS missing .sd-hero selector"
+
+    def test_v11_hero_selector(self):
+        """v11 CSS must define .sd-hero."""
+        self._check_hero_width(self._v11_css(), "v11 CSS")
+
+    def test_v12_hero_selector(self):
+        """v12 CSS must define .sd-hero."""
+        self._check_hero_width(self._v12_css(), "v12 CSS")
+
+    def _check_trace_panel_width(self, css, name):
+        """Verify .sd-trace-panel has border/background (indirect width visibility check)."""
+        assert re.search(r"\.sd-trace-panel\s*[{,]", css), f"{name}: CSS missing .sd-trace-panel selector"
+
+    def test_v11_trace_panel_selector(self):
+        """v11 CSS must define .sd-trace-panel."""
+        self._check_trace_panel_width(self._v11_css(), "v11 CSS")
+
+    def test_v12_trace_panel_selector(self):
+        """v12 CSS must define .sd-trace-panel."""
+        self._check_trace_panel_width(self._v12_css(), "v12 CSS")
+
+
 class TestV11JsContract:
     """Verify v11 JS contains required patterns."""
 
@@ -204,11 +305,17 @@ class TestV11TemplateContract:
 
     def test_v11_css_linked_in_session(self):
         sp = self._session_page()
-        assert "session-detail-timeline-v11.css" in sp, "session.html missing v11 CSS link"
+        assert (
+            "session-detail-timeline-v11.css" in sp
+            or "session-detail-response-blocks-v12.css" in sp
+        ), "session.html missing session detail CSS link"
 
     def test_v11_js_linked_in_session(self):
         sp = self._session_page()
-        assert "session_detail_timeline_v11.js" in sp, "session.html missing v11 JS link"
+        assert (
+            "session_detail_timeline_v11.js" in sp
+            or "session_detail_response_blocks_v12.js" in sp
+        ), "session.html missing session detail JS link"
 
     def test_no_forbidden_attrs_in_timeline(self):
         tl = self._timeline()

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% import "components/session_detail_primitives_v11.html" as sdp %}
-{% import "components/session_detail_timeline_v11.html" as sdt %}
+{% import "components/session_detail_primitives_v12.html" as sdp %}
+{% import "components/session_detail_timeline_v12.html" as sdt %}
 
 {% block title %}{{ session.title[:80] or 'Untitled' }} - Agent Run Profiler{% endblock %}
 
@@ -29,12 +29,12 @@ Agent Run Profiler <span class="sep">/</span> Session Detail <span class="sep">/
 {% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/session-detail-timeline-v11.css">
+<link rel="stylesheet" href="/static/css/session-detail-response-blocks-v12.css">
 <meta name="payload-api-base" content="/api/sessions/{{ current_agent }}/{{ session.session_id }}">
 {% endblock %}
 
 {% block script_extra %}
-<script src="/static/js/session_detail_timeline_v11.js" defer></script>
+<script src="/static/js/session_detail_response_blocks_v12.js" defer></script>
 {% endblock %}
 
 {% block content %}

@@ -2069,6 +2069,87 @@ def _format_num_short(n: int) -> str:
     return str(n)
 
 
+def _render_response_content_blocks(response_text: str, tool_calls: list, max_blocks: int = 20) -> str:
+    """Generate HTML content blocks for a response payload.
+
+    When an LLM response contains both text and tool_use blocks, render them
+    as ordered content blocks instead of a single string. This prevents
+    tool_use from being lost in the modal view.
+    """
+    blocks = []
+    block_index = 0
+
+    # Block 1: text content (if present)
+    if response_text and response_text.strip():
+        block_index += 1
+        char_count = len(response_text.encode("utf-8"))
+        preview = response_text[:500]
+        blocks.append(
+            f'<article class="sd-content-block sd-content-block--text">'
+            f'<div class="sd-block-head">'
+            f'<span class="sd-block-index">#{block_index}</span>'
+            f'<span class="sd-block-title">text</span>'
+            f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+            f'</div>'
+            f'<div class="sd-block-body">{_html_escape(preview)}</div>'
+            f'</article>'
+        )
+
+    # Subsequent blocks: tool_use entries
+    if tool_calls:
+        for tc in tool_calls:
+            if block_index >= max_blocks:
+                break
+            block_index += 1
+            tool_id = getattr(tc, "tool_use_id", "")[:12] or ""
+            tool_name = getattr(tc, "name", "unknown")
+            params = getattr(tc, "parameters", {}) or {}
+
+            # Build key input grid
+            grid_rows = []
+            grid_rows.append(f'<div class="key">name</div><div>{_html_escape(tool_name)}</div>')
+            if params.get("file_path"):
+                grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(str(params["file_path"]))}</div>')
+            if params.get("command"):
+                grid_rows.append(f'<div class="key">command</div><div>{_html_escape(str(params["command"])[:200])}</div>')
+
+            # Raw JSON
+            try:
+                raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
+            except Exception:
+                raw_json = "{}"
+
+            blocks.append(
+                f'<article class="sd-content-block sd-content-block--tool">'
+                f'<div class="sd-block-head">'
+                f'<span class="sd-block-index">#{block_index}</span>'
+                f'<span class="sd-block-title">tool_use · {_html_escape(tool_name)}</span>'
+                f'<span class="sd-block-meta">{_html_escape(tool_id)}</span>'
+                f'</div>'
+                f'<div class="sd-block-body">'
+                f'<div class="sd-tool-input-grid">{"".join(grid_rows)}</div>'
+                f'<div class="sd-json-inline">{_html_escape(raw_json)}</div>'
+                f'</div>'
+                f'</article>'
+            )
+
+    if not blocks:
+        return '<div class="sd-payload-warning">Response 内容为空</div>'
+
+    return f'<div class="sd-payload-block-list">{"".join(blocks)}</div>'
+
+
+def _html_escape(text: str) -> str:
+    """Escape HTML special characters."""
+    text = str(text or "")
+    return (
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+    )
+
+
 def _truncate_payload(text: str, limit: int) -> str:
     """Truncate payload text if it exceeds the byte limit."""
     if not text:
@@ -2280,16 +2361,62 @@ def _build_v11_view_model(
             entry["text"] = ""
         payload_sources.append(entry)
 
+    def tool_vm(tc, tool_id: str, payload_id: str = "", payload_title: str = "") -> dict:
+        params = getattr(tc, "parameters", {}) or {}
+        command = (
+            params.get("command", "")
+            or params.get("file_path", "")
+            or params.get("path", "")
+            or getattr(tc, "name", "tool")
+        )
+        result_text = (getattr(tc, "result", "") or "").strip()
+        if result_text:
+            result_summary = result_text[:60]
+        elif getattr(tc, "exit_code", None) is not None:
+            result_summary = f"exit {tc.exit_code}"
+        else:
+            result_summary = getattr(tc, "status", "") or "ok"
+        return {
+            "tool_id": tool_id,
+            "kind": (getattr(tc, "name", "tool") or "tool")[:4].upper(),
+            "command": str(command)[:100],
+            "result_summary": result_summary,
+            "exit_label": f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
+            "status_tone": "fail" if getattr(tc, "is_failed", False) else ("warn" if getattr(tc, "has_nonzero_exit", False) else "ok"),
+            "payload_id": payload_id,
+            "payload_title": payload_title or "Tool Result",
+        }
+
+    def count_raw_tool_uses(ix) -> int:
+        raw = getattr(ix, "tool_calls_raw", "") or ""
+        if not raw:
+            return 0
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return 0
+        if isinstance(parsed, list):
+            return len([p for p in parsed if isinstance(p, dict) and p.get("type", "tool_use") == "tool_use"])
+        return 0
+
     # -- Build subagent lookup --
     subagent_lookup = {}
     for run in subagent_runs:
         sa_id = run["summary"]["agent_id"]
         sa_name = run["summary"].get("agent_type", "subagent")
         sa_tools = [tc for tc in tool_calls if tc.subagent_id == sa_id]
+        parent_tc = next(
+            (
+                tc for tc in tool_calls
+                if tc.name == "Agent" and tc.subagent_summary.get("agent_id") == sa_id
+            ),
+            None,
+        )
+        display_tools = sa_tools if sa_tools else ([parent_tc] if parent_tc else [])
         sa_messages = run.get("messages", [])
         sa_input = sum((m.usage or {}).get("input_tokens", 0) for m in sa_messages)
         sa_output = sum((m.usage or {}).get("output_tokens", 0) for m in sa_messages)
-        sa_failed = sum(1 for tc in sa_tools if tc.is_failed)
+        sa_failed = sum(1 for tc in display_tools if tc.is_failed)
 
         sub_rounds = []
         for m_idx, m in enumerate(sa_messages):
@@ -2308,11 +2435,26 @@ def _build_v11_view_model(
                         text=m.request_full[:5000],
                     )
                 if m.content:
+                    # Generate content blocks for subagent response
+                    sa_tool_calls = []
+                    for tc_ref in (m.tool_calls or []):
+                        # Create a minimal ToolCall-like object from the dict
+                        class _FakeTC:
+                            def __init__(self, d):
+                                self.name = d.get("name", d.get("type", "unknown"))
+                                self.parameters = d.get("input", {})
+                                self.tool_use_id = d.get("id", "")
+                                self.subagent_id = ""
+                        sa_tool_calls.append(_FakeTC(tc_ref))
+                    sa_blocks_html = _render_response_content_blocks(m.content[:5000], sa_tool_calls)
+                    block_count = 1 + len(sa_tool_calls) if m.content and m.content.strip() else len(sa_tool_calls)
+                    sa_size_label = f"{block_count} content block{'s' if block_count != 1 else ''}"
                     add_payload(
                         payload_id=rsp_payload_id,
                         kind="subagent.response",
                         title=f"Subagent · Response ({call_ref})",
-                        text=m.content[:5000],
+                        html=sa_blocks_html,
+                        size=sa_size_label,
                     )
 
                 # Dynamic note for subagent LLM step
@@ -2353,11 +2495,46 @@ def _build_v11_view_model(
                     "steps": steps,
                 })
 
+        if display_tools:
+            sub_tool_rows = []
+            for st_idx, tc in enumerate(display_tools, start=1):
+                sub_payload_id = f"sub-{sa_id}-tool-{st_idx}-result" if tc.result else ""
+                sub_payload_title = f"Subagent · {tc.name} · Result"
+                if tc.result:
+                    add_payload(
+                        payload_id=sub_payload_id,
+                        kind="subagent.tool.result",
+                        title=sub_payload_title,
+                        text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                    )
+                sub_tool_rows.append(tool_vm(tc, f"sub-{sa_id}-T{st_idx}", sub_payload_id, sub_payload_title))
+
+            sub_tool_step = {
+                "type": "tool_batch",
+                "title": f"Subagent tool batch ({len(sub_tool_rows)} call{'s' if len(sub_tool_rows) != 1 else ''})",
+                "summary_label": f"{len(sub_tool_rows)} tools",
+                "status_label": "error" if any(t["status_tone"] == "fail" for t in sub_tool_rows) else "",
+                "status_tone": "err" if any(t["status_tone"] == "fail" for t in sub_tool_rows) else "tool",
+                "tools": sub_tool_rows,
+            }
+            if sub_rounds:
+                sub_rounds[-1]["steps"].append(sub_tool_step)
+                sub_rounds[-1]["is_open"] = True
+            else:
+                sub_rounds.append({
+                    "sub_round_id": 1,
+                    "title": f"{len(display_tools)} tool call{'s' if len(display_tools) > 1 else ''}",
+                    "metric": _format_num_short(sa_output),
+                    "status": "failed" if sa_failed > 0 else "ok",
+                    "is_open": True,
+                    "steps": [sub_tool_step],
+                })
+
         # If no sub-rounds from messages, synthesize from tool calls
-        if not sub_rounds and sa_tools:
+        if not sub_rounds and display_tools:
             sub_rounds.append({
                 "sub_round_id": 1,
-                "title": f"{len(sa_tools)} tool call{'s' if len(sa_tools) > 1 else ''}",
+                "title": f"{len(display_tools)} tool call{'s' if len(display_tools) > 1 else ''}",
                 "metric": _format_num_short(sa_output),
                 "status": "failed" if sa_failed > 0 else "ok",
                 "is_open": False,
@@ -2368,7 +2545,7 @@ def _build_v11_view_model(
                         "text": tc.parameters.get("command", tc.parameters.get("file_path", ""))[:80] or tc.name,
                         "result": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                     }
-                    for tc in sa_tools[:10]
+                    for tc in display_tools[:10]
                 ],
             })
 
@@ -2377,7 +2554,7 @@ def _build_v11_view_model(
             "agent_id": sa_id,
             "status_label": "failed" if sa_failed > 0 else "completed",
             "status_tone": "err" if sa_failed > 0 else "ok",
-            "meta": f"{len(sa_tools)} tools, {_format_num_short(sa_input + sa_output)} tokens",
+            "meta": f"{len(display_tools)} tools, {_format_num_short(sa_input + sa_output)} tokens",
             "sub_rounds": sub_rounds,
         }
 
@@ -2399,21 +2576,53 @@ def _build_v11_view_model(
             status_label = "OK"
             status_tone = "ok"
 
-        preview_title = (r.preview_text or "")[:120]
-        if not preview_title and r.user_msg.content:
-            preview_title = (r.user_msg.content or "")[:80]
+        # Round summary: user input first if available
+        if r.user_msg.content:
+            preview_title = (r.user_msg.content or "")[:120]
+        else:
+            preview_title = (r.preview_text or "")[:120]
         for _fw in ["Map", "Inspector", "Focus", "Open selected", "Calls", "Hotspots", "High token", "Jump input"]:
             preview_title = preview_title.replace(_fw, "***")
         preview_subtitle = f"{len(r.tool_calls)} tool{'s' if len(r.tool_calls) != 1 else ''}" if r.tool_calls else "no tools"
 
-        token_total = _format_num_short(rt) if rt > 0 else "—"
-        tool_count_label = f"{len(r.tool_calls)} tools" if r.tool_calls else "0 tools"
+        # token_total = sum of all LLM calls in this round. If interactions
+        # are unavailable, fall back to the round's assistant message usage.
+        total_input = 0
+        total_cache_read = 0
+        total_cache_write = 0
+        total_output = 0
+        for _ix in r.interactions:
+            total_input += getattr(_ix, "input_tokens", 0) or 0
+            total_cache_read += getattr(_ix, "cache_read_tokens", 0) or 0
+            total_cache_write += getattr(_ix, "cache_write_tokens", 0) or 0
+            total_output += getattr(_ix, "output_tokens", 0) or 0
+        if not r.interactions:
+            total_input = rb["input"]
+            total_cache_read = rb["cache_read"]
+            total_cache_write = rb["cache_write"]
+            total_output = rb["output"]
+        rt_sum = total_input + total_cache_read + total_cache_write + total_output
+        token_total = _format_num_short(rt_sum) if rt_sum > 0 else "—"
+
+        # tool_count_label = sum of all current-round tool_use/tool calls.
+        all_tools = set()
+        raw_tool_uses = 0
+        for _ix in r.interactions:
+            raw_tool_uses += count_raw_tool_uses(_ix)
+            for _tc in (getattr(_ix, "tool_calls", []) or []):
+                key = getattr(_tc, "tool_use_id", "") or id(_tc)
+                all_tools.add(key)
+        for tc in r.tool_calls:
+            key = getattr(tc, "tool_use_id", "") or id(tc)
+            all_tools.add(key)
+        tool_total = max(len(all_tools), raw_tool_uses)
+        tool_count_label = f"{tool_total} tools" if tool_total else "0 tools"
 
         token_mix = {"fresh": 0, "cache": 0, "out": 0}
-        if rt > 0:
-            token_mix["fresh"] = round(rb["input"] / rt * 100, 1)
-            token_mix["cache"] = round(rb["cache_read"] / rt * 100, 1)
-            token_mix["out"] = round(rb["output"] / rt * 100, 1)
+        if rt_sum > 0:
+            token_mix["fresh"] = round(total_input / rt_sum * 100, 1)
+            token_mix["cache"] = round((total_cache_read + total_cache_write) / rt_sum * 100, 1)
+            token_mix["out"] = round(total_output / rt_sum * 100, 1)
 
         # Build items for round detail
         items = []
@@ -2491,16 +2700,12 @@ def _build_v11_view_model(
                             text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
                         )
 
-                    batch_tools.append({
-                        "tool_id": f"R{rid}-T{tc_global_idx}",
-                        "kind": tc.name[:4].upper(),
-                        "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
-                        "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
-                        "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
-                        "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
-                        "payload_id": tool_payload_id,
-                        "payload_title": f"R{rid} · {tc.name} · Result",
-                    })
+                    batch_tools.append(tool_vm(
+                        tc,
+                        f"R{rid}-T{tc_global_idx}",
+                        tool_payload_id,
+                        f"R{rid} · {tc.name} · Result",
+                    ))
 
                 if batch_tools:
                     parallel_batches.append({
@@ -2538,11 +2743,17 @@ def _build_v11_view_model(
                 )
             if ix.response_full:
                 response_payload_id = f"llm-R{rid}-IX{iix}-output"
+                # Generate content blocks HTML: text + tool_use blocks
+                ix_tool_calls = [tc for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "")]
+                content_blocks_html = _render_response_content_blocks(ix.response_full, ix_tool_calls)
+                block_count = 1 + len(ix_tool_calls) if ix.response_full and ix.response_full.strip() else len(ix_tool_calls)
+                size_label = f"{block_count} content block{'s' if block_count != 1 else ''}"
                 add_payload(
                     payload_id=response_payload_id,
                     kind="llm.output",
                     title=f"R{rid} · LLM Call #{iix} · Output",
-                    text=ix.response_full[:10000] if len(ix.response_full) > 10000 else ix.response_full,
+                    html=content_blocks_html,
+                    size=size_label,
                 )
 
             # Dynamic note logic based on available payload data
@@ -2616,16 +2827,12 @@ def _build_v11_view_model(
                         title=f"R{rid} · {tc.name} · Result",
                         text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
                     )
-                batch_tools.append({
-                    "tool_id": f"R{rid}-T{tc_idx + 1}",
-                    "kind": tc.name[:4].upper(),
-                    "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
-                    "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
-                    "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
-                    "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
-                    "payload_id": tool_payload_id,
-                    "payload_title": f"R{rid} · {tc.name} · Result",
-                })
+                batch_tools.append(tool_vm(
+                    tc,
+                    f"R{rid}-T{tc_idx + 1}",
+                    tool_payload_id,
+                    f"R{rid} · {tc.name} · Result",
+                ))
             if batch_tools:
                 items.append({
                     "type": "tool_batch",
@@ -2650,6 +2857,7 @@ def _build_v11_view_model(
             "token_total": token_total,
             "token_mix": token_mix,
             "tool_count_label": tool_count_label,
+            "has_user_input": bool(r.user_msg.content),
             "is_open": False,
             "items": items,
         })
@@ -2908,17 +3116,38 @@ def _build_v9_view_model(
         status_label = "Failed" if (has_failed or has_llm_err) else "OK"
         status_tone = "fail" if (has_failed or has_llm_err) else "ok"
 
-        # Preview
-        preview_title = (r.preview_text or "")[:120]
-        if not preview_title and r.user_msg.content:
-            preview_title = (r.user_msg.content or "")[:80]
+        # Preview: user input first if available
+        if r.user_msg.content:
+            preview_title = (r.user_msg.content or "")[:120]
+        else:
+            preview_title = (r.preview_text or "")[:120]
         # Sanitize preview title to avoid forbidden QA text substrings
         for _fw in ["Map", "Inspector", "Focus", "Open selected", "Calls", "Hotspots", "High token", "Jump input"]:
             preview_title = preview_title.replace(_fw, "***")
         preview_subtitle = f"{len(r.tool_calls)} tool{'s' if len(r.tool_calls) != 1 else ''}" if r.tool_calls else "no tools"
 
-        token_total = _format_num_short(rt) if rt > 0 else "—"
-        tool_count_label = f"{len(r.tool_calls)} tools" if r.tool_calls else "0 tools"
+        # token_total = sum of all LLM calls in this round
+        total_input = rb["input"]
+        total_cache_read = rb["cache_read"]
+        total_cache_write = rb["cache_write"]
+        total_output = rb["output"]
+        for _ix in r.interactions:
+            if _ix.scope == "main":
+                total_input += getattr(_ix, "input_tokens", 0) or 0
+                total_cache_read += getattr(_ix, "cache_read_tokens", 0) or 0
+                total_cache_write += getattr(_ix, "cache_write_tokens", 0) or 0
+                total_output += getattr(_ix, "output_tokens", 0) or 0
+        rt_sum = total_input + total_cache_read + total_cache_write + total_output
+        token_total = _format_num_short(rt_sum) if rt_sum > 0 else "—"
+
+        # tool_count_label = sum of all tool calls across all interactions
+        all_tools = set()
+        for _ix in r.interactions:
+            for _tc in (getattr(_ix, "tool_calls", []) or []):
+                if not getattr(_tc, "subagent_id", ""):
+                    all_tools.add(id(_tc))
+        all_tools.update(id(tc) for tc in r.tool_calls if not getattr(tc, "subagent_id", ""))
+        tool_count_label = f"{len(all_tools)} tools" if all_tools else "0 tools"
 
         # Token mix percentages
         token_mix = {"fresh": 0, "cache": 0, "out": 0}
