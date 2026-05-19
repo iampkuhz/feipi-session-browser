@@ -1,8 +1,7 @@
-"""Session detail template contract tests.
+"""Session detail template contract tests (v9).
 
 These tests verify that session.html and base.html contain the
 structural hooks required by the browser layout gate and static CSS gate.
-They do not open a browser or check computed styles.
 """
 from pathlib import Path
 
@@ -42,13 +41,10 @@ class TestBaseHtml:
             "base.html lacks .shell container"
 
     def test_shell_class_block(self, base_text):
-        """base.html .shell must apply shell_class block or equivalent."""
+        """base.html .shell must apply shell_class block."""
         assert_contains_any(
             base_text,
-            [
-                "{% block shell_class %}",
-                "shell_class",
-            ],
+            ["{% block shell_class %}", "shell_class"],
             "base.html lacks shell_class block on .shell container",
         )
 
@@ -56,10 +52,7 @@ class TestBaseHtml:
         """base.html must have a .main container."""
         assert_contains_any(
             base_text,
-            [
-                'class="main',
-                "class='main",
-            ],
+            ['class="main', "class='main"],
             "base.html lacks .main container",
         )
 
@@ -71,7 +64,7 @@ class TestBaseHtml:
             "base.html must not include inspector component"
 
 
-# ── session.html checks ──
+# ── session.html checks (v9) ──
 
 
 class TestSessionHtml:
@@ -80,55 +73,32 @@ class TestSessionHtml:
         assert "{% extends" in session_text, \
             "session.html does not extend base.html"
 
-    def test_shell_class_declares_phase1(self, session_text):
-        """session.html shell_class must include phase1-shell."""
-        assert "phase1-shell" in session_text, \
-            "session.html shell_class lacks phase1-shell"
+    def test_shell_class_declares_sd_shell(self, session_text):
+        """session.html shell_class must include sd-shell."""
+        assert "sd-shell" in session_text, \
+            "session.html shell_class lacks sd-shell"
 
-    def test_shell_class_declares_no_inspector(self, session_text):
-        """session.html shell_class must include no-inspector."""
-        assert "no-inspector" in session_text, \
-            "session.html shell_class lacks no-inspector"
+    def test_session_detail_shell_class(self, session_text):
+        """session.html must declare sd-shell class."""
+        assert "sd-shell" in session_text, \
+            "session.html shell_class lacks sd-shell"
 
-    def test_session_detail_root_exists(self, session_text):
-        """session.html must have .session-detail-phase1 root."""
-        assert_contains_any(
-            session_text,
-            [
-                "session-detail-phase1",
-                "data-session-detail-shell",
-            ],
-            "session.html lacks .session-detail-phase1 root element",
-        )
+    def test_session_has_trace_page_marker(self, session_text):
+        """session.html must have data-trace-page marker."""
+        assert "data-trace-page" in session_text, \
+            "session.html lacks data-trace-page"
 
     def test_hero_title_hook(self, session_text):
-        """session.html must have hero title class hook."""
-        assert_contains_any(
-            session_text,
-            [
-                "hero-title",
-                "page-header__title",
-            ],
-            "session.html lacks hero-title class hook",
-        )
+        """session.html must have hero title via sdt macro."""
+        assert "sdt.hero" in session_text, \
+            "session.html lacks sdt.hero macro call"
 
     def test_kpi_metrics_hook(self, session_text):
-        """session.html must have KPI / metrics strip hook."""
-        assert_contains_any(
-            session_text,
-            [
-                "kpis",
-                "metrics-strip",
-            ],
-            "session.html lacks KPI/metrics strip hook",
-        )
+        """session.html must have KPI / metrics via sdt macro."""
+        assert "hero_metrics" in session_text, \
+            "session.html lacks hero_metrics hook"
 
-    def test_trace_row_hook(self, session_text):
-        """session.html must have trace-row hook."""
-        assert_contains_any(
-            session_text,
-            [
-                "trace-row",
-            ],
-            "session.html lacks trace-row hook",
-        )
+    def test_trace_round_hook(self, session_text):
+        """session.html must have trace_round macro call."""
+        assert "sdt.trace_round" in session_text, \
+            "session.html lacks sdt.trace_round macro call"

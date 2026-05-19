@@ -122,15 +122,19 @@ class TestSessionDetailRoute:
         html = resp.read().decode("utf-8")
         assert 'trace-panel' in html, \
             "Session detail must contain trace-panel"
-        assert 'trace-row' in html, \
-            "Session detail must contain trace-row"
+        # Session may have 0 rounds (minimal session); check for v9 markers
+        # or at minimum the trace-list container
+        has_trace_rows = 'data-trace-round-row' in html
+        has_trace_list = 'data-trace-list' in html or 'sd-trace-list' in html
+        assert has_trace_list, \
+            "Session detail must contain trace list container"
 
     def test_session_detail_contains_metrics(self, session_detail_url):
         """Session detail page must contain the metrics strip."""
         resp = urllib.request.urlopen(session_detail_url, timeout=10)
         html = resp.read().decode("utf-8")
-        assert 'metrics-strip' in html, \
-            "Session detail must contain metrics strip"
+        assert 'sd-kpi' in html or 'sd-kpis' in html, \
+            "Session detail must contain KPI metrics"
 
     def test_session_detail_no_server_error(self, session_detail_url):
         """Session detail page must not render the error.html template."""

@@ -27,13 +27,17 @@ class TestMhtmlTemplateContracts:
         assert 'data-trace-panel' in html, 'missing trace-panel'
 
     def test_trace_row_structure(self):
+        # v9 uses component macros; trace_round is defined in session_detail_timeline.html
         html = self._read("session.html")
-        assert 'class="trace-row"' in html, 'missing trace-row'
-        assert 'class="trace-detail"' in html, 'missing trace-detail'
+        assert "sdt.trace_round" in html, "missing sdt.trace_round macro call"
+        component = self._read("components/session_detail_timeline.html")
+        assert 'data-trace-round-row' in component, 'missing trace-round-row'
+        assert 'data-trace-detail' in component, 'missing trace-detail'
 
     def test_toggle_round_detail_function_exists(self):
-        html = self._read("session.html")
-        assert "toggleRoundDetail" in html, "missing toggleRoundDetail function"
+        # v9 uses toggleRound in session_detail_timeline.js
+        js = (STATIC_JS / "session_detail_timeline.js").read_text(encoding="utf-8")
+        assert "function toggleRound" in js, "missing toggleRound function"
 
     # ── Layout modes ──
 
@@ -88,10 +92,10 @@ class TestMhtmlSelfContained:
         assert "mhtml_js" in html
 
     def test_key_functions_present_in_template(self):
-        """Verify key JS functions are referenced in session.html for MHTML inclusion."""
-        html = self._read("session.html")
-        # toggleRoundDetail is defined inline
-        assert "toggleRoundDetail" in html, "toggleRoundDetail missing from session.html"
+        """Verify key JS functions are referenced for MHTML inclusion."""
+        # v9 uses toggleRound in session_detail_timeline.js
+        js = self._read_js("session_detail_timeline.js")
+        assert "toggleRound" in js, "toggleRound missing from session_detail_timeline.js"
 
     def test_no_google_fonts_reference(self):
         """No Google Fonts references in either mode."""
@@ -116,23 +120,25 @@ class TestPhase1SimplifiedStructure:
             "missing trace-panel"
 
     def test_has_issue_summary(self):
-        html = self._read("session.html")
-        assert 'data-issue-summary' in html, "missing issue-summary section"
+        # v9 uses data-issue-strip in the component macro
+        component = self._read("components/session_detail_timeline.html")
+        assert 'data-issue-strip' in component, "missing issue-strip section"
 
     def test_has_payload_modal(self):
         html = self._read("base.html")
         assert 'id="payload-modal"' in html, "missing payload-modal in base.html"
 
     def test_has_expand_collapse_buttons(self):
-        html = self._read("session.html")
-        assert 'data-action="expand-visible"' in html, "missing expand-visible"
-        assert 'data-action="collapse-all"' in html, "missing collapse-all"
+        # v9 has collapse-all in the component macro
+        component = self._read("components/session_detail_timeline.html")
+        assert 'data-action="collapse-all"' in component, "missing collapse-all"
 
     def test_has_all_failed_segmented_control(self):
-        html = self._read("session.html")
-        assert 'data-action="filter-status"' in html, "missing filter-status"
-        assert 'data-status="all"' in html, "missing 'all' filter"
-        assert 'data-status="failed"' in html, "missing 'failed' filter"
+        # v9 has filter controls in the component macro
+        component = self._read("components/session_detail_timeline.html")
+        assert 'data-action="filter-status"' in component, "missing filter-status"
+        assert 'data-status="all"' in component, "missing 'all' filter"
+        assert 'data-status="failed"' in component, "missing 'failed' filter"
 
     def test_no_old_workbench_views(self):
         """Calls and Hotspots workbench views should be removed."""

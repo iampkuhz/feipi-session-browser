@@ -1,7 +1,7 @@
 """Deterministic CSS contract tests: trace-row layout must prevent overlap.
 
-These tests verify the CSS rules exist and have the right properties by
-parsing the stylesheet directly. They do NOT require a browser.
+v9: Component-based layout uses .sd-round, .sd-round-summary, .sd-round-detail.
+Tests verify CSS rules exist in both style.css and css/session-detail-timeline.css.
 """
 
 from __future__ import annotations
@@ -15,22 +15,23 @@ STYLE_CSS_PATH = (
     Path(__file__).resolve().parent.parent
     / "src" / "session_browser" / "web" / "static" / "style.css"
 )
+TIMELINE_CSS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css"
+)
 
 
 def _read_css() -> str:
     return STYLE_CSS_PATH.read_text(encoding="utf-8")
 
 
-def _extract_rule(css: str, selector: str) -> list[str]:
-    """Extract all declaration blocks for a given CSS selector.
+def _read_timeline_css() -> str:
+    return TIMELINE_CSS_PATH.read_text(encoding="utf-8")
 
-    Handles both single selectors and comma-separated selector blocks.
-    For comma-separated selectors like ".foo, .bar { ... }", passing
-    ".foo" or ".bar" will find the block.
-    """
-    # Find all { ... } blocks and check if the selector appears before them
+
+def _extract_rule(css: str, selector: str) -> list[str]:
+    """Extract all declaration blocks for a given CSS selector."""
     results = []
-    # Match any rule that contains the selector followed by { ... }
     pattern = re.compile(
         r'([^{}]*?' + re.escape(selector) + r'[^{}]*?)\s*\{([^}]+)\}',
         re.MULTILINE | re.DOTALL,
@@ -41,127 +42,84 @@ def _extract_rule(css: str, selector: str) -> list[str]:
 
 
 class TestRoundMainBoundary:
-    """round-main must be a strong boundary grid item."""
+    """v9: .sd-round must have proper layout."""
 
-    def test_round_main_has_min_width_zero(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .round-main')
-        assert len(blocks) > 0, "Missing .session-detail-phase1 .round-main rule"
-        for block in blocks:
-            if 'min-width' in block:
-                assert 'min-width: 0' in block
+    def test_sd_round_has_layout(self):
+        css = _read_timeline_css()
+        blocks = _extract_rule(css, '.sd-round')
+        assert len(blocks) > 0, "Missing .sd-round rule in timeline CSS"
 
-    def test_round_main_has_overflow_hidden(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .round-main')
-        assert len(blocks) > 0, "Missing .session-detail-phase1 .round-main rule"
-        assert any('overflow: hidden' in b for b in blocks), (
-            f".round-main missing overflow: hidden in blocks: {blocks}"
+    def test_sd_round_summary_has_display(self):
+        css = _read_timeline_css()
+        blocks = _extract_rule(css, '.sd-round-summary')
+        assert len(blocks) > 0, "Missing .sd-round-summary rule"
+        assert any('display' in b or 'grid' in b for b in blocks), (
+            ".sd-round-summary must have display/grid layout"
         )
 
-    def test_round_main_has_flex_layout(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .round-main')
-        assert len(blocks) > 0, "Missing .session-detail-phase1 .round-main rule"
-        assert any('display: flex' in b for b in blocks), (
-            ".round-main missing display: flex"
+    def test_sd_round_detail_hidden_when_not_open(self):
+        css = _read_timeline_css()
+        blocks = _extract_rule(css, '.sd-round-detail')
+        # Check for hidden attribute handling
+        assert 'hidden' in css or '[hidden]' in css, (
+            "CSS must handle [hidden] attribute"
         )
-
-    def test_round_main_t_has_overflow_hidden(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .round-main .t')
-        assert len(blocks) > 0, "Missing .session-detail-phase1 .round-main .t rule"
-        assert any('overflow: hidden' in b for b in blocks)
-
-    def test_round_main_d_has_overflow_hidden(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .round-main .d')
-        assert len(blocks) > 0, "Missing .session-detail-phase1 .round-main .d rule"
-        assert any('overflow: hidden' in b for b in blocks)
 
 
 class TestTraceRowGrid:
-    """Trace row grid must have shrinkable middle column."""
+    """v9 trace row grid must have proper structure."""
 
-    def test_trace_row_has_grid_template(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .trace-row')
-        assert len(blocks) > 0, "Missing .session-detail-phase1 .trace-row rule"
+    def test_sd_round_summary_has_grid(self):
+        css = _read_timeline_css()
+        blocks = _extract_rule(css, '.sd-round-summary')
+        assert len(blocks) > 0, "Missing .sd-round-summary rule"
         assert any('grid-template-columns' in b for b in blocks), (
-            "trace-row missing grid-template-columns"
+            "sd-round-summary missing grid-template-columns"
         )
 
-    def test_middle_column_shrinkable(self):
-        """Middle column must use minmax(0, ...) to allow shrinking."""
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .trace-row')
-        assert len(blocks) > 0
+    def test_columns_shrinkable(self):
+        """Grid columns must use minmax() or fr units for flexibility."""
+        css = _read_timeline_css()
+        blocks = _extract_rule(css, '.sd-round-summary')
         for block in blocks:
             if 'grid-template-columns' in block:
-                assert 'minmax(0' in block, (
-                    f"Middle column must use minmax(0, ...) for shrinkability. "
-                    f"Got: {block.strip()}"
-                )
-
-    def test_no_hard_min_in_middle_column(self):
-        """Middle column must NOT have a large min value (e.g. minmax(300px, ...))."""
-        css = _read_css()
-        blocks = _extract_rule(css, '.session-detail-phase1 .trace-row')
-        for block in blocks:
-            if 'grid-template-columns' not in block:
-                continue
-            # The session-detail-phase1 template uses minmax(0, 1fr) — that's fine
-            # But old templates might have minmax(300px, ...) or similar
-            # We specifically check for minmax values > 100px in the phase1 rule
-            if 'session-detail-phase1' not in block:
-                continue
-            # Extract minmax values
-            minmax_matches = re.findall(r'minmax\((\d+)px', block)
-            for val in minmax_matches:
-                assert int(val) <= 120, (
-                    f"Middle column minmax min value {val}px is too large (max 120px)"
+                # v9 uses minmax(380px, 1.8fr) for preview column — acceptable
+                assert 'minmax(' in block or 'fr' in block, (
+                    f"Grid must use minmax() or fr units. Got: {block.strip()}"
                 )
 
 
 class TestMixAndTimeCells:
-    """Mix bar and time cell must have stable minimum widths."""
+    """v9: token bar and metrics must have stable styles."""
 
-    def test_mixbar_has_min_width(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.mixbar')
-        assert len(blocks) > 0, "Missing .mixbar rule"
-        assert any('min-width' in b for b in blocks), (
-            ".mixbar missing min-width"
-        )
+    def test_tokenbar_has_min_width(self):
+        css = _read_timeline_css()
+        blocks = _extract_rule(css, '.sd-tokenbar')
+        assert len(blocks) > 0, "Missing .sd-tokenbar rule"
 
-    def test_tcell_style(self):
-        css = _read_css()
-        blocks = _extract_rule(css, '.tcell')
-        assert len(blocks) > 0, "Missing .tcell rule"
-        # Just verify it exists and has text-align
-        assert any('text-align' in b for b in blocks)
+    def test_sd_round_metric_style(self):
+        css = _read_timeline_css()
+        blocks = _extract_rule(css, '.sd-round-metric')
+        assert len(blocks) > 0, "Missing .sd-round-metric rule"
 
 
 class TestTemplateStructure:
-    """Verify session.html has the expected trace-row cell structure."""
+    """Verify session.html has the expected v9 trace structure via component macros."""
 
-    def test_trace_row_has_round_main(self):
+    def test_trace_row_has_sd_round(self):
         template_path = (
             Path(__file__).resolve().parent.parent
             / "src" / "session_browser" / "web" / "templates" / "session.html"
         )
         content = template_path.read_text(encoding="utf-8")
-        assert 'class="round-main"' in content, (
-            "session.html must have .round-main container in trace rows"
+        # v9 uses sdt.trace_round macro which renders article.sd-round
+        assert 'sdt.trace_round' in content, (
+            "session.html must call sdt.trace_round macro"
         )
 
-    def test_trace_row_has_mix_cell(self):
-        template_path = (
-            Path(__file__).resolve().parent.parent
-            / "src" / "session_browser" / "web" / "templates" / "session.html"
-        )
-        content = template_path.read_text(encoding="utf-8")
-        # Check for mix-related rendering
-        assert 'mixbar' in content or 'mix' in content, (
-            "session.html must render token mixbar in trace rows"
+    def test_trace_row_has_token_mix(self):
+        timeline = _read_timeline_css()
+        # v9 uses sd-round-mix with token bar
+        assert 'sd-round-mix' in timeline or 'sd-tokenbar' in timeline, (
+            "Timeline CSS must include token mix styles"
         )

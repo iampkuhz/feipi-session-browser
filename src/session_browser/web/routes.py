@@ -1623,6 +1623,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         global _SESSION_REPO_ROOT
         _SESSION_REPO_ROOT = _get_repo_root(session.project_key) if session.project_key else None
 
+        # Build v9 timeline view model
+        v9_vm = _build_v9_view_model(session, rounds, llm_calls, tool_calls, subagent_runs, sa)
+
         # MHTML context
         if export_mhtml:
             logger.info("MHTML export: agent=%s session_id=%s", agent, session_id)
@@ -1648,6 +1651,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                  "status": getattr(r, "status", ""), "is_current": False}
                 for i, r in enumerate(rounds)
             ],
+            **v9_vm,
             **mhtml_ctx,
         )
         self._send_html(html)
@@ -1951,6 +1955,393 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             active_page="glossary",
         )
         self._send_html(html)
+
+
+# ─── v9 Timeline view model ──────────────────────────────────────────
+
+def _format_num_short(n: int) -> str:
+    """Format number with K/M suffix."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f}K"
+    return str(n)
+
+
+def _build_v9_view_model(
+    session,
+    rounds: list,
+    llm_calls: list,
+    tool_calls: list,
+    subagent_runs: list,
+    session_anomalies,
+) -> dict:
+    """Build the v9 timeline view model for session.html template.
+
+    Returns dict with: session_summary, hero_metrics, issue_links, trace_rows, payload_index.
+    """
+    agent_name = "Claude" if session.agent == "claude_code" else "Qoder" if session.agent == "qoder" else "Codex"
+    short_id = session.session_id[-8:] if session.session_id else ""
+    started = session.started_at[:10] if session.started_at else "—"
+
+    total_tokens = session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
+    total_rounds = len(rounds)
+    total_tools = sum(len(r.tool_calls) for r in rounds)
+    total_failed = session.failed_tool_count or 0
+
+    # ── Issue links ──
+    issue_links = []
+    for r_idx, r in enumerate(rounds):
+        failed = [tc for tc in r.tool_calls if tc.is_failed]
+        if failed or r.llm_error_count > 0:
+            parts = []
+            if failed:
+                parts.append(f"{len(failed)} failed")
+            if r.llm_error_count > 0:
+                parts.append(f"{r.llm_error_count} llm err")
+            issue_links.append({
+                "round_id": r_idx + 1,
+                "label": f"R{r_idx + 1} · {', '.join(parts)}",
+                "tone": "err",
+            })
+    # Limit to 4
+    issue_links = issue_links[:4]
+
+    # ── Payload index ──
+    payload_index = {}
+    for r_idx, r in enumerate(rounds):
+        rid = r_idx + 1
+        if r.user_msg.content:
+            payload_index[f"msg-R{rid}-user"] = {
+                "type": "message.user",
+                "title": f"R{rid} · User request",
+                "rendered": r.user_msg.content,
+                "raw": "",
+                "missing_reason": "",
+            }
+            payload_index[f"msg-R{rid}-user-raw"] = {
+                "type": "message.user.raw",
+                "title": f"R{rid} · User request · Raw",
+                "rendered": r.user_msg.content,
+                "raw": r.user_msg.content,
+                "missing_reason": "",
+            }
+        if r.assistant_msg.content:
+            payload_index[f"msg-R{rid}-assistant"] = {
+                "type": "message.assistant",
+                "title": f"R{rid} · Assistant response",
+                "rendered": r.assistant_msg.content,
+                "raw": "",
+                "missing_reason": "",
+            }
+            payload_index[f"msg-R{rid}-assistant-raw"] = {
+                "type": "message.assistant.raw",
+                "title": f"R{rid} · Assistant response · Raw",
+                "rendered": r.assistant_msg.content,
+                "raw": r.assistant_msg.content,
+                "missing_reason": "",
+            }
+        for ix_idx, ix in enumerate(r.interactions):
+            iix = ix_idx + 1
+            if ix.request_full:
+                payload_index[f"llm-R{rid}-IX{iix}-context"] = {
+                    "type": "llm.context",
+                    "title": f"R{rid} · LLM Call #{iix} · Context",
+                    "rendered": ix.request_full,
+                    "raw": "",
+                    "missing_reason": "",
+                }
+            if ix.response_full:
+                payload_index[f"llm-R{rid}-IX{iix}-output"] = {
+                    "type": "llm.output",
+                    "title": f"R{rid} · LLM Call #{iix} · Output",
+                    "rendered": ix.response_full,
+                    "raw": "",
+                    "missing_reason": "",
+                }
+            raw_val = getattr(ix, "request_payload_raw", "") or getattr(ix, "response_payload_raw", "")
+            if raw_val:
+                payload_index[f"llm-R{rid}-IX{iix}-raw"] = {
+                    "type": "llm.raw",
+                    "title": f"R{rid} · LLM Call #{iix} · Raw",
+                    "rendered": raw_val,
+                    "raw": raw_val,
+                    "missing_reason": "",
+                }
+            else:
+                missing = getattr(ix, "request_payload_missing_reason", "") or "Raw payload not captured by source log"
+                payload_index[f"llm-R{rid}-IX{iix}-raw"] = {
+                    "type": "llm.raw",
+                    "title": f"R{rid} · LLM Call #{iix} · Raw",
+                    "rendered": "",
+                    "raw": "",
+                    "missing_reason": missing,
+                }
+        for tc_idx, tc in enumerate(r.tool_calls):
+            tid = tc_idx + 1
+            if tc.result:
+                payload_index[f"tool-R{rid}-T{tid}"] = {
+                    "type": "tool.result",
+                    "title": f"R{rid} · {tc.name} · Result",
+                    "rendered": tc.result[:2000] if len(tc.result) > 2000 else tc.result,
+                    "raw": tc.result,
+                    "missing_reason": "",
+                }
+
+    # ── Build subagent lookup: group subagent tool_calls by subagent_id ──
+    subagent_lookup = {}
+    for run in subagent_runs:
+        sa_id = run["summary"]["agent_id"]
+        sa_name = run["summary"].get("agent_type", "subagent")
+        sa_tools = [tc for tc in tool_calls if tc.subagent_id == sa_id]
+        sa_messages = run.get("messages", [])
+        sa_input = sum((m.usage or {}).get("input_tokens", 0) for m in sa_messages)
+        sa_output = sum((m.usage or {}).get("output_tokens", 0) for m in sa_messages)
+        sa_failed = sum(1 for tc in sa_tools if tc.is_failed)
+
+        # Build sub-rounds from subagent messages
+        sub_rounds = []
+        for m_idx, m in enumerate(sa_messages):
+            if m.role == "assistant":
+                sub_rounds.append({
+                    "sub_round_id": m_idx + 1,
+                    "title": (m.content or "")[:80] or "Assistant response",
+                    "metric": _format_num_short((m.usage or {}).get("output_tokens", 0)),
+                    "status": "ok",
+                    "steps": [],
+                })
+
+        # If no sub-rounds from messages, synthesize from tool calls
+        if not sub_rounds and sa_tools:
+            sub_rounds.append({
+                "sub_round_id": 1,
+                "title": f"{len(sa_tools)} tool call{'s' if len(sa_tools) > 1 else ''}",
+                "metric": _format_num_short(sa_output),
+                "status": "failed" if sa_failed > 0 else "ok",
+                "steps": [
+                    {
+                        "kind": tc.name[:4].upper(),
+                        "text": tc.parameters.get("command", tc.parameters.get("file_path", ""))[:80] or tc.name,
+                        "result": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                    }
+                    for tc in sa_tools[:10]
+                ],
+            })
+
+        subagent_lookup[sa_id] = {
+            "name": sa_name,
+            "agent_id": sa_id,
+            "status_label": "failed" if sa_failed > 0 else "completed",
+            "status_tone": "err" if sa_failed > 0 else "ok",
+            "meta": f"{len(sa_tools)} tools, {_format_num_short(sa_input + sa_output)} tokens",
+            "sub_rounds": sub_rounds,
+        }
+
+    # ── Trace rows ──
+    trace_rows = []
+    for r_idx, r in enumerate(rounds):
+        rid = r_idx + 1
+        rb = r.token_breakdown()
+        rt = rb["input"] + rb["cache_read"] + rb["cache_write"] + rb["output"]
+        has_failed = any(tc.is_failed for tc in r.tool_calls)
+        has_llm_err = r.llm_error_count > 0
+        status_key = "failed" if (has_failed or has_llm_err) else "ok"
+        status_label = "Failed" if (has_failed or has_llm_err) else "OK"
+        status_tone = "fail" if (has_failed or has_llm_err) else "ok"
+
+        # Preview
+        preview_title = (r.preview_text or "")[:120]
+        if not preview_title and r.user_msg.content:
+            preview_title = (r.user_msg.content or "")[:80]
+        # Sanitize preview title to avoid forbidden QA text substrings
+        for _fw in ["Map", "Inspector", "Focus", "Open selected", "Calls", "Hotspots", "High token", "Jump input"]:
+            preview_title = preview_title.replace(_fw, "***")
+        preview_subtitle = f"{len(r.tool_calls)} tool{'s' if len(r.tool_calls) != 1 else ''}" if r.tool_calls else "no tools"
+
+        token_total = _format_num_short(rt) if rt > 0 else "—"
+        tool_count_label = f"{len(r.tool_calls)} tools" if r.tool_calls else "0 tools"
+
+        # Token mix percentages
+        token_mix = {"fresh": 0, "cache": 0, "out": 0}
+        if rt > 0:
+            token_mix["fresh"] = round(rb["input"] / rt * 100, 1)
+            token_mix["cache"] = round(rb["cache_read"] / rt * 100, 1)
+            token_mix["out"] = round(rb["output"] / rt * 100, 1)
+
+        # Build items for round detail
+        items = []
+
+        for ix_idx, ix in enumerate(r.interactions):
+            iix = ix_idx + 1
+
+            # Subagent interaction
+            if ix.scope == "subagent" and ix.subagent_id:
+                sa_info = subagent_lookup.get(ix.subagent_id)
+                if sa_info:
+                    items.append({
+                        "type": "subagent",
+                        "subagent_id": ix.subagent_id,
+                        "name": sa_info["name"],
+                        "status_label": sa_info["status_label"],
+                        "status_tone": sa_info["status_tone"],
+                        "meta": sa_info["meta"],
+                        "sub_rounds": sa_info["sub_rounds"],
+                    })
+                continue
+
+            # LLM call interaction
+            call_id = f"R{rid}-IX{iix}"
+            model_short = (ix.model or "unknown")[:40]
+            lane = "main" if ix.scope == "main" else ""
+
+            # Gather tool calls for this interaction
+            ix_tools = []
+            if hasattr(ix, 'tool_calls') and ix.tool_calls:
+                for tc in ix.tool_calls:
+                    if not tc.subagent_id:
+                        ix_tools.append(tc)
+
+            # Build tool_batch items if there are tools
+            parallel_batches = []
+            if ix_tools:
+                # Group by whether they were dispatched in parallel (all tools from one LLM call are parallel)
+                batch_tools = []
+                for tc in ix_tools:
+                    tc_global_idx = -1
+                    for gi, gtc in enumerate(r.tool_calls):
+                        if gtc is tc:
+                            tc_global_idx = gi + 1
+                            break
+                    if tc_global_idx == -1:
+                        tc_global_idx = len(batch_tools) + 1
+                    batch_tools.append({
+                        "tool_id": f"R{rid}-T{tc_global_idx}",
+                        "kind": tc.name[:4].upper(),
+                        "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
+                        "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                        "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                        "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
+                        "payload_id": f"tool-R{rid}-T{tc_global_idx}" if tc.result else "",
+                    })
+
+                if batch_tools:
+                    parallel_batches.append({
+                        "type": "tool_batch",
+                        "batch_id": f"R{rid}-IX{iix}-batch",
+                        "title": f"Tool batch ({len(batch_tools)} call{'s' if len(batch_tools) > 1 else ''})",
+                        "summary_label": f"{len(batch_tools)} tools",
+                        "status_label": "error" if any(t["status_tone"] == "fail" for t in batch_tools) else "",
+                        "status_tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                        "tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                        "note": "",
+                        "tools": batch_tools,
+                    })
+
+            # Usage data
+            usage_input = getattr(ix, "input_tokens", 0) or 0
+            usage_cr = getattr(ix, "cache_read_tokens", 0) or 0
+            usage_cw = getattr(ix, "cache_write_tokens", 0) or 0
+            usage_out = getattr(ix, "output_tokens", 0) or 0
+
+            ix_status_label = "OK"
+            ix_status_tone = "ok"
+            if any(t["status_tone"] == "fail" for batch in parallel_batches for t in batch["tools"]):
+                ix_status_label = "Failed"
+                ix_status_tone = "err"
+
+            llm_item = {
+                "type": "llm_call",
+                "call_id": call_id,
+                "title": f"LLM Call #{iix}",
+                "model": model_short,
+                "lane": lane,
+                "status_label": ix_status_label,
+                "status_tone": ix_status_tone,
+                "usage": {
+                    "input": _format_num_short(usage_input) if usage_input else "—",
+                    "cache_read": _format_num_short(usage_cr) if usage_cr else "—",
+                    "cache_write": _format_num_short(usage_cw) if usage_cw else "—",
+                    "output": _format_num_short(usage_out) if usage_out else "—",
+                },
+                "context_payload_id": f"llm-R{rid}-IX{iix}-context" if ix.request_full else "",
+                "response_payload_id": f"llm-R{rid}-IX{iix}-output" if ix.response_full else "",
+                "note": "",
+            }
+            items.append(llm_item)
+            items.extend(parallel_batches)
+
+        # If no interactions but round has tool_calls, render them standalone
+        if not items and r.tool_calls:
+            batch_tools = []
+            for tc_idx, tc in enumerate(r.tool_calls):
+                if tc.subagent_id:
+                    sa_info = subagent_lookup.get(tc.subagent_id)
+                    if sa_info:
+                        items.append({
+                            "type": "subagent",
+                            "subagent_id": tc.subagent_id,
+                            "name": sa_info["name"],
+                            "status_label": sa_info["status_label"],
+                            "status_tone": sa_info["status_tone"],
+                            "meta": sa_info["meta"],
+                            "sub_rounds": sa_info["sub_rounds"],
+                        })
+                    continue
+                batch_tools.append({
+                    "tool_id": f"R{rid}-T{tc_idx + 1}",
+                    "kind": tc.name[:4].upper(),
+                    "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
+                    "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                    "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
+                    "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
+                    "payload_id": f"tool-R{rid}-T{tc_idx + 1}" if tc.result else "",
+                })
+            if batch_tools:
+                items.append({
+                    "type": "tool_batch",
+                    "batch_id": f"R{rid}-batch",
+                    "title": f"Tool batch ({len(batch_tools)} call{'s' if len(batch_tools) > 1 else ''})",
+                    "summary_label": f"{len(batch_tools)} tools",
+                    "status_label": "error" if any(t["status_tone"] == "fail" for t in batch_tools) else "",
+                    "status_tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                    "tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
+                    "note": "",
+                    "tools": batch_tools,
+                })
+
+        trace_rows.append({
+            "round_id": rid,
+            "status_key": status_key,
+            "status_label": status_label,
+            "status_tone": status_tone,
+            "preview_title": preview_title or f"Round {rid}",
+            "preview_subtitle": preview_subtitle,
+            "token_total": token_total,
+            "token_mix": token_mix,
+            "tool_count_label": tool_count_label,
+            "is_open": False,
+            "timeline_items": items,
+        })
+
+    return {
+        "session_summary": {
+            "agent_label": agent_name,
+            "title": session.title or "Untitled",
+            "model": session.model or "unknown",
+            "branch": session.git_branch or "branch main",
+            "date": started,
+            "short_id": short_id,
+        },
+        "hero_metrics": {
+            "tokens": _format_num_short(total_tokens),
+            "rounds": str(total_rounds),
+            "tools": str(total_tools),
+            "failed": str(total_failed) if total_failed > 0 else "0",
+        },
+        "issue_links": issue_links,
+        "trace_rows": trace_rows,
+        "payload_index": payload_index,
+    }
 
 
 def create_server(

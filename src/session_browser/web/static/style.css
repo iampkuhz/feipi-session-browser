@@ -288,6 +288,7 @@ body.focus .sidebar                    { display: none; }
     border-right: 1px solid var(--line);
     backdrop-filter: saturate(150%) blur(10px);
     min-width: 0;
+    /* grid 默认 align-self: stretch，让 sidebar 撑满行高，sidebar-inner 才能 sticky */
 }
 .sidebar-inner {
     width: var(--sidebar);
@@ -377,18 +378,7 @@ a:focus-visible, button:focus-visible {
     outline-offset: 2px;
 }
 
-/* ─── Sidebar (DEPRECATED: migrated to shell grid in task 02) ── */
-.sidebar {
-    /* position: fixed removed — now a grid column child */
-    top: 0; left: 0;
-    width: var(--sidebar-w);
-    height: 100vh;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    z-index: 200;
-}
+/* ─── Sidebar children (migrated to shell grid in task 02) ── */
 .sidebar-logo {
     padding: 12px 14px 10px;
     border-bottom: 1px solid var(--border);
@@ -885,7 +875,7 @@ body.focus .shell.phase1-shell,
     padding: 0;
 }
 
-/* ── Sessions list: no-inspector main area ── */
+/* ─ Sessions list: no-inspector main area ── */
 .shell.no-inspector .main {
     padding: var(--space-md);
     max-width: 1400px;

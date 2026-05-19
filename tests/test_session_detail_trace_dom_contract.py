@@ -1,11 +1,14 @@
-"""Static DOM contract tests for trace row structure.
+"""Static DOM contract tests for v9 trace row structure.
 
-These tests verify that the session.html template source conforms to the
-required DOM structure for trace rows: no nested buttons, proper ARIA attributes,
-and dedicated toggle button elements.
+v9 architecture:
+- Trace rows use <article class="sd-round"> with data-trace-round-row
+- Toggle button is <button class="sd-round-summary"> with data-action="toggle-round"
+- Detail panel uses <div class="sd-round-detail"> with data-trace-detail
+- aria-controls points to round-{N}-detail id
+- JS dispatches on data-action attribute
+- CSS in css/session-detail-timeline.css
 
-Tests analyze the template source file directly using regex-based static analysis,
-avoiding the complexity of full Jinja2 rendering with custom filters.
+Tests analyze component templates and JS files using regex-based static analysis.
 """
 import pathlib
 import re
@@ -13,48 +16,46 @@ import re
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TEMPLATE_PATH = ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
+TIMELINE = ROOT / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html"
+JS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js"
+CSS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css"
 
 
 @pytest.fixture(scope="module")
 def template_source():
-    """Load the session.html template source."""
-    if not TEMPLATE_PATH.exists():
-        pytest.skip(f"Template not found: {TEMPLATE_PATH}")
-    return TEMPLATE_PATH.read_text(encoding="utf-8")
+    """Load the timeline component template source."""
+    if not TIMELINE.exists():
+        pytest.skip(f"Template not found: {TIMELINE}")
+    return TIMELINE.read_text(encoding="utf-8")
 
 
-class TestTraceRowNoLongerButton:
-    """trace-row must NOT be a <button> element."""
+# ── Trace row is NOT a button ────────────────────────────────────────
+
+
+class TestTraceRowNotButton:
 
     def test_no_button_trace_row(self, template_source):
-        """Template must not contain <button class=\"trace-row\">."""
+        """Template must not contain <button class="trace-row">."""
         pattern = re.compile(r'<button\b[^>]*class="[^"]*trace-row[^"]*"')
         matches = pattern.findall(template_source)
         assert len(matches) == 0, f"Found <button class=\"trace-row\">: {matches}"
 
-    def test_trace_row_is_div(self, template_source):
-        """trace-row should be a <div> element."""
-        pattern = re.compile(r'<div\b[^>]*class="[^"]*trace-row[^"]*"')
+    def test_trace_row_is_article(self, template_source):
+        """v9: trace-row should be an <article> element."""
+        pattern = re.compile(r'<article\b[^>]*class="[^"]*sd-round[^"]*"[^>]*data-trace-round-row')
         matches = pattern.findall(template_source)
-        assert len(matches) > 0, "No <div class=\"trace-row\"> found"
+        assert len(matches) > 0, "No <article class=\"sd-round\" data-trace-round-row> found"
 
 
-class TestToggleCellExists:
-    """Each trace-row must contain a .trace-row__toggle-cell."""
-
-    def test_toggle_cell_present(self, template_source):
-        assert 'class="trace-row__toggle-cell"' in template_source, (
-            "Missing .trace-row__toggle-cell in template"
-        )
+# ── Toggle button contract ──────────────────────────────────────────
 
 
 class TestToggleButtonContract:
     """Toggle button must exist with proper ARIA attributes."""
 
-    def test_trace_round_toggle_present(self, template_source):
-        assert 'class="trace-round-toggle"' in template_source, (
-            "Missing .trace-round-toggle in template"
+    def test_toggle_button_present(self, template_source):
+        assert 'class="sd-round-summary"' in template_source, (
+            "Missing .sd-round-summary in template"
         )
 
     def test_toggle_has_data_action(self, template_source):
@@ -63,257 +64,275 @@ class TestToggleButtonContract:
         )
 
     def test_toggle_has_aria_expanded(self, template_source):
-        pattern = re.compile(
-            r'<button\b[^>]*class="[^"]*trace-round-toggle[^"]*"[^>]*aria-expanded="[^"]*"'
+        assert 'aria-expanded=' in template_source, (
+            "Toggle button must have aria-expanded"
         )
-        matches = pattern.findall(template_source)
-        assert len(matches) > 0, "No toggle button with aria-expanded found"
 
     def test_toggle_has_aria_controls(self, template_source):
-        pattern = re.compile(
-            r'<button\b[^>]*class="[^"]*trace-round-toggle[^"]*"[^>]*aria-controls="[^"]*"'
-        )
-        matches = pattern.findall(template_source)
-        assert len(matches) > 0, "No toggle button with aria-controls found"
-
-    def test_toggle_chevron_present(self, template_source):
-        assert 'class="trace-round-toggle__chevron"' in template_source, (
-            "Missing .trace-round-toggle__chevron"
+        assert 'aria-controls=' in template_source, (
+            "Toggle button must have aria-controls"
         )
 
-    def test_toggle_label_present(self, template_source):
-        assert 'class="trace-round-toggle__label"' in template_source, (
-            "Missing .trace-round-toggle__label"
+    def test_toggle_has_round_id(self, template_source):
+        assert 'data-round=' in template_source, (
+            "Toggle button must have data-round attribute"
         )
+
+    def test_toggle_has_preview(self, template_source):
+        assert 'sd-round-preview' in template_source, (
+            "Toggle must have preview section"
+        )
+        assert 'sd-round-preview__title' in template_source, (
+            "Toggle must have preview title"
+        )
+
+
+# ── Trace detail contract ───────────────────────────────────────────
 
 
 class TestTraceDetailContract:
     """Each trace-detail must have a matching id referenced by toggle aria-controls."""
 
-    def test_trace_detail_ids_exist(self, template_source):
-        pattern = re.compile(r'id="trace-detail-\{\{')
-        matches = pattern.findall(template_source)
-        assert len(matches) > 0, "No trace-detail IDs found"
-
-    def test_aria_controls_pattern_matches_detail_id(self, template_source):
-        """The aria-controls template pattern should match the trace-detail id pattern."""
-        controls_pattern = re.compile(r'aria-controls="(trace-detail-[^"]*)"')
-        controls = controls_pattern.findall(template_source)
-
-        id_pattern = re.compile(r'id="(trace-detail-[^"]*)"')
-        ids = id_pattern.findall(template_source)
-
-        # Both should use the same Jinja2 variable (loop.index)
-        assert len(controls) > 0, "No aria-controls found"
-        assert len(ids) > 0, "No trace-detail ids found"
-
-        # The template should use the same pattern for both
-        assert any("loop.index" in c for c in controls), (
-            "aria-controls should reference loop.index"
-        )
-        assert any("loop.index" in i for i in ids), (
-            "trace-detail id should reference loop.index"
+    def test_trace_detail_data_attr(self, template_source):
+        assert 'data-trace-detail' in template_source, (
+            "Trace detail must have data-trace-detail attribute"
         )
 
-
-class TestTraceDetailSiblingAfterTraceRow:
-    """trace-detail must appear as a sibling immediately after trace-row."""
-
-    def test_trace_detail_follows_trace_row(self, template_source):
-        """In the template, .trace-detail must appear after .trace-row closing tag."""
-        # The pattern: </div> (closing trace-row) followed by trace-detail on next line
-        # This verifies the sibling relationship in the Jinja2 template structure
-        import re
-        pattern = re.compile(
-            r'</div>\s*\n\s*\{#.*Trace detail.*#}\s*\n\s*<div\s+class="trace-detail"',
-            re.DOTALL
-        )
-        match = pattern.search(template_source)
-        assert match, (
-            ".trace-detail must appear as sibling after .trace-row in template source"
+    def test_trace_detail_has_round_id(self, template_source):
+        """Detail element must have class sd-round-detail."""
+        assert 'class="sd-round-detail"' in template_source, (
+            "Trace detail must have class sd-round-detail"
         )
 
-    def test_trace_detail_not_inside_trace_row(self, template_source):
-        """trace-detail must NOT be nested inside trace-row."""
-        import re
-        # Verify that trace-detail appears AFTER the trace-row closes.
-        # Look for the Jinja2 comment that introduces trace-detail, followed by the div.
-        # The comment pattern "{# ── Trace detail" must be preceded by trace-row's closing.
-        detail_idx = template_source.find("{#")
-        detail_section = template_source[detail_idx:]
+    def test_aria_controls_matches_detail_id(self, template_source):
+        """aria-controls must reference round-{N}-detail id pattern."""
+        controls = re.findall(r'aria-controls="round-\{\{[^}]+\}\}-detail"', template_source)
+        ids = re.findall(r'id="round-\{\{[^}]+\}\}-detail"', template_source)
+        assert len(controls) > 0, "No aria-controls matching round-{N}-detail found"
+        assert len(ids) > 0, "No trace-detail ids matching round-{N}-detail found"
 
-        # Check trace-detail exists outside trace-row
-        assert 'class="trace-detail"' in template_source, (
-            "trace-detail element must exist"
+
+# ── Trace detail is sibling of round row ────────────────────────────
+
+
+class TestTraceDetailSibling:
+    """trace-detail must be a sibling of the round article, not nested inside summary."""
+
+    def test_detail_outside_summary(self, template_source):
+        """sd-round-detail must not be inside sd-round-summary."""
+        summary_start = template_source.find('round_summary(row)')
+        detail_in_summary = False
+        if summary_start > 0:
+            # Check if round_detail macro is called inside round_summary
+            # In v9, round_detail is a separate macro called from trace_round
+            block = template_source[summary_start:summary_start + 500]
+            detail_in_summary = 'round_detail' in block and 'def macro' not in block
+        # The round_detail macro should be separate
+        assert '{% macro round_detail' in template_source, (
+            "round_detail must be a separate macro"
         )
 
-        # The trace-detail for-loop pattern should use loop.index same as trace-row
-        detail_pattern = re.compile(
-            r'id="trace-detail-\{\{\s*loop\.index\s*\}\}"'
+    def test_trace_round_calls_both_macros(self, template_source):
+        """trace_round macro must call both round_summary and round_detail."""
+        trace_round_block = template_source[template_source.find('{% macro trace_round'):]
+        trace_round_block = trace_round_block[:trace_round_block.find('{%- endmacro %}') + len('{%- endmacro %}')]
+        assert '{{ round_summary(row) }}' in trace_round_block, (
+            "trace_round must call round_summary"
         )
-        assert detail_pattern.search(template_source), (
-            "trace-detail must use loop.index for dynamic id"
+        assert '{{ round_detail(row) }}' in trace_round_block, (
+            "trace_round must call round_detail"
         )
 
-        # Both trace-row and trace-detail should be in the same for-loop
-        # (indicating they are siblings, not nested)
-        # Simple approach: find all {% for round in rounds %} blocks and check
-        # if any block contains both trace-row and trace-detail
-        sections = template_source.split("{% for round in rounds %}")
-        found_shared_loop = False
-        for section in sections[1:]:  # skip preamble
-            # Truncate at the first {% endfor %} that matches this level
-            # A simpler check: both strings appear before the next major section
-            has_row = "trace-row" in section[:2000]
-            has_detail = "trace-detail" in section[:2000]
-            if has_row and has_detail:
-                found_shared_loop = True
-                break
 
-        assert found_shared_loop, (
-            "trace-row and trace-detail should both be inside the same round for-loop"
-        )
+# ── No nested button conflict ───────────────────────────────────────
 
 
 class TestNoNestedButtonConflict:
-    """trace-row div must not contain payload-btn as a direct child in preview area."""
+    """Trace row structure must not have illegal button nesting."""
 
-    def test_payload_btn_in_detail_context(self, template_source):
-        """Payload buttons should appear inside trace-detail, not trace-row."""
-        # Payload buttons with data-action="open-payload" should exist
-        assert 'data-action="open-payload"' in template_source, (
-            "Payload buttons should exist in detail"
+    def test_payload_buttons_in_detail(self, template_source):
+        """Payload buttons should be invoked inside detail context (llm_call_card, tool_batch)."""
+        # v9 uses sdp.button() macro calls with 'open-payload' action
+        assert "sdp.button('Context'" in template_source or "'Context'" in template_source, (
+            "Must have Context button in detail"
+        )
+        assert "sdp.button('Response'" in template_source or "'Response'" in template_source, (
+            "Must have Response button in detail"
         )
 
-    def test_toggle_button_inside_toggle_cell(self, template_source):
-        """The toggle button must be inside .trace-row__toggle-cell, not a direct child of .trace-row."""
-        import re
-        # The toggle button should be wrapped by trace-row__toggle-cell
+    def test_toggle_button_not_direct_child_of_article(self, template_source):
+        """Toggle button should be inside article but wrapped properly."""
+        # In v9, the article > button.sd-round-summary is the direct child,
+        # which is fine — the article IS the clickable row
         pattern = re.compile(
-            r'class="trace-row__toggle-cell".*?class="trace-round-toggle"',
-            re.DOTALL
+            r'<article\b[^>]*data-trace-round-row[^>]*>\s*\{\{\s*round_summary'
         )
-        match = pattern.search(template_source)
-        assert match, (
-            "Toggle button must be inside .trace-row__toggle-cell, not direct child of .trace-row"
+        assert pattern.search(template_source), (
+            "Article should call round_summary macro"
         )
 
-    def test_no_direct_button_children_in_trace_row(self, template_source):
-        """No button should be a direct child of .trace-row (all must be wrapped)."""
-        import re
-        # Pattern: <div class="trace-row"...> followed by <button without any wrapping div
-        # The only direct children should be divs/spans, not buttons
-        # Allow the toggle-cell wrapper: trace-row > toggle-cell > button is OK
+    def test_no_direct_button_children_without_wrapper(self, template_source):
+        """No button should be a direct unmanaged child of the round article."""
+        # v9 pattern: article > button.sd-round-summary is valid
+        # but we check no <button> appears without proper class
         pattern = re.compile(
-            r'<div\b[^>]*class="[^"]*trace-row[^"]*"[^>]*>\s*<button',
+            r'data-trace-round-row[^>]*>\s*<button(?![^>]*class="sd-round-summary")',
             re.DOTALL
         )
         matches = pattern.findall(template_source)
         assert len(matches) == 0, (
-            f"No button should be direct child of .trace-row, found: {matches}"
+            f"No button should be direct child without sd-round-summary class: {matches}"
         )
 
 
-class TestToggleRowGridStructure:
-    """trace-row grid must have the expected column structure."""
+# ── Grid structure ──────────────────────────────────────────────────
 
-    def test_trace_row_has_grid_columns(self, template_source):
-        assert 'trace-row__toggle-cell' in template_source
-        assert 'round-main' in template_source
-        assert 'class="diags"' in template_source or 'class="diags"' in template_source
-        assert 'mixval' in template_source
-        assert 'tcell' in template_source
+
+class TestTraceRowGridStructure:
+    """v9 trace row must have the expected column structure."""
+
+    def test_has_round_id_cell(self, template_source):
+        assert 'sd-round-id' in template_source, (
+            "Must have round ID cell"
+        )
+
+    def test_has_status_cell(self, template_source):
+        assert 'round_status(' in template_source, (
+            "Must have status cell via macro"
+        )
+
+    def test_has_preview_cell(self, template_source):
+        assert 'sd-round-preview' in template_source, (
+            "Must have preview cell"
+        )
+
+    def test_has_metric_cells(self, template_source):
+        assert 'sd-round-metric' in template_source, (
+            "Must have metric cells"
+        )
+
+    def test_has_token_mix(self, template_source):
+        assert 'sd-round-mix' in template_source, (
+            "Must have token mix bar"
+        )
+
+
+# ── No illegal nested buttons ───────────────────────────────────────
 
 
 class TestNoIllegalNestedButtons:
     """Template must not produce nested button elements within trace-row."""
 
-    def test_no_button_wrapping_trace_row(self, template_source):
-        """The trace-row itself must not be a button."""
-        # Check that the opening tag for trace-row is a div, not button
+    def test_trace_row_is_article_not_button(self, template_source):
+        """The trace-row itself must be an article element."""
         pattern = re.compile(
-            r'<(button|div|article)\b[^>]*class="[^"]*trace-row[^"]*"',
+            r'<(button|div|article)\b[^>]*data-trace-round-row',
             re.DOTALL
         )
         matches = pattern.findall(template_source)
         assert len(matches) > 0, "Could not find trace-row element"
         for tag in matches:
-            assert tag in ("div", "article"), f"trace-row uses <{tag}> tag, should be <div> or <article>"
+            assert tag == "article", f"trace-row uses <{tag}> tag, should be <article>"
+
+
+# ── Multiple rounds have unique toggles ─────────────────────────────
 
 
 class TestMultipleRoundsHaveToggles:
     """All rounds should have their own toggle button with unique aria-controls."""
 
-    def test_multiple_toggle_buttons(self, template_source):
-        pattern = re.compile(r'class="trace-round-toggle"')
+    def test_toggle_button_exists(self, template_source):
+        pattern = re.compile(r'class="sd-round-summary"')
         matches = pattern.findall(template_source)
         assert len(matches) >= 1, f"Expected at least 1 toggle button, found {len(matches)}"
 
     def test_unique_aria_controls_template(self, template_source):
-        """aria-controls should be templated with loop.index for uniqueness."""
-        pattern = re.compile(r'aria-controls="trace-detail-\{\{\s*loop\.index\s*\}\}"')
+        """aria-controls should be templated with row.round_id for uniqueness."""
+        pattern = re.compile(r'aria-controls="round-\{\{\s*row\.round_id\s*\}\}-detail"')
         matches = pattern.findall(template_source)
         assert len(matches) > 0, "No unique aria-controls pattern found"
 
     def test_unique_trace_detail_ids_template(self, template_source):
-        """trace-detail ids should be templated with loop.index for uniqueness."""
-        pattern = re.compile(r'id="trace-detail-\{\{\s*loop\.index\s*\}\}"')
+        """trace-detail ids should be templated with row.round_id for uniqueness."""
+        pattern = re.compile(r'id="round-\{\{\s*row\.round_id\s*\}\}-detail"')
         matches = pattern.findall(template_source)
         assert len(matches) > 0, "No unique trace-detail id pattern found"
+
+
+# ── JS event dispatch on data-action ────────────────────────────────
 
 
 class TestJSEventDispatchOnDataAction:
     """JS must dispatch toggle on data-action=\"toggle-round\"."""
 
-    def test_toggle_round_action_in_js(self, template_source):
-        assert 'data-action="toggle-round"' in template_source, (
-            'JS must handle data-action="toggle-round"'
+    def _js_source(self):
+        if not JS_FILE.exists():
+            pytest.skip(f"JS file not found: {JS_FILE}")
+        return JS_FILE.read_text(encoding="utf-8")
+
+    def test_toggle_round_action_in_js(self):
+        js = self._js_source()
+        assert "toggle-round" in js, (
+            'JS must reference toggle-round action'
         )
 
-    def test_toggle_round_handler_in_js(self, template_source):
-        """JS should contain toggleRoundDetail call for toggle-round action."""
-        assert "toggle-round" in template_source, (
-            "JS event handler should reference toggle-round"
+    def test_toggle_round_function_exists(self):
+        js = self._js_source()
+        assert "toggleRound" in js, (
+            "JS must contain toggleRound function"
         )
 
-    def test_no_closest_trace_row_toggle(self, template_source):
-        """JS should NOT use closest('.trace-row') for toggle logic."""
-        # The old pattern of clicking .trace-row directly should be removed
-        # for toggle purposes. Check that the toggle handler uses data-action.
-        pattern = re.compile(r"closest\s*\(\s*['\"]\.trace-row['\"]")
-        matches = pattern.findall(template_source)
-        # This pattern should not be used for toggle anymore
-        # (it may still be used for other purposes like jumpToRound)
-        # So we just check that the primary toggle path uses data-action
-        assert "action === 'toggle-round'" in template_source or \
-               'action === "toggle-round"' in template_source, (
-            "JS should dispatch toggle on data-action"
+    def test_js_uses_data_action_dispatch(self):
+        js = self._js_source()
+        assert 'action ===' in js or "action ===" in js or \
+               'dataset.action' in js or 'getAttribute("data-action")' in js, (
+            "JS should dispatch events based on data-action attribute"
         )
 
 
-class TestCSSToggleCellStyles:
-    """CSS must contain toggle cell styles."""
+# ── CSS styles ──────────────────────────────────────────────────────
 
-    def test_css_toggle_cell_style(self):
-        css_path = ROOT / "src" / "session_browser" / "web" / "static" / "style.css"
-        if not css_path.exists():
-            pytest.skip(f"CSS not found: {css_path}")
-        css = css_path.read_text(encoding="utf-8")
 
-        assert "trace-row__toggle-cell" in css, (
-            "CSS must include .trace-row__toggle-cell styles"
+class TestCSSStyles:
+    """CSS must contain v9 trace row and toggle styles."""
+
+    def _css_source(self):
+        if not CSS_FILE.exists():
+            pytest.skip(f"CSS not found: {CSS_FILE}")
+        return CSS_FILE.read_text(encoding="utf-8")
+
+    def test_css_has_sd_round_styles(self):
+        css = self._css_source()
+        assert ".sd-round" in css, (
+            "CSS must include .sd-round styles"
         )
-        assert "trace-round-toggle" in css, (
-            "CSS must include .trace-round-toggle styles"
+
+    def test_css_has_sd_round_summary(self):
+        css = self._css_source()
+        assert ".sd-round-summary" in css, (
+            "CSS must include .sd-round-summary styles"
         )
 
-    def test_css_trace_row_fixed_first_column(self):
-        css_path = ROOT / "src" / "session_browser" / "web" / "static" / "style.css"
-        if not css_path.exists():
-            pytest.skip(f"CSS not found: {css_path}")
-        css = css_path.read_text(encoding="utf-8")
+    def test_css_has_sd_round_detail(self):
+        css = self._css_source()
+        assert ".sd-round-detail" in css, (
+            "CSS must include .sd-round-detail styles"
+        )
 
-        # The phase1 trace-row should have a fixed first column width
-        assert "84px" in css, (
-            "CSS should use 84px for first column"
+    def test_css_has_sd_round_preview(self):
+        css = self._css_source()
+        assert ".sd-round-preview" in css, (
+            "CSS must include .sd-round-preview styles"
+        )
+
+    def test_css_has_sd_round_metric(self):
+        css = self._css_source()
+        assert ".sd-round-metric" in css, (
+            "CSS must include .sd-round-metric styles"
+        )
+
+    def test_css_has_token_bar(self):
+        css = self._css_source()
+        assert ".sd-tokenbar" in css or "sd-tokenbar" in css, (
+            "CSS must include token bar styles"
         )

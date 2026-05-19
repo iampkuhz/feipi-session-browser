@@ -1,88 +1,74 @@
-"""Tests for timeline preview user input tag."""
+"""Tests for timeline preview user input (v9).
 
-from __future__ import annotations
+v9 builds preview text in the view model (routes.py):
+- preview_title: from round.preview_text or user_msg.content[:80] (sanitized)
+- preview_subtitle: tool count string
+- User input indication is embedded in preview_title, not a separate tag.
+"""
 
-import pytest
+import os
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROUTES = os.path.join(ROOT, "src", "session_browser", "web", "routes.py")
 
 
-class TestPreviewTagRendersForUserInput:
-    """Verify quote text tag renders when round has user input."""
+def _read_routes():
+    with open(ROUTES) as f:
+        return f.read()
 
-    def test_tag_present_for_user_input(self):
-        with open("src/session_browser/web/templates/session.html") as f:
-            content = f.read()
-        assert "preview-tag--user" in content
-        assert ">User</span>" in content
 
-    def test_tag_condition_checks_user_msg_content(self):
-        with open("src/session_browser/web/templates/session.html") as f:
-            content = f.read()
-        # The tag should be conditional on user_msg.content
-        assert "round.user_msg.content" in content
-        assert "preview-tag--user" in content
+class TestPreviewTextBuiltInViewmodel:
+    """Verify preview text is built from user_msg.content in routes.py."""
 
-    def test_tag_has_descriptive_tooltip(self):
-        with open("src/session_browser/web/templates/session.html") as f:
-            content = f.read()
-        assert "This round includes user input" in content
+    def test_preview_title_uses_user_msg(self):
+        source = _read_routes()
+        assert "user_msg.content" in source
+        assert "preview_title" in source
+
+    def test_preview_title_sanitized(self):
+        """preview_title should sanitize forbidden framework words."""
+        source = _read_routes()
+        # Should replace forbidden words with ***
+        assert "***" in source
+
+    def test_preview_subtitle_shows_tool_count(self):
+        """preview_subtitle should show tool count."""
+        source = _read_routes()
+        assert "preview_subtitle" in source
+        assert "tool" in source.lower()
 
 
 class TestPreviewTagDoesNotLeakUserContent:
-    """Verify user input content is NOT exposed in preview."""
+    """Verify user input content is not directly leaked in templates."""
 
-    def test_tag_tooltip_no_user_content(self):
-        """Tag tooltip should be generic, not contain user content."""
-        with open("src/session_browser/web/templates/session.html") as f:
+    def test_no_direct_user_msg_in_session_template(self):
+        """session.html should not reference user_msg.content directly."""
+        session_html = os.path.join(
+            ROOT, "src", "session_browser", "web", "templates", "session.html"
+        )
+        with open(session_html) as f:
             content = f.read()
-        # The tag tooltip is static text, not dynamic user content
-        assert "preview-tag--user" in content
+        # user_msg.content should not appear directly in the template
+        assert "user_msg.content" not in content, (
+            "Template should not reference user_msg.content directly"
+        )
 
-    def test_preview_tooltip_no_user_content(self):
-        """Preview cell tooltip should only use preview_text, not user_msg.content."""
-        with open("src/session_browser/web/templates/session.html") as f:
+    def test_preview_uses_view_model_vars(self):
+        """Templates should use row.preview_title from view model, not raw content."""
+        timeline = os.path.join(
+            ROOT, "src", "session_browser", "web", "templates",
+            "components", "session_detail_timeline.html"
+        )
+        with open(timeline) as f:
             content = f.read()
-        # The data-tooltip should use preview_text only
-        # Check that preview-cell data-tooltip doesn't reference user_msg.content directly
-        lines = content.split("\n")
-        for line in lines:
-            if "preview-cell" in line and "data-tooltip" in line:
-                assert "user_msg.content" not in line, (
-                    f"Preview cell tooltip should not contain user_msg.content: {line}"
-                )
-
-
-class TestPreviewTagPlacement:
-    """Verify tag appears before preview text."""
-
-    def test_tag_before_text(self):
-        with open("src/session_browser/web/templates/session.html") as f:
-            content = f.read()
-        # The tag should come before the preview_text output in template order
-        tag_pos = content.find("preview-tag--user")
-        preview_pos = content.find("round.preview_text")
-        assert tag_pos > 0, "Preview tag not found"
-        assert preview_pos > 0, "Preview text output not found"
-        # Within the same round block, tag should come before preview_text
-        assert tag_pos < preview_pos, "Preview tag should come before preview_text"
-
-
-class TestPreviewCellNoSafe:
-    """Verify preview cell rendering is safe."""
-
-    def test_preview_safe_filter_usage(self):
-        """preview_text uses | safe because it's pre-sanitized HTML from the normalizer."""
-        with open("src/session_browser/web/templates/session.html") as f:
-            content = f.read()
-        # The template uses | safe on round.preview_text (generated by normalizer, not raw user input)
-        # and also provides a safe fallback via striptags for the description
-        assert "preview_text | striptags" in content, \
-            "Should use striptags for safe description display"
+        assert "row.preview_title" in content, "Should use row.preview_title"
+        assert "row.preview_subtitle" in content, "Should use row.preview_subtitle"
 
 
 class TestPreviewTextTruncation:
-    """Verify preview text truncation is preserved."""
+    """Verify preview text truncation in view model."""
 
-    def test_truncation_at_120_chars(self):
-        with open("src/session_browser/web/templates/session.html") as f:
-            content = f.read()
-        assert "[:80]" in content
+    def test_truncation_in_routes(self):
+        source = _read_routes()
+        # preview_title is truncated to 120 chars
+        assert "[:120]" in source or "[:80]" in source

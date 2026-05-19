@@ -36,9 +36,10 @@
     </script>
 
     {% block head_extra %}{% endblock %}
+    {% block script_extra %}{% endblock %}
 </head>
 <body>
-    <div class="shell{% block shell_class %}{% endblock %}" data-session-detail-shell>
+    <div class="shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
         <!-- Sidebar: grid column 1 -->
         <aside class="sidebar">
             <div class="sidebar-inner">
@@ -162,16 +163,16 @@
         /* ─── Tab switching (session detail) ───────────────────────── */
         window.switchTab = function(tabId) {
             // Bridge: old tab names -> new workbench views
-            var bridgeMap = {
+            var viewBridge = {
                 'timeline': 'trace',
                 'profile': 'calls',
                 'hotspots': 'hotspots',
                 'conversation': 'trace'
             };
-            if (bridgeMap[tabId] !== undefined) {
+            if (viewBridge[tabId] !== undefined) {
                 // If workbench exists, use switchView
                 if (document.querySelector('.wb-body')) {
-                    window.switchView(bridgeMap[tabId]);
+                    window.switchView(viewBridge[tabId]);
                     // Still persist old key for backward compat
                     if (window._sessionId) {
                         arpStorage.set('session_tab_' + window._sessionId, tabId);
@@ -344,7 +345,7 @@
   <div class="payload-modal__panel">
     <header class="payload-modal__header">
       <span class="payload-modal__title" id="payload-modal-title">Payload</span>
-      <div class="payload-modal__tabs" role="tablist">
+      <div class="payload-modal__tabs">
         <button type="button" class="payload-modal__tab active" data-action="payload-mode" data-mode="rendered" role="tab" aria-selected="true">Rendered</button>
         <button type="button" class="payload-modal__tab" data-action="payload-mode" data-mode="raw" role="tab" aria-selected="false">Raw</button>
       </div>

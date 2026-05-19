@@ -208,10 +208,10 @@ class TestPreviewDoesNotRepeatText:
 
 
 class TestTraceRowDOMContract:
-    """Verify session.html template does not render duplicate tool counts."""
+    """Verify v9 template uses component macros for trace rows."""
 
-    def test_template_uses_separate_preview_and_tool_fields(self):
-        """session.html must reference tool_summary_html, not embed tools in preview_text."""
+    def test_template_uses_component_macros(self):
+        """session.html must use sdt.trace_round macro for trace rows."""
         template_path = (
             __file__.rsplit("/", 1)[0]
             .rsplit("tests", 1)[0]
@@ -220,14 +220,17 @@ class TestTraceRowDOMContract:
         with open(template_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Template should use tool_summary_html
-        assert "tool_summary_html" in content, (
-            "Template must reference round.tool_summary_html to render tool chips separately"
+        # v9 uses sdt.trace_round macro which encapsulates preview + detail
+        assert "sdt.trace_round" in content, (
+            "Template must use sdt.trace_round macro for trace rows"
         )
-        # Template should NOT use preview_text with | safe for tool badges anymore
-        # (preview_text | safe was the old pattern that caused duplication)
-        # But we keep the old pattern for backward compat — just check new pattern exists
-        assert "preview_text | default" in content or "preview_text | striptags" in content
+        # v9 passes round object to macro; preview computed in view model
+        assert "for row in trace_rows" in content, (
+            "Template must iterate over trace_rows"
+        )
+        assert "sdt.trace_round(row)" in content, (
+            "Template must call sdt.trace_round(row) for each row"
+        )
 
     def test_normalized_trace_row_text_no_dup(self):
         """Simulated: if preview_text + tool_summary_html were concatenated,

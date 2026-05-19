@@ -249,15 +249,22 @@ def check_hero_title_wrapping(css: str, result: StaticCheckResult):
 
 
 def check_session_shell_class_hook(session_text: str, result: StaticCheckResult):
-    """Check 6: session.html must declare shell_class block with phase1-shell + no-inspector."""
+    """Check 6: session.html must declare shell_class block with appropriate classes.
+
+    Accepts either:
+    - Phase 1: phase1-shell + no-inspector
+    - v9: sd-shell (with session-detail-page or similar)
+    """
     has_block = bool(re.search(r'\{%\s*block\s+shell_class\s*%\}', session_text))
     has_phase1 = "phase1-shell" in session_text
     has_no_inspector = "no-inspector" in session_text
+    has_v9_shell = "sd-shell" in session_text
 
     result.observed["sessionShellClassHook"] = {
         "hasBlock": has_block,
         "hasPhase1Shell": has_phase1,
         "hasNoInspector": has_no_inspector,
+        "hasV9Shell": has_v9_shell,
     }
 
     if not has_block:
@@ -266,15 +273,15 @@ def check_session_shell_class_hook(session_text: str, result: StaticCheckResult)
             "session.html lacks {% block shell_class %} — shell class injection not possible.",
             [
                 "Inspect session.html for {% block shell_class %}.",
-                "Add {% block shell_class %} with phase1-shell no-inspector.",
+                "Add {% block shell_class %} with phase1-shell no-inspector or sd-shell.",
             ],
         )
-    elif not has_phase1 or not has_no_inspector:
+    elif not has_phase1 and not has_v9_shell:
         result.fail(
             "MISSING_SESSION_SHELL_CLASS_HOOK",
-            "session.html shell_class block lacks phase1-shell or no-inspector.",
+            "session.html shell_class block lacks phase1-shell or sd-shell.",
             [
-                "Ensure session.html shell_class includes both phase1-shell and no-inspector.",
+                "Ensure session.html shell_class includes phase1-shell (or sd-shell for v9).",
             ],
         )
 

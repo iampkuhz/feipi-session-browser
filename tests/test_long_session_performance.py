@@ -39,7 +39,7 @@ class TestLongSessionRendering:
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
         assert "data-trace-panel" in html
-        assert "trace-panel__toolbar" in html
+        assert "sd-trace-head" in html
 
     def test_trace_view_present(self, long_session_url):
         """Trace view container must be present."""
@@ -51,8 +51,8 @@ class TestLongSessionRendering:
         """Rendered HTML should contain 100 trace rows for 100 rounds."""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        # Count trace-row divs specifically (not hot cards or data-table rows)
-        count = html.count('class="trace-row"')
+        # Count trace rows using v9 data attribute
+        count = html.count('data-trace-round-row')
         assert count == 100, f"Expected 100 trace rows, found {count}"
 
     def test_no_server_error(self, long_session_url):
@@ -62,24 +62,22 @@ class TestLongSessionRendering:
         assert "<title>Error - Agent Run Profiler</title>" not in html
 
     def test_trace_detail_hidden_by_default(self, long_session_url):
-        """All trace-detail divs should be initially hidden (style=display:none)."""
+        """All trace-detail divs should be initially hidden."""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        # Count trace-detail divs
-        total = html.count('class="trace-detail"')
-        # All should have style="display:none"
-        hidden = html.count('style="display:none"')
+        # Count trace-detail divs using v9 data attribute
+        total = html.count('data-trace-detail')
+        # All should have hidden attribute
+        hidden = html.count('hidden>')
         assert total == 100, f"Expected 100 trace-detail divs, found {total}"
-        # Hidden count should be at least total (other elements may also be hidden)
         assert hidden >= total, f"Only {hidden} of {total} detail divs are hidden"
 
     def test_preview_text_not_full_content(self, long_session_url):
         """Trace rows should use compact preview_text, not full message content."""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        # Each round row should have preview-tool spans or truncated text
-        # The round-main .t div should contain preview content, not full JSONL content
-        assert "preview-tool" in html or "preview-tag" in html, \
+        # Each round row should have preview content
+        assert "sd-round-preview" in html or "sd-round-preview__title" in html, \
             "Trace rows should use compact preview elements"
 
     def test_css_contain_property(self, long_session_url):

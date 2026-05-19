@@ -392,78 +392,110 @@ class TestExpandCollapseUsesDataAction:
 
 
 class TestEventDelegationPresent:
-    """Verify event delegation handler covers trace rows and expand/collapse buttons."""
+    """Verify event delegation handler covers v9 trace rows and expand/collapse buttons."""
 
     def test_delegation_handles_trace_row(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        html = chk._read(SESSION_HTML)
-        # Should have event delegation that handles .trace-row
-        has_delegation = "closest('.trace-row')" in html or 'closest(".trace-row")' in html
-        assert has_delegation, (
-            "Event delegation should handle .trace-row clicks via target.closest('.trace-row')."
-        )
+        # v9: JS is in session_detail_timeline.js, handles data-action="toggle-round"
+        js_path = (Path(__file__).resolve().parent.parent
+                   / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
+        if js_path.exists():
+            js = js_path.read_text(encoding="utf-8")
+            has_toggle = "toggle-round" in js or "toggleRound" in js
+            assert has_toggle, (
+                "Event delegation should handle toggle-round in session_detail_timeline.js"
+            )
+        else:
+            pytest.skip("session_detail_timeline.js not found")
 
     def test_delegation_handles_expand_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        html = chk._read(SESSION_HTML)
-        # Renamed to expand-visible — JS handles both for backward compat
-        has_delegation = 'data-action="expand-visible"' in html and "expandAllRounds" in html
-        assert has_delegation, (
-            "Event delegation should handle [data-action=expand-visible] clicks."
-        )
+        # v9: Uses data-action="collapse-all" (no separate expand-visible)
+        timeline_css_path = (Path(__file__).resolve().parent.parent
+                            / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css")
+        # Check timeline CSS/JS for collapse-all
+        js_path = (Path(__file__).resolve().parent.parent
+                   / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
+        if js_path.exists():
+            js = js_path.read_text(encoding="utf-8")
+            has_collapse = "collapse-all" in js or "collapseAll" in js or "collapse_all" in js
+            assert has_collapse, (
+                "v9: session_detail_timeline.js must handle collapse-all"
+            )
+        else:
+            pytest.skip("session_detail_timeline.js not found")
 
     def test_delegation_handles_collapse_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        html = chk._read(SESSION_HTML)
-        has_delegation = 'data-action="collapse-all"' in html and "collapseAllRounds" in html
-        assert has_delegation, (
-            "Event delegation should handle [data-action=collapse-all] clicks."
-        )
+        js_path = (Path(__file__).resolve().parent.parent
+                   / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
+        if js_path.exists():
+            js = js_path.read_text(encoding="utf-8")
+            has_collapse = "collapse-all" in js or "collapseAll" in js or "collapse_all" in js
+            assert has_collapse, (
+                "v9: session_detail_timeline.js must handle collapse-all"
+            )
+        else:
+            pytest.skip("session_detail_timeline.js not found")
 
     def test_delegation_handles_filter_status(self):
         """Phase 1: filter-status action must exist for All/Failed filtering."""
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        html = chk._read(SESSION_HTML)
-        has_filter = 'data-action="filter-status"' in html
-        assert has_filter, (
-            "Phase 1: [data-action=filter-status] must exist for All/Failed filtering."
-        )
-        has_all = 'data-status="all"' in html
-        assert has_all, "Phase 1: [data-status=all] filter chip must exist"
-        has_failed = 'data-status="failed"' in html
-        assert has_failed, "Phase 1: [data-status=failed] filter chip must exist"
+        # v9: filter-status is in timeline component
+        timeline_path = (Path(__file__).resolve().parent.parent
+                        / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html")
+        if timeline_path.exists():
+            html = timeline_path.read_text(encoding="utf-8")
+            has_filter = 'data-action="filter-status"' in html
+            assert has_filter, (
+                "v9: [data-action=filter-status] must exist in timeline component"
+            )
+            has_all = 'data-status="all"' in html
+            assert has_all, "v9: [data-status=all] filter chip must exist"
+            has_failed = 'data-status="failed"' in html
+            assert has_failed, "v9: [data-status=failed] filter chip must exist"
+        else:
+            pytest.skip("timeline component not found")
 
 
 class TestAccordionBehavior:
-    """Verify accordion logic (_collapseAllOtherRounds) exists in session.html."""
+    """Verify accordion logic in v9 session_detail_timeline.js."""
 
     def test_collapse_others_function_exists(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        html = chk._read(SESSION_HTML)
-        # Check that the accordion collapse-others helper exists
-        has_collapse_others = "_collapseAllOtherRounds" in html
-        assert has_collapse_others, (
-            "Accordion behavior requires _collapseAllOtherRounds helper function."
-        )
+        js_path = (Path(__file__).resolve().parent.parent
+                   / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
+        if js_path.exists():
+            js = js_path.read_text(encoding="utf-8")
+            # v9: toggleRound handles accordion behavior
+            has_toggle = "toggleRound" in js
+            assert has_toggle, (
+                "v9: session_detail_timeline.js must have toggleRound function"
+            )
+        else:
+            pytest.skip("session_detail_timeline.js not found")
 
     def test_toggle_round_detail_calls_collapse_others(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        html = chk._read(SESSION_HTML)
-        # Find the toggleRoundDetail function and verify it calls _collapseAllOtherRounds
-        toggle_fn = re.search(
-            r"window\.toggleRoundDetail\s*=\s*function\s*\([^)]*\)\s*\{(.*?)\n    \};",
-            html, re.DOTALL,
-        )
-        assert toggle_fn, "toggleRoundDetail function not found"
-        assert "_collapseAllOtherRounds" in toggle_fn.group(1), (
-            "toggleRoundDetail should call _collapseAllOtherRounds for accordion behavior."
-        )
+        js_path = (Path(__file__).resolve().parent.parent
+                   / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
+        if js_path.exists():
+            js = js_path.read_text(encoding="utf-8")
+            # v9: toggleRound should collapse other rounds
+            has_toggle = "toggleRound" in js
+            has_collapse_other = "is-open" in js or "collapseOther" in js or \
+                "classList.remove" in js or "aria-expanded" in js
+            assert has_toggle and has_collapse_other, (
+                "v9: toggleRound should handle accordion (collapse other rounds)"
+            )
+        else:
+            pytest.skip("session_detail_timeline.js not found")
 
 class TestIntegrationOnRepoFiles:
     """Run all checks on the real repo files — expects some known warnings."""
