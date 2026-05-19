@@ -857,6 +857,19 @@ def _build_rounds(
             continue
 
         if msg.role == "assistant":
+            # Skip if assistant has no text content — merge tool calls into
+            # the previous round and defer user input to the next meaningful
+            # round. This handles tool-loop follow-ups where the model only
+            # emits tool_use blocks without any visible text.
+            has_content = bool(msg.content and msg.content.strip())
+            if not has_content and msg.tool_calls:
+                # Merge this assistant's tool calls into the last round.
+                if rounds:
+                    _append_tool_calls_to_round(rounds[-1], msg.tool_calls, tool_calls)
+                continue
+            if not has_content:
+                continue
+
             if pending_users:
                 merged_user = _merge_messages(pending_users)
                 pending_users = []
@@ -913,6 +926,19 @@ def _merge_messages(msgs: list[ChatMessage]) -> ChatMessage:
         llm_status=msgs[-1].llm_status,
     )
 
+
+def _append_tool_calls_to_round(
+    round_obj,  # ConversationRound
+    assistant_tool_refs: list[dict],
+    all_tool_calls: list[ToolCall],
+) -> None:
+    """Append tool calls from a skipped (no-text) assistant to an existing round."""
+    matched_ids = {mt.get("id") for mt in assistant_tool_refs if mt.get("id")}
+    for tc in all_tool_calls:
+        if tc.tool_use_id and tc.tool_use_id in matched_ids and tc not in round_obj.tool_calls:
+            round_obj.tool_calls.append(tc)
+            round_obj.llm_call_count += tc.llm_call_count
+            round_obj.llm_error_count += tc.llm_error_count
 
 def _make_round(
     user_msg: ChatMessage,
