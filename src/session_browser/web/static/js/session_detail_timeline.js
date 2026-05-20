@@ -71,7 +71,7 @@
       '  <pre>', escapeHtml(title || "Payload"), '</pre>',
       '</section>',
       '<section class="sd-payload-section payload-section"><h3>Metadata</h3>',
-      '  <div class="sd-kv"><span>payload id</span><span>', escapeHtml(payloadId || "—"), '</span></div>',
+      '  <div class="sd-kv"><span>payload id</span><span title="' + escapeHtml(payloadId || "—") + '">' + escapeHtml(payloadId || "—") + '</span></div>',
       '  <div class="sd-kv"><span>kind</span><span>diagnostic</span></div>',
       '  <div class="sd-kv"><span>status</span><span>missing source</span></div>',
       '</section>'

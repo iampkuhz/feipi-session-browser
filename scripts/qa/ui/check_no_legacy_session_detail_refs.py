@@ -11,7 +11,6 @@ LEGACY = [
     "session-detail-response-blocks-v12.css",
     "session-detail-payload-v16.css",
     "session_detail_timeline_v11.html",
-    "session_detail_timeline_v12.html",
 ]
 
 problems = []

@@ -109,17 +109,17 @@
         {{ sdp.pill(call.model|default('—'), 'model') }}
         {{ sdp.pill(call.status_label|default('OK'), call.status_tone|default('ok')) }}
       </div>
-      <div class="sd-sub-llm-body">
-        <div class="sd-sub-metrics">
+      <div class="sd-sub-llm-content-row">
+        <div class="sd-sub-llm-token-grid">
           {{ sdp.sub_metric_cell('Fresh Input', call.usage.input|default('—')) }}
           {{ sdp.sub_metric_cell('Cache', call.usage.cache_read|default('—')) }}
           {{ sdp.sub_metric_cell('Write', call.usage.cache_write|default('—')) }}
           {{ sdp.sub_metric_cell('Output', call.usage.output|default('—')) }}
         </div>
-        <div class="sd-sub-payload-line">
-          <button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.context_payload_id or call.context_diagnostic_payload_id or '' }}" data-payload-title="{{ call.context_payload_title|default(call.title ~ ' · Context') }}">Context</button>
-          {% if call.note %}<div class="sd-sub-note" title="{{ call.note }}">{{ call.note }}</div>{% endif %}
-          <button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.response_payload_id or call.response_diagnostic_payload_id or '' }}" data-payload-title="{{ call.response_payload_title|default(call.title ~ ' · Response') }}">Response</button>
+        {% if call.note %}<div class="sd-sub-note" title="{{ call.note }}">{{ call.note }}</div>{% endif %}
+        <div class="sd-sub-llm-action-group">
+          <button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.context_payload_id or call.context_diagnostic_payload_id or '' }}" data-payload-title="{{ call.context_payload_title|default(call.title ~ ' · Context') }}" data-payload-kind="context">Context</button>
+          <button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.response_payload_id or call.response_diagnostic_payload_id or '' }}" data-payload-title="{{ call.response_payload_title|default(call.title ~ ' · Response') }}" data-payload-kind="response">Response</button>
         </div>
       </div>
     </div>
@@ -133,17 +133,17 @@
           {% if call.lane %}{{ sdp.pill(call.lane, 'main') }}{% endif %}
           {{ sdp.pill(call.status_label|default('OK'), call.status_tone|default('ok')) }}
         </div>
-        <div class="sd-llm-body">
-          <div class="sd-metrics">
+        <div class="sd-llm-content-row">
+          <div class="sd-llm-token-grid">
             {{ sdp.metric_cell('Fresh Input', call.usage.input|default('—')) }}
             {{ sdp.metric_cell('Cache Read', call.usage.cache_read|default('—')) }}
             {{ sdp.metric_cell('Cache Write', call.usage.cache_write|default('—')) }}
             {{ sdp.metric_cell('Output', call.usage.output|default('—')) }}
           </div>
-          <div class="sd-payload-line">
-            {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id or call.context_diagnostic_payload_id or '', attrs='data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '"') }}
-            {% if call.note %}{{ sdp.note(call.note, call.note_tone|default('warn')) }}{% endif %}
-            {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id or call.response_diagnostic_payload_id or '', attrs='data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
+          {% if call.note %}{{ sdp.note(call.note, call.note_tone|default('warn')) }}{% endif %}
+          <div class="sd-llm-action-group">
+            {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id or call.context_diagnostic_payload_id or '', attrs='data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '" data-payload-kind="context"') }}
+            {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id or call.response_diagnostic_payload_id or '', attrs='data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '" data-payload-kind="response"') }}
           </div>
         </div>
       </section>
@@ -302,12 +302,12 @@
         <div class="sd-payload-shell">
           <aside class="sd-payload-meta">
             <h3>Metadata</h3>
-            <div class="sd-kv"><span>payload id</span><span data-meta-id>—</span></div>
-            <div class="sd-kv"><span>kind</span><span data-meta-kind>—</span></div>
-            <div class="sd-kv"><span>status</span><span data-meta-status>—</span></div>
-            <div class="sd-kv"><span>size</span><span data-meta-size>—</span></div>
-            <div class="sd-kv"><span>finish</span><span data-meta-finish>—</span></div>
-            <div class="sd-kv"><span>timestamp</span><span data-meta-ts>—</span></div>
+            <div class="sd-kv"><span>payload id</span><span data-meta-id title="—">—</span></div>
+            <div class="sd-kv"><span>kind</span><span data-meta-kind title="—">—</span></div>
+            <div class="sd-kv"><span>status</span><span data-meta-status title="—">—</span></div>
+            <div class="sd-kv"><span>size</span><span data-meta-size title="—">—</span></div>
+            <div class="sd-kv"><span>finish</span><span data-meta-finish title="—">—</span></div>
+            <div class="sd-kv"><span>timestamp</span><span data-meta-ts title="—">—</span></div>
             <div class="sd-kv"><span>source</span><span>template</span></div>
           </aside>
           <main class="sd-payload-main" data-payload-body>

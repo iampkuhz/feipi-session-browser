@@ -463,18 +463,96 @@
   color: var(--sd-text);
 }
 
+/* ── backward-compat aliases for v9/v10 contract tests ── */
 .sd-llm-body {
-  display: grid;
-  grid-template-columns: 420px minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px 10px;
-  align-items: start;
+  /* Alias for .sd-llm-content-row (v9/v10 class name) */
 }
 
 .sd-metrics {
+  /* Alias: in v9/v10 this wraps metric cells; in v17+ metrics use .sd-llm-token-grid + .sd-mcell */
+}
+
+/* ── v18: LLM call card 3-column layout (metrics | note | actions) ── */
+
+.sd-llm-content-row {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(0, .9fr) auto;
+  gap: 10px;
+  padding: 10px 10px;
+  align-items: center;
+}
+
+.sd-llm-token-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(76px, 1fr));
   gap: 6px;
+  min-width: 0;
+}
+
+.sd-llm-action-group {
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+.sd-llm-action-group .sd-btn {
+  min-width: 86px;
+  max-width: 132px;
+  width: auto;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+
+.sd-llm-action-group .sd-btn[data-payload-kind="response"] {
+  min-width: 96px;
+  max-width: 132px;
+}
+
+/* Note inside LLM content row: keep existing styles, add overflow handling */
+.sd-llm-content-row .sd-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── sub-LLM 3-column variant ── */
+
+.sd-sub-llm-content-row {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(0, .8fr) auto;
+  gap: 8px;
+  padding: 8px 10px;
+  align-items: center;
+}
+
+.sd-sub-llm-token-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(64px, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.sd-sub-llm-action-group {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+.sd-sub-llm-action-group .sd-sub-pbtn {
+  min-width: 76px;
+  max-width: 120px;
+  white-space: nowrap;
+}
+
+.sd-sub-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--sd-muted);
+  white-space: nowrap;
 }
 
 .sd-mcell {
@@ -718,7 +796,16 @@
 }
 
 @media (max-width: 1360px) {
-  .sd-llm-body { grid-template-columns: 1fr; }
+  .sd-llm-content-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .sd-llm-content-row .sd-llm-action-group {
+    justify-content: flex-start;
+  }
+  .sd-sub-llm-content-row {
+    grid-template-columns: 1fr;
+  }
   .sd-round-detail { padding-left: 54px; }
   .sd-tool-row { grid-template-columns: 58px minmax(260px, 1fr) 140px 74px 78px; }
 }
@@ -771,7 +858,39 @@
   grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
 }
 
-.session-detail-page .sd-round-preview,
+/* ── v18: user-message round green/teal highlight (collapsed + expanded) ── */
+
+/* Collapsed user round: subtle green/teal background. */
+.session-detail-page .sd-user-round .sd-round-summary,
+.sd-page .sd-user-round .sd-round-summary,
+.sd-shell .sd-user-round .sd-round-summary {
+  background: linear-gradient(90deg, rgba(20, 184, 166, .05), #fff);
+}
+
+/* Expanded user round: stronger teal gradient + left accent border. */
+.session-detail-page .sd-user-round.is-open .sd-round-summary,
+.sd-page .sd-user-round.is-open .sd-round-summary,
+.sd-shell .sd-user-round.is-open .sd-round-summary {
+  background: linear-gradient(90deg, rgba(20, 184, 166, .11), rgba(255, 255, 255, .98));
+  border-left: 4px solid #14b8a6;
+}
+
+/* Expanded user round row: teal left border on the article itself. */
+.session-detail-page .sd-user-round.is-open,
+.sd-page .sd-user-round.is-open,
+.sd-shell .sd-user-round.is-open {
+  border-left: 4px solid #14b8a6;
+}
+
+/* Expanded inner User Message card: retain user-input teal tone. */
+.session-detail-page .sd-user-round.is-open .sd-user-card,
+.sd-page .sd-user-round.is-open .sd-user-card,
+.sd-shell .sd-user-round.is-open .sd-user-card {
+  border-color: #99f6e4;
+  background: linear-gradient(180deg, #f0fdfa, #fff);
+}
+
+.session-detail-page .sd-user-round .sd-round-preview,
 .session-detail-page .sd-round-preview__title,
 .session-detail-page .sd-round-preview__sub,
 .sd-page .sd-round-preview,
@@ -1012,8 +1131,8 @@
 .sd-shell .sd-payload-shell,
 .sd-shell .payload-shell {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 14px;
   align-items: start;
 }
 
@@ -1067,6 +1186,79 @@
   border-bottom: 1px solid var(--sd-line-soft);
   background: #fbfcff;
   font-size: 12px;
+}
+
+/* 5b) Payload metadata key/value grid rail. */
+.session-detail-page .sd-kv,
+.session-detail-page .payload-kv,
+.session-detail-page .sd-payload-meta__row,
+.session-detail-page .payload-meta__row,
+.sd-page .sd-kv,
+.sd-page .payload-kv,
+.sd-page .sd-payload-meta__row,
+.sd-page .payload-meta__row,
+.sd-shell .sd-kv,
+.sd-shell .payload-kv,
+.sd-shell .sd-payload-meta__row,
+.sd-shell .payload-meta__row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  margin: 0;
+}
+
+.session-detail-page .sd-kv > span,
+.session-detail-page .payload-kv > span,
+.session-detail-page .sd-payload-meta__row > span,
+.session-detail-page .payload-meta__row > span,
+.sd-page .sd-kv > span,
+.sd-page .payload-kv > span,
+.sd-page .sd-payload-meta__row > span,
+.sd-page .payload-meta__row > span,
+.sd-shell .sd-kv > span,
+.sd-shell .payload-kv > span,
+.sd-shell .sd-payload-meta__row > span,
+.sd-shell .payload-meta__row > span {
+  min-width: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sd-line-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.session-detail-page .sd-kv > span:first-child,
+.session-detail-page .payload-kv > span:first-child,
+.session-detail-page .sd-payload-meta__row > span:first-child,
+.session-detail-page .payload-meta__row > span:first-child,
+.sd-page .sd-kv > span:first-child,
+.sd-page .payload-kv > span:first-child,
+.sd-page .sd-payload-meta__row > span:first-child,
+.sd-page .payload-meta__row > span:first-child,
+.sd-shell .sd-kv > span:first-child,
+.sd-shell .payload-kv > span:first-child,
+.sd-shell .sd-payload-meta__row > span:first-child,
+.sd-shell .payload-meta__row > span:first-child {
+  color: var(--sd-muted);
+  background: #fbfcff;
+  font-family: var(--sd-mono);
+  font-weight: 700;
+}
+
+.session-detail-page .sd-kv > span:last-child,
+.session-detail-page .payload-kv > span:last-child,
+.session-detail-page .sd-payload-meta__row > span:last-child,
+.session-detail-page .payload-meta__row > span:last-child,
+.sd-page .sd-kv > span:last-child,
+.sd-page .payload-kv > span:last-child,
+.sd-page .sd-payload-meta__row > span:last-child,
+.sd-page .payload-meta__row > span:last-child,
+.sd-shell .sd-kv > span:last-child,
+.sd-shell .payload-kv > span:last-child,
+.sd-shell .sd-payload-meta__row > span:last-child,
+.sd-shell .payload-meta__row > span:last-child {
+  color: var(--sd-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session-detail-page .sd-payload-main,
