@@ -1,0 +1,166 @@
+
+/* Session Detail v18 polish patch.
+   Merge into canonical src/session_browser/web/static/css/session-detail-timeline.css.
+   Do not import this as a permanent extra stylesheet.
+*/
+
+/* A. user-message round keeps teal/green tone in collapsed and expanded states */
+.session-detail-page .sd-round--has-user .sd-round-summary,
+.session-detail-page .sd-round--has-user.is-open .sd-round-summary,
+.session-detail-page .sd-round--has-user[open] .sd-round-summary,
+.session-detail-page .sd-round[data-has-user="true"] .sd-round-summary,
+.session-detail-page .sd-round[data-has-user="true"].is-open .sd-round-summary,
+.session-detail-page .sd-round[data-has-user="true"][open] .sd-round-summary,
+.session-detail-page .sd-user-round .sd-round-summary,
+.session-detail-page .sd-user-round.is-open .sd-round-summary,
+.session-detail-page .sd-user-round[open] .sd-round-summary {
+  background: linear-gradient(90deg, rgba(20, 184, 166, .11), rgba(255,255,255,.98));
+  border-left: 4px solid #14b8a6;
+}
+.session-detail-page .sd-user-message,
+.session-detail-page .sd-user-message-card,
+.session-detail-page .sd-span--user,
+.session-detail-page .sd-node--user {
+  border-color: #99f6e4;
+  background: linear-gradient(180deg, #f0fdfa, #fff);
+}
+
+/* B. payload modal metadata rail: structured key/value grid */
+.session-detail-page .sd-payload-shell,
+.session-detail-page .payload-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.session-detail-page .sd-payload-meta,
+.session-detail-page .payload-meta {
+  min-width: 0;
+  border: 1px solid var(--sd-line, #d9e2ef);
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+.session-detail-page .sd-payload-meta h3,
+.session-detail-page .payload-meta h3 {
+  min-height: 36px;
+  margin: 0;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--sd-line-soft, #e8eef6);
+  background: #fbfcff;
+  font-size: 12px;
+  font-weight: 850;
+}
+.session-detail-page .sd-kv,
+.session-detail-page .payload-kv,
+.session-detail-page .sd-payload-meta__row,
+.session-detail-page .payload-meta__row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  margin: 0;
+}
+.session-detail-page .sd-kv > span,
+.session-detail-page .payload-kv > span,
+.session-detail-page .sd-payload-meta__row > span,
+.session-detail-page .payload-meta__row > span {
+  min-width: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sd-line-soft, #e8eef6);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.session-detail-page .sd-kv > span:first-child,
+.session-detail-page .payload-kv > span:first-child,
+.session-detail-page .sd-payload-meta__row > span:first-child,
+.session-detail-page .payload-meta__row > span:first-child {
+  color: var(--sd-muted, #64748b);
+  background: #fbfcff;
+  font-family: var(--sd-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
+  font-weight: 700;
+}
+.session-detail-page .sd-kv > span:last-child,
+.session-detail-page .payload-kv > span:last-child,
+.session-detail-page .sd-payload-meta__row > span:last-child,
+.session-detail-page .payload-meta__row > span:last-child {
+  color: var(--sd-text-2, #334155);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* C. LLM Call card: compact action buttons, no stretched Response */
+.session-detail-page .sd-llm-card,
+.session-detail-page .sd-llm-call,
+.session-detail-page .sd-llm-call-card {
+  min-width: 0;
+}
+.session-detail-page .sd-llm-content-row {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(0, .9fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+.session-detail-page .sd-llm-token-grid,
+.session-detail-page .sd-llm-metrics {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(92px, 1fr));
+  gap: 8px;
+}
+.session-detail-page .sd-llm-action-group,
+.session-detail-page .sd-llm-buttons,
+.session-detail-page .sd-payload-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: max-content;
+}
+.session-detail-page .sd-llm-action-group .sd-btn,
+.session-detail-page .sd-llm-buttons .sd-btn,
+.session-detail-page .sd-payload-actions .sd-btn,
+.session-detail-page .sd-llm-call-actions .sd-btn,
+.session-detail-page .sd-llm-call-actions button {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 86px;
+  max-width: 132px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+.session-detail-page .sd-llm-call-actions [data-payload-kind="response"],
+.session-detail-page .sd-llm-call-actions [data-payload-type="response"],
+.session-detail-page .sd-btn--response {
+  min-width: 96px;
+  max-width: 132px;
+}
+.session-detail-page .sd-note,
+.session-detail-page .sd-llm-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 1180px) {
+  .session-detail-page .sd-payload-shell,
+  .session-detail-page .payload-shell {
+    grid-template-columns: 1fr;
+  }
+  .session-detail-page .sd-llm-content-row,
+  .session-detail-page .sd-llm-call-actions {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .session-detail-page .sd-llm-action-group,
+  .session-detail-page .sd-llm-buttons,
+  .session-detail-page .sd-payload-actions {
+    justify-content: flex-start;
+  }
+  .session-detail-page .sd-llm-token-grid,
+  .session-detail-page .sd-llm-metrics {
+    grid-template-columns: repeat(2, minmax(92px, 1fr));
+  }
+}
