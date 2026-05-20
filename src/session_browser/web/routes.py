@@ -1096,6 +1096,7 @@ def _build_llm_calls(
             response_payload_missing_reason="current session data source does not persist raw HTTP response",
             finish_reason=msg.stop_reason,
             tool_calls_raw=json.dumps(msg.tool_calls, ensure_ascii=False) if msg.tool_calls else "",
+            content_blocks=msg.content_blocks,
         )
         main_calls_in_round.setdefault(r_idx, []).append(llm_call)
         llm_calls.append(llm_call)
@@ -1155,6 +1156,7 @@ def _build_llm_calls(
                 response_payload_missing_reason="current session data source does not persist raw HTTP response",
                 finish_reason=msg.stop_reason,
                 tool_calls_raw=json.dumps(msg.tool_calls, ensure_ascii=False) if msg.tool_calls else "",
+                content_blocks=msg.content_blocks,
             ))
 
     return llm_calls
@@ -2082,69 +2084,144 @@ def _format_num_short(n: int) -> str:
     return str(n)
 
 
-def _render_response_content_blocks(response_text: str, tool_calls: list, max_blocks: int = 20) -> str:
+def _render_response_content_blocks(content_blocks: list[dict] = None,
+                                     response_text: str = "",
+                                     tool_calls: list = None,
+                                     max_blocks: int = 20) -> str:
     """Generate HTML content blocks for a response payload.
 
-    When an LLM response contains both text and tool_use blocks, render them
-    as ordered content blocks instead of a single string. This prevents
-    tool_use from being lost in the modal view.
+    Renders all API-level content block types (text, thinking, tool_use)
+    in their original interleaved order. Falls back to legacy
+    response_text + tool_calls when content_blocks is unavailable.
     """
     blocks = []
     block_index = 0
 
-    # Block 1: text content (if present)
-    if response_text and response_text.strip():
-        block_index += 1
-        char_count = len(response_text.encode("utf-8"))
-        preview = response_text[:500]
-        blocks.append(
-            f'<article class="sd-content-block sd-content-block--text">'
-            f'<div class="sd-block-head">'
-            f'<span class="sd-block-index">#{block_index}</span>'
-            f'<span class="sd-block-title">text</span>'
-            f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
-            f'</div>'
-            f'<div class="sd-block-body">{_html_escape(preview)}</div>'
-            f'</article>'
-        )
-
-    # Subsequent blocks: tool_use entries
-    if tool_calls:
-        for tc in tool_calls:
+    if content_blocks:
+        # New path: render structured blocks in original order
+        for block in content_blocks:
             if block_index >= max_blocks:
                 break
+            block_type = block.get("type", "")
             block_index += 1
-            tool_id = getattr(tc, "tool_use_id", "")[:12] or ""
-            tool_name = getattr(tc, "name", "unknown")
-            params = getattr(tc, "parameters", {}) or {}
 
-            # Build key input grid
-            grid_rows = []
-            grid_rows.append(f'<div class="key">name</div><div>{_html_escape(tool_name)}</div>')
-            if params.get("file_path"):
-                grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(str(params["file_path"]))}</div>')
-            if params.get("command"):
-                grid_rows.append(f'<div class="key">command</div><div>{_html_escape(str(params["command"])[:200])}</div>')
+            if block_type == "text":
+                content = block.get("content", "")
+                if not content or not content.strip():
+                    block_index -= 1
+                    continue
+                char_count = len(content.encode("utf-8"))
+                preview = content[:500]
+                blocks.append(
+                    f'<article class="sd-content-block sd-content-block--text">'
+                    f'<div class="sd-block-head">'
+                    f'<span class="sd-block-index">#{block_index}</span>'
+                    f'<span class="sd-block-title">text</span>'
+                    f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                    f'</div>'
+                    f'<div class="sd-block-body">{_html_escape(preview)}</div>'
+                    f'</article>'
+                )
 
-            # Raw JSON
-            try:
-                raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
-            except Exception:
-                raw_json = "{}"
+            elif block_type == "thinking":
+                content = block.get("content", "")
+                if not content or not content.strip():
+                    block_index -= 1
+                    continue
+                char_count = len(content.encode("utf-8"))
+                preview = content[:500]
+                blocks.append(
+                    f'<article class="sd-content-block sd-content-block--thinking">'
+                    f'<div class="sd-block-head">'
+                    f'<span class="sd-block-index">#{block_index}</span>'
+                    f'<span class="sd-block-title">thinking</span>'
+                    f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                    f'</div>'
+                    f'<div class="sd-block-body">{_html_escape(preview)}</div>'
+                    f'</article>'
+                )
 
+            elif block_type == "tool_use":
+                tool_id = (block.get("id", "") or "")[:12]
+                tool_name = block.get("name", "unknown")
+                params = block.get("parameters", {}) or {}
+
+                grid_rows = []
+                grid_rows.append(f'<div class="key">name</div><div>{_html_escape(tool_name)}</div>')
+                if params.get("file_path"):
+                    grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(str(params["file_path"]))}</div>')
+                if params.get("command"):
+                    grid_rows.append(f'<div class="key">command</div><div>{_html_escape(str(params["command"])[:200])}</div>')
+
+                try:
+                    raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
+                except Exception:
+                    raw_json = "{}"
+
+                blocks.append(
+                    f'<article class="sd-content-block sd-content-block--tool">'
+                    f'<div class="sd-block-head">'
+                    f'<span class="sd-block-index">#{block_index}</span>'
+                    f'<span class="sd-block-title">tool_use · {_html_escape(tool_name)}</span>'
+                    f'<span class="sd-block-meta">{_html_escape(tool_id)}</span>'
+                    f'</div>'
+                    f'<div class="sd-block-body">'
+                    f'<div class="sd-tool-input-grid">{"".join(grid_rows)}</div>'
+                    f'<div class="sd-json-inline">{_html_escape(raw_json)}</div>'
+                    f'</div>'
+                    f'</article>'
+                )
+    else:
+        # Legacy fallback: text then tool_uses (no interleaving)
+        if response_text and response_text.strip():
+            block_index += 1
+            char_count = len(response_text.encode("utf-8"))
+            preview = response_text[:500]
             blocks.append(
-                f'<article class="sd-content-block sd-content-block--tool">'
+                f'<article class="sd-content-block sd-content-block--text">'
                 f'<div class="sd-block-head">'
                 f'<span class="sd-block-index">#{block_index}</span>'
-                f'<span class="sd-block-title">tool_use · {_html_escape(tool_name)}</span>'
-                f'<span class="sd-block-meta">{_html_escape(tool_id)}</span>'
+                f'<span class="sd-block-title">text</span>'
+                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
                 f'</div>'
-                f'<div class="sd-block-body">'
-                f'<div class="sd-tool-input-grid">{"".join(grid_rows)}</div>'
-                f'<div class="sd-json-inline">{_html_escape(raw_json)}</div>'
-                f'</div>'
+                f'<div class="sd-block-body">{_html_escape(preview)}</div>'
                 f'</article>'
             )
+
+        if tool_calls:
+            for tc in tool_calls:
+                if block_index >= max_blocks:
+                    break
+                block_index += 1
+                tool_id = getattr(tc, "tool_use_id", "")[:12] or ""
+                tool_name = getattr(tc, "name", "unknown")
+                params = getattr(tc, "parameters", {}) or {}
+
+                grid_rows = []
+                grid_rows.append(f'<div class="key">name</div><div>{_html_escape(tool_name)}</div>')
+                if params.get("file_path"):
+                    grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(str(params["file_path"]))}</div>')
+                if params.get("command"):
+                    grid_rows.append(f'<div class="key">command</div><div>{_html_escape(str(params["command"])[:200])}</div>')
+
+                try:
+                    raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
+                except Exception:
+                    raw_json = "{}"
+
+                blocks.append(
+                    f'<article class="sd-content-block sd-content-block--tool">'
+                    f'<div class="sd-block-head">'
+                    f'<span class="sd-block-index">#{block_index}</span>'
+                    f'<span class="sd-block-title">tool_use · {_html_escape(tool_name)}</span>'
+                    f'<span class="sd-block-meta">{_html_escape(tool_id)}</span>'
+                    f'</div>'
+                    f'<div class="sd-block-body">'
+                    f'<div class="sd-tool-input-grid">{"".join(grid_rows)}</div>'
+                    f'<div class="sd-json-inline">{_html_escape(raw_json)}</div>'
+                    f'</div>'
+                    f'</article>'
+                )
 
     if not blocks:
         return '<div class="sd-payload-warning">Response 内容为空</div>'
@@ -2475,7 +2552,7 @@ def _build_v11_view_model(
                     )
 
                 # Register response payload for subagent LLM call (always created)
-                if m.content:
+                if m.content or m.content_blocks:
                     # Generate content blocks for subagent response
                     sa_tool_calls = []
                     for tc_ref in (m.tool_calls or []):
@@ -2487,8 +2564,47 @@ def _build_v11_view_model(
                                 self.tool_use_id = d.get("id", "")
                                 self.subagent_id = ""
                         sa_tool_calls.append(_FakeTC(tc_ref))
-                    sa_blocks_html = _render_response_content_blocks(m.content[:5000], sa_tool_calls)
-                    block_count = 1 + len(sa_tool_calls) if m.content and m.content.strip() else len(sa_tool_calls)
+                    sa_blocks_html = _render_response_content_blocks(
+                        content_blocks=m.content_blocks if m.content_blocks else None,
+                        response_text=m.content[:5000] if not m.content_blocks else "",
+                        tool_calls=sa_tool_calls if not m.content_blocks else [],
+                    )
+
+                    # Build structured response blocks
+                    sa_rsp_blocks = []
+                    if m.content_blocks:
+                        for cb in m.content_blocks:
+                            cb_type = cb.get("type", "")
+                            if cb_type == "text":
+                                sa_rsp_blocks.append({
+                                    "type": "text",
+                                    "size_label": _format_bytes(min(len(cb.get("content", "")), 10000)),
+                                })
+                            elif cb_type == "thinking":
+                                sa_rsp_blocks.append({
+                                    "type": "thinking",
+                                    "size_label": _format_bytes(min(len(cb.get("content", "")), 10000)),
+                                })
+                            elif cb_type == "tool_use":
+                                sa_rsp_blocks.append({
+                                    "type": "tool_use",
+                                    "name": cb.get("name", "unknown")[:40],
+                                    "tool_id": cb.get("id", "") or "",
+                                })
+                    else:
+                        if m.content and m.content.strip():
+                            sa_rsp_blocks.append({
+                                "type": "text",
+                                "size_label": _format_bytes(min(len(m.content), 10000)),
+                            })
+                        for tc in sa_tool_calls:
+                            sa_rsp_blocks.append({
+                                "type": "tool_use",
+                                "name": getattr(tc, "name", "unknown")[:40],
+                                "tool_id": getattr(tc, "tool_use_id", "") or "",
+                            })
+
+                    block_count = len(sa_rsp_blocks) if sa_rsp_blocks else 1
                     sa_size_label = f"{block_count} content block{'s' if block_count != 1 else ''}"
                     add_payload(
                         payload_id=rsp_payload_id,
@@ -2496,6 +2612,7 @@ def _build_v11_view_model(
                         title=f"Subagent · Response ({call_ref})",
                         html=sa_blocks_html,
                         size=sa_size_label,
+                        response_blocks=sa_rsp_blocks,
                         source_status="raw",
                     )
                 else:
@@ -2838,32 +2955,64 @@ def _build_v11_view_model(
             # Contract: text blocks + tool_use/tool command blocks + diagnostics
             response_payload_id = f"llm-R{rid}-IX{iix}-output"
 
-            if ix.response_full:
+            if ix.response_full or ix.content_blocks:
                 rsp_source_status = "raw"
                 ix_tool_calls_for_response = ix_tool_calls_for_llm
-                content_blocks_html = _render_response_content_blocks(ix.response_full, ix_tool_calls_for_response)
-                block_count = 1 + len(ix_tool_calls_for_response) if ix.response_full and ix.response_full.strip() else len(ix_tool_calls_for_response)
-                size_label = f"{block_count} content block{'s' if block_count != 1 else ''}"
+                content_blocks_html = _render_response_content_blocks(
+                    content_blocks=ix.content_blocks,
+                    response_text=ix.response_full if not ix.content_blocks else "",
+                    tool_calls=ix_tool_calls_for_response if not ix.content_blocks else [],
+                )
 
-                # Build structured response blocks
+                # Build structured response blocks from content_blocks (preferred) or fallback
                 rsp_blocks = []
-                if ix.response_full and ix.response_full.strip():
-                    rsp_blocks.append({
-                        "type": "text",
-                        "size_label": _format_bytes(min(len(ix.response_full), 10000)),
-                    })
-                for tc in ix_tool_calls_for_response:
-                    tc_params = getattr(tc, "parameters", {}) or {}
-                    tc_command = (tc_params.get("command", "")
-                                  or tc_params.get("file_path", "")
-                                  or tc_params.get("path", "")
-                                  or getattr(tc, "name", "tool"))[:100]
-                    rsp_blocks.append({
-                        "type": "tool_use",
-                        "name": getattr(tc, "name", "unknown")[:40],
-                        "tool_id": getattr(tc, "tool_use_id", "") or "",
-                        "command": tc_command,
-                    })
+                if ix.content_blocks:
+                    for cb in ix.content_blocks:
+                        cb_type = cb.get("type", "")
+                        if cb_type == "text":
+                            rsp_blocks.append({
+                                "type": "text",
+                                "size_label": _format_bytes(min(len(cb.get("content", "")), 10000)),
+                            })
+                        elif cb_type == "thinking":
+                            rsp_blocks.append({
+                                "type": "thinking",
+                                "size_label": _format_bytes(min(len(cb.get("content", "")), 10000)),
+                            })
+                        elif cb_type == "tool_use":
+                            tc_params = cb.get("parameters", {}) or {}
+                            tc_command = (tc_params.get("command", "")
+                                          or tc_params.get("file_path", "")
+                                          or tc_params.get("path", "")
+                                          or cb.get("name", "tool"))[:100]
+                            rsp_blocks.append({
+                                "type": "tool_use",
+                                "name": cb.get("name", "unknown")[:40],
+                                "tool_id": cb.get("id", "") or "",
+                                "command": tc_command,
+                            })
+                else:
+                    # Fallback to legacy response_text + tool_calls
+                    if ix.response_full and ix.response_full.strip():
+                        rsp_blocks.append({
+                            "type": "text",
+                            "size_label": _format_bytes(min(len(ix.response_full), 10000)),
+                        })
+                    for tc in ix_tool_calls_for_response:
+                        tc_params = getattr(tc, "parameters", {}) or {}
+                        tc_command = (tc_params.get("command", "")
+                                      or tc_params.get("file_path", "")
+                                      or tc_params.get("path", "")
+                                      or getattr(tc, "name", "tool"))[:100]
+                        rsp_blocks.append({
+                            "type": "tool_use",
+                            "name": getattr(tc, "name", "unknown")[:40],
+                            "tool_id": getattr(tc, "tool_use_id", "") or "",
+                            "command": tc_command,
+                        })
+
+                block_count = len(rsp_blocks) if rsp_blocks else 1
+                size_label = f"{block_count} content block{'s' if block_count != 1 else ''}"
 
                 rsp_diagnostic = ""
                 finish_r = getattr(ix, "finish_reason", "") or getattr(ix, "status", "unknown")
@@ -3402,7 +3551,7 @@ def _build_v9_view_model(
                     "output": _format_num_short(usage_out) if usage_out else "—",
                 },
                 "context_payload_id": f"llm-R{rid}-IX{iix}-context" if ix.request_full else "",
-                "response_payload_id": f"llm-R{rid}-IX{iix}-output" if ix.response_full else "",
+                "response_payload_id": f"llm-R{rid}-IX{iix}-output" if (ix.response_full or ix.content_blocks) else "",
                 "note": "",
             }
             items.append(llm_item)

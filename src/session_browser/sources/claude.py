@@ -125,8 +125,10 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
 def _assistant_records(events: list[dict]) -> list[dict]:
     """Merge assistant fragments by message id.
 
-    Returns records with: id, timestamp, model, text_parts, tool_calls, usage,
-    and raw row count. This record is the parser's LLM-call-level view.
+    Returns records with: id, timestamp, model, text_parts, tool_calls,
+    content_blocks, usage, and raw row count. content_blocks preserves
+    the original interleaved order of all API-level block types
+    (text, thinking, tool_use).
     """
     records: dict[str, dict] = {}
     order: list[str] = []
@@ -146,6 +148,7 @@ def _assistant_records(events: list[dict]) -> list[dict]:
                 "model": msg.get("model", ""),
                 "text_parts": [],
                 "tool_calls": [],
+                "content_blocks": [],
                 "usage_rows": [],
                 "stop_reason": "",
                 "row_count": 0,
@@ -170,16 +173,30 @@ def _assistant_records(events: list[dict]) -> list[dict]:
             for item in content:
                 if not isinstance(item, dict):
                     continue
-                if item.get("type") == "text":
+                item_type = item.get("type", "")
+                if item_type == "text":
                     text = item.get("text", "")
                     if text:
                         rec["text_parts"].append(text)
-                elif item.get("type") == "tool_use":
+                    rec["content_blocks"].append({"type": "text", "content": text})
+                elif item_type == "thinking":
+                    thinking = item.get("thinking", "")
+                    if thinking:
+                        rec["text_parts"].append(thinking)
+                    rec["content_blocks"].append({"type": "thinking", "content": thinking})
+                elif item_type == "tool_use":
+                    tool_block = {
+                        "type": "tool_use",
+                        "id": item.get("id", ""),
+                        "name": item.get("name", ""),
+                        "parameters": item.get("input", {}),
+                    }
                     rec["tool_calls"].append({
                         "id": item.get("id", ""),
                         "name": item.get("name", ""),
                         "parameters": item.get("input", {}),
                     })
+                    rec["content_blocks"].append(tool_block)
 
     merged_records = []
     for key in order:
@@ -647,9 +664,10 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
             rec = assistant_by_id.get(key, {})
             text_parts = rec.get("text_parts", [])
             tool_calls = rec.get("tool_calls", [])
+            content_blocks = rec.get("content_blocks", [])
             usage = rec.get("usage", {})
             model = rec.get("model", "")
-            if text_parts or tool_calls:
+            if text_parts or tool_calls or content_blocks:
                 token_bd = normalize_tokens(usage, model=model) if usage else None
 
                 request_full = "\n\n".join(p for p in pending_request_parts if p)
@@ -666,6 +684,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                     llm_call_id=rec.get("id", ""),
                     request_full=request_full,
                     stop_reason=rec.get("stop_reason", ""),
+                    content_blocks=content_blocks,
                 ))
 
     return messages

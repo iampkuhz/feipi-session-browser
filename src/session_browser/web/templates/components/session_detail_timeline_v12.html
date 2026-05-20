@@ -111,7 +111,7 @@
       </div>
       <div class="sd-sub-llm-body">
         <div class="sd-sub-metrics">
-          {{ sdp.sub_metric_cell('Input', call.usage.input|default('—')) }}
+          {{ sdp.sub_metric_cell('Fresh Input', call.usage.input|default('—')) }}
           {{ sdp.sub_metric_cell('Cache', call.usage.cache_read|default('—')) }}
           {{ sdp.sub_metric_cell('Write', call.usage.cache_write|default('—')) }}
           {{ sdp.sub_metric_cell('Output', call.usage.output|default('—')) }}
@@ -135,7 +135,7 @@
         </div>
         <div class="sd-llm-body">
           <div class="sd-metrics">
-            {{ sdp.metric_cell('Input', call.usage.input|default('—')) }}
+            {{ sdp.metric_cell('Fresh Input', call.usage.input|default('—')) }}
             {{ sdp.metric_cell('Cache Read', call.usage.cache_read|default('—')) }}
             {{ sdp.metric_cell('Cache Write', call.usage.cache_write|default('—')) }}
             {{ sdp.metric_cell('Output', call.usage.output|default('—')) }}

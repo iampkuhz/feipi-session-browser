@@ -139,6 +139,7 @@ class ChatMessage:
     request_full: str = ""  # logged request context preceding this assistant response
     stop_reason: str = ""  # e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
     content_parts: list["ContentPart"] = field(default_factory=list)  # typed content parts
+    content_blocks: list[dict] = field(default_factory=list)  # raw API-level content blocks in order
 
 
 @dataclass
@@ -214,6 +215,7 @@ class LLMCall:
     response_payload_missing_reason: str = ""  # why raw response is unavailable
     finish_reason: str = ""          # e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
     tool_calls_raw: str = ""         # raw tool calls JSON structure (if available)
+    content_blocks: list[dict] = field(default_factory=list)  # raw API-level content blocks in order
     tool_calls: list["ToolCall"] = field(default_factory=list)
     tool_call_count: int = 0
     failed_tool_count: int = 0
