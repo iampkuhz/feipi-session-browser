@@ -340,6 +340,9 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 .sd-content-block--text{border-color:#e9d5ff;background:#fdfaff}
 .sd-content-block--thinking{border-color:#d4c5a0;background:#fefdf5}
 .sd-content-block--tool{border-color:var(--blue-line);background:#f8fbff}
+.sd-content-block--tool-result{border-color:#86efac;background:#f0fdf4}
+.sd-content-block--file{border-color:#93c5fd;background:#eff6ff}
+.sd-content-block--context-text{border-color:#cbd5e1;background:#f8fafc}
 .sd-block-head{height:32px;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--line2)}
 .sd-block-index{font:850 12px/1 var(--mono);color:var(--muted)}
 .sd-block-title{font-weight:850;font-size:12px}

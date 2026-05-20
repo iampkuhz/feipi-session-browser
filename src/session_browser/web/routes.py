@@ -2229,6 +2229,91 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
     return f'<div class="sd-payload-block-list">{"".join(blocks)}</div>'
 
 
+def _render_context_content_blocks(content_blocks: list[dict], max_blocks: int = 30) -> str:
+    """Render context (request) content as structured block cards.
+
+    Takes blocks from normalize_llm_content() which parses request_full text
+    into typed blocks: tool_result, file_code, file_markdown, plain_text, unknown.
+    Each block becomes a styled card matching the response payload design.
+    """
+    cards = []
+    block_index = 0
+
+    for block in content_blocks:
+        if block_index >= max_blocks:
+            break
+
+        kind = block.get("kind", "unknown")
+        title = block.get("title", "")
+        subtitle = block.get("subtitle", "")
+        content = block.get("content", "")
+
+        if not content or not content.strip():
+            continue
+
+        block_index += 1
+
+        # normalize_llm_content returns plain_text/file_* kinds;
+        # tool results are identified by title prefix "Tool Result:"
+        is_tool_result = title.startswith("Tool Result:")
+        is_file = kind in ("file_code", "file_markdown")
+
+        if is_tool_result:
+            char_count = len(content.encode("utf-8"))
+            preview = content[:500]
+            tool_id_display = title.replace("Tool Result: ", "")[:30]
+            cards.append(
+                f'<article class="sd-content-block sd-content-block--tool-result">'
+                f'<div class="sd-block-head">'
+                f'<span class="sd-block-index">#{block_index}</span>'
+                f'<span class="sd-block-title">tool_result</span>'
+                f'<span class="sd-block-meta">{_html_escape(tool_id_display)}</span>'
+                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                f'</div>'
+                f'<div class="sd-block-body">{_html_escape(preview)}</div>'
+                f'</article>'
+            )
+
+        elif is_file:
+            char_count = len(content.encode("utf-8"))
+            preview = content[:500]
+            file_display = title.replace("File: ", "") if title else "file"
+            lang = block.get("language", "")
+            lang_display = f' · {lang}' if lang else ''
+            cards.append(
+                f'<article class="sd-content-block sd-content-block--file">'
+                f'<div class="sd-block-head">'
+                f'<span class="sd-block-index">#{block_index}</span>'
+                f'<span class="sd-block-title">file{lang_display}</span>'
+                f'<span class="sd-block-meta" title="{_html_escape(file_display)}">{_html_escape(file_display[:60])}</span>'
+                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                f'</div>'
+                f'<div class="sd-block-body">{_html_escape(preview)}</div>'
+                f'</article>'
+            )
+
+        else:
+            # plain_text or unknown
+            char_count = len(content.encode("utf-8"))
+            preview = content[:500]
+            block_title = title if title else (subtitle if subtitle else "text")
+            cards.append(
+                f'<article class="sd-content-block sd-content-block--context-text">'
+                f'<div class="sd-block-head">'
+                f'<span class="sd-block-index">#{block_index}</span>'
+                f'<span class="sd-block-title">{_html_escape(block_title)}</span>'
+                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                f'</div>'
+                f'<div class="sd-block-body">{_html_escape(preview)}</div>'
+                f'</article>'
+            )
+
+    if not cards:
+        return '<div class="sd-payload-warning">Context 内容为空</div>'
+
+    return f'<div class="sd-payload-block-list">{"".join(cards)}</div>'
+
+
 def _html_escape(text: str) -> str:
     """Escape HTML special characters."""
     text = str(text or "")
@@ -2534,11 +2619,13 @@ def _build_v11_view_model(
 
                 # Register context payload for subagent LLM call (always created)
                 if m.request_full:
+                    ctx_norm_blocks = normalize_llm_content(m.request_full)
+                    ctx_content_html = _render_context_content_blocks(ctx_norm_blocks) if ctx_norm_blocks else ""
                     add_payload(
                         payload_id=ctx_payload_id,
                         kind="subagent.request",
                         title=f"Subagent · Request ({call_ref})",
-                        text=m.request_full[:5000],
+                        html=ctx_content_html,
                         source_status="raw",
                     )
                 else:
@@ -2906,11 +2993,13 @@ def _build_v11_view_model(
 
             if ix.request_full:
                 source_status = "raw"
+                ctx_norm_blocks = normalize_llm_content(ix.request_full)
+                ctx_content_html = _render_context_content_blocks(ctx_norm_blocks) if ctx_norm_blocks else ""
                 add_payload(
                     payload_id=context_payload_id,
                     kind="llm.context",
                     title=f"R{rid} · LLM Call #{iix} · Context",
-                    text=ix.request_full[:10000] if len(ix.request_full) > 10000 else ix.request_full,
+                    html=ctx_content_html,
                 )
             else:
                 # Reconstruct context from available data: user input + preceding tool results
