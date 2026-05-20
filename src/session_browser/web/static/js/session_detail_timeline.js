@@ -147,21 +147,27 @@
 
     if (action === 'toggle-round') {
       event.preventDefault();
+      event.stopPropagation();
       toggleRound(actionEl);
     } else if (action === 'filter-status') {
       event.preventDefault();
+      event.stopPropagation();
       setFilter(page, (actionEl.getAttribute('data-status') || 'all').toLowerCase());
     } else if (action === 'collapse-all') {
       event.preventDefault();
+      event.stopPropagation();
       collapseAll(page);
     } else if (action === 'jump-round') {
       event.preventDefault();
+      event.stopPropagation();
       jumpRound(page, actionEl.getAttribute('data-round'));
     } else if (action === 'open-payload') {
       event.preventDefault();
+      event.stopPropagation();
       openPayload(actionEl);
     } else if (action === 'close-payload') {
       event.preventDefault();
+      event.stopPropagation();
       closePayload();
     }
   }, true);
