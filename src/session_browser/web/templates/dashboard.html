@@ -98,8 +98,24 @@
         return String(n);
     }
 
-    function formatTip(date, d) {
-        return date + '\nClaude Code: ' + d.claude_count + '\nCodex: ' + d.codex_count + '\nQoder: ' + d.qoder_count + '\nTotal: ' + d.total_count;
+    function buildSessionTooltip(date, d) {
+        return '<div class="dashboard-tooltip">' +
+            '<div class="tooltip-date">' + date + '</div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + d.claude_count + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + d.codex_count + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + d.qoder_count + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + d.total_count + '</b></div>' +
+            '</div>';
+    }
+
+    function buildTokenTooltip(date, d) {
+        return '<div class="dashboard-tooltip">' +
+            '<div class="tooltip-date">' + date + '</div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + formatTokens(d.claude_tokens) + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + formatTokens(d.codex_tokens) + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + formatTokens(d.qoder_tokens) + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + formatTokens(d.total_tokens) + '</b></div>' +
+            '</div>';
     }
 
     window.updateChart = function(days, btn) {
@@ -120,13 +136,13 @@
             var claudePct = d.total_count > 0 ? (d.claude_count / d.total_count * 100) : 0;
             var codexPct = d.total_count > 0 ? (d.codex_count / d.total_count * 100) : 0;
             var qoderPct = d.total_count > 0 ? (d.qoder_count / d.total_count * 100) : 0;
-            var tip = formatTip(dateStr, d);
-            plotBars += '<div class="bar" style="--h:' + pctH + '%" data-tip="' + tip.replace(/"/g, '&quot;') + '">';
+            var tip = buildSessionTooltip(dateStr, d);
+            plotBars += '<div class="bar" style="--h:' + pctH + '%">';
             plotBars += '<div class="bar-stack">';
             if (d.codex_count > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
             if (d.claude_count > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
             if (d.qoder_count > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
-            plotBars += '</div></div>';
+            plotBars += '</div>' + tip + '</div>';
         });
         var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
 
@@ -176,13 +192,13 @@
             var claudePct = d.total_tokens > 0 ? (d.claude_tokens / d.total_tokens * 100) : 0;
             var codexPct = d.total_tokens > 0 ? (d.codex_tokens / d.total_tokens * 100) : 0;
             var qoderPct = d.total_tokens > 0 ? (d.qoder_tokens / d.total_tokens * 100) : 0;
-            var tip = dateStr + '\nClaude Code: ' + formatTokens(d.claude_tokens) + '\nCodex: ' + formatTokens(d.codex_tokens) + '\nQoder: ' + formatTokens(d.qoder_tokens) + '\nTotal: ' + formatTokens(d.total_tokens);
-            plotBars += '<div class="bar" style="--h:' + pctH + '%" data-tip="' + tip.replace(/"/g, '&quot;') + '">';
+            var tip = buildTokenTooltip(dateStr, d);
+            plotBars += '<div class="bar" style="--h:' + pctH + '%">';
             plotBars += '<div class="bar-stack">';
             if (d.codex_tokens > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
             if (d.claude_tokens > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
             if (d.qoder_tokens > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
-            plotBars += '</div></div>';
+            plotBars += '</div>' + tip + '</div>';
         });
         var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
 

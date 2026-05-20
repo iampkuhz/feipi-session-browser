@@ -107,21 +107,35 @@ class TestDashboardCharts:
 
 
 class TestDashboardChartBars:
-    """Verify chart bar structure (JS-generated, but template must set up data-tip)."""
+    """Verify chart bar structure uses structured tooltip DOM."""
 
-    def test_bar_template_has_data_tip(self):
-        """The JS in the template must render bars with data-tip attribute."""
+    def test_bar_template_has_dashboard_tooltip(self):
+        """The JS in the template must build .dashboard-tooltip DOM."""
         content = _read_dashboard_template()
-        assert 'data-tip="' in content or "data-tip='" in content, \
-            "Chart bars must have data-tip attribute for hover tooltips"
+        assert 'dashboard-tooltip' in content, \
+            "Chart bars must contain .dashboard-tooltip DOM structure"
 
-    def test_tip_format_contains_agent_names(self):
-        """Tooltip format function must include Claude Code, Codex, Qoder."""
+    def test_tooltip_contains_agent_names(self):
+        """Tooltip DOM must include Claude Code, Codex, Qoder."""
         content = _read_dashboard_template()
-        assert "Claude Code:" in content, "Tooltip must contain 'Claude Code:'"
-        assert "Codex:" in content, "Tooltip must contain 'Codex:'"
-        assert "Qoder:" in content, "Tooltip must contain 'Qoder:'"
-        assert "Total:" in content, "Tooltip must contain 'Total:'"
+        assert "Claude Code" in content, "Tooltip must contain 'Claude Code'"
+        assert "Codex" in content, "Tooltip must contain 'Codex'"
+        assert "Qoder" in content, "Tooltip must contain 'Qoder'"
+
+    def test_tooltip_has_dot_classes(self):
+        """Tooltip must have colored dot classes."""
+        content = _read_dashboard_template()
+        assert "tooltip-dot--claude" in content
+        assert "tooltip-dot--codex" in content
+        assert "tooltip-dot--qoder" in content
+        assert "tooltip-dot--total" in content
+
+    def test_tooltip_has_row_structure(self):
+        """Tooltip must use .tooltip-row structure."""
+        content = _read_dashboard_template()
+        assert "tooltip-row" in content
+        assert "tooltip-label" in content
+        assert "tooltip-value" in content
 
 
 class TestDashboardNoRecentActivity:
@@ -268,3 +282,26 @@ class TestDashboardCompactButtonRemoved:
         # The topbar_toggles block should be empty override
         assert 'density-toggle' not in content, \
             "Dashboard should not have density-toggle"
+
+
+class TestDashboardTooltipDots:
+    """Verify tooltip dot styling and CSS structure."""
+
+    def test_tooltip_css_classes_defined(self):
+        """dashboard-v16.css must define tooltip dot classes."""
+        css = _read_dashboard_css()
+        for cls in ["dashboard-tooltip", "tooltip-row", "tooltip-dot--claude",
+                     "tooltip-dot--codex", "tooltip-dot--qoder", "tooltip-dot--total"]:
+            assert cls in css, f"CSS must define {cls}"
+
+    def test_legend_dots_are_round(self):
+        """Legend dots should use border-radius:999px for circular shape."""
+        css = _read_dashboard_css()
+        assert "999px" in css, "Legend dots should use border-radius:999px"
+
+    def test_agent_color_variables_exist(self):
+        """CSS must define --agent-* color variables."""
+        css = _read_dashboard_css()
+        assert "--agent-claude" in css
+        assert "--agent-codex" in css
+        assert "--agent-qoder" in css
