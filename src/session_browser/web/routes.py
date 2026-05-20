@@ -1510,7 +1510,6 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         conn = _get_connection()
         stats = get_dashboard_stats(conn)
         projects = list_projects(conn, limit=10)
-        recent = list_sessions(conn, limit=20, order_by="ended_at")
         trend = get_trend_data(conn, days=30)
         model_dist = get_model_distribution(conn)
         agent_dist = get_agent_distribution(conn)
@@ -1529,16 +1528,12 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         anomalies_map = detect_all_anomalies(sessions_data)
         needs_attention = get_needs_attention(anomalies_map, sessions_lookup, limit=8)
 
-        # Enrich recent sessions with anomalies
-        recent_enriched = enrich_sessions_with_anomalies(recent, anomalies_map)
-
         conn.close()
 
         html = self._render_template(
             "dashboard.html",
             stats=stats,
             projects=projects,
-            recent=recent_enriched,
             trend=trend,
             model_dist=model_dist.distribution,
             agent_dist=agent_dist,
