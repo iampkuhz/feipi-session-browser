@@ -1,0 +1,51 @@
+{# Session detail payload v17 component guidance.
+Do not copy blindly if current macros differ. Preserve existing macro names where possible.
+The contract is: one modal shell + typed payload sources.
+#}
+
+{% macro payload_modal_shell() -%}
+<dialog id="sd-payload-modal" class="sd-payload-modal" aria-labelledby="sd-payload-title">
+  <div class="sd-modal-panel payload-modal__panel">
+    <div class="sd-modal-head payload-modal__head">
+      <div>
+        <div id="sd-payload-title" class="sd-modal-title payload-modal__title" data-payload-title>Payload</div>
+        <div class="sd-modal-subtitle payload-modal__subtitle" data-payload-subtitle>—</div>
+      </div>
+      <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-modal-close" data-action="close-payload">Close</button>
+    </div>
+    <div class="sd-modal-body payload-modal__body" data-payload-body></div>
+  </div>
+</dialog>
+{%- endmacro %}
+
+{% macro context_payload_source(payload) -%}
+<template data-payload-source="{{ payload.payload_id }}" data-payload-kind="context">
+  <div class="sd-payload-shell payload-shell">
+    <aside class="sd-payload-meta payload-meta">
+      <h3>Metadata</h3>
+      <div class="sd-kv"><span>kind</span><span>context</span></div>
+      <div class="sd-kv"><span>source</span><span>{{ payload.source_label }}</span></div>
+      <div class="sd-kv"><span>tools</span><span>{{ payload.tool_results|length }}</span></div>
+    </aside>
+    <main class="sd-payload-main payload-main">
+      {% if payload.warning %}<div class="sd-payload-warning payload-warning">{{ payload.warning }}</div>{% endif %}
+      <section class="sd-payload-section payload-section"><h3>User input</h3><pre>{{ payload.user_input }}</pre></section>
+      <section class="sd-payload-section payload-section">
+        <h3>Tool result list before this LLM call</h3>
+        <div class="sd-context-tool-list context-tool-list">
+        {% for tool in payload.tool_results %}
+          <div class="sd-context-tool-row context-tool-row {% if tool.status_tone in ['fail','failed','err'] %}sd-context-tool-row--failed failed{% endif %}">
+            <span class="sd-pill sd-pill--model">{{ tool.kind }}</span>
+            <div>
+              <div class="sd-context-tool-summary">{{ tool.summary }}</div>
+              <div class="sd-context-tool-excerpt">{{ tool.excerpt }}</div>
+            </div>
+            <span class="sd-pill sd-pill--{{ 'err' if tool.status_tone in ['fail','failed','err'] else 'ok' }}">{{ tool.status_label }}</span>
+          </div>
+        {% endfor %}
+        </div>
+      </section>
+    </main>
+  </div>
+</template>
+{%- endmacro %}

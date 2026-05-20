@@ -1,6 +1,7 @@
 # TODO
 
 - [ ] subagent 没有在 session 中展示。
+- [ ] dashboard: 添加兑换轮数统计
 
 ## 1. 提示词没有渐进式披露
 

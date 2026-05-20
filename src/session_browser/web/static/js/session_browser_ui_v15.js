@@ -5,8 +5,8 @@
 // - toggle-all
 // - filter-status
 // - jump-round
-// - open-payload
-// - close-payload
+// - open-payload  (delegated to session_detail_timeline.js v17)
+// - close-payload (delegated to session_detail_timeline.js v17)
 (function(){
   "use strict";
 
@@ -58,61 +58,7 @@
     updateToggleAll(page);
   }
 
-  function openPayload(button){
-    const modal = document.getElementById("payload-modal") || document.getElementById("sd-payload-modal");
-    if(!modal) return;
-    const id = button.dataset.payloadId || "";
-    const title = button.dataset.payloadTitle || button.textContent.trim() || "Payload";
-    const source = id ? qs(document, 'template[data-payload-source="' + esc(id) + '"]') : null;
-    const kind = source ? (source.dataset.payloadKind || "unknown") : "missing";
-    const status = source ? (source.dataset.payloadStatus || "—") : "not found";
-    const size = source ? (source.dataset.payloadSize || "—") : "—";
-
-    // v15 modal: [data-payload-title], [data-payload-subtitle], [data-meta-field]
-    const titleEl = qs(modal, "[data-payload-title]") || qs(modal, ".sd-modal-title[data-payload-title]");
-    const subtitleEl = qs(modal, "[data-payload-subtitle]") || qs(modal, ".sd-modal-sub");
-    const body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-payload-main[data-payload-body]");
-
-    if(titleEl) titleEl.textContent = title;
-    if(subtitleEl) subtitleEl.textContent = id || "missing payload id";
-
-    // v15 meta: data-meta-field
-    qsa(modal, "[data-meta-field]").forEach(el => {
-      const key = el.dataset.metaField;
-      if(key === "payload_id") el.textContent = id || "—";
-      if(key === "kind") el.textContent = kind;
-      if(key === "status") el.textContent = status;
-      if(key === "source") el.textContent = source ? "template" : "missing";
-    });
-
-    // v12 meta: data-meta-id, data-meta-kind, etc.
-    const metaId = qs(modal, "[data-meta-id]");
-    const metaKind = qs(modal, "[data-meta-kind]");
-    const metaStatus = qs(modal, "[data-meta-status]");
-    const metaSize = qs(modal, "[data-meta-size]");
-    if(metaId) metaId.textContent = id || "—";
-    if(metaKind) metaKind.textContent = kind;
-    if(metaStatus) metaStatus.textContent = status;
-    if(metaSize) metaSize.textContent = size;
-
-    if(body){
-      if(source){
-        body.innerHTML = source.innerHTML;
-      } else {
-        body.innerHTML = '<div class="payload-warning sd-payload-warning">未找到 payload 内容。检查 data-payload-id 是否有对应 template[data-payload-source]；不要空白。</div>';
-      }
-    }
-
-    if(typeof modal.showModal === "function") modal.showModal();
-    else modal.setAttribute("open", "");
-  }
-
-  function closePayload(){
-    const modal = document.getElementById("payload-modal") || document.getElementById("sd-payload-modal");
-    if(!modal) return;
-    if(typeof modal.close === "function" && modal.open) modal.close();
-    else modal.removeAttribute("open");
-  }
+  /* open-payload / close-payload delegated to session_detail_timeline.js v17 */
 
   document.addEventListener("click", function(event){
     const actionEl = closest(event.target, "[data-action]");
@@ -135,17 +81,12 @@
     } else if(action === "jump-round"){
       event.preventDefault();
       jumpRound(page, actionEl.dataset.round);
-    } else if(action === "open-payload"){
-      event.preventDefault();
-      openPayload(actionEl);
-    } else if(action === "close-payload"){
-      event.preventDefault();
-      closePayload();
     }
+    /* open-payload / close-payload handled by session_detail_timeline.js v17 */
   });
 
   document.addEventListener("keydown", function(event){
-    if(event.key === "Escape") closePayload();
+    /* Escape to close payload handled by session_detail_timeline.js v17 */
   });
 
   document.addEventListener("DOMContentLoaded", function(){

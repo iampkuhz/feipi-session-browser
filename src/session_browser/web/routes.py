@@ -2356,7 +2356,10 @@ def _build_v11_view_model(
     payload_sources = []
 
     def add_payload(payload_id: str, kind: str, title: str, status: str = "available",
-                    size: str = "—", text: str = "", html: str = "", warning: str = ""):
+                    size: str = "—", text: str = "", html: str = "", warning: str = "",
+                    context_blocks: list = None, source_status: str = "",
+                    response_blocks: list = None, response_diagnostics: str = "",
+                    user_input: str = "", preceding_tool_results: list = None):
         entry = {
             "payload_id": payload_id,
             "kind": kind,
@@ -2372,6 +2375,19 @@ def _build_v11_view_model(
             entry["text"] = text
         else:
             entry["text"] = ""
+        # v17 typed payload fields
+        if context_blocks:
+            entry["context_blocks"] = context_blocks
+        if source_status:
+            entry["source_status"] = source_status
+        if response_blocks:
+            entry["response_blocks"] = response_blocks
+        if response_diagnostics:
+            entry["response_diagnostics"] = response_diagnostics
+        if user_input:
+            entry["user_input"] = user_input
+        if preceding_tool_results:
+            entry["preceding_tool_results"] = preceding_tool_results
         payload_sources.append(entry)
 
     def tool_vm(tc, tool_id: str, payload_id: str = "", payload_title: str = "") -> dict:
@@ -2439,14 +2455,26 @@ def _build_v11_view_model(
                 ctx_payload_id = f"sub-{sa_id}-{m_idx + 1}-ctx"
                 rsp_payload_id = f"sub-{sa_id}-{m_idx + 1}-rsp"
 
-                # Register payload sources for subagent LLM call
+                # Register context payload for subagent LLM call (always created)
                 if m.request_full:
                     add_payload(
                         payload_id=ctx_payload_id,
                         kind="subagent.request",
                         title=f"Subagent · Request ({call_ref})",
                         text=m.request_full[:5000],
+                        source_status="raw",
                     )
+                else:
+                    add_payload(
+                        payload_id=ctx_payload_id,
+                        kind="subagent.request",
+                        title=f"Subagent · Request ({call_ref})",
+                        text="",
+                        warning="Subagent request context not available",
+                        source_status="diagnostic",
+                    )
+
+                # Register response payload for subagent LLM call (always created)
                 if m.content:
                     # Generate content blocks for subagent response
                     sa_tool_calls = []
@@ -2468,6 +2496,16 @@ def _build_v11_view_model(
                         title=f"Subagent · Response ({call_ref})",
                         html=sa_blocks_html,
                         size=sa_size_label,
+                        source_status="raw",
+                    )
+                else:
+                    add_payload(
+                        payload_id=rsp_payload_id,
+                        kind="subagent.response",
+                        title=f"Subagent · Response ({call_ref})",
+                        text="",
+                        warning="Subagent response content not available",
+                        source_status="diagnostic",
                     )
 
                 # Dynamic note for subagent LLM step
@@ -2491,9 +2529,9 @@ def _build_v11_view_model(
                         "cache_write": _format_num_short(usage.get("cache_creation_input_tokens", 0)),
                         "output": _format_num_short(usage.get("output_tokens", 0)),
                     },
-                    "context_payload_id": ctx_payload_id if m.request_full else "",
+                    "context_payload_id": ctx_payload_id,
                     "context_payload_title": f"Subagent · Request ({call_ref})",
-                    "response_payload_id": rsp_payload_id if m.content else "",
+                    "response_payload_id": rsp_payload_id,
                     "response_payload_title": f"Subagent · Response ({call_ref})",
                     "note": sa_note_text,
                     "note_tone": sa_note_tone,
@@ -2742,50 +2780,149 @@ def _build_v11_view_model(
             ix_status_tone = "ok"
             if any(t["status_tone"] == "fail" for batch in parallel_batches for t in batch["tools"]):
                 ix_status_label = "Failed"
-                ix_status_tone = "err"
+                ix_status_tone = "fail"
 
-            context_payload_id = ""
-            response_payload_id = ""
+            # ── Context payload: always created with typed structure ──
+            # Contract: relevant user input + all preceding tool results + source status
+            context_payload_id = f"llm-R{rid}-IX{iix}-context"
+            ix_tool_calls_for_llm = [tc for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "")]
+
             if ix.request_full:
-                context_payload_id = f"llm-R{rid}-IX{iix}-context"
+                source_status = "raw"
                 add_payload(
                     payload_id=context_payload_id,
                     kind="llm.context",
                     title=f"R{rid} · LLM Call #{iix} · Context",
                     text=ix.request_full[:10000] if len(ix.request_full) > 10000 else ix.request_full,
                 )
+            else:
+                # Reconstruct context from available data: user input + preceding tool results
+                source_status = "reconstructed" if r.user_msg.content else "diagnostic"
+                ctx_blocks = []
+                if r.user_msg.content:
+                    ctx_blocks.append({
+                        "kind": "user_input",
+                        "summary": (r.user_msg.content or "")[:120],
+                    })
+                # Preceding tool results: from earlier interactions in this round
+                for prev_ix_idx in range(ix_idx):
+                    prev_ix = r.interactions[prev_ix_idx]
+                    if hasattr(prev_ix, 'tool_calls') and prev_ix.tool_calls:
+                        for tc in prev_ix.tool_calls:
+                            if not getattr(tc, "subagent_id", ""):
+                                tc_result = getattr(tc, "result", "") or ""
+                                ctx_blocks.append({
+                                    "kind": "tool_result",
+                                    "summary": f"{tc.name}: {(tc_result or '')[:80]}",
+                                    "status_tone": "fail" if getattr(tc, "is_failed", False) else "ok",
+                                })
+                # Also include tool results from current interaction's tool_calls
+                # (these are the tools that feed the NEXT LLM call, not this one)
+
+                ctx_warning = ""
+                if source_status == "diagnostic":
+                    ctx_warning = "上下文数据缺失；以下为诊断信息。"
+                add_payload(
+                    payload_id=context_payload_id,
+                    kind="llm.context",
+                    title=f"R{rid} · LLM Call #{iix} · Context",
+                    text="",
+                    warning=ctx_warning,
+                    context_blocks=ctx_blocks,
+                    source_status=source_status,
+                    user_input=(r.user_msg.content or "")[:500] if r.user_msg.content else "",
+                    preceding_tool_results=ctx_blocks,
+                )
+
+            # ── Response payload: always created with typed structure ──
+            # Contract: text blocks + tool_use/tool command blocks + diagnostics
+            response_payload_id = f"llm-R{rid}-IX{iix}-output"
+
             if ix.response_full:
-                response_payload_id = f"llm-R{rid}-IX{iix}-output"
-                # Generate content blocks HTML: text + tool_use blocks
-                ix_tool_calls = [tc for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "")]
-                content_blocks_html = _render_response_content_blocks(ix.response_full, ix_tool_calls)
-                block_count = 1 + len(ix_tool_calls) if ix.response_full and ix.response_full.strip() else len(ix_tool_calls)
+                rsp_source_status = "raw"
+                ix_tool_calls_for_response = ix_tool_calls_for_llm
+                content_blocks_html = _render_response_content_blocks(ix.response_full, ix_tool_calls_for_response)
+                block_count = 1 + len(ix_tool_calls_for_response) if ix.response_full and ix.response_full.strip() else len(ix_tool_calls_for_response)
                 size_label = f"{block_count} content block{'s' if block_count != 1 else ''}"
+
+                # Build structured response blocks
+                rsp_blocks = []
+                if ix.response_full and ix.response_full.strip():
+                    rsp_blocks.append({
+                        "type": "text",
+                        "size_label": _format_bytes(min(len(ix.response_full), 10000)),
+                    })
+                for tc in ix_tool_calls_for_response:
+                    tc_params = getattr(tc, "parameters", {}) or {}
+                    tc_command = (tc_params.get("command", "")
+                                  or tc_params.get("file_path", "")
+                                  or tc_params.get("path", "")
+                                  or getattr(tc, "name", "tool"))[:100]
+                    rsp_blocks.append({
+                        "type": "tool_use",
+                        "name": getattr(tc, "name", "unknown")[:40],
+                        "tool_id": getattr(tc, "tool_use_id", "") or "",
+                        "command": tc_command,
+                    })
+
+                rsp_diagnostic = ""
+                finish_r = getattr(ix, "finish_reason", "") or getattr(ix, "status", "unknown")
+                if finish_r and finish_r not in ("end_turn", "stop", "ok", ""):
+                    rsp_diagnostic = f"finish_reason: {finish_r}"
+
                 add_payload(
                     payload_id=response_payload_id,
                     kind="llm.output",
-                    title=f"R{rid} · LLM Call #{iix} · Output",
+                    title=f"R{rid} · LLM Call #{iix} · Response",
                     html=content_blocks_html,
                     size=size_label,
+                    response_blocks=rsp_blocks,
+                    response_diagnostics=rsp_diagnostic,
+                    source_status=rsp_source_status,
+                )
+            else:
+                rsp_source_status = "diagnostic"
+                # Build diagnostic response blocks from available tool calls
+                rsp_blocks = []
+                for tc in ix_tool_calls_for_llm:
+                    tc_params = getattr(tc, "parameters", {}) or {}
+                    tc_command = (tc_params.get("command", "")
+                                  or tc_params.get("file_path", "")
+                                  or tc_params.get("path", "")
+                                  or getattr(tc, "name", "tool"))[:100]
+                    rsp_blocks.append({
+                        "type": "tool_use",
+                        "name": getattr(tc, "name", "unknown")[:40],
+                        "tool_id": getattr(tc, "tool_use_id", "") or "",
+                        "command": tc_command,
+                    })
+
+                finish_r = getattr(ix, "finish_reason", "") or getattr(ix, "status", "unknown")
+                rsp_diagnostic = f"响应内容缺失；finish_reason: {finish_r}" if finish_r else "响应内容缺失"
+
+                add_payload(
+                    payload_id=response_payload_id,
+                    kind="llm.output",
+                    title=f"R{rid} · LLM Call #{iix} · Response",
+                    text="",
+                    warning=rsp_diagnostic,
+                    response_blocks=rsp_blocks,
+                    response_diagnostics=rsp_diagnostic,
+                    source_status=rsp_source_status,
                 )
 
-            # Dynamic note logic based on available payload data
+            # Dynamic note: replaced hardcoded meaningless text with actionable info
             note_text = ""
             note_tone_val = "ok"
-            if ix.request_payload_raw:
-                note_text = ""
-                note_tone_val = "ok"
-            elif ix.request_full:
+            if ix.request_full:
                 req_len = len(ix.request_full)
                 if req_len > 10000:
-                    note_text = f"请求上下文已截断（{req_len} 字符），完整内容请打开 payload 查看"
+                    note_text = f"上下文已截断（{_format_num_short(req_len)} 字符），完整内容见 payload"
                     note_tone_val = "info"
-                else:
-                    note_text = "仅捕获渲染上下文；完整 raw HTTP request 未持久化"
-                    note_tone_val = "warn"
+                # else: no note needed; context is available
             else:
-                note_text = "无请求上下文数据"
-                note_tone_val = "err"
+                note_text = f"上下文为 {source_status}，由用户输入和前置 tool results 重建"
+                note_tone_val = "warn" if source_status == "reconstructed" else "err"
 
             llm_item = {
                 "type": "llm_call",
@@ -2807,10 +2944,10 @@ def _build_v11_view_model(
                 "response_payload_title": f"R{rid} · LLM Call #{iix} · Response",
                 "note": note_text,
                 "note_tone": note_tone_val,
-                "finish_reason": getattr(ix, "finish_reason", "") or getattr(ix, "status", "unknown"),
+                "finish_reason": finish_r,
                 "timestamp": getattr(ix, "timestamp", ""),
-                "tool_call_count": len([tc for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "")]),
-                "failed_tool_count": sum(1 for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "") and getattr(tc, "is_failed", False)),
+                "tool_call_count": len(ix_tool_calls_for_llm),
+                "failed_tool_count": sum(1 for tc in ix_tool_calls_for_llm if getattr(tc, "is_failed", False)),
             }
             items.append(llm_item)
             items.extend(parallel_batches)
@@ -3248,7 +3385,7 @@ def _build_v9_view_model(
             ix_status_tone = "ok"
             if any(t["status_tone"] == "fail" for batch in parallel_batches for t in batch["tools"]):
                 ix_status_label = "Failed"
-                ix_status_tone = "err"
+                ix_status_tone = "fail"
 
             llm_item = {
                 "type": "llm_call",

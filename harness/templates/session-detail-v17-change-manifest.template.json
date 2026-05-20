@@ -1,0 +1,29 @@
+{
+  "change_id": "fix-session-detail-v17-complete-serial",
+  "scope": "session-detail-only",
+  "execution": {
+    "mode": "serial_foreground_subagents",
+    "background_allowed": false,
+    "parallel_allowed": false,
+    "nested_subagents_allowed": false,
+    "one_task_per_subagent": true
+  },
+  "canonical_css": "src/session_browser/web/static/css/session-detail-timeline.css",
+  "obsolete_session_detail_css": [
+    "src/session_browser/web/static/css/session-detail-timeline-v11.css",
+    "src/session_browser/web/static/css/session-detail-response-blocks-v12.css",
+    "src/session_browser/web/static/css/session-detail-payload-v16.css"
+  ],
+  "must_not_modify": [
+    "dashboard",
+    "sessions-list",
+    "projects",
+    "agents"
+  ],
+  "modal_target": {
+    "desktop_width": "min(70vw, 1120px)",
+    "desktop_max_height": "82vh",
+    "narrow_width": "92vw",
+    "narrow_max_height": "86vh"
+  }
+}

@@ -117,9 +117,9 @@
           {{ sdp.sub_metric_cell('Output', call.usage.output|default('—')) }}
         </div>
         <div class="sd-sub-payload-line">
-          {% if call.context_payload_id %}<button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.context_payload_id }}" data-payload-title="{{ call.context_payload_title|default(call.title ~ ' · Context') }}">Context</button>{% endif %}
+          <button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.context_payload_id or call.context_diagnostic_payload_id or '' }}" data-payload-title="{{ call.context_payload_title|default(call.title ~ ' · Context') }}">Context</button>
           {% if call.note %}<div class="sd-sub-note" title="{{ call.note }}">{{ call.note }}</div>{% endif %}
-          {% if call.response_payload_id %}<button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.response_payload_id }}" data-payload-title="{{ call.response_payload_title|default(call.title ~ ' · Response') }}">Response</button>{% endif %}
+          <button type="button" class="sd-sub-pbtn" data-action="open-payload" data-payload-id="{{ call.response_payload_id or call.response_diagnostic_payload_id or '' }}" data-payload-title="{{ call.response_payload_title|default(call.title ~ ' · Response') }}">Response</button>
         </div>
       </div>
     </div>
@@ -141,9 +141,9 @@
             {{ sdp.metric_cell('Output', call.usage.output|default('—')) }}
           </div>
           <div class="sd-payload-line">
-            {% if call.context_payload_id %}{{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id, attrs='data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '"') }}{% endif %}
+            {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id or call.context_diagnostic_payload_id or '', attrs='data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '"') }}
             {% if call.note %}{{ sdp.note(call.note, call.note_tone|default('warn')) }}{% endif %}
-            {% if call.response_payload_id %}{{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id, attrs='data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}{% endif %}
+            {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id or call.response_diagnostic_payload_id or '', attrs='data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
           </div>
         </div>
       </section>

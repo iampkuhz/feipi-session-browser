@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Session Detail v17 Complete Serial Target</title><style>
+/* Session Detail v17 canonical CSS patch.
+   Merge into: src/session_browser/web/static/css/session-detail-timeline.css
+
+   Do NOT leave this file as another permanent imported stylesheet.
+   The QA scripts expect session-detail-timeline.css to become the canonical owner.
+*/
+
+.session-detail-page,
+.sd-shell,
+.sd-page {
+  --sd-bg: #f6f8fb;
+  --sd-surface: #fff;
+  --sd-panel: #f8fafc;
+  --sd-line: #d9e2ef;
+  --sd-line-soft: #e8eef6;
+  --sd-text: #111827;
+  --sd-text-2: #334155;
+  --sd-muted: #64748b;
+  --sd-brand: #5b5ce2;
+  --sd-ok: #059669;
+  --sd-ok-bg: #ecfdf5;
+  --sd-ok-line: #bbf7d0;
+  --sd-warn: #d97706;
+  --sd-warn-bg: #fffbeb;
+  --sd-warn-line: #fde68a;
+  --sd-err: #dc2626;
+  --sd-err-bg: #fef2f2;
+  --sd-err-line: #fecaca;
+  --sd-blue: #2563eb;
+  --sd-blue-bg: #eff6ff;
+  --sd-blue-line: #bfdbfe;
+  --sd-mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* 1) Round grid: preserve metric columns under narrow widths. */
+.session-detail-page .sd-round-summary,
+.sd-page .sd-round-summary,
+.sd-shell .sd-round-summary {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
+  column-gap: 12px;
+  padding-inline: 12px;
+  align-items: center;
+}
+
+.session-detail-page .sd-user-round .sd-round-summary,
+.sd-page .sd-user-round .sd-round-summary,
+.sd-shell .sd-user-round .sd-round-summary {
+  grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
+}
+
+.session-detail-page .sd-round-preview,
+.session-detail-page .sd-round-preview__title,
+.session-detail-page .sd-round-preview__sub,
+.sd-page .sd-round-preview,
+.sd-page .sd-round-preview__title,
+.sd-page .sd-round-preview__sub,
+.sd-shell .sd-round-preview,
+.sd-shell .sd-round-preview__title,
+.sd-shell .sd-round-preview__sub {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.session-detail-page .sd-round-preview,
+.sd-page .sd-round-preview,
+.sd-shell .sd-round-preview {
+  overflow: hidden;
+}
+
+.session-detail-page .sd-round-preview__title,
+.session-detail-page .sd-round-preview__sub,
+.sd-page .sd-round-preview__title,
+.sd-page .sd-round-preview__sub,
+.sd-shell .sd-round-preview__title,
+.sd-shell .sd-round-preview__sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-detail-page .sd-round-metric,
+.session-detail-page .sd-round-mix,
+.sd-page .sd-round-metric,
+.sd-page .sd-round-mix,
+.sd-shell .sd-round-metric,
+.sd-shell .sd-round-mix {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+/* 2) Failed status: visible error tone. */
+.session-detail-page .sd-round-status--failed,
+.session-detail-page .sd-round-status--fail,
+.session-detail-page .sd-round-status[data-status="failed"],
+.session-detail-page .sd-round-status[data-status="fail"],
+.sd-page .sd-round-status--failed,
+.sd-page .sd-round-status--fail,
+.sd-page .sd-round-status[data-status="failed"],
+.sd-page .sd-round-status[data-status="fail"],
+.sd-shell .sd-round-status--failed,
+.sd-shell .sd-round-status--fail,
+.sd-shell .sd-round-status[data-status="failed"],
+.sd-shell .sd-round-status[data-status="fail"] {
+  color: var(--sd-err);
+  background: var(--sd-err-bg);
+  border-color: var(--sd-err-line);
+}
+
+/* 3) Tool result tone: neutral by default; red only on failed rows. */
+.session-detail-page .sd-tool-result,
+.sd-page .sd-tool-result,
+.sd-shell .sd-tool-result {
+  color: var(--sd-muted);
+}
+
+.session-detail-page .sd-tool-row--failed,
+.session-detail-page .sd-tool-row--fail,
+.session-detail-page .sd-tool-row[data-status="failed"],
+.session-detail-page .sd-tool-row[data-status="fail"],
+.sd-page .sd-tool-row--failed,
+.sd-page .sd-tool-row--fail,
+.sd-page .sd-tool-row[data-status="failed"],
+.sd-page .sd-tool-row[data-status="fail"],
+.sd-shell .sd-tool-row--failed,
+.sd-shell .sd-tool-row--fail,
+.sd-shell .sd-tool-row[data-status="failed"],
+.sd-shell .sd-tool-row[data-status="fail"] {
+  background: #fff7f7;
+  border-color: var(--sd-err-line);
+}
+
+.session-detail-page .sd-tool-row--failed .sd-tool-result,
+.session-detail-page .sd-tool-row--fail .sd-tool-result,
+.session-detail-page .sd-tool-result--failed,
+.session-detail-page .sd-tool-result--fail,
+.session-detail-page .sd-tool-row[data-status="failed"] .sd-tool-result,
+.session-detail-page .sd-tool-row[data-status="fail"] .sd-tool-result,
+.sd-page .sd-tool-row--failed .sd-tool-result,
+.sd-page .sd-tool-row--fail .sd-tool-result,
+.sd-page .sd-tool-result--failed,
+.sd-page .sd-tool-result--fail,
+.sd-page .sd-tool-row[data-status="failed"] .sd-tool-result,
+.sd-page .sd-tool-row[data-status="fail"] .sd-tool-result,
+.sd-shell .sd-tool-row--failed .sd-tool-result,
+.sd-shell .sd-tool-row--fail .sd-tool-result,
+.sd-shell .sd-tool-result--failed,
+.sd-shell .sd-tool-result--fail,
+.sd-shell .sd-tool-row[data-status="failed"] .sd-tool-result,
+.sd-shell .sd-tool-row[data-status="fail"] .sd-tool-result {
+  color: var(--sd-err);
+}
+
+/* 4) Payload modal: fixed centered modal, never full-page flow. */
+.session-detail-page #sd-payload-modal,
+.session-detail-page #payload-modal,
+.session-detail-page .sd-payload-modal,
+.session-detail-page .payload-modal,
+.sd-page #sd-payload-modal,
+.sd-page #payload-modal,
+.sd-page .sd-payload-modal,
+.sd-page .payload-modal,
+.sd-shell #sd-payload-modal,
+.sd-shell #payload-modal,
+.sd-shell .sd-payload-modal,
+.sd-shell .payload-modal {
+  position: fixed !important;
+  inset: auto !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(70vw, 1120px) !important;
+  max-width: min(70vw, 1120px) !important;
+  min-width: min(720px, 92vw);
+  height: auto !important;
+  max-height: 82vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--sd-line) !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .22) !important;
+  overflow: hidden !important;
+  z-index: 9999 !important;
+}
+
+.session-detail-page #sd-payload-modal::backdrop,
+.session-detail-page #payload-modal::backdrop,
+.session-detail-page .sd-payload-modal::backdrop,
+.sd-page #sd-payload-modal::backdrop,
+.sd-page #payload-modal::backdrop,
+.sd-page .sd-payload-modal::backdrop,
+.sd-shell #sd-payload-modal::backdrop,
+.sd-shell #payload-modal::backdrop,
+.sd-shell .sd-payload-modal::backdrop {
+  background: rgba(15, 23, 42, .36);
+}
+
+.session-detail-page .sd-modal-panel,
+.session-detail-page .payload-modal__panel,
+.session-detail-page .payload-modal-panel,
+.sd-page .sd-modal-panel,
+.sd-page .payload-modal__panel,
+.sd-page .payload-modal-panel,
+.sd-shell .sd-modal-panel,
+.sd-shell .payload-modal__panel,
+.sd-shell .payload-modal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 82vh;
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.session-detail-page .sd-modal-head,
+.session-detail-page .payload-modal__head,
+.session-detail-page .payload-modal-head,
+.sd-page .sd-modal-head,
+.sd-page .payload-modal__head,
+.sd-page .payload-modal-head,
+.sd-shell .sd-modal-head,
+.sd-shell .payload-modal__head,
+.sd-shell .payload-modal-head {
+  flex: 0 0 auto;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--sd-line-soft);
+  background: linear-gradient(180deg, #fff, #fbfcff);
+}
+
+.session-detail-page .sd-modal-title,
+.session-detail-page .payload-modal__title,
+.sd-page .sd-modal-title,
+.sd-page .payload-modal__title,
+.sd-shell .sd-modal-title,
+.sd-shell .payload-modal__title {
+  font-weight: 850;
+  color: var(--sd-text);
+}
+
+.session-detail-page .sd-modal-subtitle,
+.session-detail-page .payload-modal__subtitle,
+.sd-page .sd-modal-subtitle,
+.sd-page .payload-modal__subtitle,
+.sd-shell .sd-modal-subtitle,
+.sd-shell .payload-modal__subtitle {
+  font: 12px/1.3 var(--sd-mono);
+  color: var(--sd-muted);
+}
+
+.session-detail-page .sd-modal-close,
+.session-detail-page .payload-modal__close,
+.sd-page .sd-modal-close,
+.sd-page .payload-modal__close,
+.sd-shell .sd-modal-close,
+.sd-shell .payload-modal__close {
+  margin-left: auto;
+}
+
+.session-detail-page .sd-modal-body,
+.session-detail-page .payload-modal__body,
+.session-detail-page [data-payload-body],
+.sd-page .sd-modal-body,
+.sd-page .payload-modal__body,
+.sd-page [data-payload-body],
+.sd-shell .sd-modal-body,
+.sd-shell .payload-modal__body,
+.sd-shell [data-payload-body] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  background: #fff;
+}
+
+/* 5) Payload body layout. */
+.session-detail-page .sd-payload-shell,
+.session-detail-page .payload-shell,
+.sd-page .sd-payload-shell,
+.sd-page .payload-shell,
+.sd-shell .sd-payload-shell,
+.sd-shell .payload-shell {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.session-detail-page .sd-payload-meta,
+.session-detail-page .payload-meta,
+.session-detail-page .sd-payload-section,
+.session-detail-page .payload-section,
+.session-detail-page .sd-result-output,
+.session-detail-page .result-output,
+.sd-page .sd-payload-meta,
+.sd-page .payload-meta,
+.sd-page .sd-payload-section,
+.sd-page .payload-section,
+.sd-page .sd-result-output,
+.sd-page .result-output,
+.sd-shell .sd-payload-meta,
+.sd-shell .payload-meta,
+.sd-shell .sd-payload-section,
+.sd-shell .payload-section,
+.sd-shell .sd-result-output,
+.sd-shell .result-output {
+  border: 1px solid var(--sd-line);
+  border-radius: 13px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.session-detail-page .sd-payload-meta h3,
+.session-detail-page .payload-meta h3,
+.session-detail-page .sd-payload-section h3,
+.session-detail-page .payload-section h3,
+.session-detail-page .sd-result-output h3,
+.session-detail-page .result-output h3,
+.sd-page .sd-payload-meta h3,
+.sd-page .payload-meta h3,
+.sd-page .sd-payload-section h3,
+.sd-page .payload-section h3,
+.sd-page .sd-result-output h3,
+.sd-page .result-output h3,
+.sd-shell .sd-payload-meta h3,
+.sd-shell .payload-meta h3,
+.sd-shell .sd-payload-section h3,
+.sd-shell .payload-section h3,
+.sd-shell .sd-result-output h3,
+.sd-shell .result-output h3 {
+  height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--sd-line-soft);
+  background: #fbfcff;
+  font-size: 12px;
+}
+
+.session-detail-page .sd-payload-main,
+.session-detail-page .payload-main,
+.sd-page .sd-payload-main,
+.sd-page .payload-main,
+.sd-shell .sd-payload-main,
+.sd-shell .payload-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.session-detail-page .sd-payload-warning,
+.session-detail-page .payload-warning,
+.sd-page .sd-payload-warning,
+.sd-page .payload-warning,
+.sd-shell .sd-payload-warning,
+.sd-shell .payload-warning {
+  border: 1px solid var(--sd-warn-line);
+  background: var(--sd-warn-bg);
+  color: #92400e;
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.session-detail-page .sd-context-tool-list,
+.session-detail-page .context-tool-list,
+.sd-page .sd-context-tool-list,
+.sd-page .context-tool-list,
+.sd-shell .sd-context-tool-list,
+.sd-shell .context-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+}
+
+.session-detail-page .sd-context-tool-row,
+.session-detail-page .context-tool-row,
+.sd-page .sd-context-tool-row,
+.sd-page .context-tool-row,
+.sd-shell .sd-context-tool-row,
+.sd-shell .context-tool-row {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 90px;
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.session-detail-page .sd-context-tool-row--failed,
+.session-detail-page .context-tool-row.failed,
+.sd-page .sd-context-tool-row--failed,
+.sd-page .context-tool-row.failed,
+.sd-shell .sd-context-tool-row--failed,
+.sd-shell .context-tool-row.failed {
+  border-color: var(--sd-err-line);
+  background: #fff7f7;
+}
+
+.session-detail-page .sd-context-tool-summary,
+.session-detail-page .sd-context-tool-excerpt,
+.sd-page .sd-context-tool-summary,
+.sd-page .sd-context-tool-excerpt,
+.sd-shell .sd-context-tool-summary,
+.sd-shell .sd-context-tool-excerpt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-detail-page .sd-context-tool-summary,
+.sd-page .sd-context-tool-summary,
+.sd-shell .sd-context-tool-summary {
+  color: var(--sd-text-2);
+  font-size: 12px;
+}
+
+.session-detail-page .sd-context-tool-excerpt,
+.sd-page .sd-context-tool-excerpt,
+.sd-shell .sd-context-tool-excerpt {
+  margin-top: 4px;
+  color: var(--sd-muted);
+  font: 11.5px/1.45 var(--sd-mono);
+}
+
+/* Response blocks. */
+.session-detail-page .sd-response-block-list,
+.session-detail-page .block-list,
+.sd-page .sd-response-block-list,
+.sd-page .block-list,
+.sd-shell .sd-response-block-list,
+.sd-shell .block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-detail-page .sd-response-block,
+.session-detail-page .content-block,
+.sd-page .sd-response-block,
+.sd-page .content-block,
+.sd-shell .sd-response-block,
+.sd-shell .content-block {
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.session-detail-page .sd-response-block--text,
+.session-detail-page .content-block.text,
+.sd-page .sd-response-block--text,
+.sd-page .content-block.text,
+.sd-shell .sd-response-block--text,
+.sd-shell .content-block.text {
+  border-color: #e9d5ff;
+  background: #fdfaff;
+}
+
+.session-detail-page .sd-response-block--tool,
+.session-detail-page .content-block.tool,
+.sd-page .sd-response-block--tool,
+.sd-page .content-block.tool,
+.sd-shell .sd-response-block--tool,
+.sd-shell .content-block.tool {
+  border-color: var(--sd-blue-line);
+  background: #f8fbff;
+}
+
+.session-detail-page .sd-response-block-head,
+.session-detail-page .block-head,
+.sd-page .sd-response-block-head,
+.sd-page .block-head,
+.sd-shell .sd-response-block-head,
+.sd-shell .block-head {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sd-line-soft);
+}
+
+.session-detail-page .sd-response-block-body,
+.session-detail-page .block-body,
+.sd-page .sd-response-block-body,
+.sd-page .block-body,
+.sd-shell .sd-response-block-body,
+.sd-shell .block-body {
+  padding: 9px 10px;
+}
+
+/* Result payload. */
+.session-detail-page .sd-result-status,
+.session-detail-page .result-status,
+.sd-page .sd-result-status,
+.sd-page .result-status,
+.sd-shell .sd-result-status,
+.sd-shell .result-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--sd-line);
+  border-radius: 12px;
+  background: #fbfcff;
+  padding: 10px;
+}
+
+.session-detail-page .sd-result-status--failed,
+.session-detail-page .result-status.failed,
+.sd-page .sd-result-status--failed,
+.sd-page .result-status.failed,
+.sd-shell .sd-result-status--failed,
+.sd-shell .result-status.failed {
+  border-color: var(--sd-err-line);
+  background: var(--sd-err-bg);
+}
+
+@media (max-width: 1180px) {
+  .session-detail-page .sd-round-summary,
+  .session-detail-page .sd-user-round .sd-round-summary,
+  .sd-page .sd-round-summary,
+  .sd-page .sd-user-round .sd-round-summary,
+  .sd-shell .sd-round-summary,
+  .sd-shell .sd-user-round .sd-round-summary {
+    grid-template-columns: 52px 78px minmax(0, 1fr) 76px 68px 88px;
+    column-gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .session-detail-page #sd-payload-modal,
+  .session-detail-page #payload-modal,
+  .session-detail-page .sd-payload-modal,
+  .session-detail-page .payload-modal,
+  .sd-page #sd-payload-modal,
+  .sd-page #payload-modal,
+  .sd-page .sd-payload-modal,
+  .sd-page .payload-modal,
+  .sd-shell #sd-payload-modal,
+  .sd-shell #payload-modal,
+  .sd-shell .sd-payload-modal,
+  .sd-shell .payload-modal {
+    width: 92vw !important;
+    max-width: 92vw !important;
+    min-width: 0 !important;
+    max-height: 86vh !important;
+  }
+
+  .session-detail-page .sd-payload-shell,
+  .session-detail-page .payload-shell,
+  .sd-page .sd-payload-shell,
+  .sd-page .payload-shell,
+  .sd-shell .sd-payload-shell,
+  .sd-shell .payload-shell {
+    grid-template-columns: 1fr;
+  }
+}
+</style></head>
+<body class="session-detail-page">
+  <main style="max-width:1440px;margin:0 auto;padding:18px;">
+    <section style="border:1px solid var(--sd-line);border-radius:18px;background:white;padding:14px;">
+      <button class="sd-round-summary" style="border:1px solid var(--sd-line-soft);border-radius:12px;">
+        <span class="sd-round-id">R7</span>
+        <span class="sd-round-status sd-round-status--failed">FAILED</span>
+        <span class="sd-round-preview"><span class="sd-round-preview__title">Long round preview must truncate on notebook width and never invade token metrics or tool metrics</span></span>
+        <span class="sd-round-metric">18.6M</span>
+        <span class="sd-round-metric">76 tools</span>
+        <span class="sd-round-metric">failed</span>
+      </button>
+      <div style="padding:14px 12px;display:flex;gap:8px;align-items:center;">
+        <button class="sd-btn sd-btn--primary sd-btn--sm" data-action="open-payload" data-payload-id="context-r7">Context</button>
+        <span class="sd-note sd-note--warn">reconstructed context：用户输入 + 3 个前置 tool results</span>
+        <button class="sd-btn sd-btn--primary sd-btn--sm" data-action="open-payload" data-payload-id="response-r7">Response</button>
+      </div>
+      <div class="sd-tool-row">
+        <span class="sd-tool-kind">Read</span><span class="sd-tool-cmd">Read session_detail_timeline.html</span><span class="sd-tool-result">complete · 8.4K chars</span><span class="sd-exit">ok</span><button class="sd-btn sd-btn--primary sd-btn--sm">Result</button>
+      </div>
+      <div class="sd-tool-row sd-tool-row--failed" style="margin-top:6px;">
+        <span class="sd-tool-kind">Bash</span><span class="sd-tool-cmd">node --check session_detail_timeline.js</span><span class="sd-tool-result">SyntaxError: Unexpected token</span><span class="sd-exit">exit 1</span><button class="sd-btn sd-btn--primary sd-btn--sm">Result</button>
+      </div>
+    </section>
+  </main>
+  <div class="sd-payload-modal" open>
+    <div class="sd-modal-panel">
+      <div class="sd-modal-head"><div><div class="sd-modal-title">R7 · LLM Call #2 · Context</div><div class="sd-modal-subtitle">context = user input + previous tool results</div></div><button class="sd-btn sd-btn--secondary sd-btn--sm sd-modal-close">Close</button></div>
+      <div class="sd-modal-body">
+        <div class="sd-payload-shell">
+          <aside class="sd-payload-meta"><h3>Metadata</h3><div style="padding:10px;font:12px var(--sd-mono);color:var(--sd-muted)">kind=context<br>source=reconstructed<br>tools=3</div></aside>
+          <main class="sd-payload-main">
+            <div class="sd-payload-warning">raw HTTP request 未持久化；当前视图由本地 event log 重建。</div>
+            <section class="sd-payload-section"><h3>User input</h3><pre>请修复 session detail payload modal。</pre></section>
+            <section class="sd-payload-section"><h3>Tool result list before this LLM call</h3>
+              <div class="sd-context-tool-list">
+                <div class="sd-context-tool-row"><span>Read</span><div><div class="sd-context-tool-summary">session_detail_timeline.html</div><div class="sd-context-tool-excerpt">macro llm_call_card...</div></div><span>ok</span></div>
+                <div class="sd-context-tool-row"><span>Read</span><div><div class="sd-context-tool-summary">session_detail_timeline.js</div><div class="sd-context-tool-excerpt">openPayload...</div></div><span>ok</span></div>
+                <div class="sd-context-tool-row sd-context-tool-row--failed"><span>Bash</span><div><div class="sd-context-tool-summary">node --check timeline.js</div><div class="sd-context-tool-excerpt">SyntaxError: Unexpected token</div></div><span>failed</span></div>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

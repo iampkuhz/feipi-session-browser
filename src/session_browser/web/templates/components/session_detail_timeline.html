@@ -94,13 +94,9 @@
           {{ sdp.metric_cell('Output', call.usage.output|default('—')) }}
         </div>
         <div class="sd-payload-line">
-          {% if call.context_payload_id %}
-            {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id) }}
-          {% endif %}
-          {{ sdp.payload_note(call.note|default('已捕获渲染上下文；raw request 可能不可用')) }}
-          {% if call.response_payload_id %}
-            {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id) }}
-          {% endif %}
+          {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id|default(''), attrs='data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '"') }}
+          {{ sdp.payload_note(call.note|default('已捕获渲染上下文；raw request 可能不可用'), call.note_tone|default('ok')) }}
+          {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id|default(''), attrs='data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
         </div>
       </div>
     </section>
@@ -188,4 +184,130 @@
     {{ round_summary(row) }}
     {{ round_detail(row) }}
   </article>
+{%- endmacro %}
+
+{# ── v17 typed payload sources ── #}
+
+{% macro payload_sources(sources=[]) -%}
+  {% for payload in sources %}
+    <template
+      data-payload-source="{{ payload.payload_id }}"
+      data-payload-kind="{{ payload.kind|default('unknown') }}"
+      data-payload-status="{{ payload.status|default('available') }}"
+      data-payload-size="{{ payload.size|default('—') }}"
+    >
+      {# Context payload: user input + preceding tool results + source status #}
+      {% if payload.kind == 'llm.context' and payload.context_blocks %}
+        <div class="sd-payload-shell payload-shell">
+          <aside class="sd-payload-meta payload-meta">
+            <h3>Metadata</h3>
+            <div class="sd-kv"><span>kind</span><span>context</span></div>
+            <div class="sd-kv"><span>source</span><span>{{ payload.source_status|default('unknown') }}</span></div>
+            <div class="sd-kv"><span>context blocks</span><span>{{ payload.context_blocks|length }}</span></div>
+          </aside>
+          <main class="sd-payload-main payload-main">
+            {% if payload.warning %}<div class="sd-payload-warning payload-warning">{{ payload.warning }}</div>{% endif %}
+            {% if payload.user_input %}
+              <section class="sd-payload-section payload-section"><h3>User input</h3><pre>{{ payload.user_input }}</pre></section>
+            {% endif %}
+            <section class="sd-payload-section payload-section">
+              <h3>Tool result list before this LLM call</h3>
+              <div class="sd-context-tool-list context-tool-list">
+                {% for block in payload.context_blocks %}
+                  {% if block.kind == 'user_input' %}
+                    <div class="sd-context-tool-row context-tool-row">
+                      <span class="sd-pill sd-pill--user">user</span>
+                      <div>
+                        <div class="sd-context-tool-summary">{{ block.summary }}</div>
+                      </div>
+                      <span class="sd-pill sd-pill--ok">input</span>
+                    </div>
+                  {% elif block.kind == 'tool_result' %}
+                    <div class="sd-context-tool-row context-tool-row {% if block.status_tone in ['fail','failed','err'] %}sd-context-tool-row--failed failed{% endif %}">
+                      <span class="sd-pill sd-pill--model">tool</span>
+                      <div>
+                        <div class="sd-context-tool-summary">{{ block.summary }}</div>
+                      </div>
+                      <span class="sd-pill sd-pill--{{ 'err' if block.status_tone in ['fail','failed','err'] else 'ok' }}">{{ block.status_label|default('ok') }}</span>
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </section>
+          </main>
+        </div>
+      {# Response payload: text blocks + tool_use blocks + diagnostics #}
+      {% elif payload.kind == 'llm.output' and payload.response_blocks %}
+        <div class="sd-payload-shell payload-shell">
+          <aside class="sd-payload-meta payload-meta">
+            <h3>Metadata</h3>
+            <div class="sd-kv"><span>kind</span><span>response</span></div>
+            <div class="sd-kv"><span>source</span><span>{{ payload.source_status|default('unknown') }}</span></div>
+            <div class="sd-kv"><span>blocks</span><span>{{ payload.response_blocks|length }}</span></div>
+          </aside>
+          <main class="sd-payload-main payload-main">
+            {% if payload.warning %}<div class="sd-payload-warning payload-warning">{{ payload.warning }}</div>{% endif %}
+            {% if payload.response_diagnostics %}
+              <div class="sd-payload-diagnostic payload-diagnostic">{{ payload.response_diagnostics }}</div>
+            {% endif %}
+            {% if payload.html %}
+              {{ payload.html|safe }}
+            {% elif payload.text %}
+              <pre>{{ payload.text }}</pre>
+            {% else %}
+              {% for block in payload.response_blocks %}
+                {% if block.type == 'text' %}
+                  <section class="sd-payload-section payload-section"><h3>Text block #{{ loop.index }}</h3><div class="sd-payload-text-block">text ({{ block.size_label|default('—') }})</div></section>
+                {% elif block.type == 'tool_use' %}
+                  <section class="sd-payload-section payload-section"><h3>tool_use · {{ block.name|default('—') }}</h3><pre>{{ block.command|default('') }}</pre></section>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </main>
+        </div>
+      {# Fallback: generic payload #}
+      {% else %}
+        {% if payload.warning %}
+          <div class="sd-payload-empty">{{ payload.warning }}</div>
+        {% endif %}
+        <section class="sd-payload-content">
+          <h3>{{ payload.title|default('Payload') }}</h3>
+          {% if payload.html %}
+            {{ payload.html|safe }}
+          {% else %}
+            <pre>{{ payload.text|default('') }}</pre>
+          {% endif %}
+        </section>
+      {% endif %}
+    </template>
+  {% endfor %}
+{%- endmacro %}
+
+{% macro payload_modal() -%}
+  <dialog class="sd-payload-modal" id="payload-modal" aria-labelledby="payload-title">
+    <div class="sd-payload-modal__panel">
+      <div class="sd-modal-head">
+        <div>
+          <div class="sd-modal-title" id="payload-title" data-payload-title>Payload</div>
+          <div class="sd-modal-sub" data-payload-subtitle>—</div>
+        </div>
+        <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-modal-close" data-action="close-payload" autofocus>Close</button>
+      </div>
+      <div class="sd-modal-body">
+        <div class="sd-payload-shell">
+          <aside class="sd-payload-meta">
+            <h3>Metadata</h3>
+            <div class="sd-kv"><span>payload id</span><span data-meta-id>—</span></div>
+            <div class="sd-kv"><span>kind</span><span data-meta-kind>—</span></div>
+            <div class="sd-kv"><span>status</span><span data-meta-status>—</span></div>
+            <div class="sd-kv"><span>size</span><span data-meta-size>—</span></div>
+            <div class="sd-kv"><span>source</span><span>template</span></div>
+          </aside>
+          <main class="sd-payload-main" data-payload-body>
+            <section class="sd-payload-content"><h3>Empty</h3><pre>点击 Context / Response / Result 后，这里必须渲染 payload 内容。</pre></section>
+          </main>
+        </div>
+      </div>
+    </div>
+  </dialog>
 {%- endmacro %}
