@@ -12,12 +12,8 @@ contains the required signals for visual testing:
 Runs with standard pytest using the hifi_fixture_session fixture from conftest.py.
 """
 
-import json
 import os
-import subprocess
 import sys
-import time
-import urllib.request
 
 import pytest
 
@@ -26,15 +22,10 @@ try:
 except ImportError:
     pytest.skip("bs4 not installed", allow_module_level=True)
 
+from tests.conftest import get_html
+
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(SB_ROOT, "src")
-
-
-def _get_html(url: str) -> str:
-    """Fetch HTML from url and return decoded text."""
-    resp = urllib.request.urlopen(url, timeout=15)
-    assert resp.status == 200
-    return resp.read().decode("utf-8")
 
 
 class TestFixtureSessionRenders:
@@ -44,13 +35,13 @@ class TestFixtureSessionRenders:
         """Fixture session must render non-empty HTML with expected structure."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
         assert soup is not None
         body = soup.find("body")
         assert body is not None
         assert len(body.get_text(strip=True)) > 100
-        # HTTP 200 implied by _get_html; verify key structural elements
+        # HTTP 200 implied by get_html; verify key structural elements
         assert soup.select_one("[data-session-detail-shell]") is not None
         assert soup.select_one("[data-trace-panel]") is not None
 
@@ -62,7 +53,7 @@ class TestFixtureDataAttributes:
         """v11: no data-switch buttons for calls/hotspots; toggle-all and filter-status exist."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
         # Old view switch buttons must NOT exist
         for view in ("calls", "hotspots"):
@@ -80,7 +71,7 @@ class TestFixtureDataAttributes:
         """v9: trace-panel and issue-strip must exist; old views must not."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
         panel = soup.select_one("[data-trace-panel]")
         assert panel is not None, "missing [data-trace-panel]"
@@ -99,7 +90,7 @@ class TestFixtureRoundCount:
         """Fixture must have at least 3 conversation rounds."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
         # v9: Timeline rows use [data-trace-round-row]
         timeline_rows = soup.select("[data-trace-round-row]")
@@ -110,7 +101,7 @@ class TestFixtureRoundCount:
         """At least some rounds should contain tool calls."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
         # v9: tool groups use [data-tool-batch-id]
         tool_elements = soup.select("[data-tool-batch-id]")
@@ -124,7 +115,7 @@ class TestFixtureTokenData:
         """Token bar elements should be rendered in round rows."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
         # v9: token bar uses .sd-tokenbar class
         token_bars = soup.select(".sd-tokenbar")
@@ -134,7 +125,7 @@ class TestFixtureTokenData:
         """Session page should display token summary/metrics."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         # Check that the HTML contains token count references
         assert "token" in html.lower(), "No token references in session HTML"
 
@@ -146,7 +137,7 @@ class TestFixtureAnomalySignals:
         """Session page should render anomaly-related elements if detected."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
         # The fixture has a failed subagent call, which should trigger
         # a failed_tool anomaly on that round
@@ -163,7 +154,7 @@ class TestFixtureFailedToolCall:
         """Session HTML should contain references to failed tool or error state."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         # The fixture has a failed Agent (Explore) subagent call
         # The HTML should contain error-related text or badges
         has_error_indicator = (
@@ -182,7 +173,7 @@ class TestFixtureLLMCalls:
         """Phase 1: calls view is removed; trace panel with token data should exist."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         # The old calls view should NOT exist
         assert 'data-view="calls"' not in html, "calls view should be removed in Phase 1"
         # Token references should still be present in the trace panel
@@ -283,7 +274,7 @@ class TestHifiDomSelectors:
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         return BeautifulSoup(html, "html.parser"), html
 
     def test_data_session_detail_shell(self, hifi_fixture_session):
@@ -338,7 +329,7 @@ class TestLegacyNegativeContract:
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         return BeautifulSoup(html, "html.parser"), html
 
     def test_no_legacy_top_level_tabs(self, hifi_fixture_session):
@@ -381,7 +372,7 @@ class TestShellResidue:
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         return BeautifulSoup(html, "html.parser"), html
 
     def test_no_round_map(self, hifi_fixture_session):
@@ -443,7 +434,7 @@ class TestTraceRowAria:
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         return BeautifulSoup(html, "html.parser"), html
 
     def test_trace_rows_are_not_buttons(self, hifi_fixture_session):
@@ -501,7 +492,7 @@ class TestDeadButtonGate:
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = _get_html(url)
+        html = get_html(url)
         return BeautifulSoup(html, "html.parser"), html
 
     SUPPORTED_ACTIONS = {

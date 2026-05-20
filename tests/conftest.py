@@ -13,12 +13,130 @@ import pytest
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+# ─── Shared HTTP helpers ─────────────────────────────────────────────
+
+import urllib.request
+import urllib.error
+import json
+
+
 def _find_free_port() -> int:
     """Find an available TCP port on localhost."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         s.listen(1)
         return s.getsockname()[1]
+
+
+def get_html(url: str) -> str:
+    """Fetch HTML from url and return decoded text."""
+    resp = urllib.request.urlopen(url, timeout=15)
+    assert resp.status == 200
+    return resp.read().decode("utf-8")
+
+
+def get_json(url: str) -> dict:
+    """Fetch JSON from url and return parsed dict."""
+    resp = urllib.request.urlopen(url, timeout=10)
+    assert resp.status == 200
+    content_type = resp.headers.get("Content-Type", "")
+    assert "application/json" in content_type, f"Expected JSON, got {content_type}"
+    return json.loads(resp.read().decode("utf-8"))
+
+
+def _start_session_browser_server(env: dict, port: int) -> subprocess.Popen:
+    """Start a session-browser server process. Caller is responsible for cleanup."""
+    env = env.copy()
+    env.setdefault("PYTHONPATH", os.path.join(SB_ROOT, "src"))
+    env.setdefault("SERVER_HOST", "127.0.0.1")
+    env["SERVER_PORT"] = str(port)
+    env.setdefault("SESSION_BROWSER_LOG_LEVEL", "WARNING")
+    return subprocess.Popen(
+        [sys.executable, "-m", "session_browser", "serve", "--allow-empty", "--no-scan"],
+        cwd=SB_ROOT,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def wait_for_server(port: int, timeout: float = 15.0) -> str:
+    """Wait for session-browser server to be ready. Returns base_url or raises."""
+    base_url = f"http://127.0.0.1:{port}"
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)
+            if resp.status == 200:
+                return base_url
+        except Exception:
+            pass
+        time.sleep(0.3)
+    raise TimeoutError(f"Server on port {port} did not start within {timeout}s")
+
+
+# ─── Local test index server fixture ─────────────────────────────────
+# Used by tests that rely on the real local-test-index (not synthetic fixtures).
+
+DEFAULT_TEST_INDEX = os.path.expanduser(
+    "~/.local/share/feipi/session-browser/local-test-index/index.sqlite"
+)
+
+
+def _find_test_session_from_index(index_path: str) -> tuple[str, str] | None:
+    """Return (agent, session_id) from the test index."""
+    import sqlite3
+
+    if not os.path.exists(index_path):
+        return None
+    conn = sqlite3.connect(index_path)
+    row = conn.execute(
+        "SELECT agent, session_id FROM sessions WHERE title != '' LIMIT 1"
+    ).fetchone()
+    conn.close()
+    return row
+
+
+@pytest.fixture(scope="session")
+def local_test_server():
+    """Start a session-browser server using the local test index.
+
+    Yields (base_url, agent, session_id) or skips if no index is found.
+    Shared across all tests that need a real session (scope=session = one server for all).
+    """
+    index_dir = os.environ.get("SB_TEST_INDEX_DIR", os.path.dirname(DEFAULT_TEST_INDEX))
+    index_file = os.path.join(index_dir, "index.sqlite")
+
+    if not os.path.exists(index_file):
+        try:
+            for f in os.listdir(index_dir):
+                if f.endswith(".sqlite"):
+                    index_file = os.path.join(index_dir, f)
+                    break
+            else:
+                pytest.skip("No test SQLite index found at " + index_dir)
+        except FileNotFoundError:
+            pytest.skip("No test SQLite index directory found at " + index_dir)
+
+    test_session = _find_test_session_from_index(index_file)
+    if test_session is None:
+        pytest.skip("No sessions found in test index")
+
+    agent, session_id = test_session
+    port = _find_free_port()
+
+    env = os.environ.copy()
+    env["INDEX_DIR"] = index_dir
+    env["PYTHONPATH"] = os.path.join(SB_ROOT, "src")
+
+    proc = _start_session_browser_server(env, port)
+
+    try:
+        base_url = wait_for_server(port)
+        yield base_url, agent, session_id
+    finally:
+        proc.terminate()
+        proc.wait()
 
 
 @pytest.fixture(scope="module")
