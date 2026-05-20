@@ -4,7 +4,6 @@ Covers:
 - ``sanitize_list_title`` utility (unit).
 - ``list_sessions`` returns truncated titles (integration).
 - ``get_session`` returns full titles (no truncation).
-- Search uses truncated titles but still matches.
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ from session_browser.index.indexer import (
     get_session,
     init_schema,
     list_sessions,
-    search_sessions,
     upsert_session,
 )
 from session_browser.domain.models import SessionSummary
@@ -205,24 +203,3 @@ class TestGetSessionFullTitle:
         conn.close()
         assert session is not None
         assert len(session.title) > 120  # full title preserved
-
-
-class TestSearchSessionsWithTruncatedTitle:
-    """Search should work with truncated titles."""
-
-    def test_search_matches_prefix(self, tmp_db):
-        conn = sqlite3.connect(str(tmp_db))
-        conn.row_factory = sqlite3.Row
-        results = search_sessions(conn, "Short", limit=50)
-        conn.close()
-        assert len(results) >= 1
-        assert results[0].session_id == "sess-1"
-
-    def test_search_for_long_title_prefix(self, tmp_db):
-        """Search for the beginning of a long title — should still match."""
-        conn = sqlite3.connect(str(tmp_db))
-        conn.row_factory = sqlite3.Row
-        results = search_sessions(conn, "This is a very long", limit=50)
-        conn.close()
-        # The truncated title still starts with this text
-        assert any(s.session_id == "sess-2" for s in results)

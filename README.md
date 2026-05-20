@@ -105,13 +105,12 @@ localhost/feipi/session-browser:latest
 | Session | `/sessions/{agent}/{id}` | 折叠对话轮次、Token 柱状图、Token Profile、Tool 树 |
 | Agents | `/agents` | Agent 级统计 |
 | Token Glossary | `/glossary` | Token 指标定义与 Provider 映射 |
-| Search | `/search?q=` | 按标题、项目、模型搜索 |
 
 ## 快捷键
 
 | 键 | 操作 |
 |----|------|
-| `/` | 聚焦搜索框 |
+| `/` | 聚焦当前页面的过滤框 |
 | `t` | 切换到 Token Profile 标签 |
 | `m` | 切换到 Messages 标签 |
 | `r` | 切换到 Raw 标签 |

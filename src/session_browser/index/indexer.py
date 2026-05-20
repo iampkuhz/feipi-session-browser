@@ -1058,25 +1058,6 @@ def list_agents(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def search_sessions(
-    conn: sqlite3.Connection,
-    query: str,
-    limit: int = 50,
-) -> list[SessionSummary]:
-    """Search sessions by title, project, or model."""
-    q = f"%{query}%"
-    rows = conn.execute(
-        """
-        SELECT * FROM sessions
-        WHERE title LIKE ? OR project_key LIKE ? OR project_name LIKE ? OR model LIKE ?
-        ORDER BY ended_at DESC
-        LIMIT ?
-        """,
-        (q, q, q, q, limit),
-    ).fetchall()
-    return [_row_to_summary(r, truncate_title=True) for r in rows]
-
-
 # ─── Helpers ───────────────────────────────────────────────────────────────
 
 

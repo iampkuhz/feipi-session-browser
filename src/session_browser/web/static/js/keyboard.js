@@ -75,8 +75,6 @@
   function getSearchInput() {
     // 按页面上下文优先匹配
     var candidates = [
-      // search.html 的搜索表单
-      'input[name="q"]',
       // sessions / dashboard
       '#session-search',
       // projects / dashboard

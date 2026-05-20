@@ -1443,8 +1443,6 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 self._serve_agent(agent)
             elif path == "/glossary":
                 self._serve_glossary()
-            elif path == "/search":
-                self._serve_search(params)
             elif path.startswith("/static/"):
                 self._serve_static(path[len("/static/"):])
             elif path.startswith("/api/sessions/"):
@@ -2026,41 +2024,6 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             active_page="sessions",
             actions=actions,
             sessions_aggregate=sessions_aggregate,
-        )
-        self._send_html(html)
-
-    def _serve_search(self, params: dict[str, list[str]]) -> None:
-        """Search sessions by title, id, project, model, or agent."""
-        query = (params.get("q", [""])[0] or "").strip().lower()
-        conn = _get_connection()
-
-        sessions = []
-        if query:
-            all_sessions = list_sessions(conn, limit=5000, order_by="ended_at")
-            terms = [t for t in query.split() if t]
-            for session in all_sessions:
-                haystack = " ".join(
-                    [
-                        session.title or "",
-                        session.session_id or "",
-                        session.project_name or "",
-                        session.project_key or "",
-                        session.model or "",
-                        session.agent or "",
-                    ]
-                ).lower()
-                if all(term in haystack for term in terms):
-                    sessions.append(session)
-                if len(sessions) >= 200:
-                    break
-
-        conn.close()
-
-        html = self._render_template(
-            "search.html",
-            query=query,
-            sessions=sessions,
-            active_page="search",
         )
         self._send_html(html)
 
