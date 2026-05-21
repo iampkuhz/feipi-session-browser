@@ -553,7 +553,7 @@ th.sortable[data-sorted="asc"]:after {
 
 /* Info icon inside metric labels */
 .info-icon {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-subtle);
   cursor: help;
 }
