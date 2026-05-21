@@ -183,9 +183,9 @@
           {{ sdp.metric_cell('Output', call.usage.output|default('—')) }}
         </div>
         <div class="sd-payload-line">
-          {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id|default(''), attrs='data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '"') }}
+          {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id|default(''), attrs='data-payload-kind="context" data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '"') }}
           {{ sdp.payload_note(call.note|default('已捕获渲染上下文；raw request 可能不可用'), call.note_tone|default('ok')) }}
-          {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id|default(''), attrs='data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
+          {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id|default(''), attrs='data-payload-kind="response" data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
         </div>
       </div>
     </section>
@@ -209,7 +209,7 @@
             <span class="sd-tool-cmd" title="{{ tool.command }}">{{ tool.command }}</span>
             <span class="sd-tool-result" title="{{ tool.result_summary }}">{{ tool.result_summary }}</span>
             <span class="sd-exit">{{ tool.exit_label|default('ok') }}</span>
-            {% if tool.payload_id %}{{ sdp.button('Result', 'open-payload', 'primary', 'sm', tool.payload_id, 'sd-tool-result-btn') }}{% endif %}
+            {% if tool.payload_id %}{{ sdp.button('Result', 'open-payload', 'primary', 'sm', tool.payload_id, extra_class='sd-tool-result-btn', attrs='data-payload-kind="result"') }}{% endif %}
           </div>
         {% endfor %}
       </div>
