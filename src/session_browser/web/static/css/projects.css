@@ -123,6 +123,44 @@
   font-weight: 650;
 }
 
+/* ── Sortable th elements (T117: project detail table headers) ── */
+
+th.sortable,
+th.numeric.sortable {
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+th.sortable:hover {
+  color: var(--purple);
+}
+
+th.sortable:after {
+  content: "\2195";
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-left: 5px;
+}
+
+th.sortable[data-sorted="desc"]:after {
+  content: "\2193";
+  color: var(--purple);
+}
+
+th.sortable[data-sorted="asc"]:after {
+  content: "\2191";
+  color: var(--purple);
+}
+
+/* ── Token total above tokenbar (T117) ────────────────────── */
+
+.token-total {
+  font: 780 12px var(--mono);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
 /* ── Sortable header buttons (T103) ───────────────────────── */
 
 .sortable-header {
@@ -241,6 +279,12 @@
 .token-cell .tokenbar .tokenbar-seg:last-of-type {
   border-radius: 0 999px 999px 0;
 }
+
+/* Tokenbar segment colors for projects context (T117) */
+.token-cell .tokenbar .tokenbar-seg.fresh { background: #2563eb; }
+.token-cell .tokenbar .tokenbar-seg.read { background: #f59e0b; }
+.token-cell .tokenbar .tokenbar-seg.write { background: #fbbf24; }
+.token-cell .tokenbar .tokenbar-seg.out { background: #10b981; }
 
 /* Tooltip inside tokenbar */
 .token-cell .tooltip {

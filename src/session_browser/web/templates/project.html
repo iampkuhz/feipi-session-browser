@@ -108,47 +108,65 @@
             <table id="project-sessions-table" class="data-table" data-table-enhanced>
             <thead>
                 <tr>
-                    <th></th>
                     <th>Title</th>
                     <th>Agent</th>
                     <th>Model</th>
-                    <th class="numeric">Messages</th>
-                    <th class="numeric">Input</th>
-                    <th class="numeric">Cache R</th>
-                    <th class="numeric">Cache W</th>
-                    <th class="numeric">Output</th>
-                    <th class="numeric">Tools</th>
-                    <th class="numeric">Failed</th>
-                    <th>Duration</th>
-                    <th>Time</th>
+                    <th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens</th>
+                    <th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds</th>
+                    <th class="numeric sortable" data-action="sort" data-sort="tools">Tools</th>
+                    <th class="sortable" data-action="sort" data-sort="failed">Failed</th>
+                    <th class="sortable" data-action="sort" data-sort="duration">Duration</th>
+                    <th class="sortable" data-action="sort" data-sort="updated">Updated</th>
                 </tr>
             </thead>
             <tbody>
                 {% for s in sessions %}
-                <tr class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
-                    <td><span class="agent-dot {{ 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' }}"></span></td>
+                <tr data-action="open-session" data-href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
                     <td>
-                        <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link truncate" class="cell-link-block" data-tooltip="{{ s.title }}&#10;ID: {{ s.session_id }}">
-                            {{ s.title[:70] or 'Untitled' }}
-                        </a>
+                        <div class="title-main">{{ s.title[:70] or 'Untitled' }}</div>
+                        <div class="title-sub mono">
+                            {{ s.session_id[-8:] if s.session_id else 'unknown' }}
+                            <button class="btn small" data-action="copy-session" data-clipboard-text="{{ s.session_id }}" aria-label="Copy session ID" title="复制 Session ID">
+                                <span class="emoji" aria-hidden="true">📋</span>
+                            </button>
+                        </div>
                     </td>
-                    <td><span class="badge {{ 'badge-claude' if s.agent == 'claude_code' else 'badge-qoder' if s.agent == 'qoder' else 'badge-codex' }}">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></td>
-                    <td class="text-xs text-muted mono truncate"  data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
-                    <td class="numeric mono text-xs">{{ s.user_message_count + s.assistant_message_count }}</td>
-                    <td class="numeric mono text-xs">{{ s.input_tokens | format_compact_token }}</td>
-                    <td class="numeric mono text-xs">{{ s.cached_input_tokens | format_compact_token }}</td>
-                    <td class="numeric mono text-xs">{{ s.cached_output_tokens | format_compact_token }}</td>
-                    <td class="numeric mono text-xs">{{ s.output_tokens | format_compact_token }}</td>
-                    <td class="numeric mono text-xs">{{ s.tool_call_count }}</td>
-                    <td class="numeric mono text-xs">
-                        {% if s.failed_tool_count > 0 %}
-                        <span class="badge badge-error">{{ s.failed_tool_count }}</span>
+                    <td>
+                        <span class="badge cc"><span class="dot {{ 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' }}" aria-hidden="true"></span>{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
+                        {{ 'Claude Code' if s.agent == 'claude_code' else 'Qoder' if s.agent == 'qoder' else 'Codex' }}
+                    </td>
+                    <td class="mono">{{ s.model or '—' }}</td>
+                    <td class="token-cell">
+                        {% set s_total = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+                        {% set s_fresh = s.input_tokens %}
+                        {% set s_read = s.cached_input_tokens %}
+                        {% set s_write = s.cached_output_tokens %}
+                        {% set s_out = s.output_tokens %}
+                        {% if s_total > 0 %}
+                            {% set s_fresh_pct = (s_fresh / s_total * 100) | round(1) %}
+                            {% set s_read_pct = (s_read / s_total * 100) | round(1) %}
+                            {% set s_write_pct = (s_write / s_total * 100) | round(1) %}
+                            {% set s_out_pct = (s_out / s_total * 100) | round(1) %}
                         {% else %}
-                        <span class="muted-zero">0</span>
+                            {% set s_fresh_pct = 0 %}{% set s_read_pct = 0 %}{% set s_write_pct = 0 %}{% set s_out_pct = 0 %}
                         {% endif %}
+                        <div class="token-total">{{ s_total | format_compact_token }}</div>
+                        <div class="tokenbar" title="Token breakdown: Fresh / Cached Read / Cached Write / Output">
+                            <span class="tokenbar-seg fresh" style="--segment-width:{{ s_fresh_pct }}%"></span>
+                            <span class="tokenbar-seg read" style="--segment-width:{{ s_read_pct }}%"></span>
+                            <span class="tokenbar-seg write" style="--segment-width:{{ s_write_pct }}%"></span>
+                            <span class="tokenbar-seg out" style="--segment-width:{{ s_out_pct }}%"></span>
+                        </div>
                     </td>
-                    <td class="text-xs text-muted">{{ s.duration_seconds | format_duration }}</td>
-                    <td class="text-xs text-muted">{{ s.ended_at | relative_time }}</td>
+                    <td class="num mono">—</td>
+                    <td class="num mono">{{ s.tool_call_count | format_number }}</td>
+                    <td class="{{ 'muted' if s.failed_tool_count == 0 else '' }}">
+                        {% if s.failed_tool_count > 0 %}
+                        <span class="badge err">{{ s.failed_tool_count }} failed</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="mono">{{ s.duration_seconds | format_duration }}</td>
+                    <td class="muted">{{ s.ended_at | relative_time }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

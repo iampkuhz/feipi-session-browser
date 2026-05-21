@@ -271,6 +271,12 @@
         detailRows.forEach(function(row) {
             row.addEventListener('click', function(e) {
                 if (e.target.closest('a') || e.target.closest('button')) return;
+                // T117: use data-href on tr when no link inside
+                var href = row.dataset.href;
+                if (href) {
+                    window.location.href = href;
+                    return;
+                }
                 var link = row.querySelector('a.link, a[data-action="open-session-link"]');
                 if (link && link.href) {
                     window.location.href = link.href;
@@ -280,12 +286,32 @@
 
         /* ── Detail: sortable headers ────────────────────────── */
         var detailSortBtns = detailTable.querySelectorAll('th .sortable-header');
+        var detailSortableThs = detailTable.querySelectorAll('th.sortable');
         var detailSortState = { key: null, ascending: false };
 
+        // Button-based sortable headers (legacy pattern)
         detailSortBtns.forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var key = btn.dataset.sort;
+                if (!key) return;
+                if (detailSortState.key === key) {
+                    detailSortState.ascending = !detailSortState.ascending;
+                } else {
+                    detailSortState.key = key;
+                    detailSortState.ascending = false;
+                }
+                sortDetailTable();
+                updateDetailSortIndicators();
+            });
+        });
+
+        // Direct th-based sortable headers (T117 pattern)
+        detailSortableThs.forEach(function(th) {
+            th.addEventListener('click', function(e) {
+                // Skip if click was on a button inside the th
+                if (e.target.closest('button')) return;
+                var key = th.dataset.sort;
                 if (!key) return;
                 if (detailSortState.key === key) {
                     detailSortState.ascending = !detailSortState.ascending;
@@ -326,6 +352,11 @@
                     colIndex = i;
                     break;
                 }
+                // T117: also check data-sort directly on th
+                if (headers[i].dataset.sort === key) {
+                    colIndex = i;
+                    break;
+                }
             }
             if (colIndex < 0) return '';
 
@@ -340,6 +371,7 @@
         }
 
         function updateDetailSortIndicators() {
+            // Update button-based carets
             detailSortBtns.forEach(function(btn) {
                 var caret = btn.querySelector('.sort-caret');
                 if (!caret) return;
@@ -347,6 +379,16 @@
                     caret.textContent = detailSortState.ascending ? '↑' : '↓';
                 } else {
                     caret.textContent = '↕';
+                }
+            });
+
+            // T117: update data-sorted attribute on th for CSS :after indicator
+            var allSortableThs = detailTable.querySelectorAll('th.sortable');
+            allSortableThs.forEach(function(th) {
+                if (th.dataset.sort === detailSortState.key) {
+                    th.setAttribute('data-sorted', detailSortState.ascending ? 'asc' : 'desc');
+                } else {
+                    th.removeAttribute('data-sorted');
                 }
             });
         }
