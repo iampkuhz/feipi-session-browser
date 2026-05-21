@@ -3,6 +3,10 @@
 
 {% block title %}{{ project.project_name }} - Agent Run Profiler{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/projects.css">
+{% endblock %}
+
 {% block breadcrumb %}
 <a href="/dashboard">Dashboard</a>
 <span class="sep">/</span>
@@ -125,4 +129,8 @@
     {% endif %}
 </div>
 
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/projects.js"></script>
 {% endblock %}

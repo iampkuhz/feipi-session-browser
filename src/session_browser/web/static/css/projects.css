@@ -414,3 +414,180 @@
   color: var(--text-subtle);
   opacity: 0.5;
 }
+
+/* ── Project detail: page head extras ───────────────────────── */
+
+/* Back button (HIFI canonical, used alongside .page-header__back) */
+.back-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.back-btn:hover {
+  background: var(--surface-soft);
+  border-color: var(--line-strong);
+}
+
+/* Subtitle text below page title */
+.subtitle {
+  color: var(--text-subtle);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ── Project detail: path row ───────────────────────────────── */
+
+.path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.path-chip {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  font-size: 12px;
+}
+
+/* ── Project detail: metric card layout ─────────────────────── */
+
+/* Metric label with info icon alignment */
+.metric-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Info icon inside metric labels */
+.info-icon {
+  font-size: 13px;
+  color: var(--text-subtle);
+  cursor: help;
+}
+
+/* Metric value canonical sizing */
+.metric-value {
+  font: 850 21px var(--mono);
+  margin: 3px 0;
+}
+
+/* Trend delta rows */
+.delta {
+  font-size: 12px;
+  color: var(--ok);
+  font-weight: 750;
+}
+
+.delta.down {
+  color: var(--err);
+}
+
+/* ── Project detail: agent mix badges ───────────────────────── */
+
+.agent-mix {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* Agent badge variants (HIFI canonical: .badge.cc / .badge.cx / .badge.qd)
+   Already defined in ui-primitives.css, aliased here for completeness. */
+.badge.cc .dot,
+.badge.cx .dot,
+.badge.qd .dot {
+  flex-shrink: 0;
+}
+
+/* ── Project detail: session title cells ────────────────────── */
+
+.title-main {
+  font-weight: 850;
+  line-height: 1.3;
+}
+
+.title-sub {
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+
+/* ── Project detail: failed row tone ────────────────────────── */
+
+.data-table tbody tr.row--failed {
+  background: var(--red-soft);
+}
+
+.data-table tbody tr.row--failed:hover {
+  background: var(--red-soft);
+}
+
+/* ── Project detail: metric sub text ────────────────────────── */
+
+.metric-card .metric-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Compact metric card variant (project summary cards) */
+.metric-card--compact {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px;
+}
+
+.metric-card--compact .metric-value {
+  font-size: 24px;
+}
+
+/* ── Project detail: sessions table toolbar ─────────────────── */
+
+/* card-title standalone (project detail uses .card-title without .table-toolbar) */
+.page-section .card-title {
+  font-size: 16px;
+  font-weight: 860;
+  margin-bottom: 8px;
+}
+
+/* ── Agent dot alias for projects.css scope ─────────────────── */
+
+/* project.html uses .agent-dot (global style), align with .dot here */
+.agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.agent-dot.claude {
+  background: var(--claude);
+}
+
+.agent-dot.codex {
+  background: var(--codex);
+}
+
+.agent-dot.qoder {
+  background: var(--qoder);
+}
