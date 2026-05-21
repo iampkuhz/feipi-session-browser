@@ -233,35 +233,6 @@ class TestDashboardInfoButtons:
             "Info buttons must use icon-button--info class"
 
 
-# ── TestDashboardChartMenuButtons ────────────────────────────────────
-
-class TestDashboardChartMenuButtons:
-    """Verify chart-menu (⋯) buttons on each chart card."""
-
-    def test_chart_menu_buttons_present(self):
-        """Each chart card must have a chart-menu button."""
-        content = _read_dashboard()
-        menus = re.findall(r'data-action="chart-menu"', content)
-        assert len(menus) >= 2, \
-            f"Dashboard must have at least 2 chart-menu buttons, found {len(menus)}"
-
-    def test_chart_menu_sessions(self):
-        content = _read_dashboard()
-        assert 'data-chart="sessions"' in content, \
-            "Chart-menu button for sessions must exist"
-
-    def test_chart_menu_tokens(self):
-        content = _read_dashboard()
-        assert 'data-chart="tokens"' in content, \
-            "Chart-menu button for tokens must exist"
-
-    def test_chart_menu_uses_ghost_class(self):
-        """Chart-menu buttons must use icon-button--ghost class."""
-        content = _read_dashboard()
-        assert "icon-button--ghost" in content, \
-            "Chart-menu buttons must use icon-button--ghost class"
-
-
 # ── TestDashboardEmptyState ──────────────────────────────────────────
 
 class TestDashboardEmptyState:
@@ -319,20 +290,10 @@ class TestDashboardFloatingOverlays:
         assert 'id="infoPopover"' in content, \
             "Dashboard must have infoPopover element"
 
-    def test_menu_popover(self):
-        content = _read_dashboard()
-        assert 'id="menuPopover"' in content, \
-            "Dashboard must have menuPopover element"
-
     def test_toast_element(self):
         content = _read_dashboard()
         assert 'id="toast"' in content, \
             "Dashboard must have toast element"
-
-    def test_settings_drawer(self):
-        content = _read_dashboard()
-        assert 'id="settingsDrawer"' in content, \
-            "Dashboard must have settingsDrawer element"
 
 
 # ── TestDashboardNoHeroV16 ───────────────────────────────────────────

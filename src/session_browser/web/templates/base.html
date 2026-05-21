@@ -42,7 +42,7 @@
         <!-- Sidebar: grid column 1 -->
         <aside class="sidebar" aria-label="Primary navigation">
             <div class="brand-card">
-                <div class="brand-mark" title="App logo" aria-hidden="true">📈</div>
+                <div class="brand-mark" title="App logo" aria-hidden="true">&#x1F4C8;</div>
                 <div>
                     <div class="brand-title">Agent Run Profiler</div>
                     <div class="brand-meta">
@@ -54,28 +54,22 @@
             <nav class="nav-list" aria-label="主导航">
                 {% block sidebar_nav %}
                 <a class="nav-item{% if active_page == 'dashboard' %} is-active{% endif %}" href="/dashboard" data-action="nav-dashboard" data-target="dashboard">
-                    <span class="icon icon--nav" aria-hidden="true">📊</span><span>Dashboard</span>
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F4CA;</span><span>Dashboard</span>
                 </a>
                 <a class="nav-item{% if active_page == 'sessions' %} is-active{% endif %}" href="/sessions" data-action="nav-sessions" data-target="sessions">
-                    <span class="icon icon--nav" aria-hidden="true">🗂️</span><span>Sessions</span>
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F5C2;&#xFE0F;</span><span>Sessions</span>
                 </a>
                 <a class="nav-item{% if active_page == 'projects' %} is-active{% endif %}" href="/projects" data-action="nav-projects" data-target="projects">
-                    <span class="icon icon--nav" aria-hidden="true">📁</span><span>Projects</span>
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F4C1;</span><span>Projects</span>
                 </a>
                 <a class="nav-item{% if active_page == 'agents' %} is-active{% endif %}" href="/agents" data-action="nav-agents" data-target="agents">
-                    <span class="icon icon--nav" aria-hidden="true">🤖</span><span>Agents</span>
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F916;</span><span>Agents</span>
                 </a>
                 <a class="nav-item{% if active_page == 'glossary' %} is-active{% endif %}" href="/glossary" data-action="nav-glossary" data-target="glossary">
-                    <span class="icon icon--nav" aria-hidden="true">📘</span><span>Token Glossary</span>
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F4D8;</span><span>Token Glossary</span>
                 </a>
                 {% endblock %}
             </nav>
-
-            <div class="sidebar-footer">
-                <button class="nav-item nav-item--footer" data-action="open-settings" aria-label="打开 Settings 面板" title="打开 Settings 面板：展示本地数据路径、主题、快捷键与扫描配置">
-                    <span class="icon icon--nav" aria-hidden="true">⚙️</span><span>Settings</span>
-                </button>
-            </div>
 
             {% block sidebar_extra %}
             <!-- Round Map (not rendered on session detail pages) -->
@@ -114,8 +108,6 @@
                         <span class="density-toggle__label" aria-hidden="true">紧凑</span>
                     </button>
                     {% endblock %}
-                    <button class="icon-btn" data-action="help" title="Help" aria-label="帮助说明">?</button>
-                    <button class="icon-btn" data-action="shell" title="CLI" aria-label="CLI 说明">⌘</button>
                     {% block topbar_actions %}{% endblock %}
                 </div>
             </header>
@@ -125,9 +117,7 @@
                 {% block content %}{% endblock %}
             </section>
 
-            <footer class="footer">
-                Agent Run Profiler · Read-only · Local
-            </footer>
+            <footer class="footer">Agent Run Profiler · Read-only · Local</footer>
         </main>
     </div>
 

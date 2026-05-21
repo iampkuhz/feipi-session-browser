@@ -101,7 +101,6 @@
             </div>
             <p class="chart-card__subtitle" data-subtitle="sessions">Daily session count by agent</p>
         </div>
-        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="sessions" title="Session Trend 更多操作" aria-label="Session Trend 图表菜单">&#x22EF;</button>
     </div>
     {% if trend %}
     <div class="legend-row">
@@ -125,7 +124,6 @@
             </div>
             <p class="chart-card__subtitle" data-subtitle="tokens">Daily token usage by agent</p>
         </div>
-        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="tokens" title="Token Trend 更多操作" aria-label="Token Trend 图表菜单">&#x22EF;</button>
     </div>
     {% if trend %}
     <div class="legend-row">
@@ -149,7 +147,6 @@
             </div>
             <p class="chart-card__subtitle" data-subtitle="prompts">Daily user-initiated inputs by agent</p>
         </div>
-        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="prompts" title="Prompt Activity Trend 更多操作" aria-label="Prompt Activity Trend 图表菜单">&#x22EF;</button>
     </div>
     {% if prompt_activity %}
     <div class="legend-row">
@@ -166,22 +163,10 @@
 {% endif %}{# /stats.total_sessions == 0 #}
 {% endif %}{# /error #}
 
-<!-- Floating overlays for popovers and drawer -->
+<!-- Floating overlays for popovers and toast -->
 <div class="tooltip" id="chartTooltip" hidden></div>
 <div class="popover" id="infoPopover" hidden></div>
-<div class="menu-popover" id="menuPopover" hidden></div>
 <div class="toast" id="toast"></div>
-<div class="drawer" id="settingsDrawer" hidden>
-    <div class="drawer__panel">
-        <div class="drawer__head">
-            <h3>Settings</h3>
-            <button class="icon-button" data-action="close-settings" title="关闭 Settings 面板" aria-label="关闭 Settings">&#x2716;&#xFE0F;</button>
-        </div>
-        <div class="drawer__body">
-            <p>Settings panel — configure data paths, theme, and scan options.</p>
-        </div>
-    </div>
-</div>
 
 {% if trend is defined and trend %}
 <script type="application/json" id="dashboard-chart-data">{{ trend | tojson }}</script>

@@ -32,17 +32,17 @@
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
 }
 
 .sidebar {
   background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(10px);
   border-right: 1px solid var(--line);
-  padding: 14px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .main-panel {
@@ -73,25 +73,24 @@
 }
 
 /* ── Content Width Constraint ============================================ */
-/* All top-level dashboard sections share the same width so their
- * left/right edges always align regardless of viewport size. */
+/* All top-level dashboard sections share the same max-width so their
+ * left/right edges always align. Width fills the main panel (100%)
+ * up to 1360px, centered within the panel. */
 
 .page-head,
 .metric-grid,
 .chart-card,
 .footer {
-  width: min(1360px, calc(100vw - 300px));
+  width: 100%;
+  max-width: 1360px;
   margin-left: auto;
   margin-right: auto;
 }
 
-@media (max-width: 1400px) {
-  .page-head,
-  .metric-grid,
-  .chart-card,
-  .footer {
-    width: calc(100vw - 300px);
-  }
+/* ── Content: zero padding on dashboard so items align to panel edges ── */
+.content {
+  padding: 0;
+  max-width: none;
 }
 
 /* ── Page Head =========================================================== */
@@ -149,16 +148,22 @@
 }
 
 /* ── Metric Card structure (HIFI dashboard layout) ======================== */
-/* These classes support the metric card structure used in dashboard.html.
- * They complement the base .metric-card from ui-primitives.css. */
+/* Horizontal layout: icon on left, label/value/sub stacked vertically on right. */
+
+.metric-card {
+  flex-direction: row;
+  align-items: center;
+  padding: 12px 14px;
+  min-height: 96px;
+}
 
 .metric-card__icon {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-md);
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 18px;
   flex: 0 0 auto;
   background: var(--purple-soft);
 }
@@ -169,7 +174,7 @@
   justify-content: center;
   flex: 1 1 auto;
   min-width: 0;
-  gap: 4px;
+  gap: 2px;
 }
 
 .metric-card__label-row {
@@ -211,17 +216,16 @@
 .chart-card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 16px;
   box-shadow: var(--shadow);
-  padding: 16px;
+  padding: 12px;
   box-sizing: border-box;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .chart-card__head {
   display: flex;
-  justify-content: space-between;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
 }
 .chart-card__title-row {
   display: flex;
@@ -230,13 +234,13 @@
 }
 .chart-card h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   letter-spacing: -0.02em;
 }
 .chart-card__subtitle {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: var(--text-subtle);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 /* ── Legend Row ========================================================== */
@@ -275,7 +279,7 @@
   align-items: stretch;
 }
 .y-axis {
-  height: 220px;
+  height: 180px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -287,7 +291,7 @@
 }
 .stacked-chart {
   min-width: 0;
-  height: 220px;
+  height: 180px;
   display: grid;
   align-items: end;
   gap: 6px;
@@ -315,7 +319,7 @@
 .chart-group__stack {
   width: 100%;
   max-width: 24px;
-  height: 190px;
+  height: 152px;
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-start;

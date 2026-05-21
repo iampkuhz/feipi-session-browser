@@ -154,11 +154,6 @@ class TestBaseHtmlSidebarA11y:
         assert 'aria-hidden="true"' in base_text, \
             "Nav icons lack aria-hidden"
 
-    def test_settings_button_aria_label(self, base_text):
-        """Settings button must have aria-label."""
-        assert 'data-action="open-settings"' in base_text, \
-            "Missing open-settings button"
-
 
 # ── base.html topbar ──────────────────────────────────────────────────────
 
@@ -180,16 +175,6 @@ class TestBaseHtmlTopbar:
         """Top actions container must exist."""
         assert 'class="top-actions"' in base_text, \
             "Topbar lacks .top-actions container"
-
-    def test_help_button(self, base_text):
-        """Help button with data-action=help must exist."""
-        assert 'data-action="help"' in base_text, \
-            "Missing help button"
-
-    def test_shell_button(self, base_text):
-        """CLI/shell button with data-action=shell must exist."""
-        assert 'data-action="shell"' in base_text, \
-            "Missing shell/CLI button"
 
     def test_density_toggle(self, base_text):
         """Density toggle must exist."""
@@ -228,10 +213,6 @@ class TestBaseHtmlBrandCard:
     def test_brand_meta_exists(self, base_text):
         assert 'class="brand-meta"' in base_text, \
             "Missing .brand-meta"
-
-    def test_sidebar_footer_exists(self, base_text):
-        assert 'class="sidebar-footer"' in base_text, \
-            "Missing .sidebar-footer"
 
 
 # ── CSS shell rules ───────────────────────────────────────────────────────
