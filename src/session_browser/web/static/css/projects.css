@@ -1,0 +1,10 @@
+/* ───────────────────────────────────────────────────────────────
+ * Projects — Canonical CSS (T098)
+ *
+ * Scope:
+ *   projects.html only (projects list and project detail views).
+ *
+ * Do not globally override .card, .btn, .pill, .tabs, or
+ * sessions-list styles.
+ *
+ * ─────────────────────────────────────────────────────────────── */

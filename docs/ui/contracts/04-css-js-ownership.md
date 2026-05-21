@@ -56,7 +56,7 @@ src/session_browser/web/static/js/states.js
 | 3 | `css/sessions-list.css` | Canonical target — EXISTS | `sessions.html` |
 | 4 | `css/dashboard.css` | Canonical target — MISSING | — |
 | 5 | `css/session-detail.css` | Canonical target — MISSING | — |
-| 6 | `css/projects.css` | Canonical target — MISSING | — |
+| 6 | `css/projects.css` | Canonical target — EXISTS | `projects.html` |
 | 7 | `css/agents.css` | Canonical target — MISSING | — |
 | 8 | `css/glossary.css` | Canonical target — MISSING | — |
 | 9 | `css/states.css` | Canonical target — MISSING | — |
@@ -110,8 +110,8 @@ src/session_browser/web/static/js/states.js
 
 | Metric | Count |
 |---|---|
-| Canonical CSS targets already exist | 3/9 (`style.css`, `ui-primitives.css`, `sessions-list.css`) |
-| Canonical CSS targets need creation | 6/9 |
+| Canonical CSS targets already exist | 4/9 (`style.css`, `ui-primitives.css`, `sessions-list.css`, `projects.css`) |
+| Canonical CSS targets need creation | 5/9 |
 | Versioned/legacy CSS files for later cleanup | 5 |
 | CSS orphans (on disk, never imported) | 2 |
 | Canonical JS targets already exist | 1/8 (`ui_primitives.js`) |
