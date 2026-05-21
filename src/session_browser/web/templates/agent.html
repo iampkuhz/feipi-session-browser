@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "components/ui_primitives.html" as ui %}
 {% set active_page = 'agents' %}
 
 {% block title %}{{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }} - Agent Run Profiler{% endblock %}
@@ -14,73 +15,91 @@
 {% block content %}
 
 {% if agent_info %}
+{% if error %}
+<section class="page-section">
+    {{ ui.error_state(
+        '数据加载失败',
+        detail=error_message if error_message else '',
+        action_button=ui.button('刷新页面', variant='primary', href='', data_action='refresh'),
+        icon='⚠️'
+    ) }}
+</section>
+{% endif %}
 {% set a_input_side = agent_info.total_input_tokens + agent_info.total_cached_tokens + agent_info.total_cache_write_tokens %}
 {% set a_cache_reuse = (agent_info.total_cached_tokens / a_input_side * 100) | round(1) if a_input_side > 0 else 0 %}
 {% set a_tools_per_round = (agent_info.total_tool_calls / agent_info.total_assistant_messages) | round(1) if agent_info.total_assistant_messages > 0 else 0 %}
 
-<div class="page-header">
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <a href="/agents" class="page-header__back" aria-label="返回 Agents 列表">&larr;</a>
-            <h1 class="page-header__title">
-                <span class="agent-dot {{ 'claude' if current_agent == 'claude_code' else 'qoder' if current_agent == 'qoder' else 'codex' }}"></span>
-                {{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}
-            </h1>
+<div class="header">
+    <div class="header-left">
+        <a class="btn back-btn" data-action="back" href="/agents" title="Back to Agents">←</a>
+        <div>
+            <div class="agent-title-wrap">
+                <div class="agent-title">
+                    <span class="emoji" aria-hidden="true">🤖</span>{{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}
+                </div>
+            </div>
+            <p class="agent-subtitle">{{ agent_info.session_count | format_number }} sessions · {{ agent_info.project_count }} projects · {{ a_cache_reuse }}% cache reuse</p>
         </div>
-    </div>
-    <div class="page-header__desc">
-        {{ agent_info.session_count | format_number }} 个 Session · {{ agent_info.project_count }} 个项目 ·
-        缓存命中率 {{ a_cache_reuse }}% · {{ a_tools_per_round }} 工具/轮
     </div>
 </div>
 
-<!-- 核心指标 data-table -->
-<table class="data-table data-table--compact">
-    <thead>
-        <tr>
-            <th>指标</th>
-            <th class="numeric">数值</th>
-            <th>说明</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>Sessions</td>
-            <td class="numeric mono">{{ agent_info.session_count | format_number }}</td>
-            <td class="text-muted">该 Agent 的总会话数</td>
-        </tr>
-        <tr>
-            <td>Projects</td>
-            <td class="numeric mono">{{ agent_info.project_count }}</td>
-            <td class="text-muted">涉及的项目数</td>
-        </tr>
-        <tr>
-            <td>Input-side Tokens</td>
-            <td class="numeric mono">{{ a_input_side | format_compact_token }}</td>
-            <td class="text-muted">输入侧 Token 总量（含缓存读/写）</td>
-        </tr>
-        <tr>
-            <td>Cache Reuse</td>
-            <td class="numeric mono">{{ a_cache_reuse }}%</td>
-            <td class="text-muted">缓存命中率</td>
-        </tr>
-        <tr>
-            <td>Output Tokens</td>
-            <td class="numeric mono">{{ agent_info.total_output_tokens | format_compact_token }}</td>
-            <td class="text-muted">输出侧 Token 总量</td>
-        </tr>
-        <tr>
-            <td>Tool Calls</td>
-            <td class="numeric mono">{{ agent_info.total_tool_calls | format_number }}</td>
-            <td class="text-muted">{{ agent_info.total_assistant_messages }} 轮 Assistant 消息，{{ a_tools_per_round }} 工具/轮</td>
-        </tr>
-        <tr>
-            <td>Failed Tools</td>
-            <td class="numeric mono {{ 'highlight-error' if agent_info.total_failed_tools > 0 else '' }}">{{ agent_info.total_failed_tools }}</td>
-            <td class="text-muted">失败的工具调用数</td>
-        </tr>
-    </tbody>
-</table>
+<!-- Agent detail metric cards (T143) -->
+<section class="metric-grid" aria-label="Agent detail metrics">
+    <article class="card metric-card">
+        <div class="metric-icon green">
+            <span class="emoji" aria-hidden="true">🧾</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Sessions <span class="info-icon" data-action="info" title="Total sessions for this agent">ⓘ</span></div>
+            <div class="metric-value">{{ agent_info.session_count | format_number }}</div>
+        </div>
+    </article>
+    <article class="card metric-card">
+        <div class="metric-icon purple">
+            <span class="emoji" aria-hidden="true">📁</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Projects <span class="info-icon" data-action="info" title="Number of projects with sessions from this agent">ⓘ</span></div>
+            <div class="metric-value">{{ agent_info.project_count }}</div>
+        </div>
+    </article>
+    <article class="card metric-card">
+        <div class="metric-icon blue">
+            <span class="emoji" aria-hidden="true">⬇️</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Input-side Tokens <span class="info-icon" data-action="info" title="Total input tokens including cache reads and writes">ⓘ</span></div>
+            <div class="metric-value">{{ a_input_side | format_compact_token }}</div>
+        </div>
+    </article>
+    <article class="card metric-card">
+        <div class="metric-icon purple">
+            <span class="emoji" aria-hidden="true">⬆️</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Output Tokens <span class="info-icon" data-action="info" title="Total output tokens">ⓘ</span></div>
+            <div class="metric-value">{{ agent_info.total_output_tokens | format_compact_token }}</div>
+        </div>
+    </article>
+    <article class="card metric-card">
+        <div class="metric-icon blue">
+            <span class="emoji" aria-hidden="true">♻️</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Cache Reuse <span class="info-icon" data-action="info" title="Cache hit ratio: cached_input / input_side">ⓘ</span></div>
+            <div class="metric-value">{{ a_cache_reuse }}%</div>
+        </div>
+    </article>
+    <article class="card metric-card">
+        <div class="metric-icon red">
+            <span class="emoji" aria-hidden="true">⚠️</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Failed Tools <span class="info-icon" data-action="info" title="Total failed tool calls across all sessions">ⓘ</span></div>
+            <div class="metric-value">{{ agent_info.total_failed_tools }}</div>
+        </div>
+    </article>
+</section>
 
 <!-- Model breakdown -->
 {% set models = [] %}
@@ -90,27 +109,27 @@
     {% endif %}
 {% endfor %}
 {% if models | length > 1 %}
-<div class="page-header" >
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <h2 class="page-header__title" >Model Breakdown</h2>
-        </div>
+<section class="card section">
+<div class="section-head">
+    <div>
+        <div class="section-title">Model Breakdown <span class="info-icon" data-action="info" title="Model-level aggregation">ⓘ</span></div>
+        <div class="section-sub">Avg Duration means average LLM call response time, not whole session duration.</div>
     </div>
+    <span class="spacer"></span>
+    <span class="insight"><span class="emoji" aria-hidden="true">💡</span>Most active model: {{ models[0] }}</span>
 </div>
 
 <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
-                <th>Model</th>
-                <th class="numeric">Sessions</th>
-                <th class="numeric">Input</th>
-                <th class="numeric">Cache R</th>
-                <th class="numeric">Cache W</th>
-                <th class="numeric">Output</th>
-                <th class="numeric">Tools</th>
-                <th class="numeric">Failed</th>
-                <th class="numeric">Avg Duration</th>
+                <th class="sortable" data-action="sort" data-sort-key="model_name">Model <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="model_sessions">Sessions <span class="sort-mark"></span></th>
+                <th class="token-col sortable" data-action="sort" data-sort-key="model_tokens">Tokens <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="cache_reuse">Cache Reuse <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="model_tools">Tools <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="model_failed">Failed <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="avg_duration">Avg Duration <span class="sort-mark"></span></th>
             </tr>
         </thead>
         <tbody>
@@ -125,99 +144,160 @@
             {% set m_failed = ms | sum(attribute="failed_tool_count") %}
             {% set m_dur_total = ms | sum(attribute="duration_seconds") %}
             {% set m_avg_dur = (m_dur_total / m_sessions) | round if m_sessions > 0 else 0 %}
+            {% set m_total_tokens = m_input + m_cache_r + m_cache_w + m_output %}
+            {% if m_total_tokens > 0 %}
+                {% set m_fresh_pct = (m_input / m_total_tokens * 100) | round(1) %}
+                {% set m_read_pct = (m_cache_r / m_total_tokens * 100) | round(1) %}
+                {% set m_write_pct = (m_cache_w / m_total_tokens * 100) | round(1) %}
+                {% set m_out_pct = (m_output / m_total_tokens * 100) | round(1) %}
+            {% else %}
+                {% set m_fresh_pct = 0 %}{% set m_read_pct = 0 %}{% set m_write_pct = 0 %}{% set m_out_pct = 0 %}
+            {% endif %}
             {% set m_input_side = m_input + m_cache_r + m_cache_w %}
             {% set m_cache_pct = (m_cache_r / m_input_side * 100) | round(1) if m_input_side > 0 else 0 %}
             <tr>
-                <td class="mono" class="cell-truncate" data-tooltip="{{ model }}">{{ model[:60] }}</td>
-                <td class="numeric mono">{{ m_sessions }}</td>
-                <td class="numeric mono">{{ m_input | format_compact_token }}</td>
-                <td class="numeric mono">{{ m_cache_pct }}%</td>
-                <td class="numeric mono">{{ m_cache_w | format_compact_token }}</td>
-                <td class="numeric mono">{{ m_output | format_compact_token }}</td>
-                <td class="numeric mono">{{ m_tools | format_number }}</td>
-                <td class="numeric mono">
+                <td class="mono" data-tooltip="{{ model }}">{{ model[:60] }}</td>
+                <td class="col-num mono">{{ m_sessions | format_number }}</td>
+                <td class="token-col token-cell">
+                    <div class="token-total">{{ m_total_tokens | format_compact_token }}</div>
+                    <div class="tokenbar" aria-label="Token breakdown tooltip">
+                        <span class="t-fresh" style="width:{{ m_fresh_pct }}%"></span>
+                        <span class="t-read" style="width:{{ m_read_pct }}%"></span>
+                        <span class="t-write" style="width:{{ m_write_pct }}%"></span>
+                        <span class="t-out" style="width:{{ m_out_pct }}%"></span>
+                        <div class="tooltip">
+                            <div class="tip-title">Token Breakdown</div>
+                            <div class="tip-row"><span class="dot claude"></span><span class="name">Fresh</span><span class="val">{{ m_input | format_compact_token }}</span><span>{{ m_fresh_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot codex"></span><span class="name">Cache Read</span><span class="val">{{ m_cache_r | format_compact_token }}</span><span>{{ m_read_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot qoder"></span><span class="name">Cache Write</span><span class="val">{{ m_cache_w | format_compact_token }}</span><span>{{ m_write_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot total"></span><span class="name">Output</span><span class="val">{{ m_output | format_compact_token }}</span><span>{{ m_out_pct }}%</span></div>
+                            <div class="tip-sep"></div>
+                            <div class="tip-row"><b>Total</b><span></span><span class="val">{{ m_total_tokens | format_compact_token }}</span></div>
+                        </div>
+                    </div>
+                </td>
+                <td class="col-num mono">{{ m_cache_pct }}%</td>
+                <td class="col-num mono">{{ m_tools | format_number }}</td>
+                <td class="col-num">
                     {% if m_failed > 0 %}
-                    <span class="badge badge-error">{{ m_failed }}</span>
+                    <span class="badge err">{{ m_failed | format_number }}</span>
                     {% else %}
-                    <span class="muted-zero">0</span>
+                    <span class="mono">0</span>
                     {% endif %}
                 </td>
-                <td class="numeric mono">{{ m_avg_dur | format_duration }}</td>
+                <td class="col-num mono">{{ m_avg_dur | format_duration }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+</section>
 {% endif %}
 {% endif %}
 
 <!-- Sessions -->
-<div class="page-header" >
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <h2 class="page-header__title" >
-                <span class="badge {{ 'badge-claude' if current_agent == 'claude_code' else 'badge-qoder' if current_agent == 'qoder' else 'badge-codex' }}" >
-                    {{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}
-                </span>
-                Sessions ({{ sessions | length }})
-            </h2>
-        </div>
+<section class="card section">
+<div class="section-head">
+    <div>
+        <div class="section-title">Sessions <span class="info-icon" data-action="info" title="Sessions run by this agent">ⓘ</span></div>
+        <div class="section-sub">Title and Project are not sortable. Metric headers sort the table.</div>
     </div>
+    <span class="spacer"></span>
+    <input class="input" id="session-search" aria-label="Search sessions" data-search="session-id-or-title" placeholder="Search by Session ID or title..." />
 </div>
 
 {% if sessions %}
 <div class="table-wrap">
-    <table class="data-table">
+    <table class="data-table" id="agent-sessions-table">
         <thead>
             <tr>
                 <th>Title</th>
                 <th>Project</th>
-                <th>Model</th>
-                <th class="numeric">Messages</th>
-                <th class="numeric">Input</th>
-                <th class="numeric">Cache R</th>
-                <th class="numeric">Cache W</th>
-                <th class="numeric">Output</th>
-                <th class="numeric">Tools</th>
-                <th class="numeric">Failed</th>
-                <th>Duration</th>
-                <th>Time</th>
+                <th class="sortable" data-action="sort" data-sort-key="model">Model <span class="sort-mark"></span></th>
+                <th class="token-col sortable" data-action="sort" data-sort-key="tokens">Tokens <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="rounds">Rounds <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="tools">Tools <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="failed">Failed <span class="sort-mark"></span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="duration">Duration <span class="sort-mark"></span></th>
+                <th class="sortable" data-action="sort" data-sort-key="updated">Updated <span class="sort-mark"></span></th>
             </tr>
         </thead>
         <tbody>
             {% for s in sessions %}
-            <tr class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
+            {% set s_total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+            {% if s_total_tokens > 0 %}
+                {% set s_fresh_pct = (s.input_tokens / s_total_tokens * 100) | round(1) %}
+                {% set s_read_pct = (s.cached_input_tokens / s_total_tokens * 100) | round(1) %}
+                {% set s_write_pct = (s.cached_output_tokens / s_total_tokens * 100) | round(1) %}
+                {% set s_out_pct = (s.output_tokens / s_total_tokens * 100) | round(1) %}
+            {% else %}
+                {% set s_fresh_pct = 0 %}{% set s_read_pct = 0 %}{% set s_write_pct = 0 %}{% set s_out_pct = 0 %}
+            {% endif %}
+            <tr class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}" data-action="open-session" data-href="/sessions/{{ s.agent }}/{{ s.session_id }}">
                 <td>
-                    <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link" class="cell-link-block" data-tooltip="{{ s.title }}">
-                        {{ s.title[:70] or 'Untitled' }}
-                    </a>
+                    <div class="title-main"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:70] or 'Untitled' }}</a></div>
+                    <div class="title-sub mono">{{ s.session_id }}</div>
                 </td>
-                <td class="text-xs">
-                    <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted"  data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a>
+                <td>
+                    <span class="project-cell">
+                        <a href="/projects/{{ s.project_key | urlencode }}">{{ s.project_name }}</a>
+                        <span class="path-tooltip">{{ s.project_key }}</span>
+                    </span>
                 </td>
-                <td class="text-muted mono"  data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
-                <td class="numeric mono">{{ s.user_message_count + s.assistant_message_count }}</td>
-                <td class="numeric mono">{{ s.input_tokens | format_compact_token }}</td>
-                <td class="numeric mono">{{ s.cached_input_tokens | format_compact_token }}</td>
-                <td class="numeric mono">{{ s.cached_output_tokens | format_compact_token }}</td>
-                <td class="numeric mono">{{ s.output_tokens | format_compact_token }}</td>
-                <td class="numeric mono">{{ s.tool_call_count }}</td>
-                <td class="numeric mono">
+                <td class="mono" data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
+                <td class="token-col token-cell">
+                    <div class="token-total">{{ s_total_tokens | format_compact_token }}</div>
+                    <div class="tokenbar" aria-label="Token breakdown tooltip">
+                        <span class="t-fresh" style="width:{{ s_fresh_pct }}%"></span>
+                        <span class="t-read" style="width:{{ s_read_pct }}%"></span>
+                        <span class="t-write" style="width:{{ s_write_pct }}%"></span>
+                        <span class="t-out" style="width:{{ s_out_pct }}%"></span>
+                        <div class="tooltip">
+                            <div class="tip-title">Token Breakdown</div>
+                            <div class="tip-row"><span class="dot claude"></span><span class="name">Fresh</span><span class="val">{{ s.input_tokens | format_compact_token }}</span><span>{{ s_fresh_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot codex"></span><span class="name">Cache Read</span><span class="val">{{ s.cached_input_tokens | format_compact_token }}</span><span>{{ s_read_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot qoder"></span><span class="name">Cache Write</span><span class="val">{{ s.cached_output_tokens | format_compact_token }}</span><span>{{ s_write_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot total"></span><span class="name">Output</span><span class="val">{{ s.output_tokens | format_compact_token }}</span><span>{{ s_out_pct }}%</span></div>
+                            <div class="tip-sep"></div>
+                            <div class="tip-row"><b>Total</b><span></span><span class="val">{{ s_total_tokens | format_compact_token }}</span></div>
+                        </div>
+                    </div>
+                </td>
+                <td class="col-num mono">{{ s.assistant_message_count }}</td>
+                <td class="col-num mono">{{ s.tool_call_count | format_number }}</td>
+                <td class="col-num">
                     {% if s.failed_tool_count > 0 %}
-                    <span class="badge badge-error">{{ s.failed_tool_count }}</span>
+                    <span class="badge err">{{ s.failed_tool_count | format_number }}</span>
                     {% else %}
-                    <span class="muted-zero">0</span>
+                    <span class="mono">0</span>
                     {% endif %}
                 </td>
-                <td class="text-muted">{{ s.duration_seconds | format_duration }}</td>
-                <td class="text-muted">{{ s.ended_at | relative_time }}</td>
+                <td class="col-num mono">{{ s.duration_seconds | format_duration }}</td>
+                <td class="mono">{{ s.ended_at | relative_time }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 {% else %}
-<div class="empty-state">该 Agent 暂无 Session。</div>
+<section class="page-section">
+    {{ ui.empty_state(
+        '暂无该 Agent 的 Session 数据',
+        action_button=ui.button('返回 Agents', variant='primary', href='/agents', data_action='back'),
+        icon='🤖'
+    ) }}
+</section>
 {% endif %}
+
+<!-- Agent sessions pagination (T146) -->
+<div class="pagination unified-pagination" role="navigation" aria-label="Agent sessions pagination">
+    <span class="page-status">Page</span>
+    <input class="page-input mono" data-action="page-input" aria-label="Page number" value="1" title="输入页码后按 Enter，跳转到指定页" />
+    <span class="page-status" id="agent-page-status-text">of 1</span>
+    <span class="spacer"></span>
+    <button class="btn sm" data-action="prev-page" title="跳转到上一页">‹ prev</button>
+    <button class="btn sm" data-action="next-page" title="跳转到下一页">next ›</button>
+</div>
+</section>
 
 {% endblock %}

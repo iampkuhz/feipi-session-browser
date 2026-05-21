@@ -310,3 +310,308 @@
   width: 64px;
   text-align: center;
 }
+
+/* ── Agent Detail page styles (T140) ────────────────────────── */
+
+/* 1. Page header for agent detail */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+.header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.back-btn {
+  width: 36px;
+  height: 36px;
+}
+.agent-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+.agent-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6d5dfc, #4f32e8);
+  color: white;
+  box-shadow: 0 10px 22px rgba(79, 70, 229, .22);
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -.03em;
+  text-transform: uppercase;
+}
+.agent-subtitle {
+  color: var(--muted, #667085);
+  font-size: 13px;
+}
+
+/* 2. Metric card layout (6-card grid for agent detail) */
+.metric-grid:has(.metric-card) {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.metric-card {
+  min-width: 0;
+  height: 92px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow);
+}
+.metric-body {
+  min-width: 0;
+}
+.metric-body .metric-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 850;
+}
+.metric-body .metric-value {
+  font-family: var(--mono);
+  font-size: 19px;
+  line-height: 1.15;
+  font-weight: 900;
+  letter-spacing: -.02em;
+  margin-top: 10px;
+  white-space: nowrap;
+}
+
+/* 4. Section cards */
+.section {
+  margin-top: 16px;
+  overflow: hidden;
+}
+.section-head {
+  min-height: 52px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-sub {
+  font-size: 12px;
+  color: var(--muted, #667085);
+  font-weight: 650;
+}
+.insight {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 9px;
+  background: #f0edff;
+  border: 1px solid #ddd6fe;
+  color: #4f32e8;
+  font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* 5. Input (search) */
+.input {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 12px;
+  color: #344054;
+  font-weight: 650;
+  min-width: 252px;
+}
+
+/* 6. Button base */
+.btn {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: #1f2937;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn.sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* 7. Data table improvements */
+.data-table .col-num {
+  text-align: right;
+}
+.data-table th.sortable {
+  cursor: pointer;
+}
+.data-table th.sortable .sort-mark {
+  font-size: 10px;
+  color: #667085;
+  margin-left: 6px;
+}
+.data-table .title-main {
+  font-weight: 850;
+  color: #111827;
+}
+.data-table .title-sub {
+  font-size: 11px;
+  color: var(--muted, #667085);
+  margin-top: 2px;
+}
+
+/* 8. Project cell with path tooltip */
+.project-cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.path-tooltip {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 28px;
+  width: max-content;
+  max-width: 380px;
+  background: #101828;
+  color: white;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  z-index: 10;
+  box-shadow: 0 12px 30px rgba(16, 24, 40, .22);
+}
+.project-cell:hover .path-tooltip {
+  display: block;
+}
+
+/* 9. Badge base and variants */
+.badge {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 850;
+}
+.badge.cc {
+  background: #f1edff;
+  color: #5338e9;
+  border-color: #ddd6fe;
+}
+.badge.cx {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #bcebd8;
+}
+.badge.qd {
+  background: #fff7ed;
+  color: #b45309;
+  border-color: #fed7aa;
+}
+.badge.err {
+  background: var(--error-bg, #fef2f2);
+  color: var(--error, #dc2626);
+  border-color: #fecaca;
+}
+
+/* 10. Dot base (type-colored variants already exist above) */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* 11. Tokenbar tooltip (HIFI uses .t-fresh etc., not .tokenbar-seg) */
+.tokenbar .t-fresh {
+  background: var(--claude, #6d5dfc);
+}
+.tokenbar .t-read {
+  background: var(--codex, #12b981);
+}
+.tokenbar .t-write {
+  background: var(--qoder, #f59e0b);
+}
+.tokenbar .t-out {
+  background: var(--total, #98a2b3);
+}
+.tooltip {
+  display: none;
+  position: absolute;
+  left: 44px;
+  top: 20px;
+  width: 225px;
+  z-index: 20;
+  background: #fff;
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 30px rgba(16, 24, 40, .16);
+  border-radius: 12px;
+  padding: 11px;
+}
+.tokenbar:hover .tooltip {
+  display: block;
+}
+.tip-title {
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.tip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: space-between;
+  font-size: 12px;
+  margin: 6px 0;
+}
+.tip-row .name {
+  margin-right: auto;
+}
+.tip-row .val {
+  font-family: var(--mono);
+  font-weight: 850;
+}
+.tip-sep {
+  border-top: 1px solid var(--line-soft, #eef2f7);
+  margin: 8px 0;
+}
+
+/* 12. Responsive */
+@media (max-width: 1260px) {
+  .metric-grid:has(.metric-card) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

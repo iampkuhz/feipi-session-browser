@@ -1,0 +1,65 @@
+/* ───────────────────────────────────────────────────────────────
+ * Glossary — Canonical CSS (T154)
+ *
+ * Scope: glossary.html only.
+ *
+ * Do not globally override .card, .data-table, .badge, etc.
+ * Those are defined in ui-primitives.css and style.css.
+ *
+ * Already covered by style.css (no need to duplicate here):
+ *   .glossary__intro, .glossary-label,
+ *   .token-badge, .anomaly-badge, .signal-badge
+ * ─────────────────────────────────────────────────────────────── */
+
+/* ── Page Head (canonical .page-head pattern, T156) ───────── */
+
+.page-head {
+  margin-bottom: 24px;
+}
+
+/* Summary metric grid spacing (T157) */
+.page-head + .metric-grid {
+  margin-top: 12px;
+}
+
+.metric-grid {
+  margin-bottom: 20px;
+}
+
+/* Responsive: stack cards on narrow screens */
+@media (max-width: 720px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Metric card note text (matches HIFI .metric-note) */
+.metric-note {
+  font-size: 12px;
+  color: var(--text-muted, #666);
+  margin-top: 2px;
+}
+
+.page-head h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.page-head p.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted, #666);
+  line-height: 1.4;
+}
+
+/* JS-controlled empty state (glossary.js toggles display).
+   .is-hidden for initial server-rendered state; JS overrides via inline style. */
+#glossary-empty.is-hidden {
+  display: none;
+}
+
+#glossary-empty {
+  margin-bottom: 16px;
+}

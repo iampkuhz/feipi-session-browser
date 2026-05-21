@@ -360,4 +360,254 @@
         window.location.search = params.toString();
     }
 
+    /* ===========================================================
+     * AGENT DETAIL page behaviors (T141)
+     * =========================================================== */
+
+    // Contract: [data-action="back"] — back link/button navigates to /agents.
+    // Works with both <a> and <button> elements.
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="back"]');
+        if (!btn) return;
+        e.preventDefault();
+        var href = btn.getAttribute('href');
+        if (!href || href === '#') href = '/agents';
+        window.location.href = href;
+    });
+
+    // Contract: tr[data-action="open-session"] or [data-action="open-session"] —
+    // click navigates to /sessions/{agent}/{session_id}.
+    // Skips if click target is already a link or button.
+    document.addEventListener('click', function(e) {
+        var row = e.target.closest('[data-action="open-session"]');
+        if (!row) return;
+        if (e.target.closest('a') || e.target.closest('button')) return;
+        var href = row.dataset.href;
+        if (href) {
+            window.location.href = href;
+        }
+    });
+
+    // Contract: th.sortable[data-action="sort"][data-sort-key] within
+    // agent-detail context — click to sort model breakdown table.
+    // Toggles ascending/descending and updates .sort-mark indicator.
+    var modelSortState = { key: null, ascending: false };
+
+    document.addEventListener('click', function(e) {
+        var th = e.target.closest('th.sortable[data-action="sort"][data-sort-key]');
+        if (!th) return;
+        // Only handle tables within agent detail context (not agents list).
+        var table = th.closest('table');
+        if (!table || !table.querySelector('[data-action="open-session"]')) return;
+
+        var key = th.dataset.sortKey;
+        if (modelSortState.key === key) {
+            modelSortState.ascending = !modelSortState.ascending;
+        } else {
+            modelSortState.key = key;
+            modelSortState.ascending = false;
+        }
+
+        sortModelTable(table, modelSortState.key, modelSortState.ascending);
+        updateModelSortIndicators(table, modelSortState);
+    });
+
+    function sortModelTable(table, key, ascending) {
+        var tbody = table.querySelector('tbody');
+        if (!tbody) return;
+        var rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort(function(a, b) {
+            var va = getModelCellValue(a, key);
+            var vb = getModelCellValue(b, key);
+            if (va === vb) return 0;
+            var cmp = (va < vb) ? -1 : 1;
+            return ascending ? cmp : -cmp;
+        });
+        rows.forEach(function(r) { tbody.appendChild(r); });
+    }
+
+    function getModelCellValue(row, key) {
+        var cells = row.querySelectorAll('td');
+        switch (key) {
+            case 'model_name':
+                return (cells[0]?.textContent || '').trim();
+            case 'model_sessions':
+                return parseInt(cells[1]?.textContent) || 0;
+            case 'model_input':
+                return parseCompactToken(cells[2]?.textContent || '0');
+            case 'model_cache_reuse':
+                return parseFloat(cells[3]?.textContent) || 0;
+            case 'model_cache_w':
+                return parseCompactToken(cells[4]?.textContent || '0');
+            case 'model_output':
+                return parseCompactToken(cells[5]?.textContent || '0');
+            case 'model_tools':
+                return parseCompactToken(cells[6]?.textContent || '0');
+            case 'model_failed':
+                return parseInt(cells[7]?.textContent) || 0;
+            case 'avg_duration':
+                return parseDuration(cells[8]?.textContent || '0');
+            default:
+                return 0;
+        }
+    }
+
+    function updateModelSortIndicators(table, state) {
+        var headers = table.querySelectorAll('th.sortable');
+        headers.forEach(function(th) {
+            var mark = th.querySelector('.sort-mark, .sort-caret');
+            if (!mark) return;
+            if (th.dataset.sortKey === state.key) {
+                mark.textContent = state.ascending ? '↑' : '↓';
+            } else {
+                mark.textContent = '↕';
+            }
+        });
+    }
+
+    // Helper: parse compact token strings like "723.3M", "48.2K", "1,234".
+    function parseCompactToken(str) {
+        str = str.replace(/,/g, '').trim();
+        var m = str.match(/^([\d.]+)\s*([KMkm])?$/);
+        if (!m) return parseFloat(str) || 0;
+        var val = parseFloat(m[1]);
+        if (m[2] && m[2].toUpperCase() === 'K') val *= 1000;
+        if (m[2] && m[2].toUpperCase() === 'M') val *= 1000000;
+        return val;
+    }
+
+    // Helper: parse duration strings like "8.2s", "12m 47s", "1h 23m".
+    function parseDuration(str) {
+        var total = 0;
+        var hm = str.match(/(\d+(?:\.\d+)?)\s*h/);
+        if (hm) total += parseFloat(hm[1]) * 3600;
+        var mm = str.match(/(\d+(?:\.\d+)?)\s*m(?!s)/);
+        if (mm) total += parseFloat(mm[1]) * 60;
+        var sm = str.match(/([\d.]+)\s*s/);
+        if (sm) total += parseFloat(sm[1]);
+        return total;
+    }
+
+    /* ── Session search (T144) ─────────────────────────────────── */
+    // Contract: #session-search[data-search="session-id-or-title"] —
+    // instant filtering by session ID, title text, or project name.
+
+    var searchInput = document.getElementById('session-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            var query = searchInput.value.toLowerCase().trim();
+            var sessionTable = document.getElementById('agent-sessions-table');
+            if (!sessionTable) return;
+            var rows = sessionTable.querySelectorAll('tbody tr');
+            rows.forEach(function(row) {
+                if (!query) {
+                    row.style.display = '';
+                    return;
+                }
+                var text = row.textContent.toLowerCase();
+                row.style.display = text.indexOf(query) === -1 ? 'none' : '';
+            });
+        });
+    }
+
+    /* ── Sessions pagination (T146) ────────────────────────────── */
+    // Contract: .unified-pagination[data-page-of="agent-sessions"] —
+    // client-side pagination of #agent-sessions-table tbody rows.
+    // Respects active search filter.
+
+    var PAGE_SIZE = 20;
+    var currentPage = 1;
+    var totalPages = 1;
+    var visibleRows = [];
+
+    function updatePaginationDisplay() {
+        var input = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="page-input"]');
+        var statusText = document.getElementById('agent-page-status-text');
+        var prevBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="prev-page"]');
+        var nextBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="next-page"]');
+        if (!input || !statusText) return;
+
+        input.value = currentPage;
+        var startIdx = (currentPage - 1) * PAGE_SIZE + 1;
+        var endIdx = Math.min(currentPage * PAGE_SIZE, visibleRows.length);
+        statusText.textContent = 'of ' + totalPages + ' · ' + startIdx + '–' + endIdx + ' of ' + visibleRows.length + ' sessions';
+
+        // Show/hide prev/next buttons
+        if (prevBtn) prevBtn.style.display = currentPage <= 1 ? 'none' : '';
+        if (nextBtn) nextBtn.style.display = currentPage >= totalPages ? 'none' : '';
+
+        // Show/hide rows
+        visibleRows.forEach(function(row, i) {
+            row.style.display = (i >= (currentPage - 1) * PAGE_SIZE && i < currentPage * PAGE_SIZE) ? '' : 'none';
+        });
+    }
+
+    function applyPagination() {
+        var table = document.getElementById('agent-sessions-table');
+        if (!table) return;
+        var tbody = table.querySelector('tbody');
+        if (!tbody) return;
+        // Get only currently visible rows (respecting search filter)
+        var allRows = Array.from(tbody.querySelectorAll('tr'));
+        visibleRows = allRows.filter(function(row) {
+            return row.style.display !== 'none';
+        });
+        if (visibleRows.length === 0) {
+            visibleRows = allRows;
+        }
+        totalPages = Math.ceil(visibleRows.length / PAGE_SIZE) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        updatePaginationDisplay();
+    }
+
+    // Re-apply pagination when search changes
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            // Wait for search handler to run, then re-apply pagination
+            setTimeout(function() { applyPagination(); }, 10);
+        });
+    }
+
+    // Wire up page input Enter key
+    var pageInput = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="page-input"]');
+    if (pageInput) {
+        pageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                var pageNum = parseInt(pageInput.value, 10);
+                if (pageNum >= 1 && pageNum <= totalPages) {
+                    currentPage = pageNum;
+                    updatePaginationDisplay();
+                }
+            }
+        });
+    }
+
+    // Wire up prev-page button
+    var agentPrevBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="prev-page"]');
+    if (agentPrevBtn) {
+        agentPrevBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (currentPage > 1) {
+                currentPage--;
+                updatePaginationDisplay();
+            }
+        });
+    }
+
+    // Wire up next-page button
+    var agentNextBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="next-page"]');
+    if (agentNextBtn) {
+        agentNextBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePaginationDisplay();
+            }
+        });
+    }
+
+    // Initialize on page load
+    applyPagination();
+
 })();

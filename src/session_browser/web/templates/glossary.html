@@ -3,6 +3,12 @@
 
 {% block title %}术语表 - Agent Run Profiler{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/glossary.css">
+{% endblock %}
+
+{%- import "components/ui_primitives.html" as ui %}
+
 {% block breadcrumb %}
 <a href="/dashboard">面板</a>
 <span class="sep">/</span>
@@ -12,28 +18,81 @@
 {% block content %}
 {%- from "components/badge.html" import badge, status_success, status_warning, status_error, status_info, status_muted, token_input, token_cache_read, token_cache_write, token_output, agent_claude, agent_codex, agent_qoder, agent_for, tool, anomaly %}
 
+<!-- Page head: canonical .page-head (T156) -->
+<section class="page-head">
+    <h1>Token Glossary</h1>
+    <p class="subtitle">Reference for token metrics, provider mappings, and derived calculations.</p>
+</section>
+
+<!-- Summary metric grid (T157) -->
+<div aria-label="术语页摘要指标" class="metric-grid">
+    <div class="card metric-card">
+        <div class="metric-icon purple"><span aria-hidden="true">🧮</span></div>
+        <div>
+            <div class="metric-label">Token Types</div>
+            <div class="metric-value mono">6</div>
+            <div class="metric-note">Input / Output / Cache</div>
+        </div>
+    </div>
+    <div class="card metric-card">
+        <div class="metric-icon green"><span aria-hidden="true">📐</span></div>
+        <div>
+            <div class="metric-label">Derived Metrics</div>
+            <div class="metric-value mono">7</div>
+            <div class="metric-note">Reuse / Rate / Throughput</div>
+        </div>
+    </div>
+    <div class="card metric-card">
+        <div class="metric-icon orange"><span aria-hidden="true">🧩</span></div>
+        <div>
+            <div class="metric-label">Provider Fields</div>
+            <div class="metric-value mono">4</div>
+            <div class="metric-note">Anthropic / OpenAI / Codex</div>
+        </div>
+    </div>
+    <div class="card metric-card">
+        <div class="metric-icon blue"><span aria-hidden="true">🪧</span></div>
+        <div>
+            <div class="metric-label">Round Signals</div>
+            <div class="metric-value mono">6</div>
+            <div class="metric-note">Round / Step / Batch</div>
+        </div>
+    </div>
+</div>
+
 <!-- 搜索过滤 -->
-<div class="card mb-3">
-    <div class="card-title">术语搜索</div>
-    <div class="filter-bar">
+<div class="card filter-card mb-3">
+    <div class="filter-row">
         <input type="search"
                id="glossary-search"
-               class="filter-bar__input filter-bar__input--search"
+               class="input search"
+               data-search="glossary-term"
                placeholder="搜索术语、指标、Provider…"
+               aria-label="Search glossary terms"
                autocomplete="off" />
         <span id="glossary-match-count" class="text-xs text-muted"></span>
     </div>
 </div>
 
-<!-- 空状态 -->
-<div id="glossary-empty" class="empty-state is-hidden">
-    没有匹配的术语。尝试更换关键词或清空搜索框。
+{# Search-driven empty state — JS-controlled by glossary.js (toggles display).
+   Uses .state-strip structure (matches projects.html) for visual consistency.
+   NOT using ui.empty_state() macro because this is a live search result state,
+   not a page-level empty state. The JS directly manipulates display style rather
+   than toggling .is-hidden class. See glossary.js filterGlossary(). #}
+<div id="glossary-empty" class="state-strip is-hidden" role="status" aria-live="polite">
+    <div class="state-icon" aria-hidden="true">&#x1F4D6;</div>
+    <div>
+        <div class="state-title">没有匹配的术语</div>
+        <div class="muted">尝试更换关键词或清空搜索框。</div>
+    </div>
 </div>
 
 <!-- Badge 规范示范 -->
-<div class="card mb-3 glossary-table-section">
-    <div class="card-title">Badge 统一规范</div>
-    <p class="text-xs text-muted mb-2">同一语义在不同页面颜色一致。所有 badge 高度 20px，透明浅底 + 深色文本 + 低对比边框。</p>
+<section class="card section">
+    <div class="section-head">
+        <span class="section-title">Badge Reference</span>
+    </div>
+    <p class="section-sub">统一语义在不同页面颜色一致。所有 badge 高度 20px，透明浅底 + 深色文本 + 低对比边框。</p>
     <div class="mb-2">
         <span class="text-sm glossary-label">状态：</span>
         {{ status_success("成功") }}
@@ -69,29 +128,31 @@
         {{ anomaly("Long Duration", "warning") }}
         {{ anomaly("Cache Creation", "info") }}
     </div>
-</div>
+</section>
 
 <!-- Token 概览（非表格，不参与搜索过滤） -->
-<div class="card mb-3">
-    <div class="card-title">Token 概览</div>
+<section class="card section">
+    <div class="section-head">
+        <span class="section-title">Token 概览</span>
+    </div>
     <div class="glossary__intro">
         <p>所有输入端 token 包含三个部分：<strong>fresh</strong>（全新、未缓存）、<strong>cache read</strong>（从缓存读取）和 <strong>cache write</strong>（写入缓存供后续使用）。Cache read 和 cache write 都是<strong>输入端</strong>概念——它们描述的是提示词/上下文的处理方式，而非模型的输出。</p>
         <p>不同 Provider 上报的字段有所不同：Anthropic 上报全部三项；OpenAI 不上报 cache write；Codex 仅上报总量。详见下方 <a href="#provider-mapping" class="link">Provider 映射</a>。</p>
     </div>
-</div>
+</section>
 
 <!-- Token 组成 -->
-<div class="card mb-3 glossary-table-section">
-    <div class="card-title">
-        <span class="token-badge token-badge--input text-xs">Token 组成</span>
+<section class="card section">
+    <div class="section-head">
+        <span class="section-title"><span class="token-badge token-badge--input text-xs">Token 组成</span></span>
     </div>
-    <p class="text-xs text-muted">Provider API 的原始 token 字段。输入端 = fresh + cache read + cache write。</p>
+    <p class="section-sub">Provider API 的原始 token 字段。输入端 = fresh + cache read + cache write。</p>
 
-    <div class="table-scroll">
+    <div class="table-wrap">
     <table class="data-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable">指标</th>
+                <th class="sortable" data-action="sort" data-sort-key="token-name">指标</th>
                 <th>定义</th>
                 <th>公式</th>
                 <th>Anthropic</th>
@@ -137,18 +198,20 @@
         </tbody>
     </table>
     </div>
-</div>
+</section>
 
 <!-- 派生指标 -->
-<div class="card mb-3 glossary-table-section">
-    <div class="card-title">派生指标</div>
-    <p class="text-xs text-muted">由原始字段计算得出。全部定义在 <code>index/metrics.py</code> 中。除零时返回 <code>—</code>。</p>
+<section class="card section">
+    <div class="section-head">
+        <span class="section-title">派生指标</span>
+    </div>
+    <p class="section-sub">由原始字段计算得出。全部定义在 <code>index/metrics.py</code> 中。除零时返回 <code>—</code>。</p>
 
-    <div class="table-scroll">
+    <div class="table-wrap">
     <table class="data-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable">指标</th>
+                <th class="sortable" data-action="sort" data-sort-key="derived-metric">指标</th>
                 <th>公式</th>
                 <th>解读</th>
             </tr>
@@ -192,17 +255,19 @@
         </tbody>
     </table>
     </div>
-</div>
+</section>
 
 <!-- Provider 映射 -->
-<div class="card mb-3 glossary-table-section" id="provider-mapping">
-    <div class="card-title">Provider 映射</div>
+<section class="card section" id="provider-mapping">
+    <div class="section-head">
+        <span class="section-title">Provider 映射</span>
+    </div>
 
-    <div class="table-scroll">
+    <div class="table-wrap">
     <table class="data-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable">Provider</th>
+                <th class="sortable" data-action="sort" data-sort-key="provider-name">Provider</th>
                 <th>模型</th>
                 <th>Input Fresh</th>
                 <th>Cache Read</th>
@@ -246,18 +311,20 @@
         </tbody>
     </table>
     </div>
-</div>
+</section>
 
 <!-- 已知限制 -->
-<div class="card mb-3 glossary-table-section">
-    <div class="card-title">已知限制</div>
+<section class="card section">
+    <div class="section-head">
+        <span class="section-title">已知限制</span>
+    </div>
 
-    <div class="table-scroll">
+    <div class="table-wrap">
     <table class="data-table" data-table-enhanced>
         <thead>
             <tr>
                 <th class="col-narrow">#</th>
-                <th class="sortable">限制</th>
+                <th class="sortable" data-action="sort" data-sort-key="limitation">限制</th>
                 <th>影响</th>
             </tr>
         </thead>
@@ -295,20 +362,22 @@
         </tbody>
     </table>
     </div>
-</div>
+</section>
 
 <!-- Session Anomalies -->
-<div class="card mb-3 glossary-table-section">
-    <div class="card-title">Session Anomalies</div>
-    <p class="text-xs text-muted mb-2">
+<section class="card section">
+    <div class="section-head">
+        <span class="section-title">Session Anomalies</span>
+    </div>
+    <p class="section-sub">
         检测整段 session 是否需要关注，用于 <code>/dashboard</code> 的 Needs Attention、<code>/sessions</code> 的异常筛选、session 详情顶部 anomaly banner。
     </p>
 
-    <div class="table-scroll">
+    <div class="table-wrap">
     <table class="data-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable">类型</th>
+                <th class="sortable" data-action="sort" data-sort-key="anomaly-type">类型</th>
                 <th>规则</th>
                 <th>严重度</th>
             </tr>
@@ -332,20 +401,22 @@
         </tbody>
     </table>
     </div>
-</div>
+</section>
 
 <!-- Round Signals -->
-<div class="card mb-3 glossary-table-section">
-    <div class="card-title">Round Signals</div>
-    <p class="text-xs text-muted mb-2">
+<section class="card section">
+    <div class="section-head">
+        <span class="section-title">Round Signals</span>
+    </div>
+    <p class="section-sub">
         检测单个 ROUND 是否值得展开查看，用于 session 详情页 Timeline 表格的 SIGNALS 列。阈值与 session anomaly 不同，更敏感。
     </p>
 
-    <div class="table-scroll">
+    <div class="table-wrap">
     <table class="data-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable">Signal</th>
+                <th class="sortable" data-action="sort" data-sort-key="signal-type">Signal</th>
                 <th>规则</th>
                 <th>严重度</th>
             </tr>
@@ -384,7 +455,7 @@
         </tbody>
     </table>
     </div>
-</div>
+</section>
 
 {% endblock %}
 
