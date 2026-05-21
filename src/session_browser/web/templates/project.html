@@ -94,10 +94,18 @@
 
 <!-- Sessions table -->
 <div class="page-section">
-    <div class="card-title">Sessions ({{ sessions | length }})</div>
     {% if sessions %}
-    <div class="table-wrap">
-        <table id="project-sessions-table" class="data-table" data-table-enhanced>
+    <div class="card table-card">
+        <div class="table-toolbar">
+            <div>
+                <div class="card-title">Sessions <button class="info-icon" data-action="info" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button></div>
+                <div class="card-sub">All indexed sessions in this project</div>
+            </div>
+            <span class="spacer"></span>
+            <input class="input search" data-action="search" placeholder="🔎 Search by title or session ID..." aria-label="Search sessions by title or session ID" />
+        </div>
+        <div class="table-wrap">
+            <table id="project-sessions-table" class="data-table" data-table-enhanced>
             <thead>
                 <tr>
                     <th></th>
@@ -145,6 +153,7 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
     </div>
     {% else %}
     <div class="empty-state">No sessions found for this project.</div>
