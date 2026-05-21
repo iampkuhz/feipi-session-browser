@@ -1,6 +1,6 @@
 /**
  * agents.js — Agents page behaviors: row click navigation, sortable headers,
- * copy agent name, search/filter, and pagination.
+ * copy agent name, and pagination.
  *
  * Loaded via script_extra in agents.html.
  * Uses shared UI primitive classes and data-action attributes (T102).
@@ -34,60 +34,6 @@
     if (agentsTable) {
         /* ── Sort state ─────────────────────────────────────── */
         var currentSort = { key: null, ascending: false };
-
-        /* ── Search/filter handler ──────────────────────────── */
-        var searchEl = document.getElementById('agent-search');
-        if (searchEl) {
-            searchEl.addEventListener('input', function() {
-                filterAgents();
-            });
-        }
-
-        var savedSearch = arpStorage.get('agents_search');
-        if (savedSearch && searchEl) {
-            searchEl.value = savedSearch;
-            filterAgents();
-        }
-
-        function filterAgents() {
-            var q = searchEl ? searchEl.value.toLowerCase().trim() : '';
-            var rows = agentsTable.querySelectorAll('tbody tr');
-            var visibleCount = 0;
-
-            rows.forEach(function(row) {
-                var name = (row.dataset.agentName || '').toLowerCase();
-                var show = !q || name.indexOf(q) >= 0;
-                row.style.display = show ? '' : 'none';
-                if (show) visibleCount++;
-            });
-
-            var countEl = document.getElementById('agents-count');
-            if (countEl) countEl.textContent = visibleCount;
-
-            var emptyEl = document.getElementById('agents-empty');
-            if (emptyEl) {
-                var totalRows = rows.length;
-                if (visibleCount === 0 && totalRows > 0) {
-                    emptyEl.classList.remove('is-hidden');
-                    emptyEl.style.display = '';
-                } else {
-                    emptyEl.classList.add('is-hidden');
-                    emptyEl.style.display = 'none';
-                }
-            }
-        }
-
-        /* ── Clear search ───────────────────────────────────── */
-        var clearBtn = document.querySelector('[data-action="clear-search"]');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', function() {
-                if (searchEl) searchEl.value = '';
-                currentSort = { key: null, ascending: false };
-                updateSortIndicators();
-                filterAgents();
-                arpStorage.remove('agents_search');
-            });
-        }
 
         /* ── Sortable header buttons ────────────────────────── */
         var sortButtons = agentsTable.querySelectorAll('th .sortable-header');
