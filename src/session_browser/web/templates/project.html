@@ -21,51 +21,73 @@
 {% set p_cache_reuse = (project.total_cached_tokens / p_input_side * 100) | round(1) if p_input_side > 0 else 0 %}
 {% set p_tools_per_round = (project.total_tool_calls / project.total_assistant_messages) | round(1) if project.total_assistant_messages > 0 else 0 %}
 
-<!-- Page header -->
-<div class="page-header">
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <a href="/projects" class="page-header__back" title="Back to Projects">&larr;</a>
-            <h1 class="page-header__title">{{ project.project_name }}</h1>
+<!-- Page head (HIFI canonical .page-head, T114) -->
+<section class="page-head">
+    <a href="/projects" class="back-btn" aria-label="Back to Projects list" title="返回到项目列表">
+        <span class="emoji" aria-hidden="true">⬅️</span>
+    </a>
+    <div>
+        <h1>{{ project.project_name }}</h1>
+        <div class="path-row">
+            <span class="path-chip mono" data-tooltip="{{ project.project_key }}">{{ project.project_key | truncate_path }}</span>
+            <button class="btn small" data-action="copy-path" data-clipboard-text="{{ project.project_key }}" aria-label="Copy project path" title="复制项目路径">
+                <span class="emoji" aria-hidden="true">📋</span>
+            </button>
         </div>
-        <div class="page-header__actions">
-        </div>
+        <div class="subtitle">Performance and cost profiling for agent runs across all models and agents.</div>
     </div>
-    <p class="page-header__desc mono">
-        <span class="path-text truncate" data-tooltip="{{ project.project_key }}">{{ project.project_key | relative_to_repo | truncate_path }}</span>
-        <button class="path-copy-btn" data-action="copy-project-path" data-clipboard-text="{{ project.project_key }}" title="Copy full path">⧉</button>
-    </p>
-</div>
+</section>
 
 <!-- Project summary metrics -->
-<div class="metrics-grid metrics-grid--run-summary">
-    <div class="metric-card metric-card--compact" data-tooltip="Total sessions in this project">
-        <div class="metric-label">Sessions</div>
-        <div class="metric-value">{{ project.total_sessions }}</div>
-        <div class="metric-sub">
-            <span class="badge badge-claude" >{{ project.claude_sessions }} CC</span>
-            <span class="badge badge-codex" >{{ project.codex_sessions }} CX</span>
-            <span class="badge badge-qoder">{{ project.qoder_sessions }} QD</span>
+<div class="metric-grid">
+    <div class="card metric">
+        <div class="metric-icon purple">
+            <span class="emoji" aria-hidden="true">📈</span>
+        </div>
+        <div>
+            <div class="metric-label">Sessions <button class="info-icon" data-action="info" title="Total sessions in this project">ⓘ</button></div>
+            <div class="metric-value">{{ project.total_sessions }}</div>
+            <div class="agent-mix">
+                <span class="badge badge-claude">{{ project.claude_sessions }} CC</span>
+                <span class="badge badge-codex">{{ project.codex_sessions }} CX</span>
+                <span class="badge badge-qoder">{{ project.qoder_sessions }} QD</span>
+            </div>
         </div>
     </div>
-    <div class="metric-card metric-card--compact" data-tooltip="Total input-side tokens">
-        <div class="metric-label">Input-side</div>
-        <div class="metric-value">{{ p_input_side | format_compact_token }}</div>
-        <div class="metric-sub">Cache R: {{ p_cache_reuse }}%</div>
+    <div class="card metric">
+        <div class="metric-icon green">
+            <span class="emoji" aria-hidden="true">📥</span>
+        </div>
+        <div>
+            <div class="metric-label">Input-side Tokens <button class="info-icon" data-action="info" title="Total input-side tokens">ⓘ</button></div>
+            <div class="metric-value">{{ p_input_side | format_compact_token }}</div>
+            <div class="delta">Cache R: {{ p_cache_reuse }}%</div>
+        </div>
     </div>
-    <div class="metric-card metric-card--compact" data-tooltip="Total output-side tokens">
-        <div class="metric-label">Output</div>
-        <div class="metric-value">{{ project.total_output_tokens | format_compact_token }}</div>
-        <div class="metric-sub">{{ project.total_tool_calls | format_number }} tools · {{ p_tools_per_round }}/R</div>
+    <div class="card metric">
+        <div class="metric-icon blue">
+            <span class="emoji" aria-hidden="true">📤</span>
+        </div>
+        <div>
+            <div class="metric-label">Output Tokens <button class="info-icon" data-action="info" title="Total output-side tokens">ⓘ</button></div>
+            <div class="metric-value">{{ project.total_output_tokens | format_compact_token }}</div>
+            <div class="delta">{{ project.total_tool_calls | format_number }} tools</div>
+        </div>
     </div>
-    <div class="metric-card metric-card--compact" data-tooltip="Active period of this project">
-        <div class="metric-label">Active Period</div>
-        <div class="metric-value" >
-            {% if project.first_seen and project.last_seen %}
-            {{ project.first_seen[:10] }} → {{ project.last_seen | relative_time }}
-            {% else %}
-            N/A
-            {% endif %}
+    <div class="card metric">
+        <div class="metric-icon purple">
+            <span class="emoji" aria-hidden="true">📅</span>
+        </div>
+        <div>
+            <div class="metric-label">Active Period <button class="info-icon" data-action="info" title="Active period of this project">ⓘ</button></div>
+            <div class="metric-value mono">
+                {% if project.first_seen and project.last_seen %}
+                {{ project.first_seen[:10] }} → {{ project.last_seen | relative_time }}
+                {% else %}
+                N/A
+                {% endif %}
+            </div>
+            <div class="muted">Last activity tracked</div>
         </div>
     </div>
 </div>
