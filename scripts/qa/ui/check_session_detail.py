@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
+"""Static QA checks for session detail UI.
+
+Merged from v17 (modal/payload/tool-results) and v18 (user-round markers/metadata/LLM actions).
+
+Run from repo root:
+  python scripts/qa/ui/check_session_detail.py
+  python scripts/qa/ui/check_session_detail.py --html /tmp/session.html
+"""
 from __future__ import annotations
+
 import argparse
 import re
 from pathlib import Path
 
 ROOT = Path(".")
 
+
 def read(path: str) -> str:
     p = ROOT / path
     return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -24,24 +35,23 @@ def main() -> int:
     js = read("src/session_browser/web/static/js/session_detail_timeline.js")
     css_main = read("src/session_browser/web/static/css/session-detail-timeline.css")
     css_all = css_main
-    for path in [
-        "src/session_browser/web/static/css/session-detail-timeline-v11.css",
-        "src/session_browser/web/static/css/session-detail-response-blocks-v12.css",
-        "src/session_browser/web/static/css/session-detail-payload-v16.css",
-    ]:
-        if Path(path).exists():
-            css_all += "\n/* " + path + " */\n" + read(path)
 
     rendered = read(args.html) if args.html else ""
     all_tpl = session + timeline + primitives + base + rendered
 
+    # --- Legacy CSS detection ---
     imports = session + base
-    for legacy in ["session-detail-timeline-v11.css", "session-detail-response-blocks-v12.css", "session-detail-payload-v16.css"]:
+    for legacy in [
+        "session-detail-timeline-v11.css",
+        "session-detail-response-blocks-v12.css",
+        "session-detail-payload-v16.css",
+    ]:
         if legacy in imports:
             problems.append(f"legacy session detail CSS is still imported: {legacy}")
-    if "session-detail-timeline.css" not in imports and "session-detail-timeline.css" not in css_main:
+    if "session-detail-timeline.css" not in imports:
         problems.append("canonical session-detail-timeline.css is not clearly used/imported.")
 
+    # --- Modal CSS (from v17) ---
     compact = css_all.replace(" ", "")
     required_modal_bits = [
         "position:fixed",
@@ -60,9 +70,10 @@ def main() -> int:
     if rendered:
         if re.search(r'<body[^>]*>\s*R\d+\s*[·.-]\s*(User request|LLM Call)', rendered, re.I):
             problems.append("rendered modal appears to start as document-flow content before app shell; likely full-page fallback.")
-        if "payload-modal__panel" in rendered and "position: fixed" not in css_all and "position:fixed" not in compact:
+        if "payload-modal__panel" in rendered and "position:fixed" not in compact:
             problems.append("payload panel rendered but no fixed modal CSS detected.")
 
+    # --- Payload JS safety (from v17) ---
     for needle in ["{% if call.context_payload_id %}", "{% if call.response_payload_id %}", "if call.context_payload_id", "if call.response_payload_id"]:
         if needle in timeline:
             problems.append(f"Context/Response button still conditional: {needle}")
@@ -74,6 +85,7 @@ def main() -> int:
     if not any(x in js for x in ["payload-warning", "未找到 payload", "diagnostic"]):
         problems.append("openPayload lacks diagnostic fallback.")
 
+    # --- Tool results & round status (from v17) ---
     if not any(x in all_tpl for x in ["context-tool-list", "sd-context-tool-list", "Tool result list before this LLM call"]):
         problems.append("context payload UI does not include previous tool result list.")
 
@@ -83,7 +95,7 @@ def main() -> int:
 
     if ".sd-tool-result" not in css_all:
         problems.append("sd-tool-result CSS missing.")
-    if "sd-tool-row--failed" not in css_all and "sd-tool-row--fail" not in css_all and "data-status=\"failed\"" not in css_all:
+    if "sd-tool-row--failed" not in css_all and "sd-tool-row--fail" not in css_all and 'data-status="failed"' not in css_all:
         problems.append("failed tool-row styling missing.")
     global_result_rule = re.search(r"\.sd-tool-result\s*\{([^}]*)\}", css_all, re.S)
     if global_result_rule and ("--sd-err" in global_result_rule.group(1) or "red" in global_result_rule.group(1)):
@@ -98,14 +110,38 @@ def main() -> int:
     if "column-gap" not in css_all and "gap:" not in css_all:
         problems.append("round grid gap missing.")
 
+    # --- User-round markers & metadata (from v18) ---
+    combined = rendered + timeline + session
+    if not any(x in combined + css_all for x in ["sd-round--has-user", "data-has-user", "sd-user-round"]):
+        problems.append("missing stable user-message round marker")
+    if not any(x in css_all for x in ["sd-round--has-user", "data-has-user", "sd-user-round"]):
+        problems.append("CSS lacks persistent user-message round highlight selector")
+    if not any(x in css_all for x in ["#14b8a6", "#99f6e4", "teal", "rgba(20, 184, 166"]):
+        problems.append("CSS lacks teal/green user-message tone")
+
+    if not any(x in css_all + combined for x in ["sd-kv", "payload-kv", "sd-payload-meta__row", "payload-meta__row"]):
+        problems.append("metadata key/value grid missing")
+    if "grid-template-columns:92pxminmax(0,1fr)" not in compact and "grid-template-columns:90pxminmax(0,1fr)" not in compact:
+        problems.append("metadata key/value grid width missing")
+    if "text-overflow:ellipsis" not in compact:
+        problems.append("metadata/value ellipsis missing")
+
+    if not any(x in css_all + combined for x in ["sd-llm-content-row", "sd-llm-action-group", "sd-llm-call-actions"]):
+        problems.append("LLM call action layout selectors missing")
+    if "max-width:132px" not in compact and "max-width:128px" not in compact:
+        problems.append("LLM action buttons missing max-width; Response may still stretch")
+    if "min-width:max-content" not in compact and "width:auto" not in compact:
+        problems.append("LLM action buttons do not appear intrinsic-width")
+
     if problems:
-        print("FAIL: session detail v17 checks")
+        print("FAIL: session detail checks")
         for m in problems:
             print("-", m)
         return 1
 
-    print("PASS: session detail v17 checks")
+    print("PASS: session detail checks")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

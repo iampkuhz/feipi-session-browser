@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from session_browser.config import INDEX_PATH, ensure_index_dir
+from session_browser.config import INDEX_PATH, QODER_DATA_DIR, ensure_index_dir
 from session_browser.domain.models import SessionSummary, ProjectStats
 from session_browser.domain.normalizer import sanitize_list_title
 from session_browser.sources import claude as claude_source
