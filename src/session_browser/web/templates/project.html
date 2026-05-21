@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% set active_page = 'projects' %}
+{% import "components/ui_primitives.html" as ui %}
 
 {% block title %}{{ project.project_name }} - Agent Run Profiler{% endblock %}
 
@@ -16,6 +17,16 @@
 {% endblock %}
 
 {% block content %}
+
+{% if error %}
+<section class="page-section">
+    {{ ui.error_state(
+        error,
+        action_button=ui.button('Back to Projects', variant='primary', data_action='go-projects', href='/projects'),
+        icon='🔌'
+    ) }}
+</section>
+{% else %}
 
 {% set p_input_side = project.total_input_tokens + project.total_cached_tokens + project.total_cache_write_tokens %}
 {% set p_cache_reuse = (project.total_cached_tokens / p_input_side * 100) | round(1) if p_input_side > 0 else 0 %}
@@ -182,9 +193,14 @@
     </div>
     </div>
     {% else %}
-    <div class="empty-state">No sessions found for this project.</div>
+    {{ ui.empty_state(
+        'No sessions in this project yet',
+        action_button=ui.button('View all sessions', variant='primary', data_action='view-all', href='/sessions'),
+        icon='📁'
+    ) }}
     {% endif %}
 </div>
+{% endif %}{# /error guard #}
 
 {% endblock %}
 
