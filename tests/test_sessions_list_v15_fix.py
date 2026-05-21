@@ -127,11 +127,10 @@ class TestTemplateRenders:
 
     def test_sessions_template_contains_expected_blocks(self):
         content = _read_all_templates()
-        # Core page structure (class may include additional classes like "content")
+        # Core page structure
         assert "sessions-page" in content
         assert 'class="sessions-filter-card"' in content
-        assert 'class="sessions-table-card"' in content
-        assert "sessions-grid" in content
+        assert "data-table" in content, "Sessions must use canonical data-table component"
 
     def test_template_receives_sessions_aggregate(self):
         """Template must reference sessions_aggregate for tokens."""

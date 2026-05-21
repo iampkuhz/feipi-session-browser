@@ -1483,3 +1483,159 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── trace-row (moved from style.css) ────────────────────── */
+.trace-row.is-filtered-out {
+    display: none;
+}
+.trace-row {
+    display: grid;
+    grid-template-columns: 84px minmax(300px, 1.35fr) 190px 190px 92px;
+    align-items: center;
+    min-height: 44px;
+    background: #fff;
+    border: none;
+    border-bottom: 1px solid var(--line2, var(--border-light));
+    cursor: default;
+    transition: background 150ms ease;
+    contain: layout style;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+.trace-row.selected {
+    background: linear-gradient(90deg, #f7f9ff, #fff 44%);
+    box-shadow: inset 3px 0 0 var(--brand, var(--accent));
+}
+.trace-row.keyboard-focus {
+    background: linear-gradient(90deg, #eef2ff, #fff 44%);
+    box-shadow: inset 3px 0 0 var(--purple, #7c3aed);
+    outline: 2px solid var(--purple, #7c3aed);
+    outline-offset: -2px;
+}
+.trace-row.is-jump-target {
+    background: linear-gradient(90deg, #fef3c7, #fff 60%);
+    box-shadow: inset 3px 0 0 var(--warn, #d97706);
+    animation: jump-target-fade 2.5s ease-out;
+}
+.trace-row > div {
+    padding: 8px 11px;
+    min-width: 0;
+}
+.trace-row {
+    min-height: 40px;
+}
+.trace-row > div {
+    padding: 6px 11px;
+}
+.trace-row {
+    display: grid;
+    grid-template-columns:
+        84px
+        minmax(0, 1fr)
+        minmax(120px, 180px)
+        minmax(120px, 180px)
+        minmax(80px, 120px);
+    align-items: stretch;
+    min-height: 44px;
+    background: #fff;
+    border: none;
+    border-bottom: 1px solid var(--line2, var(--border-light));
+    transition: background 150ms ease;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+.trace-row > div {
+    padding: 8px 11px;
+    min-width: 0;
+}
+.trace-row {
+        grid-template-columns:
+            72px
+            minmax(0, 1fr)
+            minmax(100px, 150px)
+            minmax(80px, 120px);
+    }
+.trace-row > .tcell {
+        display: none;
+    }
+.trace-row {
+        grid-template-columns:
+            60px
+            minmax(0, 1fr)
+            minmax(80px, 120px);
+    }
+.trace-row > .diags {
+        display: none;
+    }
+
+/* ── wb-body (moved from style.css) ──────────────────────── */
+.wb-body {
+    padding: 10px;
+    background: #fff;
+}
+
+/* ── density trace-row (moved from style.css) ─────────────── */
+body:not(.density-comfortable) .trace-row {
+    min-height: 40px;
+}
+body:not(.density-comfortable) .trace-row > span,
+body:not(.density-comfortable) .trace-row > div {
+    padding: 6px 11px;
+}
+
+/* ── phase1 trace-row (moved from style.css) ──────────────── */
+.session-detail-phase1 .trace-row {
+    display: grid;
+    grid-template-columns:
+        84px
+        minmax(0, 1fr)
+        minmax(120px, 180px)
+        minmax(120px, 180px)
+        minmax(80px, 120px);
+    align-items: stretch;
+    min-height: 44px;
+    background: #fff;
+    border: none;
+    border-bottom: 1px solid var(--line2, var(--border-light));
+    transition: background 150ms ease;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+.session-detail-phase1 .trace-row > * {
+    min-width: 0;
+}
+.session-detail-phase1 .trace-row > span,
+.session-detail-phase1 .trace-row > div {
+    padding: 8px 11px;
+    min-width: 0;
+}
+.session-detail-phase1 .trace-row__toggle-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 84px;
+    padding: 8px 4px;
+}
+.session-detail-phase1 .trace-row {
+        grid-template-columns:
+            72px
+            minmax(0, 1fr)
+            minmax(100px, 150px)
+            minmax(80px, 120px);
+    }
+.session-detail-phase1 .trace-row > .tcell {
+        display: none;
+    }
+.session-detail-phase1 .trace-row {
+        grid-template-columns:
+            60px
+            minmax(0, 1fr)
+            minmax(80px, 120px);
+    }
+.session-detail-phase1 .trace-row > .diags {
+        display: none;
+    }

@@ -24,11 +24,11 @@
            session-browser (legacy v15), dashboard (legacy v16),
            session-detail-timeline
 
-         禁止新增: *-v17.css, *-v18.css, *-patch.css, *-fix.css, *-overlay.css
+         禁止新增: 版本化或补丁 CSS 文件
          ============================================================ -->
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
-    <link rel="stylesheet" href="/static/css/session-browser-v15.css">
+    <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     {% endif %}
 
     <!-- arpStorage bootstrap: defined early so page scripts can use it before shared JS loads -->
@@ -176,11 +176,9 @@
            js/dashboard.js, js/sessions-list.js, js/session-detail.js,
            js/projects.js, js/agents.js, js/glossary.js, js/states.js
 
-         Layer 4 — Legacy/Versioned (temporary, to be removed in T182):
-           session_browser_ui_v15.js (legacy), session_detail_timeline.js,
-           dashboard_v16.js 等
+         Layer 4 — Legacy (compatibility aliases, to be removed once all templates migrated):
+           trace-interactions.js (trace round toggle), legacy-aliases.css
 
-         禁止新增: session_browser_ui_vXX.js
          加载顺序: 原语 → 工具 → 页面专用 → 遗留
          ============================================================ -->
     <script src="/static/js/ui_primitives.js"></script>
@@ -190,7 +188,7 @@
     <script src="/static/js/data-table.js"></script>
     <script src="/static/js/timeline.js"></script>
     <script src="/static/js/keyboard.js"></script>
-    <script src="/static/js/session_browser_ui_v15.js"></script>
+    <script src="/static/js/trace-interactions.js"></script>
     {% endif %}
     <script>ViewState.init();</script>
     <!-- Shared JS: tab switching, round toggle, show-more, restore state -->

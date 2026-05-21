@@ -22,11 +22,11 @@
     {% if title %}
     <div class="viewer__header">
         <span class="viewer__title">{{ title }}</span>
-        <button class="viewer__fullscreen-btn" onclick="openViewerFullscreen(this)" title="View in fullscreen">⛶</button>
+        <button class="viewer__fullscreen-btn" data-action="viewer-fullscreen" title="View in fullscreen">⛶</button>
     </div>
     {% endif %}
 
-    <div class="viewer__body" style="max-height:{{ max_height }};{% if max_height != 'none' %}overflow-y:auto;{% endif %}">
+    <div class="viewer__body"{% if max_height != 'none' %} data-scroll-max="{{ max_height }}"{% endif %}>
 
         {# ── Markdown mode: single rendered HTML block ── #}
         {% if mode == 'markdown' %}
@@ -114,9 +114,9 @@
 
                 {# Raw toggle #}
                 {% if block_raw and block_raw != block_content %}
-                <button class="viewer__raw-toggle" onclick="togglePartRaw(this)" title="View raw content">Raw</button>
+                <button class="viewer__raw-toggle" data-action="toggle-part-raw" title="View raw content">Raw</button>
                 {% elif block_raw and block_raw == block_content and block_bytes > 200 %}
-                <button class="viewer__raw-toggle" onclick="togglePartRaw(this)" title="View raw content">Raw</button>
+                <button class="viewer__raw-toggle" data-action="toggle-part-raw" title="View raw content">Raw</button>
                 {% endif %}
             </div>
             {% endif %}
@@ -143,10 +143,10 @@
 
                 {# Raw view (hidden by default) #}
                 {% if block_raw and block_bytes > 200 %}
-                <div class="viewer__part-raw" style="display:none">
+                <div class="viewer__part-raw" hidden>
                     <div class="viewer__part-raw-header">
                         <span class="viewer__part-raw-label">Raw content</span>
-                        <button class="viewer__raw-toggle viewer__raw-toggle--small" onclick="togglePartRaw(this)" title="Back to rendered view">Rendered</button>
+                        <button class="viewer__raw-toggle viewer__raw-toggle--small" data-action="toggle-part-raw" title="Back to rendered view">Rendered</button>
                     </div>
                     <pre class="viewer__part-raw-pre">{{ block_raw }}</pre>
                 </div>
@@ -199,19 +199,19 @@
     <main class="viewer-main">
         <div class="viewer-toolbar">
             <div class="view-switch">
-                <button class="active" data-payload-switch="json">JSON</button>
-                <button data-payload-switch="rendered">Rendered</button>
-                <button data-payload-switch="raw">Raw</button>
-                <button data-payload-switch="diff" title="Compare two payloads (select two parts first)">Diff</button>
+                <button class="active" data-action="payload-switch" data-payload-mode="json">JSON</button>
+                <button data-action="payload-switch" data-payload-mode="rendered">Rendered</button>
+                <button data-action="payload-switch" data-payload-mode="raw">Raw</button>
+                <button data-action="payload-switch" data-payload-mode="diff" title="Compare two payloads (select two parts first)">Diff</button>
             </div>
-            <span class="badge warn payload-unavailable" style="display:none">payload unavailable</span>
+            <span class="badge warn payload-unavailable" hidden>payload unavailable</span>
         </div>
         <div class="viewer-content">
-            <div data-payload-view="json" style="padding:12px">
+            <div data-payload-view="json" class="viewer-content-pane">
                 <pre class="code">{{ parts_data.request.json | default('') | safe }}</pre>
             </div>
-            <div data-payload-view="rendered" style="display:none;padding:12px"></div>
-            <div data-payload-view="raw" style="display:none;padding:12px">
+            <div data-payload-view="rendered" class="viewer-content-hidden"></div>
+            <div data-payload-view="raw" class="viewer-content-hidden">
                 <pre class="code">{{ parts_data.request.raw | default('') | safe }}</pre>
             </div>
         </div>

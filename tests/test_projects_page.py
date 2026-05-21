@@ -114,10 +114,11 @@ class TestProjectsTemplatePathDisplay:
                 assert "relative_to_repo" not in line
 
     def test_path_copy_uses_full_project_key(self):
-        """Copy button should use the full project_key."""
+        """Copy button should use the full project_key via data-clipboard-text."""
         with open("src/session_browser/web/templates/projects.html") as f:
             content = f.read()
-        assert "copyProjectPath(this, '{{ p.project_key }}')" in content
+        assert 'data-action="copy-project-path"' in content
+        assert 'data-clipboard-text="{{ p.project_key }}"' in content
 
     def test_path_tooltip_shows_full_key(self):
         """Tooltip should show the full project_key."""

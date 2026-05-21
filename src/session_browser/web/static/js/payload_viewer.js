@@ -64,11 +64,11 @@
     }
 
     // View switching
-    var views = containerEl.querySelectorAll('.view-switch button[data-payload-switch]');
+    var views = containerEl.querySelectorAll('.view-switch button[data-action="payload-switch"]');
     for (var i = 0; i < views.length; i++) {
       (function (btn) {
         btn.addEventListener('click', function () {
-          var viewName = this.getAttribute('data-payload-switch');
+          var viewName = this.getAttribute('data-payload-mode');
           switchView(containerEl, viewName);
         });
       })(views[i]);
@@ -146,9 +146,9 @@
       views[i].style.display = views[i].getAttribute('data-payload-view') === viewName ? '' : 'none';
     }
 
-    var btns = containerEl.querySelectorAll('.view-switch button[data-payload-switch]');
+    var btns = containerEl.querySelectorAll('.view-switch button[data-action="payload-switch"]');
     for (var i = 0; i < btns.length; i++) {
-      btns[i].classList.toggle('active', btns[i].getAttribute('data-payload-switch') === viewName);
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-payload-mode') === viewName);
     }
   }
 
@@ -229,7 +229,7 @@
         '<div class="overlay-shell">' +
           '<div class="overlay-head">' +
             '<span class="overlay-title">Full Payload Viewer — ' + escapeHtml(payload.objectType || 'unknown') + '</span>' +
-            '<button class="overlay-close" onclick="window.closeFullPayloadViewer()" aria-label="Close">&times;</button>' +
+            '<button class="overlay-close" data-action="close-full-payload" aria-label="Close">&times;</button>' +
           '</div>' +
           '<div class="viewer-shell" data-viewer="payload">' +
             '<aside class="viewer-side">' +
@@ -241,10 +241,10 @@
             '</aside>' +
             '<main class="viewer-main">' +
               '<div class="viewer-toolbar"><div class="view-switch">' +
-                '<button class="active" data-payload-switch="json">JSON</button>' +
-                '<button data-payload-switch="rendered">Rendered</button>' +
-                '<button data-payload-switch="raw">Raw</button>' +
-                '<button data-payload-switch="diff" title="Compare two payloads (select two parts first)">Diff</button>' +
+                '<button class="active" data-action="payload-switch" data-payload-mode="json">JSON</button>' +
+                '<button data-action="payload-switch" data-payload-mode="rendered">Rendered</button>' +
+                '<button data-action="payload-switch" data-payload-mode="raw">Raw</button>' +
+                '<button data-action="payload-switch" data-payload-mode="diff" title="Compare two payloads (select two parts first)">Diff</button>' +
               '</div>' +
               (hasAnyData ? '' : '<span class="badge warn payload-unavailable-badge">payload unavailable</span>') +
               '</div>' +

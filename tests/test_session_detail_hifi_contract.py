@@ -500,7 +500,7 @@ class TestDeadButtonGate:
         "open-payload", "payload-mode", "close-modal", "close-payload", "payload-tab",
         "jump-round", "jump-anomaly", "md-toggle",
         "toggle-round", "toggle-issue-expand", "toggle-sub-round",
-        "open-settings",
+        "open-settings", "help", "shell",
     }
 
     # Sidebar nav actions (nav-*) are validated separately by sidebar contract tests

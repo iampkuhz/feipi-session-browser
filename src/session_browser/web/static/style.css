@@ -2114,16 +2114,6 @@ a.link-muted:hover { color: var(--accent); }
     padding: 2px 5px;
     font-size: 11px;
 }
-
-.wb-body {
-    padding: 10px;
-    background: #fff;
-}
-
-.wb-body > [data-view] {
-    /* Default: visible; JS toggles display:none on inactive */
-}
-
 /* ── Toolbar ── */
 .toolbar {
     display: flex;
@@ -7593,64 +7583,12 @@ tr.keyboard-focus a {
     border-color: var(--danger, #dc2626);
     color: var(--danger, #dc2626);
 }
-.trace-row.is-filtered-out {
-    display: none;
-}
-
 /* Data row */
-.trace-row {
-    display: grid;
-    grid-template-columns: 84px minmax(300px, 1.35fr) 190px 190px 92px;
-    align-items: center;
-    min-height: 44px;
-    background: #fff;
-    border: none;
-    border-bottom: 1px solid var(--line2, var(--border-light));
-    cursor: default;
-    transition: background 150ms ease;
-    contain: layout style;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-}
-.trace-row:hover {
-    background: #fbfdff;
-}
-.trace-row.selected {
-    background: linear-gradient(90deg, #f7f9ff, #fff 44%);
-    box-shadow: inset 3px 0 0 var(--brand, var(--accent));
-}
-.trace-row.keyboard-focus {
-    background: linear-gradient(90deg, #eef2ff, #fff 44%);
-    box-shadow: inset 3px 0 0 var(--purple, #7c3aed);
-    outline: 2px solid var(--purple, #7c3aed);
-    outline-offset: -2px;
-}
-.trace-row.is-jump-target {
-    background: linear-gradient(90deg, #fef3c7, #fff 60%);
-    box-shadow: inset 3px 0 0 var(--warn, #d97706);
-    animation: jump-target-fade 2.5s ease-out;
-}
 @keyframes jump-target-fade {
     0% { background: linear-gradient(90deg, #fef3c7, #fffbe6 60%); }
     100% { background: linear-gradient(90deg, #f7f9ff, #fff 44%); }
 }
-.trace-row > span,
-.trace-row > div {
-    padding: 8px 11px;
-    min-width: 0;
-}
-
 /* Toggle cell (fixed-width left column) */
-.trace-row__toggle-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    min-width: 84px;
-    padding: 8px 4px;
-}
-
 /* Toggle button */
 .trace-round-toggle {
     width: 68px;
@@ -8089,23 +8027,6 @@ tr.keyboard-focus a {
 }
 
 /* Density variant: compact body class */
-body:not(.density-comfortable) .trace-row {
-    min-height: 40px;
-}
-body:not(.density-comfortable) .trace-row > span,
-body:not(.density-comfortable) .trace-row > div {
-    padding: 6px 11px;
-}
-
-/* ── Inspector Hi-Fi styles (Task 11) ─────────────────────── */
-.insp-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 10px 12px 8px;
-    border-bottom: 1px solid var(--line);
-}
-
 .insp-close {
     font-size: 18px;
     line-height: 1;
@@ -8851,45 +8772,7 @@ body:not(.density-comfortable) .trace-row > div {
 }
 
 /* 5. Trace Rows — stable columns, no overlap at 1280px */
-.session-detail-phase1 .trace-row {
-    display: grid;
-    grid-template-columns:
-        84px
-        minmax(0, 1fr)
-        minmax(120px, 180px)
-        minmax(120px, 180px)
-        minmax(80px, 120px);
-    align-items: stretch;
-    min-height: 44px;
-    background: #fff;
-    border: none;
-    border-bottom: 1px solid var(--line2, var(--border-light));
-    transition: background 150ms ease;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-}
-
-.session-detail-phase1 .trace-row > * {
-    min-width: 0;
-}
-
-.session-detail-phase1 .trace-row > span,
-.session-detail-phase1 .trace-row > div {
-    padding: 8px 11px;
-    min-width: 0;
-}
-
 /* Toggle cell — fixed width, center alignment */
-.session-detail-phase1 .trace-row__toggle-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    min-width: 84px;
-    padding: 8px 4px;
-}
-
 /* Toggle button — stable dimensions */
 .session-detail-phase1 .trace-round-toggle {
     width: 68px;
@@ -8987,20 +8870,7 @@ body:not(.density-comfortable) .trace-row > div {
     .session-detail-phase1 .kpis {
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
-
-    .session-detail-phase1 .trace-row {
-        grid-template-columns:
-            72px
-            minmax(0, 1fr)
-            minmax(100px, 150px)
-            minmax(80px, 120px);
-    }
-
     /* Hide time column at medium width */
-    .session-detail-phase1 .trace-row > .tcell {
-        display: none;
-    }
-
     .session-detail-phase1 .issue-summary__cards {
         grid-template-columns: 1fr;
     }
@@ -9018,19 +8888,7 @@ body:not(.density-comfortable) .trace-row > div {
     .session-detail-phase1 .kpis {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-
-    .session-detail-phase1 .trace-row {
-        grid-template-columns:
-            60px
-            minmax(0, 1fr)
-            minmax(80px, 120px);
-    }
-
     /* Hide diags column at narrow width */
-    .session-detail-phase1 .trace-row > .diags {
-        display: none;
-    }
-
     .session-detail-phase1 .span {
         grid-template-columns: minmax(50px, 70px) minmax(0, 1fr);
     }

@@ -29,7 +29,7 @@
     </div>
     <p class="page-header__desc mono">
         <span class="path-text truncate" data-tooltip="{{ project.project_key }}">{{ project.project_key | relative_to_repo | truncate_path }}</span>
-        <button class="path-copy-btn" onclick="copyProjectPath(this, '{{ project.project_key }}')" title="Copy full path">⧉</button>
+        <button class="path-copy-btn" data-action="copy-project-path" data-clipboard-text="{{ project.project_key }}" title="Copy full path">⧉</button>
     </p>
 </div>
 

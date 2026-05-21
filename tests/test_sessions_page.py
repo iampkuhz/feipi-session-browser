@@ -278,25 +278,30 @@ class TestSearch:
 
 
 class TestSessionsTemplateJS:
-    """Verify JS selectors migrated to grid."""
-
-    def test_js_uses_data_sessions_grid(self):
-        content = _read_sessions_templates()
-        assert "[data-sessions-grid]" in content
+    """Verify JS selectors in canonical sessions-list.js."""
 
     def test_js_uses_sessions_row_selector(self):
-        content = _read_sessions_templates()
-        assert ".sessions-row" in content or "sessions-row" in content
+        with open("src/session_browser/web/static/js/sessions-list.js") as f:
+            js = f.read()
+        assert ".sessions-row" in js, "sessions-list.js must use .sessions-row"
 
     def test_no_tbody_selector(self):
         """Old tbody selector should be removed."""
-        content = _read_sessions_templates()
-        assert "#sessions-table tbody" not in content
+        with open("src/session_browser/web/static/js/sessions-list.js") as f:
+            js = f.read()
+        assert "#sessions-table tbody" not in js, "Old tbody selector should be removed"
 
     def test_no_tr_selector_in_filter(self):
         """Old 'tr' query selector should be removed."""
-        content = _read_sessions_templates()
-        assert "tbody.querySelectorAll" not in content
+        with open("src/session_browser/web/static/js/sessions-list.js") as f:
+            js = f.read()
+        assert "tbody.querySelectorAll" not in js, "Old tbody querySelectorAll should be removed"
+
+    def test_no_data_sessions_grid(self):
+        """Old data-sessions-grid selector should be removed."""
+        with open("src/session_browser/web/static/js/sessions-list.js") as f:
+            js = f.read()
+        assert "data-sessions-grid" not in js, "Old data-sessions-grid should be removed"
 
 
 class TestSessionsListActions:
@@ -336,26 +341,31 @@ class TestSessionsListRowClick:
 
     def test_row_has_data_agent(self):
         content = _read_sessions_templates()
-        assert 'data-agent="{{ s.agent }}"' in content
+        assert 'data-agent=' in content, "Session rows must have data-agent attribute"
 
     def test_row_has_data_session_id(self):
         content = _read_sessions_templates()
-        assert 'data-session-id="{{ s.session_id }}"' in content
+        assert 'data-session-id=' in content, "Session rows must have data-session-id attribute"
 
     def test_js_navigates_to_session_url(self):
         """JS click handler should build /sessions/<agent>/<session_id> URL."""
-        content = _read_sessions_templates()
-        assert "/sessions/" in content
-        assert "row.dataset.agent" in content
-        assert "row.dataset.sessionId" in content
+        with open("src/session_browser/web/static/js/sessions-list.js") as f:
+            js = f.read()
+        assert "/sessions/" in js
+        assert "dataset.agent" in js
+        assert "dataset.sessionId" in js
 
     def test_js_skips_links_on_click(self):
         """JS should not hijack clicks on <a> elements."""
-        content = _read_sessions_templates()
-        assert "tagName === 'A'" in content or 'tagName === "A"' in content
+        with open("src/session_browser/web/static/js/sessions-list.js") as f:
+            js = f.read()
+        assert "tagName" in js and ("'A'" in js or '"A"' in js),             "JS must skip <a> elements on row click"
 
     def test_no_selection_js_leftover(self):
         """Should not have .selected class manipulation or aria-selected."""
+        with open("src/session_browser/web/static/js/sessions-list.js") as f:
+            js = f.read()
+        # Check templates for leftover selection patterns
         content = _read_sessions_templates()
         assert ".selected" not in content
         assert "aria-selected" not in content

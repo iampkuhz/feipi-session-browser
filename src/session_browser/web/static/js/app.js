@@ -101,4 +101,56 @@
         window.arpCopy(btn, text);
     };
 
+    /* ─── Global event delegation for canonical data-actions ─────── */
+
+    document.addEventListener('click', function(event) {
+        var actionEl = event.target.closest('[data-action]');
+        if (!actionEl) return;
+        var action = actionEl.dataset.action;
+
+        if (action === 'copy-project-path') {
+            event.preventDefault();
+            var text = actionEl.dataset.clipboardText || '';
+            if (text) window.arpCopy(actionEl, text);
+        } else if (action === 'toggle-part-raw') {
+            event.preventDefault();
+            var part = actionEl.closest('.viewer__part');
+            if (!part) return;
+            var rendered = part.querySelector('.viewer__part-rendered');
+            var raw = part.querySelector('.viewer__part-raw');
+            if (!rendered || !raw) return;
+            var showingRaw = !rendered.hidden;
+            rendered.hidden = showingRaw;
+            raw.hidden = !showingRaw;
+            actionEl.textContent = showingRaw ? 'Raw' : 'Rendered';
+        } else if (action === 'viewer-fullscreen') {
+            event.preventDefault();
+            var viewer = actionEl.closest('.viewer');
+            if (!viewer) return;
+            var body = viewer.querySelector('.viewer__body, .viewer__markdown, .viewer__raw, .viewer__part-content');
+            if (!body) return;
+            var win = window.open('', '_blank');
+            if (win) {
+                win.document.write('<html><head><title>Viewer</title><style>body{margin:0;font:14px/1.5 system-ui,sans-serif;}</style></head><body>' + body.innerHTML + '</body></html>');
+                win.document.close();
+            }
+        } else if (action === 'reset-project-filters') {
+            event.preventDefault();
+            var form = actionEl.closest('form');
+            if (form) {
+                form.querySelectorAll('input[type="text"], input[type="search"]').forEach(function(input) {
+                    input.value = '';
+                });
+                form.querySelectorAll('select').forEach(function(sel) {
+                    sel.selectedIndex = 0;
+                });
+            }
+        } else if (action === 'close-full-payload') {
+            event.preventDefault();
+            if (typeof window.closeFullPayloadViewer === 'function') {
+                window.closeFullPayloadViewer();
+            }
+        }
+    });
+
 })();

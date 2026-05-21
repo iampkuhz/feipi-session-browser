@@ -986,3 +986,8 @@ a.btn:focus-visible {
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     }
 }
+
+/* ── Viewer body (from viewer.html macro) ──────────────────────── */
+.viewer__body[data-scroll-max] {
+    overflow-y: auto;
+}
