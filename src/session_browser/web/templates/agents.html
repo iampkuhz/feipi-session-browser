@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% set active_page = 'agents' %}
+{% import "components/ui_primitives.html" as ui %}
 
 {% block title %}Agents - Agent Run Profiler{% endblock %}
 
@@ -289,7 +290,13 @@
 {% endif %}
 
 {% else %}
-<div class="empty-state">暂无 Agent 数据，请先运行扫描。</div>
+<section class="page-section">
+    {{ ui.empty_state(
+        '暂无 Agent 数据，请先运行扫描',
+        action_button=ui.button('运行扫描', variant='primary', href='/', data_action='run-scan'),
+        icon='🤖'
+    ) }}
+</section>
 {% endif %}
 
 {% endblock %}
