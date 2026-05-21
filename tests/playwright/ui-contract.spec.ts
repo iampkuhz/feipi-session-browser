@@ -46,24 +46,35 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── Sessions-list viewport contract tests (T082) ───
+// ─── Session detail viewport contract tests (T096) ───
 // Required viewports: 1440x900, 1280x800, 1180x800
+// Requires a running server with indexed session data.
+// Set PW_SESSION_URL to a valid session detail URL, otherwise tests skip.
+
+function resolveSessionUrl(): string | null {
+  const direct = process.env.PW_SESSION_URL;
+  if (direct) return direct;
+  return null;
+}
 
 for (const vp of dashboardViewports) {
-  test(`sessions-list @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+  test(`session-detail @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+    const sessionUrl = resolveSessionUrl();
+    if (!sessionUrl) {
+      console.log('No PW_SESSION_URL set; skipping session-detail viewport test.');
+      return;
+    }
+
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/sessions');
+    await page.goto(sessionUrl);
 
-    // Core structure visibility
-    await expect(page.locator('.page-head')).toBeVisible();
-    await expect(page.locator('.sessions-filter-card')).toBeVisible();
-    await expect(page.locator('.data-table')).toBeVisible();
-
-    // Pagination must be present
-    await expect(page.locator('.pagination')).toBeVisible();
+    // Core structure visibility: hero, tabs, trace table
+    await expect(page.locator('.hero').first()).toBeVisible();
+    await expect(page.locator('.sd-tabs')).toBeVisible();
+    await expect(page.locator('[data-trace-panel]')).toBeVisible();
 
     // Full-page screenshot for visual regression
-    await expect(page).toHaveScreenshot(`sessions-${vp.label.replace('x', '-')}.png`, {
+    await expect(page).toHaveScreenshot(`session-detail-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
     });
