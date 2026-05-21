@@ -26,7 +26,7 @@
 </div>
 
 <!-- 空状态 -->
-<div id="glossary-empty" class="empty-state" style="display:none">
+<div id="glossary-empty" class="empty-state is-hidden">
     没有匹配的术语。尝试更换关键词或清空搜索框。
 </div>
 
@@ -35,7 +35,7 @@
     <div class="card-title">Badge 统一规范</div>
     <p class="text-xs text-muted mb-2">同一语义在不同页面颜色一致。所有 badge 高度 20px，透明浅底 + 深色文本 + 低对比边框。</p>
     <div class="mb-2">
-        <span class="text-sm" style="color:var(--text-secondary);margin-right:8px;">状态：</span>
+        <span class="text-sm glossary-label">状态：</span>
         {{ status_success("成功") }}
         {{ status_warning("警告") }}
         {{ status_error("错误") }}
@@ -43,14 +43,14 @@
         {{ status_muted("不上报") }}
     </div>
     <div class="mb-2">
-        <span class="text-sm" style="color:var(--text-secondary);margin-right:8px;">Token：</span>
+        <span class="text-sm glossary-label">Token：</span>
         {{ token_input("Input Fresh") }}
         {{ token_cache_read("Cache Read") }}
         {{ token_cache_write("Cache Write") }}
         {{ token_output("Output Visible") }}
     </div>
     <div class="mb-2">
-        <span class="text-sm" style="color:var(--text-secondary);margin-right:8px;">Agent：</span>
+        <span class="text-sm glossary-label">Agent：</span>
         {{ agent_claude("CC") }}
         {{ agent_codex("CX") }}
         {{ agent_qoder("QD") }}
@@ -60,12 +60,12 @@
         {{ agent_for("codex_cli") }}
     </div>
     <div class="mb-2">
-        <span class="text-sm" style="color:var(--text-secondary);margin-right:8px;">Tool：</span>
+        <span class="text-sm glossary-label">Tool：</span>
         {{ tool("Bash") }}
         {{ tool("Read") }}
     </div>
     <div>
-        <span class="text-sm" style="color:var(--text-secondary);margin-right:8px;">Anomaly：</span>
+        <span class="text-sm glossary-label">Anomaly：</span>
         {{ anomaly("Long Duration", "warning") }}
         {{ anomaly("Cache Creation", "info") }}
     </div>
@@ -120,7 +120,7 @@
                 <td class="mono text-xs"><code>cache_creation_input_tokens</code></td>
                 <td class="mono text-xs"><span class="badge badge-muted">不上报</span></td>
             </tr>
-            <tr style="background:var(--border-light)">
+            <tr class="is-subtotal">
                 <td><strong>输入端合计</strong></td>
                 <td class="text-sm">所有输入端分类之和。</td>
                 <td class="mono text-xs"><code>fresh + R + W</code></td>
@@ -256,7 +256,7 @@
     <table class="data-table" data-table-enhanced>
         <thead>
             <tr>
-                <th style="width:40px">#</th>
+                <th class="col-narrow">#</th>
                 <th class="sortable">限制</th>
                 <th>影响</th>
             </tr>
@@ -386,85 +386,8 @@
     </div>
 </div>
 
-<!-- 内联脚本：搜索过滤 -->
-<script>
-(function () {
-  var searchInput = document.getElementById('glossary-search');
-  var matchCount = document.getElementById('glossary-match-count');
-  var emptyState = document.getElementById('glossary-empty');
-  var sections = document.querySelectorAll('.glossary-table-section');
+{% endblock %}
 
-  if (!searchInput) return;
-
-  function filterGlossary(query) {
-    var q = (query || '').trim().toLowerCase();
-    var totalVisible = 0;
-    var sectionsWithRows = 0;
-
-    sections.forEach(function (section) {
-      var tables = section.querySelectorAll('table[data-table-enhanced]');
-      var sectionVisible = 0;
-
-      tables.forEach(function (table) {
-        var rows = table.querySelectorAll('tbody tr');
-        var tableVisible = 0;
-
-        rows.forEach(function (row) {
-          var text = row.textContent.toLowerCase();
-          var match = !q || text.indexOf(q) !== -1;
-          row.style.display = match ? '' : 'none';
-          if (match) {
-            tableVisible++;
-            sectionVisible++;
-            totalVisible++;
-          }
-        });
-
-        // 如果表格内没有可见行，隐藏整个表格容器
-        var tableWrap = table.closest('.table-scroll');
-        if (tableWrap) {
-          tableWrap.style.display = tableVisible > 0 ? '' : 'none';
-        } else {
-          table.style.display = tableVisible > 0 ? '' : 'none';
-        }
-      });
-
-      // 如果 section 内没有可见表格内容，隐藏整个 card
-      if (q && sectionVisible === 0) {
-        section.style.display = 'none';
-      } else {
-        section.style.display = '';
-        if (sectionVisible > 0) sectionsWithRows++;
-      }
-    });
-
-    // 更新匹配计数
-    if (q) {
-      matchCount.textContent = totalVisible + ' 条匹配';
-    } else {
-      matchCount.textContent = '';
-    }
-
-    // 空状态切换
-    if (q && totalVisible === 0) {
-      emptyState.style.display = '';
-    } else {
-      emptyState.style.display = 'none';
-    }
-  }
-
-  var debounceTimer;
-  searchInput.addEventListener('input', function () {
-    clearTimeout(debounceTimer);
-    var val = this.value;
-    debounceTimer = setTimeout(function () {
-      filterGlossary(val);
-    }, 150);
-  });
-
-  // 页面加载后聚焦搜索框
-  searchInput.focus();
-})();
-</script>
-
+{% block script_extra %}
+<script src="/static/js/glossary.js"></script>
 {% endblock %}

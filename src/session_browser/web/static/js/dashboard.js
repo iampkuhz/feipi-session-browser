@@ -453,7 +453,245 @@
         hideFloating: hideFloating
     };
 
+
     /* ── Init ──────────────────────────────────────────────────── */
 
     _cacheElements();
+})();
+
+
+/**
+ * dashboard-charts.js — Chart rendering extracted from dashboard.html inline script.
+ * Reads data from JSON data blocks injected by Jinja2 template.
+ * Wrapped in DOMContentLoaded because the script loads in <head> before chart elements exist.
+ */
+(function() {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var container = document.getElementById('trend-chart');
+        if (!container) return;
+
+        var rawDataEl = document.getElementById('dashboard-chart-data');
+        var promptDataEl = document.getElementById('dashboard-prompt-data');
+        var rawData = rawDataEl ? JSON.parse(rawDataEl.textContent || '[]') : [];
+        var promptRawData = promptDataEl ? JSON.parse(promptDataEl.textContent || '[]') : [];
+        var currentDays = 30;
+
+    function weekKey(dateStr) {
+        var d = new Date(dateStr);
+        var dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
+        var weekNum = Math.floor(dayOfYear / 7) + 1;
+        return d.getFullYear() + '-W' + String(weekNum).padStart(2, '0');
+    }
+
+    function monthKey(dateStr) {
+        return dateStr.substring(0, 7);
+    }
+
+    function aggregateByWeek(data, fields) {
+        var map = {};
+        var order = [];
+        data.forEach(function(d) {
+            var key = weekKey(d.date);
+            if (!map[key]) { map[key] = { date: key }; order.push(key); }
+            var row = map[key];
+            fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
+        });
+        return order.map(function(k) { return map[k]; });
+    }
+
+    function aggregateByMonth(data, fields) {
+        var map = {};
+        var order = [];
+        data.forEach(function(d) {
+            var key = monthKey(d.date);
+            if (!map[key]) { map[key] = { date: key + '-01' }; order.push(key); }
+            var row = map[key];
+            fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
+        });
+        return order.map(function(k) { return map[k]; });
+    }
+
+    function applyScope(data, days, fields) {
+        var scope = (window.DashboardPage && window.DashboardPage.getScope) ? window.DashboardPage.getScope() : 'day';
+        var sliced = data.slice(-days);
+        if (!sliced.length) return [];
+        var fieldList = fields || getTrendFields();
+        if (scope === 'week') return aggregateByWeek(sliced, fieldList);
+        if (scope === 'month') return aggregateByMonth(sliced, fieldList);
+        return sliced;
+    }
+
+    function getTrendFields() {
+        return ['claude_count', 'codex_count', 'qoder_count', 'total_count',
+                'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens',
+                'tool_calls', 'failed_tools', 'total_tokens', 'claude_tokens', 'codex_tokens', 'qoder_tokens'];
+    }
+
+    function getPromptFields() {
+        return ['claude_prompts', 'codex_prompts', 'qoder_prompts', 'total_prompts'];
+    }
+
+    function formatDisplayDate(dateStr, days) {
+        var scope = (window.DashboardPage && window.DashboardPage.getScope) ? window.DashboardPage.getScope() : 'day';
+        if (!dateStr) return '';
+        if (scope === 'week') { var parts = dateStr.split('-W'); return parts.length > 1 ? 'W' + parts[1] : dateStr.substring(5); }
+        if (scope === 'month') return dateStr.substring(5, 7);
+        return dateStr.substring(5);
+    }
+
+    function formatTokens(n) {
+        if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return String(n);
+    }
+
+    function buildSessionTooltip(label, d) {
+        return '<div class="dashboard-tooltip">' +
+            '<div class="tooltip-date">' + label + '</div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + d.claude_count + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + d.codex_count + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + d.qoder_count + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + d.total_count + '</b></div>' +
+            '</div>';
+    }
+
+    function buildTokenTooltip(label, d) {
+        return '<div class="dashboard-tooltip">' +
+            '<div class="tooltip-date">' + label + '</div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + formatTokens(d.claude_tokens) + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + formatTokens(d.codex_tokens) + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + formatTokens(d.qoder_tokens) + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + formatTokens(d.total_tokens) + '</b></div>' +
+            '</div>';
+    }
+
+    function buildPromptTooltip(label, d) {
+        return '<div class="dashboard-tooltip">' +
+            '<div class="tooltip-date">' + label + '</div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + d.claude_prompts + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + d.codex_prompts + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + d.qoder_prompts + '</b></div>' +
+            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + d.total_prompts + '</b></div>' +
+            '</div>';
+    }
+
+    window.updateChart = function(days) {
+        currentDays = days;
+        var data = applyScope(rawData, days);
+        if (!data.length) { container.innerHTML = '<p class="text-muted text-sm">No data</p>'; return; }
+        var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_count; })) || 1;
+        var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
+        var yHtml = '<div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
+        var plotBars = '';
+        data.forEach(function(d) {
+            var dateStr = formatDisplayDate(d.date, days);
+            var pctH = (d.total_count / maxVal) * 100;
+            var claudePct = d.total_count > 0 ? (d.claude_count / d.total_count * 100) : 0;
+            var codexPct = d.total_count > 0 ? (d.codex_count / d.total_count * 100) : 0;
+            var qoderPct = d.total_count > 0 ? (d.qoder_count / d.total_count * 100) : 0;
+            var tip = buildSessionTooltip(dateStr, d);
+            plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
+            if (d.codex_count > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
+            if (d.claude_count > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
+            if (d.qoder_count > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
+            plotBars += '</div>' + tip + '</div>';
+        });
+        var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
+        var step = Math.max(Math.floor(data.length / 8), 1);
+        var xLabels = [];
+        data.forEach(function(d, i) {
+            xLabels.push('<span>' + (i % step === 0 ? formatDisplayDate(d.date, days) : '') + '</span>');
+        });
+        var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels.join('') + '</div>';
+        container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+        renderTokenChart(currentDays);
+    };
+
+    function renderTokenChart(days) {
+        var sliced = rawData.slice(-days);
+        if (!sliced.length) return;
+        sliced.forEach(function(d) {
+            d.total_tokens = d.input_tokens + d.output_tokens + d.cache_read_tokens + d.cache_write_tokens;
+            var tt = d.total_tokens, tc = d.total_count || 1;
+            d.claude_tokens = Math.round(tt * d.claude_count / tc);
+            d.codex_tokens = Math.round(tt * d.codex_count / tc);
+            d.qoder_tokens = Math.round(tt * d.qoder_count / tc);
+        });
+        var data = applyScope(sliced, days);
+        if (!data.length) return;
+        var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_tokens; })) || 1;
+        var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
+        var yHtml = '<div class="y-axis">' + yTicks.map(function(v) { return '<span>' + formatTokens(v) + '</span>'; }).join('') + '</div>';
+        var plotBars = '';
+        data.forEach(function(d) {
+            var dateStr = formatDisplayDate(d.date, days);
+            var pctH = (d.total_tokens / maxVal) * 100;
+            var claudePct = d.total_tokens > 0 ? (d.claude_tokens / d.total_tokens * 100) : 0;
+            var codexPct = d.total_tokens > 0 ? (d.codex_tokens / d.total_tokens * 100) : 0;
+            var qoderPct = d.total_tokens > 0 ? (d.qoder_tokens / d.total_tokens * 100) : 0;
+            var tip = buildTokenTooltip(dateStr, d);
+            plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
+            if (d.codex_tokens > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
+            if (d.claude_tokens > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
+            if (d.qoder_tokens > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
+            plotBars += '</div>' + tip + '</div>';
+        });
+        var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
+        var step = Math.max(Math.floor(data.length / 8), 1);
+        var xLabels = [];
+        data.forEach(function(d, i) {
+            xLabels.push('<span>' + (i % step === 0 ? formatDisplayDate(d.date, days) : '') + '</span>');
+        });
+        var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels.join('') + '</div>';
+        var tokenContainer = document.getElementById('token-trend-chart');
+        if (tokenContainer) tokenContainer.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+    }
+
+    function renderPromptChart(days) {
+        var data = applyScope(promptRawData, days, getPromptFields());
+        if (!data.length) return;
+        var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_prompts; })) || 1;
+        var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
+        var yHtml = '<div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
+        var plotBars = '';
+        data.forEach(function(d) {
+            var dateStr = formatDisplayDate(d.date, days);
+            var pctH = (d.total_prompts / maxVal) * 100;
+            var claudePct = d.total_prompts > 0 ? (d.claude_prompts / d.total_prompts * 100) : 0;
+            var codexPct = d.total_prompts > 0 ? (d.codex_prompts / d.total_prompts * 100) : 0;
+            var qoderPct = d.total_prompts > 0 ? (d.qoder_prompts / d.total_prompts * 100) : 0;
+            var tip = buildPromptTooltip(dateStr, d);
+            plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
+            if (d.codex_prompts > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
+            if (d.claude_prompts > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
+            if (d.qoder_prompts > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
+            plotBars += '</div>' + tip + '</div>';
+        });
+        var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
+        var step = Math.max(Math.floor(data.length / 8), 1);
+        var xLabels = [];
+        data.forEach(function(d, i) {
+            xLabels.push('<span>' + (i % step === 0 ? formatDisplayDate(d.date, days) : '') + '</span>');
+        });
+        var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels.join('') + '</div>';
+        var promptContainer = document.getElementById('prompt-activity-chart');
+        if (promptContainer) promptContainer.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+    }
+
+    window.updateChart(30);
+    renderTokenChart(30);
+    renderPromptChart(30);
+
+    document.addEventListener('dashboard-scope-change', function(e) {
+        var days = 30;
+        if (e.detail.scope === 'week') days = 7 * 12;
+        else if (e.detail.scope === 'month') days = 30 * 12;
+        window.updateChart(days);
+        renderTokenChart(days);
+        renderPromptChart(days);
+    });
+    }); // end DOMContentLoaded
 })();

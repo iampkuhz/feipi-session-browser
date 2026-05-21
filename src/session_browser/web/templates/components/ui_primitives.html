@@ -204,7 +204,7 @@
   {%- for seg in segments %}
     {%- set pct = (seg.value / computed_total * 100) if computed_total > 0 else 0 -%}
     {%- set seg_class = seg.kind if seg.kind in ['fresh', 'read', 'write', 'out'] else 'out' -%}
-  <div class="tokenbar-seg {{ seg_class }}" style="width: {{ pct | round(1) }}%"></div>
+  <div class="tokenbar-seg {{ seg_class }}" style="--segment-width:{{ pct | round(1) }}%"></div>
   {%- endfor %}
 </div>
 {%- endmacro %}
@@ -577,9 +577,9 @@
   <div class="sessions-token-total">
     <span class="sessions-token-total__value">{{ total }}</span>
     <span class="sessions-token-bar" aria-hidden="true">
-      <span class="sessions-token-bar__fresh" style="width: {{ fresh_pct|default(0) }}%"></span>
-      <span class="sessions-token-bar__cache" style="width: {{ cache_pct|default(0) }}%"></span>
-      <span class="sessions-token-bar__out" style="width: {{ output_pct|default(0) }}%"></span>
+      <span class="sessions-token-bar__fresh" style="--segment-width:{{ fresh_pct|default(0) }}%"></span>
+      <span class="sessions-token-bar__cache" style="--segment-width:{{ cache_pct|default(0) }}%"></span>
+      <span class="sessions-token-bar__out" style="--segment-width:{{ output_pct|default(0) }}%"></span>
     </span>
   </div>
 {%- endmacro %}

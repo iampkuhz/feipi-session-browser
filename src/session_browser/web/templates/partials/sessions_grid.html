@@ -50,9 +50,9 @@
                 <div class="sessions-token-total">
                     <span class="sessions-token-total__value">{{ total_tokens | format_compact_token }}</span>
                     <span class="sessions-token-bar" aria-hidden="true">
-                        <span class="sessions-token-bar__fresh" style="width:{{ fresh_pct }}%"></span>
-                        <span class="sessions-token-bar__cache" style="width:{{ cache_pct }}%"></span>
-                        <span class="sessions-token-bar__out" style="width:{{ output_pct }}%"></span>
+                        <span class="sessions-token-bar__fresh" style="--segment-width:{{ fresh_pct }}%"></span>
+                        <span class="sessions-token-bar__cache" style="--segment-width:{{ cache_pct }}%"></span>
+                        <span class="sessions-token-bar__out" style="--segment-width:{{ output_pct }}%"></span>
                     </span>
                 </div>
             </div>
@@ -72,12 +72,12 @@
         {%- if actions and actions.prev_url %}
         <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.prev_url }}">Previous</a>
         {% else %}
-        <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Previous</span>
+        <span class="ui-btn ui-btn--secondary ui-btn--sm is-disabled">Previous</span>
         {% endif %}
         {%- if actions and actions.next_url %}
         <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.next_url }}">Next</a>
         {% else %}
-        <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Next</span>
+        <span class="ui-btn ui-btn--secondary ui-btn--sm is-disabled">Next</span>
         {% endif %}
         <span class="sessions-page-range">Rows {{ page_start }}–{{ page_end }}</span>
         <span class="sessions-footer-spacer"></span>

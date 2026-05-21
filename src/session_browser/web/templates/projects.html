@@ -18,7 +18,7 @@
 </div>
 
 <!-- Filter row -->
-<div class="card" style="margin-bottom:12px; padding:10px 14px">
+<div class="card card--filter-bar">
     <div class="filter-bar">
         <input id="project-search" type="text" placeholder="Search by name or path..."
                class="filter-bar__input filter-bar__input--search" />
@@ -111,106 +111,14 @@
             </tbody>
         </table>
     </div>
-    <div id="projects-empty" class="empty-state" style="display:none">No projects match your search.</div>
+    <div id="projects-empty" class="empty-state is-hidden">No projects match your search.</div>
     {% else %}
     <div class="empty-state">No projects indexed yet.</div>
     {% endif %}
 </div>
 
-<script>
-(function() {
-    /* ─── Project search ─────────────────────────────────────────── */
-    window.applyProjectFilters = function() {
-        filterProjects();
-    };
+{% endblock %}
 
-    function filterProjects() {
-        var q = document.getElementById('project-search').value.toLowerCase().trim();
-        var rows = document.querySelectorAll('#projects-table tbody tr');
-        var visibleCount = 0;
-
-        rows.forEach(function(row) {
-            var name = (row.dataset.name || '').toLowerCase();
-            var path = (row.dataset.path || '').toLowerCase();
-            var show = !q || name.indexOf(q) >= 0 || path.indexOf(q) >= 0;
-            row.style.display = show ? '' : 'none';
-            if (show) visibleCount++;
-        });
-
-        document.getElementById('project-count').textContent = visibleCount;
-        var label = document.getElementById('projects-count-label');
-        if (label) label.textContent = visibleCount + ' projects';
-        var empty = document.getElementById('projects-empty');
-        if (empty) empty.style.display = visibleCount === 0 ? 'block' : 'none';
-    }
-
-    /* ─── Sort projects client-side ──────────────────────────────── */
-    window.applyProjectSort = function() {
-        sortProjects();
-    };
-
-    function sortProjects() {
-        var sortBy = document.getElementById('project-sort').value;
-        var tbody = document.querySelector('#projects-table tbody');
-        if (!tbody) return;
-
-        var rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort(function(a, b) {
-            var keyMap = {
-                'last_seen': function(r) { return r.dataset.lastSeen; },
-                'total_sessions': function(r) { return parseInt(r.dataset.totalSessions) || 0; },
-                'total_tokens': function(r) { return parseInt(r.dataset.totalTokens) || 0; },
-                'total_tool_calls': function(r) { return parseInt(r.dataset.totalTools) || 0; },
-                'total_failed_tools': function(r) { return parseInt(r.dataset.totalFailed) || 0; }
-            };
-            var getter = keyMap[sortBy] || keyMap['last_seen'];
-            var va = getter(a), vb = getter(b);
-            if (sortBy === 'last_seen') {
-                return vb > va ? 1 : (va > vb ? -1 : 0);
-            }
-            return vb - va;
-        });
-
-        rows.forEach(function(r) { tbody.appendChild(r); });
-    }
-
-    /* ─── Reset filters ──────────────────────────────────────────── */
-    window.resetProjectFilters = function() {
-        document.getElementById('project-search').value = '';
-        document.getElementById('project-sort').selectedIndex = 0;
-        filterProjects();
-        arpStorage.remove('projects_search');
-        arpStorage.remove('projects_sort');
-    };
-
-    /* ─── Persist search + sort in localStorage ──────────────────── */
-    var searchEl = document.getElementById('project-search');
-    var sortEl = document.getElementById('project-sort');
-
-    /* Restore saved state */
-    var savedSearch = arpStorage.get('projects_search');
-    if (savedSearch && searchEl) { searchEl.value = savedSearch; }
-    var savedSort = arpStorage.get('projects_sort');
-    if (savedSort && sortEl) { sortEl.value = savedSort; }
-
-    /* Save on change */
-    if (searchEl) {
-        searchEl.addEventListener('input', function() {
-            arpStorage.set('projects_search', searchEl.value);
-        });
-    }
-    if (sortEl) {
-        sortEl.addEventListener('change', function() {
-            arpStorage.set('projects_sort', sortEl.value);
-        });
-    }
-
-    /* Apply on load */
-    if (savedSearch || savedSort) {
-        filterProjects();
-        if (savedSort) sortProjects();
-    }
-})();
-</script>
-
+{% block script_extra %}
+<script src="/static/js/projects.js"></script>
 {% endblock %}

@@ -44,6 +44,7 @@
         {% if node.children and node.children | length > 0 %}
         <button class="timeline-node__toggle"
                 type="button"
+                data-action="timeline-toggle"
                 aria-expanded="{{ 'true' if node.expanded else 'false' }}">
             <span class="timeline-node__chevron">&#8250;</span>
         </button>
@@ -97,14 +98,14 @@
         {% set _cr = (_td.get('cache_read', 0) / _rt * 100) %}
         {% set _cw = (_td.get('cache_write', 0) / _rt * 100) %}
         {% set _o = (_td.get('output', 0) / _rt * 100) %}
-        <div class="timeline-node__token-bar__fresh" style="width:{{ _f | round(1) }}%" data-tooltip="Fresh: {{ _td.get('fresh', 0) | format_compact_token }}"></div>
+        <div class="timeline-node__token-bar__fresh" style="--segment-width:{{ _f | round(1) }}%" data-tooltip="Fresh: {{ _td.get('fresh', 0) | format_compact_token }}"></div>
         {% if _td.get('cache_read', 0) > 0 %}
-        <div class="timeline-node__token-bar__cache-read" style="width:{{ _cr | round(1) }}%" data-tooltip="Cache read: {{ _td.get('cache_read', 0) | format_compact_token }}"></div>
+        <div class="timeline-node__token-bar__cache-read" style="--segment-width:{{ _cr | round(1) }}%" data-tooltip="Cache read: {{ _td.get('cache_read', 0) | format_compact_token }}"></div>
         {% endif %}
         {% if _td.get('cache_write', 0) > 0 %}
-        <div class="timeline-node__token-bar__cache-write" style="width:{{ _cw | round(1) }}%" data-tooltip="Cache write: {{ _td.get('cache_write', 0) | format_compact_token }}"></div>
+        <div class="timeline-node__token-bar__cache-write" style="--segment-width:{{ _cw | round(1) }}%" data-tooltip="Cache write: {{ _td.get('cache_write', 0) | format_compact_token }}"></div>
         {% endif %}
-        <div class="timeline-node__token-bar__output" style="width:{{ _o | round(1) }}%" data-tooltip="Output: {{ _td.get('output', 0) | format_compact_token }}"></div>
+        <div class="timeline-node__token-bar__output" style="--segment-width:{{ _o | round(1) }}%" data-tooltip="Output: {{ _td.get('output', 0) | format_compact_token }}"></div>
     </div>
     {% endif %}
     {% endif %}

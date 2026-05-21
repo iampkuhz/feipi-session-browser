@@ -31,9 +31,9 @@
 
 {% macro token_bar(fresh_pct=0, cache_pct=0, out_pct=0) -%}
   <span class="sd-tokenbar" aria-hidden="true">
-    <span class="sd-tokenbar__fresh" style="width: {{ fresh_pct|default(0) }}%"></span>
-    <span class="sd-tokenbar__cache" style="width: {{ cache_pct|default(0) }}%"></span>
-    <span class="sd-tokenbar__out" style="width: {{ out_pct|default(0) }}%"></span>
+    <span class="sd-tokenbar__fresh" style="--segment-width:{{ fresh_pct|default(0) }}%"></span>
+    <span class="sd-tokenbar__cache" style="--segment-width:{{ cache_pct|default(0) }}%"></span>
+    <span class="sd-tokenbar__out" style="--segment-width:{{ out_pct|default(0) }}%"></span>
   </span>
 {%- endmacro %}
 

@@ -666,6 +666,15 @@ a:focus-visible, button:focus-visible {
     text-overflow: ellipsis;
 }
 
+.map-row.is-empty {
+    opacity: 0.5;
+}
+
+.map-row .name.is-muted {
+    font-size: 11px;
+    color: var(--t4);
+}
+
 .sig {
     width: 7px;
     height: 7px;
@@ -883,6 +892,12 @@ body.sidebar-collapsed .sidebar-toggle-expand {
     box-shadow: var(--card-shadow);
 }
 .card + .card { margin-top: var(--space-md); }
+
+/* Filter bar card variant */
+.card--filter-bar {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+}
 
 /* ── Card body (inner content area) ── */
 .card-body {
@@ -1251,6 +1266,11 @@ a.link-muted:hover { color: var(--accent); }
 .token-bar__output { background: var(--token-output-visible); }
 .token-bar__reasoning { background: var(--token-reasoning); }
 .token-bar__tool { background: var(--token-tool); }
+/* CSS custom property for segment widths (replaces inline width:%) */
+.token-bar > [style*="--segment-width"],
+.token-bar-wrapper [style*="--segment-width"] {
+    width: var(--segment-width);
+}
 .token-bar--sm { height: 4px; }
 .token-bar--lg { height: 8px; border-radius: 4px; }
 
@@ -3355,6 +3375,13 @@ a.link-muted:hover { color: var(--accent); }
 .text-muted { color: var(--text-muted); }
 .text-sm { font-size: var(--text-sm); }
 .text-xs { font-size: var(--text-xs); }
+.is-hidden { display: none; }
+.is-disabled { opacity: 0.5; pointer-events: none; }
+.cell-truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-link-block { max-width: 260px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.glossary-label { color: var(--text-secondary); margin-right: 8px; }
+.is-subtotal { background: var(--border-light); }
+.col-narrow { width: 40px; }
 .mt-1 { margin-top: 4px; }
 .mt-2 { margin-top: 8px; }
 .mt-3 { margin-top: 12px; }
@@ -4925,6 +4952,12 @@ tr.row--anomaly {
 .round-token-bar-scale {
     min-width: 2px;
     max-width: 100%;
+}
+
+/* CSS custom property for round token bar segment widths */
+.round-token-bar > [style*="--segment-width"],
+.round-token-bar-scale [style*="--segment-width"] {
+    width: var(--segment-width);
 }
 
 /* Rich tooltip for token bar */

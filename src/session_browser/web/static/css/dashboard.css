@@ -639,3 +639,8 @@
 /* ── Utility: status color modifiers ===================================== */
 /* These are simple color utility classes used by metric-card sub text.
  * .success and .danger are defined in the Metric Card section above. */
+
+/* ── Chart empty state ================================================== */
+.chart-empty {
+  padding: 12px;
+}

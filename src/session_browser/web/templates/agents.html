@@ -57,10 +57,10 @@
 
 <!-- Agent/Model Efficiency -->
 {% if efficiency %}
-<div class="page-header" style="margin-top:24px; padding-top:12px;">
+<div class="page-header" >
     <div class="page-header__top">
         <div class="page-header__left">
-            <h2 class="page-header__title" style="font-size:var(--text-lg)">Agent/Model Efficiency</h2>
+            <h2 class="page-header__title" >Agent/Model Efficiency</h2>
         </div>
     </div>
 </div>
@@ -89,7 +89,7 @@
                     <span class="agent-dot {{ 'claude' if e.agent == 'claude_code' else 'qoder' if e.agent == 'qoder' else 'codex' }}"></span>
                     {{ 'Claude Code' if e.agent == 'claude_code' else 'Qoder' if e.agent == 'qoder' else 'Codex' }}
                 </td>
-                <td class="mono" style="max-width:180px" data-tooltip="{{ e.model }}">{{ (e.model or '?')[:50] }}</td>
+                <td class="mono"  data-tooltip="{{ e.model }}">{{ (e.model or '?')[:50] }}</td>
                 <td class="numeric mono">{{ e.session_count }}</td>
                 <td class="numeric mono">{{ e.avg_duration | format_duration }}</td>
                 <td class="numeric mono">{{ e.p95_duration | format_duration }}</td>

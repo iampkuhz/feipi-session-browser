@@ -3220,7 +3220,7 @@ def _build_v11_view_model(
             "tool_count_label": tool_count_label,
             "has_user_input": bool(r.user_msg.content),
             "is_open": False,
-            "items": items,
+            "timeline_items": items,
         })
 
     return {

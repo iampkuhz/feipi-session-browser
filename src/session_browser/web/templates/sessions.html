@@ -226,10 +226,10 @@
                         <div class="token-total">
                             <span class="token-total__value">{{ total_tokens | format_compact_token }}</span>
                             <span class="tokenbar" aria-hidden="true">
-                                <span class="tokenbar-seg fresh" style="width:{{ fresh_pct }}%"></span>
-                                <span class="tokenbar-seg read" style="width:{{ (s.cached_input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
-                                <span class="tokenbar-seg write" style="width:{{ (s.cached_output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
-                                <span class="tokenbar-seg out" style="width:{{ output_pct }}%"></span>
+                                <span class="tokenbar-seg fresh" style="--segment-width:{{ fresh_pct }}%"></span>
+                                <span class="tokenbar-seg read" style="--segment-width:{{ (s.cached_input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
+                                <span class="tokenbar-seg write" style="--segment-width:{{ (s.cached_output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
+                                <span class="tokenbar-seg out" style="--segment-width:{{ output_pct }}%"></span>
                             </span>
                         </div>
                     </td>

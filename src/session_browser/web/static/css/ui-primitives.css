@@ -263,6 +263,17 @@ a.btn:focus-visible {
 .tokenbar-seg { height: 8px; }
 .tokenbar-seg:first-child { border-radius: 999px 0 0 999px; }
 .tokenbar-seg:last-of-type { border-radius: 0 999px 999px 0; }
+/* CSS custom property for segment widths */
+.tokenbar-seg[style*="--segment-width"],
+.sessions-token-bar [style*="--segment-width"],
+.sessions-token-bar__fresh,
+.sessions-token-bar__cache,
+.sessions-token-bar__out,
+.sd-tokenbar__fresh,
+.sd-tokenbar__cache,
+.sd-tokenbar__out {
+    width: var(--segment-width);
+}
 /* Standalone segments */
 .tokenbar-seg.fresh { background: var(--claude); }
 .tokenbar-seg.read { background: var(--codex); }

@@ -42,9 +42,9 @@ class TestMhtmlTemplateContracts:
     # ── Layout modes ──
 
     def test_layout_mode_classes(self):
-        html = self._read("base.html")
-        # hide-left is still referenced in JS migration code
-        assert "hide-left" in html, 'missing hide-left toggle support'
+        js = self._read_js("view-switching.js")
+        # hide-left migration code lives in view-switching.js
+        assert "hide-left" in js, 'missing hide-left toggle support'
 
     def test_css_has_shell_grid(self):
         css = self._read_css()

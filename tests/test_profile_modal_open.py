@@ -4,12 +4,13 @@ v9 architecture:
 - Component-based Jinja2 macros (sdp, sdt) replace inline HTML.
 - Tool calls rendered via sdt.tool_batch macro in session_detail_timeline.html.
 - Payload modal in base.html handles all payload viewing.
-- Click delegation via _arpClosest helper in base.html.
+- Click delegation via _arpClosest helper in view-switching.js (extracted from base.html).
 """
 
 from pathlib import Path
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
+VIEW_SWITCHING_JS = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "js" / "view-switching.js"
 
 
 def _session_source():
@@ -18,6 +19,10 @@ def _session_source():
 
 def _base_source():
     return (TEMPLATE_DIR / "base.html").read_text(encoding="utf-8")
+
+
+def _view_switching_source():
+    return (VIEW_SWITCHING_JS).read_text(encoding="utf-8")
 
 
 def _timeline_component():
@@ -60,30 +65,30 @@ def test_payload_modal_in_base():
 
 
 def test_capture_phase_click_listener():
-    """base.html must have a capture-phase click listener for [data-content-modal]."""
-    source = _base_source()
+    """view-switching.js must have a capture-phase click listener for [data-content-modal]."""
+    source = _view_switching_source()
     assert "addEventListener('click'" in source, (
-        "base.html must add click event listeners"
+        "view-switching.js must add click event listeners"
     )
     assert ", true)" in source, (
-        "base.html must register a capture-phase click listener"
+        "view-switching.js must register a capture-phase click listener"
     )
 
 
 def test_closest_polyfill():
-    """base.html must define a closest helper for older WebView compatibility."""
-    source = _base_source()
+    """view-switching.js must define a closest helper for older WebView compatibility."""
+    source = _view_switching_source()
     assert "_arpClosest" in source, (
-        "base.html must define _arpClosest helper function"
+        "view-switching.js must define _arpClosest helper function"
     )
     assert "webkitMatchesSelector" in source, (
-        "base.html's _arpClosest must support webkitMatchesSelector"
+        "view-switching.js's _arpClosest must support webkitMatchesSelector"
     )
 
 
 def test_capture_handler_sets_handled_flag():
     """The capture-phase handler must set e.__contentModalHandled."""
-    source = _base_source()
+    source = _view_switching_source()
     assert "__contentModalHandled" in source, (
         "Capture handler must set e.__contentModalHandled flag"
     )

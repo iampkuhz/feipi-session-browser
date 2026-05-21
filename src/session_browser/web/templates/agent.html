@@ -90,10 +90,10 @@
     {% endif %}
 {% endfor %}
 {% if models | length > 1 %}
-<div class="page-header" style="margin-top:24px; padding-top:12px;">
+<div class="page-header" >
     <div class="page-header__top">
         <div class="page-header__left">
-            <h2 class="page-header__title" style="font-size:var(--text-lg)">Model Breakdown</h2>
+            <h2 class="page-header__title" >Model Breakdown</h2>
         </div>
     </div>
 </div>
@@ -128,7 +128,7 @@
             {% set m_input_side = m_input + m_cache_r + m_cache_w %}
             {% set m_cache_pct = (m_cache_r / m_input_side * 100) | round(1) if m_input_side > 0 else 0 %}
             <tr>
-                <td class="mono" style="max-width:220px" data-tooltip="{{ model }}">{{ model[:60] }}</td>
+                <td class="mono" class="cell-truncate" data-tooltip="{{ model }}">{{ model[:60] }}</td>
                 <td class="numeric mono">{{ m_sessions }}</td>
                 <td class="numeric mono">{{ m_input | format_compact_token }}</td>
                 <td class="numeric mono">{{ m_cache_pct }}%</td>
@@ -152,11 +152,11 @@
 {% endif %}
 
 <!-- Sessions -->
-<div class="page-header" style="margin-top:24px; padding-top:12px;">
+<div class="page-header" >
     <div class="page-header__top">
         <div class="page-header__left">
-            <h2 class="page-header__title" style="font-size:var(--text-lg)">
-                <span class="badge {{ 'badge-claude' if current_agent == 'claude_code' else 'badge-qoder' if current_agent == 'qoder' else 'badge-codex' }}" style="margin-right:8px">
+            <h2 class="page-header__title" >
+                <span class="badge {{ 'badge-claude' if current_agent == 'claude_code' else 'badge-qoder' if current_agent == 'qoder' else 'badge-codex' }}" >
                     {{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}
                 </span>
                 Sessions ({{ sessions | length }})
@@ -188,14 +188,14 @@
             {% for s in sessions %}
             <tr class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
                 <td>
-                    <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link" style="max-width:260px; display:block" data-tooltip="{{ s.title }}">
+                    <a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="link" class="cell-link-block" data-tooltip="{{ s.title }}">
                         {{ s.title[:70] or 'Untitled' }}
                     </a>
                 </td>
                 <td class="text-xs">
-                    <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" style="max-width:160px; display:block" data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a>
+                    <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted"  data-tooltip="{{ s.project_key }}">{{ s.project_name }}</a>
                 </td>
-                <td class="text-muted mono" style="max-width:160px" data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
+                <td class="text-muted mono"  data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
                 <td class="numeric mono">{{ s.user_message_count + s.assistant_message_count }}</td>
                 <td class="numeric mono">{{ s.input_tokens | format_compact_token }}</td>
                 <td class="numeric mono">{{ s.cached_input_tokens | format_compact_token }}</td>

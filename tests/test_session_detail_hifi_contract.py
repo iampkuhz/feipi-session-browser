@@ -60,7 +60,7 @@ class TestFixtureDataAttributes:
             btn = soup.select_one(f'[data-switch="{view}"]')
             assert btn is None, f'unexpected button with data-switch="{view}" (should be removed)'
         # v11 action buttons
-        for action in ("toggle-all", "filter-status"):
+        for action in ("collapse-all", "filter-status"):
             btn = soup.select_one(f'[data-action="{action}"]')
             assert btn is not None, f'missing button with data-action="{action}"'
         # expand-visible was removed in v9

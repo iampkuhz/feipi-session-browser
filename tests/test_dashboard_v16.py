@@ -9,6 +9,7 @@ import pytest
 
 _DASHBOARD_PATH = "src/session_browser/web/templates/dashboard.html"
 _DASHBOARD_CSS_PATH = "src/session_browser/web/static/css/dashboard.css"
+_DASHBOARD_JS_PATH = "src/session_browser/web/static/js/dashboard.js"
 _ROUTES_PATH = "src/session_browser/web/routes.py"
 
 
@@ -21,6 +22,12 @@ def _read_dashboard_template() -> str:
 def _read_dashboard_css() -> str:
     """Read dashboard.css."""
     with open(_DASHBOARD_CSS_PATH) as f:
+        return f.read()
+
+
+def _read_dashboard_js() -> str:
+    """Read dashboard.js."""
+    with open(_DASHBOARD_JS_PATH) as f:
         return f.read()
 
 
@@ -132,22 +139,22 @@ class TestDashboardCharts:
 
 
 class TestDashboardChartBars:
-    """Verify chart bar tooltip DOM structure."""
+    """Verify chart bar tooltip DOM structure (rendered by dashboard.js)."""
 
     def test_bar_template_has_tooltip(self):
-        content = _read_dashboard_template()
+        content = _read_dashboard_js()
         assert 'dashboard-tooltip' in content, \
-            "Chart bars must contain .dashboard-tooltip DOM structure"
+            "Chart bars must contain .dashboard-tooltip DOM structure (rendered by JS)"
 
     def test_tooltip_has_dot_classes(self):
-        content = _read_dashboard_template()
+        content = _read_dashboard_js()
         assert "tooltip-dot--claude" in content
         assert "tooltip-dot--codex" in content
         assert "tooltip-dot--qoder" in content
         assert "tooltip-dot--total" in content
 
     def test_tooltip_has_row_structure(self):
-        content = _read_dashboard_template()
+        content = _read_dashboard_js()
         assert "tooltip-row" in content
         assert "tooltip-label" in content
         assert "tooltip-value" in content
@@ -198,15 +205,16 @@ class TestDashboardTrendDataSource:
 
     def test_trend_not_hardcoded(self):
         content = _read_dashboard_template()
-        assert "rawData = {{ trend | tojson }}" in content, \
-            "Chart data must come from {{ trend | tojson }}, not hardcoded"
+        assert 'id="dashboard-chart-data"' in content, \
+            "Chart data must be provided via JSON data block"
+        assert "{{ trend | tojson }}" in content, \
+            "Chart data must come from {{ trend | tojson }}"
 
     def test_token_data_from_same_trend(self):
-        content = _read_dashboard_template()
+        content = _read_dashboard_js()
         assert "function renderTokenChart" in content, \
             "Token chart must be rendered via renderTokenChart function"
-        token_func = content.split("function renderTokenChart")[1].split("function ")[0]
-        assert "rawData" in token_func, \
+        assert "rawData" in content.split("function renderTokenChart")[1].split("function ")[0], \
             "Token chart must use rawData from backend, not hardcoded"
 
 

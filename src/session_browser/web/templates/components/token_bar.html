@@ -32,16 +32,16 @@
     {# compact 模式：带 scale wrapper #}
     {% if size == "compact" %}
         {% if bar_scale is not none %}
-        <div class="round-token-bar-scale" style="width:{{ bar_scale | round(1) }}%">
+        <div class="round-token-bar-scale" style="--segment-width:{{ bar_scale | round(1) }}%">
         {% endif %}
         <div class="round-token-bar">
             {% if rt > 0 %}
-            <div class="round-token-bar__fresh" style="width:{{ fresh_pct | round(1) }}%"></div>
+            <div class="round-token-bar__fresh" style="--segment-width:{{ fresh_pct | round(1) }}%"></div>
             {% if supports_cache %}
-            <div class="round-token-bar__cache-read" style="width:{{ cr_pct | round(1) }}%"></div>
-            <div class="round-token-bar__cache-write" style="width:{{ cw_pct | round(1) }}%"></div>
+            <div class="round-token-bar__cache-read" style="--segment-width:{{ cr_pct | round(1) }}%"></div>
+            <div class="round-token-bar__cache-write" style="--segment-width:{{ cw_pct | round(1) }}%"></div>
             {% endif %}
-            <div class="round-token-bar__output" style="width:{{ out_pct | round(1) }}%"></div>
+            <div class="round-token-bar__output" style="--segment-width:{{ out_pct | round(1) }}%"></div>
             {% endif %}
         </div>
         {% if bar_scale is not none %}
@@ -51,12 +51,12 @@
         {# summary 模式：全宽 bar #}
         <div class="token-bar token-bar--lg">
             {% if rt > 0 %}
-            <div class="token-bar__input-fresh" style="width:{{ fresh_pct | round(1) }}%"></div>
+            <div class="token-bar__input-fresh" style="--segment-width:{{ fresh_pct | round(1) }}%"></div>
             {% if supports_cache %}
-            <div class="token-bar__cache-read" style="width:{{ cr_pct | round(1) }}%"></div>
-            <div class="token-bar__cache-write" style="width:{{ cw_pct | round(1) }}%"></div>
+            <div class="token-bar__cache-read" style="--segment-width:{{ cr_pct | round(1) }}%"></div>
+            <div class="token-bar__cache-write" style="--segment-width:{{ cw_pct | round(1) }}%"></div>
             {% endif %}
-            <div class="token-bar__output" style="width:{{ out_pct | round(1) }}%"></div>
+            <div class="token-bar__output" style="--segment-width:{{ out_pct | round(1) }}%"></div>
             {% endif %}
         </div>
         {% if show_label and rt > 0 %}
@@ -72,7 +72,7 @@
             <span class="token-bar-tooltip__name">Fresh</span>
             <span class="token-bar-tooltip__value">{{ fresh | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ fresh_pct | round(1) }}%</span>
-            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--fresh" style="width:{{ fresh_pct | round(0) }}%"></span></span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--fresh" style="--segment-width:{{ fresh_pct | round(0) }}%"></span></span>
         </div>
         {% if supports_cache %}
         <div class="token-bar-tooltip__row">
@@ -80,14 +80,14 @@
             <span class="token-bar-tooltip__name" data-tooltip="Input tokens cached for future rounds">Cache Read</span>
             <span class="token-bar-tooltip__value">{{ cache_read | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ cr_pct | round(1) }}%</span>
-            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cr" style="width:{{ cr_pct | round(0) }}%"></span></span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cr" style="--segment-width:{{ cr_pct | round(0) }}%"></span></span>
         </div>
         <div class="token-bar-tooltip__row">
             <span class="token-bar-tooltip__dot token-bar-tooltip__dot--cw"></span>
             <span class="token-bar-tooltip__name" data-tooltip="cache_creation_input_tokens: input tokens written to prompt cache for future rounds">Cache Write</span>
             <span class="token-bar-tooltip__value">{{ cache_write | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ cw_pct | round(1) }}%</span>
-            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cw" style="width:{{ cw_pct | round(0) }}%"></span></span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cw" style="--segment-width:{{ cw_pct | round(0) }}%"></span></span>
         </div>
         {% endif %}
         <div class="token-bar-tooltip__row">
@@ -95,7 +95,7 @@
             <span class="token-bar-tooltip__name">Output</span>
             <span class="token-bar-tooltip__value">{{ output | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ out_pct | round(1) }}%</span>
-            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--out" style="width:{{ out_pct | round(0) }}%"></span></span>
+            <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--out" style="--segment-width:{{ out_pct | round(0) }}%"></span></span>
         </div>
     </div>
 </div>

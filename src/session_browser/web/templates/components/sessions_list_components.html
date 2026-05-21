@@ -68,12 +68,12 @@
     {%- if prev_url %}
     <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ prev_url }}">Previous</a>
     {%- else %}
-    <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Previous</span>
+    <span class="ui-btn ui-btn--secondary ui-btn--sm is-disabled">Previous</span>
     {%- endif %}
     {%- if next_url %}
     <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ next_url }}">Next</a>
     {%- else %}
-    <span class="ui-btn ui-btn--secondary ui-btn--sm" style="opacity:0.5;pointer-events:none">Next</span>
+    <span class="ui-btn ui-btn--secondary ui-btn--sm is-disabled">Next</span>
     {%- endif %}
     <span class="sessions-page-range">Rows {{ start_label }}–{{ end_label }}</span>
     <span class="sessions-footer-spacer"></span>
