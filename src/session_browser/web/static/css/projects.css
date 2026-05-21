@@ -56,6 +56,40 @@
   margin-top: 12px;
 }
 
+/* Metric grid layout: 4 equal-width cards on desktop (T115) */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+/* Metric card: bridge .card.metric HTML to .metric-card primitives (T115)
+   The HTML uses class="card metric" (two classes), while ui-primitives.css
+   defines .metric-card (single class). This selector applies the same layout
+   so the icon and content render side-by-side with proper spacing. */
+.card.metric {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  display: flex;
+  gap: 14px;
+  min-height: 112px;
+  min-width: 0;
+}
+
+/* Metric card sub-text row (panel-sub style, T115 alias) */
+.card.metric .metric-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 /* Sub-text row inside metric card (panel-sub style) */
 .metric-card__panel-sub {
   font-size: 12px;
