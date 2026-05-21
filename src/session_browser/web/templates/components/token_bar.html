@@ -60,17 +60,17 @@
             {% endif %}
         </div>
         {% if show_label and rt > 0 %}
-        <div class="token-bar__label">{{ rt | format_number }} tokens</div>
+        <div class="token-bar__label">{{ rt | format_compact_token }} tokens</div>
         {% endif %}
     {% endif %}
 
     {# ── Tooltip（两种尺寸共用） ── #}
     <div class="token-bar-tooltip">
-        <div class="token-bar-tooltip__title">Total: {{ rt | format_number }} tokens</div>
+        <div class="token-bar-tooltip__title">Total: {{ rt | format_compact_token }} tokens</div>
         <div class="token-bar-tooltip__row">
             <span class="token-bar-tooltip__dot token-bar-tooltip__dot--fresh"></span>
             <span class="token-bar-tooltip__name">Fresh</span>
-            <span class="token-bar-tooltip__value">{{ fresh | format_number }}</span>
+            <span class="token-bar-tooltip__value">{{ fresh | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ fresh_pct | round(1) }}%</span>
             <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--fresh" style="width:{{ fresh_pct | round(0) }}%"></span></span>
         </div>
@@ -78,14 +78,14 @@
         <div class="token-bar-tooltip__row">
             <span class="token-bar-tooltip__dot token-bar-tooltip__dot--cr"></span>
             <span class="token-bar-tooltip__name" data-tooltip="Input tokens cached for future rounds">Cache Read</span>
-            <span class="token-bar-tooltip__value">{{ cache_read | format_number }}</span>
+            <span class="token-bar-tooltip__value">{{ cache_read | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ cr_pct | round(1) }}%</span>
             <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cr" style="width:{{ cr_pct | round(0) }}%"></span></span>
         </div>
         <div class="token-bar-tooltip__row">
             <span class="token-bar-tooltip__dot token-bar-tooltip__dot--cw"></span>
             <span class="token-bar-tooltip__name" data-tooltip="cache_creation_input_tokens: input tokens written to prompt cache for future rounds">Cache Write</span>
-            <span class="token-bar-tooltip__value">{{ cache_write | format_number }}</span>
+            <span class="token-bar-tooltip__value">{{ cache_write | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ cw_pct | round(1) }}%</span>
             <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--cw" style="width:{{ cw_pct | round(0) }}%"></span></span>
         </div>
@@ -93,7 +93,7 @@
         <div class="token-bar-tooltip__row">
             <span class="token-bar-tooltip__dot token-bar-tooltip__dot--out"></span>
             <span class="token-bar-tooltip__name">Output</span>
-            <span class="token-bar-tooltip__value">{{ output | format_number }}</span>
+            <span class="token-bar-tooltip__value">{{ output | format_compact_token }}</span>
             <span class="token-bar-tooltip__pct">{{ out_pct | round(1) }}%</span>
             <span class="token-bar-tooltip__bar-bg"><span class="token-bar-tooltip__bar-fill token-bar-tooltip__bar-fill--out" style="width:{{ out_pct | round(0) }}%"></span></span>
         </div>

@@ -20,7 +20,7 @@
   width: 100%;
 }
 .sessions-page .sessions-page-title{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:12px}
-.sessions-page .sessions-page-title h1{margin:0;font-size:19px;line-height:1.2;font-weight:850;letter-spacing:-.03em}
+.sessions-page .sessions-page-title h1{margin:0;font-size:28px;line-height:1.1;font-weight:880;letter-spacing:-.035em}
 .sessions-page .sessions-page-title__sub{margin-top:4px;color:var(--sessions-text-3);font-size:12px}
 .sessions-page .sessions-page-title__stats{display:flex;gap:8px;align-items:center}
 .sessions-page .sessions-filter-card,.sessions-page .sessions-table-card{background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--sessions-line);border-radius:var(--sessions-card-radius);box-shadow:var(--sessions-shadow);overflow:hidden}
@@ -81,3 +81,159 @@
 .sessions-page .sessions-footer-total{color:var(--sessions-text-3)}
 .sessions-page .sessions-footer-page-size{font-size:12px;color:var(--sessions-text-3)}
 .sessions-page .sessions-footer-page-size__select{border:1px solid var(--sessions-line);border-radius:6px;padding:2px 6px;font-size:12px;background:#fff;color:var(--sessions-text);cursor:pointer}
+
+/* ── Page Head Stat Pills (canonical replacement for HIFI .chips) ── */
+.sessions-page .sessions-page-stats {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Empty State ──────────────────────────────────────────────── */
+.sessions-page .empty-state{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:120px;
+  padding:32px 16px;
+  color:var(--sessions-text-3);
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+  grid-column:1 / -1;
+}
+
+/* ── Token Tooltip (hover on token bar in table cell) ─────────── */
+.sessions-page .sessions-token-tooltip{
+  position:absolute;
+  left:50%;
+  top:calc(100% + 8px);
+  transform:translateX(-50%);
+  background:#fff;
+  border:1px solid var(--sessions-line-soft);
+  border-radius:12px;
+  box-shadow:0 12px 28px rgba(15,23,42,.12);
+  padding:12px 14px;
+  width:240px;
+  z-index:20;
+  display:none;
+  pointer-events:none;
+}
+.sessions-page .sessions-token-tooltip::before{
+  content:'';
+  position:absolute;
+  top:-7px;
+  left:50%;
+  transform:translateX(-50%) rotate(45deg);
+  width:12px;
+  height:12px;
+  background:#fff;
+  border-left:1px solid var(--sessions-line-soft);
+  border-top:1px solid var(--sessions-line-soft);
+}
+.sessions-page .sessions-token-total:hover .sessions-token-tooltip,
+.sessions-page .sessions-token-total:focus-within .sessions-token-tooltip{
+  display:block;
+}
+.sessions-page .sessions-token-tooltip__title{
+  font-weight:880;
+  font-size:12px;
+  margin-bottom:8px;
+  color:var(--sessions-text);
+}
+.sessions-page .sessions-token-tooltip__row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  min-height:22px;
+  font-size:12px;
+}
+.sessions-page .sessions-token-tooltip__label{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:var(--sessions-text-3);
+  min-width:0;
+}
+.sessions-page .sessions-token-tooltip__dot{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  flex:0 0 8px;
+}
+.sessions-page .sessions-token-tooltip__dot--fresh{background:#2563eb}
+.sessions-page .sessions-token-tooltip__dot--cache{background:#f59e0b}
+.sessions-page .sessions-token-tooltip__dot--out{background:#059669}
+.sessions-page .sessions-token-tooltip__value{
+  font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);
+  font-weight:760;
+  text-align:right;
+}
+.sessions-page .sessions-token-tooltip__percent{
+  color:var(--sessions-text-3);
+  font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);
+  font-weight:600;
+  text-align:right;
+  font-size:11px;
+}
+.sessions-page .sessions-token-tooltip__sep{
+  height:1px;
+  background:var(--sessions-line-soft);
+  margin:6px 0;
+}
+.sessions-page .sessions-token-tooltip__total{
+  font-weight:880;
+  color:var(--sessions-text);
+}
+
+/* ── Pagination Nav Buttons (in footer) ───────────────────────── */
+.sessions-page .sessions-table-footer .ui-btn{
+  height:28px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 11px;
+  font-size:12px;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.sessions-page .sessions-table-footer .ui-btn[style*="opacity:0.5"]{
+  cursor:default;
+}
+
+/* ── Title Link ───────────────────────────────────────────────── */
+.sessions-page .sessions-title a{
+  color:var(--sessions-text);
+  text-decoration:none;
+}
+.sessions-page .sessions-title a:hover{
+  color:var(--sessions-brand);
+  text-decoration:underline;
+}
+
+/* ── Project Link (link-muted) ────────────────────────────────── */
+.sessions-page .link-muted{
+  color:var(--sessions-text-2);
+  text-decoration:none;
+}
+.sessions-page .link-muted:hover{
+  color:var(--sessions-brand);
+  text-decoration:underline;
+}
+
+/* ── Branch Text ──────────────────────────────────────────────── */
+.sessions-page .session-branch{
+  color:var(--sessions-text-3);
+  font-size:11px;
+}
+
+/* ── Active Filters Chip Spacing ──────────────────────────────── */
+.sessions-page .sessions-active-filters .ui-filter-chip{
+  margin-left:4px;
+}
+
+/* ── Token Cell Positioning (tooltip anchor) ──────────────────── */
+.sessions-page .sessions-token-total{
+  position:relative;
+}

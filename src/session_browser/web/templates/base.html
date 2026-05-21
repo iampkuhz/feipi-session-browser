@@ -6,7 +6,28 @@
     {% if export_mhtml %}
     <style>{{ mhtml_css | safe }}</style>
     {% else %}
+    <!-- ============================================================
+         CSS Import Ownership Model
+         详见 docs/ui/contracts/04-css-js-ownership.md
+
+         Layer 1 — Tokens + Shell (global):
+           /static/style.css              → 设计令牌、布局骨架
+
+         Layer 2 — Shared Primitives (global):
+           /static/css/ui-primitives.css  → 按钮、徽章、卡片等原子组件
+
+         Layer 3 — Page-specific CSS (per-page, via block head_extra):
+           css/dashboard.css, css/sessions-list.css, css/session-detail.css,
+           css/projects.css, css/agents.css, css/glossary.css, css/states.css
+
+         Layer 4 — Legacy/Versioned (temporary, to be removed in T181-T182):
+           session-browser (legacy v15), dashboard (legacy v16),
+           session-detail-timeline
+
+         禁止新增: *-v17.css, *-v18.css, *-patch.css, *-fix.css, *-overlay.css
+         ============================================================ -->
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/ui-primitives.css">
     <link rel="stylesheet" href="/static/css/session-browser-v15.css">
     {% endif %}
 
@@ -40,69 +61,84 @@
     {% block script_extra %}{% endblock %}
 </head>
 <body>
-    <div class="shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
+    <div class="shell app-shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
         <!-- Sidebar: grid column 1 -->
-        <aside class="sidebar">
-            <div class="sidebar-inner">
-                <div class="sidebar-logo">
-                    <a href="/dashboard">
-                        <span class="logo-icon">AP</span>
-                        <div>
-                            <span class="logo-text">Agent Run Profiler</span>
-                            <div class="logo-sub">Read-only · Local</div>
-                        </div>
-                    </a>
+        <aside class="sidebar" aria-label="Primary navigation">
+            <div class="brand-card">
+                <div class="brand-mark" title="App logo" aria-hidden="true">📈</div>
+                <div>
+                    <div class="brand-title">Agent Run Profiler</div>
+                    <div class="brand-meta">
+                        <span>v0.9.0</span>
+                        <span class="pill pill--neutral">Local</span>
+                    </div>
                 </div>
-                <nav class="nav">
-                    {% block sidebar_nav %}
-                    <div class="nav-label">Core</div>
-                    <a class="nav-item{% if active_page == 'sessions' %} active{% endif %}" href="/sessions">
-                        <span class="nav-dot"></span> Sessions
-                    </a>
-                    <a class="nav-item{% if active_page == 'dashboard' %} active{% endif %}" href="/dashboard">
-                        <span class="nav-dot"></span> Dashboard
-                    </a>
-                    {% endblock %}
-                </nav>
-
-                {% block sidebar_extra %}
-                <!-- Round Map (not rendered on session detail pages) -->
-                <div class="round-map">
-                    <div class="nav-label">Round Map</div>
-                    {% if session_rounds is defined and session_rounds %}
-                        {% for round in session_rounds %}
-                        <a class="map-row{% if round.is_current %} active{% endif %}" href="#r{{ round.idx }}">
-                            <span class="idx">R{{ round.idx }}</span>
-                            <span class="name">{{ round.name | truncate(28) }}</span>
-                            <span class="sig{% if round.status == 'error' %} err{% elif round.status == 'warning' %} warn{% endif %}"></span>
-                        </a>
-                        {% endfor %}
-                    {% else %}
-                        <div class="map-row" style="opacity: 0.5;">
-                            <span class="name" style="font-size: 11px; color: var(--t4);">No session context</span>
-                        </div>
-                    {% endif %}
-                </div>
-                {% endblock %}
             </div>
+            <nav class="nav-list" aria-label="主导航">
+                {% block sidebar_nav %}
+                <a class="nav-item{% if active_page == 'dashboard' %} is-active{% endif %}" href="/dashboard" data-action="nav-dashboard" data-target="dashboard">
+                    <span class="icon icon--nav" aria-hidden="true">📊</span><span>Dashboard</span>
+                </a>
+                <a class="nav-item{% if active_page == 'sessions' %} is-active{% endif %}" href="/sessions" data-action="nav-sessions" data-target="sessions">
+                    <span class="icon icon--nav" aria-hidden="true">🗂️</span><span>Sessions</span>
+                </a>
+                <a class="nav-item{% if active_page == 'projects' %} is-active{% endif %}" href="/projects" data-action="nav-projects" data-target="projects">
+                    <span class="icon icon--nav" aria-hidden="true">📁</span><span>Projects</span>
+                </a>
+                <a class="nav-item{% if active_page == 'agents' %} is-active{% endif %}" href="/agents" data-action="nav-agents" data-target="agents">
+                    <span class="icon icon--nav" aria-hidden="true">🤖</span><span>Agents</span>
+                </a>
+                <a class="nav-item{% if active_page == 'glossary' %} is-active{% endif %}" href="/glossary" data-action="nav-glossary" data-target="glossary">
+                    <span class="icon icon--nav" aria-hidden="true">📘</span><span>Token Glossary</span>
+                </a>
+                {% endblock %}
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="nav-item nav-item--footer" data-action="open-settings" aria-label="打开 Settings 面板" title="打开 Settings 面板：展示本地数据路径、主题、快捷键与扫描配置">
+                    <span class="icon icon--nav" aria-hidden="true">⚙️</span><span>Settings</span>
+                </button>
+            </div>
+
+            {% block sidebar_extra %}
+            <!-- Round Map (not rendered on session detail pages) -->
+            <div class="round-map">
+                <div class="nav-label">Round Map</div>
+                {% if session_rounds is defined and session_rounds %}
+                    {% for round in session_rounds %}
+                    <a class="map-row{% if round.is_current %} active{% endif %}" href="#r{{ round.idx }}">
+                        <span class="idx">R{{ round.idx }}</span>
+                        <span class="name">{{ round.name | truncate(28) }}</span>
+                        <span class="sig{% if round.status == 'error' %} err{% elif round.status == 'warning' %} warn{% endif %}"></span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="map-row" style="opacity: 0.5;">
+                        <span class="name" style="font-size: 11px; color: var(--t4);">No session context</span>
+                    </div>
+                {% endif %}
+            </div>
+            {% endblock %}
         </aside>
 
         <!-- Main: grid column 2 -->
-        <main class="main">
+        <main class="main main-panel">
             <!-- Topbar -->
             <header class="topbar">
-                <nav class="topbar-breadcrumb" aria-label="页面导航">
+                <div class="breadcrumb topbar-breadcrumb" aria-label="页面导航">
                     {% block breadcrumb %}
-                    <a href="/dashboard">Dashboard</a>
+                    <span>Agent Run Profiler</span> <span>/</span> <span>Dashboard</span>
                     {% endblock %}
-                </nav>
-                <div class="topbar-actions" aria-label="全局操作">
+                </div>
+                <div class="top-actions" aria-label="全局操作">
                     {% block topbar_toggles %}
                     <!-- Density toggle -->
-                    <button id="density-toggle" class="density-toggle" onclick="ViewState.toggleDensity()" aria-pressed="false" title="当前：紧凑 · 点击切换为宽松" aria-label="密度切换">
+                    <button id="density-toggle" class="density-toggle" data-action="toggle-density" aria-pressed="false" title="当前：紧凑 · 点击切换为宽松" aria-label="密度切换">
                         <span class="density-toggle__label" aria-hidden="true">紧凑</span>
                     </button>
                     {% endblock %}
+                    <button class="icon-btn" data-action="help" title="Help" aria-label="帮助说明">?</button>
+                    <button class="icon-btn" data-action="shell" title="CLI" aria-label="CLI 说明">⌘</button>
                     {% block topbar_actions %}{% endblock %}
                 </div>
             </header>
@@ -121,6 +157,33 @@
     {% if export_mhtml %}
     <script>{{ mhtml_js | safe }}</script>
     {% else %}
+    <!-- ============================================================
+         JS Import Ownership Model
+         详见 docs/ui/contracts/04-css-js-ownership.md
+
+         Layer 1 — Shared Primitives (global):
+           /static/js/ui_primitives.js  → 原子UI组件(按钮、徽章、卡片等JS行为)
+
+         Layer 2 — Shared Utilities (global):
+           /static/js/view-state.js     → 视图状态管理(密度、侧边栏等)
+           /static/js/payload_viewer.js → Payload渲染工具
+           /static/js/app.js            → 应用外壳初始化
+           /static/js/data-table.js     → 表格通用交互
+           /static/js/timeline.js       → 时间轴通用逻辑
+           /static/js/keyboard.js       → 键盘快捷键
+
+         Layer 3 — Page-specific JS (per-page, via block head_extra):
+           js/dashboard.js, js/sessions-list.js, js/session-detail.js,
+           js/projects.js, js/agents.js, js/glossary.js, js/states.js
+
+         Layer 4 — Legacy/Versioned (temporary, to be removed in T182):
+           session_browser_ui_v15.js (legacy), session_detail_timeline.js,
+           dashboard_v16.js 等
+
+         禁止新增: session_browser_ui_vXX.js
+         加载顺序: 原语 → 工具 → 页面专用 → 遗留
+         ============================================================ -->
+    <script src="/static/js/ui_primitives.js"></script>
     <script src="/static/js/view-state.js"></script>
     <script src="/static/js/payload_viewer.js"></script>
     <script src="/static/js/app.js"></script>
@@ -265,6 +328,12 @@
         document.addEventListener('click', function(e) {
             // Skip if already handled by capture-phase content-modal handler
             if (e.__contentModalHandled) return;
+
+            var densityBtn = _arpClosest(e.target, '[data-action="toggle-density"]');
+            if (densityBtn && typeof ViewState !== 'undefined' && typeof ViewState.toggleDensity === 'function') {
+                ViewState.toggleDensity();
+                return;
+            }
 
             var header = _arpClosest(e.target, '.round-header');
             if (header) {

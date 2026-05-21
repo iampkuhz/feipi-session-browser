@@ -46,7 +46,7 @@
             </td>
             <td class="numeric mono">{{ a.session_count | format_number }}</td>
             <td class="numeric mono">{{ a.project_count }}</td>
-            <td class="numeric mono">{{ a.total_tokens | format_number }}</td>
+            <td class="numeric mono">{{ a.total_tokens | format_compact_token }}</td>
             <td class="numeric mono">{{ a.total_tool_calls | format_number }}</td>
             <td class="numeric mono {{ 'highlight-error' if a.total_failed_tools > 0 else '' }}">{{ a.total_failed_tools }}</td>
             <td class="text-muted">{{ a.last_active | relative_time }}</td>
@@ -93,7 +93,7 @@
                 <td class="numeric mono">{{ e.session_count }}</td>
                 <td class="numeric mono">{{ e.avg_duration | format_duration }}</td>
                 <td class="numeric mono">{{ e.p95_duration | format_duration }}</td>
-                <td class="numeric mono">{{ e.avg_input_side | format_number }}</td>
+                <td class="numeric mono">{{ e.avg_input_side | format_compact_token }}</td>
                 <td class="numeric mono">{{ e.avg_tools }}</td>
                 <td class="numeric mono">{{ e.tools_per_round if e.tools_per_round is not none else '—' }}</td>
                 <td class="numeric mono">

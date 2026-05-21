@@ -12,36 +12,87 @@
 {% block topbar_toggles %}{% endblock %}
 
 {% block breadcrumb %}
-<a href="/dashboard">Agent Run Profiler</a> / Sessions
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Sessions</span>
 {% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ui-primitives.css">
 <link rel="stylesheet" href="/static/css/sessions-list.css">
+<style>
+/* HIFI canonical data-table structure — compensates for grid→table migration */
+.sessions-page .data-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.sessions-page .data-table thead tr{display:table;table-layout:fixed;width:100%;grid-template-columns:minmax(340px,2fr) minmax(190px,1fr) 98px 126px 104px 112px 82px 108px 94px}
+.sessions-page .data-table tbody tr{display:table;table-layout:fixed;width:100%;grid-template-columns:minmax(340px,2fr) minmax(190px,1fr) 98px 126px 104px 112px 82px 108px 94px}
+.sessions-page .data-table th{padding:0 10px;border-bottom:1px solid var(--sessions-line-soft);height:34px;background:#f8fafc;color:var(--sessions-text-3);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.065em;position:sticky;top:0;z-index:3}
+.sessions-page .data-table th.static-header{background:linear-gradient(180deg,#f6f8ff,#f3f6ff);color:var(--sessions-text-2)}
+.sessions-page .data-table th.num,.sessions-page .data-table td.num{text-align:right}
+.sessions-page .data-table td{padding:0 10px;border-bottom:1px solid var(--sessions-line-soft);height:48px;vertical-align:middle;font-size:12.5px;color:var(--sessions-text-2);background:#fff}
+.sessions-page .data-table tbody tr:hover td{background:#fbfdff}
+.sessions-page .data-table tbody tr[data-action="row"]{cursor:pointer}
+.sessions-page .data-table .title-main{font-weight:790;color:var(--sessions-text);font-size:13px;line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sessions-page .data-table .title-sub.mono{display:flex;align-items:center;gap:6px;min-width:0;color:var(--sessions-text-3);font-size:11.5px;margin-top:2px}
+.sessions-page .data-table .title-sub .mono{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace)}
+.sessions-page .data-table .project-cell .project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
+.sessions-page .data-table .project-cell .project-tooltip{font-size:11.5px;color:var(--sessions-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sessions-page .data-table .badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;padding:0 8px;font-weight:780;font-size:11.5px}
+.sessions-page .data-table .badge.cc{background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe}
+.sessions-page .data-table .badge.cx{background:#ecfdf5;color:#059669;border:1px solid #bbf7d0}
+.sessions-page .data-table .badge.qd{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
+.sessions-page .data-table td.mono{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sessions-page .data-table .token-cell{position:relative}
+.sessions-page .data-table .token-total{display:flex;align-items:center;gap:7px;justify-content:flex-end;width:100%}
+.sessions-page .data-table .token-total__value{font-weight:800;color:var(--sessions-text)}
+.sessions-page .data-table .tokenbar{width:46px;height:7px;border-radius:999px;overflow:hidden;display:flex;background:#f2f5fa;border:1px solid var(--sessions-line-soft)}
+.sessions-page .data-table .tokenbar-seg{height:100%;display:block}
+.sessions-page .data-table .tokenbar-seg.fresh{background:var(--token-input-fresh,#2563eb)}
+.sessions-page .data-table .tokenbar-seg.read{background:var(--token-cache-read,#f59e0b)}
+.sessions-page .data-table .tokenbar-seg.write{background:var(--token-cache-write,#f59e0b)}
+.sessions-page .data-table .tokenbar-seg.out{background:var(--token-output-visible,#059669)}
+.sessions-page .data-table td.muted{color:var(--sessions-text-3)}
+.sessions-page .sort-button{min-height:25px;border:1px solid transparent;background:transparent;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:flex;align-items:center;gap:6px;padding:0 5px;margin:-4px -5px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.sessions-page .sort-button:hover,.sessions-page .sort-button:focus-visible{outline:0;border-color:#dfe3ff;background:#fff;color:var(--sessions-brand);box-shadow:0 1px 3px rgba(15,23,42,.07)}
+.sessions-page .sort-button:hover{text-decoration:none}
+.sessions-page .sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-size:11px;font-weight:900}
+.sessions-page .sort-button[aria-sort="ascending"] .sort-icon,.sessions-page .sort-button[aria-sort="descending"] .sort-icon{background:var(--sessions-brand);border-color:var(--sessions-brand);color:#fff}
+.sessions-page .info-icon{font-size:12px;color:var(--sessions-text-3);cursor:help;margin-left:4px}
+</style>
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/sessions-list.js"></script>
 {% endblock %}
 
 {% block content %}
 
 <section class="content sessions-page">
 
-<!-- Page title -->
-{{ sl.page_title(
-    total_sessions=total_count,
-    total_projects=sessions_aggregate.project_count,
-    total_tokens=sessions_aggregate.total_tokens | format_number
-) }}
+<!-- Page header -->
+<section class="page-head">
+    <div>
+        <h1>Sessions</h1>
+        <p>Browse indexed local agent runs</p>
+    </div>
+    <div class="sessions-page-stats">
+        <span class="ui-stat-pill"><b>{{ total_count }}</b> sessions</span>
+        <span class="ui-stat-pill"><b>{{ sessions_aggregate.project_count }}</b> projects</span>
+        <span class="ui-stat-pill"><b>{{ sessions_aggregate.total_tokens | format_compact_token }}</b> total tokens</span>
+    </div>
+</section>
 
 <!-- Filter card -->
 <section class="sessions-filter-card">
     <form id="session-filter-form" method="get" action="/sessions">
-        <div class="sessions-filter-head">
-            <label class="sessions-search">
-                <span class="sessions-search__icon">&#x2315;</span>
-                <input id="session-search" type="text" name="q" placeholder="Search by Session ID..." value="{{ filter_q }}" />
+        <input type="hidden" name="sort" value="{{ sort_by }}"/>
+        <input type="hidden" name="dir" value="{{ sort_dir }}"/>
+        <div class="sessions-control-row">
+            <label class="ui-select ui-search">
+                <span class="ui-select__label">Search</span>
+                <span class="sessions-search__icon" aria-hidden="true">⌕</span>
+                <input id="session-search" class="input search" type="text" name="q" data-search="session-id" placeholder="Search by Session ID..." value="{{ filter_q }}" />
             </label>
             <span class="sessions-search-hint">仅支持 Session ID</span>
-        </div>
-        <div class="sessions-control-row">
             <label class="ui-select">
                 <span class="ui-select__label">Agent</span>
                 <select class="ui-select__control" id="filter-agent" name="agent">
@@ -69,13 +120,11 @@
                     {% endfor %}
                 </select>
             </label>
-            <input type="hidden" name="sort" value="{{ sort_by }}" />
-            <input type="hidden" name="dir" value="{{ sort_dir }}" />
             <span class="sessions-control-row__push"></span>
             {% if filter_q or filter_agent or filter_model or filter_project %}
-            {{ ui.btn('Clear All', 'secondary', 'sm', href=actions.clear_all_url, extra_class='js-clear-all') }}
+            {{ ui.btn('Clear All', 'secondary', 'sm', href=actions.clear_all_url, extra_class='js-clear-all', data_action='clear') }}
             {% endif %}
-            {{ ui.btn('Apply', 'primary', 'sm', type='submit') }}
+            {{ ui.btn('Apply', 'primary', 'sm', type='submit', data_action='apply') }}
         </div>
         {{ sl.active_filters(
             session_id=filter_q,
@@ -89,106 +138,146 @@
 </section>
 
 <!-- Table card -->
-<section class="sessions-table-card">
-    <div class="sessions-table-toolbar">
-        <div class="sessions-table-title">All Sessions</div>
-        <div class="sessions-table-sub">描述列用于识别 session；metrics 列支持排序。</div>
+<section class="card table-card">
+    <div class="table-toolbar">
+        <div class="card-title">All Sessions</div>
     </div>
-    <div class="sessions-table-scroll">
-        <div class="sessions-grid" role="table" aria-label="Sessions table" data-sessions-grid>
-            {{ sl.table_header(sort_key=sort_by, sort_dir=sort_dir, sort_urls=actions.sort_urls) }}
-            {% if sessions %}
-            {% for s in sessions %}
-            {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-            {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-            {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-            {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-            <div class="sessions-row"
-                 data-agent="{{ s.agent }}"
-                 data-model="{{ s.model }}"
-                 data-project="{{ s.project_key }}"
-                 data-session-id="{{ s.session_id }}"
-                 data-title="{{ s.title | lower }}"
-                 data-ended-at="{{ s.ended_at }}"
-                 data-total-tokens="{{ total_tokens }}"
-                 data-rounds="{{ s.assistant_message_count }}"
-                 data-tool-count="{{ s.tool_call_count }}"
-                 data-duration="{{ s.duration_seconds }}">
-                <!-- Title -->
-                <div class="sessions-td">
-                    <div class="sessions-cell-main">
-                        <div class="sessions-title">
-                            <a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a>
-                        </div>
-                        <div class="sessions-meta">
-                            <span class="sessions-id">{{ s.session_id[:12] }}</span>
+    <div class="table-wrap">
+        <table class="data-table" role="table" aria-label="Sessions table">
+            <thead>
+                <tr>
+                    <th class="static-header" role="columnheader" scope="col" title="Title 仅展示会话标题与 Session ID，不提供排序按钮">Title</th>
+                    <th class="static-header" role="columnheader" scope="col" title="Project 仅展示项目名称；完整路径只在悬浮单元格时显示">Project</th>
+                    <th class="static-header" role="columnheader" scope="col" title="Agent 仅展示 agent badge，不提供排序按钮">Agent</th>
+                    <th class="static-header" role="columnheader" scope="col" title="Model 仅展示模型名称，不提供排序按钮">Model</th>
+                    <th class="num sortable" data-sort-key="tokens">
+                        <a class="sort-button" href="{{ actions.sort_urls.tokens }}" data-action="sort" data-sort-key="tokens"
+                           {%- if sort_by == 'tokens' %} aria-sort="{{ 'ascending' if sort_dir == 'asc' else 'descending' }}"{% endif %}
+                           title="按 token 总量排序；默认从大到小，再次点击切换方向">
+                            Tokens <span class="sort-icon" aria-hidden="true">{% if sort_by == 'tokens' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% else %}⇅{% endif %}</span>
+                        </a>
+                        <span class="info-icon" aria-hidden="true" title="悬浮 token bar 查看 Fresh/Cache Read/Cache Write/Output breakdown">ℹ️</span>
+                    </th>
+                    <th class="num sortable" data-sort-key="rounds">
+                        <a class="sort-button" href="{{ actions.sort_urls.rounds }}" data-action="sort" data-sort-key="rounds"
+                           {%- if sort_by == 'rounds' %} aria-sort="{{ 'ascending' if sort_dir == 'asc' else 'descending' }}"{% endif %}
+                           title="按 rounds 数量排序；默认从大到小">
+                            Rounds <span class="sort-icon" aria-hidden="true">{% if sort_by == 'rounds' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% else %}⇅{% endif %}</span>
+                        </a>
+                    </th>
+                    <th class="num sortable" data-sort-key="tools">
+                        <a class="sort-button" href="{{ actions.sort_urls.tools }}" data-action="sort" data-sort-key="tools"
+                           {%- if sort_by == 'tools' %} aria-sort="{{ 'ascending' if sort_dir == 'asc' else 'descending' }}"{% endif %}
+                           title="按 tools 数量排序；默认从大到小">
+                            Tools <span class="sort-icon" aria-hidden="true">{% if sort_by == 'tools' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% else %}⇅{% endif %}</span>
+                        </a>
+                    </th>
+                    <th class="sortable" data-sort-key="duration">
+                        <a class="sort-button" href="{{ actions.sort_urls.duration }}" data-action="sort" data-sort-key="duration"
+                           {%- if sort_by == 'duration' %} aria-sort="{{ 'ascending' if sort_dir == 'asc' else 'descending' }}"{% endif %}
+                           title="按执行耗时排序；默认从长到短">
+                            Duration <span class="sort-icon" aria-hidden="true">{% if sort_by == 'duration' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% else %}⇅{% endif %}</span>
+                        </a>
+                    </th>
+                    <th class="sortable" data-sort-key="updated">
+                        <a class="sort-button" href="{{ actions.sort_urls.updated }}" data-action="sort" data-sort-key="updated"
+                           {%- if sort_by == 'updated' %} aria-sort="{{ 'ascending' if sort_dir == 'asc' else 'descending' }}"{% endif %}
+                           title="按更新时间排序；默认从近到远">
+                            Updated <span class="sort-icon" aria-hidden="true">{% if sort_by == 'updated' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% else %}⇅{% endif %}</span>
+                        </a>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if sessions %}
+                {% for s in sessions %}
+                {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+                {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                <tr class="sessions-row" data-action="row"
+                    data-agent="{{ s.agent }}"
+                    data-model="{{ s.model }}"
+                    data-project="{{ s.project_key }}"
+                    data-session-id="{{ s.session_id }}"
+                    data-title="{{ s.title | lower }}"
+                    data-ended-at="{{ s.ended_at }}"
+                    data-total-tokens="{{ total_tokens }}"
+                    data-rounds="{{ s.assistant_message_count }}"
+                    data-tool-count="{{ s.tool_call_count }}"
+                    data-duration="{{ s.duration_seconds }}"
+                    title="点击打开该 session detail 页面">
+                    <td>
+                        <div class="title-main"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
+                        <div class="title-sub mono">
+                            <span class="mono">{{ s.session_id[:12] }}</span>
                             {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
                         </div>
-                    </div>
-                </div>
-                <!-- Project -->
-                <div class="sessions-td">
-                    <div class="sessions-cell-main">
-                        <div class="sessions-project-name">
-                            <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a>
+                    </td>
+                    <td>
+                        <div class="project-cell">
+                            <span class="project-name"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a></span>
+                            {% if s.cwd %}<span class="project-tooltip">{{ s.cwd | display_path }}</span>{% endif %}
                         </div>
-                        {% if s.cwd %}<div class="sessions-project-parent">{{ s.cwd | display_path }}</div>{% endif %}
-                    </div>
-                </div>
-                <!-- Agent -->
-                <div class="sessions-td">
-                    <span class="sessions-agent-badge sessions-agent-badge--{{ s.agent }}">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
-                </div>
-                <!-- Model -->
-                <div class="sessions-td"><span class="sessions-model">{{ s.model }}</span></div>
-                <!-- Tokens -->
-                <div class="sessions-td sessions-td--num">
-                    {{ ui.token_total(total_tokens | format_number, fresh_pct, cache_pct, output_pct) }}
-                </div>
-                <!-- Rounds -->
-                <div class="sessions-td sessions-td--num">{{ s.assistant_message_count }}</div>
-                <!-- Tools -->
-                <div class="sessions-td sessions-td--num">{{ s.tool_call_count }}</div>
-                <!-- Duration -->
-                <div class="sessions-td sessions-td--num" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</div>
-                <!-- Updated -->
-                <div class="sessions-td sessions-td--num">{{ s.ended_at | relative_time }}</div>
-            </div>
-            {% endfor %}
-            {% else %}
-            <div class="empty-state">No sessions indexed yet.</div>
-            {% endif %}
-        </div>
+                    </td>
+                    <td><span class="badge {% if s.agent == 'claude_code' %}cc{% elif s.agent == 'codex' %}cx{% elif s.agent == 'qoder' %}qd{% endif %}" title="{{ 'Claude Code' if s.agent == 'claude_code' else 'Codex' if s.agent == 'codex' else 'Qoder' }} agent badge">{{ 'CC' if s.agent == 'claude_code' else 'CX' if s.agent == 'codex' else 'QD' if s.agent == 'qoder' else s.agent }}</span></td>
+                    <td class="mono">{{ s.model }}</td>
+                    <td class="token-cell">
+                        <div class="token-total">
+                            <span class="token-total__value">{{ total_tokens | format_compact_token }}</span>
+                            <span class="tokenbar" aria-hidden="true">
+                                <span class="tokenbar-seg fresh" style="width:{{ fresh_pct }}%"></span>
+                                <span class="tokenbar-seg read" style="width:{{ (s.cached_input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
+                                <span class="tokenbar-seg write" style="width:{{ (s.cached_output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 }}%"></span>
+                                <span class="tokenbar-seg out" style="width:{{ output_pct }}%"></span>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="num mono">{{ s.assistant_message_count }}</td>
+                    <td class="num mono">{{ s.tool_call_count }}</td>
+                    <td class="mono" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>
+                    <td class="muted">{{ s.ended_at | relative_time }}</td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr><td colspan="9">
+                    {% set has_active_filter = filter_q or filter_agent or filter_model or filter_project %}
+                    {% if has_active_filter %}
+                    {{ ui.empty_state(
+                        message='No sessions match your current filters',
+                        action_button=ui.button('Clear All Filters', 'secondary', 'sm', href=actions.clear_all_url, data_action='clear'),
+                        icon='🔎'
+                    ) }}
+                    {% else %}
+                    {{ ui.empty_state(
+                        message='No sessions indexed yet',
+                        icon='📭'
+                    ) }}
+                    {% endif %}
+                </td></tr>
+                {% endif %}
+            </tbody>
+        </table>
     </div>
     {% if total_count is defined and total_count > 0 %}
-    {{ sl.footer(
-        start_label=page_start,
-        end_label=page_end,
-        total_label=total_count,
-        prev_url=actions.prev_url,
-        next_url=actions.next_url,
-        page_size_urls=actions.page_size_urls,
-        current_page_size=page_size
-    ) }}
+    {% set total_pages = ((total_count + page_size - 1) / page_size) | int %}
+    <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
+        {%- if current_page > 1 %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+        {%- endif %}
+        <span class="page-status">Page</span>
+        <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ current_page }}" title="输入页码后按 Enter，跳转到指定页"/>
+        <span class="page-status">of {{ total_pages }} · {{ page_start }}–{{ page_end }} of {{ total_count | format_compact_token if total_count >= 1000 else total_count }} sessions</span>
+        <span class="spacer"></span>
+        {%- if actions and actions.next_url %}
+        <button class="btn sm" data-action="next-page" aria-label="Next page">next &rsaquo;</button>
+        {%- endif %}
+    </nav>
     {% endif %}
 </section>
 
 </section>
 
 <script src="/static/js/ui_primitives.js"></script>
-<script>
-(function() {
-    /* ---------- Row click navigation ------------------------------ */
-    var grid = document.querySelector('[data-sessions-grid]');
-    if (grid) {
-        grid.addEventListener('click', function(e) {
-            if (e.target.tagName === 'A' || e.target.closest('a')) return;
-            var row = e.target.closest('.sessions-row');
-            if (!row) return;
-            window.location.href = '/sessions/' + row.dataset.agent + '/' + row.dataset.sessionId;
-        });
-    }
-})();
-</script>
 
 {% endblock %}

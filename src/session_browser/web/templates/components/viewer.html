@@ -109,7 +109,7 @@
                 {# Size hints #}
                 <span class="viewer__part-meta">
                     {% if block_bytes > 0 %}<span class="viewer__part-size" title="{{ block_bytes }} bytes">{{ block_bytes | format_number }}B</span>{% endif %}
-                    {% if block_token_hint > 0 %}<span class="viewer__part-tokens" title="~{{ block_token_hint }} tokens">{{ block_token_hint | format_number }}t</span>{% endif %}
+                    {% if block_token_hint > 0 %}<span class="viewer__part-tokens" title="~{{ block_token_hint }} tokens">{{ block_token_hint | format_compact_token }}t</span>{% endif %}
                 </span>
 
                 {# Raw toggle #}

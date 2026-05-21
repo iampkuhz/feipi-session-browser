@@ -1,0 +1,641 @@
+/* ======================================================================
+ * dashboard.css — Canonical Dashboard Page Styles
+ * ======================================================================
+ *
+ * Scope: Dashboard page (/dashboard) only.
+ *
+ * Dependencies:
+ *   - ui-primitives.css (token variables, button, icon-button, tooltip,
+ *     popover, toast, pagination, metric-card, metric-grid, badge)
+ *   - common-hifi-rules.css (shared alignment, flex, display rules)
+ *
+ * Contract:
+ *   - Do NOT duplicate rules from ui-primitives.css.
+ *   - Use token variables (--bg, --surface, --line, --purple, --shadow,
+ *     --radius-*, --hifi-icon-*) exclusively. No hardcoded colors.
+ *   - Page-specific layout and component styles only.
+ *
+ * Covers:
+ *   - App shell layout (.app-shell, .sidebar, .main-panel, .topbar)
+ *   - Page head (.page-head, .breadcrumb)
+ *   - Scope switch (.scope-switch, .scope-switch__btn)
+ *   - Chart stack & cards (.chart-stack, .chart-card, .chart-card__head, ...)
+ *   - Chart bars & axes (.chart-wrap, .y-axis, .stacked-chart, .chart-group)
+ *   - Legend (.legend-row, .legend-item, .legend-dot)
+ *   - Footer (.footer)
+ *   - Overlay containers (.drawer, .drawer__panel, .drawer__head, .drawer__body)
+ *   - v16 backward compat (.hero, .hero-kpi, .chart, .plot, .bar, .x-axis)
+ * ====================================================================== */
+
+/* ── App Shell Layout =================================================== */
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.sidebar {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(10px);
+  border-right: 1px solid var(--line);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.main-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* ── Breadcrumb (in topbar) ============================================= */
+
+.breadcrumb {
+  font-size: 15px;
+  color: var(--text-subtle);
+  font-weight: 600;
+}
+.breadcrumb span {
+  margin: 0 10px;
+  color: #9ba5b9;
+}
+
+/* ── Content Width Constraint ============================================ */
+/* All top-level dashboard sections share the same width so their
+ * left/right edges always align regardless of viewport size. */
+
+.page-head,
+.metric-grid,
+.chart-card,
+.footer {
+  width: min(1360px, calc(100vw - 300px));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 1400px) {
+  .page-head,
+  .metric-grid,
+  .chart-card,
+  .footer {
+    width: calc(100vw - 300px);
+  }
+}
+
+/* ── Page Head =========================================================== */
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 0 12px;
+}
+.page-head h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+.page-head p {
+  margin: 6px 0 0;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
+/* ── Scope Switch (global Day/Week/Month) ================================ */
+
+.scope-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.scope-switch__btn {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-subtle);
+  font-weight: 700;
+}
+.scope-switch__btn.is-active {
+  background: var(--purple);
+  color: white;
+}
+
+/* ── Metric Grid Overrides =============================================== */
+
+/* 4-column fixed layout for dashboard (overrides auto-fit from primitives).
+ * Box-sizing ensures the grid container's width matches chart-cards exactly. */
+.metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+/* ── Metric Card structure (HIFI dashboard layout) ======================== */
+/* These classes support the metric card structure used in dashboard.html.
+ * They complement the base .metric-card from ui-primitives.css. */
+
+.metric-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  flex: 0 0 auto;
+  background: var(--purple-soft);
+}
+
+.metric-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 4px;
+}
+
+.metric-card__label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.metric-card__label {
+  font-size: 13px;
+  color: var(--text-subtle);
+  font-weight: 700;
+}
+
+.metric-card__value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.metric-card__sub {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.metric-card__sub.success { color: var(--green); }
+.metric-card__sub.danger { color: var(--red); }
+
+/* ── Chart Stack ========================================================= */
+
+.chart-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 0 24px;
+}
+
+/* ── Chart Card ========================================================== */
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+.chart-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+.chart-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-card h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.chart-card__subtitle {
+  margin: 6px 0 0;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
+/* ── Legend Row ========================================================== */
+
+.legend-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+.legend-item {
+  font-size: 13px;
+  color: var(--text-subtle);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.legend-dot--claude { background: var(--purple); }
+.legend-dot--codex { background: var(--green); }
+.legend-dot--qoder { background: var(--orange); }
+
+/* ── Chart Area (wrapped bar chart with y-axis) ========================== */
+
+.chart-wrap {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.y-axis {
+  height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-top: 10px;
+  padding-bottom: 22px;
+  font-size: 12px;
+  color: var(--text-subtle);
+  text-align: right;
+}
+.stacked-chart {
+  min-width: 0;
+  height: 220px;
+  display: grid;
+  align-items: end;
+  gap: 6px;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 8px 26px 12px;
+  background-image: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent calc(20% - 1px),
+    #eff3fa calc(20% - 1px),
+    #eff3fa 20%
+  );
+  background-size: 100% 100%;
+}
+.chart-group {
+  min-width: 0;
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  align-items: center;
+}
+.chart-group__stack {
+  width: 100%;
+  max-width: 24px;
+  height: 190px;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  align-items: stretch;
+  border-radius: 9px 9px 0 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.chart-group__stack:hover {
+  transform: translateY(-2px);
+}
+.segment { width: 100%; }
+.segment--claude { background: var(--purple); }
+.segment--codex { background: var(--green); }
+.segment--qoder { background: var(--orange); }
+.chart-group__label {
+  position: absolute;
+  bottom: -19px;
+  font-size: 12px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+/* ── Footer =============================================================== */
+
+.footer {
+  padding: 6px 0 20px;
+  color: var(--text-subtle);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ── Drawer (settings panel) ============================================== */
+
+.drawer {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 16, 29, 0.18);
+  z-index: 60;
+}
+.drawer__panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 330px;
+  background: white;
+  border-left: 1px solid var(--line);
+  box-shadow: -12px 0 28px rgba(28, 35, 59, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+.drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.drawer__head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.drawer__body {
+  padding: 14px;
+  color: var(--text-subtle);
+}
+.drawer__body ul {
+  padding-left: 18px;
+}
+
+/* ── v16 Backward Compat (hero, legacy chart structure) =================== */
+/*
+ * These styles support the current dashboard.html template (v16 hero +
+ * chart structure). They coexist with the newer patterns above and will
+ * be phased out when the template migrates to the canonical structure.
+ *
+ * NOTE: .chart-card, .legend, .legend-item, .dot rules are intentionally
+ * not redefined here — they are either covered by ui-primitives.css or
+ * by the newer canonical rules above. Only v16-unique patterns are listed.
+ */
+
+.hero {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff 0%, #fbfcff 70%, #f4f6ff 100%);
+  box-shadow: var(--shadow);
+  padding: 13px 14px;
+  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+}
+.hero-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.hero h1 {
+  font-size: 18px;
+  line-height: 1.2;
+  margin: 0;
+  font-weight: 900;
+}
+.hero-sub {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+}
+.hero-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hero-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 112px);
+  gap: 8px;
+}
+.hero-kpi {
+  height: 52px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 14px;
+  padding: 8px 10px;
+  text-align: right;
+  box-shadow: var(--shadow);
+}
+.hero-kpi b {
+  font: 900 16px/1.05 var(--mono, 'SF Mono', monospace);
+}
+.hero-kpi span {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 850;
+}
+
+/* v16 chart head with range tabs */
+.chart-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.chart-title {
+  font-size: 14px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 900;
+}
+.chart-sub {
+  font-size: 13px;
+  color: var(--text-subtle);
+  margin-left: 4px;
+}
+.range-tabs {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.range-btn {
+  height: 32px;
+  min-width: 46px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text-subtle);
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.range-btn.active,
+.range-btn.is-active {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: #fff;
+}
+
+/* v16 chart grid (y-axis + plot + x-axis) */
+.chart {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: 190px 28px;
+  gap: 0 8px;
+}
+.plot {
+  position: relative;
+  height: 190px;
+  border-bottom: 2px solid #dbe5f1;
+  background:
+    linear-gradient(to bottom, transparent 0, transparent 24%, #edf2f7 24.5%, transparent 25%),
+    linear-gradient(to bottom, transparent 0, transparent 49%, #edf2f7 49.5%, transparent 50%),
+    linear-gradient(to bottom, transparent 0, transparent 74%, #edf2f7 74.5%, transparent 75%);
+  display: grid;
+  grid-template-columns: repeat(var(--n, 27), 1fr);
+  gap: 0;
+  padding: 0 6px;
+  align-items: end;
+}
+.bar {
+  height: var(--h);
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 4px 4px 0 0;
+  overflow: visible;
+  position: relative;
+  min-width: 0;
+  padding: 0 1px;
+}
+.bar:hover {
+  box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.10);
+}
+.bar-stack {
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+}
+.seg-claude { background: var(--purple); }
+.seg-codex { background: var(--green); }
+.seg-qoder { background: var(--orange); }
+
+/* Ensure segments are visible even at very low percentages */
+.seg-claude, .seg-codex, .seg-qoder {
+  min-height: 1px;
+  display: block;
+}
+
+/* v16 tooltip (dark overlay on chart bars) */
+.dashboard-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translate(-50%, 4px);
+  min-width: 218px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #fff;
+  font: 12px/1.45 var(--mono, 'SF Mono', monospace);
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.24);
+  z-index: 90;
+  transition: 0.14s;
+}
+.bar:hover .dashboard-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.tooltip-date {
+  font-weight: 900;
+  margin-bottom: 6px;
+  color: #fff;
+}
+.tooltip-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  min-height: 20px;
+}
+.tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.tooltip-dot--claude { background: var(--purple); }
+.tooltip-dot--codex { background: var(--green); }
+.tooltip-dot--qoder { background: var(--orange); }
+.tooltip-dot--total { background: #cbd5e1; }
+.tooltip-label {
+  color: #dbeafe;
+  white-space: nowrap;
+}
+.tooltip-value {
+  color: #fff;
+  font-weight: 850;
+  text-align: right;
+}
+
+/* v16 x-axis labels */
+.x-axis {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--n, 27), 1fr);
+  gap: 0;
+  padding: 8px 6px 0;
+  color: #91a1ba;
+  font: 12px var(--mono, 'SF Mono', monospace);
+}
+.x-axis > span {
+  text-align: center;
+  display: block;
+  min-width: 0;
+}
+
+/* v16 responsive */
+@media (max-width: 1400px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .hero-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .plot {
+    gap: 0;
+  }
+  .bar {
+    width: auto;
+  }
+}
+
+/* ── Utility: status color modifiers ===================================== */
+/* These are simple color utility classes used by metric-card sub text.
+ * .success and .danger are defined in the Metric Card section above. */

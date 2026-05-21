@@ -46,12 +46,12 @@
     </div>
     <div class="metric-card metric-card--compact" data-tooltip="Total input-side tokens">
         <div class="metric-label">Input-side</div>
-        <div class="metric-value">{{ p_input_side | format_number }}</div>
+        <div class="metric-value">{{ p_input_side | format_compact_token }}</div>
         <div class="metric-sub">Cache R: {{ p_cache_reuse }}%</div>
     </div>
     <div class="metric-card metric-card--compact" data-tooltip="Total output-side tokens">
         <div class="metric-label">Output</div>
-        <div class="metric-value">{{ project.total_output_tokens | format_number }}</div>
+        <div class="metric-value">{{ project.total_output_tokens | format_compact_token }}</div>
         <div class="metric-sub">{{ project.total_tool_calls | format_number }} tools · {{ p_tools_per_round }}/R</div>
     </div>
     <div class="metric-card metric-card--compact" data-tooltip="Active period of this project">
@@ -101,10 +101,10 @@
                     <td><span class="badge {{ 'badge-claude' if s.agent == 'claude_code' else 'badge-qoder' if s.agent == 'qoder' else 'badge-codex' }}">{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span></td>
                     <td class="text-xs text-muted mono truncate" style="max-width:160px" data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>
                     <td class="numeric mono text-xs">{{ s.user_message_count + s.assistant_message_count }}</td>
-                    <td class="numeric mono text-xs">{{ s.input_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ s.cached_input_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ s.cached_output_tokens | format_number }}</td>
-                    <td class="numeric mono text-xs">{{ s.output_tokens | format_number }}</td>
+                    <td class="numeric mono text-xs">{{ s.input_tokens | format_compact_token }}</td>
+                    <td class="numeric mono text-xs">{{ s.cached_input_tokens | format_compact_token }}</td>
+                    <td class="numeric mono text-xs">{{ s.cached_output_tokens | format_compact_token }}</td>
+                    <td class="numeric mono text-xs">{{ s.output_tokens | format_compact_token }}</td>
                     <td class="numeric mono text-xs">{{ s.tool_call_count }}</td>
                     <td class="numeric mono text-xs">
                         {% if s.failed_tool_count > 0 %}

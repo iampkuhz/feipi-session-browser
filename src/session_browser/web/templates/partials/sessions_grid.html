@@ -48,7 +48,7 @@
             <!-- Tokens -->
             <div class="sessions-td sessions-td--num">
                 <div class="sessions-token-total">
-                    <span class="sessions-token-total__value">{{ total_tokens | format_number }}</span>
+                    <span class="sessions-token-total__value">{{ total_tokens | format_compact_token }}</span>
                     <span class="sessions-token-bar" aria-hidden="true">
                         <span class="sessions-token-bar__fresh" style="width:{{ fresh_pct }}%"></span>
                         <span class="sessions-token-bar__cache" style="width:{{ cache_pct }}%"></span>

@@ -29,6 +29,7 @@ from session_browser.index.indexer import (
     get_project_stats,
     get_session,
     get_trend_data,
+    get_prompt_activity_trend,
     list_agents,
 )
 from session_browser.index.metrics import (
@@ -457,17 +458,32 @@ def _format_bytes(n) -> str:
     return f"{n / (1024 * 1024 * 1024):.1f} GB"
 
 
+def _format_compact_token(n: int | float | None) -> str:
+    """Format token count to compact string (e.g. 1.5K, 2.3M)."""
+    if n is None:
+        return "0"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K"
+    return str(int(n))
+
+
 # Register template filters
-_template_env.filters["format_number"] = lambda n: (
-    f"{n / 1_000_000:.1f}M" if n >= 1_000_000
-    else f"{n / 1_000:.1f}K" if n >= 1_000
-    else str(n)
-)
-_template_env.filters["format_number_short"] = lambda n: (
-    f"{n / 1_000_000:.1f}M" if n >= 1_000_000
-    else f"{n / 1_000:.0f}K" if n >= 1_000
-    else str(n)
-)
+def _format_compact_num(n: int | float | None) -> str:
+    """Format number with K/M suffix for display."""
+    if n is None:
+        return "0"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K"
+    return str(int(n))
+
+
+_template_env.filters["format_number"] = _format_compact_num
+_template_env.filters["format_number_short"] = _format_compact_num
+_template_env.filters["format_compact_token"] = _format_compact_token
 _template_env.globals["max"] = max
 _template_env.filters["truncate_path"] = lambda path: (
     _truncate_path(path)
@@ -1510,7 +1526,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         conn = _get_connection()
         stats = get_dashboard_stats(conn)
         projects = list_projects(conn, limit=10)
-        trend = get_trend_data(conn, days=30)
+        trend = get_trend_data(conn, days=365)
+        prompt_activity = get_prompt_activity_trend(conn, days=365)
         model_dist = get_model_distribution(conn)
         agent_dist = get_agent_distribution(conn)
         token_breakdown = get_token_breakdown(conn)
@@ -1535,6 +1552,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             stats=stats,
             projects=projects,
             trend=trend,
+            prompt_activity=prompt_activity,
             model_dist=model_dist.distribution,
             agent_dist=agent_dist,
             tokens=token_breakdown,
@@ -2007,6 +2025,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             sessions=sessions_enriched,
             total_count=total_count,
             page=page,
+            current_page=page,
             page_size=page_size,
             total_pages=total_pages,
             page_start=page_start,
@@ -2037,15 +2056,6 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
 
 # ─── v9 Timeline view model ──────────────────────────────────────────
-
-def _format_num_short(n: int) -> str:
-    """Format number with K/M suffix."""
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.0f}K"
-    return str(n)
-
 
 def _render_response_content_blocks(content_blocks: list[dict] = None,
                                      response_text: str = "",
@@ -2080,7 +2090,7 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                     f'<div class="sd-block-head">'
                     f'<span class="sd-block-index">#{block_index}</span>'
                     f'<span class="sd-block-title">text</span>'
-                    f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                    f'<span class="sd-block-meta">{_format_compact_token(char_count)} chars</span>'
                     f'</div>'
                     f'<div class="sd-block-body">{_html_escape(preview)}</div>'
                     f'</article>'
@@ -2098,7 +2108,7 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                     f'<div class="sd-block-head">'
                     f'<span class="sd-block-index">#{block_index}</span>'
                     f'<span class="sd-block-title">thinking</span>'
-                    f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                    f'<span class="sd-block-meta">{_format_compact_token(char_count)} chars</span>'
                     f'</div>'
                     f'<div class="sd-block-body">{_html_escape(preview)}</div>'
                     f'</article>'
@@ -2145,7 +2155,7 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                 f'<div class="sd-block-head">'
                 f'<span class="sd-block-index">#{block_index}</span>'
                 f'<span class="sd-block-title">text</span>'
-                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                f'<span class="sd-block-meta">{_format_compact_token(char_count)} chars</span>'
                 f'</div>'
                 f'<div class="sd-block-body">{_html_escape(preview)}</div>'
                 f'</article>'
@@ -2231,7 +2241,7 @@ def _render_context_content_blocks(content_blocks: list[dict], max_blocks: int =
                 f'<span class="sd-block-index">#{block_index}</span>'
                 f'<span class="sd-block-title">tool_result</span>'
                 f'<span class="sd-block-meta">{_html_escape(tool_id_display)}</span>'
-                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                f'<span class="sd-block-meta">{_format_compact_token(char_count)} chars</span>'
                 f'</div>'
                 f'<div class="sd-block-body">{_html_escape(preview)}</div>'
                 f'</article>'
@@ -2249,7 +2259,7 @@ def _render_context_content_blocks(content_blocks: list[dict], max_blocks: int =
                 f'<span class="sd-block-index">#{block_index}</span>'
                 f'<span class="sd-block-title">file{lang_display}</span>'
                 f'<span class="sd-block-meta" title="{_html_escape(file_display)}">{_html_escape(file_display[:60])}</span>'
-                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                f'<span class="sd-block-meta">{_format_compact_token(char_count)} chars</span>'
                 f'</div>'
                 f'<div class="sd-block-body">{_html_escape(preview)}</div>'
                 f'</article>'
@@ -2265,7 +2275,7 @@ def _render_context_content_blocks(content_blocks: list[dict], max_blocks: int =
                 f'<div class="sd-block-head">'
                 f'<span class="sd-block-index">#{block_index}</span>'
                 f'<span class="sd-block-title">{_html_escape(block_title)}</span>'
-                f'<span class="sd-block-meta">{_format_num_short(char_count)} chars</span>'
+                f'<span class="sd-block-meta">{_format_compact_token(char_count)} chars</span>'
                 f'</div>'
                 f'<div class="sd-block-body">{_html_escape(preview)}</div>'
                 f'</article>'
@@ -2691,10 +2701,10 @@ def _build_v11_view_model(
                     "status_label": "OK",
                     "status_tone": "ok",
                     "usage": {
-                        "input": _format_num_short(usage.get("input_tokens", 0)),
-                        "cache_read": _format_num_short(usage.get("cache_read_input_tokens", 0)),
-                        "cache_write": _format_num_short(usage.get("cache_creation_input_tokens", 0)),
-                        "output": _format_num_short(usage.get("output_tokens", 0)),
+                        "input": _format_compact_token(usage.get("input_tokens", 0)),
+                        "cache_read": _format_compact_token(usage.get("cache_read_input_tokens", 0)),
+                        "cache_write": _format_compact_token(usage.get("cache_creation_input_tokens", 0)),
+                        "output": _format_compact_token(usage.get("output_tokens", 0)),
                     },
                     "context_payload_id": ctx_payload_id,
                     "context_payload_title": f"Subagent · Request ({call_ref})",
@@ -2707,7 +2717,7 @@ def _build_v11_view_model(
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
-                    "metric": _format_num_short(usage.get("output_tokens", 0)),
+                    "metric": _format_compact_token(usage.get("output_tokens", 0)),
                     "status": "ok",
                     "is_open": False,
                     "steps": steps,
@@ -2742,7 +2752,7 @@ def _build_v11_view_model(
                 sub_rounds.append({
                     "sub_round_id": 1,
                     "title": f"{len(display_tools)} tool call{'s' if len(display_tools) > 1 else ''}",
-                    "metric": _format_num_short(sa_output),
+                    "metric": _format_compact_token(sa_output),
                     "status": "failed" if sa_failed > 0 else "ok",
                     "is_open": True,
                     "steps": [sub_tool_step],
@@ -2753,7 +2763,7 @@ def _build_v11_view_model(
             sub_rounds.append({
                 "sub_round_id": 1,
                 "title": f"{len(display_tools)} tool call{'s' if len(display_tools) > 1 else ''}",
-                "metric": _format_num_short(sa_output),
+                "metric": _format_compact_token(sa_output),
                 "status": "failed" if sa_failed > 0 else "ok",
                 "is_open": False,
                 "steps": [
@@ -2772,7 +2782,7 @@ def _build_v11_view_model(
             "agent_id": sa_id,
             "status_label": "failed" if sa_failed > 0 else "completed",
             "status_tone": "err" if sa_failed > 0 else "ok",
-            "meta": f"{len(display_tools)} tools, {_format_num_short(sa_input + sa_output)} tokens",
+            "meta": f"{len(display_tools)} tools, {_format_compact_token(sa_input + sa_output)} tokens",
             "sub_rounds": sub_rounds,
         }
 
@@ -2820,7 +2830,7 @@ def _build_v11_view_model(
             total_cache_write = rb["cache_write"]
             total_output = rb["output"]
         rt_sum = total_input + total_cache_read + total_cache_write + total_output
-        token_total = _format_num_short(rt_sum) if rt_sum > 0 else "—"
+        token_total = _format_compact_token(rt_sum) if rt_sum > 0 else "—"
 
         # tool_count_label = sum of all current-round tool_use/tool calls.
         all_tools = set()
@@ -3118,7 +3128,7 @@ def _build_v11_view_model(
             if ix.request_full:
                 req_len = len(ix.request_full)
                 if req_len > 10000:
-                    note_text = f"上下文已截断（{_format_num_short(req_len)} 字符），完整内容见 payload"
+                    note_text = f"上下文已截断（{_format_compact_token(req_len)} 字符），完整内容见 payload"
                     note_tone_val = "info"
                 # else: no note needed; context is available
             else:
@@ -3134,10 +3144,10 @@ def _build_v11_view_model(
                 "status_label": ix_status_label,
                 "status_tone": ix_status_tone,
                 "usage": {
-                    "input": _format_num_short(usage_input) if usage_input else "—",
-                    "cache_read": _format_num_short(usage_cr) if usage_cr else "—",
-                    "cache_write": _format_num_short(usage_cw) if usage_cw else "—",
-                    "output": _format_num_short(usage_out) if usage_out else "—",
+                    "input": _format_compact_token(usage_input) if usage_input else "—",
+                    "cache_read": _format_compact_token(usage_cr) if usage_cr else "—",
+                    "cache_write": _format_compact_token(usage_cw) if usage_cw else "—",
+                    "output": _format_compact_token(usage_out) if usage_out else "—",
                 },
                 "context_payload_id": context_payload_id,
                 "context_payload_title": f"R{rid} · LLM Call #{iix} · Context",
@@ -3223,7 +3233,7 @@ def _build_v11_view_model(
             "short_id": short_id,
         },
         "hero_metrics": {
-            "tokens": _format_num_short(total_tokens),
+            "tokens": _format_compact_token(total_tokens),
             "rounds": str(total_rounds),
             "tools": str(total_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",
@@ -3408,10 +3418,10 @@ def _build_v9_view_model(
                     "status_label": "OK",
                     "status_tone": "ok",
                     "usage": {
-                        "input": _format_num_short(usage.get("input_tokens", 0)),
-                        "cache_read": _format_num_short(usage.get("cache_read_input_tokens", 0)),
-                        "cache_write": _format_num_short(usage.get("cache_creation_input_tokens", 0)),
-                        "output": _format_num_short(usage.get("output_tokens", 0)),
+                        "input": _format_compact_token(usage.get("input_tokens", 0)),
+                        "cache_read": _format_compact_token(usage.get("cache_read_input_tokens", 0)),
+                        "cache_write": _format_compact_token(usage.get("cache_creation_input_tokens", 0)),
+                        "output": _format_compact_token(usage.get("output_tokens", 0)),
                     },
                     "context_payload_id": ctx_payload_id if m.request_full else "",
                     "context_payload_title": f"Subagent · Request ({call_ref})",
@@ -3424,7 +3434,7 @@ def _build_v9_view_model(
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
-                    "metric": _format_num_short(usage.get("output_tokens", 0)),
+                    "metric": _format_compact_token(usage.get("output_tokens", 0)),
                     "status": "ok",
                     "steps": steps,
                 })
@@ -3434,7 +3444,7 @@ def _build_v9_view_model(
             sub_rounds.append({
                 "sub_round_id": 1,
                 "title": f"{len(sa_tools)} tool call{'s' if len(sa_tools) > 1 else ''}",
-                "metric": _format_num_short(sa_output),
+                "metric": _format_compact_token(sa_output),
                 "status": "failed" if sa_failed > 0 else "ok",
                 "steps": [
                     {
@@ -3451,7 +3461,7 @@ def _build_v9_view_model(
             "agent_id": sa_id,
             "status_label": "failed" if sa_failed > 0 else "completed",
             "status_tone": "err" if sa_failed > 0 else "ok",
-            "meta": f"{len(sa_tools)} tools, {_format_num_short(sa_input + sa_output)} tokens",
+            "meta": f"{len(sa_tools)} tools, {_format_compact_token(sa_input + sa_output)} tokens",
             "sub_rounds": sub_rounds,
         }
 
@@ -3489,7 +3499,7 @@ def _build_v9_view_model(
                 total_cache_write += getattr(_ix, "cache_write_tokens", 0) or 0
                 total_output += getattr(_ix, "output_tokens", 0) or 0
         rt_sum = total_input + total_cache_read + total_cache_write + total_output
-        token_total = _format_num_short(rt_sum) if rt_sum > 0 else "—"
+        token_total = _format_compact_token(rt_sum) if rt_sum > 0 else "—"
 
         # tool_count_label = sum of all tool calls across all interactions
         all_tools = set()
@@ -3597,10 +3607,10 @@ def _build_v9_view_model(
                 "status_label": ix_status_label,
                 "status_tone": ix_status_tone,
                 "usage": {
-                    "input": _format_num_short(usage_input) if usage_input else "—",
-                    "cache_read": _format_num_short(usage_cr) if usage_cr else "—",
-                    "cache_write": _format_num_short(usage_cw) if usage_cw else "—",
-                    "output": _format_num_short(usage_out) if usage_out else "—",
+                    "input": _format_compact_token(usage_input) if usage_input else "—",
+                    "cache_read": _format_compact_token(usage_cr) if usage_cr else "—",
+                    "cache_write": _format_compact_token(usage_cw) if usage_cw else "—",
+                    "output": _format_compact_token(usage_out) if usage_out else "—",
                 },
                 "context_payload_id": f"llm-R{rid}-IX{iix}-context" if ix.request_full else "",
                 "response_payload_id": f"llm-R{rid}-IX{iix}-output" if (ix.response_full or ix.content_blocks) else "",
@@ -3672,7 +3682,7 @@ def _build_v9_view_model(
             "short_id": short_id,
         },
         "hero_metrics": {
-            "tokens": _format_num_short(total_tokens),
+            "tokens": _format_compact_token(total_tokens),
             "rounds": str(total_rounds),
             "tools": str(total_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",

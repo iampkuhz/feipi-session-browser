@@ -1,23 +1,549 @@
-{# 
-  UI primitives for Agent Run Profiler.
-  Purpose: centralize button/select/chip/table-header composition so Sessions List does not hand-roll styles.
+{#
+  UI primitives — canonical Jinja2 macros for Feipi Session Browser.
+  Uses HIFI class names (btn, icon-btn, badge, metric-card, metric-grid).
+  Preserves legacy macros (btn, select_control, stat_pill, th_static, th_sort, token_total)
+  for pages that still import them.
+
   Usage:
     {% import "components/ui_primitives.html" as ui %}
 #}
 
-{% macro btn(label, variant='secondary', size='md', type='button', href=None, extra_class='') -%}
-  {%- set cls = 'ui-btn ui-btn--' ~ variant ~ ' ui-btn--' ~ size ~ (' ' ~ extra_class if extra_class else '') -%}
+{# ============================================================================
+   Canonical macros (T032 pass 1 + T034 pass 3)
+   ============================================================================ #}
+
+{# --- Button ---
+   Variants: primary / secondary / ghost / danger
+   Sizes:    sm / md (default)
+   Uses HIFI class names: btn, btn primary, btn sm
+#}
+{% macro button(label, variant='primary', size='md', data_action=None, href=None, disabled=False, icon=None, extra_classes=None, aria_label=None) -%}
+  {%- set classes = ['btn'] -%}
+  {%- if variant == 'primary' -%}
+    {%- set _ = classes.append('primary') -%}
+  {%- elif variant == 'ghost' -%}
+    {%- set _ = classes.append('ghost') -%}
+  {%- elif variant == 'danger' -%}
+    {%- set _ = classes.append('danger') -%}
+  {%- endif -%}
+  {%- if size == 'sm' -%}
+    {%- set _ = classes.append('sm') -%}
+  {%- endif -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set effective_label = aria_label if aria_label else label -%}
+
   {%- if href -%}
-    <a class="{{ cls }}" href="{{ href }}">{{ label }}</a>
+  <a class="{{ cls }}" href="{{ href }}"
+     {%- if data_action %} data-action="{{ data_action }}"{% endif -%}
+     {%- if disabled %} aria-disabled="true" tabindex="-1"{% endif -%}
+     {%- if effective_label %} aria-label="{{ effective_label }}"{% endif -%}
+  >
+    {%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span>{% endif -%}
+    {{ label }}
+  </a>
   {%- else -%}
-    <button type="{{ type }}" class="{{ cls }}">{{ label }}</button>
+  <button type="button" class="{{ cls }}"
+          {%- if data_action %} data-action="{{ data_action }}"{% endif -%}
+          {%- if disabled %} disabled{% endif -%}
+          {%- if effective_label and effective_label != label %} aria-label="{{ effective_label }}"{% endif -%}
+  >
+    {%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span>{% endif -%}
+    {{ label }}
+  </button>
+  {%- endif -%}
+{%- endmacro %}
+
+{# --- IconButton ---
+   Uses HIFI class: icon-btn (primary) / icon-button (dashboard alias)
+   Always uses data-action or href. Requires aria_label or title.
+#}
+{% macro icon_button(icon, data_action=None, href=None, aria_label=None, extra_classes=None) -%}
+  {%- set classes = ['icon-btn'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set label = aria_label if aria_label else (icon if icon | length <= 4 else '') -%}
+
+  {%- if href -%}
+  <a class="{{ cls }}" href="{{ href }}"
+     {%- if data_action %} data-action="{{ data_action }}"{% endif -%}
+     {%- if label %} title="{{ label }}" aria-label="{{ label }}"{% endif -%}
+  >
+    <span class="ui-icon" aria-hidden="true">{{ icon }}</span>
+  </a>
+  {%- else -%}
+  <button type="button" class="{{ cls }}"
+          {%- if data_action %} data-action="{{ data_action }}"{% endif -%}
+          {%- if label %} title="{{ label }}" aria-label="{{ label }}"{% endif -%}
+  >
+    <span class="ui-icon" aria-hidden="true">{{ icon }}</span>
+  </button>
+  {%- endif -%}
+{%- endmacro %}
+
+{# --- Badge / Pill ---
+   Variants: info / err / warn / ok / manual / model / cc / cx / qd
+   HIFI class: badge badge-<kind>  (space-separated)
+#}
+{% macro badge(label, variant='info', extra_classes=None) -%}
+  {%- set classes = ['badge'] -%}
+  {%- if variant in ['err', 'warn', 'ok', 'manual', 'model', 'cc', 'cx', 'qd'] -%}
+    {%- set _ = classes.append(variant) -%}
+  {%- elif variant == 'info' -%}
+    {# 'info' is the default; badge alone or badge info #}
+    {%- set _ = classes.append('info') -%}
+  {%- else -%}
+    {%- set _ = classes.append(variant) -%}
+  {%- endif -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<span class="{{ cls }}" role="status">{{ label }}</span>
+{%- endmacro %}
+
+{# MetricCard — label + value with optional icon.
+   Variant A (simple): label + value + optional icon
+   Variant B (horizontal icon): icon_color + label + value
+   Uses HIFI class names from dashboard.css:
+     metric-card, metric-card__icon, metric-card__label, metric-card__value, metric-card__sub
+   icon_color: blue / green / orange / purple / red
+#}
+{% macro metric_card(label, value, icon=None, icon_color=None, description=None, extra_classes=None) -%}
+  {%- set classes = ['metric-card'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- if icon_color and icon -%}
+{# Variant B: horizontal icon with colored background #}
+<article class="{{ cls }}" aria-label="{{ label }}">
+  <div class="metric-icon {{ icon_color }}"><span class="emoji" aria-hidden="true">{{ icon }}</span></div>
+  <div class="metric-body">
+    <div class="metric-label">{{ label }}</div>
+    <div class="metric-value mono">{{ value }}</div>
+    {%- if description %}
+    <div class="panel-sub">{{ description }}</div>
+    {%- endif %}
+  </div>
+</article>
+  {%- else -%}
+{# Variant A: simple label + value (+ optional inline icon) #}
+<div class="{{ cls }}" aria-label="{{ label }}">
+  <h3>{%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}{{ label }}</h3>
+  <div class="big">{{ value }}</div>
+  {%- if description %}
+  <div class="panel-sub">{{ description }}</div>
+  {%- endif %}
+</div>
+  {%- endif -%}
+{%- endmacro %}
+
+{# --- MetricGrid ---
+   Renders a grid of MetricCard elements.
+   columns: None (auto-fit) or explicit integer (e.g. 4)
+#}
+{% macro metric_grid(cards, columns=None) -%}
+  {%- set grid_classes = ['metric-grid'] -%}
+  {%- set grid_style = '' -%}
+  {%- if columns and columns is integer -%}
+    {%- set grid_style = 'grid-template-columns: repeat(' ~ columns ~ ', minmax(0, 1fr));' -%}
+  {%- endif -%}
+<div class="{{ grid_classes | join(' ') }}"{% if grid_style %} style="{{ grid_style }}"{% endif %} role="list">
+  {%- for card_html in cards %}
+  <div role="listitem">{{ card_html }}</div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# --- Pagination ---
+   HIFI structure: [prev] [page-status] [page-input] [page-status] [spacer] [next]
+   Single page: omit prev/next buttons.
+#}
+{% macro pagination(current_page, total_pages, total_items=None, show_prev=None, show_next=None) -%}
+  {%- set show_prev = show_prev if show_prev is not none else (current_page > 1) -%}
+  {%- set show_next = show_next if show_next is not none else (current_page < total_pages) -%}
+  {%- set total_items_text = ('of ' ~ total_items) if total_items else '' -%}
+<nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
+  {%- if show_prev %}
+  <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+  {%- endif %}
+  <span class="page-status">Page</span>
+  <input class="page-input mono" data-action="page-input" value="{{ current_page }}" aria-label="Page number"/>
+  <span class="page-status">of {{ total_pages }} {{ total_items_text }}</span>
+  <span class="spacer"></span>
+  {%- if show_next %}
+  <button class="btn sm" data-action="next-page" aria-label="Next page">next &rsaquo;</button>
+  {%- endif %}
+</nav>
+{%- endmacro %}
+
+{# --- TokenBar ---
+   Renders a token bar with colored segments (fresh/cache-read/cache-write/output).
+   segments: list of dicts with keys: kind (fresh|read|write|out), value (number)
+   total: optional total number; if None, computed from segments
+   variant: 'inline' (default) or 'standalone'
+   Uses CSS class names for segment colors (no inline background).
+   Inline width% is the spec-allowed exception for token bar segments.
+#}
+{% macro token_bar(segments, total=None, variant='inline') -%}
+  {%- set computed_total = (total if total is not none else segments | map(attribute='value') | sum) -%}
+<div class="tokenbar{% if variant == 'standalone' %} tokenbar--standalone{% endif %}" role="progressbar" aria-valuenow="{{ computed_total | int }}" aria-valuemin="0" aria-valuemax="100" aria-label="Token usage">
+  {%- for seg in segments %}
+    {%- set pct = (seg.value / computed_total * 100) if computed_total > 0 else 0 -%}
+    {%- set seg_class = seg.kind if seg.kind in ['fresh', 'read', 'write', 'out'] else 'out' -%}
+  <div class="tokenbar-seg {{ seg_class }}" style="width: {{ pct | round(1) }}%"></div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# --- Tooltip ---
+   Renders a tooltip with trigger element.
+   content: list of dicts with keys: label, value (optional row class)
+   trigger_text: text for the hover trigger
+   title: optional tooltip title
+   extra_classes: additional CSS classes on the tooltip wrapper
+#}
+{% macro tooltip(content, trigger_text, title=None, extra_classes=None) -%}
+  {%- set classes = ['tooltip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set tooltip_id = 'tooltip-' ~ (title | default('info') | replace(' ', '-')) -%}
+<div class="tooltip-wrap">
+  <div class="tooltip-trigger" tabindex="0" aria-describedby="{{ tooltip_id }}" aria-haspopup="true">{{ trigger_text }}</div>
+  <div id="{{ tooltip_id }}" class="{{ cls }}" role="tooltip" aria-hidden="true">
+    {%- if title %}
+    <div class="tooltip__title">{{ title }}</div>
+    {%- endif %}
+    {%- for row in content %}
+    <div class="tooltip__row{% if row.is_total %} tooltip__total{% endif %}">
+      <span class="tooltip__label">{{ row.label }}</span>
+      <span>{{ row.value | default('') }}</span>
+    </div>
+    {%- endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+{# --- Popover ---
+   Renders a popover with a trigger button.
+   content: dict with keys: title, body (HTML content)
+   trigger_element: text or HTML for the trigger button
+   extra_classes: additional CSS classes on the popover
+#}
+{% macro popover(content, trigger_element, extra_classes=None) -%}
+  {%- set classes = ['popover'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set popover_id = 'popover-' ~ (content.title | default('menu') | replace(' ', '-')) -%}
+<div class="popover-wrap">
+  <button type="button" class="popover-trigger" data-action="toggle-popover" aria-expanded="false" aria-haspopup="true" aria-controls="{{ popover_id }}">{{ trigger_element }}</button>
+  <div id="{{ popover_id }}" class="{{ cls }}" role="dialog" aria-hidden="true">
+    {%- if content.title %}
+    <h4>{{ content.title }}</h4>
+    {%- endif %}
+    <p>{{ content.body }}</p>
+  </div>
+</div>
+{%- endmacro %}
+
+{# --- SectionCard ---
+   Renders a section card with title, optional subtitle/insight, and content.
+   title: section title text
+   content: inner HTML content (DataTable, text, etc.)
+   subtitle: optional subtitle text
+   insight: optional insight text (rendered after spacer in header)
+   extra_classes: additional CSS classes (e.g. 'full-width')
+#}
+{% macro section_card(title, content, subtitle=None, insight=None, extra_classes=None) -%}
+  {%- set classes = ['card', 'section'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<section class="{{ cls }}" aria-label="{{ title }}">
+  <div class="section-head">
+    <div class="section-title">{{ title }}</div>
+    {%- if subtitle %}
+    <div class="section-sub">{{ subtitle }}</div>
+    {%- endif %}
+    {%- if insight %}
+    <span class="spacer"></span>
+    <span class="insight">{{ insight }}</span>
+    {%- endif %}
+  </div>
+  <div class="table-wrap">
+    {{ content }}
+  </div>
+</section>
+{%- endmacro %}
+
+{# ============================================================================
+   DataTable (T034 pass 3)
+   Renders a complete data table with thead and tbody.
+   headers: list of dicts with keys: label, key, sortable (bool), align (left|right)
+   rows: list of dicts, keyed by header key; each value can be a string or dict with html/markup
+   sortable: global toggle for all headers (default None = per-header)
+   extra_classes: additional CSS classes on the <table>
+#}
+{% macro data_table(headers, rows, sortable=None, extra_classes=None) -%}
+  {%- set classes = ['data-table'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<table class="{{ cls }}">
+  <thead>
+    <tr>
+      {%- for h in headers %}
+        {%- set h_sortable = h.sortable if h.sortable is defined else (sortable if sortable is not none else false) -%}
+        {%- set h_align = h.align | default('left') -%}
+        {%- set col_classes = [] -%}
+        {%- if h_align == 'right' or h.align == 'numeric' -%}
+          {%- set _ = col_classes.append('col-num') -%}
+        {%- endif -%}
+        {%- if h_sortable -%}
+          {%- set _ = col_classes.append('sortable') -%}
+        {%- endif -%}
+        {%- if h.key -%}
+          {%- set _ = col_classes.append('col-' ~ h.key) -%}
+        {%- endif -%}
+      <th class="{{ col_classes | join(' ') }}"{%- if h_sortable %} data-action="sort" data-sort-key="{{ h.key }}" role="columnheader" aria-sort="none" tabindex="0"{% else %} role="columnheader"{% endif %} scope="col">
+        {{ h.label }}
+        {%- if h_sortable %} <span class="sort-mark" aria-hidden="true">↕</span>{% endif -%}
+      </th>
+      {%- endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {%- for row in rows %}
+    <tr>
+      {%- for h in headers %}
+        {%- set h_align = h.align | default('left') -%}
+        {%- set td_classes = [] -%}
+        {%- if h_align == 'right' or h.align == 'numeric' -%}
+          {%- set _ = td_classes.append('col-num mono') -%}
+        {%- endif -%}
+        {%- set cell = row[h.key] if h.key in row else '' -%}
+        {%- if cell is mapping and cell.html is defined -%}
+          {%- set cell_html = cell.html -%}
+        {%- else -%}
+          {%- set cell_html = cell -%}
+        {%- endif -%}
+      <td class="{{ td_classes | join(' ') }}">{{ cell_html }}</td>
+      {%- endfor %}
+    </tr>
+    {%- endfor %}
+  </tbody>
+</table>
+{%- endmacro %}
+
+{# ============================================================================
+   FilterBar (T034 pass 3)
+   Renders a filter bar with search + filter controls.
+   filters: list of dicts with keys: label, name, type (search|select), options (for select), value
+   action_url: form action URL (default None)
+   extra_classes: additional CSS classes on the outer div
+#}
+{% macro filter_bar(filters, action_url=None, extra_classes=None) -%}
+  {%- set classes = ['filter-card'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<form class="{{ cls }}" method="get"{%- if action_url %} action="{{ action_url }}"{% endif %} role="search" aria-label="Filter options">
+  <div class="filter-row">
+    {%- for f in filters %}
+    <div class="field">
+      <label for="{{ f.name }}">{{ f.label }}</label>
+      {%- if f.type == 'select' %}
+      <select class="select" name="{{ f.name }}" id="{{ f.name }}">
+        {%- for opt in f.options | default([]) %}
+          {%- set opt_value = opt.value if opt.value is defined else opt -%}
+          {%- set opt_label = opt.label if opt.label is defined else opt -%}
+        <option value="{{ opt_value }}"{%- if f.value == opt_value %} selected{% endif %}>{{ opt_label }}</option>
+        {%- endfor %}
+      </select>
+      {%- else %}
+      <input class="input search" type="text" name="{{ f.name }}" id="{{ f.name }}" placeholder="{{ f.placeholder | default('') }}" value="{{ f.value | default('') }}" />
+      {%- endif %}
+    </div>
+    {%- endfor %}
+    <button type="submit" class="btn primary" data-action="filter">Apply</button>
+    <button type="button" class="btn" data-action="clear">Clear All</button>
+  </div>
+</form>
+{%- endmacro %}
+
+{# ============================================================================
+   PayloadModal (T034 pass 3)
+   Renders a payload modal/dialog structure.
+   payload_id: unique identifier for the modal
+   title: modal title text
+   kind: payload kind (e.g. 'RESPONSE', 'REQUEST'), shown as badge
+   rendered_html: rendered HTML content for the modal body
+   raw_text: raw text fallback
+   missing_reason: text shown when payload is unavailable
+   extra_classes: additional CSS classes on the backdrop
+#}
+{% macro payload_modal(payload_id=None, title=None, kind=None, rendered_html=None, raw_text=None, missing_reason=None, extra_classes=None) -%}
+  {%- set classes = ['modal-backdrop'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set modal_id = 'modal-' ~ (payload_id | default('payload')) -%}
+<div class="{{ cls }}" id="{{ modal_id }}" data-modal role="dialog" aria-modal="true" aria-label="{{ title | default('Payload') }}" aria-hidden="true">
+  <div class="modal">
+    <div class="modal-head">
+      {%- if kind %}
+      <span class="badge badge-info" data-modal-kind="{{ kind }}">{{ kind }}</span>
+      {%- endif %}
+      <div>
+        <b data-modal-title="{{ title | default('') }}">{{ title | default('Payload') }}</b>
+      </div>
+      <span class="spacer"></span>
+      <button type="button" class="btn sm" data-action="close-modal" aria-label="Close modal">x</button>
+    </div>
+    <div class="modal-body">
+      <div data-modal-meta></div>
+      <main data-modal-content aria-live="polite">
+        {%- if rendered_html %}
+        {{ rendered_html }}
+        {%- elif raw_text %}
+        <pre class="mono">{{ raw_text }}</pre>
+        {%- elif missing_reason %}
+        <div class="muted">{{ missing_reason }}</div>
+        {%- else %}
+        <div class="muted">No payload available.</div>
+        {%- endif %}
+      </main>
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   EmptyState (T034 pass 3)
+   Renders an empty state message.
+   message: primary message text
+   action_button: optional HTML for a recovery/action button
+   extra_classes: additional CSS classes on the section
+   icon: emoji for the state icon (default: empty state emoji)
+#}
+{% macro empty_state(message, action_button=None, extra_classes=None, icon=None) -%}
+  {%- set classes = ['state-strip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set icon_html = icon | default('📭') -%}
+<section class="{{ cls }}" role="status" aria-live="polite">
+  <div class="state-icon" aria-hidden="true">{{ icon_html }}</div>
+  <div>
+    <div class="state-title">{{ message }}</div>
+    <div class="muted">Try adjusting your filters or search terms.</div>
+    {%- if action_button %}
+    <div class="state-actions">{{ action_button }}</div>
+    {%- endif %}
+  </div>
+</section>
+{%- endmacro %}
+
+{# ============================================================================
+   ErrorState (T034 pass 3)
+   Renders an error state.
+   message: primary error message text
+   action_button: optional HTML for a recovery action button
+   extra_classes: additional CSS classes on the section
+   icon: emoji for the state icon (default: error emoji)
+#}
+{% macro error_state(message, action_button=None, extra_classes=None, icon=None) -%}
+  {%- set classes = ['state-strip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set icon_html = icon | default('⚠️') -%}
+<section class="{{ cls }}" role="alert" aria-live="assertive">
+  <div class="state-icon" aria-hidden="true">{{ icon_html }}</div>
+  <div>
+    <div class="state-title">{{ message }}</div>
+    <div class="muted">An error occurred while loading data.</div>
+    {%- if action_button %}
+    <div class="state-actions">{{ action_button }}</div>
+    {%- endif %}
+  </div>
+</section>
+{%- endmacro %}
+
+{# ============================================================================
+   Legacy macros (preserved for existing pages)
+   ============================================================================ #}
+
+{# Legacy btn — updated to use canonical HIFI class names (btn, btn primary, btn sm)
+   Signature kept compatible: btn(label, variant, size, type, href, extra_class)
+   Additionally supports: data_action, disabled, icon, aria_label
+#}
+{% macro btn(label, variant='secondary', size='md', type='button', href=None, extra_class='', data_action=None, disabled=False, icon=None, aria_label=None) -%}
+  {%- set classes = ['btn'] -%}
+  {%- if variant == 'primary' -%}
+    {%- set _ = classes.append('primary') -%}
+  {%- elif variant and variant != 'secondary' -%}
+    {%- set _ = classes.append(variant) -%}
+  {%- endif -%}
+  {%- if size == 'sm' -%}
+    {%- set _ = classes.append('sm') -%}
+  {%- endif -%}
+  {%- if extra_class -%}
+    {%- for cls in extra_class.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- if href -%}
+    <a class="{{ cls }}" href="{{ href }}"{%- if data_action %} data-action="{{ data_action }}"{% endif -%}>{{ label }}</a>
+  {%- else -%}
+    <button type="{{ type }}" class="{{ cls }}"{%- if data_action %} data-action="{{ data_action }}"{% endif -%}{%- if disabled %} disabled{% endif -%}{%- if aria_label %} aria-label="{{ aria_label }}"{% endif -%}>{%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}{{ label }}</button>
   {%- endif -%}
 {%- endmacro %}
 
 {% macro select_control(label, name, options, selected='', extra_class='') -%}
   <label class="ui-select {{ extra_class }}">
     <span class="ui-select__label">{{ label }}</span>
-    <select class="ui-select__control" name="{{ name }}">
+    <select class="ui-select__control" name="{{ name }}" aria-label="{{ label }}">
       {%- for opt in options %}
         {%- set opt_value = opt.value if opt.value is defined else opt[0] if opt is sequence and opt is not string else opt -%}
         {%- set opt_label = opt.label if opt.label is defined else opt[1] if opt is sequence and opt is not string and opt|length > 1 else opt_value -%}
@@ -28,7 +554,7 @@
 {%- endmacro %}
 
 {% macro stat_pill(value, label) -%}
-  <span class="ui-stat-pill"><b>{{ value }}</b> {{ label }}</span>
+  <span class="ui-stat-pill" role="status"><b>{{ value }}</b> {{ label }}</span>
 {%- endmacro %}
 
 {% macro th_static(label) -%}

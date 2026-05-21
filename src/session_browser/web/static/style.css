@@ -185,8 +185,8 @@
     --sidebar-hover-bg: var(--bg-surface-hover);
     --sidebar-active-bg: var(--accent-bg);
     --sidebar-active-text: var(--accent);
-    --sidebar-toggle-bg: var(--gray-75);
-    --sidebar-toggle-shadow: 1px 1px 3px rgba(0,0,0,0.08);
+    /* DEPRECATED T053: sidebar-toggle removed; vars kept for backward compat */
+    /* --sidebar-toggle-bg / --sidebar-toggle-shadow — no template references */
 
     /* Topbar component */
     --topbar-bg:       var(--bg-surface);
@@ -280,6 +280,140 @@ body.focus .shell                      { grid-template-columns: 0 minmax(0, 1fr)
 
 body.hide-left .sidebar,
 body.focus .sidebar                    { display: none; }
+
+/* ─── Shell aliases (HIFI naming → production) ──────────────────
+ * base.html uses both production (.shell/.main) and HIFI (.app-shell/.main-panel)
+ * class names on the same element. These aliases ensure both names resolve correctly.
+ * ─── App shell root (alias to .shell) ─── */
+.app-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--inspector);
+    min-height: 100vh;
+}
+.app-shell.no-inspector {
+    grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+body.hide-left .app-shell              { grid-template-columns: 0 minmax(0, 1fr) var(--inspector); }
+body.hide-left .app-shell.no-inspector { grid-template-columns: 0 minmax(0, 1fr); }
+body.hide-right .app-shell             { grid-template-columns: var(--sidebar) minmax(0, 1fr) 0; }
+body.focus .app-shell                  { grid-template-columns: 0 minmax(0, 1fr) 0; }
+
+/* ─── Main panel (alias to .main) ─── */
+.main-panel {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ─── Breadcrumb ─── */
+.breadcrumb {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.breadcrumb span {
+    margin: 0 6px;
+    color: var(--border);
+}
+
+/* ─── Brand card ─── */
+.brand-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+}
+.brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #5b5ce2, #7a6cfb);
+    display: grid;
+    place-items: center;
+    color: white;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.brand-title {
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+.brand-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ─── Pill ─── */
+.pill {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+    font-weight: 600;
+}
+.pill--neutral { background: var(--gray-75, #f6f8fa); }
+
+/* ─── Nav list (alias to .nav for HIFI naming) ─── */
+.nav-list {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* ─── Nav item footer variant ─── */
+.nav-item--footer {
+    margin-top: auto;
+}
+
+/* ─── Sidebar footer ─── */
+.sidebar-footer {
+    margin-top: auto;
+    padding: 0 4px;
+}
+
+/* ─── Icon button (topbar action icons) ─── */
+.icon-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    font-size: var(--text-sm);
+    line-height: 1;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.icon-btn:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    border-color: var(--line-strong, var(--border));
+}
+.icon-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* ─── Icon nav (sidebar nav icons) — alias to .nav-dot sizing ─── */
+.icon--nav {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+}
 
 /* ─── Sidebar: sticky 内嵌容器 ─────────────────────────────── */
 .sidebar {
@@ -378,8 +512,11 @@ a:focus-visible, button:focus-visible {
     outline-offset: 2px;
 }
 
-/* ─── Sidebar children (migrated to shell grid in task 02) ── */
+/* ─── Sidebar children (DEPRECATED T053: migrated to shell grid in task 02)
+ * No templates reference .sidebar-logo or its children.
+ * Kept as no-op rules for backward compatibility. ── */
 .sidebar-logo {
+    /* DEPRECATED T053: no template references — no-op */
     padding: 12px 14px 10px;
     border-bottom: 1px solid var(--border);
 }
@@ -411,7 +548,7 @@ a:focus-visible, button:focus-visible {
     color: var(--text-muted);
     font-weight: 400;
 }
-/* ─── Sidebar nav (DEPRECATED: migrated to .nav in task 03) ── */
+/* ─── Sidebar nav (DEPRECATED: migrated to .nav in task 03; marked T053) ── */
 .sidebar-nav {
     /* replaced by .nav system */
     display: none;
@@ -467,9 +604,12 @@ a:focus-visible, button:focus-visible {
     color: var(--text-primary);
 }
 
-.nav-item.active {
+.nav-item.active,
+.nav-item.is-active {
     background: var(--brand50, #f0f2ff);
     color: var(--brand);
+    border-color: #ddd7ff;
+    font-weight: 700;
 }
 
 .nav-dot {
@@ -480,7 +620,8 @@ a:focus-visible, button:focus-visible {
     opacity: 0.55;
 }
 
-.nav-item.active .nav-dot {
+.nav-item.active .nav-dot,
+.nav-item.is-active .nav-dot {
     opacity: 0.85;
 }
 
@@ -540,26 +681,26 @@ a:focus-visible, button:focus-visible {
     background: var(--status-warning, #d97706);
 }
 
-/* ─── Main area (DEPRECATED: migrated to .main in task 02) ──── */
+/* ─── Main area (DEPRECATED: migrated to .main in task 02; marked T053) ──── */
 .main-area {
     /* replaced by .main grid column — kept for backward compat */
     margin-left: var(--sidebar-w);
     min-height: 100vh;
 }
 
-/* ─── Sidebar collapse toggle (DEPRECATED: task 02) ─────────── */
+/* ─── Sidebar collapse toggle (DEPRECATED: task 02; marked T053) ─────────── */
 .sidebar-toggle {
     /* hide old collapse button — replaced by shell grid toggles */
     display: none;
 }
 
-/* Expand button (DEPRECATED: task 02) */
+/* Expand button (DEPRECATED: task 02; marked T053) */
 .sidebar-toggle-expand {
     /* hide old expand button — replaced by shell grid toggles */
     display: none;
 }
 
-/* Collapsed state (DEPRECATED: task 02) */
+/* Collapsed state (DEPRECATED: task 02; marked T053) */
 body.sidebar-collapsed .sidebar {
     /* replaced by body.hide-left in shell grid */
     transform: translateX(calc(-1 * var(--sidebar-w)));
@@ -576,7 +717,7 @@ body.sidebar-collapsed .sidebar-toggle-expand {
     pointer-events: auto;
 }
 
-/* Transition (DEPRECATED: task 02) */
+/* Transition (DEPRECATED: task 02; marked T053) */
 .sidebar {
     /* transform transition no longer needed — shell grid handles it */
     transition: none;
@@ -637,8 +778,10 @@ body.sidebar-collapsed .sidebar-toggle-expand {
 /* ─── Content ─────────────────────────────────────────────────── */
 .content {
     padding: var(--space-md) 32px;
-    max-width: var(--content-max);
+    max-width: var(--max);
     width: 100%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* ─── Content area (DEPRECATED: migrated to .main in task 02) ─ */
@@ -848,6 +991,9 @@ body.sidebar-collapsed .sidebar-toggle-expand {
 
 /* ── Session detail: single-page debug layout, hide sidebar/inspector ── */
 /*
+ * DEPRECATED T053: phase1-shell has no template references.
+ * Kept as no-op rules for backward compatibility.
+ *
  * CRITICAL: phase1-shell must override body.hide-left / body.focus / body.hide-right
  * rules that set grid-template-columns to include a 0px first column.
  * body.hide-left .shell.no-inspector has specificity (0,3,0), higher than
@@ -9310,4 +9456,155 @@ body:not(.density-comfortable) .trace-row > div {
     font-size: 0.85em;
     margin-left: 3px;
     opacity: 0.8;
+}
+
+/* ======================================================================
+ * Responsive layout — canonical breakpoints
+ * ======================================================================
+ * Desktop  (>=1400px): full sidebar, full padding, multi-column grids
+ * Tablet   (1024px–1399px): sidebar condensed or hidden, adjusted padding
+ * Mobile   (<1024px): sidebar hidden, single-column layouts, scrollable tables
+ * Small    (<768px):  compact padding, stacked filters, stacked metric cards
+ * ====================================================================== */
+
+/* ── Tablet: 1024px–1399px ─────────────────────────────────────────── */
+@media (max-width: 1399px) and (min-width: 1024px) {
+    .sidebar-inner {
+        width: calc(var(--sidebar) * 0.82);
+    }
+    :root {
+        --sidebar: calc(var(--sidebar) * 0.82);
+    }
+    .main {
+        padding: var(--space-md);
+    }
+    .hero-main {
+        padding: var(--space-md) var(--space-lg);
+    }
+}
+
+/* ── Tablet and below: hide sidebar by default (<1024px) ──────────── */
+@media (max-width: 1023px) {
+    .sidebar-inner {
+        display: none;
+    }
+    .app-shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    .app-shell.no-inspector {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.hide-left .app-shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.hide-left .app-shell.no-inspector {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.hide-right .app-shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.focus .app-shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    .main {
+        padding: var(--space-sm) var(--space-md);
+    }
+    .hero-main {
+        padding: var(--space-sm) var(--space-md);
+    }
+    .shell {
+        grid-template-columns: minmax(0, 1fr) var(--inspector) !important;
+    }
+    .shell.no-inspector {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.hide-left .shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.hide-left .shell.no-inspector {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.hide-right .shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    body.focus .shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+}
+
+/* ── Mobile: <768px ─────────────────────────────────────────────── */
+@media (max-width: 767px) {
+    :root {
+        --inspector-w: 100vw;
+    }
+    .main {
+        padding: var(--space-xs) var(--space-sm);
+    }
+    .hero-main {
+        padding: var(--space-xs) var(--space-sm);
+    }
+    .brand-title {
+        font-size: var(--text-lg);
+    }
+    .page-title {
+        font-size: var(--text-xl);
+    }
+    .hero-main .page-header {
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+    }
+    .top-btn {
+        font-size: var(--text-micro);
+        height: 26px;
+        padding: 0 8px;
+    }
+    /* KPI / metric grids: single column on mobile */
+    .kpis {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-sm);
+    }
+    .metric-grid {
+        grid-template-columns: 1fr;
+    }
+    /* Tables: horizontal scroll wrapper on mobile */
+    .table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .data-table {
+        min-width: 640px;
+    }
+    /* Filter bar: stack vertically */
+    .filter-bar {
+        grid-template-columns: 1fr;
+    }
+    .filter-bar__input--search {
+        grid-column: 1;
+    }
+    .section-head {
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+    }
+    .inspector {
+        min-width: 0;
+        width: 100vw;
+    }
+}
+
+/* ── Desktop: >=1400px ─────────────────────────────────────────── */
+@media (min-width: 1400px) {
+    .main {
+        padding: var(--space-lg) var(--space-xl);
+    }
+    .hero-main {
+        padding: var(--space-lg) var(--space-xl);
+    }
+    .kpis {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .content-area {
+        max-width: var(--content-max);
+        margin-left: auto;
+        margin-right: auto;
+    }
 }

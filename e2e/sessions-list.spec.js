@@ -1,0 +1,124 @@
+import { test, expect } from '@playwright/test';
+
+// T082 — Sessions List Playwright screenshot and interaction checks.
+
+test.describe('Sessions List Page', () => {
+  test('core page loads and structure', async ({ page }) => {
+    await page.goto('/sessions');
+    await expect(page.locator('body')).toBeVisible();
+
+    // Page head
+    await expect(page.locator('.page-head h1')).toHaveText('Sessions');
+
+    // Filter bar
+    await expect(page.locator('#session-search')).toBeVisible();
+    await expect(page.locator('#filter-agent')).toBeVisible();
+    await expect(page.locator('#filter-model')).toBeVisible();
+    await expect(page.locator('#filter-project')).toBeVisible();
+
+    // Data table
+    await expect(page.locator('.data-table')).toBeVisible();
+
+    // Pagination (only visible when there are sessions)
+    const totalCount = await page.locator('.sessions-page-stats').textContent();
+    if (totalCount && /\d+ sessions?/.test(totalCount)) {
+      const pagination = page.locator('.pagination');
+      await expect(pagination).toBeVisible();
+    }
+  });
+
+  test('screenshot at 1440x900', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/sessions');
+    await expect(page.locator('body')).toBeVisible();
+    await expect(page).toHaveScreenshot('sessions-1440x900.png', {
+      fullPage: true,
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+
+  test('data table has all column headers', async ({ page }) => {
+    await page.goto('/sessions');
+    const headers = page.locator('.data-table th');
+    const count = await headers.count();
+    expect(count).toBeGreaterThanOrEqual(8);
+
+    const headerTexts = await headers.allTextContents();
+    const combined = headerTexts.join(' ').toLowerCase();
+    expect(combined).toContain('title');
+    expect(combined).toContain('project');
+    expect(combined).toContain('agent');
+    expect(combined).toContain('model');
+    expect(combined).toContain('tokens');
+    expect(combined).toContain('rounds');
+    expect(combined).toContain('tools');
+    expect(combined).toContain('duration');
+    expect(combined).toContain('updated');
+  });
+
+  test('sort buttons are clickable and functional', async ({ page }) => {
+    await page.goto('/sessions');
+    const sortButtons = page.locator('.sort-button[data-action="sort"]');
+    const count = await sortButtons.count();
+    expect(count).toBeGreaterThanOrEqual(4);
+
+    // Click tokens sort button and verify URL changes
+    const tokensSort = page.locator('.sort-button[data-sort-key="tokens"]');
+    if (await tokensSort.isVisible()) {
+      const currentUrl = page.url();
+      await tokensSort.click();
+      await page.waitForURL(/sort=/);
+      expect(page.url()).toContain('sort=tokens');
+    }
+  });
+
+  test('session rows have data attributes', async ({ page }) => {
+    await page.goto('/sessions');
+    const rows = page.locator('tr[data-action="row"]');
+    const count = await rows.count();
+    if (count > 0) {
+      const firstRow = rows.first();
+      await expect(firstRow).toHaveAttribute('data-agent');
+      await expect(firstRow).toHaveAttribute('data-model');
+      await expect(firstRow).toHaveAttribute('data-session-id');
+    }
+  });
+
+  test('agent badges render with correct classes', async ({ page }) => {
+    await page.goto('/sessions');
+    const badges = page.locator('.data-table .badge');
+    const count = await badges.count();
+    if (count > 0) {
+      // At least one badge should have cc, cx, or qd class
+      const firstBadge = badges.first();
+      const className = await firstBadge.getAttribute('class');
+      expect(className).toMatch(/(cc|cx|qd)/);
+    }
+  });
+
+  test('token bar has four segments', async ({ page }) => {
+    await page.goto('/sessions');
+    const tokenbars = page.locator('.tokenbar');
+    const count = await tokenbars.count();
+    if (count > 0) {
+      const segments = tokenbars.first().locator('.tokenbar-seg');
+      const segCount = await segments.count();
+      expect(segCount).toBe(4);
+    }
+  });
+
+  test('filter form submits and changes URL', async ({ page }) => {
+    await page.goto('/sessions');
+    const searchInput = page.locator('#session-search');
+    if (await searchInput.isVisible()) {
+      await searchInput.fill('test-query-t082');
+      // Click apply
+      const applyBtn = page.locator('button[data-action="apply"], input[type="submit"]');
+      if (await applyBtn.count() > 0) {
+        await applyBtn.first().click();
+        await page.waitForURL(/q=/);
+        expect(page.url()).toContain('q=test-query-t082');
+      }
+    }
+  });
+});

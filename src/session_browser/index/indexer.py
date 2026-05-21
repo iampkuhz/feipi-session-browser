@@ -58,14 +58,14 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
 
         CREATE TABLE sessions (
             session_key TEXT PRIMARY KEY,
-            agent TEXT NOT NULL,
-            session_id TEXT NOT NULL,
+            agent TEXT NOT NULL CHECK(agent <> ''),
+            session_id TEXT NOT NULL CHECK(session_id <> ''),
             title TEXT NOT NULL DEFAULT '',
-            project_key TEXT NOT NULL,
+            project_key TEXT NOT NULL CHECK(project_key <> ''),
             project_name TEXT NOT NULL DEFAULT '',
             cwd TEXT NOT NULL DEFAULT '',
             started_at TEXT NOT NULL DEFAULT '',
-            ended_at TEXT NOT NULL DEFAULT '',
+            ended_at TEXT NOT NULL CHECK(ended_at <> ''),
             duration_seconds REAL NOT NULL DEFAULT 0,
             model_execution_seconds REAL NOT NULL DEFAULT 0,
             tool_execution_seconds REAL NOT NULL DEFAULT 0,
@@ -677,20 +677,20 @@ def incremental_scan(
 
             # Cache sessions use a simpler format without timing data
             is_cache = str(fpath).startswith(str(QODER_DATA_DIR / "cache"))
-            if is_cache:
-                summary = qoder_source._parse_cache_session(
-                    project_key, sid, fpath
-                )
-            else:
-                summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
-                    project_key, sid, session_file=fpath
-                )
-
             file_mtime = 0.0
             file_path_str = ""
             if fpath and fpath.exists():
                 file_path_str = str(fpath)
                 file_mtime = os.path.getmtime(fpath)
+
+            if is_cache:
+                summary = qoder_source._parse_cache_session(
+                    project_key, sid, fpath, file_mtime=file_mtime
+                )
+            else:
+                summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
+                    project_key, sid, session_file=fpath
+                )
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
             qoder_count += 1
@@ -990,7 +990,7 @@ def get_trend_data(
     rows = conn.execute(
         """
         SELECT
-            DATE(ended_at) as day,
+            COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
             SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_count,
             SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_count,
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_count,
@@ -1002,8 +1002,8 @@ def get_trend_data(
             COALESCE(SUM(failed_tool_count), 0) as failed_tools,
             COUNT(*) as total_count
         FROM sessions
-        WHERE ended_at >= date('now', ?)
-        GROUP BY DATE(ended_at)
+        WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
+        GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now'))
         ORDER BY day
         """,
         (f"-{days} days",),
@@ -1022,6 +1022,39 @@ def get_trend_data(
             "tool_calls": r["tool_calls"],
             "failed_tools": r["failed_tools"],
             "total_count": r["total_count"],
+        }
+        for r in rows
+    ]
+
+
+def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30) -> list[dict]:
+    """Get daily user message counts for the last N days, broken down by agent.
+
+    Returns list of {date, claude_prompts, codex_prompts, qoder_prompts, total_prompts}.
+    """
+    rows = conn.execute(
+        """
+        SELECT
+            COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
+            COALESCE(SUM(CASE WHEN agent='claude_code' THEN user_message_count ELSE 0 END), 0) as claude_prompts,
+            COALESCE(SUM(CASE WHEN agent='codex' THEN user_message_count ELSE 0 END), 0) as codex_prompts,
+            COALESCE(SUM(CASE WHEN agent='qoder' THEN user_message_count ELSE 0 END), 0) as qoder_prompts,
+            COALESCE(SUM(user_message_count), 0) as total_prompts
+        FROM sessions
+        WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
+        GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now'))
+        ORDER BY day
+        """,
+        (f"-{days} days",),
+    ).fetchall()
+
+    return [
+        {
+            "date": r["day"],
+            "claude_prompts": r["claude_prompts"],
+            "codex_prompts": r["codex_prompts"],
+            "qoder_prompts": r["qoder_prompts"],
+            "total_prompts": r["total_prompts"],
         }
         for r in rows
     ]

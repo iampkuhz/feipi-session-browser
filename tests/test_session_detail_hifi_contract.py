@@ -500,7 +500,11 @@ class TestDeadButtonGate:
         "open-payload", "payload-mode", "close-modal", "close-payload", "payload-tab",
         "jump-round", "jump-anomaly", "md-toggle",
         "toggle-round", "toggle-issue-expand", "toggle-sub-round",
+        "open-settings",
     }
+
+    # Sidebar nav actions (nav-*) are validated separately by sidebar contract tests
+    NAV_ACTIONS_PREFIX = "nav-"
 
     def test_all_buttons_have_supported_data_action(self, hifi_fixture_session):
         """All visible buttons must have a supported data-action or known role."""

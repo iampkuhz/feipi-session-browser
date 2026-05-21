@@ -611,6 +611,7 @@ def _empty_session(session_id: str, project_key: str) -> SessionSummary:
     """Create an empty session summary as fallback."""
     from pathlib import PurePosixPath
     project_name = PurePosixPath(project_key).name if project_key else "unknown"
+    now = datetime.now(tz=timezone.utc).astimezone().isoformat()
     return SessionSummary(
         agent="qoder",
         session_id=session_id,
@@ -618,8 +619,8 @@ def _empty_session(session_id: str, project_key: str) -> SessionSummary:
         project_key=project_key,
         project_name=project_name,
         cwd="",
-        started_at="",
-        ended_at="",
+        started_at=now,
+        ended_at=now,
     )
 
 
@@ -1048,11 +1049,13 @@ def _parse_cache_session(
     project_key: str,
     session_id: str,
     session_file: Path,
+    file_mtime: float = 0,
 ) -> SessionSummary:
     """Parse a cache-format JSONL session into a minimal SessionSummary.
 
     Cache format uses {"role": "user|assistant", "message": {"content": [...]}}
     with no timestamps, tool calls, or usage data. Returns best-effort summary.
+    When events lack timestamps, uses file_mtime for started_at/ended_at.
     """
     events = _parse_session_events(session_file)
 
@@ -1099,6 +1102,12 @@ def _parse_cache_session(
 
     title = _extract_readable_title(user_texts[0]) if user_texts else ""
 
+    # When cache-format events lack timestamps, derive from file mtime.
+    if file_mtime > 0:
+        fallback_ts = datetime.fromtimestamp(file_mtime, tz=timezone.utc).astimezone().isoformat()
+    else:
+        fallback_ts = datetime.now(tz=timezone.utc).astimezone().isoformat()
+
     return SessionSummary(
         agent="qoder",
         session_id=session_id,
@@ -1106,8 +1115,8 @@ def _parse_cache_session(
         project_key=project_key,
         project_name=project_key if project_key else "unknown",
         cwd="",
-        started_at="",
-        ended_at="",
+        started_at=fallback_ts,
+        ended_at=fallback_ts,
         duration_seconds=0,
         model_execution_seconds=0,
         tool_execution_seconds=0,
@@ -1142,5 +1151,6 @@ def scan_all_sessions() -> Iterator[SessionSummary]:
     # Scan cache (GUI) sessions
     cache_sessions = _discover_cache_sessions()
     for project_key, session_id, fpath in cache_sessions:
-        summary = _parse_cache_session(project_key, session_id, fpath)
+        file_mtime = os.path.getmtime(fpath) if fpath.exists() else 0
+        summary = _parse_cache_session(project_key, session_id, fpath, file_mtime=file_mtime)
         yield summary

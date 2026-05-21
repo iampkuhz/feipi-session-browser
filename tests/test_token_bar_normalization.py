@@ -70,6 +70,12 @@ def _make_env():
         else f"{n / 1_000:.1f}K" if n >= 1_000
         else str(n)
     )
+    env.filters["format_compact_token"] = lambda n: (
+        "0" if n is None
+        else f"{n / 1_000_000:.1f}M" if n >= 1_000_000
+        else f"{n / 1_000:.1f}K" if n >= 1_000
+        else str(int(n))
+    )
     env.filters["round"] = lambda v, p=0: round(v, p)
     return env
 

@@ -100,7 +100,7 @@
         <span class="muted-zero">—</span>
         {% endif %}
     </td>
-    <td class="numeric mono text-xs">{{ p_total_tokens | format_number }}</td>
+    <td class="numeric mono text-xs">{{ p_total_tokens | format_compact_token }}</td>
     <td class="numeric mono text-xs">
         {{ p.total_tool_calls | format_number }}
         {% if p.total_failed_tools > 0 %}
