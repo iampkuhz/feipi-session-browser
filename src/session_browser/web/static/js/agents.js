@@ -35,12 +35,14 @@
         /* ── Sort state ─────────────────────────────────────── */
         var currentSort = { key: null, ascending: false };
 
-        /* ── Sortable header buttons ────────────────────────── */
-        var sortButtons = agentsTable.querySelectorAll('th .sortable-header');
-        sortButtons.forEach(function(btn) {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var key = btn.dataset.sort;
+        /* ── Sortable header clicks (on <th>) ───────────── */
+        // Contract: th.sortable[data-action="sort"][data-sort-key]
+        // Buttons inside <th> have data-sort for agents.js;
+        // stopPropagation on buttons prevents double-handling with ui_primitives.js.
+        var sortHeaders = agentsTable.querySelectorAll('th.sortable[data-sort-key]');
+        sortHeaders.forEach(function(th) {
+            th.addEventListener('click', function(e) {
+                var key = th.dataset.sortKey || th.dataset.sort;
                 if (!key) return;
                 if (currentSort.key === key) {
                     currentSort.ascending = !currentSort.ascending;
@@ -49,6 +51,15 @@
                     currentSort.ascending = false;
                 }
                 sortAgents();
+            });
+        });
+
+        /* ── Sortable header buttons: stop bubbling to prevent
+              ui_primitives.js from also handling the same click ── */
+        var sortButtons = agentsTable.querySelectorAll('th.sortable .sortable-header');
+        sortButtons.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
             });
         });
 
@@ -147,12 +158,11 @@
         /* ── Sort state ─────────────────────────────────────── */
         var effSortState = { key: null, ascending: false };
 
-        /* ── Sortable header buttons ────────────────────────── */
-        var effSortButtons = efficiencyTable.querySelectorAll('th .sortable-header');
-        effSortButtons.forEach(function(btn) {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var key = btn.dataset.sort;
+        /* ── Sortable header clicks (on <th>) ───────────── */
+        var effSortHeaders = efficiencyTable.querySelectorAll('th.sortable[data-sort-key]');
+        effSortHeaders.forEach(function(th) {
+            th.addEventListener('click', function(e) {
+                var key = th.dataset.sortKey || th.dataset.sort;
                 if (!key) return;
                 if (effSortState.key === key) {
                     effSortState.ascending = !effSortState.ascending;
@@ -161,6 +171,14 @@
                     effSortState.ascending = false;
                 }
                 sortEfficiencyTable();
+            });
+        });
+
+        /* ── Sortable header buttons: stop bubbling ──────── */
+        var effSortButtons = efficiencyTable.querySelectorAll('th.sortable .sortable-header');
+        effSortButtons.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
             });
         });
 
@@ -219,6 +237,80 @@
             });
         }
     }
+
+    /* ===========================================================
+     * Info-icon tooltip for metric cards
+     * =========================================================== */
+
+    // Contract: button.info-icon[data-action="info"] — click shows metric definition tooltip.
+    // Native title attribute provides hover fallback.
+    var infoIcons = document.querySelectorAll('[data-action="info"]');
+    var activeInfoTooltip = null;
+
+    infoIcons.forEach(function(icon) {
+        icon.addEventListener('click', function(e) {
+            e.stopPropagation();
+
+            // Close any existing tooltip
+            if (activeInfoTooltip) {
+                activeInfoTooltip.remove();
+                activeInfoTooltip = null;
+                return;
+            }
+
+            var labelText = icon.parentElement.textContent.trim().replace(/\s+/g, ' ');
+            var tipText = icon.getAttribute('title') || '';
+
+            var tooltip = document.createElement('div');
+            tooltip.className = 'info-tooltip';
+            tooltip.setAttribute('role', 'tooltip');
+            tooltip.innerHTML = '<strong>' + labelText + '</strong><br>' + tipText;
+            tooltip.style.position = 'absolute';
+            tooltip.style.zIndex = '9999';
+            tooltip.style.background = 'var(--bg-surface, #1e1e2e)';
+            tooltip.style.color = 'var(--text-primary, #cdd6f4)';
+            tooltip.style.border = '1px solid var(--border-muted, #45475a)';
+            tooltip.style.borderRadius = '6px';
+            tooltip.style.padding = '8px 12px';
+            tooltip.style.fontSize = '12px';
+            tooltip.style.lineHeight = '1.4';
+            tooltip.style.maxWidth = '280px';
+            tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+            tooltip.style.pointerEvents = 'none';
+
+            document.body.appendChild(tooltip);
+
+            // Position near the icon
+            var rect = icon.getBoundingClientRect();
+            var top = rect.bottom + 6;
+            var left = rect.left;
+            // Keep tooltip in viewport
+            if (left + 280 > window.innerWidth) {
+                left = window.innerWidth - 290;
+            }
+            if (left < 8) left = 8;
+            tooltip.style.top = top + 'px';
+            tooltip.style.left = left + 'px';
+
+            activeInfoTooltip = tooltip;
+
+            // Auto-dismiss after 4 seconds
+            setTimeout(function() {
+                if (activeInfoTooltip === tooltip) {
+                    tooltip.remove();
+                    activeInfoTooltip = null;
+                }
+            }, 4000);
+        });
+    });
+
+    // Click outside closes info tooltip
+    document.addEventListener('click', function() {
+        if (activeInfoTooltip) {
+            activeInfoTooltip.remove();
+            activeInfoTooltip = null;
+        }
+    });
 
     /* ===========================================================
      * Pagination handlers (shared across both tables)
