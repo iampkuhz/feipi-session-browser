@@ -9,10 +9,105 @@
  *
  * ─────────────────────────────────────────────────────────────── */
 
-/* ── Page Head ──────────────────────────────────────────────── */
+/* ── Page Head (canonical .page-head pattern, T128) ───────── */
 
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 0 12px;
+}
+.page-head h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+.page-head p {
+  margin: 6px 0 0;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
 .page-head + .metric-grid {
   margin-top: 12px;
+}
+
+/* Subtitle text below page title (T128) */
+.subtitle {
+  color: var(--text-subtle);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ── Table toolbar (T128: efficiency section header) ─────── */
+
+.table-toolbar {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.table-title {
+  font-size: 16px;
+  font-weight: 850;
+}
+
+/* ── Metric grid (shared primitives, T129) ───────────────── */
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+/* Metric card bridge: .card.metric HTML -> .metric-card layout */
+.card.metric {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  display: flex;
+  gap: 14px;
+  min-height: 112px;
+  min-width: 0;
+}
+
+.card.metric .metric-value {
+  font: 850 21px var(--mono);
+  margin: 3px 0;
+}
+
+/* Info icon in metric label */
+.card.metric .info-icon {
+  font-size: 14px;
+  color: var(--text-subtle);
+  cursor: help;
+}
+
+/* Trend delta */
+.card.metric .delta {
+  font-size: 12px;
+  color: var(--ok);
+  font-weight: 750;
+}
+
+/* Emoji icon inside metric-icon */
+.emoji {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+}
+
+/* Table card wrapper */
+.table-card {
+  overflow: hidden;
+}
+
+.table-card .table-wrap {
+  overflow-x: auto;
 }
 
 /* ── Metric grid (shared primitives) ───────────────────────── */

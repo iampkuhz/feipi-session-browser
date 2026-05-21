@@ -16,17 +16,75 @@
 {% block content %}
 
 {% if agents %}
-<div class="page-header">
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <h1 class="page-header__title">Agents</h1>
+<section class="page-head">
+    <h1>Agents</h1>
+    <p class="subtitle">{{ agents | length }} 个 Agent，覆盖 {{ efficiency | length if efficiency else 0 }} 个模型组合</p>
+</section>
+
+<!-- Agent summary metrics -->
+<section class="metric-grid" aria-label="Agent summary metrics">
+    {% set m_active_agents = agents | length %}
+    {% set m_total_sessions = namespace(value=0) %}
+    {% set m_total_tokens = namespace(value=0) %}
+    {% set m_total_failed = namespace(value=0) %}
+    {% for a in agents %}
+    {% set m_total_sessions.value = m_total_sessions.value + a.session_count %}
+    {% set m_total_tokens.value = m_total_tokens.value + a.total_tokens %}
+    {% set m_total_failed.value = m_total_failed.value + a.total_failed_tools %}
+    {% endfor %}
+    <div class="card metric">
+        <div class="metric-icon purple">
+            <span class="emoji" aria-hidden="true">🤖</span>
+        </div>
+        <div>
+            <div class="metric-label">Active Agents <button class="info-icon" data-action="info" aria-label="Active Agents 计数说明" title="当前数据集中出现过 session 的 agent 类型数量">ⓘ</button></div>
+            <div class="metric-value">{{ m_active_agents }}</div>
+            <div class="delta">All time</div>
         </div>
     </div>
-    <div class="page-header__desc">
-        {{ agents | length }} 个 Agent，覆盖 {{ efficiency | length if efficiency else 0 }} 个模型组合
+    <div class="card metric">
+        <div class="metric-icon green">
+            <span class="emoji" aria-hidden="true">🧾</span>
+        </div>
+        <div>
+            <div class="metric-label">Sessions <button class="info-icon" data-action="info" aria-label="Sessions 计数说明" title="所有 agent 的 session 总量">ⓘ</button></div>
+            <div class="metric-value">{{ m_total_sessions.value | format_number }}</div>
+            <div class="delta">Across all agents</div>
+        </div>
     </div>
-</div>
+    <div class="card metric">
+        <div class="metric-icon blue">
+            <span class="emoji" aria-hidden="true">📁</span>
+        </div>
+        <div>
+            <div class="metric-label">Projects <button class="info-icon" data-action="info" aria-label="Projects 计数说明" title="涉及该 agent session 的 project 数量之和（按 agent 维度累加）">ⓘ</button></div>
+            <div class="metric-value mono">
+                {% set m_total_projects = namespace(value=0) %}
+                {% for a in agents %}
+                {% set m_total_projects.value = m_total_projects.value + a.project_count %}
+                {% endfor %}
+                {{ m_total_projects.value }}
+            </div>
+            <div class="delta">Agent-summed, may overlap</div>
+        </div>
+    </div>
+    <div class="card metric">
+        <div class="metric-icon red">
+            <span class="emoji" aria-hidden="true">🪙</span>
+        </div>
+        <div>
+            <div class="metric-label">Total Tokens <button class="info-icon" data-action="info" aria-label="Total Tokens 公式说明" title="所有 agent 的 token 总量，统一按缩写显示，精确到小数点后一位">ⓘ</button></div>
+            <div class="metric-value">{{ m_total_tokens.value | format_compact_token }}</div>
+            <div class="delta">{{ m_total_failed.value | format_number }} failed tools</div>
+        </div>
+    </div>
+</section>
 
+<div class="card table-card">
+    <div class="table-toolbar">
+        <div class="table-title">All Agents</div>
+    </div>
+    <div class="table-wrap">
 <table class="data-table" id="agents-table">
     <thead>
         <tr>
@@ -82,15 +140,13 @@
         {% endfor %}
     </tbody>
 </table>
+    </div>
+</div>
 
 <!-- Agent/Model Efficiency -->
 {% if efficiency %}
-<div class="page-header" >
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <h2 class="page-header__title" >Agent/Model Efficiency</h2>
-        </div>
-    </div>
+<div class="table-toolbar">
+    <div class="table-title">Agent/Model Efficiency</div>
 </div>
 
 <div class="table-wrap">
