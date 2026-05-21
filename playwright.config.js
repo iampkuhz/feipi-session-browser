@@ -15,7 +15,8 @@ const { defineConfig } = require('@playwright/test');
  * (or point SB_TEST_DB to a valid SQLite index and run the test harness)
  */
 module.exports = defineConfig({
-  testDir: './e2e',
+  testDir: './',
+  testMatch: ['e2e/**/*.spec.{js,ts}', 'tests/playwright/**/*.spec.{js,ts}'],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
