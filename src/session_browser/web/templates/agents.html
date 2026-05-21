@@ -80,6 +80,12 @@
     </div>
 </section>
 
+<!-- Compute total tool calls for percentage bar (T131) -->
+{% set total_tool_calls_all = namespace(value=0) %}
+{% for a in agents %}
+{% set total_tool_calls_all.value = total_tool_calls_all.value + a.total_tool_calls %}
+{% endfor %}
+
 <div class="card table-card">
     <div class="table-toolbar">
         <!-- No filter/search on this page per HIFI — all agents shown, list is small -->
@@ -91,6 +97,9 @@
         <tr>
             <th class="sortable" data-sort="name">
                 <button class="sortable-header" data-action="sort" data-sort="name">Agent<span class="sort-caret">↕</span></button>
+            </th>
+            <th class="sortable" data-sort="provider">
+                <button class="sortable-header" data-action="sort" data-sort="provider">Provider<span class="sort-caret">↕</span></button>
             </th>
             <th class="numeric sortable" data-sort="sessions">
                 <button class="sortable-header" data-action="sort" data-sort="sessions">Sessions<span class="sort-caret">↕</span></button>
@@ -114,8 +123,15 @@
     </thead>
     <tbody>
         {% for a in agents %}
+        {% set a_provider = 'Anthropic' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'OpenAI' %}
+        {% set a_badge_cls = 'cc' if a.agent == 'claude_code' else 'qd' if a.agent == 'qoder' else 'cx' %}
+        {% set a_dot_cls = 'claude' if a.agent == 'claude_code' else 'qoder' if a.agent == 'qoder' else 'codex' %}
+        {% set a_avatar_cls = 'claude' if a.agent == 'claude_code' else 'qoder' if a.agent == 'qoder' else 'codex' %}
+        {% set a_abbrev = 'CC' if a.agent == 'claude_code' else 'QD' if a.agent == 'qoder' else 'CX' %}
+        {% set a_name = 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' %}
+        {% set a_desc = 'Local Claude Code sessions' if a.agent == 'claude_code' else 'Local Qoder sessions' if a.agent == 'qoder' else 'Local Codex sessions' %}
         <tr data-action="open-agent" data-href="/agents/{{ a.agent }}"
-            data-agent-name="{{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}"
+            data-agent-name="{{ a_name }}"
             data-session-count="{{ a.session_count }}"
             data-project-count="{{ a.project_count }}"
             data-total-tokens="{{ a.total_tokens }}"
@@ -123,20 +139,54 @@
             data-total-failed="{{ a.total_failed_tools }}"
             data-last-active="{{ a.last_active }}">
             <td>
-                <span class="agent-name-cell">
+                <span class="agent-main">
                     <a href="/agents/{{ a.agent }}" class="link" data-action="open-agent-link">
-                        <span class="agent-dot {{ 'claude' if a.agent == 'claude_code' else 'qoder' if a.agent == 'qoder' else 'codex' }}"></span>
-                        {{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}
+                        <div class="agent-avatar {{ a_avatar_cls }}">{{ a_abbrev }}</div>
                     </a>
-                    <button class="icon-btn" data-action="copy-agent-name" data-clipboard-text="{{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}" title="复制 Agent 名称" aria-label="复制 Agent 名称">📋</button>
+                    <div>
+                        <div class="title-main">{{ a_name }}</div>
+                        <div class="title-sub">{{ a_desc }}</div>
+                    </div>
                 </span>
             </td>
+            <td><span class="badge {{ a_badge_cls }}"><span class="dot {{ a_dot_cls }}"></span>{{ a_provider }}</span></td>
             <td class="numeric mono">{{ a.session_count | format_number }}</td>
             <td class="numeric mono">{{ a.project_count }}</td>
-            <td class="numeric mono">{{ a.total_tokens | format_compact_token }}</td>
-            <td class="numeric mono">{{ a.total_tool_calls | format_number }}</td>
-            <td class="numeric mono {{ 'highlight-error' if a.total_failed_tools > 0 else '' }}">{{ a.total_failed_tools }}</td>
-            <td class="text-muted">{{ a.last_active | relative_time }}</td>
+            <td class="token-cell">
+                {% set a_fresh = a.total_input_tokens %}
+                {% set a_read = a.total_cached_tokens %}
+                {% set a_write = a.total_cache_write_tokens %}
+                {% set a_out = a.total_output_tokens %}
+                {% set a_total = a.total_tokens %}
+                {% if a_total > 0 %}
+                    {% set a_fresh_pct = (a_fresh / a_total * 100) | round(1) %}
+                    {% set a_read_pct = (a_read / a_total * 100) | round(1) %}
+                    {% set a_write_pct = (a_write / a_total * 100) | round(1) %}
+                    {% set a_out_pct = (a_out / a_total * 100) | round(1) %}
+                {% else %}
+                    {% set a_fresh_pct = 0 %}{% set a_read_pct = 0 %}{% set a_write_pct = 0 %}{% set a_out_pct = 0 %}
+                {% endif %}
+                <div class="token-total">{{ a_total | format_compact_token }}</div>
+                <div class="tokenbar" title="Token breakdown: Fresh / Cached Read / Cached Write / Output">
+                    <span class="tokenbar-seg fresh" style="--segment-width:{{ a_fresh_pct }}%"></span>
+                    <span class="tokenbar-seg read" style="--segment-width:{{ a_read_pct }}%"></span>
+                    <span class="tokenbar-seg write" style="--segment-width:{{ a_write_pct }}%"></span>
+                    <span class="tokenbar-seg out" style="--segment-width:{{ a_out_pct }}%"></span>
+                </div>
+            </td>
+            <td>
+                {% if total_tool_calls_all.value > 0 %}
+                    {% set a_tc_pct = (a.total_tool_calls / total_tool_calls_all.value * 100) | round(1) %}
+                {% else %}
+                    {% set a_tc_pct = 0 %}
+                {% endif %}
+                <div class="num">{{ a.total_tool_calls | format_compact_token }}</div>
+                <div class="progress-bar" style="--fill-width:{{ a_tc_pct }}%" title="工具调用占比条：显示该 agent 在全部 tool calls 中的占比">
+                    <div class="progress-fill"></div>
+                </div>
+            </td>
+            <td><span class="badge err">{{ a.total_failed_tools }}</span></td>
+            <td class="text-muted"><span class="dot {{ a_dot_cls }}"></span> {{ a.last_active | relative_time }}</td>
         </tr>
         {% endfor %}
     </tbody>

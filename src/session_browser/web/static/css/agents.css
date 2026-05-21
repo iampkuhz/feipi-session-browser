@@ -171,6 +171,42 @@
   background: var(--qoder);
 }
 
+/* ── Agent main cell layout (T131) ────────────────────────── */
+
+.agent-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.agent-main .title-main {
+  font-weight: 600;
+  font-size: 14px;
+}
+.agent-main .title-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+/* Agent dot with agent-specific colors (T131) */
+.dot.claude {
+  background: var(--claude);
+}
+.dot.codex {
+  background: var(--codex);
+}
+.dot.qoder {
+  background: var(--qoder);
+}
+
+/* Token cell (T131) */
+.token-cell {
+  min-width: 140px;
+}
+.token-total {
+  font: 700 13px var(--mono);
+  margin-bottom: 2px;
+}
+
 /* ── Agent name cell ───────────────────────────────────────── */
 
 .agent-name-cell {
@@ -249,6 +285,7 @@
   height: 100%;
   background: var(--text-subtle);
   border-radius: 999px;
+  width: var(--fill-width, 0%);
 }
 
 /* ── Empty state ───────────────────────────────────────────── */

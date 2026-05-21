@@ -71,6 +71,15 @@
 
         function getSortValue(row, key) {
             switch (key) {
+                case 'name':
+                    return row.dataset.agentName || '';
+                case 'provider': {
+                    var badge = row.querySelector('td:nth-child(2) .badge');
+                    if (badge && badge.textContent.includes('Anthropic')) return 'Anthropic';
+                    if (badge && badge.textContent.includes('OpenAI')) return 'OpenAI';
+                    if (badge && badge.textContent.includes('Qoder')) return 'Qoder';
+                    return '';
+                }
                 case 'sessions':
                     return parseInt(row.dataset.sessionCount) || 0;
                 case 'projects':
