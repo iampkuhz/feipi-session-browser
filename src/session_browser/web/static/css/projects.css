@@ -45,3 +45,17 @@
   color: var(--text-primary);
   font-weight: 700;
 }
+
+/* ── Metric grid (T101: canonical shared primitives) ──────── */
+
+/* Metric grid spacing below page head */
+.page-head + .metric-grid {
+  margin-top: 12px;
+}
+
+/* Sub-text row inside metric card (panel-sub style) */
+.metric-card__panel-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 4px;
+}

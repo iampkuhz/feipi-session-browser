@@ -26,6 +26,76 @@
     </div>
 </section>
 
+<!-- Metric grid: canonical shared primitives (T101) -->
+{% if projects %}
+{% set m_total_sessions = namespace(value=0) %}
+{% set m_total_tokens = namespace(value=0) %}
+{% set m_total_failed = namespace(value=0) %}
+{% for p in projects %}
+{% set m_total_sessions.value = m_total_sessions.value + p.total_sessions %}
+{% set m_total_tokens.value = m_total_tokens.value + p.total_input_tokens + p.total_cached_tokens + p.total_cache_write_tokens + p.total_output_tokens %}
+{% set m_total_failed.value = m_total_failed.value + p.total_failed_tools %}
+{% endfor %}
+<section class="metric-grid" aria-label="Project overview metrics">
+    <div class="metric-card">
+        <div class="metric-icon purple">
+            <span class="emoji lg" aria-hidden="true">📁</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Projects
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="projects-count"
+                        aria-label="Metric info: number of indexed projects"
+                        title="说明：当前索引中识别到的本地项目/工作区数量">ⓘ</button>
+            </div>
+            <div class="metric-value mono">{{ projects | length }}</div>
+            <div class="metric-card__panel-sub">Indexed workspaces</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon green">
+            <span class="emoji lg" aria-hidden="true">〽️</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Sessions
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-sessions"
+                        aria-label="Metric info: total sessions across all projects"
+                        title="说明：所有项目下已索引的 session 总数">ⓘ</button>
+            </div>
+            <div class="metric-value mono">{{ m_total_sessions.value | format_number }}</div>
+            <div class="metric-card__panel-sub">Across all projects</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon blue">
+            <span class="emoji lg" aria-hidden="true">🪙</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Total Tokens
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-tokens"
+                        aria-label="Metric info: total token consumption"
+                        title="说明：所有项目的 token 消耗合计，使用缩写并保留 1 位小数">ⓘ</button>
+            </div>
+            <div class="metric-value mono">{{ m_total_tokens.value | format_compact_token }}</div>
+            <div class="metric-card__panel-sub">Input + output combined</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon {% if m_total_failed.value > 0 %}red{% else %}green{% endif %}">
+            <span class="emoji lg" aria-hidden="true">⚠️</span>
+        </div>
+        <div class="metric-body">
+            <div class="metric-label">Failed Tools
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="failed-tools"
+                        aria-label="Metric info: failed tool call count"
+                        title="说明：所有项目中 failed tool result 的数量，不包含 successful result">ⓘ</button>
+            </div>
+            <div class="metric-value mono">{{ m_total_failed.value | format_number }}</div>
+            <div class="metric-card__panel-sub">Failed tool results</div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
 <!-- Filter card: canonical structure -->
 <div class="card card--filter-bar">
     <div class="filter-bar">
