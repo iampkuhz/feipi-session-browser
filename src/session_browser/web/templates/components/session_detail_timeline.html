@@ -18,7 +18,7 @@
         <div class="sd-hero-url">
           <span class="sd-hero-url-text" title="{{ session_url }}">{{ session_url }}</span>
           <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy-session-url" title="Copy session URL">
-            <span class="sd-icon-btn-label">&#x1F4CB;</span>
+            <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
           </button>
         </div>
         {% endif %}
@@ -46,22 +46,22 @@
     </div>
     <div class="sd-summary-strip" data-summary-strip>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon">&#x2705;</span>
+        <span class="sd-summary-icon" aria-hidden="true">&#x2705;</span>
         <b>Status</b>
         <span>{{ summary.status_label|default('Completed') }}</span>
       </div>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon">&#x270D;&#xFE0F;</span>
+        <span class="sd-summary-icon" aria-hidden="true">&#x270D;&#xFE0F;</span>
         <b>Manual input</b>
         <span>{{ summary.manual_input_count|default('0') }} rounds</span>
       </div>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon">&#x1F9F0;</span>
+        <span class="sd-summary-icon" aria-hidden="true">&#x1F9F0;</span>
         <b>Subagents</b>
         <span>{{ summary.subagent_count|default('0') }} runs</span>
       </div>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon">&#x1F4BE;</span>
+        <span class="sd-summary-icon" aria-hidden="true">&#x1F4BE;</span>
         <b>Cache write</b>
         <span>{{ summary.cache_write_pct|default('—') }}</span>
       </div>
@@ -124,14 +124,14 @@
   </td>
   <td>
     {% if row.status_key == 'manual' %}
-      <span class="badge badge-manual">&#x270D;&#xFE0F; Manual Input</span>
+      <span class="badge badge-manual"><span aria-hidden="true">&#x270D;&#xFE0F;</span> Manual Input</span>
     {% elif 'fail' in row.status_key|default('') %}
       <span class="badge badge-err">Failed</span>
     {% endif %}
   </td>
   <td>
     <button type="button" class="round-toggle-btn" data-action="toggle-round" data-target="#round-{{ row.round_id }}-detail" data-round="{{ row.round_id }}" aria-expanded="{{ 'true' if row.is_open else 'false' }}" aria-controls="round-{{ row.round_id }}-detail" title="Expand / collapse">
-      <span>{% if row.is_open %}&#x2303;{% else %}&#x2304;{% endif %}</span>
+      <span aria-hidden="true">{% if row.is_open %}&#x2303;{% else %}&#x2304;{% endif %}</span>
     </button>
   </td>
 </tr>
