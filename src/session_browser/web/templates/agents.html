@@ -27,26 +27,50 @@
     </div>
 </div>
 
-<table class="data-table">
+<table class="data-table" id="agents-table">
     <thead>
         <tr>
-            <th>Agent</th>
-            <th class="numeric">Sessions</th>
-            <th class="numeric">Projects</th>
-            <th class="numeric">Tokens</th>
-            <th class="numeric">Tool Calls</th>
-            <th class="numeric">Failed</th>
-            <th>最近活跃</th>
+            <th class="sortable" data-sort="name">
+                <button class="sortable-header" data-action="sort" data-sort="name">Agent<span class="sort-caret">↕</span></button>
+            </th>
+            <th class="numeric sortable" data-sort="sessions">
+                <button class="sortable-header" data-action="sort" data-sort="sessions">Sessions<span class="sort-caret">↕</span></button>
+            </th>
+            <th class="numeric sortable" data-sort="projects">
+                <button class="sortable-header" data-action="sort" data-sort="projects">Projects<span class="sort-caret">↕</span></button>
+            </th>
+            <th class="numeric sortable" data-sort="tokens">
+                <button class="sortable-header" data-action="sort" data-sort="tokens">Tokens<span class="sort-caret">↕</span></button>
+            </th>
+            <th class="numeric sortable" data-sort="tool_calls">
+                <button class="sortable-header" data-action="sort" data-sort="tool_calls">Tool Calls<span class="sort-caret">↕</span></button>
+            </th>
+            <th class="numeric sortable" data-sort="failed">
+                <button class="sortable-header" data-action="sort" data-sort="failed">Failed<span class="sort-caret">↕</span></button>
+            </th>
+            <th class="sortable" data-sort="last_active">
+                <button class="sortable-header" data-action="sort" data-sort="last_active">最近活跃<span class="sort-caret">↕</span></button>
+            </th>
         </tr>
     </thead>
     <tbody>
         {% for a in agents %}
-        <tr>
+        <tr data-action="open-agent" data-href="/agents/{{ a.agent }}"
+            data-agent-name="{{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}"
+            data-session-count="{{ a.session_count }}"
+            data-project-count="{{ a.project_count }}"
+            data-total-tokens="{{ a.total_tokens }}"
+            data-total-tool-calls="{{ a.total_tool_calls }}"
+            data-total-failed="{{ a.total_failed_tools }}"
+            data-last-active="{{ a.last_active }}">
             <td>
-                <a href="/agents/{{ a.agent }}" class="link">
-                    <span class="agent-dot {{ 'claude' if a.agent == 'claude_code' else 'qoder' if a.agent == 'qoder' else 'codex' }}"></span>
-                    {{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}
-                </a>
+                <span class="agent-name-cell">
+                    <a href="/agents/{{ a.agent }}" class="link" data-action="open-agent-link">
+                        <span class="agent-dot {{ 'claude' if a.agent == 'claude_code' else 'qoder' if a.agent == 'qoder' else 'codex' }}"></span>
+                        {{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}
+                    </a>
+                    <button class="icon-btn" data-action="copy-agent-name" data-clipboard-text="{{ 'Claude Code' if a.agent == 'claude_code' else 'Qoder' if a.agent == 'qoder' else 'Codex' }}" title="复制 Agent 名称" aria-label="复制 Agent 名称">📋</button>
+                </span>
             </td>
             <td class="numeric mono">{{ a.session_count | format_number }}</td>
             <td class="numeric mono">{{ a.project_count }}</td>
@@ -73,22 +97,53 @@
     <table class="data-table" id="efficiency-table">
         <thead>
             <tr>
-                <th>Agent</th>
-                <th>Model</th>
-                <th class="numeric">Sessions</th>
-                <th class="numeric">Avg Duration</th>
-                <th class="numeric">P95 Duration</th>
-                <th class="numeric">Input-side</th>
-                <th class="numeric">Avg Tools</th>
-                <th class="numeric">Tools/R</th>
-                <th class="numeric">Cache R</th>
-                <th class="numeric">Failed/Session</th>
-                <th>最近活跃</th>
+                <th class="sortable" data-sort="agent">
+                    <button class="sortable-header" data-action="sort" data-sort="agent">Agent<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="sortable" data-sort="model">
+                    <button class="sortable-header" data-action="sort" data-sort="model">Model<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="sessions">
+                    <button class="sortable-header" data-action="sort" data-sort="sessions">Sessions<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="avg_duration">
+                    <button class="sortable-header" data-action="sort" data-sort="avg_duration">Avg Duration<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="p95_duration">
+                    <button class="sortable-header" data-action="sort" data-sort="p95_duration">P95 Duration<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="avg_input_side">
+                    <button class="sortable-header" data-action="sort" data-sort="avg_input_side">Input-side<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="avg_tools">
+                    <button class="sortable-header" data-action="sort" data-sort="avg_tools">Avg Tools<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="tools_per_round">
+                    <button class="sortable-header" data-action="sort" data-sort="tools_per_round">Tools/R<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="cache_reuse">
+                    <button class="sortable-header" data-action="sort" data-sort="cache_reuse">Cache R<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="numeric sortable" data-sort="failed_per_session">
+                    <button class="sortable-header" data-action="sort" data-sort="failed_per_session">Failed/Session<span class="sort-caret">↕</span></button>
+                </th>
+                <th class="sortable" data-sort="last_active">
+                    <button class="sortable-header" data-action="sort" data-sort="last_active">最近活跃<span class="sort-caret">↕</span></button>
+                </th>
             </tr>
         </thead>
         <tbody>
             {% for e in efficiency %}
-            <tr>
+            <tr data-agent-name="{{ 'Claude Code' if e.agent == 'claude_code' else 'Qoder' if e.agent == 'qoder' else 'Codex' }}"
+                data-session-count="{{ e.session_count }}"
+                data-avg-duration="{{ e.avg_duration }}"
+                data-p95-duration="{{ e.p95_duration }}"
+                data-avg-input-side="{{ e.avg_input_side }}"
+                data-avg-tools="{{ e.avg_tools }}"
+                data-tools-per-round="{{ e.tools_per_round if e.tools_per_round is not none else 0 }}"
+                data-cache-reuse="{{ e.cache_reuse_ratio if e.cache_reuse_ratio is not none else 0 }}"
+                data-failed-per-session="{{ e.failed_per_session if e.failed_per_session is not none else 0 }}"
+                data-last-active="{{ e.last_active }}">
                 <td>
                     <span class="agent-dot {{ 'claude' if e.agent == 'claude_code' else 'qoder' if e.agent == 'qoder' else 'codex' }}"></span>
                     {{ 'Claude Code' if e.agent == 'claude_code' else 'Qoder' if e.agent == 'qoder' else 'Codex' }}
@@ -122,4 +177,8 @@
 <div class="empty-state">暂无 Agent 数据，请先运行扫描。</div>
 {% endif %}
 
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/agents.js"></script>
 {% endblock %}
