@@ -251,6 +251,118 @@
 .sd-issue-link--err { border-color: #fecaca; background: #fef2f2; color: var(--sd-err); }
 .sd-issue-link--warn { border-color: #fde68a; background: #fffbeb; color: var(--sd-warn); }
 
+/* ── Hero URL line with copy button ── */
+
+.sd-hero-url {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sd-hero-url-text {
+  font-family: var(--sd-mono);
+  font-size: 11.5px;
+  color: var(--sd-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sd-icon-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 6px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  color: var(--sd-muted);
+}
+
+.sd-icon-btn:hover {
+  background: var(--sd-panel);
+  border-color: var(--sd-line);
+}
+
+/* ── Summary strip ── */
+
+.sd-summary-strip {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--sd-line-soft);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sd-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--sd-text-2);
+}
+
+.sd-summary-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.sd-summary-item b {
+  font-weight: 800;
+  color: var(--sd-text);
+}
+
+/* ── Tab navigation ── */
+
+.sd-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--sd-line);
+  padding-bottom: 0;
+}
+
+.sd-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sd-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+}
+
+.sd-tab:hover {
+  color: var(--sd-text);
+}
+
+.sd-tab.is-active {
+  color: var(--sd-brand);
+  border-bottom-color: var(--sd-brand);
+}
+
+.sd-tab-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
 .sd-trace-panel {
   border: 1px solid var(--sd-line);
   background: #fff;

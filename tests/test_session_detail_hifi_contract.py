@@ -501,6 +501,7 @@ class TestDeadButtonGate:
         "jump-round", "jump-anomaly", "md-toggle",
         "toggle-round", "toggle-issue-expand", "toggle-sub-round",
         "open-settings", "help", "shell",
+        "copy-session-url",
     }
 
     # Sidebar nav actions (nav-*) are validated separately by sidebar contract tests

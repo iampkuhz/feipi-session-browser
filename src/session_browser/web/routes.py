@@ -3223,6 +3223,25 @@ def _build_v11_view_model(
             "timeline_items": items,
         })
 
+    # ── Summary strip ──
+    manual_input_count = sum(1 for r in rounds if r.user_msg and r.user_msg.content)
+
+    subagent_count = 0
+    for tr in trace_rows:
+        for item in tr.get("timeline_items", []):
+            if item.get("type") == "subagent":
+                subagent_count += 1
+
+    cache_write_pct = ""
+    if total_tokens > 0 and session.cached_output_tokens:
+        cache_write_pct = f"{session.cached_output_tokens / total_tokens * 100:.1f}%"
+
+    status_label = "Completed"
+    if session_anomalies.anomalies:
+        status_label = "Completed with issues"
+    if total_failed > 0:
+        status_label = "Completed with issues"
+
     return {
         "session_summary": {
             "agent_label": agent_name,
@@ -3231,6 +3250,11 @@ def _build_v11_view_model(
             "branch": session.git_branch or "branch main",
             "date": started,
             "short_id": short_id,
+            "project_name": session.project_name if hasattr(session, "project_name") else "",
+            "status_label": status_label,
+            "manual_input_count": manual_input_count,
+            "subagent_count": subagent_count,
+            "cache_write_pct": cache_write_pct,
         },
         "hero_metrics": {
             "tokens": _format_compact_token(total_tokens),

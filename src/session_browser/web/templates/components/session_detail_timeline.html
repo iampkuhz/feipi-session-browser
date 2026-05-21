@@ -6,7 +6,7 @@
 #}
 {% import "components/session_detail_primitives.html" as sdp %}
 
-{% macro hero(summary, metrics, issues=[]) -%}
+{% macro hero(summary, metrics, issues=[], session_url='') -%}
   <section class="sd-hero" data-session-overview-hero>
     <div class="sd-hero__top">
       <div class="sd-hero__main">
@@ -14,28 +14,58 @@
           <span class="sd-agent-pill">{{ summary.agent_label|default('Claude') }}</span>
           <h1 title="{{ summary.title }}">{{ summary.title }}</h1>
         </div>
+        {% if session_url %}
+        <div class="sd-hero-url">
+          <span class="sd-hero-url-text" title="{{ session_url }}">{{ session_url }}</span>
+          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy-session-url" title="Copy session URL">
+            <span class="sd-icon-btn-label">&#x1F4CB;</span>
+          </button>
+        </div>
+        {% endif %}
         <div class="sd-hero__meta">
           <span class="sd-chip sd-chip--mono">{{ summary.model|default('—') }}</span>
-          <span class="sd-chip">{{ summary.branch|default('branch main') }}</span>
+          {% if summary.project_name %}<span class="sd-chip">{{ summary.project_name }}</span>{% endif %}
           <span class="sd-chip">{{ summary.date|default('—') }}</span>
           <span class="sd-chip sd-chip--mono">{{ summary.short_id|default('—') }}</span>
         </div>
+        {% if issues %}
+        <div class="sd-issue-strip" data-issue-strip>
+          <span class="sd-issue-title">Issues</span>
+          {% for issue in issues[:4] %}
+            <a class="sd-issue-link sd-issue-link--{{ issue.tone|default('neutral') }}" href="#round-{{ issue.round_id }}" data-action="jump-round" data-round="{{ issue.round_id }}">{{ issue.label }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
       <div class="sd-kpis">
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div><div class="sd-kpi__label">tokens</div></div>
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div><div class="sd-kpi__label">rounds</div></div>
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div><div class="sd-kpi__label">tools</div></div>
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.failed|default('—') }}</div><div class="sd-kpi__label">failed</div></div>
+        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div><div class="sd-kpi__label">Tokens</div></div>
+        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div><div class="sd-kpi__label">Rounds</div></div>
+        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div><div class="sd-kpi__label">Tools</div></div>
+        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.failed|default('—') }}</div><div class="sd-kpi__label">Failed</div></div>
       </div>
     </div>
-    {% if issues %}
-      <div class="sd-issue-strip" data-issue-strip>
-        <span class="sd-issue-title">Issues</span>
-        {% for issue in issues[:4] %}
-          <a class="sd-issue-link sd-issue-link--{{ issue.tone|default('neutral') }}" href="#round-{{ issue.round_id }}" data-action="jump-round" data-round="{{ issue.round_id }}">{{ issue.label }}</a>
-        {% endfor %}
+    <div class="sd-summary-strip" data-summary-strip>
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon">&#x2705;</span>
+        <b>Status</b>
+        <span>{{ summary.status_label|default('Completed') }}</span>
       </div>
-    {% endif %}
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon">&#x270D;&#xFE0F;</span>
+        <b>Manual input</b>
+        <span>{{ summary.manual_input_count|default('0') }} rounds</span>
+      </div>
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon">&#x1F9F0;</span>
+        <b>Subagents</b>
+        <span>{{ summary.subagent_count|default('0') }} runs</span>
+      </div>
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon">&#x1F4BE;</span>
+        <b>Cache write</b>
+        <span>{{ summary.cache_write_pct|default('—') }}</span>
+      </div>
+    </div>
   </section>
 {%- endmacro %}
 

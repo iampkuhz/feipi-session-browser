@@ -22,7 +22,7 @@
 {% block topbar_toggles %}{% endblock %}
 
 {% block breadcrumb %}
-Agent Run Profiler <span class="sep">/</span> Session Detail <span class="sep">/</span> <span class="current">{{ session.session_id[-8:] if session.session_id else 'unknown' }}</span>
+Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span> {{ current_agent }} <span class="sep">/</span> <b>{{ session.session_id[-8:] if session.session_id else 'unknown' }}</b>
 {% endblock %}
 
 {% block head_extra %}
@@ -43,7 +43,19 @@ Agent Run Profiler <span class="sep">/</span> Session Detail <span class="sep">/
 {# ── Payload sources (hidden, read by JS via [data-payload-source]) ── #}
 
 <section class="sd-content session-detail-page" data-trace-page>
-  {{ sdt.hero(session_summary, hero_metrics, issue_links) }}
+  {{ sdt.hero(session_summary, hero_metrics, issue_links, session_url) }}
+
+  <nav class="sd-tabs" data-session-tabs aria-label="Session view tabs">
+    <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace">
+      <span class="sd-tab-icon">&#x1F9ED;</span>Trace
+    </a>
+    <a class="sd-tab" href="#" data-action="tab-metrics" data-tab="metrics">
+      <span class="sd-tab-icon">&#x1F4CA;</span>Metrics
+    </a>
+    <a class="sd-tab" href="#" data-action="tab-payloads" data-tab="payloads">
+      <span class="sd-tab-icon">&#x1F4E6;</span>Payloads
+    </a>
+  </nav>
 
   <section class="sd-trace-panel" data-trace-panel>
     {{ sdt.trace_header() }}
