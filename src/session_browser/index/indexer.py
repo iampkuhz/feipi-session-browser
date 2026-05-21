@@ -231,10 +231,16 @@ def full_scan(
             sid = entry["session_id"]
             project = entry["project"]
             summary, _msgs, _tcs, _sa = claude_source.parse_session_detail(
-                project, sid, history_entry=entry
+                project, sid, history_entry=entry, verbose=verbose
             )
             if not summary.title and entry.get("display"):
                 summary.title = claude_source._extract_readable_title(entry["display"])
+
+            # Skip sessions with no valid timestamps (e.g., all events were non-dict JSON)
+            if not summary.ended_at:
+                if verbose:
+                    print(f"  ⏭ Skipping {sid}: no valid ended_at timestamp")
+                continue
 
             # Record file mtime + path for future incremental scans
             file_mtime = 0.0
@@ -256,7 +262,13 @@ def full_scan(
         if verbose:
             print("Scanning Codex...")
         threads_db = codex_source.read_threads_db()
-        for summary in codex_source.scan_all_sessions(threads_db):
+        for summary in codex_source.scan_all_sessions(threads_db, verbose=verbose):
+            # Skip sessions with no valid timestamps
+            if not summary.ended_at:
+                if verbose:
+                    print(f"  ⏭ Skipping {summary.session_id}: no valid ended_at timestamp")
+                continue
+
             # Record file mtime + path for future incremental scans
             file_mtime = 0.0
             file_path = ""
@@ -278,7 +290,13 @@ def full_scan(
     if scan_qoder:
         if verbose:
             print("Scanning Qoder...")
-        for summary in qoder_source.scan_all_sessions():
+        for summary in qoder_source.scan_all_sessions(verbose=verbose):
+            # Skip sessions with no valid timestamps
+            if not summary.ended_at:
+                if verbose:
+                    print(f"  ⏭ Skipping {summary.session_id}: no valid ended_at timestamp")
+                continue
+
             # Record file mtime + path for future incremental scans
             file_mtime = 0.0
             file_path = ""

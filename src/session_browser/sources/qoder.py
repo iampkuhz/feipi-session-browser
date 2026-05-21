@@ -112,20 +112,142 @@ def _ts_ms_to_iso(ts_ms: int | float) -> str:
     return dt.isoformat()
 
 
-def _parse_session_events(path: Path) -> list[dict]:
-    """Parse a single session .jsonl event stream file."""
-    events = []
+def _parse_session_events(path: Path, verbose: bool = False) -> list[dict]:
+    """Parse a single session .jsonl event stream file.
+
+    Handles standard JSONL, pretty-printed multi-line JSON, and mixed
+    formats (including concatenated ``}{...}{`` on transition lines).
+    Uses string-aware brace depth tracking.
+    Non-object JSON values are skipped.
+    """
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                events.append(obj)
-            except json.JSONDecodeError:
-                continue
+        content = f.read()
+
+    events: list[dict] = []
+    skipped: list[tuple[int, str, str]] = []
+    current_lines: list[str] = []
+    depth = 0
+
+    for line_no, raw_line in enumerate(content.split("\n"), 1):
+        stripped = raw_line.rstrip()
+        if not stripped:
+            continue
+
+        for ch in _brace_chars_outside_strings(stripped):
+            if ch in "{[":
+                depth += 1
+            elif ch in "}]":
+                depth -= 1
+
+        current_lines.append(stripped)
+
+        if depth == 0:
+            full = "\n".join(current_lines).strip()
+            current_lines = []
+            _try_parse_json(full, line_no, events, skipped)
+
+    if verbose and skipped:
+        print(f"  ⚠ {path.name}: {len(skipped)} non-dict JSON item(s) skipped:")
+        for line_no, type_name, preview in skipped:
+            print(f"    L{line_no} [{type_name}] {preview}")
+
     return events
+
+
+def _brace_chars_outside_strings(text: str) -> str:
+    """Return only ``{}[]`` characters outside JSON string values."""
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    for ch in text:
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if not in_string and ch in "{}[]":
+            result.append(ch)
+    return "".join(result)
+
+
+def _try_parse_json(
+    text: str, line_no: int,
+    events: list[dict], skipped: list[tuple[int, str, str]],
+) -> None:
+    """Parse JSON text, splitting at ``}{`` boundaries if needed."""
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            events.append(obj)
+        else:
+            skipped.append((line_no, type(obj).__name__, repr(text[:120])))
+        return
+    except json.JSONDecodeError:
+        pass
+
+    parts = _split_at_depth0(text)
+    if len(parts) > 1:
+        for part in parts:
+            try:
+                obj = json.loads(part)
+                if isinstance(obj, dict):
+                    events.append(obj)
+                else:
+                    skipped.append(
+                        (line_no, type(obj).__name__, repr(part[:120]))
+                    )
+            except json.JSONDecodeError:
+                skipped.append((line_no, "BAD_JSON", repr(part[:120])))
+    else:
+        skipped.append((line_no, "BAD_JSON", repr(text[:120])))
+
+
+def _split_at_depth0(text: str) -> list[str]:
+    """Split concatenated JSON objects at top-level ``}{`` boundaries."""
+    parts: list[str] = []
+    current_start = 0
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for i, ch in enumerate(text):
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and i + 1 < len(text) and text[i + 1] == "{":
+                candidate = text[current_start:i + 1].strip()
+                if candidate:
+                    parts.append(candidate)
+                current_start = i + 1
+
+    if current_start == 0:
+        return [text]
+
+    tail = text[current_start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts if parts else [text]
+
+
+def _scan_project_dirs(project_dir: Path) -> list[str]:
+    """Scan project directories for Qoder session data (stub)."""
+    return []
 
 
 def _assistant_message_key(ev: dict) -> str:
@@ -565,6 +687,7 @@ def parse_session_detail(
     project_key: str,
     session_id: str,
     session_file: Path | None = None,
+    verbose: bool = False,
 ) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
     """Parse a single Qoder session's full event stream.
 
@@ -572,6 +695,7 @@ def parse_session_detail(
         project_key: The project path segment.
         session_id: The session ID.
         session_file: Optional pre-located file path.
+        verbose: If True, print diagnostic info about skipped JSON lines.
 
     Returns (SessionSummary, chat_messages, tool_calls, subagent_runs).
     """
@@ -581,7 +705,7 @@ def parse_session_detail(
             s = _empty_session(session_id, project_key)
             return s, [], [], []
 
-    events = _parse_session_events(session_file)
+    events = _parse_session_events(session_file, verbose=verbose)
     summary = _build_summary_from_events(events, session_id, project_key)
     messages = _extract_messages(events)
     tool_calls = _extract_tool_calls(events, messages)
@@ -1134,7 +1258,7 @@ def _parse_cache_session(
     )
 
 
-def scan_all_sessions() -> Iterator[SessionSummary]:
+def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
     """Scan all Qoder sessions and yield SessionSummary for each.
 
     Walks ~/.qoder/projects/ (CLI sessions) and ~/.qoder/cache/projects/
@@ -1144,7 +1268,7 @@ def scan_all_sessions() -> Iterator[SessionSummary]:
 
     for project_key, session_id, fpath in discovered:
         summary, _msgs, _tcs, _sa = parse_session_detail(
-            project_key, session_id, session_file=fpath
+            project_key, session_id, session_file=fpath, verbose=verbose
         )
         yield summary
 

@@ -37,6 +37,8 @@ def parse_session_index() -> list[dict]:
                 continue
             try:
                 obj = json.loads(line)
+                if not isinstance(obj, dict):
+                    continue
                 entries.append({
                     "id": obj.get("id", ""),
                     "thread_name": obj.get("thread_name", ""),
@@ -127,31 +129,150 @@ def _find_session_file(session_id: str, rollout_path: str = "") -> Path | None:
     return None
 
 
-def _parse_session_events(path: Path) -> list[dict]:
-    """Parse a single Codex session .jsonl event stream."""
-    events = []
+def _parse_session_events(path: Path, verbose: bool = False) -> list[dict]:
+    """Parse a single Codex session .jsonl event stream.
+
+    Handles standard JSONL, pretty-printed multi-line JSON, and mixed
+    formats (including concatenated ``}{...}{`` on transition lines).
+    Uses string-aware brace depth tracking.
+    Non-object JSON values are skipped.
+    """
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                events.append(obj)
-            except json.JSONDecodeError:
-                continue
+        content = f.read()
+
+    events: list[dict] = []
+    skipped: list[tuple[int, str, str]] = []
+    current_lines: list[str] = []
+    depth = 0
+
+    for line_no, raw_line in enumerate(content.split("\n"), 1):
+        stripped = raw_line.rstrip()
+        if not stripped:
+            continue
+
+        for ch in _brace_chars_outside_strings(stripped):
+            if ch in "{[":
+                depth += 1
+            elif ch in "}]":
+                depth -= 1
+
+        current_lines.append(stripped)
+
+        if depth == 0:
+            full = "\n".join(current_lines).strip()
+            current_lines = []
+            _try_parse_json(full, line_no, events, skipped)
+
+    if verbose and skipped:
+        print(f"  ⚠ {path.name}: {len(skipped)} non-dict JSON item(s) skipped:")
+        for line_no, type_name, preview in skipped:
+            print(f"    L{line_no} [{type_name}] {preview}")
+
     return events
+
+
+def _brace_chars_outside_strings(text: str) -> str:
+    """Return only ``{}[]`` characters outside JSON string values."""
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    for ch in text:
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if not in_string and ch in "{}[]":
+            result.append(ch)
+    return "".join(result)
+
+
+def _try_parse_json(
+    text: str, line_no: int,
+    events: list[dict], skipped: list[tuple[int, str, str]],
+) -> None:
+    """Parse JSON text, splitting at ``}{`` boundaries if needed."""
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            events.append(obj)
+        else:
+            skipped.append((line_no, type(obj).__name__, repr(text[:120])))
+        return
+    except json.JSONDecodeError:
+        pass
+
+    parts = _split_at_depth0(text)
+    if len(parts) > 1:
+        for part in parts:
+            try:
+                obj = json.loads(part)
+                if isinstance(obj, dict):
+                    events.append(obj)
+                else:
+                    skipped.append(
+                        (line_no, type(obj).__name__, repr(part[:120]))
+                    )
+            except json.JSONDecodeError:
+                skipped.append((line_no, "BAD_JSON", repr(part[:120])))
+    else:
+        skipped.append((line_no, "BAD_JSON", repr(text[:120])))
+
+
+def _split_at_depth0(text: str) -> list[str]:
+    """Split concatenated JSON objects at top-level ``}{`` boundaries."""
+    parts: list[str] = []
+    current_start = 0
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for i, ch in enumerate(text):
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and i + 1 < len(text) and text[i + 1] == "{":
+                candidate = text[current_start:i + 1].strip()
+                if candidate:
+                    parts.append(candidate)
+                current_start = i + 1
+
+    if current_start == 0:
+        return [text]
+
+    tail = text[current_start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts if parts else [text]
 
 
 def parse_session_detail(
     session_id: str,
     threads_db: dict | None = None,
+    verbose: bool = False,
 ) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
     """Parse a single Codex session.
 
     Args:
         session_id: The Codex thread/session ID.
         threads_db: Pre-loaded threads DB data (from read_threads_db).
+        verbose: If True, print diagnostic info about skipped JSON lines.
 
     Returns: (SessionSummary, chat_messages, tool_calls, []).
     """
@@ -164,7 +285,7 @@ def parse_session_detail(
     if session_file is None:
         return _empty_session(session_id, thread_info), [], [], []
 
-    events = _parse_session_events(session_file)
+    events = _parse_session_events(session_file, verbose=verbose)
 
     # Extract session_meta for cwd, source
     session_meta = {}
@@ -402,6 +523,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
 
 def scan_all_sessions(
     threads_db: dict | None = None,
+    verbose: bool = False,
 ) -> Iterator[SessionSummary]:
     """Scan all Codex sessions and yield SessionSummary for each.
 
@@ -419,7 +541,7 @@ def scan_all_sessions(
 
     for sid, thread_info in threads_db.items():
         seen_ids.add(sid)
-        summary, _msgs, _tcs, _sa = parse_session_detail(sid, threads_db)
+        summary, _msgs, _tcs, _sa = parse_session_detail(sid, threads_db, verbose=verbose)
         # Enrich title from index if empty in threads DB
         if not summary.title:
             idx_entry = index_entries.get(sid)

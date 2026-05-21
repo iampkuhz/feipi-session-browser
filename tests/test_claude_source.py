@@ -260,3 +260,204 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert agent_call.subagent_tool_call_count == 2
     assert agent_call.subagent_summary["tool_counts"] == {"Read": 2}
     assert all(tc.scope == "subagent" for tc in tool_calls[1:])
+
+
+def test_parse_session_events_skips_non_dict_json_values():
+    """Non-dict JSON lines in session JSONL (strings, arrays, numbers, etc.)
+    must be silently skipped, not crash downstream code.
+
+    Regression for: AttributeError 'str' object has no attribute 'get'
+    in _assistant_records when a real session JSONL contains a bare string
+    or other non-object JSON value.
+    """
+    from session_browser.sources.claude import (
+        _parse_session_events,
+        _build_summary_from_events,
+        _assistant_records,
+    )
+
+    valid_user = {
+        "type": "user",
+        "message": {"role": "user", "content": "hello"},
+        "timestamp": "2026-05-02T00:00:00.000Z",
+    }
+    valid_assistant = {
+        "type": "assistant",
+        "message": {
+            "id": "msg-1",
+            "model": "claude-4-sonnet",
+            "role": "assistant",
+            "content": [{"type": "text", "text": "hi"}],
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "stop_reason": "end_turn",
+        },
+        "timestamp": "2026-05-02T00:00:01.000Z",
+    }
+
+    # JSONL with mixed valid dicts and non-dict JSON values
+    lines = [
+        json.dumps(valid_user),
+        json.dumps(valid_assistant),
+        '"a bare string"',           # valid JSON string, not a dict
+        "42",                         # valid JSON number
+        "true",                       # valid JSON boolean
+        "null",                       # valid JSON null
+        "[1, 2, 3]",                 # valid JSON array
+        "[]",                         # valid JSON empty array
+        "{}",                         # valid JSON empty object (dict, should be kept)
+        json.dumps(valid_assistant),  # second assistant (for merge test)
+    ]
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+        f.write("\n".join(lines))
+        f.flush()
+        tmp_path = Path(f.name)
+
+    try:
+        # _parse_session_events must only return dicts
+        events = _parse_session_events(tmp_path)
+        assert all(isinstance(ev, dict) for ev in events), \
+            f"_parse_session_events returned non-dict: {[type(e).__name__ for e in events if not isinstance(e, dict)]}"
+
+        # Must have kept the valid events (2 valid_user/assistant + 1 empty dict)
+        # The empty dict {} is also a dict, so it passes the isinstance check
+        dict_count = sum(1 for line in lines if _is_valid_json_dict(line))
+        assert len(events) == dict_count, f"Expected {dict_count} dict events, got {len(events)}"
+
+        # _assistant_records must not crash
+        records = _assistant_records(events)
+        assert len(records) == 1, f"Expected 1 assistant record, got {len(records)}"
+
+        # _build_summary_from_events must not crash
+        summary = _build_summary_from_events(events, "test-sid", "/test/proj")
+        assert summary.agent == "claude_code"
+        assert summary.user_message_count >= 1
+        assert summary.assistant_message_count >= 1
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def _is_valid_json_dict(line: str) -> bool:
+    """Check if a JSON line parses to a dict."""
+    try:
+        return isinstance(json.loads(line.strip()), dict)
+    except json.JSONDecodeError:
+        return False
+
+
+def test_parse_pretty_printed_multiline_json():
+    """Pretty-printed session files (multi-line JSON objects) must be fully
+    parsed, not silently skipped.
+
+    Some Claude Code sessions write pretty-printed JSON with indentation
+    instead of single-line JSONL. Each top-level object spans multiple lines
+    like:
+
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "hello"}
+        }
+
+    The parser must track brace depth (ignoring braces inside string values)
+    and emit complete objects.
+    """
+    from session_browser.sources.claude import _parse_session_events
+
+    # A pretty-printed session file with two events
+    content = '''{
+    "type": "permission-mode",
+    "permissionMode": "bypassPermissions",
+    "sessionId": "test-session-id"
+}
+{
+    "type": "user",
+    "message": {"role": "user", "content": "hello world"},
+    "uuid": "uuid-1",
+    "timestamp": "2026-05-08T16:42:32.345Z",
+    "cwd": "/test/project"
+}
+{
+    "type": "assistant",
+    "message": {
+        "id": "msg-1",
+        "model": "claude-4-sonnet",
+        "role": "assistant",
+        "content": [{"type": "text", "text": "hi!"}],
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+        "stop_reason": "end_turn"
+    },
+    "uuid": "uuid-2",
+    "timestamp": "2026-05-08T16:42:35.000Z"
+}
+'''
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+        f.write(content)
+        f.flush()
+        tmp_path = Path(f.name)
+
+    try:
+        events = _parse_session_events(tmp_path, verbose=False)
+        assert len(events) == 3, f"Expected 3 events, got {len(events)}"
+
+        types = [ev.get("type") for ev in events]
+        assert types == ["permission-mode", "user", "assistant"]
+
+        user_ev = events[1]
+        assert user_ev["message"]["content"] == "hello world"
+        assert user_ev["cwd"] == "/test/project"
+
+        assistant_ev = events[2]
+        assert assistant_ev["message"]["id"] == "msg-1"
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def test_parse_concatenated_json_transition_line():
+    """Mixed-format files where pretty-printed transitions to JSONL with
+    concatenated objects on a single line (``}{...}{...}``) must be parsed
+    correctly.
+    """
+    from session_browser.sources.claude import _parse_session_events
+
+    # Simulate a transition line with two concatenated objects
+    content = '''{
+    "type": "user",
+    "message": {"role": "user", "content": "first"},
+    "uuid": "u1",
+    "timestamp": "2026-05-08T16:42:32.345Z"
+}
+{"type":"assistant","message":{"id":"msg-1","model":"test","role":"assistant","content":[],"usage":{"input_tokens":10,"output_tokens":5},"stop_reason":"end_turn"},"uuid":"u2","timestamp":"2026-05-08T16:42:33.000Z"}
+{"type":"user","message":{"role":"user","content":"second"},"uuid":"u3","timestamp":"2026-05-08T16:42:34.000Z"}
+'''
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+        f.write(content)
+        f.flush()
+        tmp_path = Path(f.name)
+
+    try:
+        events = _parse_session_events(tmp_path, verbose=False)
+        assert len(events) == 3, f"Expected 3 events, got {len(events)}"
+
+        types = [ev.get("type") for ev in events]
+        assert types == ["user", "assistant", "user"]
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def test_brace_inside_string_values_not_counted():
+    """Braces/brackets inside JSON string values must not affect depth
+    tracking.  E.g. ``{"key": "{value}"}`` should have depth 1 at the
+    opening brace, not 2.
+    """
+    from session_browser.sources.claude import _brace_chars_outside_strings
+
+    # Braces inside strings should be ignored
+    text = '{"key": "{nested}", "arr": [1, "{value}"]}'
+    result = _brace_chars_outside_strings(text)
+    # Only top-level {} and [] are kept; {nested} and {value} are inside strings
+    assert result == "{[]}", f"Expected '{{[]}}', got '{result}'"
+
+    # Real assistant message with string containing braces
+    text2 = '{"content": "code: {x: 1}", "type": "text"}'
+    result2 = _brace_chars_outside_strings(text2)
+    assert result2 == "{}", f"Expected '{{}}', got '{result2}'"
