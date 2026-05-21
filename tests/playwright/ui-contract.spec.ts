@@ -45,3 +45,27 @@ for (const vp of dashboardViewports) {
     });
   });
 }
+
+// ─── Sessions-list viewport contract tests (T082) ───
+// Required viewports: 1440x900, 1280x800, 1180x800
+
+for (const vp of dashboardViewports) {
+  test(`sessions-list @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/sessions');
+
+    // Core structure visibility
+    await expect(page.locator('.page-head')).toBeVisible();
+    await expect(page.locator('.sessions-filter-card')).toBeVisible();
+    await expect(page.locator('.data-table')).toBeVisible();
+
+    // Pagination must be present
+    await expect(page.locator('.pagination')).toBeVisible();
+
+    // Full-page screenshot for visual regression
+    await expect(page).toHaveScreenshot(`sessions-${vp.label.replace('x', '-')}.png`, {
+      fullPage: true,
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+}
