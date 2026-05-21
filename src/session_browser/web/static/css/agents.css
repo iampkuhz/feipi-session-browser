@@ -1,0 +1,180 @@
+/* ───────────────────────────────────────────────────────────────
+ * Agents — Canonical CSS (T126)
+ *
+ * Scope:
+ *   agents.html only (agents list and agent detail views).
+ *
+ * Do not globally override .card, .btn, .pill, .tabs, or
+ * sessions-list styles.
+ *
+ * ─────────────────────────────────────────────────────────────── */
+
+/* ── Page Head ──────────────────────────────────────────────── */
+
+.page-head + .metric-grid {
+  margin-top: 12px;
+}
+
+/* ── Metric grid (shared primitives) ───────────────────────── */
+
+.metric-card__panel-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 4px;
+}
+
+/* ── Agent avatar (HIFI: 34x34 circular badge) ────────────── */
+
+.agent-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 12px var(--sans);
+  color: var(--text);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.agent-avatar.claude {
+  background: var(--claude-soft, rgba(169, 120, 255, 0.1));
+  color: var(--claude, #a978ff);
+}
+
+.agent-avatar.codex {
+  background: var(--codex-soft, rgba(52, 211, 153, 0.1));
+  color: var(--codex, #34d399);
+}
+
+.agent-avatar.qoder {
+  background: var(--qoder-soft, rgba(251, 146, 60, 0.1));
+  color: var(--qoder, #fb923c);
+}
+
+/* ── Agent dot (legacy alias, still used in some contexts) ─── */
+
+.agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.agent-dot.claude {
+  background: var(--claude);
+}
+
+.agent-dot.codex {
+  background: var(--codex);
+}
+
+.agent-dot.qoder {
+  background: var(--qoder);
+}
+
+/* ── Agent name cell ───────────────────────────────────────── */
+
+.agent-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-name-cell .agent-name {
+  font-weight: 600;
+}
+
+.agent-name-cell .agent-desc {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+/* ── Token bar (shared) ────────────────────────────────────── */
+
+.tokenbar {
+  position: relative;
+  width: 132px;
+  height: 8px;
+  margin-top: 5px;
+  background: #d9e1ec;
+  border-radius: 999px;
+  display: flex;
+  overflow: visible;
+  cursor: help;
+}
+
+.tokenbar .tokenbar-seg {
+  height: 8px;
+}
+
+.tokenbar .tokenbar-seg:first-child {
+  border-radius: 999px 0 0 999px;
+}
+
+.tokenbar .tokenbar-seg:last-of-type {
+  border-radius: 0 999px 999px 0;
+}
+
+.tokenbar .tokenbar-seg.fresh {
+  background: var(--fresh, #4a90d9);
+  width: var(--segment-width, 25%);
+}
+
+.tokenbar .tokenbar-seg.read {
+  background: var(--read, #67b26f);
+  width: var(--segment-width, 25%);
+}
+
+.tokenbar .tokenbar-seg.write {
+  background: var(--write, #f5a623);
+  width: var(--segment-width, 25%);
+}
+
+.tokenbar .tokenbar-seg.out {
+  background: var(--out, #d0021b);
+  width: var(--segment-width, 25%);
+}
+
+/* ── Progress bar (tool calls) ─────────────────────────────── */
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--surface-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-bar .progress-fill {
+  height: 100%;
+  background: var(--text-subtle);
+  border-radius: 999px;
+}
+
+/* ── Empty state ───────────────────────────────────────────── */
+
+#agents-empty.is-hidden {
+  display: none;
+}
+
+/* ── Pagination ────────────────────────────────────────────── */
+
+.unified-pagination {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line-strong);
+}
+
+.page-input {
+  width: 64px;
+  text-align: center;
+}
