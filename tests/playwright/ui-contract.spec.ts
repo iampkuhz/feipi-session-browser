@@ -101,3 +101,38 @@ for (const vp of dashboardViewports) {
     });
   });
 }
+
+// ─── Project detail viewport contract tests (T124) ───
+// Required viewports: 1440x900, 1280x800, 1180x800
+// Requires a running server with indexed project data.
+// Set PW_PROJECT_URL to a valid project detail URL, otherwise tests skip.
+
+function resolveProjectUrl(): string | null {
+  const direct = process.env.PW_PROJECT_URL;
+  if (direct) return direct;
+  return null;
+}
+
+for (const vp of dashboardViewports) {
+  test(`project-detail @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+    const projectUrl = resolveProjectUrl();
+    if (!projectUrl) {
+      console.log('No PW_PROJECT_URL set; skipping project-detail viewport test.');
+      return;
+    }
+
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto(projectUrl);
+
+    // Core structure visibility
+    await expect(page.locator('.page-head')).toBeVisible();
+    await expect(page.locator('.metric-grid')).toBeVisible();
+    await expect(page.locator('.data-table')).toBeVisible();
+
+    // Full-page screenshot for visual regression
+    await expect(page).toHaveScreenshot(`project-detail-${vp.label.replace('x', '-')}.png`, {
+      fullPage: true,
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+}
