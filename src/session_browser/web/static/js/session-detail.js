@@ -174,6 +174,15 @@
       event.preventDefault();
       event.stopPropagation();
       collapseAll(page);
+    } else if (action === 'copy-session-url') {
+      event.preventDefault();
+      event.stopPropagation();
+      var urlContainer = closest(actionEl, '.sd-hero-url');
+      var urlText = urlContainer ? qs(urlContainer, '.sd-hero-url-text') : null;
+      var url = urlText ? (urlText.getAttribute('title') || urlText.textContent.trim()) : window.location.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url);
+      }
     } else if (action === 'jump-round') {
       event.preventDefault();
       event.stopPropagation();
