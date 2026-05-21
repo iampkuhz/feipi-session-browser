@@ -47,7 +47,7 @@ python3 scripts/harness/validate_openspec_layout.py
 python3 scripts/quality/run_quality_gate.py --target session-detail
 ```
 
-除非 `.agent/quality/<change-id>/quality-gate-summary.json` 报告 `status: PASS`，否则 UI 任务未完成。
+除非 `tmp/quality/<change-id>/quality-gate-summary.json` 报告 `status: PASS`，否则 UI 任务未完成。
 
 详见 `harness/quality/quality-gate-matrix.md`、`harness/quality/ui-layout-contract.md`。
 
@@ -79,7 +79,7 @@ python3 scripts/quality/run_quality_gate.py --target session-detail
 | `scripts/` | 本地运行、测试、发布、harness 脚本 |
 | `harness/` | Agent/自动化工作流与上下文包 |
 | `.claude/` | Claude Code 项目级共享配置和 hooks |
-| `.agent/` | Agent 任务账本和执行记录 |
+| `tmp/` | Agent 任务账本和执行记录 |
 | `docs/` | 开发规范和项目文档 |
 
 ## 完成定义

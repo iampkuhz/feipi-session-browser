@@ -489,10 +489,11 @@
     }
 
     /* ── Session search (T144) ─────────────────────────────────── */
-    // Contract: #session-search[data-search="session-id-or-title"] —
+    // Contract: .section-head .input within agent sessions section —
     // instant filtering by session ID, title text, or project name.
 
-    var searchInput = document.getElementById('session-search');
+    var agentSection = getAgentSection();
+    var searchInput = agentSection ? agentSection.querySelector('.section-head .input') : null;
     if (searchInput) {
         searchInput.addEventListener('input', function() {
             var query = searchInput.value.toLowerCase().trim();
@@ -507,12 +508,14 @@
                 var text = row.textContent.toLowerCase();
                 row.style.display = text.indexOf(query) === -1 ? 'none' : '';
             });
+            // Re-apply pagination after search filter changes
+            setTimeout(function() { applyPagination(); }, 10);
         });
     }
 
     /* ── Sessions pagination (T146) ────────────────────────────── */
-    // Contract: .unified-pagination[data-page-of="agent-sessions"] —
-    // client-side pagination of #agent-sessions-table tbody rows.
+    // Contract: .unified-pagination within the same .card.section as
+    // #agent-sessions-table — client-side pagination of tbody rows.
     // Respects active search filter.
 
     var PAGE_SIZE = 20;
@@ -520,17 +523,25 @@
     var totalPages = 1;
     var visibleRows = [];
 
+    function getAgentSection() {
+        var table = document.getElementById('agent-sessions-table');
+        return table ? table.closest('.card.section') : null;
+    }
+
     function updatePaginationDisplay() {
-        var input = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="page-input"]');
+        var section = getAgentSection();
+        if (!section) return;
+        var pagination = section.querySelector('.unified-pagination');
+        var input = pagination ? pagination.querySelector('[data-action="page-input"]') : null;
         var statusText = document.getElementById('agent-page-status-text');
-        var prevBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="prev-page"]');
-        var nextBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="next-page"]');
+        var prevBtn = pagination ? pagination.querySelector('[data-action="prev-page"]') : null;
+        var nextBtn = pagination ? pagination.querySelector('[data-action="next-page"]') : null;
         if (!input || !statusText) return;
 
         input.value = currentPage;
         var startIdx = (currentPage - 1) * PAGE_SIZE + 1;
         var endIdx = Math.min(currentPage * PAGE_SIZE, visibleRows.length);
-        statusText.textContent = 'of ' + totalPages + ' · ' + startIdx + '–' + endIdx + ' of ' + visibleRows.length + ' sessions';
+        statusText.textContent = 'Page ' + currentPage + ' of ' + totalPages + ' · ' + startIdx + '–' + endIdx + ' of ' + visibleRows.length + ' sessions';
 
         // Show/hide prev/next buttons
         if (prevBtn) prevBtn.style.display = currentPage <= 1 ? 'none' : '';
@@ -547,7 +558,6 @@
         if (!table) return;
         var tbody = table.querySelector('tbody');
         if (!tbody) return;
-        // Get only currently visible rows (respecting search filter)
         var allRows = Array.from(tbody.querySelectorAll('tr'));
         visibleRows = allRows.filter(function(row) {
             return row.style.display !== 'none';
@@ -560,21 +570,14 @@
         updatePaginationDisplay();
     }
 
-    // Re-apply pagination when search changes
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            // Wait for search handler to run, then re-apply pagination
-            setTimeout(function() { applyPagination(); }, 10);
-        });
-    }
-
-    // Wire up page input Enter key
-    var pageInput = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="page-input"]');
-    if (pageInput) {
-        pageInput.addEventListener('keydown', function(e) {
+    // Wire up page input Enter key — scoped to agent detail pagination only.
+    var agentPageInput = agentSection ? agentSection.querySelector('.unified-pagination [data-action="page-input"]') : null;
+    if (agentPageInput) {
+        agentPageInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                var pageNum = parseInt(pageInput.value, 10);
+                e.stopImmediatePropagation();
+                var pageNum = parseInt(agentPageInput.value, 10);
                 if (pageNum >= 1 && pageNum <= totalPages) {
                     currentPage = pageNum;
                     updatePaginationDisplay();
@@ -584,10 +587,11 @@
     }
 
     // Wire up prev-page button
-    var agentPrevBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="prev-page"]');
+    var agentPrevBtn = agentSection ? agentSection.querySelector('.unified-pagination [data-action="prev-page"]') : null;
     if (agentPrevBtn) {
         agentPrevBtn.addEventListener('click', function(e) {
             e.preventDefault();
+            e.stopImmediatePropagation();
             if (currentPage > 1) {
                 currentPage--;
                 updatePaginationDisplay();
@@ -596,10 +600,11 @@
     }
 
     // Wire up next-page button
-    var agentNextBtn = document.querySelector('#agent-sessions-table ~ .unified-pagination [data-action="next-page"]');
+    var agentNextBtn = agentSection ? agentSection.querySelector('.unified-pagination [data-action="next-page"]') : null;
     if (agentNextBtn) {
         agentNextBtn.addEventListener('click', function(e) {
             e.preventDefault();
+            e.stopImmediatePropagation();
             if (currentPage < totalPages) {
                 currentPage++;
                 updatePaginationDisplay();
@@ -609,5 +614,22 @@
 
     // Initialize on page load
     applyPagination();
+
+    /* ── Topbar buttons: settings, help, shell (T141) ──────────── */
+    // Contract: [data-action="settings"], [data-action="help"], [data-action="shell"]
+    // in topbar/sidebar — show toast feedback (full implementation in base.html/common.js).
+
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="settings"]');
+        if (btn) { e.preventDefault(); showToast('Open Settings panel'); return; }
+    });
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="help"]');
+        if (btn) { e.preventDefault(); showToast('Open help panel'); return; }
+    });
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="shell"]');
+        if (btn) { e.preventDefault(); showToast('Open local shell / CLI hint'); return; }
+    });
 
 })();

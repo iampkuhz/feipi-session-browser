@@ -39,13 +39,13 @@ PROTECTED_ROOTS = [
 ]
 
 # Paths that are part of *creating* a change – always allowed even if under
-# openspec/changes/ or .agent/.
+# openspec/changes/ or tmp/.
 CREATION_EXCEPTIONS = [
     "openspec/changes",
-    ".agent/active_change.json",
+    "tmp/active_change.json",
 ]
 
-ACTIVE_CHANGE_FILE = ".agent/active_change.json"
+ACTIVE_CHANGE_FILE = "tmp/active_change.json"
 REQUIRED_CHANGE_FILES = ("proposal.md", "design.md", "tasks.md")
 
 # ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ def check_active_change(repo_root: Path) -> tuple[bool, str]:
     active_change_path = repo_root / ACTIVE_CHANGE_FILE
     if not active_change_path.exists():
         return False, (
-            "BLOCKED: No active OpenSpec change (.agent/active_change.json not found).\n"
+            "BLOCKED: No active OpenSpec change (tmp/active_change.json not found).\n"
             "Create a change with /change before editing protected files."
         )
 
@@ -102,14 +102,14 @@ def check_active_change(repo_root: Path) -> tuple[bool, str]:
         data = json.loads(active_change_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         return False, (
-            f"BLOCKED: .agent/active_change.json is not valid JSON: {exc}\n"
+            f"BLOCKED: tmp/active_change.json is not valid JSON: {exc}\n"
             "Fix or recreate the active change file."
         )
 
     change_id = data.get("change_id", "")
     if not change_id:
         return False, (
-            "BLOCKED: .agent/active_change.json is missing 'change_id'.\n"
+            "BLOCKED: tmp/active_change.json is missing 'change_id'.\n"
             "Recreate the active change file with a valid change_id."
         )
 
@@ -201,7 +201,7 @@ def run_self_test() -> int:
 
         # -- Build a minimal fake repo --
         (tmp / "openspec" / "changes" / "archive").mkdir(parents=True)
-        (tmp / ".agent").mkdir(parents=True)
+        (tmp / "tmp").mkdir(parents=True)
         for r in ["scripts", "src"]:
             (tmp / r).mkdir(parents=True)
         (tmp / "CLAUDE.md").touch()
@@ -262,10 +262,10 @@ def run_self_test() -> int:
         ret_g = guard(target_g, repo_root=tmp)
         results.append(("creation_exception → ALLOW under openspec/changes/", ret_g == 0, f"exit={ret_g} (expected 0)"))
 
-        # --- Sub-test H: Creation exception (.agent/active_change.json) → ALLOW ---
-        target_h = str(tmp / ".agent" / "active_change.json")
+        # --- Sub-test H: Creation exception (tmp/active_change.json) → ALLOW ---
+        target_h = str(tmp / "tmp" / "active_change.json")
         ret_h = guard(target_h, repo_root=tmp)
-        results.append(("creation_exception → ALLOW .agent/active_change.json", ret_h == 0, f"exit={ret_h} (expected 0)"))
+        results.append(("creation_exception → ALLOW tmp/active_change.json", ret_h == 0, f"exit={ret_h} (expected 0)"))
 
     # Report
     all_pass = True

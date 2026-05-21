@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PostToolUse file change logger with quality gate awareness.
 
-Writes .agent/changed-files.jsonl (primary) and .claude/change-log.jsonl (compat).
+Writes tmp/changed-files.jsonl (primary) and .claude/change-log.jsonl (compat).
 
 Usage:
     python3 scripts/hooks/log_file_change.py <file_path>
@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CHANGED_FILES_LOG = REPO_ROOT / ".agent" / "changed-files.jsonl"
+CHANGED_FILES_LOG = REPO_ROOT / "tmp" / "changed-files.jsonl"
 CHANGE_LOG = REPO_ROOT / ".claude" / "change-log.jsonl"
 
 QUALITY_GATE_CATEGORIES = {"ui-css", "ui-template", "ui-js", "quality-gate", "hook"}

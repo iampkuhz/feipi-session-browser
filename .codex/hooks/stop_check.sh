@@ -16,8 +16,8 @@ if git status --short -- .claude/settings.local.json .mcp.json .env data output 
   FAIL=1
 fi
 
-if [[ -f .agent/task-ledger.md ]] && ! grep -q '|.*ID.*任务.*状态' .agent/task-ledger.md 2>/dev/null; then
-  hook_log "WARN" ".agent/task-ledger.md table header not found"
+if [[ -f tmp/task-ledger.md ]] && ! grep -q '|.*ID.*任务.*状态' tmp/task-ledger.md 2>/dev/null; then
+  hook_log "WARN" "tmp/task-ledger.md table header not found"
   FAIL=1
 fi
 

@@ -2,7 +2,7 @@
 """PostToolUse evidence logger for Write/Edit/MultiEdit hooks.
 
 Called by Claude Code as a PostToolUse hook after protected file edits.
-Logs a JSONL entry per edit into .agent/task-evidence/<change-id>.jsonl.
+Logs a JSONL entry per edit into tmp/task-evidence/<change-id>.jsonl.
 
 Usage:
     python3 scripts/agent_hooks/log_change_evidence.py [file_path]
@@ -26,8 +26,8 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Paths (all relative to project root = cwd)
 # ---------------------------------------------------------------------------
-EVIDENCE_DIR = Path(".agent/task-evidence")
-ACTIVE_CHANGE = Path(".agent/active_change.json")
+EVIDENCE_DIR = Path("tmp/task-evidence")
+ACTIVE_CHANGE = Path("tmp/active_change.json")
 
 DEBUG = "--debug" in sys.argv
 
@@ -57,7 +57,7 @@ def _get_stdin_payload() -> dict | None:
 # ---------------------------------------------------------------------------
 
 def load_active_change() -> dict | None:
-    """Read .agent/active_change.json and return change_id or None."""
+    """Read tmp/active_change.json and return change_id or None."""
     if not ACTIVE_CHANGE.is_file():
         return None
     try:

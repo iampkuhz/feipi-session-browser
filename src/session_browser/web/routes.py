@@ -484,6 +484,7 @@ def _format_compact_num(n: int | float | None) -> str:
 _template_env.filters["format_number"] = _format_compact_num
 _template_env.filters["format_number_short"] = _format_compact_num
 _template_env.filters["format_compact_token"] = _format_compact_token
+_template_env.filters["format_1d"] = lambda n: f"{n:.1f}" if n is not None else "0.0"
 _template_env.globals["max"] = max
 _template_env.filters["truncate_path"] = lambda path: (
     _truncate_path(path)

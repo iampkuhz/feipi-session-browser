@@ -16,7 +16,7 @@
 
 运行 `/change <需求路径>`，它会：
 - 在 `openspec/changes/<change-id>/` 下创建 `proposal.md`、`design.md`、`tasks.md`。
-- 写入 `.agent/active_change.json` 记录活跃变更。
+- 写入 `tmp/active_change.json` 记录活跃变更。
 - 更新 `.claude/skills/change/` 下的变更技能引用。
 
 ## 2. 提案
@@ -43,10 +43,10 @@ openspec-planner 将变更分解为 `tasks.md`：
 ## 5. 实现
 
 implementer agent 逐个执行任务：
-- **预检**：读取 `.agent/active_change.json`，验证活跃变更存在。
+- **预检**：读取 `tmp/active_change.json`，验证活跃变更存在。
 - **范围**：仅实现分配的任务，不多做。
 - **验证**：实现后运行任务的验证命令。
-- **证据**：受保护根目录下的所有文件编辑自动记录到 `.agent/task-evidence/<change-id>.jsonl`。
+- **证据**：受保护根目录下的所有文件编辑自动记录到 `tmp/task-evidence/<change-id>.jsonl`。
 
 ## 6. 验证
 
@@ -65,7 +65,7 @@ qa-verifier agent 检查：
 验证通过后：
 - 将最终行为合并到 `openspec/specs/`。
 - 将 `openspec/changes/<change-id>/` 移至 `openspec/changes/archive/`。
-- 清除 `.agent/active_change.json`。
+- 清除 `tmp/active_change.json`。
 
 ## 本地变更
 

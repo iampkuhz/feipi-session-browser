@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create an active OpenSpec change and write .agent/active_change.json sentinel.
+"""Create an active OpenSpec change and write tmp/active_change.json sentinel.
 
 Usage:
     python3 scripts/openspec/create_active_change.py \\
@@ -139,7 +139,7 @@ def create_active_change(
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     change_dir = root / "openspec" / "changes" / change_id
-    agent_dir = root / ".agent"
+    agent_dir = root / "tmp"
     active_change_file = agent_dir / "active_change.json"
 
     created: list[str] = []
@@ -162,14 +162,14 @@ def create_active_change(
         else:
             existed.append(f"openspec/changes/{change_id}/{dest_rel}")
 
-    # --- .agent/ directory ---
+    # --- tmp/ directory ---
     if not agent_dir.exists():
         agent_dir.mkdir(parents=True, exist_ok=True)
-        created.append(".agent/")
+        created.append("tmp/")
     else:
-        existed.append(".agent/")
+        existed.append("tmp/")
 
-    # --- .agent/active_change.json ---
+    # --- tmp/active_change.json ---
     sentinel = {
         "change_id": change_id,
         "change_path": f"openspec/changes/{change_id}/",
@@ -183,9 +183,9 @@ def create_active_change(
         active_change_file.write_text(
             json.dumps(sentinel, indent=2) + "\n", encoding="utf-8"
         )
-        created.append(".agent/active_change.json")
+        created.append("tmp/active_change.json")
     else:
-        existed.append(".agent/active_change.json")
+        existed.append("tmp/active_change.json")
         try:
             existing = json.loads(active_change_file.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
@@ -195,7 +195,7 @@ def create_active_change(
             sentinel["started_at"] = existing.get("started_at") or now
             sentinel["source_request"] = existing.get("source_request") or source
         else:
-            updated.append(".agent/active_change.json")
+            updated.append("tmp/active_change.json")
 
         active_change_file.write_text(
             json.dumps(sentinel, indent=2) + "\n", encoding="utf-8"

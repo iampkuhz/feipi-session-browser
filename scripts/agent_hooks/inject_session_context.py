@@ -38,8 +38,8 @@ PROTECTED_ROOTS = [
     "src/",
 ]
 
-ACTIVE_CHANGE_FILE = Path(".agent/active_change.json")
-EVIDENCE_DIR = Path(".agent/task-evidence")
+ACTIVE_CHANGE_FILE = Path("tmp/active_change.json")
+EVIDENCE_DIR = Path("tmp/task-evidence")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -213,7 +213,7 @@ def _run_self_test() -> int:
         for p in [tmp / "CLAUDE.md", tmp / "README.md"]:
             p.write_text("# test\n", encoding="utf-8")
         (tmp / "openspec" / "changes" / "archive").mkdir(parents=True)
-        (tmp / ".agent").mkdir(parents=True)
+        (tmp / "tmp").mkdir(parents=True)
         (tmp / "src").mkdir(parents=True)
         subprocess.run(["git", "add", "."], cwd=tmp, check=True, capture_output=True)
         subprocess.run(
@@ -234,7 +234,7 @@ def _run_self_test() -> int:
         # --- Sub-test 2: active change present ---
         print("Sub-test 2: active change present -> reports change_id + evidence path")
         os.chdir(tmp)
-        (tmp / ".agent" / "active_change.json").write_text(
+        (tmp / "tmp" / "active_change.json").write_text(
             json.dumps({
                 "change_id": "inject-test",
                 "change_path": "openspec/changes/inject-test/",
@@ -249,7 +249,7 @@ def _run_self_test() -> int:
             "- [x] Setup\n- [ ] Implement\n",
             encoding="utf-8",
         )
-        evdir = tmp / ".agent" / "task-evidence"
+        evdir = tmp / "tmp" / "task-evidence"
         evdir.mkdir()
         (evdir / "inject-test.jsonl").write_text(
             '{"ts":"2026-01-01T00:00:00Z","tool":"Edit","file_path":"src/x.py","change_id":"inject-test"}\n',
@@ -264,7 +264,7 @@ def _run_self_test() -> int:
         # --- Sub-test 3: active change with partial data (no evidence, no tasks.md) ---
         print("Sub-test 3: partial active change -> reports gracefully")
         os.chdir(tmp)
-        (tmp / ".agent" / "active_change.json").write_text(
+        (tmp / "tmp" / "active_change.json").write_text(
             json.dumps({
                 "change_id": "partial-test",
                 "change_path": "openspec/changes/partial-test/",

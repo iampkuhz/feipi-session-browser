@@ -14,17 +14,26 @@
 
 {% block content %}
 
-{% if agent_info %}
+{# ── Error state ──────────────────────────────────────────────────── #}
 {% if error %}
 <section class="page-section">
     {{ ui.error_state(
-        '数据加载失败',
-        detail=error_message if error_message else '',
+        error_message if error_message else '数据加载失败',
+        detail=error_message if error_message else None,
         action_button=ui.button('刷新页面', variant='primary', href='', data_action='refresh'),
         icon='⚠️'
     ) }}
 </section>
-{% endif %}
+{% elif not agent_info %}
+{# ── Empty state: agent not found or no data ──────────────────────── #}
+<section class="page-section">
+    {{ ui.empty_state(
+        '未找到该 Agent 的数据',
+        action_button=ui.button('返回 Agents', variant='primary', href='/agents', data_action='back'),
+        icon='🤖'
+    ) }}
+</section>
+{% else %}
 {% set a_input_side = agent_info.total_input_tokens + agent_info.total_cached_tokens + agent_info.total_cache_write_tokens %}
 {% set a_cache_reuse = (agent_info.total_cached_tokens / a_input_side * 100) | round(1) if a_input_side > 0 else 0 %}
 {% set a_tools_per_round = (agent_info.total_tool_calls / agent_info.total_assistant_messages) | round(1) if agent_info.total_assistant_messages > 0 else 0 %}
@@ -38,7 +47,7 @@
                     <span class="emoji" aria-hidden="true">🤖</span>{{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }}
                 </div>
             </div>
-            <p class="agent-subtitle">{{ agent_info.session_count | format_number }} sessions · {{ agent_info.project_count }} projects · {{ a_cache_reuse }}% cache reuse</p>
+            <div class="agent-subtitle">Agent identity and performance profile. Key facts are shown in the metric cards below.</div>
         </div>
     </div>
 </div>
@@ -121,15 +130,24 @@
 
 <div class="table-wrap">
     <table class="data-table">
+        <colgroup>
+            <col class="col-model-name"/>
+            <col class="col-sessions"/>
+            <col class="col-token-md"/>
+            <col class="col-cache"/>
+            <col class="col-tools"/>
+            <col class="col-failed"/>
+            <col class="col-avg"/>
+        </colgroup>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="model_name">Model <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="model_sessions">Sessions <span class="sort-mark"></span></th>
-                <th class="token-col sortable" data-action="sort" data-sort-key="model_tokens">Tokens <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="cache_reuse">Cache Reuse <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="model_tools">Tools <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="model_failed">Failed <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="avg_duration">Avg Duration <span class="sort-mark"></span></th>
+                <th class="sortable" data-action="sort" data-sort-key="model_name">Model <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="model_sessions">Sessions <span class="sort-mark">↕</span></th>
+                <th class="token-col sortable" data-action="sort" data-sort-key="model_tokens">Tokens <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="cache_reuse">Cache Reuse <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="model_tools">Tools <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="model_failed">Failed <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="avg_duration">Avg Duration <span class="sort-mark">↕</span></th>
             </tr>
         </thead>
         <tbody>
@@ -167,10 +185,10 @@
                         <span class="t-out" style="width:{{ m_out_pct }}%"></span>
                         <div class="tooltip">
                             <div class="tip-title">Token Breakdown</div>
-                            <div class="tip-row"><span class="dot claude"></span><span class="name">Fresh</span><span class="val">{{ m_input | format_compact_token }}</span><span>{{ m_fresh_pct }}%</span></div>
-                            <div class="tip-row"><span class="dot codex"></span><span class="name">Cache Read</span><span class="val">{{ m_cache_r | format_compact_token }}</span><span>{{ m_read_pct }}%</span></div>
-                            <div class="tip-row"><span class="dot qoder"></span><span class="name">Cache Write</span><span class="val">{{ m_cache_w | format_compact_token }}</span><span>{{ m_write_pct }}%</span></div>
-                            <div class="tip-row"><span class="dot total"></span><span class="name">Output</span><span class="val">{{ m_output | format_compact_token }}</span><span>{{ m_out_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot claude"></span><span class="name">Fresh</span><span class="val">{{ m_input | format_compact_token }}</span><span>{{ m_fresh_pct | format_1d }}%</span></div>
+                            <div class="tip-row"><span class="dot codex"></span><span class="name">Cache Read</span><span class="val">{{ m_cache_r | format_compact_token }}</span><span>{{ m_read_pct | format_1d }}%</span></div>
+                            <div class="tip-row"><span class="dot qoder"></span><span class="name">Cache Write</span><span class="val">{{ m_cache_w | format_compact_token }}</span><span>{{ m_write_pct | format_1d }}%</span></div>
+                            <div class="tip-row"><span class="dot total"></span><span class="name">Output</span><span class="val">{{ m_output | format_compact_token }}</span><span>{{ m_out_pct | format_1d }}%</span></div>
                             <div class="tip-sep"></div>
                             <div class="tip-row"><b>Total</b><span></span><span class="val">{{ m_total_tokens | format_compact_token }}</span></div>
                         </div>
@@ -203,23 +221,34 @@
         <div class="section-sub">Title and Project are not sortable. Metric headers sort the table.</div>
     </div>
     <span class="spacer"></span>
-    <input class="input" id="session-search" aria-label="Search sessions" data-search="session-id-or-title" placeholder="Search by Session ID or title..." />
+    <input aria-label="Search sessions" class="input" placeholder="Search by Session ID or title..." />
 </div>
 
 {% if sessions %}
 <div class="table-wrap">
     <table class="data-table" id="agent-sessions-table">
+        <colgroup>
+            <col class="col-title"/>
+            <col class="col-project"/>
+            <col class="col-model"/>
+            <col class="col-token"/>
+            <col class="col-num-sm"/>
+            <col class="col-num-sm"/>
+            <col class="col-num-sm"/>
+            <col class="col-duration"/>
+            <col class="col-updated"/>
+        </colgroup>
         <thead>
             <tr>
                 <th>Title</th>
                 <th>Project</th>
-                <th class="sortable" data-action="sort" data-sort-key="model">Model <span class="sort-mark"></span></th>
-                <th class="token-col sortable" data-action="sort" data-sort-key="tokens">Tokens <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="rounds">Rounds <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="tools">Tools <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="failed">Failed <span class="sort-mark"></span></th>
-                <th class="col-num sortable" data-action="sort" data-sort-key="duration">Duration <span class="sort-mark"></span></th>
-                <th class="sortable" data-action="sort" data-sort-key="updated">Updated <span class="sort-mark"></span></th>
+                <th class="sortable" data-action="sort" data-sort-key="model">Model <span class="sort-mark">↕</span></th>
+                <th class="token-col sortable" data-action="sort" data-sort-key="tokens">Tokens <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="rounds">Rounds <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="tools">Tools <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="failed">Failed <span class="sort-mark">↕</span></th>
+                <th class="col-num sortable" data-action="sort" data-sort-key="duration">Duration <span class="sort-mark">↕</span></th>
+                <th class="sortable" data-action="sort" data-sort-key="updated">Updated <span class="sort-mark">↕</span></th>
             </tr>
         </thead>
         <tbody>
@@ -254,10 +283,10 @@
                         <span class="t-out" style="width:{{ s_out_pct }}%"></span>
                         <div class="tooltip">
                             <div class="tip-title">Token Breakdown</div>
-                            <div class="tip-row"><span class="dot claude"></span><span class="name">Fresh</span><span class="val">{{ s.input_tokens | format_compact_token }}</span><span>{{ s_fresh_pct }}%</span></div>
-                            <div class="tip-row"><span class="dot codex"></span><span class="name">Cache Read</span><span class="val">{{ s.cached_input_tokens | format_compact_token }}</span><span>{{ s_read_pct }}%</span></div>
-                            <div class="tip-row"><span class="dot qoder"></span><span class="name">Cache Write</span><span class="val">{{ s.cached_output_tokens | format_compact_token }}</span><span>{{ s_write_pct }}%</span></div>
-                            <div class="tip-row"><span class="dot total"></span><span class="name">Output</span><span class="val">{{ s.output_tokens | format_compact_token }}</span><span>{{ s_out_pct }}%</span></div>
+                            <div class="tip-row"><span class="dot claude"></span><span class="name">Fresh</span><span class="val">{{ s.input_tokens | format_compact_token }}</span><span>{{ s_fresh_pct | format_1d }}%</span></div>
+                            <div class="tip-row"><span class="dot codex"></span><span class="name">Cache Read</span><span class="val">{{ s.cached_input_tokens | format_compact_token }}</span><span>{{ s_read_pct | format_1d }}%</span></div>
+                            <div class="tip-row"><span class="dot qoder"></span><span class="name">Cache Write</span><span class="val">{{ s.cached_output_tokens | format_compact_token }}</span><span>{{ s_write_pct | format_1d }}%</span></div>
+                            <div class="tip-row"><span class="dot total"></span><span class="name">Output</span><span class="val">{{ s.output_tokens | format_compact_token }}</span><span>{{ s_out_pct | format_1d }}%</span></div>
                             <div class="tip-sep"></div>
                             <div class="tip-row"><b>Total</b><span></span><span class="val">{{ s_total_tokens | format_compact_token }}</span></div>
                         </div>

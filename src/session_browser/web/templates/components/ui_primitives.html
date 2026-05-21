@@ -488,7 +488,7 @@
    extra_classes: additional CSS classes on the section
    icon: emoji for the state icon (default: error emoji)
 #}
-{% macro error_state(message, action_button=None, extra_classes=None, icon=None) -%}
+{% macro error_state(message, action_button=None, extra_classes=None, icon=None, detail=None) -%}
   {%- set classes = ['state-strip'] -%}
   {%- if extra_classes -%}
     {%- for cls in extra_classes.split() -%}
@@ -501,7 +501,11 @@
   <div class="state-icon" aria-hidden="true">{{ icon_html }}</div>
   <div>
     <div class="state-title">{{ message }}</div>
+    {%- if detail %}
+    <div class="muted">{{ detail }}</div>
+    {%- else %}
     <div class="muted">An error occurred while loading data.</div>
+    {%- endif %}
     {%- if action_button %}
     <div class="state-actions">{{ action_button }}</div>
     {%- endif %}

@@ -14,7 +14,9 @@ Validates agent.html against the page behavior contract:
 9. Empty/error states: ui.empty_state, ui.button, ui.error_state
 10. data-action coverage: back, info, sort, open-session, page-input, prev-page, next-page, refresh
 11. Accessibility: aria-hidden, aria-label, title attributes
-12. Stale patterns: no page-header, hero, legacy-, onclick
+12. Token formatting: format_compact_token used for all token values
+13. Button/link coverage: all anchor-btns have data-action or href
+14. Stale patterns: no page-header, hero, legacy-, onclick
 
 Run from repo root:
   python scripts/qa/ui/check_agent_detail_html.py
@@ -193,9 +195,13 @@ def main() -> int:
          lambda: ('class="card section"' in html,
                   "card section found" if 'class="card section"' in html else "MISSING")),
 
-        ("T151-H30 Search input with data-search attribute",
-         lambda: ('data-search=' in html,
-                  "data-search found" if 'data-search=' in html else "MISSING")),
+        ("T151-H30 Search input present with aria-label",
+         lambda: ('aria-label="Search sessions"' in html
+                  and 'class="input"' in html,
+                  "search input with aria-label found"
+                  if ('aria-label="Search sessions"' in html
+                      and 'class="input"' in html)
+                  else "MISSING")),
 
         ("T151-H31 9 table columns (Title, Project, Model, Tokens, Rounds, Tools, Failed, Duration, Updated)",
          lambda: (
@@ -333,8 +339,22 @@ def main() -> int:
                   f'{html.count("aria-label=")} aria-label attribute(s) found'
                   if html.count('aria-label="') >= 3 else "INSUFFICIENT aria-labels")),
 
+        # ── Token formatting ────────────────────────────────────────
+        ("T151-H61 Token values use format_compact_token",
+         lambda: ('format_compact_token' in html,
+                  "format_compact_token found" if 'format_compact_token' in html else "MISSING")),
+        ("T151-H62 format_compact_token count >= 6 (metric + token cells)",
+         lambda: (html.count('format_compact_token') >= 6,
+                  f'{html.count("format_compact_token")} usage(s) found'
+                  if html.count('format_compact_token') >= 6
+                  else f"ONLY {html.count('format_compact_token')} usage(s)")),
+
+        # ── Button/link data-action or href coverage ─────────────────
+        ("T151-H63 All <a class=\"btn\"> have data-action or href",
+         lambda: _check_anchor_buttons(html)),
+
         # ── Stale patterns ─────────────────────────────────────────
-        ("T151-H60 No stale patterns: no page-header, no hero, no legacy-, no onclick",
+        ("T151-H64 No stale patterns: no page-header, no hero, no legacy-, no onclick",
          lambda: (
              'class="page-header"' not in html
              and 'class="hero"' not in html
@@ -364,6 +384,26 @@ def main() -> int:
     else:
         print("FAIL: agent-detail HTML QA checks -- see details above")
         return 1
+
+
+def _check_anchor_buttons(html: str) -> tuple[bool, str]:
+    """Check that every <a> acting as a button has data-action or href."""
+    anchor_btn_re = re.compile(r'<a\b([^>]*)class="[^"]*btn[^"]*"[^>]*>', re.I)
+    issues: list[str] = []
+    for m in anchor_btn_re.finditer(html):
+        attrs = m.group(1)
+        full = m.group(0)
+        # Skip if inside Jinja2 macro call context (rendered server-side)
+        has_action = 'data-action=' in attrs or 'data-action=' in full
+        has_href = 'href=' in attrs or 'href=' in full
+        if not has_action and not has_href:
+            line = html[: m.start()].count('\n') + 1
+            issues.append(f"line {line}: {full[:80]}")
+    if issues:
+        return (False, f"{len(issues)} anchor-btn(s) missing data-action/href: {'; '.join(issues)}")
+    # Count for reporting
+    count = len(list(anchor_btn_re.finditer(html)))
+    return (True, f"all {count} anchor-btn(s) have data-action or href")
 
 
 def _check_js_syntax(js: str) -> tuple[bool, str]:

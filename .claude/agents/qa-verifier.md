@@ -13,9 +13,9 @@ model: inherit
 
 ## 预检
 
-1. **活跃变更**：检查 `.agent/active_change.json`。如果缺失或无效，报告 `BLOCKED: no active change`。
+1. **活跃变更**：检查 `tmp/active_change.json`。如果缺失或无效，报告 `BLOCKED: no active change`。
 2. **变更目录**：确认 `openspec/changes/<change-id>/` 存在且含 `proposal.md`、`design.md`、`tasks.md`。
-3. **证据**：读取 `.agent/task-evidence/<change-id>.jsonl`。报告条目数和编辑文件列表。
+3. **证据**：读取 `tmp/task-evidence/<change-id>.jsonl`。报告条目数和编辑文件列表。
 
 ## Diff 范围
 
@@ -32,7 +32,7 @@ model: inherit
 - 压缩或打包文件（`*.min.js`、`*.min.css`、`dist/`、`build/`）。
 - 无依赖说明的 lockfile 变更。
 - 无对应测试变更的 snapshot 产物。
-- `.claude/`、`.agent/` 或 `data/` 中看似工具缓存而非用户意图的文件。
+- `.claude/`、`tmp/` 或 `data/` 中看似工具缓存而非用户意图的文件。
 
 ## 验证门禁
 

@@ -36,7 +36,7 @@
 **步骤：**
 
 1. 如果 `openspec/changes/<change-id>/` 不存在，创建目录。
-2. 写入 `.agent/active_change.json` 注册活跃变更：
+2. 写入 `tmp/active_change.json` 注册活跃变更：
    ```json
    {
      "change_id": "<change-id>",
@@ -47,9 +47,9 @@
      "required_gates": ["scripts/openspec/validate_layout.py", ...]
    }
    ```
-   完整字段规范见 `.agent/SCHEMA.md`。
+   完整字段规范见 `tmp/SCHEMA.md`。
 
-**出口：** 变更目录已创建，`.agent/active_change.json` 已写入。
+**出口：** 变更目录已创建，`tmp/active_change.json` 已写入。
 
 ---
 
@@ -156,6 +156,6 @@
 
 1. 将 `openspec/changes/<change-id>/specs/` 中的规格增量合并到 `openspec/specs/`。
 2. 将变更目录移至 `openspec/changes/archive/<change-id>/`。
-3. 删除 `.agent/active_change.json` 或更新为下一个活跃变更。
+3. 删除 `tmp/active_change.json` 或更新为下一个活跃变更。
 
 这由 `openspec/config.yaml` 中的 `final_specs_update_rule` 管控。

@@ -25,7 +25,7 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
 ### 阶段 1：创建（Create）
 
 1. 如果 `openspec/changes/<change-id>/` 不存在则创建。
-2. 写入 `.agent/active_change.json`：
+2. 写入 `tmp/active_change.json`：
    ```json
    {
      "change_id": "<change-id>",
@@ -36,7 +36,7 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
      "required_gates": ["scripts/openspec/validate_layout.py", ...]
    }
    ```
-3. 子代理通过此文件继承活跃变更上下文。所有子代理工作必须引用 `.agent/active_change.json`。详见 `reference/subagent-contract.md`。完整字段规范见 `.agent/SCHEMA.md`。
+3. 子代理通过此文件继承活跃变更上下文。所有子代理工作必须引用 `tmp/active_change.json`。详见 `reference/subagent-contract.md`。完整字段规范见 `tmp/SCHEMA.md`。
 
 ### 阶段 2：检查（Inspect）
 
@@ -69,7 +69,7 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
 3. 在任务下方添加简短验证说明。
 4. **不要跳过或重排任务。**
 5. **不要超出变更描述的范围。**
-6. 对于大型或有边界的任务，委派给项目子代理并明确范围边界。子代理必须读取 `.agent/active_change.json` 获取上下文。详见 `reference/subagent-contract.md`。
+6. 对于大型或有边界的任务，委派给项目子代理并明确范围边界。子代理必须读取 `tmp/active_change.json` 获取上下文。详见 `reference/subagent-contract.md`。
 
 ### 阶段 6：验证（Validate）
 

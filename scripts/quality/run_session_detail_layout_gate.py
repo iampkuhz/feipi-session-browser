@@ -10,7 +10,7 @@ Usage:
         --url http://127.0.0.1:18999/sessions/claude_code/SESSION_ID
     python3 scripts/quality/run_session_detail_layout_gate.py \
         --url http://127.0.0.1:18999/sessions/claude_code/SESSION_ID \
-        --viewport 1440x1100 --out .agent/quality/demo
+        --viewport 1440x1100 --out tmp/quality/demo
     python3 scripts/quality/run_session_detail_layout_gate.py --self-test
     python3 scripts/quality/run_session_detail_layout_gate.py --allow-missing-service
 """
@@ -419,7 +419,7 @@ def main():
         _self_test()
         return
 
-    out_dir = Path(args.out) if args.out else REPO_ROOT / ".agent" / "quality" / "browser-gate"
+    out_dir = Path(args.out) if args.out else REPO_ROOT / "tmp" / "quality" / "browser-gate"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.url:

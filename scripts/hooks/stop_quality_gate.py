@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stop hook quality gate enforcement.
 
-Reads .agent/changed-files.jsonl and .agent/quality/<change-id>/quality-gate-summary.json
+Reads tmp/changed-files.jsonl and tmp/quality/<change-id>/quality-gate-summary.json
 to determine if UI changes have passed required quality gates.
 
 This is a DETERMINISTIC check — it does NOT run browsers, LLMs, or subagents.
@@ -23,8 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CHANGED_FILES = REPO_ROOT / ".agent" / "changed-files.jsonl"
-QUALITY_DIR = REPO_ROOT / ".agent" / "quality"
+CHANGED_FILES = REPO_ROOT / "tmp" / "changed-files.jsonl"
+QUALITY_DIR = REPO_ROOT / "tmp" / "quality"
 
 UI_CATEGORIES = {"ui-css", "ui-template", "ui-js"}
 HOOK_QUALITY_CATEGORIES = {"hook", "quality-gate"}
@@ -37,14 +37,14 @@ def resolve_change_id(explicit: str | None) -> str:
     env = os.environ.get("ACTIVE_CHANGE_ID")
     if env:
         return env
-    active_file = REPO_ROOT / ".agent" / "active-change"
+    active_file = REPO_ROOT / "tmp" / "active-change"
     if active_file.exists():
         return active_file.read_text().strip()
     return "unknown"
 
 
 def read_changed_files() -> list[dict]:
-    """Read .agent/changed-files.jsonl entries."""
+    """Read tmp/changed-files.jsonl entries."""
     if not CHANGED_FILES.exists():
         return []
     entries = []
@@ -152,7 +152,7 @@ def run_check(change_id: str | None = None) -> tuple[str, list[str]]:
             f"  python3 scripts/quality/run_quality_gate.py --target session-detail",
             "",
             f"Expected artifact:",
-            f"  .agent/quality/{cid}/quality-gate-summary.json",
+            f"  tmp/quality/{cid}/quality-gate-summary.json",
             "",
             f"Reason:",
             f"  missing artifact",
@@ -338,7 +338,7 @@ def _self_test():
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
 
     def _t7_unknown_change_id():
-        """unknown change ID still checks .agent/quality/unknown."""
+        """unknown change ID still checks tmp/quality/unknown."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR

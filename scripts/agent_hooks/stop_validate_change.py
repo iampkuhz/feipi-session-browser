@@ -4,7 +4,7 @@ OpenSpec change and evidence before the agent finishes.
 
 Called by Claude Code as a Stop/SubagentStop hook.  Checks whether
 uncommitted changes exist under protected roots, and if so validates
-that .agent/active_change.json, the change directory (proposal.md,
+that tmp/active_change.json, the change directory (proposal.md,
 design.md, tasks.md), and evidence log are all present and populated.
 
 Usage:
@@ -44,8 +44,8 @@ PROTECTED_ROOTS = [
     "src/",
 ]
 
-ACTIVE_CHANGE_FILE = Path(".agent/active_change.json")
-EVIDENCE_DIR = Path(".agent/task-evidence")
+ACTIVE_CHANGE_FILE = Path("tmp/active_change.json")
+EVIDENCE_DIR = Path("tmp/task-evidence")
 
 # Required files inside openspec/changes/<change-id>/
 REQUIRED_CHANGE_FILES = ["proposal.md", "design.md", "tasks.md"]
@@ -81,7 +81,7 @@ def has_uncommitted_changes(roots: list[str] | None = None) -> bool:
 
 
 def load_active_change() -> dict | None:
-    """Parse .agent/active_change.json; return dict or None."""
+    """Parse tmp/active_change.json; return dict or None."""
     p = _repo_root() / ACTIVE_CHANGE_FILE
     if not p.is_file():
         return None
@@ -145,9 +145,9 @@ def repair_messages(change_id: str | None = None) -> list[str]:
     target = f" '{change_id}'" if change_id else ""
     return [
         "Continue instead of stopping: repair the OpenSpec state, then retry stop.",
-        f"  1. Ensure .agent/active_change.json points to the intended active change{target}.",
+        f"  1. Ensure tmp/active_change.json points to the intended active change{target}.",
         "  2. Ensure proposal.md, design.md, and tasks.md exist under that change.",
-        "  3. Record or preserve edit evidence in .agent/task-evidence/<change-id>.jsonl.",
+        "  3. Record or preserve edit evidence in tmp/task-evidence/<change-id>.jsonl.",
         "  4. Mark completed tasks in tasks.md before final stop.",
     ]
 
@@ -182,14 +182,14 @@ def validate() -> tuple[int, list[str]]:
     if active is None:
         messages.append(
             "BLOCK: protected files changed without active change "
-            "(.agent/active_change.json missing or invalid)."
+            "(tmp/active_change.json missing or invalid)."
         )
         messages.extend(repair_messages())
         return EXIT_BLOCK, messages
 
     cid = change_id_from_active(active)
     if not cid:
-        messages.append("BLOCK: .agent/active_change.json missing 'change_id'.")
+        messages.append("BLOCK: tmp/active_change.json missing 'change_id'.")
         messages.extend(repair_messages())
         return EXIT_BLOCK, messages
 
@@ -278,7 +278,7 @@ def _run_self_test() -> int:
         ]:
             p.write_text("# test\n", encoding="utf-8")
         (tmp / "openspec" / "changes" / "archive").mkdir(parents=True)
-        (tmp / ".agent").mkdir(parents=True)
+        (tmp / "tmp").mkdir(parents=True)
         (tmp / "src").mkdir(parents=True)
         (tmp / "scripts").mkdir(parents=True)
 
@@ -319,7 +319,7 @@ def _run_self_test() -> int:
         os.chdir(tmp)
         saved_skip = os.environ.pop("FEIPI_SKIP_STOP_HOOK", None)
         # Set up active change
-        (tmp / ".agent" / "active_change.json").write_text(
+        (tmp / "tmp" / "active_change.json").write_text(
             json.dumps({
                 "change_id": "test-change-003",
                 "change_path": "openspec/changes/test-change-003/",
@@ -333,7 +333,7 @@ def _run_self_test() -> int:
         (cdir / "design.md").write_text("# Design\n", encoding="utf-8")
         (cdir / "tasks.md").write_text("- [x] Task 1\n- [ ] Task 2\n", encoding="utf-8")
         # Set up evidence
-        evdir = tmp / ".agent" / "task-evidence"
+        evdir = tmp / "tmp" / "task-evidence"
         evdir.mkdir(parents=True)
         (evdir / "test-change-003.jsonl").write_text(
             '{"ts":"2026-01-01T00:00:00Z","tool":"Edit","file_path":"CLAUDE.md","change_id":"test-change-003"}\n',
@@ -351,7 +351,7 @@ def _run_self_test() -> int:
         os.environ["FEIPI_SKIP_STOP_HOOK"] = "1"
         # Even with broken state, should still allow
         # Remove active_change to make it the worst case
-        (tmp / ".agent" / "active_change.json").unlink()
+        (tmp / "tmp" / "active_change.json").unlink()
         exit_code, msgs = validate()
         os.chdir(saved_cwd)
         os.environ.pop("FEIPI_SKIP_STOP_HOOK", None)
@@ -365,7 +365,7 @@ def _run_self_test() -> int:
         os.chdir(tmp)
         saved_skip = os.environ.pop("FEIPI_SKIP_STOP_HOOK", None)
         # Re-create active change but with incomplete change dir
-        (tmp / ".agent" / "active_change.json").write_text(
+        (tmp / "tmp" / "active_change.json").write_text(
             json.dumps({
                 "change_id": "test-change-005",
                 "change_path": "openspec/changes/test-change-005/",

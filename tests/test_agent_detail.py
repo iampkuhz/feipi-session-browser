@@ -365,16 +365,21 @@ class TestAgentDetailSessionsSection:
             "Sessions section must have 'Sessions' title"
 
     def test_search_input_present(self):
-        """Sessions section must have a search input."""
+        """Sessions section must have a search input matching HIFI contract."""
         content = _read_template()
-        assert 'id="session-search"' in content, \
-            "Sessions must have a search input with id='session-search'"
+        assert 'class="input"' in content, \
+            "Sessions must have a search input with class='input'"
+        assert 'aria-label="Search sessions"' in content, \
+            "Search input must have aria-label='Search sessions'"
+        # HIFI contract: search input must NOT have id or data-search attributes
+        assert 'id="session-search"' not in content, \
+            "HIFI contract: search input must NOT have id='session-search'"
 
-    def test_search_input_has_data_search(self):
-        """Search input must have data-search attribute."""
+    def test_search_input_no_data_search(self):
+        """HIFI contract: search input must NOT have data-search attribute."""
         content = _read_template()
-        assert 'data-search="session-id-or-title"' in content, \
-            "Search input must have data-search='session-id-or-title'"
+        assert 'data-search=' not in content, \
+            "HIFI contract: search input must NOT have data-search attribute"
 
     def test_search_input_has_placeholder(self):
         """Search input must have a placeholder."""
@@ -757,3 +762,219 @@ class TestAgentDetailAccessibility:
         matches = re.findall(pattern, content)
         assert len(matches) >= 6, \
             f"Must have at least 6 info icons with title, found {len(matches)}"
+
+
+# -- TestAgentDetailTokenFormatting -----------------------------------------
+
+class TestAgentDetailTokenFormatting:
+    """Verify token formatting structure in both model and session tables."""
+
+    def test_tokenbar_width_style_pattern(self):
+        """Tokenbar segments must use width style with Jinja percentage."""
+        content = _read_template()
+        # Verify style="width:{{ ... }}%" pattern exists on tokenbar segments
+        width_pattern = r'style="width:\{\{[^}]+\}\}%"'
+        matches = re.findall(width_pattern, content)
+        assert len(matches) >= 8, \
+            f"Tokenbar must have at least 8 width-style segments, found {len(matches)}"
+
+    def test_format_compact_token_filter_used(self):
+        """Template must use format_compact_token for token display."""
+        content = _read_template()
+        assert "format_compact_token" in content, \
+            "Template must use format_compact_token filter"
+
+    def test_token_total_display(self):
+        """Token-cell must display total token count."""
+        content = _read_template()
+        assert 'class="token-total"' in content, \
+            "Token-cell must have token-total element"
+
+    def test_tokenbar_four_segment_types(self):
+        """Tokenbar must have exactly 4 CSS segment types."""
+        content = _read_template()
+        for seg in ["t-fresh", "t-read", "t-write", "t-out"]:
+            assert f'class="{seg}"' in content, \
+                f"Tokenbar must have {seg} segment"
+
+    def test_token_tooltip_tip_rows(self):
+        """Token tooltip must have tip-row elements for breakdown."""
+        content = _read_template()
+        tip_rows = re.findall(r'class="tip-row"', content)
+        assert len(tip_rows) >= 4, \
+            f"Token tooltip must have at least 4 tip-rows, found {len(tip_rows)}"
+
+    def test_format_number_filter_used(self):
+        """Template must use format_number for counts."""
+        content = _read_template()
+        assert "format_number" in content, \
+            "Template must use format_number filter"
+
+    def test_format_duration_filter_used(self):
+        """Template must use format_duration for durations."""
+        content = _read_template()
+        assert "format_duration" in content, \
+            "Template must use format_duration filter"
+
+    def test_format_1d_filter_used(self):
+        """Template must use format_1d for one-decimal percentages."""
+        content = _read_template()
+        assert "format_1d" in content, \
+            "Template must use format_1d filter"
+
+
+# -- TestAgentDetailTableStructure ------------------------------------------
+
+class TestAgentDetailTableStructure:
+    """Verify table colgroup and column structure."""
+
+    def test_model_table_colgroup(self):
+        """Model breakdown table must use colgroup with named columns."""
+        content = _read_template()
+        assert "<colgroup>" in content, \
+            "Model table must use colgroup"
+        col_classes = [
+            "col-model-name", "col-sessions", "col-token-md",
+            "col-cache", "col-tools", "col-failed", "col-avg",
+        ]
+        for cls in col_classes:
+            assert f'class="{cls}"' in content, \
+                f"Model table must have col with class '{cls}'"
+
+    def test_sessions_table_colgroup(self):
+        """Sessions table must use colgroup with named columns."""
+        content = _read_template()
+        # sessions table colgroup
+        col_classes = [
+            "col-title", "col-project", "col-model", "col-token",
+            "col-num-sm", "col-duration", "col-updated",
+        ]
+        for cls in col_classes:
+            assert f'class="{cls}"' in content, \
+                f"Sessions table must have col with class '{cls}'"
+
+    def test_mono_class_on_numeric_cells(self):
+        """Numeric cells must use mono class for monospace font."""
+        content = _read_template()
+        assert 'class="col-num mono"' in content or 'class="mono"' in content, \
+            "Numeric cells must use mono class"
+
+    def test_col_num_class_on_number_columns(self):
+        """Table must use col-num class for number columns."""
+        content = _read_template()
+        assert 'class="col-num"' in content, \
+            "Table must use col-num class for number columns"
+
+
+# -- TestAgentDetailModelBreakdownInsight -----------------------------------
+
+class TestAgentDetailModelBreakdownInsight:
+    """Verify model breakdown insight line."""
+
+    def test_insight_span_present(self):
+        """Model breakdown must have an insight span."""
+        content = _read_template()
+        assert 'class="insight"' in content, \
+            "Model breakdown must have an insight span"
+
+    def test_most_active_model_text(self):
+        """Model breakdown must show 'Most active model' text."""
+        content = _read_template()
+        assert "Most active model" in content, \
+            "Model breakdown must show 'Most active model' text"
+
+    def test_section_sub_mentions_duration(self):
+        """Model breakdown section-sub must mention Avg Duration."""
+        content = _read_template()
+        assert "Avg Duration" in content, \
+            "Model breakdown sub must mention Avg Duration"
+
+
+# -- TestAgentDetailSessionsEmptyState --------------------------------------
+
+class TestAgentDetailSessionsEmptyState:
+    """Verify sessions-specific empty state (agent_info exists but no sessions)."""
+
+    def test_sessions_conditional_render(self):
+        """Sessions section must use {% if sessions %} conditional."""
+        content = _read_template()
+        assert "{% if sessions %}" in content, \
+            "Sessions must be conditionally rendered"
+
+    def test_sessions_else_empty_state(self):
+        """Sessions {% else %} branch must use ui.empty_state macro."""
+        content = _read_template()
+        # The sessions empty state appears after the table and pagination,
+        # wrapped in {% if sessions %} ... {% else %} ... {% endif %}
+        # Use a simpler approach: the file ends with the pagination, then
+        # {% else %} ... empty state ... {% endif %} near the end.
+        # Find the last {% else %} before the last {% endif %}
+        last_endif = content.rfind("{% endif %}")
+        assert last_endif != -1, "Template must have endif"
+        before_endif = content[:last_endif]
+        last_else = before_endif.rfind("{% else %}")
+        assert last_else != -1, "Template must have an else branch"
+        sessions_else = content[last_else:last_endif]
+        assert "ui.empty_state" in sessions_else, \
+            "Sessions empty state must use ui.empty_state macro"
+
+    def test_sessions_empty_says_no_session_data(self):
+        """Sessions empty state must say '暂无该 Agent 的 Session 数据'."""
+        content = _read_template()
+        assert "暂无该 Agent 的 Session 数据" in content, \
+            "Sessions empty state must mention no session data"
+
+    def test_sessions_empty_back_to_agents(self):
+        """Sessions empty state must link back to /agents."""
+        content = _read_template()
+        # The sessions empty state back button
+        assert "返回 Agents" in content, \
+            "Sessions empty state must say '返回 Agents'"
+
+
+# -- TestAgentDetailAgentInfoEmptyState -------------------------------------
+
+class TestAgentDetailAgentInfoEmptyState:
+    """Verify agent_info empty state (agent not found / no data at all)."""
+
+    def test_agent_info_not_found_condition(self):
+        """Template must check {% elif not agent_info %}."""
+        content = _read_template()
+        assert "{% elif not agent_info %}" in content, \
+            "Template must check for missing agent_info"
+
+    def test_agent_info_empty_message(self):
+        """Agent info empty state must say '未找到该 Agent 的数据'."""
+        content = _read_template()
+        assert "未找到该 Agent 的数据" in content, \
+            "Agent info empty state must say '未找到该 Agent 的数据'"
+
+    def test_agent_info_empty_has_back_button(self):
+        """Agent info empty state must have back to agents link."""
+        content = _read_template()
+        assert "href='/agents'" in content or 'href="/agents"' in content, \
+            "Agent info empty state must link to /agents"
+
+
+# -- TestAgentDetailFailedBadge ---------------------------------------------
+
+class TestAgentDetailFailedBadge:
+    """Verify failed tool count badge rendering."""
+
+    def test_failed_badge_conditional(self):
+        """Failed badge must be conditional on failed_tool_count > 0."""
+        content = _read_template()
+        assert "failed_tool_count > 0" in content, \
+            "Failed badge must be conditional on failed_tool_count > 0"
+
+    def test_failed_zero_shows_mono_zero(self):
+        """When no failures, must show <span class='mono'>0</span>."""
+        content = _read_template()
+        assert '<span class="mono">0</span>' in content, \
+            "Zero failures must show mono 0"
+
+    def test_row_failed_class_conditional(self):
+        """Row must have row--failed class conditionally."""
+        content = _read_template()
+        assert "row--failed" in content, \
+            "Row must have row--failed conditional class"

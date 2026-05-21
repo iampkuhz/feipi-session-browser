@@ -121,3 +121,48 @@ icon / location / semantic meaning / decorative-or-action / expected behavior / 
 | 按钮无 inline onclick | 19/240 有 onclick | 10/35 有 onclick |
 | 图标尺寸分级 | 未见显式尺寸 class | 未见显式尺寸 class |
 
+---
+
+## Agent Detail 页面按钮行为表 (agent.html)
+
+> Scanned 2026-05-21 against `src/session_browser/web/templates/agent.html` (324 lines).
+> 该页面所有按钮/交互元素均有 data-action 或 href，无 inline onclick，无 inline style 于按钮。
+
+### 按钮行为表
+
+| selector / label | location | data-action-or-href | expected render behavior | validation |
+|---|---|---|---|---|
+| `a.btn.back-btn` (←) | header left | `data-action="back"` + `href="/agents"` | 返回 Agents 列表页 | JS agents.js L369+ |
+| `button.btn.sm` (prev) | pagination bar | `data-action="prev-page"` | 跳到上一页；首页不渲染 | JS agents.js L348+ |
+| `button.btn.sm` (next) | pagination bar | `data-action="next-page"` | 跳到下一页；尾页不渲染 | JS agents.js L336+ |
+| `input.page-input` | pagination bar | `data-action="page-input"` | 输入页码后 Enter 跳转 | JS agents.js L322+ |
+| `tr[data-action="open-session"]` | sessions table body | `data-action="open-session"` + `data-href="/sessions/..."` | 点击行打开会话详情 | JS agents.js L381+ |
+| `a` (session title link) | sessions table td | `href="/sessions/{agent}/{session_id}"` | 直接导航到会话 | native link |
+| `a` (project link) | sessions table td | `href="/projects/{project_key}"` | 直接导航到项目 | native link |
+| `ui.button` macro (error state) | error section | `data-action="refresh"` | 刷新当前页面 | via ui_primitives macro |
+| `ui.button` macro (empty state) | empty section | `data-action="back"` + `href="/agents"` | 返回 Agents 列表 | via ui_primitives macro |
+| `a` (breadcrumb Dashboard) | breadcrumb | `href="/dashboard"` | 导航到 Dashboard | native link |
+| `a` (breadcrumb Agents) | breadcrumb | `href="/agents"` | 导航到 Agents 列表 | native link |
+| `th.sortable` (Model table) | model breakdown header | `data-action="sort"` + `data-sort-key` | 点击排序 | JS agents.js L44+ |
+| `th.sortable` (Sessions table) | sessions header | `data-action="sort"` + `data-sort-key` | 点击排序 | JS agents.js L44+ |
+
+### 图标行为表
+
+| icon | location | semantic meaning | decorative-or-action | expected behavior | size class |
+|---|---|---|---|---|---|
+| `span.emoji` (robot) | header title | Agent 标识 | decorative | 无交互 | ~20px |
+| `span.emoji` (metrics) | 6 metric cards | 各指标图标 | decorative | 无交互 | 20-24px |
+| `span.info-icon` (ⓘ) × 8 | metric cards + section titles | 指标说明 | action | 点击打开 tooltip/popover 显示定义 | inline action 14-16px |
+| `span.sort-mark` (↕) | th.sortable | 排序指示 | decorative | 随排序状态切换 | inline |
+| `span.badge.err` | sessions table failed col | 失败计数 | decorative | 无交互 | inline |
+
+### 合规结论
+
+| 合同要求 | agent.html 状态 |
+|---|---|
+| 每个按钮有 data-action 或 href | 全部覆盖（15/15） |
+| 无 inline onclick | 合规（0 个） |
+| 无 inline style 于按钮 | 合规（inline style 仅用于 tokenbar 布局） |
+| 按钮行为表已记录 | 已补充 |
+| 图标行为表已记录 | 已补充 |
+

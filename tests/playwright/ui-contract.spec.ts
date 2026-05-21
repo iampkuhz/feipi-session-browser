@@ -206,7 +206,7 @@ for (const vp of dashboardViewports) {
     // Core structure visibility
     await expect(page.locator('.header')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
-    await expect(page.locator('.data-table')).toBeVisible();
+    await expect(page.locator('.data-table').first()).toBeVisible();
 
     // Full-page screenshot for visual regression
     await expect(page).toHaveScreenshot(`agent-detail-${vp.label.replace('x', '-')}.png`, {

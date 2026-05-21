@@ -51,7 +51,7 @@
 python3 scripts/quality/run_quality_gate.py --target session-detail
 ```
 
-UI 任务完成的前提是 `.agent/quality/<change-id>/quality-gate-summary.json`
+UI 任务完成的前提是 `tmp/quality/<change-id>/quality-gate-summary.json`
 报告 `status: PASS`。
 
 详见：

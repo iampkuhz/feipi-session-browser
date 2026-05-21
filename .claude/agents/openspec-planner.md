@@ -20,7 +20,7 @@ model: inherit
 ## 允许范围
 
 - `openspec/changes/<change-id>/`（proposal.md、design.md、tasks.md、specs/）。
-- `.agent/active_change.json`（仅用于记录活跃变更）。
+- `tmp/active_change.json`（仅用于记录活跃变更）。
 - `openspec/specs/`（当前行为规格，仅用于澄清基线时读取）。
 
 ## 禁止范围
@@ -57,4 +57,4 @@ model: inherit
 ## 证据
 
 - 提案/设计工作无需证据。
-- 实现证据由 PostToolUse hook 记录到 `.agent/task-evidence/<change-id>.jsonl`。
+- 实现证据由 PostToolUse hook 记录到 `tmp/task-evidence/<change-id>.jsonl`。

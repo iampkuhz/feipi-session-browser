@@ -21,7 +21,7 @@
 **属性：**
 - 无需 LLM 推断。
 - 输出为结构化 JSON。
-- 结果写入 `.agent/quality/<change-id>/`。
+- 结果写入 `tmp/quality/<change-id>/`。
 - Stop hook 读取这些产物以执行门禁。
 
 ## 按需 LLM 诊断

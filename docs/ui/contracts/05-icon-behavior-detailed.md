@@ -132,6 +132,69 @@ HiFi 页面使用的 Unicode 符号共 9 种：
 
 ---
 
+## Agent Detail 页图标行为表（agent.html）
+
+> 扫描范围：`src/session_browser/web/templates/agent.html`
+> 扫描日期：2026-05-21
+> 覆盖 T148：确保本页所有图标都有行为说明。
+
+### 图标清单
+
+共 11 种符号，分布在 header、metric cards、section headers、table headers、error/empty states。
+
+| # | 符号 | Unicode | 出现位置（模板行号） | 语义 | 装饰或动作 | 预期行为 | 尺寸类 |
+|---|---|---|---|---|---|---|---|
+| 1 | `←` | U+2190 | L34 `.back-btn` | 返回上一页 | 动作 — 可点击 | 点击导航到 `/agents`；JS 拦截 `data-action="back"` 执行 `window.location.href` | inline action |
+| 2 | `🤖` | U+1F916 | L38 `.agent-title .emoji` | Agent 身份标识（header） | 装饰 | 跟随 agent title 展示当前 agent 类型（Claude Code/Qoder/Codex） | metric/card |
+| 3 | `🧾` | U+1F9FE | L50 `.metric-icon .emoji` | Sessions 指标图标 | 装饰 | 标识 Sessions 总量指标 | metric/card |
+| 4 | `📁` | U+1F4C1 | L59 `.metric-icon .emoji` | Projects 指标图标 | 装饰 | 标识 Projects 数量指标 | metric/card |
+| 5 | `⬇️` | U+2B07 | L68 `.metric-icon .emoji` | 输入方向（向下=输入） | 装饰 | 标识 Input-side Tokens 指标 | metric/card |
+| 6 | `⬆️` | U+2B06 | L77 `.metric-icon .emoji` | 输出方向（向上=输出） | 装饰 | 标识 Output Tokens 指标 | metric/card |
+| 7 | `♻️` | U+267B | L86 `.metric-icon .emoji` | 缓存复用 | 装饰 | 标识 Cache Reuse 比率指标 | metric/card |
+| 8 | `⚠️` | U+26A0 | L95 `.metric-icon .emoji` | 失败警告 | 装饰 | 标识 Failed Tools 指标（红色 metric-icon） | metric/card |
+| 9 | `ⓘ` | U+24D8 | L53,62,71,80,89,98,115,211 `.info-icon` | 指标/区域说明 | 动作 — 可点击 | 点击弹出 info-tooltip 浮层，展示计算口径；JS `data-action="info"` 处理 | inline action |
+| 10 | `💡` | U+1F4A1 | L119 `.insight .emoji` | 洞察提示 | 装饰 | 跟随 insight badge 展示 "Most active model" 提示 | inline action |
+| 11 | `↕` | U+2195 | L135-141, L236-242 `.sort-mark` | 排序未激活（默认） | 动作 — 跟随表头点击 | 点击 sortable th 后切换为 `↑`（升序）或 `↓`（降序）；JS `updateModelSortIndicators()` 处理 | inline action |
+
+### 补充：通过宏传入的图标
+
+以下图标通过 `ui_primitives.html` 宏渲染，不在 agent.html 中直接书写：
+
+| 符号 | Unicode | 宏调用位置 | 语义 | 预期行为 |
+|---|---|---|---|---|
+| `⚠️` | U+26A0 | L24 `ui.error_state(icon='⚠️')` | 数据加载失败错误标记 | 装饰；配合 "刷新页面" 按钮使用 |
+| `🤖` | U+1F916 | L307 `ui.empty_state(icon='🤖')` | 无 Session 数据空状态 | 装饰；配合 "返回 Agents" 按钮使用 |
+
+### CSS 规则覆盖
+
+| 图标类 | CSS 选择器 | 文件 | 规则 |
+|---|---|---|---|
+| emoji（metric card） | `.emoji` | `agents.css` L98-102 | `font-size: 16px; line-height: 1; display: inline-block` |
+| info-icon | `.card.metric .info-icon` | `agents.css` L84-88 | `font-size: 14px; color: var(--text-subtle); cursor: help` |
+| sort-mark | `.data-table th.sortable .sort-mark` | `agents.css` L476-480 | `font-size: 10px; color: #667085; margin-left: 6px` |
+| insight emoji | `.insight .emoji` | `agents.css` L421-432（`.insight` 容器） | `display: inline-flex; align-items: center; gap: 7px` |
+| back-btn arrow | `.back-btn`（内含 `←`） | `agents.css` L329-332 | `width: 36px; height: 36px`（按钮尺寸） |
+
+### JS 行为覆盖
+
+| 图标 | data-action | JS 处理位置（agents.js） | 行为 |
+|---|---|---|---|
+| `←` | `back` | L369-376 | 拦截点击，执行 `window.location.href` 导航 |
+| `ⓘ` | `info` | L247-305 | 点击创建 `info-tooltip` 浮层，4 秒自动消失 |
+| `↕` | 跟随 `th.sortable` `sort` | L396-466 | 切换排序方向，更新 `.sort-mark` 文本 |
+
+### 覆盖率总结
+
+| 维度 | 数量 | 状态 |
+|---|---|---|
+| 符号种类 | 11 种 + 2 种宏传入 | 全部有行为说明 |
+| 装饰性图标 | 8 种（🤖×2, 🧾, 📁, ⬇️, ⬆️, ♻️, ⚠️, 💡） | CSS 定义尺寸和行为 |
+| 动作性图标 | 3 种（←, ⓘ, ↕） | JS 绑定 data-action |
+| 有 aria-hidden | 所有 `<span class="emoji" aria-hidden="true">` | 符合无障碍要求 |
+| 有 title 属性 | 所有 `.info-icon` | 悬浮展示原生 tooltip |
+
+---
+
 ## 差距分析
 
 ### HiFi 有 / 生产无

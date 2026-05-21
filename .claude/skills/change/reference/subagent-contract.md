@@ -4,7 +4,7 @@
 
 ## 子 Agent 如何继承活跃变更
 
-当父 agent（`change` 技能驱动者）将工作委派给子 agent 时，子 agent 必须读取 `.agent/active_change.json` 来确定当前活跃变更上下文。
+当父 agent（`change` 技能驱动者）将工作委派给子 agent 时，子 agent 必须读取 `tmp/active_change.json` 来确定当前活跃变更上下文。
 
 ```json
 {
@@ -17,7 +17,7 @@
 }
 ```
 
-`change_id` 字段是将子 agent 工作关联回父变更的关键。`change_path` 字段告诉子 agent 在哪里查找任务和规格。完整字段规范见 `.agent/SCHEMA.md`。
+`change_id` 字段是将子 agent 工作关联回父变更的关键。`change_path` 字段告诉子 agent 在哪里查找任务和规格。完整字段规范见 `tmp/SCHEMA.md`。
 
 ## 子 Agent 必须做什么
 
@@ -26,7 +26,7 @@
 在开始任何工作前，子 agent 必须：
 
 ```
-Read .agent/active_change.json
+Read tmp/active_change.json
 ```
 
 如果文件不存在，子 agent 不得继续实现编辑。应报告错误："未找到活跃的 OpenSpec 变更。请先运行 `/change` 创建一个，再委派工作。"
@@ -35,7 +35,7 @@ Read .agent/active_change.json
 
 子 agent 必须：
 
-- 仅修改 `.agent/active_change.json` 中标识的活跃变更相关的文件。
+- 仅修改 `tmp/active_change.json` 中标识的活跃变更相关的文件。
 - 在任何提交、验证说明或报告中引用变更 ID。
 - 不扩大范围，不超出父变更描述的内容。
 - 不创建新的变更目录。父变更拥有范围主权。
@@ -52,7 +52,7 @@ Read .agent/active_change.json
 
 子 agent 在与父 agent 相同的 hook 约束下运行：
 
-- **PreToolUse (Write|Edit|MultiEdit)：** `scripts/hooks/guard_openspec_change.py` 检查活跃变更目录。子 agent 的工作是有效的，因为父 agent 已创建变更目录。`.agent/active_change.json` 是子 agent 的上下文锚点，但 hook 检查 `openspec/changes/` 下的目录。
+- **PreToolUse (Write|Edit|MultiEdit)：** `scripts/hooks/guard_openspec_change.py` 检查活跃变更目录。子 agent 的工作是有效的，因为父 agent 已创建变更目录。`tmp/active_change.json` 是子 agent 的上下文锚点，但 hook 检查 `openspec/changes/` 下的目录。
 - **PostToolUse (Write|Edit|MultiEdit)：** `.claude/hooks/post_tool_guard.sh` 运行语法检查。
 - **PreToolUse (Bash)：** `.claude/hooks/pre_tool_guard.sh` 阻止破坏性命令。
 - **Stop：** `.claude/hooks/stop_check.sh` 警告未提交文件。
@@ -61,7 +61,7 @@ Read .agent/active_change.json
 
 子 agent 不得：
 
-- 修改 `.agent/active_change.json`（由父 agent 管理）。
+- 修改 `tmp/active_change.json`（由父 agent 管理）。
 - 在 `openspec/changes/` 下创建新的变更目录。
 - 移动或归档变更（这是父级操作）。
 
@@ -69,7 +69,7 @@ Read .agent/active_change.json
 
 父 agent 应按以下模式委派：
 
-1. 确保 `.agent/active_change.json` 存在且最新。
+1. 确保 `tmp/active_change.json` 存在且最新。
 2. 从 `openspec/changes/<change-id>/tasks.md` 中给子 agent 分配具体任务。
 3. 清晰传达范围边界。
 4. 子 agent 完成后，验证工作和任务复选框。
@@ -78,7 +78,7 @@ Read .agent/active_change.json
 ## 子 Agent 提示词示例
 
 > 你正在活跃变更上工作：`<change-id>`。
-> 读取 `.agent/active_change.json` 获取上下文。
+> 读取 `tmp/active_change.json` 获取上下文。
 > 完成 `openspec/changes/<change-id>/tasks.md` 中的以下任务：
 >
 > - 任务：<任务描述>

@@ -24,7 +24,7 @@
 
 ## Artifact Paths
 
-- `.agent/quality/<change-id>/quality-gate-summary.json` — unified summary
-- `.agent/quality/<change-id>/session-detail-layout-result.json` — browser metrics
-- `.agent/quality/<change-id>/session-detail-layout-1440.png` — screenshot
-- `.agent/changed-files.jsonl` — changed file log (read by stop hook)
+- `tmp/quality/<change-id>/quality-gate-summary.json` — unified summary
+- `tmp/quality/<change-id>/session-detail-layout-result.json` — browser metrics
+- `tmp/quality/<change-id>/session-detail-layout-1440.png` — screenshot
+- `tmp/changed-files.jsonl` — changed file log (read by stop hook)

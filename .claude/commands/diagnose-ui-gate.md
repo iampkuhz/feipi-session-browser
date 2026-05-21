@@ -12,13 +12,13 @@
 ## 输入
 
 - 可选参数：变更 ID（change id）。
-- 如无参数，读取 `ACTIVE_CHANGE_ID` 环境变量或 `.agent/active-change` 文件。
-- 读取 `.agent/quality/<change-id>/quality-gate-summary.json`。
+- 如无参数，读取 `ACTIVE_CHANGE_ID` 环境变量或 `tmp/active-change` 文件。
+- 读取 `tmp/quality/<change-id>/quality-gate-summary.json`。
 - 读取 `blockingFailures` / `artifacts` 中引用的每个失败门禁产物。
 
 ## 步骤
 
-1. **读取质量门禁摘要** `.agent/quality/<change-id>/quality-gate-summary.json`。
+1. **读取质量门禁摘要** `tmp/quality/<change-id>/quality-gate-summary.json`。
    - 确认哪些门禁失败了（staticCssContract、templateContract、browserLayout、pytest）。
    - 读取 `blockingFailures` 获取失败代码和信息。
 

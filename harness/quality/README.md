@@ -2,7 +2,7 @@
 
 成功报告前的确定性验证。
 LLM 诊断为按需/可选，不得接入 hook。
-运行时产物位于 `.agent/quality/<change-id>/`，非源文档。
+运行时产物位于 `tmp/quality/<change-id>/`，非源文档。
 
 ## 结构
 

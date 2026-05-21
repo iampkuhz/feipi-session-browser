@@ -22,7 +22,7 @@ feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Cla
 | `scripts/quality/` | 仓库结构与健康度验证 |
 | `scripts/harness/` | Harness 验证和 doctor 脚本 |
 | `.claude/` | 项目级 Claude Code 配置、hooks、skills、commands、agents |
-| `.agent/` | 本地 agent 状态（活跃变更、证据、任务账本）——不提交 |
+| `tmp/` | 本地 agent 状态（活跃变更、证据、任务账本）——不提交 |
 | `openspec/` | OpenSpec 规格、变更、配置和 schema |
 | `harness/` | Agent 流程文档、上下文包、模板 |
 | `docs/` | 开发规范和 UI 规格 |
@@ -33,9 +33,9 @@ feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Cla
 所有非平凡变更都通过 `/change <requirement-path>`：
 
 1. 在 `openspec/changes/<change-id>/` 下创建 proposal、design、tasks。
-2. 记录 `.agent/active_change.json`。
+2. 记录 `tmp/active_change.json`。
 3. 受保护文件编辑需有活跃变更（由 PreToolUse hooks 强制执行）。
-4. 编辑自动记录到 `.agent/task-evidence/<change-id>.jsonl`。
+4. 编辑自动记录到 `tmp/task-evidence/<change-id>.jsonl`。
 5. QA verifier 在 stop 前验证。
 6. Stop hook 在变更未完成时阻塞。
 
@@ -54,7 +54,7 @@ feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Cla
 ## 本地状态
 
 以下文件被有意 `.gitignore`：
-- `.agent/` — agent 状态（活跃变更、证据、任务结果）
+- `tmp/` — agent 状态（活跃变更、证据、任务结果）
 - `openspec/changes/*` — 本地变更提议（除 `.gitkeep` 外）
 - `reports/` — 非基线报告输出
 - `test-results/`、`playwright-report/` — 测试运行器输出

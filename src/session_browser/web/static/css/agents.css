@@ -615,3 +615,28 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* 13. Table colgroup column widths (HIFI alignment) */
+
+/* Model Breakdown table column widths */
+col.col-model-name { width: 22%; }
+col.col-sessions   { width: 9%; }
+col.col-token-md   { width: 28%; min-width: 160px; }
+col.col-cache      { width: 11%; }
+col.col-tools      { width: 10%; }
+col.col-failed     { width: 9%; }
+col.col-avg        { width: 11%; }
+
+/* Sessions table column widths */
+col.col-title      { width: 26%; }
+col.col-project    { width: 14%; }
+col.col-model      { width: 14%; }
+col.col-token      { width: 18%; min-width: 140px; }
+col.col-num-sm     { width: 7%; }
+col.col-duration   { width: 10%; }
+col.col-updated    { width: 9%; }
+
+/* Ensure sort-mark has consistent spacing */
+.data-table th.sortable .sort-mark {
+  display: inline;
+}

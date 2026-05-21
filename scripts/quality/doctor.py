@@ -114,7 +114,7 @@ def main() -> int:
     gitignore = REPO_ROOT / ".gitignore"
     if gitignore.is_file():
         content = gitignore.read_text(encoding="utf-8")
-        _note(".agent/", "ignored" if ".agent/" in content else "NOT ignored")
+        _note("tmp/", "ignored" if "tmp/" in content else "NOT ignored")
         _note("openspec/changes/*", "ignored" if "openspec/changes/*" in content else "NOT ignored")
         _note("reports/", "ignored" if "reports/" in content else "NOT ignored")
     else:

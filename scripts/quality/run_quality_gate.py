@@ -2,12 +2,12 @@
 """Unified quality gate runner.
 
 Executes deterministic quality gates for a given target and writes
-a structured summary artifact to .agent/quality/<change-id>/.
+a structured summary artifact to tmp/quality/<change-id>/.
 
 Usage:
     python3 scripts/quality/run_quality_gate.py --target session-detail
     python3 scripts/quality/run_quality_gate.py --target session-detail --change-id fix-xyz
-    python3 scripts/quality/run_quality_gate.py --target session-detail --out .agent/quality/demo
+    python3 scripts/quality/run_quality_gate.py --target session-detail --out tmp/quality/demo
     python3 scripts/quality/run_quality_gate.py --target session-detail --allow-missing-service
     python3 scripts/quality/run_quality_gate.py --self-test
 """
@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-QUALITY_DIR = REPO_ROOT / ".agent" / "quality"
+QUALITY_DIR = REPO_ROOT / "tmp" / "quality"
 
 SCRIPTS = {
     "staticCssContract": "scripts/quality/check_session_detail_static.py",
@@ -37,7 +37,7 @@ def resolve_change_id(explicit: str | None) -> str:
     env = os.environ.get("ACTIVE_CHANGE_ID")
     if env:
         return env
-    active_file = REPO_ROOT / ".agent" / "active-change"
+    active_file = REPO_ROOT / "tmp" / "active-change"
     if active_file.exists():
         return active_file.read_text().strip()
     return "unknown"
@@ -276,7 +276,7 @@ def _self_test():
         old = os.environ.get("ACTIVE_CHANGE_ID")
         try:
             os.environ.pop("ACTIVE_CHANGE_ID", None)
-            # We can't test .agent/active-change without side effects,
+            # We can't test tmp/active-change without side effects,
             # so test resolve_change_id with explicit None and no env
             # by checking it returns something non-empty
             cid = resolve_change_id(None)

@@ -16,7 +16,7 @@ Usage:
         --url http://127.0.0.1:18999/sessions/claude_code/<session-id>
     python3 scripts/quality/run_session_detail_interaction_gate.py \
         --url http://127.0.0.1:18999/sessions/claude_code/<session-id> \
-        --out .agent/quality/session-detail-interaction-gate
+        --out tmp/quality/session-detail-interaction-gate
     python3 scripts/quality/run_session_detail_interaction_gate.py --self-test
     python3 scripts/quality/run_session_detail_interaction_gate.py --help
 """
@@ -31,7 +31,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # ── Default output directory ──
-DEFAULT_OUT = REPO_ROOT / ".agent" / "quality" / "session-detail-interaction-gate"
+DEFAULT_OUT = REPO_ROOT / "tmp" / "quality" / "session-detail-interaction-gate"
 
 # ── Thresholds ──
 TOGGLE_SPREGRESSION_PX = 2      # max allowed increase over baseline after interactions
