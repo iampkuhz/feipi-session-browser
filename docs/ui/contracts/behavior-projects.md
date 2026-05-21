@@ -64,23 +64,22 @@
 | 3 | 📁 | Sidebar nav (active) | Projects — 本地项目/工作区 | Action (nav link, current) | 当前页面，高亮状态，点击刷新本页 | `emoji` — nav icon (18–20px) |
 | 4 | 🤖 | Sidebar nav | Agents — agent provider 统计 | Action (nav link) | 点击跳转到 Agents 统计页 | `emoji` — nav icon (18–20px) |
 | 5 | 📖 | Sidebar nav | Token Glossary — 指标说明 | Action (nav link) | 点击跳转到 Token Glossary 页 | `emoji` — nav icon (18–20px) |
-| 6 | ⚙️ | Sidebar bottom | Settings — 全局设置 | Action (link) | 打开 Settings 抽屉 | `emoji` — nav icon (18–20px) |
-| 7 | › | Sidebar bottom (after Settings) | Chevron — 展开指示器 | Decorative | 视觉指示，无独立行为 | text — inline (14–16px) |
-| 8 | 🔎 | Filter card search input | Search — 搜索提示 | Decorative (input prefix) | 输入框交互，非独立点击 | `emoji` — inline (14–16px) |
-| 9 | ⓘ | Metric card "Projects" | Info — 指标说明 | Action (button) | 点击展示项目数量计数方式的 popover | `info-icon` — inline (14–16px) |
-| 10 | ⓘ | Metric card "Sessions" | Info — 指标说明 | Action (button) | 点击展示 session 总数的 popover | `info-icon` — inline (14–16px) |
-| 11 | ⓘ | Metric card "Total Tokens" | Info — 指标说明 | Action (button) | 点击展示 token 消耗合计的 popover | `info-icon` — inline (14–16px) |
-| 12 | ⓘ | Metric card "Failed Tools" | Info — 指标说明 | Action (button) | 点击展示 failed tool call 数量的 popover | `info-icon` — inline (14–16px) |
-| 13 | 📁 | Metric card "Projects" | Projects — 项目数量标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px) |
-| 14 | 〽️ | Metric card "Sessions" | Sessions — 运行记录标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px) |
-| 15 | 🪙 | Metric card "Total Tokens" | Tokens — token 消耗标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px) |
-| 16 | ⚠️ | Metric card "Failed Tools" | Warning — 失败标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px) |
-| 17 | ↕ | Sortable column header | Sortable — 可排序列 | Action (follows header click) | 跟随表头点击切换排序方向 | `sort-caret` — inline (14–16px) |
-| 18 | 📁 | Empty state strip | Empty — 无匹配项目 | Decorative (state icon) | 静态展示 | `emoji lg` — state icon (24–32px) |
-| 19 | 🔴/🟣/🟢 (`.dot.claude/.dot.codex/.dot.qoder`) | Agent badges | Agent provider 标识 | Decorative | 颜色标识：CC=purple, CX=green, QD=orange | `dot` — inline (8–10px) |
-| 20 | Token bar segments (`.t-fresh/.t-read/.t-write/.t-out`) | Tokens column | Token 组成分段 | Decorative + Action (hover) | 悬浮时展示 token breakdown tooltip | `tokenbar` — inline (bar height ~8px) |
-| 21 | ❔ | Topbar help button | Help — 帮助说明 | Action (button) | 点击打开帮助面板 | `emoji` — inline (16–18px) |
-| 22 | ⌨️ | Topbar shell button | Terminal — 本地 CLI | Action (button) | 点击打开本地扫描命令说明 | `emoji` — inline (16–18px) |
+| 6 | ⚙️ | Sidebar bottom | Settings — 全局设置 | Action (link) | 打开 Settings 抽屉 | `icon--nav` — nav icon (18–20px) |
+| 7 | ⓘ | Metric card "Projects" | Info — 指标说明 | Action (button) | 点击展示项目数量计数方式的 popover | `icon-button--info` — inline (13–14px) |
+| 8 | ⓘ | Metric card "Sessions" | Info — 指标说明 | Action (button) | 点击展示 session 总数的 popover | `icon-button--info` — inline (13–14px) |
+| 9 | ⓘ | Metric card "Total Tokens" | Info — 指标说明 | Action (button) | 点击展示 token 消耗合计的 popover | `icon-button--info` — inline (13–14px) |
+| 10 | ⓘ | Metric card "Failed Tools" | Info — 指标说明 | Action (button) | 点击展示 failed tool call 数量的 popover | `icon-button--info` — inline (13–14px) |
+| 11 | 📁 | Metric card "Projects" | Projects — 项目数量标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px, container: 22px) |
+| 12 | 〽️ | Metric card "Sessions" | Sessions — 运行记录标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px, container: 22px) |
+| 13 | 🪙 | Metric card "Total Tokens" | Tokens — token 消耗标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px, container: 22px) |
+| 14 | ⚠️ | Metric card "Failed Tools" | Warning — 失败标识 | Decorative (metric icon) | 静态展示，无交互 | `emoji lg` — metric icon (20–24px, container: 22px) |
+| 15 | ↕ | Sortable column header | Sortable — 可排序列 | Action (follows header click) | 跟随表头点击切换排序方向 | `sort-caret` — inline (14–16px) |
+| 16 | 📋 (SVG) | Path copy button | Copy — 复制项目路径 | Action (button) | 点击复制项目完整路径，显示 toast | `path-copy-btn` — inline (14px SVG, container: 22px) |
+| 17 | 📁 | Empty state strip | Empty — 无匹配项目 | Decorative (state icon) | 静态展示 | `emoji lg` — state icon (24–32px, container: 24px) |
+| 18 | 🔴/🟣/🟢 (`.dot.claude/.dot.codex/.dot.qoder`) | Agent badges | Agent provider 标识 | Decorative | 颜色标识：CC=purple, CX=green, QD=orange | `dot` — inline (8–10px) |
+| 19 | Token bar segments (`.t-fresh/.t-read/.t-write/.t-out`) | Tokens column | Token 组成分段 | Decorative + Action (hover) | 悬浮时展示 token breakdown tooltip | `tokenbar` — inline (bar height ~8px) |
+| 20 | ? | Topbar help button | Help — 帮助说明 | Action (button) | 点击打开帮助面板 | `icon-btn` — inline (16px, container: 32px) |
+| 21 | ⌘ | Topbar shell button | Terminal — 本地 CLI | Action (button) | 点击打开本地扫描命令说明 | `icon-btn` — inline (16px, container: 32px) |
 
 ### Project Detail 图标行为
 
@@ -121,8 +120,8 @@
 | 按钮/交互元素数 | 16 | 22 | 38 |
 | 含 `data-action` 的按钮 (HIFI) | 8 | 16 | 24 |
 | 含 `onclick` 的按钮 (生产) | 2 | 1 | 3 |
-| 图标数 | 22 | 27 | 49 |
-| 可点击图标 | 12 | 14 | 26 |
+| 图标数 | 21 | 27 | 48 |
+| 可点击图标 | 11 | 14 | 25 |
 | 装饰性图标 | 10 | 13 | 23 |
 
 ## 4. Production vs HIFI Gap Analysis

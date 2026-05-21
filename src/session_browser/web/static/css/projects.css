@@ -116,7 +116,7 @@
 }
 
 .sort-caret {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-subtle);
   display: inline-block;
 }
@@ -366,6 +366,26 @@
 
 #projects-empty.is-hidden {
   display: none;
+}
+
+/* ── Emoji size classes (T106: icon size contract) ────────── */
+/* These classes document and enforce the icon sizing contract.
+ * Actual rendered size may be governed by the parent container
+ * (.metric-icon, .state-icon) which sets a larger font-size.
+ * ─────────────────────────────────────────────────────────── */
+
+/* inline action / nav icon: 14–16px */
+.emoji {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+}
+
+/* metric / state / decorative icon: 20–24px (inherited from container) */
+.emoji.lg {
+  font-size: 22px;
+  line-height: 1;
+  display: inline-block;
 }
 
 /* ── Utility ──────────────────────────────────────────────── */
