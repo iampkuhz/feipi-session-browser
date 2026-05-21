@@ -35,6 +35,11 @@
             <a class="sd-issue-link sd-issue-link--{{ issue.tone|default('neutral') }}" href="#round-{{ issue.round_id }}" data-action="jump-round" data-round="{{ issue.round_id }}">{{ issue.label }}</a>
           {% endfor %}
         </div>
+        {% else %}
+        <div class="sd-issue-strip sd-issue-strip--ok" data-issue-strip>
+          <span class="sd-issue-title">No issues found</span>
+          <span class="sd-issue-ok-badge">All rounds completed successfully</span>
+        </div>
         {% endif %}
       </div>
       <div class="sd-kpis">
@@ -370,7 +375,12 @@
             <div class="sd-kv"><span>source</span><span>template</span></div>
           </aside>
           <main class="sd-payload-main" data-payload-body>
-            <section class="sd-payload-content"><h3>Empty</h3><pre>点击 Context / Response / Result 后，这里必须渲染 payload 内容。</pre></section>
+            {# Empty state: no payload selected ── #}
+            <section class="sd-payload-empty-state" data-payload-empty>
+              <div class="sd-payload-empty-state__icon" aria-hidden="true">&#x1F4E6;</div>
+              <div class="sd-payload-empty-state__title">No payload loaded</div>
+              <div class="sd-payload-empty-state__desc">Click Context / Response / Result in a trace round to view its payload.</div>
+            </section>
           </main>
         </div>
       </div>

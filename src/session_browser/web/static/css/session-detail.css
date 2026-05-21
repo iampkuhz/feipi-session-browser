@@ -251,6 +251,28 @@
 .sd-issue-link--err { border-color: #fecaca; background: #fef2f2; color: var(--sd-err); }
 .sd-issue-link--warn { border-color: #fde68a; background: #fffbeb; color: var(--sd-warn); }
 
+/* ── Issue strip all-ok state ── */
+
+.sd-issue-strip--ok .sd-issue-title {
+  background: #f0fdf4;
+  color: var(--sd-ok, #16a34a);
+  border-color: #bbf7d0;
+}
+
+.sd-issue-ok-badge {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
 /* ── Hero URL line with copy button ── */
 
 .sd-hero-url {
@@ -886,6 +908,53 @@
 .sd-modal-title { font-weight: 850; }
 .sd-modal-close { margin-left: auto; }
 .sd-modal-body { padding: 12px; max-height: 70vh; overflow: auto; }
+
+/* ── Payload empty / diagnostic states inside modal ── */
+
+.sd-payload-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--sd-text-2, #64748b);
+}
+.sd-payload-empty-state__icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+.sd-payload-empty-state__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sd-text-1, #1e293b);
+  margin-bottom: 4px;
+}
+.sd-payload-empty-state__desc {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Payload diagnostic note ── */
+
+.sd-payload-diagnostic {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.sd-payload-empty {
+  padding: 8px 10px;
+  color: var(--sd-text-2, #64748b);
+  font-size: 12px;
+  font-style: italic;
+}
+
 .sd-payload-part {
   border: 1px solid var(--sd-line);
   border-radius: 13px;

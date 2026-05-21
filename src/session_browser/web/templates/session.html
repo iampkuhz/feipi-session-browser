@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "components/session_detail_primitives.html" as sdp %}
 {% import "components/session_detail_timeline.html" as sdt %}
+{% import "components/ui_primitives.html" as ui %}
 
 {% block title %}{{ session.title[:80] or 'Untitled' }} - Agent Run Profiler{% endblock %}
 
@@ -40,6 +41,17 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
 <!-- Hidden raw JSON for copy action -->
 <script type="application/json" id="raw-json">{{ session_data | safe_json_display }}</script>
 
+{# ── Error state: session data unavailable or parse failed ── #}
+{% if not session_summary or not session_summary.title %}
+<section class="sd-content session-detail-page" data-trace-page>
+  {{ ui.error_state(
+    'Session data unavailable',
+    action_button=ui.button('Back to Sessions', variant='primary', data_action='go-sessions', href='/sessions'),
+    icon='🔌'
+  ) }}
+</section>
+{% else %}
+
 {# ── Payload sources (hidden, read by JS via [data-payload-source]) ── #}
 
 <section class="sd-content session-detail-page" data-trace-page>
@@ -59,6 +71,16 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
 
   <section class="sd-trace-panel" data-trace-panel>
     {{ sdt.trace_header() }}
+    {# ── Empty trace state: no rounds indexed ── #}
+    {% if not trace_rows %}
+    <div data-trace-list>
+      {{ ui.empty_state(
+        'No rounds indexed for this session',
+        action_button=ui.button('Run Scan', variant='primary', data_action='run-scan', href='/'),
+        icon='📭'
+      ) }}
+    </div>
+    {% else %}
     <table class="trace-table" data-trace-list>
       <colgroup>
         <col class="col-round"/>
@@ -82,10 +104,12 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
       {% endfor %}
       </tbody>
     </table>
+    {% endif %}
   </section>
 
   {{ sdt.payload_sources(payload_sources | default([])) }}
   {{ sdt.payload_modal() }}
 </section>
+{% endif %}
 
 {% endblock %}
