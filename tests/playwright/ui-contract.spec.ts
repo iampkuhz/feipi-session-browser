@@ -80,3 +80,24 @@ for (const vp of dashboardViewports) {
     });
   });
 }
+
+// ─── Projects viewport contract tests (T110) ───
+// Required viewports: 1440x900, 1280x800, 1180x800
+
+for (const vp of dashboardViewports) {
+  test(`projects @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/projects');
+
+    // Core structure visibility
+    await expect(page.locator('.page-head')).toBeVisible();
+    await expect(page.locator('.metric-grid')).toBeVisible();
+    await expect(page.locator('.data-table')).toBeVisible();
+
+    // Full-page screenshot for visual regression
+    await expect(page).toHaveScreenshot(`projects-${vp.label.replace('x', '-')}.png`, {
+      fullPage: true,
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+}
