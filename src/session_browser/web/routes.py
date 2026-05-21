@@ -2846,10 +2846,11 @@ def _build_v11_view_model(
         tool_total = max(len(all_tools), raw_tool_uses)
         tool_count_label = f"{tool_total} tools" if tool_total else "0 tools"
 
-        token_mix = {"fresh": 0, "cache": 0, "out": 0}
+        token_mix = {"fresh": 0, "read": 0, "write": 0, "out": 0}
         if rt_sum > 0:
             token_mix["fresh"] = round(total_input / rt_sum * 100, 1)
-            token_mix["cache"] = round((total_cache_read + total_cache_write) / rt_sum * 100, 1)
+            token_mix["read"] = round(total_cache_read / rt_sum * 100, 1)
+            token_mix["write"] = round(total_cache_write / rt_sum * 100, 1)
             token_mix["out"] = round(total_output / rt_sum * 100, 1)
 
         # Build items for round detail
@@ -3536,10 +3537,11 @@ def _build_v9_view_model(
         tool_count_label = f"{len(all_tools)} tools" if all_tools else "0 tools"
 
         # Token mix percentages
-        token_mix = {"fresh": 0, "cache": 0, "out": 0}
+        token_mix = {"fresh": 0, "read": 0, "write": 0, "out": 0}
         if rt > 0:
             token_mix["fresh"] = round(rb["input"] / rt * 100, 1)
-            token_mix["cache"] = round(rb["cache_read"] / rt * 100, 1)
+            token_mix["read"] = round(rb["cache_read"] / rt * 100, 1)
+            token_mix["write"] = round(rb["cache_write"] / rt * 100, 1)
             token_mix["out"] = round(rb["output"] / rt * 100, 1)
 
         # Build items for round detail
