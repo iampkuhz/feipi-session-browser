@@ -135,5 +135,5 @@ class TestProjectsTemplateTitle:
         with open("src/session_browser/web/templates/projects.html") as f:
             content = f.read()
         assert "justify-between" not in content
-        # Should use a span for the count inline
-        assert 'class="card-title' in content
+        # Should use table-toolbar with table-title (T103: migrated from card-title)
+        assert 'class="table-title"' in content
