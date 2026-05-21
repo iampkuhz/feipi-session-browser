@@ -82,10 +82,10 @@ class TestBaseHtml:
             "base.html must not include inspector component"
 
     def test_session_id_set_for_js(self):
-        """session.html must set window._sessionId for JS state persistence."""
+        """session.html must expose session-id via <meta> for JS state persistence."""
         source = _session_source()
-        assert "window._sessionId" in source, \
-            "session.html must set window._sessionId for JS state persistence"
+        assert 'name="session-id"' in source, \
+            "session.html must have <meta name=\"session-id\"> for JS state persistence"
 
     def test_payload_modal_element_exists(self, base_text):
         """payload-modal element must exist."""

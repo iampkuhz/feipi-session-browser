@@ -11,6 +11,12 @@
  *   - openContentModal (ui_primitives.js)
  */
 
+// Read session ID from <meta name="session-id"> instead of inline script
+(function () {
+    var meta = document.querySelector('meta[name="session-id"]');
+    if (meta) { window._sessionId = meta.getAttribute('content'); }
+})();
+
 // Initialize ViewState (was inline: <script>ViewState.init();</script>)
 if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
     ViewState.init();

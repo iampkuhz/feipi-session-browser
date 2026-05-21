@@ -20,44 +20,6 @@
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ui-primitives.css">
 <link rel="stylesheet" href="/static/css/sessions-list.css">
-<style>
-/* HIFI canonical data-table structure — compensates for grid→table migration */
-.sessions-page .data-table{width:100%;border-collapse:collapse;table-layout:fixed}
-.sessions-page .data-table thead tr{display:table;table-layout:fixed;width:100%;grid-template-columns:minmax(340px,2fr) minmax(190px,1fr) 98px 126px 104px 112px 82px 108px 94px}
-.sessions-page .data-table tbody tr{display:table;table-layout:fixed;width:100%;grid-template-columns:minmax(340px,2fr) minmax(190px,1fr) 98px 126px 104px 112px 82px 108px 94px}
-.sessions-page .data-table th{padding:0 10px;border-bottom:1px solid var(--sessions-line-soft);height:34px;background:#f8fafc;color:var(--sessions-text-3);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.065em;position:sticky;top:0;z-index:3}
-.sessions-page .data-table th.static-header{background:linear-gradient(180deg,#f6f8ff,#f3f6ff);color:var(--sessions-text-2)}
-.sessions-page .data-table th.num,.sessions-page .data-table td.num{text-align:right}
-.sessions-page .data-table td{padding:0 10px;border-bottom:1px solid var(--sessions-line-soft);height:48px;vertical-align:middle;font-size:12.5px;color:var(--sessions-text-2);background:#fff}
-.sessions-page .data-table tbody tr:hover td{background:#fbfdff}
-.sessions-page .data-table tbody tr[data-action="row"]{cursor:pointer}
-.sessions-page .data-table .title-main{font-weight:790;color:var(--sessions-text);font-size:13px;line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sessions-page .data-table .title-sub.mono{display:flex;align-items:center;gap:6px;min-width:0;color:var(--sessions-text-3);font-size:11.5px;margin-top:2px}
-.sessions-page .data-table .title-sub .mono{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace)}
-.sessions-page .data-table .project-cell .project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
-.sessions-page .data-table .project-cell .project-tooltip{font-size:11.5px;color:var(--sessions-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sessions-page .data-table .badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;padding:0 8px;font-weight:780;font-size:11.5px}
-.sessions-page .data-table .badge.cc{background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe}
-.sessions-page .data-table .badge.cx{background:#ecfdf5;color:#059669;border:1px solid #bbf7d0}
-.sessions-page .data-table .badge.qd{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
-.sessions-page .data-table td.mono{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sessions-page .data-table .token-cell{position:relative}
-.sessions-page .data-table .token-total{display:flex;align-items:center;gap:7px;justify-content:flex-end;width:100%}
-.sessions-page .data-table .token-total__value{font-weight:800;color:var(--sessions-text)}
-.sessions-page .data-table .tokenbar{width:46px;height:7px;border-radius:999px;overflow:hidden;display:flex;background:#f2f5fa;border:1px solid var(--sessions-line-soft)}
-.sessions-page .data-table .tokenbar-seg{height:100%;display:block}
-.sessions-page .data-table .tokenbar-seg.fresh{background:var(--token-input-fresh,#2563eb)}
-.sessions-page .data-table .tokenbar-seg.read{background:var(--token-cache-read,#f59e0b)}
-.sessions-page .data-table .tokenbar-seg.write{background:var(--token-cache-write,#f59e0b)}
-.sessions-page .data-table .tokenbar-seg.out{background:var(--token-output-visible,#059669)}
-.sessions-page .data-table td.muted{color:var(--sessions-text-3)}
-.sessions-page .sort-button{min-height:25px;border:1px solid transparent;background:transparent;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:flex;align-items:center;gap:6px;padding:0 5px;margin:-4px -5px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
-.sessions-page .sort-button:hover,.sessions-page .sort-button:focus-visible{outline:0;border-color:#dfe3ff;background:#fff;color:var(--sessions-brand);box-shadow:0 1px 3px rgba(15,23,42,.07)}
-.sessions-page .sort-button:hover{text-decoration:none}
-.sessions-page .sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-size:11px;font-weight:900}
-.sessions-page .sort-button[aria-sort="ascending"] .sort-icon,.sessions-page .sort-button[aria-sort="descending"] .sort-icon{background:var(--sessions-brand);border-color:var(--sessions-brand);color:#fff}
-.sessions-page .info-icon{font-size:12px;color:var(--sessions-text-3);cursor:help;margin-left:4px}
-</style>
 {% endblock %}
 
 {% block script_extra %}
