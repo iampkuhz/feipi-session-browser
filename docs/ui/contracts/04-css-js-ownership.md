@@ -96,15 +96,15 @@ src/session_browser/web/static/js/states.js
 | `view-state.js` | `base.html` | Shared utility |
 | `session_detail_timeline.js` | `session.html` | Page-specific, not in canonical list |
 
-**Versioned/legacy JS to clean up later (5 files):**
+**Versioned/legacy JS cleaned up (2026-05):**
 
 | File | Status | Notes |
 |---|---|---|
-| `session_browser_ui_v15.js` | Imported by `base.html` | Replace with canonical files |
-| `dashboard_v16.js` | Orphaned | Safe to remove |
-| `session_detail_response_blocks_v12.js` | Orphaned | Safe to remove |
-| `session_detail_timeline_v11.js` | Orphaned | Safe to remove |
-| `session_detail_timeline_v17_reference.js` | Orphaned | Safe to remove |
+| `session_browser_ui_v15.js` | Cleaned | Removed |
+| `dashboard_v16.js` | Cleaned | Orphan removed |
+| `session_detail_response_blocks_v12.js` | Cleaned | Orphan removed |
+| `session_detail_timeline_v11.js` | Cleaned | Orphan removed |
+| `session_detail_timeline_v17_reference.js` | Cleaned | Orphan removed |
 
 ### Summary
 
@@ -117,8 +117,8 @@ src/session_browser/web/static/js/states.js
 | Canonical JS targets already exist | 1/8 (`ui_primitives.js`) |
 | Canonical JS targets need creation | 7/8 |
 | Non-canonical JS currently imported | 7 (may need reclassification) |
-| Versioned/legacy JS files for later cleanup | 5 |
-| JS orphans (on disk, never imported) | 4 |
+| Versioned/legacy JS files cleaned up | 5 |
+| JS orphans (on disk, never imported) | 0 (cleaned) |
 
 ### Notes
 

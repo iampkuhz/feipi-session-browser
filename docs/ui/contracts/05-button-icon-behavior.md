@@ -51,32 +51,34 @@ icon / location / semantic meaning / decorative-or-action / expected behavior / 
 
 ### HiFi 按钮分布（按文件）
 
+> Note: Most hifi files were cleaned up in 2026-05. The table below is a historical snapshot.
+
 | 文件 | 按钮数 |
 |---|---|
-| `session_detail_hifi_v9_timeline_rounds_refined.html` | 19 |
-| `session_detail_hifi_v11_interaction_payload_refined.html` | 19 |
-| `session_browser_hifi_v15/session_detail_result_modal.html` | 18 |
-| `session_browser_hifi_v15/session_detail_response_modal.html` | 18 |
-| `session_browser_hifi_v15/session_detail_context_modal.html` | 18 |
-| `session_browser_hifi_v15/session_detail_trace.html` | 17 |
-| `hf_01_session_detail_mhtml_ready.html` | 15 |
-| `prior/session_detail_hifi_v12b_modal_open_state.html` | 11 |
-| `prior/session_detail_hifi_v12b_clickable_modal.html` | 11 |
-| `session_detail_hifi_v12c_modal_open_subagent_tool.html` | 10 |
-| `session_detail_hifi_v12c_modal_open_response.html` | 10 |
-| `session_detail_hifi_v12c_clickable_response_blocks.html` | 10 |
-| `hf_05_full_payload_viewer.html` | 9 |
-| `hf_04_hotspots_view.html` | 9 |
-| `hf_03_calls_view.html` | 9 |
-| `sessions_list_hifi_v3_no_hero.html` | 8 |
-| `session_detail_v17/index.html` | 5 |
-| `session_browser_hifi_v15/sessions_list.html` | 5 |
-| `hf_02_sessions_list.html` | 5 |
-| `dashboard_v16/dashboard.html` | 4 |
-| `dashboard_v16_tooltip_dots/dashboard.html` | 4 |
-| `session_detail_v18/index.html` | 3 |
-| `session_browser_hifi_v15/dashboard.html` | 2 |
-| `session_browser_hifi_v15/projects_overview.html` | 1 |
+| `session_detail_hifi_v9_timeline_rounds_refined.html` (deleted) | 19 |
+| `session_detail_hifi_v11_interaction_payload_refined.html` (deleted) | 19 |
+| `session_browser_hifi_v15/session_detail_result_modal.html` (deleted) | 18 |
+| `session_browser_hifi_v15/session_detail_response_modal.html` (deleted) | 18 |
+| `session_browser_hifi_v15/session_detail_context_modal.html` (deleted) | 18 |
+| `session_browser_hifi_v15/session_detail_trace.html` (deleted) | 17 |
+| `hf_01_session_detail_mhtml_ready.html` (deleted) | 15 |
+| `prior/session_detail_hifi_v12b_modal_open_state.html` (deleted) | 11 |
+| `prior/session_detail_hifi_v12b_clickable_modal.html` (deleted) | 11 |
+| `session_detail_hifi_v12c_modal_open_subagent_tool.html` (deleted) | 10 |
+| `session_detail_hifi_v12c_modal_open_response.html` (deleted) | 10 |
+| `session_detail_hifi_v12c_clickable_response_blocks.html` (deleted) | 10 |
+| `hf_05_full_payload_viewer.html` (deleted) | 9 |
+| `hf_04_hotspots_view.html` (deleted) | 9 |
+| `hf_03_calls_view.html` (deleted) | 9 |
+| `sessions_list_hifi_v3_no_hero.html` (deleted) | 8 |
+| `session_detail_v17/index.html` (deleted) | 5 |
+| `session_browser_hifi_v15/sessions_list.html` (deleted) | 5 |
+| `hf_02_sessions_list.html` (deleted) | 5 |
+| `dashboard_v16/dashboard.html` (deleted) | 4 |
+| `dashboard_v16_tooltip_dots/dashboard.html` (deleted) | 4 |
+| `session_detail_v18/index.html` (deleted) | 3 |
+| `session_browser_hifi_v15/dashboard.html` (deleted) | 2 |
+| `session_browser_hifi_v15/projects_overview.html` (deleted) | 1 |
 
 ### 生产环境按钮总览
 
@@ -101,7 +103,6 @@ icon / location / semantic meaning / decorative-or-action / expected behavior / 
 | `projects.html` | 1 |
 | `project.html` | 1 |
 | `components/ui_primitives.html` | 1 |
-| `components/session_detail_payload_v17_guidance.html` | 1 |
 | `components/session_detail_payload_v15.html` | 1 |
 | `components/data_table.html` | 1 |
 

@@ -68,20 +68,17 @@ as a partial to replace `#sessions-grid-container` on the sessions page.
 - `css/sessions-list.css`
 - `css/ui-primitives.css`
 
-**JS (13 files):**
+**JS (9 files):**
 - `js/app.js`
-- `js/dashboard_v16.js`
 - `js/data-table.js`
 - `js/keyboard.js`
 - `js/payload_viewer.js`
-- `js/session_browser_ui_v15.js`
-- `js/session_detail_response_blocks_v12.js`
-- `js/session_detail_timeline_v11.js`
-- `js/session_detail_timeline_v17_reference.js`
 - `js/session_detail_timeline.js`
 - `js/timeline.js`
 - `js/ui_primitives.js`
 - `js/view-state.js`
+
+> Note: `dashboard_v16.js`, `session_browser_ui_v15.js`, `session_detail_response_blocks_v12.js`, `session_detail_timeline_v11.js`, `session_detail_timeline_v17_reference.js` were cleaned up in 2026-05.
 
 **Root:**
 - `style.css`

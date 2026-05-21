@@ -36,7 +36,7 @@
 | `components/ui_primitives.html` | Macro library | Buttons, selects, stat pills, sortable table headers, token total |
 | `components/viewer.html` | Macro library | Content viewer + payload viewer macros |
 
-### Session Detail Components (6 files)
+### Session Detail Components (4 files)
 
 | File | Version | Description |
 |---|---|---|
@@ -44,8 +44,6 @@
 | `components/session_detail_primitives_v12.html` | v12 (legacy) | Extended set with sub_metric_cell, reasoning token_bar, block_pill |
 | `components/session_detail_timeline.html` | Current | hero, trace_header, round_summary, llm_call_card, tool_batch, subagent_block, round_detail, trace_round, payload_sources, payload_modal |
 | `components/session_detail_timeline_v12.html` | v12 (legacy) | Extended: user_message_card, sub_tool_group in addition to current macros |
-| `components/session_detail_payload_v15.html` | v15 (legacy) | payload_modal, context/response/result payload sources |
-| `components/session_detail_payload_v17_guidance.html` | v17 (legacy) | payload_modal_shell, context_payload_source |
 
 ### Partials (1 file)
 
@@ -279,7 +277,7 @@ These are documentation/standalone-test annotations, not cross-file dependencies
    - Rely on `base.html` block inheritance for structure
    - Use client-side JS for dynamic content
 
-2. **Legacy versioned components**: Six session-detail component files carry version suffixes (v12, v15, v17). The "current" (unversioned) versions are `session_detail_primitives.html` and `session_detail_timeline.html`. Legacy versions are kept for reference/migration purposes.
+2. **Legacy versioned components**: Four session-detail component files carry version suffixes (v12). The "current" (unversioned) versions are `session_detail_primitives.html` and `session_detail_timeline.html`. Legacy v15/v17 component files were cleaned up in 2026-05.
 
 3. **AJAX partial**: `partials/sessions_grid.html` is the only template served as an AJAX partial (not via full page render). It is loaded by the sessions page's client-side JS for pagination/filtering.
 

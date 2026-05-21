@@ -31,11 +31,10 @@
 | 6 | `static/js/session_browser_ui_v15.js` |
 | 7 | `static/js/session_detail_response_blocks_v12.js` |
 | 8 | `static/js/session_detail_timeline_v11.js` |
-| 9 | `static/js/session_detail_timeline_v17_reference.js` |
-| 10 | `static/js/session_detail_timeline.js` |
-| 11 | `static/js/timeline.js` |
-| 12 | `static/js/ui_primitives.js` |
-| 13 | `static/js/view-state.js` |
+| 9 | `static/js/session_detail_timeline.js` |
+| 10 | `static/js/timeline.js` |
+| 11 | `static/js/ui_primitives.js` |
+| 12 | `static/js/view-state.js` |
 
 ## 3. CSS Imports in Templates
 
@@ -94,10 +93,6 @@ No ES module `import` or `require()` statements found in any JS files under `sta
 | `session_browser_ui_v15.js` | Yes | `base.html` |
 | `session_detail_timeline.js` | Yes | `session.html` |
 | `ui_primitives.js` | Yes | `sessions.html` |
-| `dashboard_v16.js` | **NO** | — |
-| `session_detail_response_blocks_v12.js` | **NO** | — |
-| `session_detail_timeline_v11.js` | **NO** | — |
-| `session_detail_timeline_v17_reference.js` | **NO** | — |
 
 ## 7. Orphaned Files
 
@@ -106,10 +101,7 @@ No ES module `import` or `require()` statements found in any JS files under `sta
 2. `session-detail-v18-polish-patch.css` — zero references anywhere in templates or JS
 
 ### JS Orphans (on disk, never imported)
-1. `dashboard_v16.js` — zero references anywhere in templates
-2. `session_detail_response_blocks_v12.js` — zero references anywhere in templates
-3. `session_detail_timeline_v11.js` — zero references anywhere in templates
-4. `session_detail_timeline_v17_reference.js` — zero references anywhere in templates
+- None. All orphaned JS files were cleaned up in 2026-05.
 
 ### Imported but Missing (404 risk)
 - None. All imported files exist on disk.
