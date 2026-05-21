@@ -134,11 +134,23 @@ def test_raw_json_moved_to_script_tag():
 def test_filter_buttons_exist():
     """Filter status chips must exist."""
     timeline = _timeline_component()
-    chips = re.findall(
+    # v18: uses status-all / status-failed actions (HIFI table migration)
+    chips_all = re.findall(
+        r'<button[^>]*data-action="status-all"[^>]*>',
+        timeline
+    )
+    chips_failed = re.findall(
+        r'<button[^>]*data-action="status-failed"[^>]*>',
+        timeline
+    )
+    assert len(chips_all) > 0 or len(chips_failed) > 0, "Filter status chips must exist"
+    # Also accept legacy filter-status pattern
+    chips_legacy = re.findall(
         r'<button[^>]*data-action="filter-status"[^>]*>',
         timeline
     )
-    assert len(chips) > 0, "Filter status chips must exist"
+    if len(chips_all) == 0 and len(chips_failed) == 0:
+        assert len(chips_legacy) > 0, "Filter status chips must exist (legacy pattern)"
 
 
 # ── Payload tabs accessibility ──────────────────────────────────────

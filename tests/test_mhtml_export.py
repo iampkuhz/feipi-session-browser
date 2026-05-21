@@ -134,11 +134,11 @@ class TestPhase1SimplifiedStructure:
         assert 'data-action="collapse-all"' in component, "missing collapse-all"
 
     def test_has_all_failed_segmented_control(self):
-        # v9 has filter controls in the component macro
+        # v18: filter controls use status-all/status-failed (HIFI table migration)
         component = self._read("components/session_detail_timeline.html")
-        assert 'data-action="filter-status"' in component, "missing filter-status"
-        assert 'data-status="all"' in component, "missing 'all' filter"
-        assert 'data-status="failed"' in component, "missing 'failed' filter"
+        has_new = 'data-action="status-all"' in component and 'data-action="status-failed"' in component
+        has_legacy = 'data-action="filter-status"' in component
+        assert has_new or has_legacy, "missing filter status buttons (status-all/status-failed or legacy filter-status)"
 
     def test_no_old_workbench_views(self):
         """Calls and Hotspots workbench views should be removed."""

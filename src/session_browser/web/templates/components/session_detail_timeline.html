@@ -77,8 +77,8 @@
     </div>
     <div class="sd-trace-actions">
       <div class="sd-seg" role="group" aria-label="Trace status filter">
-        <button type="button" class="sd-seg-btn is-active" data-action="filter-status" data-status="all">All</button>
-        <button type="button" class="sd-seg-btn" data-action="filter-status" data-status="failed">Failed</button>
+        <button type="button" class="sd-seg-btn is-active" data-action="status-all">All</button>
+        <button type="button" class="sd-seg-btn" data-action="status-failed">Failed</button>
       </div>
       <button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-action="collapse-all">Collapse all</button>
     </div>
@@ -104,6 +104,64 @@
     <span class="sd-round-metric">{{ row.tool_count_label|default('0 tools') }}</span>
     <span class="sd-round-mix">{{ sdp.token_bar(row.token_mix.fresh, row.token_mix.cache, row.token_mix.out) }}</span>
   </button>
+{%- endmacro %}
+
+{% macro round_row(row) -%}
+<tr class="round-row {% if row.is_open %}is-open{% endif %} {% if row.status_key == 'manual' %}manual{% endif %}" id="round-{{ row.round_id }}" data-trace-round-row data-round="{{ row.round_id }}" data-status="{{ row.status_key }}">
+  <td><span class="round-id {% if row.status_key == 'manual' %}manual{% endif %} {% if 'fail' in row.status_key|default('') %}failed{% endif %}">R{{ row.round_id }}</span></td>
+  <td><span class="summary-title">{{ row.preview_title }}</span></td>
+  <td>
+    <div class="metric-stack">
+      <span class="metric-token">{{ row.token_total_raw|default(0)|format_compact_token }}</span>
+      <span>{{ row.tool_count_label|default('0 tools') }}</span>
+      <span class="tokenbar" aria-hidden="true">
+        <span class="fresh" style="--segment-width:{{ row.token_mix.fresh|default(0) }}%"></span>
+        <span class="read" style="--segment-width:{{ row.token_mix.cache|default(0) }}%"></span>
+        <span class="out" style="--segment-width:{{ row.token_mix.out|default(0) }}%"></span>
+      </span>
+    </div>
+  </td>
+  <td>
+    {% if row.status_key == 'manual' %}
+      <span class="badge badge-manual">&#x270D;&#xFE0F; Manual Input</span>
+    {% elif 'fail' in row.status_key|default('') %}
+      <span class="badge badge-err">Failed</span>
+    {% endif %}
+  </td>
+  <td>
+    <button type="button" class="round-toggle-btn" data-action="toggle-round" data-target="#round-{{ row.round_id }}-detail" data-round="{{ row.round_id }}" aria-expanded="{{ 'true' if row.is_open else 'false' }}" aria-controls="round-{{ row.round_id }}-detail" title="Expand / collapse">
+      <span>{% if row.is_open %}&#x2303;{% else %}&#x2304;{% endif %}</span>
+    </button>
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro expanded_row(row) -%}
+<tr class="expanded-row" id="round-{{ row.round_id }}-detail" data-trace-detail {% if not row.is_open %}hidden{% endif %}>
+  <td colspan="5">
+    <div class="sd-timeline">
+      {% for item in row.timeline_items %}
+        {% if item.type == 'llm_call' %}
+          {{ llm_call_card(item) }}
+        {% elif item.type == 'tool_batch' %}
+          {{ tool_batch(item) }}
+        {% elif item.type == 'subagent' %}
+          {{ subagent_block(item) }}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro round_detail(row) -%}
+  {# Backward-compatible alias: calls expanded_row for table structure #}
+  {{ expanded_row(row) }}
+{%- endmacro %}
+
+{% macro trace_round(row) -%}
+  {{ round_row(row) }}
+  {{ expanded_row(row) }}
 {%- endmacro %}
 
 {% macro llm_call_card(call) -%}
@@ -191,29 +249,6 @@
       </div>
     </section>
   </div>
-{%- endmacro %}
-
-{% macro round_detail(row) -%}
-  <div class="sd-round-detail" id="round-{{ row.round_id }}-detail" data-trace-detail {% if not row.is_open %}hidden{% endif %}>
-    <div class="sd-timeline">
-      {% for item in row.timeline_items %}
-        {% if item.type == 'llm_call' %}
-          {{ llm_call_card(item) }}
-        {% elif item.type == 'tool_batch' %}
-          {{ tool_batch(item) }}
-        {% elif item.type == 'subagent' %}
-          {{ subagent_block(item) }}
-        {% endif %}
-      {% endfor %}
-    </div>
-  </div>
-{%- endmacro %}
-
-{% macro trace_round(row) -%}
-  <article class="sd-round {% if row.is_open %}is-open{% endif %}" id="round-{{ row.round_id }}" data-trace-round-row data-round="{{ row.round_id }}" data-status="{{ row.status_key }}">
-    {{ round_summary(row) }}
-    {{ round_detail(row) }}
-  </article>
 {%- endmacro %}
 
 {# ── v17 typed payload sources ── #}

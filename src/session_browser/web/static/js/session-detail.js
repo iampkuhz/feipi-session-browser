@@ -29,10 +29,18 @@
   }
 
   function setFilter(page, status) {
+    // v18: support both legacy (filter-status + data-status) and new (status-all/status-failed) patterns
     qsa(page, '[data-action="filter-status"]').forEach(function (b) {
       b.classList.toggle('is-active', (b.getAttribute('data-status') || '').toLowerCase() === status);
     });
+    qsa(page, '[data-action="status-all"]').forEach(function (b) {
+      b.classList.toggle('is-active', status === 'all');
+    });
+    qsa(page, '[data-action="status-failed"]').forEach(function (b) {
+      b.classList.toggle('is-active', status === 'failed');
+    });
 
+    // Toggle round-row visibility
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
       var shouldShow = status === 'all' || (round.getAttribute('data-status') || '').toLowerCase() === status;
       round.hidden = !shouldShow;
@@ -154,6 +162,14 @@
       event.preventDefault();
       event.stopPropagation();
       setFilter(page, (actionEl.getAttribute('data-status') || 'all').toLowerCase());
+    } else if (action === 'status-all') {
+      event.preventDefault();
+      event.stopPropagation();
+      setFilter(page, 'all');
+    } else if (action === 'status-failed') {
+      event.preventDefault();
+      event.stopPropagation();
+      setFilter(page, 'failed');
     } else if (action === 'collapse-all') {
       event.preventDefault();
       event.stopPropagation();

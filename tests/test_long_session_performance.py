@@ -76,8 +76,8 @@ class TestLongSessionRendering:
         """Trace rows should use compact preview_text, not full message content."""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        # Each round row should have preview content
-        assert "sd-round-preview" in html or "sd-round-preview__title" in html, \
+        # v18: table structure uses .summary-title for preview text
+        assert "summary-title" in html or "sd-round-preview" in html or "sd-round-preview__title" in html, \
             "Trace rows should use compact preview elements"
 
     def test_css_contain_property(self, long_session_url):

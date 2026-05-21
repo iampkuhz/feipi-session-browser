@@ -59,11 +59,29 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
 
   <section class="sd-trace-panel" data-trace-panel>
     {{ sdt.trace_header() }}
-    <div class="sd-trace-list" data-trace-list>
+    <table class="trace-table" data-trace-list>
+      <colgroup>
+        <col class="col-round"/>
+        <col class="col-summary"/>
+        <col class="col-metrics"/>
+        <col class="col-status"/>
+        <col class="col-open"/>
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="round-col">Round</th>
+          <th>Summary</th>
+          <th class="metrics-col sortable">Metrics</th>
+          <th class="status-col">Status / Signals</th>
+          <th class="col-open">Open</th>
+        </tr>
+      </thead>
+      <tbody>
       {% for row in trace_rows %}
         {{ sdt.trace_round(row) }}
       {% endfor %}
-    </div>
+      </tbody>
+    </table>
   </section>
 
   {{ sdt.payload_sources(payload_sources | default([])) }}

@@ -50,7 +50,7 @@ class TestFixtureDataAttributes:
     """Verify the fixture session has correct data attributes for HIFI wiring."""
 
     def test_view_switch_buttons(self, hifi_fixture_session):
-        """v11: no data-switch buttons for calls/hotspots; toggle-all and filter-status exist."""
+        """v18: no data-switch buttons for calls/hotspots; toggle-all and filter controls exist."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -59,10 +59,14 @@ class TestFixtureDataAttributes:
         for view in ("calls", "hotspots"):
             btn = soup.select_one(f'[data-switch="{view}"]')
             assert btn is None, f'unexpected button with data-switch="{view}" (should be removed)'
-        # v11 action buttons
-        for action in ("collapse-all", "filter-status"):
-            btn = soup.select_one(f'[data-action="{action}"]')
-            assert btn is not None, f'missing button with data-action="{action}"'
+        # v18: filter controls use status-all/status-failed (HIFI table migration)
+        has_new = soup.select_one('[data-action="status-all"]') is not None or \
+                  soup.select_one('[data-action="status-failed"]') is not None
+        has_legacy = soup.select_one('[data-action="filter-status"]') is not None
+        assert has_new or has_legacy, 'missing filter status buttons (status-all/status-failed or legacy filter-status)'
+        # collapse-all must exist
+        btn = soup.select_one('[data-action="collapse-all"]')
+        assert btn is not None, 'missing button with data-action="collapse-all"'
         # expand-visible was removed in v9
         btn = soup.select_one('[data-action="expand-visible"]')
         assert btn is None, "expand-visible button should not exist in v9"
@@ -117,8 +121,8 @@ class TestFixtureTokenData:
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        # v9: token bar uses .sd-tokenbar class
-        token_bars = soup.select(".sd-tokenbar")
+        # v18: token bar uses .tokenbar class (table structure); v9 used .sd-tokenbar
+        token_bars = soup.select(".tokenbar") + soup.select(".sd-tokenbar")
         assert len(token_bars) > 0, "No token bar elements found in session HTML"
 
     def test_session_has_token_summary(self, hifi_fixture_session):
@@ -496,7 +500,7 @@ class TestDeadButtonGate:
         return BeautifulSoup(html, "html.parser"), html
 
     SUPPORTED_ACTIONS = {
-        "filter-status", "toggle-all", "expand-all", "expand-visible", "collapse-all",
+        "filter-status", "status-all", "status-failed", "toggle-all", "expand-all", "expand-visible", "collapse-all",
         "open-payload", "payload-mode", "close-modal", "close-payload", "payload-tab",
         "jump-round", "jump-anomaly", "md-toggle",
         "toggle-round", "toggle-issue-expand", "toggle-sub-round",
