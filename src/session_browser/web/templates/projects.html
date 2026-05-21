@@ -3,30 +3,35 @@
 
 {% block title %}Projects - Agent Run Profiler{% endblock %}
 
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Projects</span>
+{% endblock %}
+
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/projects.css">
 {% endblock %}
 
 {% block content %}
 
-<!-- Page header -->
-<div class="page-header">
-    <div class="page-header__top">
-        <div class="page-header__left">
-            <h1 class="page-header__title">Projects</h1>
-        </div>
-        <div class="page-header__actions">
-            <span class="text-muted text-xs" id="projects-count-label">{{ projects | length }} projects</span>
-        </div>
+<!-- Page header: canonical .page-head (T100) -->
+<section class="page-head">
+    <div>
+        <h1>Projects</h1>
+        <p>Indexed local workspaces</p>
     </div>
-</div>
+    <div class="page-head-stats">
+        <span class="ui-stat-pill"><b id="projects-count">{{ projects | length }}</b> projects</span>
+    </div>
+</section>
 
-<!-- Filter row -->
+<!-- Filter card: canonical structure -->
 <div class="card card--filter-bar">
     <div class="filter-bar">
         <input id="project-search" type="text" placeholder="Search by name or path..."
-               class="filter-bar__input filter-bar__input--search" />
-        <select id="project-sort" class="filter-bar__select">
+               class="filter-bar__input filter-bar__input--search" data-search="project" />
+        <select id="project-sort" class="filter-bar__select" data-action="project-sort">
             <option value="last_seen">Sort: Last Active</option>
             <option value="total_sessions">Sort: Sessions</option>
             <option value="total_tokens">Sort: Tokens</option>
@@ -38,7 +43,7 @@
 </div>
 
 <!-- Projects table -->
-<div class="page-section">
+<section class="page-section">
     <div class="card-title flex">
         All Projects <span class="text-muted normal-case">(<span id="project-count">{{ projects | length }}</span>)</span>
     </div>
@@ -49,12 +54,12 @@
                 <tr>
                     <th>Project</th>
                     <th>Path</th>
-                    <th class="numeric sortable">Sessions</th>
+                    <th class="numeric sortable" data-sort-key="sessions">Sessions</th>
                     <th class="numeric">Agents</th>
-                    <th class="numeric sortable">Tokens</th>
-                    <th class="numeric sortable">Tools</th>
+                    <th class="numeric sortable" data-sort-key="tokens">Tokens</th>
+                    <th class="numeric sortable" data-sort-key="tools">Tools</th>
                     <th>Health</th>
-                    <th class="sortable">Last Active</th>
+                    <th class="sortable" data-sort-key="last_active">Last Active</th>
                 </tr>
             </thead>
             <tbody>
@@ -77,7 +82,7 @@
                     data-total-tokens="{{ p_total_tokens }}"
                     data-total-tools="{{ p.total_tool_calls }}"
                     data-total-failed="{{ p.total_failed_tools }}">
-                    <td><a href="/projects/{{ p.project_key | urlencode }}" class="link">{{ p.project_name }}</a></td>
+                    <td><a href="/projects/{{ p.project_key | urlencode }}" class="link" data-action="open-project">{{ p.project_name }}</a></td>
                     <td class="path-cell">
                         <span class="path-text truncate" data-tooltip="{{ p.project_key }}">{{ p.project_key | truncate_path }}</span>
                         <button class="path-copy-btn" data-action="copy-project-path" data-clipboard-text="{{ p.project_key }}" title="Copy full path">
@@ -119,7 +124,7 @@
     {% else %}
     <div class="empty-state">No projects indexed yet.</div>
     {% endif %}
-</div>
+</section>
 
 {% endblock %}
 

@@ -8,3 +8,40 @@
  * sessions-list styles.
  *
  * ─────────────────────────────────────────────────────────────── */
+
+/* ── Page Head (canonical .page-head pattern, T100) ─────────── */
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 0 12px;
+}
+.page-head h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+.page-head p {
+  margin: 6px 0 0;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+.page-head-stats {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.page-head-stats .ui-stat-pill {
+  font-size: 13px;
+  color: var(--text-subtle);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.page-head-stats .ui-stat-pill b {
+  color: var(--text-primary);
+  font-weight: 700;
+}
