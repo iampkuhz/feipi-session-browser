@@ -234,14 +234,14 @@
                 </tbody>
             </table>
         </div>
-        <div class="pagination unified-pagination" aria-label="Projects pagination">
+        <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
             <span class="page-status">Page</span>
             <input class="page-input mono" data-action="page-input" aria-label="Page number"
                    value="1" title="输入页码后按 Enter，跳转到指定页" />
             <span class="page-status" id="page-status-text">of 1 · {{ projects | length }} projects</span>
             <span class="spacer"></span>
             <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
-        </div>
+        </nav>
     </div>
     <div id="projects-empty" class="state-strip is-hidden">
         <div class="state-icon" aria-hidden="true"><span class="emoji lg">📁</span></div>
