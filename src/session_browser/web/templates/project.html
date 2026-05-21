@@ -45,7 +45,7 @@
             <span class="emoji" aria-hidden="true">📈</span>
         </div>
         <div>
-            <div class="metric-label">Sessions <button class="info-icon" data-action="info" title="Total sessions in this project">ⓘ</button></div>
+            <div class="metric-label">Sessions <button class="info-icon" data-action="info" aria-label="Sessions 计数方式说明" title="Total sessions in this project">ⓘ</button></div>
             <div class="metric-value">{{ project.total_sessions }}</div>
             <div class="agent-mix">
                 <span class="badge badge-claude">{{ project.claude_sessions }} CC</span>
@@ -59,7 +59,7 @@
             <span class="emoji" aria-hidden="true">📥</span>
         </div>
         <div>
-            <div class="metric-label">Input-side Tokens <button class="info-icon" data-action="info" title="Total input-side tokens">ⓘ</button></div>
+            <div class="metric-label">Input-side Tokens <button class="info-icon" data-action="info" aria-label="Input-side Token 公式说明" title="Total input-side tokens">ⓘ</button></div>
             <div class="metric-value">{{ p_input_side | format_compact_token }}</div>
             <div class="delta">Cache R: {{ p_cache_reuse }}%</div>
         </div>
@@ -69,7 +69,7 @@
             <span class="emoji" aria-hidden="true">📤</span>
         </div>
         <div>
-            <div class="metric-label">Output Tokens <button class="info-icon" data-action="info" title="Total output-side tokens">ⓘ</button></div>
+            <div class="metric-label">Output Tokens <button class="info-icon" data-action="info" aria-label="Output Token 定义说明" title="Total output-side tokens">ⓘ</button></div>
             <div class="metric-value">{{ project.total_output_tokens | format_compact_token }}</div>
             <div class="delta">{{ project.total_tool_calls | format_number }} tools</div>
         </div>
@@ -79,7 +79,7 @@
             <span class="emoji" aria-hidden="true">📅</span>
         </div>
         <div>
-            <div class="metric-label">Active Period <button class="info-icon" data-action="info" title="Active period of this project">ⓘ</button></div>
+            <div class="metric-label">Active Period <button class="info-icon" data-action="info" aria-label="活跃周期来源说明" title="Active period of this project">ⓘ</button></div>
             <div class="metric-value mono">
                 {% if project.first_seen and project.last_seen %}
                 {{ project.first_seen[:10] }} → {{ project.last_seen | relative_time }}
@@ -98,7 +98,7 @@
     <div class="card table-card">
         <div class="table-toolbar">
             <div>
-                <div class="card-title">Sessions <button class="info-icon" data-action="info" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button></div>
+                <div class="card-title">Sessions <button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button></div>
                 <div class="card-sub">All indexed sessions in this project</div>
             </div>
             <span class="spacer"></span>
