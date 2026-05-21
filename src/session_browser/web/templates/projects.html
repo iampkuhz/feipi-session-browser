@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% set active_page = 'projects' %}
+{% import "components/ui_primitives.html" as ui %}
 
 {% block title %}Projects - Agent Run Profiler{% endblock %}
 
@@ -14,6 +15,17 @@
 {% endblock %}
 
 {% block content %}
+
+{# ── Error state: data failed to load or parse ────────────────── #}
+{% if error %}
+<section class="page-section">
+    {{ ui.error_state(
+        error,
+        action_button=ui.button('Back to Dashboard', variant='primary', href='/dashboard', data_action='go-dashboard'),
+        icon='🔌'
+    ) }}
+</section>
+{% else %}
 
 <!-- Page header: canonical .page-head (T100) -->
 <section class="page-head">
@@ -253,15 +265,14 @@
         <button class="btn" data-action="clear-search" title="清空项目名搜索并重新渲染完整项目列表">Clear Search</button>
     </div>
     {% else %}
-    <div class="state-strip">
-        <div class="state-icon" aria-hidden="true"><span class="emoji lg">📁</span></div>
-        <div>
-            <div class="state-title">No projects indexed yet</div>
-            <div class="muted">Run a scan to index your local agent sessions.</div>
-        </div>
-    </div>
+    {{ ui.empty_state(
+        'No projects indexed yet',
+        action_button=ui.button('Run Scan', variant='primary', href='/', data_action='run-scan'),
+        icon='📁'
+    ) }}
     {% endif %}
 </section>
+{% endif %}{# /error guard #}
 
 {% endblock %}
 
