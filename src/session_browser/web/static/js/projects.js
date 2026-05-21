@@ -2,6 +2,7 @@
  * projects.js — Projects page search, sort, and filter persistence.
  *
  * Loaded via script_extra in projects.html.
+ * Uses shared UI primitive classes and data-action attributes (T102).
  */
 (function() {
     'use strict';
@@ -26,6 +27,9 @@
         if (label) label.textContent = visibleCount + ' projects';
         var empty = document.getElementById('projects-empty');
         if (empty) empty.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        // Update active-filters chip
+        updateFilterChip(q);
     }
 
     window.applyProjectSort = function() { sortProjects(); };
@@ -55,12 +59,23 @@
         rows.forEach(function(r) { tbody.appendChild(r); });
     }
 
+    function updateFilterChip(query) {
+        var chip = document.querySelector('.active-filters .filter-chip');
+        if (!chip) return;
+        if (query) {
+            chip.textContent = 'Search: ' + query;
+        } else {
+            chip.textContent = 'Search: none';
+        }
+    }
+
     window.resetProjectFilters = function() {
         document.getElementById('project-search').value = '';
         document.getElementById('project-sort').selectedIndex = 0;
         filterProjects();
         arpStorage.remove('projects_search');
         arpStorage.remove('projects_sort');
+        updateFilterChip('');
     };
 
     var searchEl = document.getElementById('project-search');
@@ -71,14 +86,36 @@
     var savedSort = arpStorage.get('projects_sort');
     if (savedSort && sortEl) { sortEl.value = savedSort; }
 
+    // Real-time search on input (preserved behavior)
     if (searchEl) {
         searchEl.addEventListener('input', function() {
             arpStorage.set('projects_search', searchEl.value);
+            filterProjects();
         });
     }
+
+    // Sort on change
     if (sortEl) {
         sortEl.addEventListener('change', function() {
             arpStorage.set('projects_sort', sortEl.value);
+            sortProjects();
+        });
+    }
+
+    // Apply button: re-apply current filters
+    var applyBtn = document.querySelector('[data-action="apply-search"]');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', function() {
+            filterProjects();
+            if (sortEl) sortProjects();
+        });
+    }
+
+    // Clear button: reset all filters
+    var clearBtn = document.querySelector('[data-action="clear-search"]');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            resetProjectFilters();
         });
     }
 

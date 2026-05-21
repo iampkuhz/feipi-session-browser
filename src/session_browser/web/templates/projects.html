@@ -96,19 +96,24 @@
 </section>
 {% endif %}
 
-<!-- Filter card: canonical structure -->
-<div class="card card--filter-bar">
-    <div class="filter-bar">
-        <input id="project-search" type="text" placeholder="Search by name or path..."
-               class="filter-bar__input filter-bar__input--search" data-search="project" />
-        <select id="project-sort" class="filter-bar__select" data-action="project-sort">
+<!-- Filter card: canonical structure with shared primitives (T102) -->
+<div class="card filter-card">
+    <div class="filter-row">
+        <input id="project-search" type="text" class="input search"
+               placeholder="Search by name or path..."
+               data-search="project-name" />
+        <select id="project-sort" class="select">
             <option value="last_seen">Sort: Last Active</option>
             <option value="total_sessions">Sort: Sessions</option>
             <option value="total_tokens">Sort: Tokens</option>
             <option value="total_tool_calls">Sort: Tools</option>
             <option value="total_failed_tools">Sort: Failed Tools</option>
         </select>
-        <button class="filter-bar__btn" data-action="reset-project-filters">Reset</button>
+        <button class="btn" data-action="apply-search">Apply</button>
+        <button class="btn" data-action="clear-search">Clear</button>
+    </div>
+    <div class="active-filters" aria-live="polite">
+        <span class="filter-chip">Search: none</span>
     </div>
 </div>
 
