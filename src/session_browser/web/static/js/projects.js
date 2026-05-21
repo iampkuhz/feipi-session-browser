@@ -1,13 +1,49 @@
 /**
- * projects.js — Projects page search, sort, and filter persistence.
+ * projects.js — Projects page search, sort, filter, and project-detail behaviors.
  *
- * Loaded via script_extra in projects.html.
+ * Loaded via script_extra in projects.html (list + detail pages).
  * Uses shared UI primitive classes and data-action attributes (T102).
  *
  * T103: Migrated from select-based sorting to sortable header buttons.
+ * T113: Added project-detail behaviors scoped to #project-sessions-table.
  */
 (function() {
     'use strict';
+
+    /* ── Toast helper (shared across all behaviors) ──────────── */
+    function showToast(msg) {
+        var toast = document.querySelector('.toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.classList.add('is-visible');
+        clearTimeout(toast._timeout);
+        toast._timeout = setTimeout(function() {
+            toast.classList.remove('is-visible');
+        }, 2000);
+    }
+    window.showToast = showToast;
+
+    /* ── Copy project path (works on both list & detail) ─────── */
+    var copyPathBtns = document.querySelectorAll('[data-action="copy-project-path"]');
+    copyPathBtns.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var text = btn.dataset.clipboardText;
+            if (text && navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showToast('Path copied');
+                });
+            }
+        });
+    });
+
+    /* ===========================================================
+     * LIST PAGE behaviors (scoped to #projects-table)
+     * =========================================================== */
 
     /* ── Sort state ─────────────────────────────────────────── */
     var currentSort = { key: null, ascending: false };
@@ -123,7 +159,7 @@
         updateFilterChip('');
     };
 
-    /* ── Event binding ──────────────────────────────────────── */
+    /* ── List page event binding ────────────────────────────── */
     var searchEl = document.getElementById('project-search');
 
     var savedSearch = arpStorage.get('projects_search');
@@ -137,7 +173,7 @@
         });
     }
 
-    // Sortable header buttons
+    // Sortable header buttons (list page)
     var sortButtons = document.querySelectorAll('#projects-table th .sortable-header');
     sortButtons.forEach(function(btn) {
         btn.addEventListener('click', function(e) {
@@ -169,23 +205,9 @@
         });
     });
 
-    // Copy project path
-    var copyBtns = document.querySelectorAll('[data-action="copy-project-path"]');
-    copyBtns.forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var text = btn.dataset.clipboardText;
-            if (text && navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(function() {
-                    showToast('Path copied');
-                });
-            }
-        });
-    });
-
-    // Row click: navigate to project detail
-    var rows = document.querySelectorAll('#projects-table tbody tr[data-action="open-project"]');
-    rows.forEach(function(row) {
+    // Row click: navigate to project detail (list page)
+    var listRows = document.querySelectorAll('#projects-table tbody tr[data-action="open-project"]');
+    listRows.forEach(function(row) {
         row.addEventListener('click', function(e) {
             // Don't navigate if clicking a link or button inside the row
             if (e.target.closest('a') || e.target.closest('button')) return;
@@ -196,22 +218,172 @@
         });
     });
 
-    function showToast(msg) {
-        var toast = document.querySelector('.toast, .toast-container');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.className = 'toast';
-            document.body.appendChild(toast);
-        }
-        toast.textContent = msg;
-        toast.classList.add('is-visible');
-        clearTimeout(toast._timeout);
-        toast._timeout = setTimeout(function() {
-            toast.classList.remove('is-visible');
-        }, 2000);
-    }
-
     if (savedSearch) {
         filterProjects();
     }
+
+    /* ===========================================================
+     * PROJECT DETAIL PAGE behaviors (scoped to #project-sessions-table)
+     * All handlers check that #project-sessions-table exists first.
+     * =========================================================== */
+
+    var detailTable = document.getElementById('project-sessions-table');
+
+    if (detailTable) {
+        /* ── Detail: search in table toolbar ──────────────────── */
+        var detailSearch = document.querySelector('#project-sessions-table [data-action="search"]')
+            || document.querySelector('.table-toolbar [data-action="search"]')
+            || document.getElementById('project-session-search');
+
+        if (detailSearch) {
+            detailSearch.addEventListener('input', function() {
+                var q = detailSearch.value.toLowerCase().trim();
+                var rows = detailTable.querySelectorAll('tbody tr');
+                var visibleCount = 0;
+                rows.forEach(function(row) {
+                    var title = (row.dataset.title || row.textContent || '').toLowerCase();
+                    var show = !q || title.indexOf(q) >= 0;
+                    row.style.display = show ? '' : 'none';
+                    if (show) visibleCount++;
+                });
+                // Update count if element exists
+                var countLabel = document.getElementById('project-sessions-count');
+                if (countLabel) countLabel.textContent = visibleCount + ' sessions';
+            });
+        }
+
+        /* ── Detail: copy session ID ─────────────────────────── */
+        var copySessionBtns = detailTable.querySelectorAll('[data-action="copy-session"]');
+        copySessionBtns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var text = btn.dataset.clipboardText || btn.getAttribute('data-clipboard-text');
+                if (text && navigator.clipboard) {
+                    navigator.clipboard.writeText(text).then(function() {
+                        showToast('Session ID copied');
+                    });
+                }
+            });
+        });
+
+        /* ── Detail: row click navigation ────────────────────── */
+        var detailRows = detailTable.querySelectorAll('tbody tr[data-action="open-session"]');
+        detailRows.forEach(function(row) {
+            row.addEventListener('click', function(e) {
+                if (e.target.closest('a') || e.target.closest('button')) return;
+                var link = row.querySelector('a.link, a[data-action="open-session-link"]');
+                if (link && link.href) {
+                    window.location.href = link.href;
+                }
+            });
+        });
+
+        /* ── Detail: sortable headers ────────────────────────── */
+        var detailSortBtns = detailTable.querySelectorAll('th .sortable-header');
+        var detailSortState = { key: null, ascending: false };
+
+        detailSortBtns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var key = btn.dataset.sort;
+                if (!key) return;
+                if (detailSortState.key === key) {
+                    detailSortState.ascending = !detailSortState.ascending;
+                } else {
+                    detailSortState.key = key;
+                    detailSortState.ascending = false;
+                }
+                sortDetailTable();
+                updateDetailSortIndicators();
+            });
+        });
+
+        function sortDetailTable() {
+            var tbody = detailTable.querySelector('tbody');
+            if (!tbody) return;
+
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            var key = detailSortState.key;
+            var asc = detailSortState.ascending;
+
+            rows.sort(function(a, b) {
+                var va = getDetailSortValue(a, key);
+                var vb = getDetailSortValue(b, key);
+                if (va === vb) return 0;
+                var cmp = (va < vb) ? -1 : 1;
+                return asc ? cmp : -cmp;
+            });
+
+            rows.forEach(function(r) { tbody.appendChild(r); });
+        }
+
+        function getDetailSortValue(row, key) {
+            var colIndex = -1;
+            var headers = Array.from(detailTable.querySelectorAll('thead th'));
+            for (var i = 0; i < headers.length; i++) {
+                var sortBtn = headers[i].querySelector('.sortable-header');
+                if (sortBtn && sortBtn.dataset.sort === key) {
+                    colIndex = i;
+                    break;
+                }
+            }
+            if (colIndex < 0) return '';
+
+            var cells = row.querySelectorAll('td');
+            if (colIndex >= cells.length) return '';
+            var text = cells[colIndex].textContent.trim();
+
+            // Try numeric for numeric columns
+            var num = parseFloat(text.replace(/,/g, ''));
+            if (!isNaN(num)) return num;
+            return text.toLowerCase();
+        }
+
+        function updateDetailSortIndicators() {
+            detailSortBtns.forEach(function(btn) {
+                var caret = btn.querySelector('.sort-caret');
+                if (!caret) return;
+                if (btn.dataset.sort === detailSortState.key) {
+                    caret.textContent = detailSortState.ascending ? '↑' : '↓';
+                } else {
+                    caret.textContent = '↕';
+                }
+            });
+        }
+
+        /* ── Detail: pagination handlers ─────────────────────── */
+        // Page input: enter key to jump to page
+        var pageInputs = document.querySelectorAll('[data-action="page-input"]');
+        pageInputs.forEach(function(input) {
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var pageNum = parseInt(input.value, 10);
+                    if (pageNum > 0) {
+                        navigateToPage(pageNum);
+                    }
+                }
+            });
+        });
+
+        // Next page button
+        var nextPageBtns = document.querySelectorAll('[data-action="next-page"]');
+        nextPageBtns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var href = btn.getAttribute('href');
+                if (href) {
+                    window.location.href = href;
+                }
+            });
+        });
+    }
+
+    function navigateToPage(pageNum) {
+        // Update the URL with the page parameter
+        var params = new URLSearchParams(window.location.search);
+        params.set('page', pageNum.toString());
+        window.location.search = params.toString();
+    }
+
 })();
