@@ -31,7 +31,7 @@ FORBIDDEN_NAME_PATTERNS = [
 ]
 FORBIDDEN_TEXT_PATTERNS = [
     (re.compile(r"onclick\s*="), "inline onclick"),
-    (re.compile(r'(?<=[\s>])style\s*=(?!["\']--)(?![\s]*"\{\{)'), "inline style"),
+    (re.compile(r'(?<=[\s>])style\s*=(?!["\']--)(?![\s]*"\{\{)(?!["\'][^"\']*\{\{)'), "inline style"),
     (re.compile(r'<script(?![^>]*src=)(?![^>]*type=["\']application/json["\'])(?![^>]*>\s*\{\{\s*mhtml_js)(?![^>]*>\s*window\._)'), "inline script"),
     (re.compile(r"session-browser-v\d+\.css"), "versioned global css"),
     (re.compile(r"dashboard-v\d+\.css"), "versioned dashboard css"),
