@@ -1039,7 +1039,7 @@ body.focus .shell.phase1-shell,
 /* ─ Sessions list: no-inspector main area ── */
 .shell.no-inspector .main {
     padding: var(--space-md);
-    max-width: 1400px;
+    max-width: min(100%, var(--max));
 }
 
 /* ─── Metric section labels ───────────────────────────────────── */
