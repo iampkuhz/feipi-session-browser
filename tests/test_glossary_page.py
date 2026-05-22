@@ -221,8 +221,8 @@ class TestGlossaryFilterCard:
     def test_filter_card_present(self):
         """Glossary must have a filter-card."""
         content = _read_template()
-        assert 'class="card filter-card' in content, \
-            "Glossary must have a filter-card"
+        assert 'class="card filter-card' in content or 'ui.filter_card()' in content, \
+            "Glossary must have a filter-card (literal or macro)"
 
     def test_search_input_present(self):
         """Filter card must have a search input."""

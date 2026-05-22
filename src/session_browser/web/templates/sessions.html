@@ -35,59 +35,55 @@
         + ui.stat_pill(sessions_aggregate.total_tokens | format_compact_token, "total tokens")
 ) }}
 
-<!-- Filter card -->
-<section class="sessions-filter-card">
-    <form id="session-filter-form" method="get" action="/sessions">
+{% set agent_options = [
+    {'value': 'claude_code', 'label': 'Claude Code'},
+    {'value': 'qoder', 'label': 'Qoder'},
+    {'value': 'codex', 'label': 'Codex'},
+] %}
+
+{% call ui.filter_card(method='get', action='/sessions', id='session-filter-form') %}
+    <div class="filter-row">
         <input type="hidden" name="sort" value="{{ sort_by }}"/>
         <input type="hidden" name="dir" value="{{ sort_dir }}"/>
-        <div class="sessions-control-row">
-            <input id="session-search" class="input search" type="text" name="q" data-search="session-id" placeholder="Search by Session ID..." value="{{ filter_q }}" />
-            <label class="ui-select">
-                <span class="ui-select__label">Agent</span>
-                <select class="ui-select__control" id="filter-agent" name="agent">
-                    <option value="">All Agents</option>
-                    <option value="claude_code" {% if filter_agent == 'claude_code' %}selected{% endif %}>Claude Code</option>
-                    <option value="qoder" {% if filter_agent == 'qoder' %}selected{% endif %}>Qoder</option>
-                    <option value="codex" {% if filter_agent == 'codex' %}selected{% endif %}>Codex</option>
-                </select>
-            </label>
-            <label class="ui-select">
-                <span class="ui-select__label">Model</span>
-                <select class="ui-select__control" id="filter-model" name="model">
-                    <option value="">All Models</option>
-                    {% for m in model_list %}
-                    <option value="{{ m }}" {% if filter_model == m %}selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label class="ui-select">
-                <span class="ui-select__label">Project</span>
-                <select class="ui-select__control" id="filter-project" name="project">
-                    <option value="">All Projects</option>
-                    {% for p in project_list %}
-                    <option value="{{ p }}" {% if filter_project == p %}selected{% endif %}>{{ p }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <span class="sessions-control-row__push"></span>
-            {% if filter_q or filter_agent or filter_model or filter_project %}
-            {{ ui.btn('Clear All', 'secondary', 'sm', href=actions.clear_all_url, extra_class='js-clear-all', data_action='clear') }}
-            {% endif %}
-            {{ ui.btn('Apply', 'primary', 'sm', type='submit', data_action='apply') }}
-        </div>
+        {{ ui.filter_search(name='q', placeholder='Search by Session ID...', value=filter_q, id='session-search', extra_classes='js-search') }}
+        {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent, id='filter-agent') }}
+        {{ ui.filter_select(label='Model', name='model', options=model_list, selected=filter_model, id='filter-model', all_label='All Models') }}
+        {{ ui.filter_select(label='Project', name='project', options=project_list, selected=filter_project, id='filter-project', all_label='All Projects') }}
+        <span class="filter-row__push"></span>
+        {{ ui.btn('Reset', 'secondary', 'sm', href=actions.clear_all_url, extra_class='js-clear-all', data_action='clear') }}
+        {{ ui.btn('Apply', 'primary', 'sm', type='submit', data_action='apply') }}
+    </div>
+    {% call ui.filter_footer(show_label=False, count=total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions') %}
         {{ sl.active_filters(
             session_id=filter_q,
             agent=filter_agent,
             model=filter_model,
             project=filter_project,
-            count_label=(total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions'),
+            count_label='',
             remove_urls=actions.remove_filter_urls
         ) }}
-    </form>
-</section>
+    {% endcall %}
+{% endcall %}
 
 <!-- Table card -->
-{% call ui.table_card('All Sessions') %}
+{% set sessions_pagination %}
+{% if total_count is defined and total_count > 0 %}
+{% set total_pages = ((total_count + page_size - 1) / page_size) | int %}
+<nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
+    {%- if current_page > 1 %}
+    <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+    {%- endif %}
+    <span class="page-status">Page</span>
+    <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ current_page }}" title="输入页码后按 Enter，跳转到指定页"/>
+    <span class="page-status">of {{ total_pages }} · {{ page_start }}–{{ page_end }} of {{ total_count | format_compact_token if total_count >= 1000 else total_count }} sessions</span>
+    <span class="spacer"></span>
+    {%- if actions and actions.next_url %}
+    <button class="btn sm" data-action="next-page" aria-label="Next page">next &rsaquo;</button>
+    {%- endif %}
+</nav>
+{% endif %}
+{% endset %}
+{% call ui.table_card('All Sessions', pagination_html=sessions_pagination) %}
         <table class="data-table" role="table" aria-label="Sessions table">
             <thead>
                 <tr>
@@ -203,21 +199,6 @@
                 {% endif %}
             </tbody>
         </table>
-    {% if total_count is defined and total_count > 0 %}
-    {% set total_pages = ((total_count + page_size - 1) / page_size) | int %}
-    <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
-        {%- if current_page > 1 %}
-        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-        {%- endif %}
-        <span class="page-status">Page</span>
-        <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ current_page }}" title="输入页码后按 Enter，跳转到指定页"/>
-        <span class="page-status">of {{ total_pages }} · {{ page_start }}–{{ page_end }} of {{ total_count | format_compact_token if total_count >= 1000 else total_count }} sessions</span>
-        <span class="spacer"></span>
-        {%- if actions and actions.next_url %}
-        <button class="btn sm" data-action="next-page" aria-label="Next page">next &rsaquo;</button>
-        {%- endif %}
-    </nav>
-    {% endif %}
 {% endcall %}
 
 </div>

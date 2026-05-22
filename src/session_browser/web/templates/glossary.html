@@ -76,7 +76,7 @@
 </div>
 
 <!-- 搜索过滤 -->
-<div class="card filter-card">
+{% call ui.filter_card() %}
     <div class="filter-row">
         <input type="search"
                id="glossary-search"
@@ -87,7 +87,7 @@
                autocomplete="off" />
         <span id="glossary-match-count" class="match-count"></span>
     </div>
-</div>
+{% endcall %}
 
 {# Search-driven empty state — JS-controlled by glossary.js (toggles .is-hidden class).
    Uses .state-strip structure (matches projects.html) for visual consistency.

@@ -790,6 +790,14 @@ a.btn:focus-visible {
   overflow: hidden;
 }
 
+.table-card-pagination {
+  border-top: 1px solid var(--line);
+}
+
+.table-card-pagination .pagination.unified-pagination {
+  margin-bottom: 0;
+}
+
 .table-wrap {
   overflow-x: auto;
   overflow-y: visible;

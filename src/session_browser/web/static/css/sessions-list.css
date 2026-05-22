@@ -16,24 +16,31 @@
   margin-inline: auto;
 }
 .sessions-page .sessions-filter-card,
-.sessions-page .sessions-table-card {
+.sessions-page .sessions-table-card,
+.sessions-page .card.filter-card {
   width: 100%;
 }
 .sessions-page .sessions-page-title{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:12px}
 .sessions-page .sessions-page-title h1{margin:0;font-size:28px;line-height:1.1;font-weight:880;letter-spacing:-.035em}
 .sessions-page .sessions-page-title__sub{margin-top:4px;color:var(--sessions-text-3);font-size:12px}
 .sessions-page .sessions-page-title__stats{display:flex;gap:8px;align-items:center}
-.sessions-page .sessions-filter-card,.sessions-page .sessions-table-card{background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--sessions-line);border-radius:var(--sessions-card-radius);box-shadow:var(--sessions-shadow);overflow:hidden}
-.sessions-page .sessions-filter-card{margin-bottom:12px}
+.sessions-page .sessions-table-card,
+.sessions-page .card.filter-card{background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--sessions-line);border-radius:var(--sessions-card-radius);box-shadow:var(--sessions-shadow);overflow:hidden}
+.sessions-page .card.filter-card{margin-bottom:12px}
 .sessions-page .sessions-filter-head{height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--sessions-line-soft);background:linear-gradient(90deg,rgba(91,92,226,.045),transparent 44%),#fff}
+.sessions-page .card.filter-card .filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--sessions-line-soft);background:#fff}
+.sessions-page .card.filter-card .filter-row__push{margin-left:auto}
+.sessions-page .card.filter-card .filter-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;background:#fbfcff}
+.sessions-page .card.filter-card .input.search{min-width:260px;height:30px}
+.sessions-page .card.filter-card .ui-select{height:30px}
 .sessions-page .sessions-search{flex:1;min-width:260px;height:30px;border:1px solid var(--sessions-line);border-radius:10px;background:#fff;display:flex;align-items:center;padding:0 10px;gap:8px}
 .sessions-page .sessions-search__icon{color:var(--sessions-text-3);font-size:12px}
 .sessions-page .sessions-search input{border:0;outline:0;width:100%;min-width:0;color:var(--sessions-text);background:transparent;font-size:13px}
 .sessions-page .sessions-search-hint{height:22px;display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;background:#f8fafc;border:1px solid var(--sessions-line-soft);color:var(--sessions-text-3);font-size:11px;font-weight:760}
-.sessions-page .sessions-control-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--sessions-line-soft);background:#fff}
-.sessions-page .sessions-control-row__push{margin-left:auto}
-.sessions-page .sessions-active-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;background:#fbfcff}
-.sessions-page .sessions-active-filters__label{font-size:11px;font-weight:820;color:var(--sessions-text-3);text-transform:uppercase;letter-spacing:.07em}
+.sessions-page .sessions-active-filters,
+.sessions-page .card.filter-card .active-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;background:#fbfcff}
+.sessions-page .sessions-active-filters__label,
+.sessions-page .card.filter-card .active-filters__label{font-size:11px;font-weight:820;color:var(--sessions-text-3);text-transform:uppercase;letter-spacing:.07em}
 .sessions-page .sessions-results-status{margin-left:auto;color:var(--sessions-text-3);font-size:12px}
 .sessions-page .sessions-table-toolbar{height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--sessions-line-soft);background:linear-gradient(180deg,#fff,#fbfcff)}
 .sessions-page .sessions-table-toolbar .sessions-table-title{flex:0 0 auto}
@@ -221,9 +228,9 @@
 }
 
 /* ── Active Filters Chip Spacing ──────────────────────────────── */
-.sessions-page .sessions-active-filters .ui-filter-chip{
-  margin-left:4px;
-}
+.sessions-page .sessions-active-filters .ui-filter-chip,
+.sessions-page .card.filter-card .filter-chip{margin-left:4px}
+.sessions-page .card.filter-card .filter-chip a{width:20px;height:20px;font-size:13px}
 
 /* ── Data Table Structure (HIFI canonical, migrated from inline style block) ── */
 .sessions-page .data-table{width:100%;border-collapse:collapse;table-layout:fixed}

@@ -434,10 +434,11 @@ class TestPaginationTemplate:
 
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()
-        assert 'name="q"' in content
-        assert 'name="agent"' in content
-        assert 'name="model"' in content
-        assert 'name="project"' in content
+        # Accept both single and double quote patterns (macros use single quotes)
+        assert ("name='q'" in content or 'name="q"' in content)
+        assert ("name='agent'" in content or 'name="agent"' in content)
+        assert ("name='model'" in content or 'name="model"' in content)
+        assert ("name='project'" in content or 'name="project"' in content)
         assert 'name="sort"' in content
 
     def test_link_based_pagination(self):

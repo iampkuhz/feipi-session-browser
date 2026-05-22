@@ -104,7 +104,21 @@
 <!-- Sessions table -->
 <div class="page-section">
     {% if sessions %}
-    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button>') %}
+    {% set sessions_pagination %}
+    <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination">
+        {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
+        {%- if current_page > 1 %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+        {%- endif %}
+        <span class="page-status">Page</span>
+        <input class="page-input mono" data-action="page-input" aria-label="Page number"
+               value="1" title="输入页码后按 Enter，跳转到指定页" />
+        <span class="page-status" id="page-status-text">of 1 · {{ sessions | length }} sessions</span>
+        <span class="spacer"></span>
+        <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
+    </nav>
+    {% endset %}
+    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button>', pagination_html=sessions_pagination) %}
             <table id="project-sessions-table" class="data-table" data-table-enhanced>
             <thead>
                 <tr>
@@ -174,18 +188,6 @@
                 {% endfor %}
             </tbody>
         </table>
-        <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination">
-            {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
-            {%- if current_page > 1 %}
-            <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-            {%- endif %}
-            <span class="page-status">Page</span>
-            <input class="page-input mono" data-action="page-input" aria-label="Page number"
-                   value="1" title="输入页码后按 Enter，跳转到指定页" />
-            <span class="page-status" id="page-status-text">of 1 · {{ sessions | length }} sessions</span>
-            <span class="spacer"></span>
-            <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
-        </nav>
     {% endcall %}
     {% else %}
     {{ ui.empty_state(

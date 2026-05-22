@@ -447,9 +447,11 @@
    data_table macro to set column minimum widths.
 
    Usage:
-     {% call ui.table_card('Title', search_placeholder='...') %}
-       <table class="data-table">...</table>
+     {% set pagination_html %}
        <nav class="pagination unified-pagination">...</nav>
+     {% endset %}
+     {% call ui.table_card('Title', search_placeholder='...', pagination_html=pagination_html) %}
+       <table class="data-table">...</table>
      {% endcall %}
 
    Parameters:
@@ -458,17 +460,21 @@
      search_placeholder: optional — renders a search input in the toolbar
      toolbar_extra: optional — arbitrary HTML for the toolbar right side
      insight: optional — insight text shown on the right side with a lightbulb icon
+     pagination_html: optional — pagination nav HTML, rendered outside table-wrap
      extra_classes: additional CSS classes on the outer section
 
    Produces:
      <section class="card table-card [extra_classes]">
        <div class="table-toolbar">...</div>
        <div class="table-wrap">  ← scrolls horizontally when content overflows
-         {{ caller() }}  — table + pagination from caller
+         {{ caller() }}  — table content
+       </div>
+       <div class="table-card-pagination">  ← stays fixed, does not scroll
+         {{ pagination_html }}
        </div>
      </section>
 #}
-{% macro table_card(title, subtitle=None, search_placeholder=None, toolbar_extra=None, insight=None, extra_classes=None) -%}
+{% macro table_card(title, subtitle=None, search_placeholder=None, toolbar_extra=None, insight=None, pagination_html=None, extra_classes=None) -%}
   {%- set classes = ['card', 'table-card'] -%}
   {%- if extra_classes -%}
     {%- for cls in extra_classes.split() -%}
@@ -500,6 +506,11 @@
   <div class="table-wrap">
     {{ caller() }}
   </div>
+  {%- if pagination_html %}
+  <div class="table-card-pagination">
+    {{ pagination_html }}
+  </div>
+  {%- endif %}
 </section>
 {%- endmacro %}
 

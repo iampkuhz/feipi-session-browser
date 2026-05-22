@@ -107,18 +107,34 @@
 {% call ui.filter_card() %}
     <div class="filter-row">
         {{ ui.filter_search(name='q', placeholder='Search by name or path...', id='project-search', extra_classes='js-search') }}
-        {{ ui.button('Apply', 'md', 'sm', data_action='apply-search') }}
-        {{ ui.button('Clear', 'md', 'sm', data_action='clear-search') }}
+        <span class="filter-row__push"></span>
+        {{ ui.button('Clear', 'secondary', 'sm', data_action='clear-search') }}
+        {{ ui.button('Apply', 'primary', 'sm', data_action='apply-search') }}
     </div>
     <div class="filter-footer">
-        <span class="filter-chip">Search: none</span>
+        <span class="filter-row__push"></span>
+        <span class="active-filters__count">{{ projects | length }} matching projects</span>
     </div>
 {% endcall %}
 
 <!-- Projects data table: 6 columns, sortable headers, token bars -->
 <section class="page-section">
     {% if projects %}
-    {% call ui.table_card('All Projects', subtitle='(<span id="project-count">' ~ projects | length ~ '</span>)') %}
+    {% set projects_pagination %}
+    <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
+        {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
+        {%- if current_page > 1 %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+        {%- endif %}
+        <span class="page-status">Page</span>
+        <input class="page-input mono" data-action="page-input" aria-label="Page number"
+               value="1" title="输入页码后按 Enter，跳转到指定页" />
+        <span class="page-status" id="page-status-text">of 1 · {{ projects | length }} projects</span>
+        <span class="spacer"></span>
+        <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
+    </nav>
+    {% endset %}
+    {% call ui.table_card('All Projects', subtitle='(<span id="project-count">' ~ projects | length ~ '</span>)', pagination_html=projects_pagination) %}
             <table id="projects-table" class="data-table" data-table-enhanced>
                 <thead>
                     <tr>
@@ -225,18 +241,6 @@
                     {% endfor %}
                 </tbody>
             </table>
-        <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
-            {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
-            {%- if current_page > 1 %}
-            <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-            {%- endif %}
-            <span class="page-status">Page</span>
-            <input class="page-input mono" data-action="page-input" aria-label="Page number"
-                   value="1" title="输入页码后按 Enter，跳转到指定页" />
-            <span class="page-status" id="page-status-text">of 1 · {{ projects | length }} projects</span>
-            <span class="spacer"></span>
-            <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
-        </nav>
     {% endcall %}
     <div id="projects-empty" class="state-strip is-hidden">
         <div class="state-icon" aria-hidden="true"><span class="emoji lg">📁</span></div>

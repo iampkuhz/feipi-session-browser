@@ -129,7 +129,9 @@ class TestTemplateRenders:
         content = _read_all_templates()
         # Core page structure
         assert "sessions-page" in content
-        assert 'class="sessions-filter-card"' in content
+        # Filter card can be literal class or macro call
+        assert ('class="sessions-filter-card"' in content
+                or 'ui.filter_card(' in content)
         assert "data-table" in content, "Sessions must use canonical data-table component"
 
     def test_template_receives_sessions_aggregate(self):
