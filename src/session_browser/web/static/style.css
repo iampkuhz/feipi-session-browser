@@ -490,7 +490,6 @@ body {
     color: var(--text);
     line-height: var(--lh-loose);
     -webkit-font-smoothing: antialiased;
-    min-width: var(--desktop-min);
 }
 
 /* ─── Reduced motion ──────────────────────────────────────────── */
@@ -1039,7 +1038,6 @@ body.focus .shell.phase1-shell,
 /* ─ Sessions list: no-inspector main area ── */
 .shell.no-inspector .main {
     padding: var(--space-md);
-    max-width: min(100%, var(--max));
 }
 
 /* ─── Metric section labels ───────────────────────────────────── */
