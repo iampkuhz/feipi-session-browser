@@ -4,12 +4,13 @@
  * Scope: glossary.html only.
  *
  * Do not globally override .card, .data-table, .badge, etc.
- * Those are defined in ui-primitives.css and style.css.
+ * Those are defined in ui-primitives.css.
  *
  * Already covered by ui-primitives.css (no need to duplicate):
  *   .card, .section, .section-head, .section-title, .section-sub
- *   .metric-grid, .metric-card, .metric-icon, .metric-label,
- *   .metric-value, .table-wrap, .data-table, .filter-card,
+ *   .metric_grid, .metric-card, .metric-icon, .metric-card__body,
+ *   .metric-card__label-row, .metric-card__label, .metric-card__value,
+ *   .metric-card__sub, .table-wrap, .data-table, .filter-card,
  *   .filter-row, .input, .input.search, .state-strip, .state-icon,
  *   .state-title, .badge (all variants), .muted, .mono, .btn,
  *   .icon-btn, .icon-button, .toast
@@ -44,30 +45,6 @@
 
 .metric-grid {
   margin-bottom: 20px;
-}
-
-/* Metric card note text (matches HIFI .metric-note) */
-.metric-note {
-  font-size: 12px;
-  color: var(--text-subtle);
-  margin-top: 2px;
-}
-
-/* info-icon on metric labels — hover tooltip styling (HIFI M3/W3) */
-.metric-label .info-icon {
-  font-size: 14px;
-  line-height: 1;
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  cursor: help;
-  color: var(--text-subtle);
-}
-
-.metric-label .info-icon:hover {
-  background: var(--surface-soft);
 }
 
 /* ── Legend Card (HIFI M1/W1 — not in ui-primitives) ───────── */

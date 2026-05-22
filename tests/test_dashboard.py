@@ -10,6 +10,7 @@ T066 — Dashboard page-specific pytest.
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 
 import pytest
@@ -88,17 +89,17 @@ class TestDashboardImports:
 # ── TestDashboardPageHead ────────────────────────────────────────────
 
 class TestDashboardPageHead:
-    """Verify page-head structure."""
+    """Verify page-head structure (uses ui.page_head macro, T15)."""
 
-    def test_page_head_section_present(self):
+    def test_page_head_macro_used(self):
         content = _read_dashboard()
-        assert 'class="page-head"' in content, \
-            "Dashboard must have a page-head section"
+        assert 'ui.page_head(' in content, \
+            "Dashboard must use ui.page_head() macro"
 
     def test_page_head_has_h1(self):
         content = _read_dashboard()
-        assert "<h1>Dashboard</h1>" in content, \
-            "Page-head must contain <h1>Dashboard</h1>"
+        assert "'Dashboard'" in content, \
+            "page_head() must have 'Dashboard' as title"
 
     def test_page_head_has_subtitle(self):
         content = _read_dashboard()
@@ -141,70 +142,96 @@ class TestDashboardMetricCards:
 # ── TestDashboardChartCards ──────────────────────────────────────────
 
 class TestDashboardChartCards:
-    """Verify chart cards (2 in current production: Session Trend + Token Trend)."""
+    """Verify chart cards (via chart_card macro: Session Trend + Token Trend)."""
 
     def test_chart_cards_present(self):
         content = _read_dashboard()
-        cards = re.findall(r'data-chart-card="[^"]*"', content)
-        assert len(cards) >= 2, \
-            f"Dashboard must have at least 2 chart cards, found {len(cards)}"
+        # Verify chart_card macro definition exists
+        assert "{% macro chart_card(" in content, \
+            "Dashboard must define chart_card macro"
+        # Verify at least 2 chart_card invocations
+        calls = re.findall(r'chart_card\(\s*chart_type=', content)
+        assert len(calls) >= 2, \
+            f"Dashboard must have at least 2 chart_card calls, found {len(calls)}"
 
     def test_session_trend_chart(self):
         content = _read_dashboard()
         assert "Session Trend" in content, \
             "Dashboard must have Session Trend chart"
-        assert 'data-chart-card="sessions"' in content, \
-            "Session Trend chart must have data-chart-card='sessions'"
+        # Verify chart_card is invoked with sessions type
+        assert 'chart_type="sessions"' in content, \
+            "Session Trend chart must use chart_card with chart_type='sessions'"
 
     def test_token_trend_chart(self):
         content = _read_dashboard()
         assert "Token Trend" in content, \
             "Dashboard must have Token Trend chart"
-        assert 'data-chart-card="tokens"' in content, \
-            "Token Trend chart must have data-chart-card='tokens'"
+        # Verify chart_card is invoked with tokens type
+        assert 'chart_type="tokens"' in content, \
+            "Token Trend chart must use chart_card with chart_type='tokens'"
 
     def test_chart_has_legend(self):
         """Charts must show legend with agent names."""
         content = _read_dashboard()
+        # Dashboard uses the chart_legend macro from ui_primitives
+        assert "ui.chart_legend()" in content or "chart_legend(" in content, \
+            "Dashboard must use chart_legend macro in chart_card"
+        # Verify the macro defines the default agent names
+        ui_path = "src/session_browser/web/templates/components/ui_primitives.html"
+        with open(ui_path) as f:
+            ui_content = f.read()
         for agent in ["Claude Code", "Codex", "Qoder"]:
-            assert agent in content, \
-                f"Chart legend must contain '{agent}'"
+            assert agent in ui_content, \
+                f"Chart legend macro must contain '{agent}' as default"
 
 
 # ── TestDashboardScopeSwitch ─────────────────────────────────────────
 
 class TestDashboardScopeSwitch:
-    """Verify scope-switch buttons (Day / Week / Month)."""
+    """Verify scope-switch is invoked via ui_primitives macro."""
 
-    def test_scope_switch_container(self):
+    def test_scope_switch_macro_invoked(self):
         content = _read_dashboard()
-        assert 'class="scope-switch"' in content, \
-            "Dashboard must have a scope-switch container"
+        assert 'ui.scope_switch(' in content, \
+            "Dashboard must invoke ui.scope_switch macro"
 
     def test_scope_switch_day_button(self):
-        content = _read_dashboard()
-        assert 'data-scope="day"' in content, \
-            "Scope-switch must have Day button"
-        assert ">Day<" in content
+        """The scope_switch macro must render a Day button with data-scope='day'."""
+        rendered = _render_scope_switch()
+        assert 'data-scope="day"' in rendered
+        assert ">Day<" in rendered
 
     def test_scope_switch_week_button(self):
-        content = _read_dashboard()
-        assert 'data-scope="week"' in content, \
-            "Scope-switch must have Week button"
-        assert ">Week<" in content
+        """The scope_switch macro must render a Week button with data-scope='week'."""
+        rendered = _render_scope_switch()
+        assert 'data-scope="week"' in rendered
+        assert ">Week<" in rendered
 
     def test_scope_switch_month_button(self):
-        content = _read_dashboard()
-        assert 'data-scope="month"' in content, \
-            "Scope-switch must have Month button"
-        assert ">Month<" in content
+        """The scope_switch macro must render a Month button with data-scope='month'."""
+        rendered = _render_scope_switch()
+        assert 'data-scope="month"' in rendered
+        assert ">Month<" in rendered
 
     def test_scope_switch_default_active(self):
         """Day button must be is-active by default."""
-        content = _read_dashboard()
-        # The day button should have is-active class
-        assert 'data-scope="day"' in content and "is-active" in content, \
+        rendered = _render_scope_switch()
+        assert 'data-scope="day"' in rendered and "is-active" in rendered, \
             "Day scope button must be is-active by default"
+        # Only the day button should be active
+        assert rendered.count("is-active") == 1
+
+
+def _render_scope_switch() -> str:
+    """Render the scope_switch macro from ui_primitives.html."""
+    import jinja2
+    _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[1] / "src" / "session_browser" / "web" / "templates"
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)), autoescape=True)
+    tmpl_str = (
+        '{% from "components/ui_primitives.html" import scope_switch %}'
+        "{{ scope_switch(active='day') }}"
+    )
+    return env.from_string(tmpl_str).render()
 
 
 # ── TestDashboardInfoButtons ────────────────────────────────────────
@@ -222,9 +249,14 @@ class TestDashboardInfoButtons:
     def test_chart_info_buttons(self):
         """Each chart card must have an info button."""
         content = _read_dashboard()
-        for info_key in ["chart-sessions", "chart-tokens"]:
-            assert f'data-info="{info_key}"' in content, \
-                f"Dashboard must have info button for '{info_key}'"
+        # Info button uses chart_card macro with chart-{{ chart_type }} pattern
+        assert 'data-info="chart-{{ chart_type }}"' in content, \
+            "Chart cards must use info button with chart-{{ chart_type }} pattern"
+        # Verify chart_card invocations cover sessions and tokens
+        assert 'chart_type="sessions"' in content, \
+            "Must have sessions chart card"
+        assert 'chart_type="tokens"' in content, \
+            "Must have tokens chart card"
 
     def test_info_button_uses_icon_button_class(self):
         """Info buttons must use icon-button--info class."""

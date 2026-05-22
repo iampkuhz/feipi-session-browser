@@ -102,13 +102,13 @@ class TestAgentDetailHeader:
             "Agent must have a header section"
 
     def test_back_button_present(self):
-        """Header must have a back-btn with data-action='back'."""
+        """Header must use ui.back_button macro with data-action='back'."""
         content = _read_template()
-        assert 'class="btn back-btn"' in content, \
-            "Header must have a back-btn"
-        assert 'data-action="back"' in content, \
+        assert "ui.back_button(" in content, \
+            "Header must use ui.back_button macro"
+        assert "data_action='back'" in content, \
             "Back button must have data-action='back'"
-        assert 'href="/agents"' in content, \
+        assert "'/agents'" in content, \
             "Back button must link to /agents"
 
     def test_agent_title_present(self):
@@ -167,7 +167,7 @@ class TestAgentDetailMetricCards:
     def test_six_metric_cards(self):
         """Agent must have exactly 6 metric cards."""
         content = _read_template()
-        cards = re.findall(r'class="card metric-card"', content)
+        cards = re.findall(r'class="metric-card"', content)
         assert len(cards) == 6, \
             f"Agent must have exactly 6 metric cards, found {len(cards)}"
 
@@ -186,27 +186,27 @@ class TestAgentDetailMetricCards:
             f"Agent must have at least 6 metric-icon elements, found {len(icons)}"
 
     def test_metric_icons_have_emoji_aria_hidden(self):
-        """Each metric-icon must contain an emoji span with aria-hidden."""
+        """Each metric-icon must have aria-hidden attribute."""
         content = _read_template()
-        emojis = re.findall(
-            r'class="emoji" aria-hidden="true"', content
+        icons = re.findall(
+            r'class="metric-icon[^"]*"[^>]*aria-hidden="true"', content
         )
-        assert len(emojis) >= 6, \
-            f"Agent must have at least 6 emoji spans with aria-hidden, found {len(emojis)}"
+        assert len(icons) >= 6, \
+            f"Agent must have at least 6 metric-icon elements with aria-hidden, found {len(icons)}"
 
     def test_metric_cards_have_label_class(self):
-        """Each metric card must have a metric-label element."""
+        """Each metric card must have a metric-card__label element."""
         content = _read_template()
-        labels = re.findall(r'class="metric-label"', content)
+        labels = re.findall(r'class="metric-card__label"', content)
         assert len(labels) >= 6, \
-            f"Agent must have at least 6 metric-label elements, found {len(labels)}"
+            f"Agent must have at least 6 metric-card__label elements, found {len(labels)}"
 
     def test_metric_cards_have_value_class(self):
-        """Each metric card must have a metric-value element."""
+        """Each metric card must have a metric-card__value element."""
         content = _read_template()
-        values = re.findall(r'class="metric-value"', content)
+        values = re.findall(r'class="[^"]*metric-card__value', content)
         assert len(values) >= 6, \
-            f"Agent must have at least 6 metric-value elements, found {len(values)}"
+            f"Agent must have at least 6 metric-card__value elements, found {len(values)}"
 
     def test_six_info_buttons_on_metrics(self):
         """Each metric card must have an info button with data-action='info'."""
@@ -217,19 +217,19 @@ class TestAgentDetailMetricCards:
             f"Agent must have at least 8 info buttons, found {len(buttons)}"
 
     def test_info_buttons_use_info_icon_class(self):
-        """Info buttons must use info-icon class."""
+        """Info buttons must use icon-button--info class."""
         content = _read_template()
-        assert 'class="info-icon"' in content, \
-            "Info buttons must use info-icon class"
+        assert 'icon-button--info' in content, \
+            "Info buttons must use icon-button--info class"
 
     def test_info_buttons_have_aria_label(self):
         """Each info button must have an aria-label (title attribute)."""
         content = _read_template()
-        # info-icon buttons use title for tooltip text
-        pattern = r'class="info-icon"[^>]*data-action="info"'
+        # icon-button--info buttons use title for tooltip text
+        pattern = r'icon-button--info"[^>]*data-action="info"'
         matches = re.findall(pattern, content)
         assert len(matches) >= 6, \
-            f"Must have at least 6 info-icon buttons with data-action, found {len(matches)}"
+            f"Must have at least 6 icon-button--info buttons with data-action, found {len(matches)}"
 
 
 # -- TestAgentDetailModelBreakdown ------------------------------------------
@@ -688,7 +688,12 @@ class TestAgentDetailDataActions:
     def test_data_action_present(self, action):
         """Template must have the expected data-action attribute."""
         content = _read_template()
-        assert f'data-action="{action}"' in content, \
+        # Accept both HTML attribute form (data-action="back") and
+        # Jinja2 macro keyword form (data_action='back').
+        html_form = f'data-action="{action}"'
+        macro_form_single = f"data_action='{action}'"
+        macro_form_double = f'data_action="{action}"'
+        assert html_form in content or macro_form_single in content or macro_form_double in content, \
             f"Template must have data-action='{action}'"
 
     def test_data_action_back_in_empty_state(self):
@@ -757,11 +762,11 @@ class TestAgentDetailAccessibility:
     def test_info_icon_has_title(self):
         """Info icons must have title attribute for tooltip."""
         content = _read_template()
-        # info-icon spans use title for the tooltip text
-        pattern = r'class="info-icon"[^>]*title="[^"]*"'
+        # icon-button--info spans use title for the tooltip text
+        pattern = r'class="[^"]*icon-button--info[^"]*"[^>]*title="[^"]*"'
         matches = re.findall(pattern, content)
         assert len(matches) >= 6, \
-            f"Must have at least 6 info icons with title, found {len(matches)}"
+            f"Must have at least 6 icon-button--info icons with title, found {len(matches)}"
 
 
 # -- TestAgentDetailTokenFormatting -----------------------------------------

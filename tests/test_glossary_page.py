@@ -88,22 +88,22 @@ class TestGlossaryHeader:
     """Verify header structure."""
 
     def test_page_head_present(self):
-        """Glossary must have a page-head section."""
+        """Glossary must use ui.page_head() macro (T15)."""
         content = _read_template()
-        assert 'class="page-head"' in content, \
-            "Glossary must have a page-head section"
+        assert 'ui.page_head(' in content, \
+            "Glossary must use ui.page_head() macro"
 
     def test_h1_title(self):
-        """Page head must contain h1 with 'Token Glossary'."""
+        """Page head must have 'Token Glossary' as title parameter."""
         content = _read_template()
-        assert '<h1>Token Glossary</h1>' in content, \
-            "Glossary h1 must contain 'Token Glossary'"
+        assert "'Token Glossary'" in content, \
+            "Glossary page_head must have 'Token Glossary' as title"
 
     def test_subtitle_present(self):
-        """Page head must have a subtitle paragraph."""
+        """Page head must have a subtitle passed to macro."""
         content = _read_template()
-        assert 'class="subtitle"' in content, \
-            "Glossary must have a subtitle paragraph"
+        assert '必要术语说明' in content, \
+            "Glossary page_head must have subtitle about essential terminology"
 
     def test_subtitle_text(self):
         """Subtitle must describe the glossary purpose per HIFI."""
@@ -145,7 +145,7 @@ class TestGlossaryMetricGrid:
     def test_four_metric_cards(self):
         """Glossary must have exactly 4 metric cards."""
         content = _read_template()
-        cards = re.findall(r'class="card metric-card"', content)
+        cards = re.findall(r'class="metric-card"', content)
         assert len(cards) == 4, \
             f"Glossary must have exactly 4 metric cards, found {len(cards)}"
 
@@ -190,26 +190,26 @@ class TestGlossaryMetricGrid:
             f"Glossary must have at least 4 aria-hidden spans in metric icons, found {aria_count}"
 
     def test_metric_labels_present(self):
-        """Each metric card must have a metric-label element."""
+        """Each metric card must have a metric-card__label element."""
         content = _read_template()
-        labels = re.findall(r'class="metric-label"', content)
+        labels = re.findall(r'class="metric-card__label"', content)
         assert len(labels) >= 4, \
-            f"Glossary must have at least 4 metric-label elements, found {len(labels)}"
+            f"Glossary must have at least 4 metric-card__label elements, found {len(labels)}"
 
     def test_metric_values_present(self):
-        """Each metric card must have a metric-value element."""
+        """Each metric card must have a metric-card__value element."""
         content = _read_template()
-        # Template uses class="metric-value mono" (with additional class)
-        values = re.findall(r'class="metric-value', content)
+        # Template uses class="metric-card__value mono" (with additional class)
+        values = re.findall(r'class="metric-card__value', content)
         assert len(values) >= 4, \
-            f"Glossary must have at least 4 metric-value elements, found {len(values)}"
+            f"Glossary must have at least 4 metric-card__value elements, found {len(values)}"
 
     def test_metric_notes_present(self):
-        """Each metric card must have a metric-note element."""
+        """Each metric card must have a metric-card__sub element."""
         content = _read_template()
-        notes = re.findall(r'class="metric-note"', content)
+        notes = re.findall(r'class="metric-card__sub"', content)
         assert len(notes) >= 4, \
-            f"Glossary must have at least 4 metric-note elements, found {len(notes)}"
+            f"Glossary must have at least 4 metric-card__sub elements, found {len(notes)}"
 
 
 # -- TestGlossaryFilterCard -------------------------------------------------

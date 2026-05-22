@@ -20,10 +20,10 @@
 {% block content %}
 
 {% if agents %}
-<section class="page-head">
-    <h1>Agents</h1>
-    <p class="subtitle">{{ agents | length }} 个 Agent，覆盖 {{ efficiency | length if efficiency else 0 }} 个模型组合</p>
-</section>
+{{ ui.page_head(
+    'Agents',
+    subtitle=agents | length ~ ' 个 Agent，覆盖 ' ~ (efficiency | length if efficiency else 0) ~ ' 个模型组合'
+) }}
 
 <!-- Agent summary metrics -->
 <section class="metric-grid" aria-label="Agent summary metrics">
@@ -36,50 +36,54 @@
     {% set m_total_tokens.value = m_total_tokens.value + a.total_tokens %}
     {% set m_total_failed.value = m_total_failed.value + a.total_failed_tools %}
     {% endfor %}
-    <div class="card metric">
-        <div class="metric-icon purple">
-            <span class="emoji" aria-hidden="true">🤖</span>
-        </div>
-        <div>
-            <div class="metric-label">Active Agents <button class="info-icon" data-action="info" aria-label="Active Agents 计数说明" title="当前数据集中出现过 session 的 agent 类型数量">ⓘ</button></div>
-            <div class="metric-value">{{ m_active_agents }}</div>
-            <div class="delta">All time</div>
-        </div>
-    </div>
-    <div class="card metric">
-        <div class="metric-icon green">
-            <span class="emoji" aria-hidden="true">🧾</span>
-        </div>
-        <div>
-            <div class="metric-label">Sessions <button class="info-icon" data-action="info" aria-label="Sessions 计数说明" title="所有 agent 的 session 总量">ⓘ</button></div>
-            <div class="metric-value">{{ m_total_sessions.value | format_number }}</div>
-            <div class="delta">Across all agents</div>
+    <div class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">🤖</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Active Agents</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Active Agents 计数说明" title="当前数据集中出现过 session 的 agent 类型数量">ⓘ</button>
+            </div>
+            <div class="metric-card__value">{{ m_active_agents }}</div>
+            <div class="metric-card__sub">All time</div>
         </div>
     </div>
-    <div class="card metric">
-        <div class="metric-icon blue">
-            <span class="emoji" aria-hidden="true">📁</span>
+    <div class="metric-card">
+        <div class="metric-icon green" aria-hidden="true">🧾</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Sessions</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Sessions 计数说明" title="所有 agent 的 session 总量">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ m_total_sessions.value | format_number }}</div>
+            <div class="metric-card__sub">Across all agents</div>
         </div>
-        <div>
-            <div class="metric-label">Projects <button class="info-icon" data-action="info" aria-label="Projects 计数说明" title="涉及该 agent session 的 project 数量之和（按 agent 维度累加）">ⓘ</button></div>
-            <div class="metric-value mono">
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon blue" aria-hidden="true">📁</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Projects</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Projects 计数说明" title="涉及该 agent session 的 project 数量之和（按 agent 维度累加）">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">
                 {% set m_total_projects = namespace(value=0) %}
                 {% for a in agents %}
                 {% set m_total_projects.value = m_total_projects.value + a.project_count %}
                 {% endfor %}
                 {{ m_total_projects.value }}
             </div>
-            <div class="delta">Agent-summed, may overlap</div>
+            <div class="metric-card__sub">Agent-summed, may overlap</div>
         </div>
     </div>
-    <div class="card metric">
-        <div class="metric-icon red">
-            <span class="emoji" aria-hidden="true">🪙</span>
-        </div>
-        <div>
-            <div class="metric-label">Total Tokens <button class="info-icon" data-action="info" aria-label="Total Tokens 公式说明" title="所有 agent 的 token 总量，统一按缩写显示，精确到小数点后一位">ⓘ</button></div>
-            <div class="metric-value">{{ m_total_tokens.value | format_compact_token }}</div>
-            <div class="delta">{{ m_total_failed.value | format_number }} failed tools</div>
+    <div class="metric-card">
+        <div class="metric-icon red" aria-hidden="true">🪙</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Total Tokens</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Total Tokens 公式说明" title="所有 agent 的 token 总量，统一按缩写显示，精确到小数点后一位">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ m_total_tokens.value | format_compact_token }}</div>
+            <div class="metric-card__sub">{{ m_total_failed.value | format_number }} failed tools</div>
         </div>
     </div>
 </section>
@@ -142,17 +146,7 @@
             data-total-tool-calls="{{ a.total_tool_calls }}"
             data-total-failed="{{ a.total_failed_tools }}"
             data-last-active="{{ a.last_active }}">
-            <td>
-                <span class="agent-main">
-                    <a href="/agents/{{ a.agent }}" class="link" data-action="open-agent-link">
-                        <div class="agent-avatar {{ a_avatar_cls }}">{{ a_abbrev }}</div>
-                    </a>
-                    <div>
-                        <div class="title-main">{{ a_name }}</div>
-                        <div class="title-sub">{{ a_desc }}</div>
-                    </div>
-                </span>
-            </td>
+            {{ ui.agent_cell(a_name, a.agent, href='/agents/' ~ a.agent, description=a_desc, abbrev=a_abbrev, avatar_class=a_avatar_cls) }}
             <td><span class="badge {{ a_badge_cls }}"><span class="dot {{ a_dot_cls }}"></span>{{ a_provider }}</span></td>
             <td class="numeric mono">{{ a.session_count | format_number }}</td>
             <td class="numeric mono">{{ a.project_count }}</td>
@@ -185,9 +179,7 @@
                     {% set a_tc_pct = 0 %}
                 {% endif %}
                 <div class="num">{{ a.total_tool_calls | format_compact_token }}</div>
-                <div class="progress-bar" style="--fill-width:{{ a_tc_pct }}%" title="工具调用占比条：显示该 agent 在全部 tool calls 中的占比">
-                    <div class="progress-fill"></div>
-                </div>
+                {{ ui.progress_bar(a_tc_pct, title='工具调用占比条：显示该 agent 在全部 tool calls 中的占比') }}
             </td>
             <td><span class="badge err">{{ a.total_failed_tools }}</span></td>
             <td class="text-muted"><span class="dot {{ a_dot_cls }}"></span> {{ a.last_active | relative_time }}</td>

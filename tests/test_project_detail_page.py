@@ -95,51 +95,53 @@ class TestProjectDetailImports:
 # ── TestProjectDetailPageHead ─────────────────────────────────────
 
 class TestProjectDetailPageHead:
-    """Verify page-head structure."""
+    """Verify page-head structure (uses ui.page_head macro, T15)."""
 
-    def test_page_head_section_present(self):
-        """Project must have a page-head section."""
+    def test_page_head_macro_used(self):
+        """Project must use ui.page_head() macro."""
         content = _read_template()
-        assert 'class="page-head"' in content, \
-            "Project must have a page-head section"
+        assert 'ui.page_head(' in content, \
+            "Project must use ui.page_head() macro"
 
     def test_back_button_present(self):
-        """Page-head must have a back-btn linking to /projects."""
+        """Page-head must use ui.back_button macro linking to /projects."""
         content = _read_template()
-        assert 'class="back-btn"' in content, \
-            "Page-head must have a back-btn"
-        assert 'href="/projects"' in content, \
+        assert "ui.back_button(" in content, \
+            "Page-head must use ui.back_button macro"
+        assert "'/projects'" in content, \
             "Back button must link to /projects"
 
     def test_h1_title_present(self):
-        """Page-head must contain h1 with project name."""
+        """Page-head must have project name as title parameter."""
         content = _read_template()
-        assert "<h1>" in content, \
-            "Page-head must have an h1 title"
+        assert "project.project_name" in content, \
+            "Page-head must have project name as title"
 
-    def test_path_row_present(self):
-        """Page-head must have a path-row."""
+    def test_path_row_macro_used(self):
+        """Page-head must use ui.path_row macro for the path row."""
         content = _read_template()
-        assert 'class="path-row"' in content, \
-            "Page-head must have a path-row"
+        assert 'ui.path_row(' in content, \
+            "Page-head must use ui.path_row() macro"
+        assert 'project.project_key' in content, \
+            "path_row must receive project.project_key as argument"
 
-    def test_path_chip_present(self):
-        """Page-head must have a path-chip with mono class."""
-        content = _read_template()
-        assert 'class="path-chip mono"' in content, \
-            "Page-head must have a path-chip with mono class"
+    def test_path_chip_in_macro(self):
+        """The path_row macro must produce path-chip with mono class."""
+        primitives = _read("src/session_browser/web/templates/components/ui_primitives.html")
+        assert 'class="path-chip mono"' in primitives, \
+            "path_row macro must produce path-chip with mono class"
 
-    def test_subtitle_present(self):
-        """Page-head must have a subtitle."""
+    def test_subtitle_parameter(self):
+        """Page-head must pass a subtitle parameter."""
         content = _read_template()
-        assert 'class="subtitle"' in content, \
-            "Page-head must have a subtitle"
+        assert "subtitle=" in content, \
+            "Page-head must have a subtitle parameter"
 
-    def test_copy_path_button_present(self):
-        """Page-head must have a copy-path button with data-action."""
-        content = _read_template()
-        assert 'data-action="copy-path"' in content, \
-            "Page-head must have a copy-path button"
+    def test_copy_path_in_macro(self):
+        """The path_row macro must produce a copy-path button."""
+        primitives = _read("src/session_browser/web/templates/components/ui_primitives.html")
+        assert 'data-action="copy-path"' in primitives, \
+            "path_row macro must produce a copy-path button"
 
 
 # ── TestProjectDetailMetricCards ──────────────────────────────────
@@ -163,7 +165,7 @@ class TestProjectDetailMetricCards:
     def test_four_metric_cards(self):
         """Project must have exactly 4 metric cards."""
         content = _read_template()
-        cards = re.findall(r'class="card metric"', content)
+        cards = re.findall(r'class="metric-card"', content)
         assert len(cards) == 4, \
             f"Project must have exactly 4 metric cards, found {len(cards)}"
 
@@ -182,34 +184,34 @@ class TestProjectDetailMetricCards:
             f"Project must have at least 4 metric-icon elements, found {len(icons)}"
 
     def test_metric_icons_have_emoji_aria_hidden(self):
-        """Each metric-icon must contain an emoji span with aria-hidden."""
+        """Each metric-icon must have aria-hidden attribute."""
         content = _read_template()
-        emojis = re.findall(
-            r'class="emoji" aria-hidden="true"', content
+        icons = re.findall(
+            r'class="metric-icon[^"]*"[^>]*aria-hidden="true"', content
         )
-        assert len(emojis) >= 4, \
-            f"Project must have at least 4 emoji spans with aria-hidden, found {len(emojis)}"
+        assert len(icons) >= 4, \
+            f"Project must have at least 4 metric-icon elements with aria-hidden, found {len(icons)}"
 
     def test_metric_cards_have_label_class(self):
-        """Each metric card must have a metric-label element."""
+        """Each metric card must have a metric-card__label element."""
         content = _read_template()
-        labels = re.findall(r'class="metric-label"', content)
+        labels = re.findall(r'class="metric-card__label"', content)
         assert len(labels) >= 4, \
-            f"Project must have at least 4 metric-label elements, found {len(labels)}"
+            f"Project must have at least 4 metric-card__label elements, found {len(labels)}"
 
     def test_metric_cards_have_value_class(self):
-        """Each metric card must have a metric-value element."""
+        """Each metric card must have a metric-card__value element."""
         content = _read_template()
-        # Match both class="metric-value" and class="metric-value mono"
-        values = re.findall(r'class="metric-value(?: mono)?"', content)
+        # Match both class="metric-card__value" and class="metric-card__value mono"
+        values = re.findall(r'class="metric-card__value(?: mono)?"', content)
         assert len(values) >= 4, \
-            f"Project must have at least 4 metric-value elements, found {len(values)}"
+            f"Project must have at least 4 metric-card__value elements, found {len(values)}"
 
     def test_session_card_has_agent_mix(self):
-        """The Sessions metric card must have an agent-mix section."""
+        """The Sessions metric card must have a metric-card__sub section."""
         content = _read_template()
-        assert 'class="agent-mix"' in content, \
-            "Sessions card must have an agent-mix section"
+        assert 'class="metric-card__sub"' in content, \
+            "Sessions card must have a metric-card__sub section"
 
     def test_session_card_has_badges(self):
         """Agent mix must contain CC, CX, and QD badges."""
@@ -245,10 +247,10 @@ class TestProjectDetailInfoButtons:
             f"Project must have 5 info buttons with aria-label, found {len(matches)}"
 
     def test_info_buttons_use_info_icon_class(self):
-        """Info buttons must use info-icon class."""
+        """Info buttons must use icon-button--info class."""
         content = _read_template()
-        assert 'class="info-icon"' in content, \
-            "Info buttons must use info-icon class"
+        assert 'icon-button--info' in content, \
+            "Info buttons must use icon-button--info class"
 
 
 # ── TestProjectDetailTableToolbar ─────────────────────────────────
@@ -656,7 +658,6 @@ class TestProjectDetailDataActions:
     """Verify all required data-action attributes are present."""
 
     _EXPECTED_ACTIONS = [
-        "copy-path",
         "info",
         "search",
         "copy-session",

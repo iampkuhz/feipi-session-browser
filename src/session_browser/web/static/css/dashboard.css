@@ -435,13 +435,19 @@
   display: block;
 }
 
+/* Chart container: contain tooltip overflow */
+.chart-container {
+  overflow: hidden;
+}
+
 /* v16 tooltip (dark overlay on chart bars) */
 .dashboard-tooltip {
-  position: absolute;
+  position: fixed;
   left: 50%;
   bottom: calc(100% + 10px);
   transform: translate(-50%, 4px);
   min-width: 218px;
+  max-width: calc(100vw - 24px);
   padding: 9px 10px;
   border-radius: 12px;
   background: #0f172a;

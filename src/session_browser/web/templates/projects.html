@@ -31,15 +31,11 @@
 {% else %}
 
 <!-- Page header: canonical .page-head (T100) -->
-<section class="page-head">
-    <div>
-        <h1>Projects</h1>
-        <p>Indexed local workspaces</p>
-    </div>
-    <div class="page-head-stats">
-        <span class="ui-stat-pill"><b id="projects-count">{{ projects | length }}</b> projects</span>
-    </div>
-</section>
+{{ ui.page_head(
+    'Projects',
+    'Indexed local workspaces',
+    stat_pills='<span class="ui-stat-pill"><b id="projects-count">{{ projects | length }}</b> projects</span>'
+) }}
 
 <!-- Metric grid: canonical shared primitives (T101) -->
 {% if projects %}
@@ -53,59 +49,55 @@
 {% endfor %}
 <section class="metric-grid" aria-label="Project overview metrics">
     <div class="metric-card">
-        <div class="metric-icon purple">
-            <span class="emoji lg" aria-hidden="true">📁</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Projects
+        <div class="metric-icon purple" aria-hidden="true">📁</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Projects</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="projects-count"
                         aria-label="Metric info: number of indexed projects"
                         title="说明：当前索引中识别到的本地项目/工作区数量">ⓘ</button>
             </div>
-            <div class="metric-value mono">{{ projects | length }}</div>
-            <div class="metric-card__panel-sub">Indexed workspaces</div>
+            <div class="metric-card__value mono">{{ projects | length }}</div>
+            <div class="metric-card__sub">Indexed workspaces</div>
         </div>
     </div>
     <div class="metric-card">
-        <div class="metric-icon green">
-            <span class="emoji lg" aria-hidden="true">〽️</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Sessions
+        <div class="metric-icon green" aria-hidden="true">〽️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Sessions</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-sessions"
                         aria-label="Metric info: total sessions across all projects"
                         title="说明：所有项目下已索引的 session 总数">ⓘ</button>
             </div>
-            <div class="metric-value mono">{{ m_total_sessions.value | format_number }}</div>
-            <div class="metric-card__panel-sub">Across all projects</div>
+            <div class="metric-card__value mono">{{ m_total_sessions.value | format_number }}</div>
+            <div class="metric-card__sub">Across all projects</div>
         </div>
     </div>
     <div class="metric-card">
-        <div class="metric-icon blue">
-            <span class="emoji lg" aria-hidden="true">🪙</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Total Tokens
+        <div class="metric-icon blue" aria-hidden="true">🪙</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Total Tokens</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-tokens"
                         aria-label="Metric info: total token consumption"
                         title="说明：所有项目的 token 消耗合计，使用缩写并保留 1 位小数">ⓘ</button>
             </div>
-            <div class="metric-value mono">{{ m_total_tokens.value | format_compact_token }}</div>
-            <div class="metric-card__panel-sub">Input + output combined</div>
+            <div class="metric-card__value mono">{{ m_total_tokens.value | format_compact_token }}</div>
+            <div class="metric-card__sub">Input + output combined</div>
         </div>
     </div>
     <div class="metric-card">
-        <div class="metric-icon {% if m_total_failed.value > 0 %}red{% else %}green{% endif %}">
-            <span class="emoji lg" aria-hidden="true">⚠️</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Failed Tools
+        <div class="metric-icon {% if m_total_failed.value > 0 %}red{% else %}green{% endif %}" aria-hidden="true">⚠️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Failed Tools</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="failed-tools"
                         aria-label="Metric info: failed tool call count"
                         title="说明：所有项目中 failed tool result 的数量，不包含 successful result">ⓘ</button>
             </div>
-            <div class="metric-value mono">{{ m_total_failed.value | format_number }}</div>
-            <div class="metric-card__panel-sub">Failed tool results</div>
+            <div class="metric-card__value mono">{{ m_total_failed.value | format_number }}</div>
+            <div class="metric-card__sub">Failed tool results</div>
         </div>
     </div>
 </section>
@@ -201,15 +193,7 @@
                         data-total-tokens="{{ p_total_tokens }}"
                         data-total-tools="{{ p.total_tool_calls }}"
                         data-total-failed="{{ p.total_failed_tools }}">
-                        <td class="project-cell">
-                            <a href="/projects/{{ p.project_key | urlencode }}" class="project-name-link" data-action="open-project-link">{{ p.project_name }}</a>
-                            <div class="project-path-row">
-                                <span class="path-text truncate" data-tooltip="{{ p.project_key }}">{{ p.project_key | truncate_path }}</span>
-                                <button class="path-copy-btn" data-action="copy-project-path" data-clipboard-text="{{ p.project_key }}" title="Copy full path" aria-label="Copy project path">
-                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
-                                </button>
-                            </div>
-                        </td>
+                        {{ ui.project_cell(p.project_name, p.project_key, '/projects/' ~ p.project_key | urlencode, name_data_action='open-project-link') }}
                         <td class="agents-cell">
                             {% if p.claude_sessions > 0 %}<span class="badge cc" data-tooltip="Claude Code"><span class="dot claude" aria-hidden="true"></span>{{ p.claude_sessions }}</span>{% endif %}
                             {% if p.codex_sessions > 0 %}<span class="badge cx" data-tooltip="Codex"><span class="dot codex" aria-hidden="true"></span>{{ p.codex_sessions }}</span>{% endif %}

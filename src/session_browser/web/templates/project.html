@@ -36,72 +36,67 @@
 {% set p_tools_per_round = (project.total_tool_calls / project.total_assistant_messages) | round(1) if project.total_assistant_messages > 0 else 0 %}
 
 <!-- Page head (HIFI canonical .page-head, T114) -->
-<section class="page-head">
-    <a href="/projects" class="back-btn" aria-label="Back to Projects list" title="返回到项目列表">
-        <span class="emoji" aria-hidden="true">⬅️</span>
-    </a>
-    <div>
-        <h1>{{ project.project_name }}</h1>
-        <div class="path-row">
-            <span class="path-chip mono" data-tooltip="{{ project.project_key }}">{{ project.project_key | truncate_path }}</span>
-            <button class="btn small" data-action="copy-path" data-clipboard-text="{{ project.project_key }}" aria-label="Copy project path" title="复制项目路径">
-                <span class="emoji" aria-hidden="true">📋</span>
-            </button>
-        </div>
-        <div class="subtitle">Performance and cost profiling for agent runs across all models and agents.</div>
-    </div>
-</section>
+{{ ui.page_head(
+    project.project_name,
+    subtitle='Performance and cost profiling for agent runs across all models and agents.',
+    leading_content=ui.back_button('/projects', label='Back to Projects list', icon='⬅️', title='返回到项目列表'),
+    extra_content=ui.path_row(project.project_key, display=project.project_key | truncate_path)
+) }}
 
 <!-- Project summary metrics -->
 <div class="metric-grid">
-    <div class="card metric">
-        <div class="metric-icon purple">
-            <span class="emoji" aria-hidden="true">📈</span>
-        </div>
-        <div>
-            <div class="metric-label">Sessions <button class="info-icon" data-action="info" aria-label="Sessions 计数方式说明" title="Total sessions in this project">ⓘ</button></div>
-            <div class="metric-value">{{ project.total_sessions }}</div>
-            <div class="agent-mix">
+    <div class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">📈</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Sessions</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Sessions 计数方式说明" title="Total sessions in this project">ⓘ</button>
+            </div>
+            <div class="metric-card__value">{{ project.total_sessions }}</div>
+            <div class="metric-card__sub">
                 <span class="badge badge-claude">{{ project.claude_sessions }} CC</span>
                 <span class="badge badge-codex">{{ project.codex_sessions }} CX</span>
                 <span class="badge badge-qoder">{{ project.qoder_sessions }} QD</span>
             </div>
         </div>
     </div>
-    <div class="card metric">
-        <div class="metric-icon green">
-            <span class="emoji" aria-hidden="true">📥</span>
-        </div>
-        <div>
-            <div class="metric-label">Input-side Tokens <button class="info-icon" data-action="info" aria-label="Input-side Token 公式说明" title="Total input-side tokens">ⓘ</button></div>
-            <div class="metric-value">{{ p_input_side | format_compact_token }}</div>
-            <div class="delta">Cache R: {{ p_cache_reuse }}%</div>
-        </div>
-    </div>
-    <div class="card metric">
-        <div class="metric-icon blue">
-            <span class="emoji" aria-hidden="true">📤</span>
-        </div>
-        <div>
-            <div class="metric-label">Output Tokens <button class="info-icon" data-action="info" aria-label="Output Token 定义说明" title="Total output-side tokens">ⓘ</button></div>
-            <div class="metric-value">{{ project.total_output_tokens | format_compact_token }}</div>
-            <div class="delta">{{ project.total_tool_calls | format_number }} tools</div>
+    <div class="metric-card">
+        <div class="metric-icon green" aria-hidden="true">📥</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Input-side Tokens</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Input-side Token 公式说明" title="Total input-side tokens">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ p_input_side | format_compact_token }}</div>
+            <div class="metric-card__sub success">Cache R: {{ p_cache_reuse }}%</div>
         </div>
     </div>
-    <div class="card metric">
-        <div class="metric-icon purple">
-            <span class="emoji" aria-hidden="true">📅</span>
+    <div class="metric-card">
+        <div class="metric-icon blue" aria-hidden="true">📤</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Output Tokens</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Output Token 定义说明" title="Total output-side tokens">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ project.total_output_tokens | format_compact_token }}</div>
+            <div class="metric-card__sub">{{ project.total_tool_calls | format_number }} tools</div>
         </div>
-        <div>
-            <div class="metric-label">Active Period <button class="info-icon" data-action="info" aria-label="活跃周期来源说明" title="Active period of this project">ⓘ</button></div>
-            <div class="metric-value mono">
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">📅</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Active Period</span>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="活跃周期来源说明" title="Active period of this project">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">
                 {% if project.first_seen and project.last_seen %}
                 {{ project.first_seen[:10] }} → {{ project.last_seen | relative_time }}
                 {% else %}
                 N/A
                 {% endif %}
             </div>
-            <div class="muted">Last activity tracked</div>
+            <div class="metric-card__sub">Last activity tracked</div>
         </div>
     </div>
 </div>
@@ -125,12 +120,12 @@
                     <th>Title</th>
                     <th>Agent</th>
                     <th>Model</th>
-                    <th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens</th>
-                    <th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds</th>
-                    <th class="numeric sortable" data-action="sort" data-sort="tools">Tools</th>
-                    <th class="sortable" data-action="sort" data-sort="failed">Failed</th>
-                    <th class="col-num sortable" data-action="sort" data-sort="duration">Duration</th>
-                    <th class="sortable" data-action="sort" data-sort="updated">Updated</th>
+                    <th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens <span class="sort-mark" aria-hidden="true">↕</span></th>
+                    <th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds <span class="sort-mark" aria-hidden="true">↕</span></th>
+                    <th class="numeric sortable" data-action="sort" data-sort="tools">Tools <span class="sort-mark" aria-hidden="true">↕</span></th>
+                    <th class="sortable" data-action="sort" data-sort="failed">Failed <span class="sort-mark" aria-hidden="true">↕</span></th>
+                    <th class="col-num sortable" data-action="sort" data-sort="duration">Duration <span class="sort-mark" aria-hidden="true">↕</span></th>
+                    <th class="sortable" data-action="sort" data-sort="updated">Updated <span class="sort-mark" aria-hidden="true">↕</span></th>
                 </tr>
             </thead>
             <tbody>

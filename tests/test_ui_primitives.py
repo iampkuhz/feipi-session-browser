@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import urllib.parse
 
 import jinja2
 import pytest
@@ -42,18 +43,40 @@ def _make_env() -> jinja2.Environment:
         else str(n)
     )
     env.filters["format_number_short"] = env.filters["format_compact_token"]
+    env.filters["format_duration"] = lambda seconds: (
+        f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}min" if seconds >= 3600
+        else f"{int(seconds // 60)}min {int(seconds % 60)}s" if seconds >= 60
+        else f"{int(seconds)}s"
+    )
+    env.filters["relative_time"] = lambda iso_str: str(iso_str) if iso_str else "—"
+    env.filters["urlencode"] = urllib.parse.quote
     return env
 
 
-def _render_macro(macro_name: str, **kwargs) -> str:
-    """Render a specific macro from ui_primitives.html with the given kwargs."""
+def _render_macro(macro_name: str, _context=None, **kwargs) -> str:
+    """Render a specific macro from ui_primitives.html with the given kwargs.
+
+    _context: optional dict of variables passed directly to the render
+        context (for complex objects like session stubs that cannot be
+        represented as Python literals in the template string).
+        Keys in _context can also be referenced as macro arguments by name.
+    """
     env = _make_env()
-    args = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
+    args_parts = []
+    # Context variables first (referenced by name as macro arguments)
+    if _context:
+        for key in _context:
+            args_parts.append(key)
+    # Then keyword arguments (rendered as Python literals)
+    for k, v in kwargs.items():
+        args_parts.append(f"{k}={v!r}")
+    all_args = ", ".join(args_parts)
     tmpl_str = (
         '{% from "components/ui_primitives.html" import ' + macro_name + ' %}'
-        "{{ " + macro_name + "(" + args + ") }}"
+        "{{ " + macro_name + "(" + all_args + ") }}"
     )
-    return env.from_string(tmpl_str).render()
+    render_ctx = dict(_context) if _context else {}
+    return env.from_string(tmpl_str).render(**render_ctx)
 
 
 # ── Macro rendering: no errors with minimal arguments ────────────────────
@@ -171,6 +194,44 @@ class TestMacroMinimalRender:
     def test_token_total_renders(self):
         html = _render_macro("token_total", total="1.5K")
         assert "1.5K" in html
+
+    def test_session_row_renders(self):
+        session = _make_session_stub()
+        html = _render_macro("session_row", _context={"session": session})
+        assert "session-row" in html
+        assert 'data-session-id="test-001"' in html
+        assert 'data-agent="claude_code"' in html
+        assert 'badge cc' in html
+        assert "CC" in html
+
+    def test_session_row_hides_columns(self):
+        session = _make_session_stub()
+        html = _render_macro("session_row", _context={"session": session}, show_project=False, show_agent=False)
+        assert "project-cell" not in html
+        assert "badge" not in html
+
+    def test_session_row_extra_classes(self):
+        session = _make_session_stub()
+        html = _render_macro("session_row", _context={"session": session}, extra_classes="custom-class")
+        assert "custom-class" in html
+
+
+def _make_session_stub():
+    """Create a minimal session stub for session_row macro tests."""
+    class SessionStub:
+        session_id = "test-001"
+        agent = "claude_code"
+        title = "Test Session"
+        project_key = "my-project"
+        project_name = "My Project"
+        model = "claude-sonnet-4-20250514"
+        total_tokens = 1500
+        assistant_message_count = 12
+        tool_call_count = 8
+        failed_tool_count = 0
+        duration_seconds = 180
+        ended_at = "2025-01-15T10:30:00"
+    return SessionStub()
 
 
 # ── Aria attributes ──────────────────────────────────────────────────────

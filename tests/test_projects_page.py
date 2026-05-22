@@ -110,6 +110,13 @@ class TestProjectsTemplateSortOptions:
         assert "Failed Tools" in content
 
 
+_UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
+
+
+def _read_ui_primitives() -> str:
+    return _read(_UI_PRIMITIVES_PATH)
+
+
 class TestProjectsTemplatePathDisplay:
     """Verify path display uses truncate_path without relative_to_repo."""
 
@@ -124,13 +131,24 @@ class TestProjectsTemplatePathDisplay:
     def test_path_copy_uses_full_project_key(self):
         """Copy button should use the full project_key via data-clipboard-text."""
         content = _read_template()
-        assert 'data-action="copy-project-path"' in content
-        assert 'data-clipboard-text="{{ p.project_key }}"' in content
+        # projects.html passes full p.project_key as path parameter to macro
+        macro = _read_ui_primitives()
+        assert 'data-clipboard-text="{{ path }}"' in macro, \
+            "project_cell macro must have data-clipboard-text bound to path"
+        assert 'data-action="copy-project-path"' in macro, \
+            "project_cell macro must have copy-project-path action"
 
     def test_path_tooltip_shows_full_key(self):
         """Tooltip should show the full project_key."""
         content = _read_template()
-        assert 'data-tooltip="{{ p.project_key }}"' in content
+        # projects.html passes full p.project_key to macro;
+        # the macro renders data-tooltip="{{ path }}"
+        assert "ui.project_cell(" in content, \
+            "projects.html must use project_cell macro"
+        # Verify macro template has data-tooltip
+        macro = _read_ui_primitives()
+        assert 'data-tooltip="{{ path }}"' in macro, \
+            "project_cell macro must have data-tooltip on path"
 
 
 class TestProjectsTemplateTitle:
@@ -203,32 +221,32 @@ class TestProjectsImports:
 # ── TestProjectsPageHead ──────────────────────────────────────────
 
 class TestProjectsPageHead:
-    """Verify page-head structure."""
+    """Verify page-head structure (uses ui.page_head macro, T15)."""
 
-    def test_page_head_section_present(self):
+    def test_page_head_macro_used(self):
         content = _read_template()
-        assert 'class="page-head"' in content, \
-            "Projects must have a page-head section"
+        assert 'ui.page_head(' in content, \
+            "Projects must use ui.page_head() macro"
 
     def test_page_head_has_h1(self):
         content = _read_template()
-        assert "<h1>Projects</h1>" in content, \
-            "Page-head must contain <h1>Projects</h1>"
+        assert "'Projects'" in content, \
+            "Page-head must have 'Projects' as title"
 
     def test_page_head_has_subtitle(self):
         content = _read_template()
         assert "Indexed local workspaces" in content, \
             "Page-head must have subtitle about indexed workspaces"
 
-    def test_page_head_stats_present(self):
+    def test_page_head_stat_pills_used(self):
         content = _read_template()
-        assert 'class="page-head-stats"' in content, \
-            "Page-head must have page-head-stats section"
+        assert 'stat_pills=' in content, \
+            "Page-head must use stat_pills parameter for project count"
 
     def test_page_head_count_element(self):
         content = _read_template()
         assert 'id="projects-count"' in content, \
-            "Page-head must have a projects-count element"
+            "Page-head must have a projects-count element in stat_pills"
 
 
 # ── TestProjectsMetricCards ───────────────────────────────────────
@@ -252,7 +270,7 @@ class TestProjectsMetricCards:
     @pytest.mark.parametrize("label", _EXPECTED_LABELS)
     def test_metric_card_labels(self, label):
         content = _read_template()
-        # Template has ">Label\n" or '>"Label"' — check for the label text near metric-label
+        # Template has ">Label\n" or '>"Label"' -- check for the label text near metric-card__label
         assert f">{label}" in content, \
             f"Projects must have a metric card labeled '{label}'"
 
@@ -272,25 +290,25 @@ class TestProjectsMetricCards:
             f"Projects must have at least 4 metric-icon elements, found {len(icons)}"
 
     def test_metric_card_has_label_class(self):
-        """Each metric card must have a metric-label element."""
+        """Each metric card must have a metric-card__label element."""
         content = _read_template()
-        labels = re.findall(r'class="metric-label"', content)
+        labels = re.findall(r'class="metric-card__label"', content)
         assert len(labels) >= 4, \
-            f"Projects must have at least 4 metric-label elements, found {len(labels)}"
+            f"Projects must have at least 4 metric-card__label elements, found {len(labels)}"
 
     def test_metric_card_has_value_class(self):
-        """Each metric card must have a metric-value element."""
+        """Each metric card must have a metric-card__value element."""
         content = _read_template()
-        values = re.findall(r'class="metric-value mono"', content)
+        values = re.findall(r'class="metric-card__value mono"', content)
         assert len(values) >= 4, \
-            f"Projects must have at least 4 metric-value elements, found {len(values)}"
+            f"Projects must have at least 4 metric-card__value elements, found {len(values)}"
 
     def test_metric_card_has_panel_sub(self):
-        """Each metric card must have a metric-card__panel-sub element."""
+        """Each metric card must have a metric-card__sub element."""
         content = _read_template()
-        subs = re.findall(r'class="metric-card__panel-sub"', content)
+        subs = re.findall(r'class="metric-card__sub"', content)
         assert len(subs) >= 4, \
-            f"Projects must have at least 4 metric-card__panel-sub elements, found {len(subs)}"
+            f"Projects must have at least 4 metric-card__sub elements, found {len(subs)}"
 
     def test_metric_info_buttons(self):
         """Each metric card must have an info button with data-action='metric-info'."""
@@ -445,28 +463,35 @@ class TestProjectsRowStructure:
 
     def test_project_name_link(self):
         content = _read_template()
-        assert 'class="project-name-link"' in content, \
-            "Project name must use project-name-link class"
+        # projects.html delegates to project_cell macro;
+        # verify macro defines the class
+        assert 'class="project-name-link"' in _read_ui_primitives(), \
+            "project_cell macro must define project-name-link class"
 
     def test_project_name_link_action(self):
         content = _read_template()
-        assert 'data-action="open-project-link"' in content, \
-            "Project name link must have data-action='open-project-link'"
+        # Verify projects.html passes name_data_action parameter
+        assert "name_data_action='open-project-link'" in content, \
+            "projects.html must pass name_data_action='open-project-link' to macro"
+        # Verify macro supports name_data_action
+        macro = _read_ui_primitives()
+        assert "name_data_action" in macro, \
+            "project_cell macro must support name_data_action parameter"
 
     def test_path_text_truncate(self):
-        content = _read_template()
-        assert 'class="path-text truncate"' in content, \
-            "Project path must use path-text truncate class"
+        # Path text class is defined in the macro
+        assert 'class="path-text truncate"' in _read_ui_primitives(), \
+            "project_cell macro must define path-text truncate class"
 
     def test_path_copy_button(self):
-        content = _read_template()
-        assert 'class="path-copy-btn"' in content, \
-            "Path copy button must have path-copy-btn class"
+        # Copy button class is defined in the macro
+        assert 'class="path-copy-btn"' in _read_ui_primitives(), \
+            "project_cell macro must define path-copy-btn class"
 
     def test_path_copy_button_data_action(self):
-        content = _read_template()
-        assert 'data-action="copy-project-path"' in content, \
-            "Path copy button must have data-action='copy-project-path'"
+        # Copy button data-action is defined in the macro
+        assert 'data-action="copy-project-path"' in _read_ui_primitives(), \
+            "project_cell macro must have data-action='copy-project-path'"
 
     def test_agent_badge_cc(self):
         content = _read_template()
@@ -698,8 +723,6 @@ class TestProjectsDataActions:
 
     _EXPECTED_ACTIONS = [
         "open-project",
-        "open-project-link",
-        "copy-project-path",
         "apply-search",
         "clear-search",
         "metric-info",
@@ -708,11 +731,37 @@ class TestProjectsDataActions:
         "next-page",
     ]
 
+    # Actions defined in the project_cell macro (verified separately)
+    # Note: open-project-link is passed via name_data_action parameter,
+    # so the macro has data-action="{{ name_data_action }}" not a literal string.
+    _MACRO_ACTIONS = [
+        "copy-project-path",
+    ]
+
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)
     def test_data_action_present(self, action):
         content = _read_template()
         assert f'data-action="{action}"' in content, \
             f"Template must have data-action='{action}'"
+
+    @pytest.mark.parametrize("action", _MACRO_ACTIONS)
+    def test_macro_data_actions(self, action):
+        """Verify data-actions defined in the project_cell macro."""
+        macro = _read_ui_primitives()
+        assert f'data-action="{action}"' in macro, \
+            f"project_cell macro must have data-action='{action}'"
+
+    def test_projects_passes_open_project_link(self):
+        """Verify projects.html passes the open-project-link action to macro."""
+        content = _read_template()
+        assert "name_data_action='open-project-link'" in content, \
+            "projects.html must pass name_data_action='open-project-link'"
+
+    def test_macro_supports_name_data_action(self):
+        """Verify macro renders data-action from name_data_action parameter."""
+        macro = _read_ui_primitives()
+        assert 'data-action="{{ name_data_action }}"' in macro, \
+            "project_cell macro must support name_data_action parameter"
 
     def test_data_action_go_dashboard(self):
         """go-dashboard action is generated via ui.button macro parameter."""

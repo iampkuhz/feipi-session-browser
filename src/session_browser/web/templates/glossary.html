@@ -22,45 +22,55 @@
 {%- from "components/badge.html" import badge, status_success, status_warning, status_error, status_info, status_muted, token_input, token_cache_read, token_cache_write, token_output, agent_claude, agent_codex, agent_qoder, agent_for, tool, anomaly %}
 
 <!-- Page head: canonical .page-head (T156) -->
-<section class="page-head">
-    <div>
-        <h1>Token Glossary</h1>
-        <p class="subtitle">页面只保留必要术语说明。术语使用英文，解释使用中文，先做轻量 reference，不加入搜索和复杂扩展功能。</p>
-    </div>
-</section>
+{{ ui.page_head(
+    'Token Glossary',
+    '页面只保留必要术语说明。术语使用英文，解释使用中文，先做轻量 reference，不加入搜索和复杂扩展功能。'
+) }}
 
 <!-- Summary metric grid (T157) -->
 <div aria-label="术语页摘要指标" class="metric-grid">
-    <div class="card metric-card">
-        <div class="metric-icon purple"><span aria-hidden="true">🧮</span></div>
-        <div>
-            <div class="metric-label">Token Types <span class="info-icon" title="查看 token 分类说明">ℹ️</span></div>
-            <div class="metric-value mono">6</div>
-            <div class="metric-note">Input / Output / Cache</div>
+    <div class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">🧮</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Token Types</span>
+                <button class="icon-button icon-button--info" title="查看 token 分类说明" aria-label="Token Types 指标说明">ℹ️</button>
+            </div>
+            <div class="metric-card__value mono">6</div>
+            <div class="metric-card__sub">Input / Output / Cache</div>
         </div>
     </div>
-    <div class="card metric-card">
-        <div class="metric-icon green"><span aria-hidden="true">📐</span></div>
-        <div>
-            <div class="metric-label">Derived Metrics <span class="info-icon" title="查看派生指标计算说明">ℹ️</span></div>
-            <div class="metric-value mono">6</div>
-            <div class="metric-note">Total / Reuse / Rate</div>
+    <div class="metric-card">
+        <div class="metric-icon green" aria-hidden="true">📐</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Derived Metrics</span>
+                <button class="icon-button icon-button--info" title="查看派生指标计算说明" aria-label="Derived Metrics 指标说明">ℹ️</button>
+            </div>
+            <div class="metric-card__value mono">6</div>
+            <div class="metric-card__sub">Total / Reuse / Rate</div>
         </div>
     </div>
-    <div class="card metric-card">
-        <div class="metric-icon orange"><span aria-hidden="true">🧩</span></div>
-        <div>
-            <div class="metric-label">Provider Fields <span class="info-icon" title="查看 provider 字段映射说明">ℹ️</span></div>
-            <div class="metric-value mono">12</div>
-            <div class="metric-note">CC / CX / QD</div>
+    <div class="metric-card">
+        <div class="metric-icon orange" aria-hidden="true">🧩</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Provider Fields</span>
+                <button class="icon-button icon-button--info" title="查看 provider 字段映射说明" aria-label="Provider Fields 指标说明">ℹ️</button>
+            </div>
+            <div class="metric-card__value mono">12</div>
+            <div class="metric-card__sub">CC / CX / QD</div>
         </div>
     </div>
-    <div class="card metric-card">
-        <div class="metric-icon blue"><span aria-hidden="true">🪧</span></div>
-        <div>
-            <div class="metric-label">Round Signals <span class="info-icon" title="查看 round / step 相关信号说明">ℹ️</span></div>
-            <div class="metric-value mono">6</div>
-            <div class="metric-note">Round / Step / Batch</div>
+    <div class="metric-card">
+        <div class="metric-icon blue" aria-hidden="true">🪧</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Round Signals</span>
+                <button class="icon-button icon-button--info" title="查看 round / step 相关信号说明" aria-label="Round Signals 指标说明">ℹ️</button>
+            </div>
+            <div class="metric-card__value mono">6</div>
+            <div class="metric-card__sub">Round / Step / Batch</div>
         </div>
     </div>
 </div>
@@ -156,7 +166,7 @@
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="token-name">指标</th>
+                <th class="sortable" data-action="sort" data-sort-key="token-name">指标 <span class="sort-mark" aria-hidden="true">↕</span></th>
                 <th>定义</th>
                 <th>公式</th>
                 <th>Anthropic</th>
@@ -215,7 +225,7 @@
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="derived-metric">指标</th>
+                <th class="sortable" data-action="sort" data-sort-key="derived-metric">指标 <span class="sort-mark" aria-hidden="true">↕</span></th>
                 <th>公式</th>
                 <th>解读</th>
             </tr>
@@ -271,7 +281,7 @@
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="provider-name">Provider</th>
+                <th class="sortable" data-action="sort" data-sort-key="provider-name">Provider <span class="sort-mark" aria-hidden="true">↕</span></th>
                 <th>模型</th>
                 <th>Input Fresh</th>
                 <th>Cache Read</th>
@@ -328,7 +338,7 @@
         <thead>
             <tr>
                 <th class="col-narrow">#</th>
-                <th class="sortable" data-action="sort" data-sort-key="limitation">限制</th>
+                <th class="sortable" data-action="sort" data-sort-key="limitation">限制 <span class="sort-mark" aria-hidden="true">↕</span></th>
                 <th>影响</th>
             </tr>
         </thead>
@@ -381,7 +391,7 @@
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="anomaly-type">类型</th>
+                <th class="sortable" data-action="sort" data-sort-key="anomaly-type">类型 <span class="sort-mark" aria-hidden="true">↕</span></th>
                 <th>规则</th>
                 <th>严重度</th>
             </tr>
@@ -420,7 +430,7 @@
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="signal-type">Signal</th>
+                <th class="sortable" data-action="sort" data-sort-key="signal-type">Signal <span class="sort-mark" aria-hidden="true">↕</span></th>
                 <th>规则</th>
                 <th>严重度</th>
             </tr>

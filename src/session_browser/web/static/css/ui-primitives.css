@@ -187,6 +187,216 @@ a.btn:focus-visible {
 .icon-button--ghost { width: 36px; height: 36px; font-size: 22px; }
 .ui-icon { display: inline-grid; place-items: center; line-height: 1; }
 
+/* === BackButton =========================================================== */
+.back-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+}
+.back-btn:hover {
+  background: var(--surface-soft);
+  border-color: var(--line-strong);
+}
+.back-btn:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 2px;
+}
+
+/* === ProjectCell =========================================================== */
+/* Canonical project cell for data tables with project name link
+ * and optional path row with copy button.
+ *
+ * HTML structure (via ui_primitives.html#project_cell macro):
+ *   <td class="project-cell [extra]">
+ *     <a href="..." class="project-name-link">name</a>
+ *     <div class="project-path-row">
+ *       <span class="path-text truncate" data-tooltip="path">path</span>
+ *       <button class="path-copy-btn" ...>...</button>  <!-- optional -->
+ *     </div>  <!-- optional -->
+ *   </td>
+ *
+ * Page-specific overrides (e.g. projects.css) may adjust widths or spacing.
+ */
+
+.project-cell {
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.project-name-link {
+  font-weight: 850;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.project-name-link:hover {
+  color: var(--purple);
+  text-decoration: underline;
+}
+
+.project-path-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.project-path-row .path-text {
+  font: 650 11px var(--mono);
+  color: var(--text-subtle);
+}
+
+.path-copy-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.path-copy-btn:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.path-copy-btn:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: -1px;
+}
+
+/* === AgentCell =========================================================== */
+/* Canonical agent cell for data tables with avatar, name link, and
+ * optional description.
+ *
+ * HTML structure (via ui_primitives.html#agent_cell macro):
+ *   <td class="agent-cell [extra]">
+ *     <span class="agent-main">
+ *       <a href="..." class="link">
+ *         <div class="agent-avatar [cc|qd|cx]">AB</div>
+ *       </a>
+ *       <div>
+ *         <div class="title-main">name</div>
+ *         <div class="title-sub">description</div>  <!-- optional -->
+ *       </div>
+ *     </span>
+ *   </td>
+ *
+ * Avatar variants use abbreviated classes (cc/qd/cx) matching badge naming.
+ * Legacy full-name variants (claude/qoder/codex) are also supported.
+ * Page-specific overrides (e.g. agents.css) may adjust dimensions or colors.
+ */
+
+.agent-cell {
+  min-width: 180px;
+}
+
+.agent-cell .agent-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 12px var(--sans);
+  color: var(--text);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+/* Abbreviated avatar variants (canonical, matches badge naming) */
+.agent-avatar.cc {
+  background: rgba(109, 93, 252, 0.1);
+  color: var(--claude);
+}
+.agent-avatar.qd {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--qoder);
+}
+.agent-avatar.cx {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--codex);
+}
+
+/* Legacy full-name avatar variants (backward compat) */
+.agent-avatar.claude {
+  background: rgba(109, 93, 252, 0.1);
+  color: var(--claude);
+}
+.agent-avatar.qoder {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--qoder);
+}
+.agent-avatar.codex {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--codex);
+}
+
+.agent-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.agent-main .title-main {
+  font-weight: 600;
+  font-size: 14px;
+}
+.agent-main .title-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+/* === TitleSubtitle ======================================================== */
+/* Two-line title pattern: primary title + optional subtitle.
+ * Used in table cells for session/agent/project rows.
+ *
+ * Canonical HTML structure (via ui_primitives.html#title_subtitle macro):
+ *   <div class="[extra_classes]">
+ *     <div class="title-main">Title text</div>
+ *     <div class="title-sub mono">subtitle</div>
+ *   </div>
+ *
+ * Page-specific overrides may adjust max-width, line-height, or font-size.
+ * legacy-aliases.css provides backward-compat for the legacy agent theme.
+ */
+
+.title-main {
+  font-weight: 820;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 440px;
+}
+
+.title-sub {
+  font: 11.5px var(--mono);
+  color: var(--text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 440px;
+}
+
+/* .title-sub.mono — reinforce monospace when macro toggles mono=True */
+.title-sub.mono {
+  font-family: var(--mono);
+}
+
 /* === Badge / Pill ======================================================== */
 .badge {
   display: inline-flex;
@@ -210,43 +420,128 @@ a.btn:focus-visible {
 .badge.model { background: var(--surface-soft); color: var(--text-subtle); border-color: var(--line); }
 
 /* === MetricCard / MetricGrid ============================================= */
+/*
+ * Unified metric card component — the ONLY definition across all pages.
+ * HTML template (every page uses this exact structure):
+ *
+ *   <article class="metric-card">
+ *     <div class="metric-icon purple" aria-hidden="true">📊</div>
+ *     <div class="metric-card__body">
+ *       <div class="metric-card__label-row">
+ *         <span class="metric-card__label">Label</span>
+ *         <button class="icon-button icon-button--info" title="..." aria-label="...">ⓘ</button>
+ *       </div>
+ *       <div class="metric-card__value">123</div>
+ *       <div class="metric-card__sub">Optional subtitle</div>
+ *     </div>
+ *   </article>
+ *
+ * Grid wrapper:
+ *   <section class="metric-grid"> ...cards... </section>
+ *
+ * Icon can use either .metric-card__icon (dashboard) or .metric-icon + color variant (other pages).
+ */
+
+/* ── Grid ───────────────────────────────────────────────────────────────── */
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+  margin-bottom: 16px;
 }
+
+/* ── Card container ─────────────────────────────────────────────────────── */
+/* Horizontal layout: icon on left, label/value/sub stacked on right.
+ * align-items: center centers the icon vertically within the card. */
+
 .metric-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
-  padding: 14px;
   display: flex;
+  flex-direction: row;
+  align-items: center;
   gap: 14px;
-  min-height: 112px;
+  padding: 12px 14px;
+  min-height: 96px;
   min-width: 0;
 }
-.metric-card h3 { margin: 0 0 6px; font-size: 13px; color: var(--text-subtle); font-weight: 700; }
-.metric-card .big { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
-.metric-card .panel-sub { font-size: 13px; color: var(--text-subtle); margin-top: 6px; }
+
+/* ── Icon ───────────────────────────────────────────────────────────────── */
+/* .metric-card__icon (dashboard) and .metric-icon (other pages) are aliases. */
+
+.metric-card__icon,
 .metric-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
+  font-size: 18px;
+  line-height: 1;
   flex: 0 0 auto;
-  font-size: var(--hifi-icon-metric);
 }
-.metric-icon.blue { background: #edeaff; color: var(--purple); }
-.metric-icon.green { background: #e7f8f1; color: var(--green); }
+
+/* Color variants for icon background */
+.metric-icon.blue   { background: #edeaff; color: var(--purple); }
+.metric-icon.green  { background: #e7f8f1; color: var(--green); }
 .metric-icon.orange { background: #fff3e2; color: var(--orange); }
 .metric-icon.purple { background: #edeaff; color: var(--purple); }
-.metric-icon.red { background: #ffe8eb; color: var(--red); }
-.metric-body { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-.metric-label { font-size: 13px; color: var(--text-subtle); font-weight: 700; }
-.metric-value { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
-.metric-value.mono { font-family: var(--mono); }
+.metric-icon.red    { background: #ffe8eb; color: var(--red); }
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+
+.metric-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+}
+
+/* ── Label row ──────────────────────────────────────────────────────────── */
+
+.metric-card__label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.metric-card__label {
+  font-size: 13px;
+  color: var(--text-subtle);
+  font-weight: 700;
+}
+
+/* ── Value ──────────────────────────────────────────────────────────────── */
+
+.metric-card__value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.2;
+}
+.metric-card__value.mono { font-family: var(--mono); }
+
+/* ── Subtitle ───────────────────────────────────────────────────────────── */
+/* min-height = 2 lines so cards align even when some have no subtitle. */
+
+.metric-card__sub {
+  font-size: 13px;
+  color: var(--text-subtle);
+  line-height: 1.3;
+  min-height: calc(1.3em * 2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.metric-card__sub.success { color: var(--green); }
+.metric-card__sub.danger  { color: var(--red); }
 
 /* === TokenBar ============================================================= */
 .tokenbar {
@@ -284,6 +579,120 @@ a.btn:focus-visible {
 .t-read { background: var(--codex); }
 .t-write { background: var(--qoder); }
 .t-out { background: var(--output); }
+
+/* === TokenTotal ============================================================ */
+/* Canonical wrapper for token value + bar combination.
+ * Structure:
+ *   <div class="token-total">
+ *     <span class="token-total__value">12.3K</span>
+ *     <span class="tokenbar">...</span>
+ *   </div>
+ * Page-specific overrides may adjust font size, margin, or layout.
+ */
+.token-total {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.token-total__value {
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* === ProgressBar ========================================================== */
+/* Canonical progress bar for showing proportional fill (e.g. tool calls %).
+ * Structure:
+ *   <div class="progress-bar" style="--fill-width: 42.3%">
+ *     <div class="progress-fill [color_class]"></div>
+ *   </div>
+ * Color classes (optional): .progress-fill--purple, .progress-fill--green, etc.
+ */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--surface-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--text-subtle);
+  border-radius: 999px;
+  width: var(--fill-width, 0%);
+}
+.progress-fill--purple { background: var(--purple); }
+.progress-fill--green  { background: var(--green); }
+.progress-fill--orange { background: var(--orange); }
+.progress-fill--red    { background: var(--red); }
+.progress-fill--claude { background: var(--claude); }
+.progress-fill--codex  { background: var(--codex); }
+.progress-fill--qoder  { background: var(--qoder); }
+
+/* === ChartLegend =========================================================== */
+/* Canonical chart legend row with colored dots and labels.
+ * Structure:
+ *   <div class="legend-row [extra_classes]">
+ *     <span class="legend-item"><span class="legend-dot legend-dot--*"></span>Label</span>
+ *     ...
+ *   </div>
+ * Page-specific overrides (e.g. dashboard.css) may adjust layout or spacing.
+ */
+.legend-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.legend-item {
+  font-size: 13px;
+  color: var(--text-subtle);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.legend-dot--claude { background: var(--claude); }
+.legend-dot--codex  { background: var(--codex); }
+.legend-dot--qoder  { background: var(--qoder); }
+
+/* === ScopeSwitch =========================================================== */
+/* Canonical scope switch / time-range toggle group.
+ * Commonly used in dashboard headers for Day/Week/Month selection.
+ * Structure:
+ *   <div class="scope-switch">
+ *     <button class="scope-switch__btn is-active" data-scope="day">Day</button>
+ *     ...
+ *   </div>
+ * Page-specific overrides (e.g. dashboard.css) may adjust dimensions or colors.
+ */
+.scope-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.scope-switch__btn {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-subtle);
+  font-weight: 700;
+}
+.scope-switch__btn.is-active {
+  background: var(--purple);
+  color: white;
+}
 
 /* === Tooltip ============================================================== */
 .tooltip-wrap { position: relative; display: inline-block; }
@@ -417,6 +826,28 @@ a.btn:focus-visible {
 .data-table th.sortable[data-sort-dir] .sort-mark { color: var(--purple); }
 /* Default sort-mark when no direction is set */
 .data-table th.sortable:not([data-sort-dir]) .sort-mark::after { content: '\2195'; }
+
+/* ── Sort icon aliases (backward compat for legacy class names) ── */
+/* .sort-icon and .sort-caret are legacy names; .sort-mark is canonical.
+   These aliases ensure old templates still render correctly. */
+.data-table th .sort-icon,
+.data-table th .sort-caret {
+  display: inline-grid;
+  place-items: center;
+  width: var(--hifi-icon-inline);
+  height: var(--hifi-icon-inline);
+  font-size: var(--hifi-icon-inline);
+  color: var(--text-subtle);
+  margin-left: 4px;
+}
+.data-table th.sortable[data-sort-dir="asc"] .sort-icon::after,
+.data-table th.sortable[data-sort-dir="asc"] .sort-caret::after { content: '↑'; }
+.data-table th.sortable[data-sort-dir="desc"] .sort-icon::after,
+.data-table th.sortable[data-sort-dir="desc"] .sort-caret::after { content: '↓'; }
+.data-table th.sortable[data-sort-dir] .sort-icon,
+.data-table th.sortable[data-sort-dir] .sort-caret { color: var(--purple); }
+.data-table th.sortable:not([data-sort-dir]) .sort-icon::after,
+.data-table th.sortable:not([data-sort-dir]) .sort-caret::after { content: '\2195'; }
 
 /* Tbody */
 .data-table tbody td {
@@ -886,6 +1317,72 @@ a.btn:focus-visible {
 /* Dismissed state strip (JS toggled) */
 .state-strip.is-dismissed { display: none; }
 
+/* === PageHead ============================================================== */
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* === PathRow ================================================================ */
+/* Canonical path row with mono chip and optional copy button.
+ * Structure:
+ *   <div class="path-row [extra]">
+ *     <span class="path-chip mono" data-tooltip="...">...</span>
+ *     <button class="btn small" data-action="copy-path">...</button>  <!-- optional -->
+ *   </div>
+ * Page-specific overrides (e.g. projects.css) may adjust dimensions or colors.
+ */
+.path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.path-chip {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--mono);
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* === TableToolbar =========================================================== */
+.table-toolbar {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.card-title {
+  font-weight: 850;
+  font-size: 13px;
+}
+.card-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.table-title {
+  font-size: 16px;
+  font-weight: 850;
+}
+.table-note {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-weight: 650;
+}
+
 /* === Toast ================================================================ */
 .toast {
   position: fixed;
@@ -905,6 +1402,42 @@ a.btn:focus-visible {
 .toast.is-visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* === Breadcrumb ============================================================ */
+/* Canonical breadcrumb navigation bar.
+ * Structure:
+ *   <div class="breadcrumb [extra_classes]" aria-label="页面导航">
+ *     <a href="...">label</a>
+ *     <span class="sep">/</span>
+ *     ...
+ *     <span class="current">label</span>
+ *   </div>
+ * Page-specific overrides (e.g. legacy-aliases.css .topbar-breadcrumb)
+ * may adjust colors or spacing.
+ */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.breadcrumb a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+.breadcrumb a:hover {
+  color: var(--purple);
+  text-decoration: underline;
+}
+.breadcrumb .sep {
+  color: var(--text-subtle);
+  font-weight: 400;
+}
+.breadcrumb .current {
+  color: var(--text);
+  font-weight: 700;
 }
 
 /* === Legacy aliases (backward compat) ==================================== */
@@ -968,7 +1501,7 @@ a.btn:focus-visible {
         min-height: auto;
         padding: 12px;
     }
-    .metric-value {
+    .metric-card__value {
         font-size: 24px;
     }
 

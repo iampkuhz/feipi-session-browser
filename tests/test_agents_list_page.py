@@ -95,25 +95,25 @@ class TestAgentsImports:
 # ── TestAgentsPageHead ─────────────────────────────────────────────
 
 class TestAgentsPageHead:
-    """Verify page-head structure."""
+    """Verify page-head structure (uses ui.page_head macro, T15)."""
 
-    def test_page_head_section_present(self):
-        """Agents must have a page-head section."""
+    def test_page_head_macro_used(self):
+        """Agents must use ui.page_head() macro."""
         content = _read_template()
-        assert 'class="page-head"' in content, \
-            "Agents must have a page-head section"
+        assert 'ui.page_head(' in content, \
+            "Agents must use ui.page_head() macro"
 
     def test_page_head_has_h1(self):
-        """Page-head must contain <h1>Agents</h1>."""
+        """Page-head must have 'Agents' as title."""
         content = _read_template()
-        assert "<h1>Agents</h1>" in content, \
-            "Page-head must contain <h1>Agents</h1>"
+        assert "'Agents'" in content, \
+            "Page-head must have 'Agents' as title"
 
     def test_page_head_has_subtitle(self):
         """Page-head must have a subtitle with agent/model count."""
         content = _read_template()
-        assert 'class="subtitle"' in content, \
-            "Page-head must have a subtitle"
+        assert '个 Agent' in content, \
+            "Page-head must have a subtitle with agent count"
 
     def test_breadcrumb_present(self):
         """Page must have breadcrumb linking to Dashboard."""
@@ -145,7 +145,7 @@ class TestAgentsMetricCards:
     def test_four_metric_cards(self):
         """Agents must have exactly 4 metric cards."""
         content = _read_template()
-        cards = re.findall(r'class="card metric"', content)
+        cards = re.findall(r'class="metric-card"', content)
         assert len(cards) == 4, \
             f"Agents must have exactly 4 metric cards, found {len(cards)}"
 
@@ -172,27 +172,27 @@ class TestAgentsMetricCards:
             f"Agents must have at least 4 metric-icon elements, found {len(icons)}"
 
     def test_metric_icons_have_emoji_aria_hidden(self):
-        """Each metric-icon must contain an emoji span with aria-hidden."""
+        """Each metric-icon must have aria-hidden attribute."""
         content = _read_template()
-        emojis = re.findall(
-            r'class="emoji" aria-hidden="true"', content
+        icons = re.findall(
+            r'class="metric-icon[^"]*"[^>]*aria-hidden="true"', content
         )
-        assert len(emojis) >= 4, \
-            f"Agents must have at least 4 emoji spans with aria-hidden, found {len(emojis)}"
+        assert len(icons) >= 4, \
+            f"Agents must have at least 4 metric-icon elements with aria-hidden, found {len(icons)}"
 
     def test_metric_cards_have_label_class(self):
-        """Each metric card must have a metric-label element."""
+        """Each metric card must have a metric-card__label element."""
         content = _read_template()
-        labels = re.findall(r'class="metric-label"', content)
+        labels = re.findall(r'class="metric-card__label"', content)
         assert len(labels) >= 4, \
-            f"Agents must have at least 4 metric-label elements, found {len(labels)}"
+            f"Agents must have at least 4 metric-card__label elements, found {len(labels)}"
 
     def test_metric_cards_have_value_class(self):
-        """Each metric card must have a metric-value element."""
+        """Each metric card must have a metric-card__value element."""
         content = _read_template()
-        values = re.findall(r'class="metric-value(?: mono)?"', content)
+        values = re.findall(r'class="metric-card__value(?: mono)?"', content)
         assert len(values) >= 4, \
-            f"Agents must have at least 4 metric-value elements, found {len(values)}"
+            f"Agents must have at least 4 metric-card__value elements, found {len(values)}"
 
     def test_metric_info_buttons(self):
         """Each metric card must have an info button with data-action='info'."""
@@ -204,8 +204,8 @@ class TestAgentsMetricCards:
     def test_info_buttons_use_info_icon_class(self):
         """Info buttons must use info-icon class."""
         content = _read_template()
-        assert 'class="info-icon"' in content, \
-            "Info buttons must use info-icon class"
+        assert 'icon-button--info' in content, \
+            "Info buttons must use icon-button--info class"
 
 
 # ── TestAgentsTableStructure ───────────────────────────────────────
@@ -366,16 +366,16 @@ class TestAgentsRowStructure:
             "Row must have data-last-active attribute"
 
     def test_title_main_present(self):
-        """Row must have a title-main element for agent name."""
+        """Row must use agent_cell macro which renders title-main."""
         content = _read_template()
-        assert 'class="title-main"' in content, \
-            "Row must have a title-main element"
+        assert 'ui.agent_cell' in content or 'class="title-main"' in content, \
+            "Row must have a title-main element (inline or via agent_cell macro)"
 
     def test_title_sub_present(self):
-        """Row must have a title-sub element for description."""
+        """Row must use agent_cell macro which renders title-sub."""
         content = _read_template()
-        assert 'class="title-sub"' in content, \
-            "Row must have a title-sub element"
+        assert 'ui.agent_cell' in content or 'class="title-sub"' in content, \
+            "Row must have a title-sub element (inline or via agent_cell macro)"
 
 
 # ── TestAgentsProviderBadges ───────────────────────────────────────
@@ -433,10 +433,10 @@ class TestAgentsAvatar:
     """Verify agent avatar structure."""
 
     def test_agent_avatar_class(self):
-        """Agent cell must have agent-avatar element."""
+        """Agent cell must have agent-avatar element (inline or via agent_cell macro)."""
         content = _read_template()
-        assert 'class="agent-avatar' in content, \
-            "Template must have agent-avatar class"
+        assert 'ui.agent_cell' in content or 'class="agent-avatar' in content, \
+            "Template must have agent-avatar class (inline or via agent_cell macro)"
 
     def test_agent_abbreviations(self):
         """Avatar must show CC/CX/QD abbreviations."""
@@ -683,7 +683,6 @@ class TestAgentsDataActions:
 
     _EXPECTED_ACTIONS = [
         "open-agent",
-        "open-agent-link",
         "info",
         "sort",
         "page-input",

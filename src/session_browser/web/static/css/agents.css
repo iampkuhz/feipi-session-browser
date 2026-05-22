@@ -32,6 +32,13 @@
   margin-top: 12px;
 }
 
+/* Emoji icon inside metric-icon */
+.emoji {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+}
+
 /* Subtitle text below page title (T128) */
 .subtitle {
   color: var(--text-subtle);
@@ -54,68 +61,12 @@
   font-weight: 850;
 }
 
-/* ── Metric grid (shared primitives, T129) ───────────────── */
-
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-/* Metric card bridge: .card.metric HTML -> .metric-card layout */
-.card.metric {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 14px;
-  display: flex;
-  gap: 14px;
-  min-height: 112px;
-  min-width: 0;
-}
-
-.card.metric .metric-value {
-  font: 850 21px var(--mono);
-  margin: 3px 0;
-}
-
-/* Info icon in metric label */
-.card.metric .info-icon {
-  font-size: 14px;
-  color: var(--text-subtle);
-  cursor: help;
-}
-
-/* Trend delta */
-.card.metric .delta {
-  font-size: 12px;
-  color: var(--ok);
-  font-weight: 750;
-}
-
-/* Emoji icon inside metric-icon */
-.emoji {
-  font-size: 16px;
-  line-height: 1;
-  display: inline-block;
-}
-
 /* Table card wrapper */
 .table-card {
   overflow: hidden;
 }
-
 .table-card .table-wrap {
   overflow-x: auto;
-}
-
-/* ── Metric grid (shared primitives) ───────────────────────── */
-
-.metric-card__panel-sub {
-  font-size: 12px;
-  color: var(--text-subtle);
-  margin-top: 4px;
 }
 
 /* ── Agent avatar (HIFI: 34x34 circular badge) ────────────── */
@@ -355,40 +306,22 @@
   font-size: 13px;
 }
 
-/* 2. Metric card layout (6-card grid for agent detail) */
+/* 2. Metric card layout (4-card grid for agents list) */
 .metric-grid:has(.metric-card) {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .metric-card {
   min-width: 0;
   height: 92px;
   padding: 16px;
-  display: flex;
-  align-items: flex-start;
   gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius, 14px);
-  box-shadow: var(--shadow);
 }
-.metric-body {
-  min-width: 0;
-}
-.metric-body .metric-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #344054;
-  font-size: 12px;
-  font-weight: 850;
-}
-.metric-body .metric-value {
+.metric-card__value {
   font-family: var(--mono);
   font-size: 19px;
   line-height: 1.15;
   font-weight: 900;
   letter-spacing: -.02em;
-  margin-top: 10px;
   white-space: nowrap;
 }
 

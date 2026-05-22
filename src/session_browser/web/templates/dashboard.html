@@ -14,11 +14,7 @@
             <p class="chart-card__subtitle" data-subtitle="{{ chart_type }}">{{ subtitle }}</p>
         </div>
         {% if data %}
-        <div class="legend-row">
-            <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--claude"></span>Claude Code</span>
-            <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--codex"></span>Codex</span>
-            <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--qoder"></span>Qoder</span>
-        </div>
+        {{ ui.chart_legend() }}
         {% endif %}
     </div>
     {% if data %}
@@ -57,18 +53,11 @@
 {{ ui.empty_state('No sessions indexed yet', action_button=ui.button('Run Scan', variant='primary', href='/', data_action='run-scan')) }}
 {% else %}
 
-<!-- Page head: title + subtitle + global scope switch -->
-<section class="page-head">
-    <div>
-        <h1>Dashboard</h1>
-        <p>Local agent session overview</p>
-    </div>
-    <div class="scope-switch" aria-label="Chart time scope switch">
-        <button class="scope-switch__btn is-active" data-scope="day" data-action="scope-day">Day</button>
-        <button class="scope-switch__btn" data-scope="week" data-action="scope-week">Week</button>
-        <button class="scope-switch__btn" data-scope="month" data-action="scope-month">Month</button>
-    </div>
-</section>
+{{ ui.page_head(
+    'Dashboard',
+    'Local agent session overview',
+    extra_content=ui.scope_switch(active='day')
+) }}
 
 <!-- Metric grid: 4 cards bound to Jinja2 data -->
 <section class="metric-grid">

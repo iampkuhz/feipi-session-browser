@@ -1,7 +1,7 @@
 {#
   UI primitives — canonical Jinja2 macros for Feipi Session Browser.
   Uses HIFI class names (btn, icon-btn, badge, metric-card, metric-grid).
-  Preserves legacy macros (btn, select_control, stat_pill, th_static, th_sort, token_total)
+  Preserves legacy macros (btn, select_control, stat_pill, th_static, th_sort, legacy_sessions_token_total)
   for pages that still import them.
 
   Usage:
@@ -115,8 +115,9 @@
 {# MetricCard — label + value with optional icon.
    Variant A (simple): label + value + optional icon
    Variant B (horizontal icon): icon_color + label + value
-   Uses HIFI class names from dashboard.css:
-     metric-card, metric-card__icon, metric-card__label, metric-card__value, metric-card__sub
+   Uses HIFI class names from ui-primitives.css:
+     metric-card, metric-icon, metric-card__body, metric-card__label,
+     metric-card__label-row, metric-card__value, metric-card__sub
    icon_color: blue / green / orange / purple / red
 #}
 {% macro metric_card(label, value, icon=None, icon_color=None, description=None, extra_classes=None) -%}
@@ -130,22 +131,26 @@
   {%- if icon_color and icon -%}
 {# Variant B: horizontal icon with colored background #}
 <article class="{{ cls }}" aria-label="{{ label }}">
-  <div class="metric-icon {{ icon_color }}"><span class="emoji" aria-hidden="true">{{ icon }}</span></div>
-  <div class="metric-body">
-    <div class="metric-label">{{ label }}</div>
-    <div class="metric-value mono">{{ value }}</div>
+  <div class="metric-icon {{ icon_color }}" aria-hidden="true">{{ icon }}</div>
+  <div class="metric-card__body">
+    <div class="metric-card__label-row">
+      <span class="metric-card__label">{{ label }}</span>
+    </div>
+    <div class="metric-card__value mono">{{ value }}</div>
     {%- if description %}
-    <div class="panel-sub">{{ description }}</div>
+    <div class="metric-card__sub">{{ description }}</div>
     {%- endif %}
   </div>
 </article>
   {%- else -%}
 {# Variant A: simple label + value (+ optional inline icon) #}
 <div class="{{ cls }}" aria-label="{{ label }}">
-  <h3>{%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}{{ label }}</h3>
-  <div class="big">{{ value }}</div>
+  <div class="metric-card__label-row">
+    <span class="metric-card__label">{%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}{{ label }}</span>
+  </div>
+  <div class="metric-card__value mono">{{ value }}</div>
   {%- if description %}
-  <div class="panel-sub">{{ description }}</div>
+  <div class="metric-card__sub">{{ description }}</div>
   {%- endif %}
 </div>
   {%- endif -%}
@@ -206,6 +211,45 @@
     {%- set seg_class = seg.kind if seg.kind in ['fresh', 'read', 'write', 'out'] else 'out' -%}
   <div class="tokenbar-seg {{ seg_class }}" style="--segment-width:{{ pct | round(1) }}%"></div>
   {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# --- TokenTotal ---
+   Combines a formatted token total value with a token bar showing
+   fresh/cache-read/cache-write/output breakdown.
+
+   Parameters:
+     total: display text for the total (e.g. "12.3K")
+     fresh_pct: percentage of fresh tokens (0-100)
+     read_pct: percentage of cache-read tokens (0-100)
+     write_pct: percentage of cache-write tokens (0-100)
+     out_pct: percentage of output tokens (0-100)
+     extra_classes: additional CSS classes on the outer wrapper
+
+   Produces the canonical pattern:
+     <div class="token-total">
+       <span class="token-total__value">...</span>
+       <span class="tokenbar" ...>
+         <span class="tokenbar-seg fresh|read|write|out" ...></span>
+       </span>
+     </div>
+#}
+{% macro token_total(total, fresh_pct=0, read_pct=0, write_pct=0, out_pct=0, extra_classes=None) -%}
+  {%- set classes = ['token-total'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<div class="{{ cls }}">
+  <span class="token-total__value">{{ total }}</span>
+  <span class="tokenbar" aria-hidden="true">
+    <span class="tokenbar-seg fresh" style="--segment-width:{{ fresh_pct | round(1) }}%"></span>
+    <span class="tokenbar-seg read" style="--segment-width:{{ read_pct | round(1) }}%"></span>
+    <span class="tokenbar-seg write" style="--segment-width:{{ write_pct | round(1) }}%"></span>
+    <span class="tokenbar-seg out" style="--segment-width:{{ out_pct | round(1) }}%"></span>
+  </span>
 </div>
 {%- endmacro %}
 
@@ -514,6 +558,637 @@
 {%- endmacro %}
 
 {# ============================================================================
+   PageHead (T15)
+   Renders a canonical page header with title, optional subtitle, and
+   optional action area (stat pills, scope switches, back buttons, etc.).
+   extra_classes: additional CSS classes on the <section>
+   stat_pills: HTML for stat pill elements (right-aligned)
+   extra_content: arbitrary HTML for the right-side action area
+   leading_content: arbitrary HTML placed before the title div (e.g. back button)
+#}
+{% macro page_head(title, subtitle=None, stat_pills=None, extra_content=None, extra_classes=None, leading_content=None) -%}
+  {%- set classes = ['page-head'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<section class="{{ cls }}">
+  {%- if leading_content %}
+  {{ leading_content }}
+  {%- endif %}
+  <div>
+    <h1>{{ title }}</h1>
+    {%- if subtitle %}
+    <p class="subtitle">{{ subtitle }}</p>
+    {%- endif %}
+  </div>
+  {%- if stat_pills or extra_content %}
+  <div class="page-head-actions">
+    {%- if stat_pills %}
+    {{ stat_pills }}
+    {%- endif %}
+    {%- if extra_content %}
+    {{ extra_content }}
+    {%- endif %}
+  </div>
+  {%- endif %}
+</section>
+{%- endmacro %}
+
+{# ============================================================================
+   TableToolbar (T012)
+   Renders a table card toolbar/heading area with left-side title/subtitle
+   and right-side search input and/or extra content.
+
+   Parameters:
+     title: required — primary heading text
+     subtitle: optional — secondary text shown below title
+     search_placeholder: optional — when set, renders a search input on the right
+     extra_content: optional — arbitrary HTML placed on the right side (buttons, etc.)
+     extra_classes: optional — additional CSS classes on the outer .table-toolbar
+
+   Produces:
+     <div class="table-toolbar">
+       <div>
+         <div class="card-title">...</div>
+         <div class="card-sub">...</div>  {# optional #}
+       </div>
+       <span class="spacer"></span>        {# only if search or extra_content #}
+       <input class="input search" ... />  {# optional #}
+       {{ extra_content }}                 {# optional #}
+     </div>
+#}
+{% macro table_toolbar(title, subtitle=None, search_placeholder=None, extra_content=None, extra_classes=None) -%}
+  {%- set classes = ['table-toolbar'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<div class="{{ cls }}">
+  <div>
+    <div class="card-title">{{ title }}</div>
+    {%- if subtitle %}
+    <div class="card-sub">{{ subtitle }}</div>
+    {%- endif %}
+  </div>
+  {%- if search_placeholder or extra_content %}
+  <span class="spacer"></span>
+  {%- if search_placeholder %}
+  <input class="input search" data-action="search" placeholder="{{ search_placeholder }}" aria-label="Search" />
+  {%- endif %}
+  {%- if extra_content %}
+  {{ extra_content }}
+  {%- endif %}
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   SortHeader (P1: sort_header)
+   Renders a canonical sortable <th> with a consistent .sort-mark icon.
+   Supports both href (server-side sort) and button (client-side JS sort) modes.
+
+   Parameters:
+     label: column header text
+     sort_key: the data-sort-key value for this column
+     current_sort_key: currently active sort key (determines active state)
+     current_sort_dir: current sort direction ('asc' or 'desc')
+     href: optional sort URL; if empty, renders a <button> instead of <a>
+     numeric: if true, adds 'numeric' class for right-aligned columns
+     extra_classes: additional CSS classes on the <th>
+
+   Produces:
+     <th class="sortable [numeric] [...]" data-action="sort" data-sort-key="..." aria-sort="...">
+       Label
+       <a|button class="sort-button" ...><span class="sort-mark">icon</span></a|button>
+     </th>
+#}
+{% macro sort_header(label, sort_key, current_sort_key='', current_sort_dir='desc', href='', numeric=False, extra_classes=None) -%}
+  {%- set classes = ['sortable'] -%}
+  {%- if numeric -%}
+    {%- set _ = classes.append('numeric') -%}
+  {%- endif -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set is_active = (current_sort_key == sort_key) -%}
+  {%- set aria_sort = ' aria-sort="' ~ ('ascending' if current_sort_dir == 'asc' else 'descending') ~ '"' if is_active else '' -%}
+  {%- set icon = '↑' if is_active and current_sort_dir == 'asc' else ('↓' if is_active else '↕') -%}
+<th class="{{ cls }}" data-action="sort" data-sort-key="{{ sort_key }}"{{ aria_sort|safe }}>{{ label }}
+  {%- if href -%}
+  <a class="sort-button" href="{{ href }}" data-action="sort" data-sort-key="{{ sort_key }}">
+    <span class="sort-mark" aria-hidden="true">{{ icon }}</span>
+  </a>
+  {%- else -%}
+  <button class="sort-button" type="button" data-action="sort" data-sort-key="{{ sort_key }}">
+    <span class="sort-mark" aria-hidden="true">{{ icon }}</span>
+  </button>
+  {%- endif %}
+</th>
+{%- endmacro %}
+
+{# ============================================================================
+   BackButton (T154 #10)
+   Renders a back-button link with optional icon (emoji or raw HTML),
+   aria-label, and title.
+
+   Parameters:
+     href: required — destination URL
+     label: accessible label (default 'Back')
+     icon: emoji character (default '←') or raw HTML starting with '<'
+     extra_classes: additional CSS classes (e.g. 'btn' for agent.html style)
+     title: hover tooltip text (defaults to label)
+     data_action: optional data-action attribute for JS hooks
+#}
+{% macro back_button(href, label='Back', icon='←', extra_classes=None, title=None, data_action=None) -%}
+  {%- set classes = ['back-btn'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set effective_title = title if title else label -%}
+<a class="{{ cls }}" href="{{ href }}" aria-label="{{ label }}" title="{{ effective_title }}"{%- if data_action %} data-action="{{ data_action }}"{% endif %}>
+  {%- if icon.startswith('<') -%}
+  {{ icon }}
+  {%- else -%}
+  <span class="emoji" aria-hidden="true">{{ icon }}</span>
+  {%- endif %}
+</a>
+{%- endmacro %}
+
+{# ============================================================================
+   TitleSubtitle (P1: title_subtitle)
+   Renders a two-line title pattern: primary title line + optional subtitle.
+   Commonly used in table cells for session/agent/project rows.
+
+   Parameters:
+     title: required — primary title text (can be HTML, e.g. <a> link)
+     subtitle: optional — secondary text shown below title
+     mono: if true, adds 'mono' class to subtitle for monospace rendering
+     extra_classes: additional CSS classes on the outer wrapper
+     title_extra: optional HTML appended inline after the title (e.g. icon, badge)
+
+   Produces:
+     <div class="[extra_classes]">
+       <div class="title-main">title [title_extra]</div>
+       <div class="title-sub[ mono]">subtitle</div>  {# optional #}
+     </div>
+#}
+{% macro title_subtitle(title, subtitle=None, mono=False, extra_classes=None, title_extra=None) -%}
+  {%- set classes = [] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<div{{ ' class="' ~ cls ~ '"' if cls else '' }}>
+  <div class="title-main">
+    {{ title }}
+    {%- if title_extra %}{{ title_extra }}{% endif %}
+  </div>
+  {%- if subtitle %}
+  <div class="title-sub{% if mono %} mono{% endif %}">{{ subtitle }}</div>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   ProjectCell (P1: project_cell)
+   Renders a canonical project cell for data tables with project name link
+   and optional path row with copy button.
+
+   Parameters:
+     name: required — project display name
+     path: required — full project path (used for tooltip + copy clipboard)
+     href: required — link URL for the project name
+     show_path: if false, omit the path row entirely (default True)
+     show_copy: if false, omit the copy button but still show path (default True)
+     extra_classes: additional CSS classes on the <td>
+     name_data_action: optional data-action on the name link (e.g. 'open-project-link')
+
+   Produces:
+     <td class="project-cell [extra]">
+       <a href="..." class="project-name-link">name</a>
+       <div class="project-path-row">
+         <span class="path-text truncate" data-tooltip="path">path</span>
+         <button class="path-copy-btn" ...>...</button>  {# optional #}
+       </div>  {# optional #}
+     </td>
+#}
+{% macro project_cell(name, path, href, show_path=True, show_copy=True, extra_classes=None, name_data_action=None) -%}
+  {%- set classes = ['project-cell'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<td class="{{ cls }}">
+  <a href="{{ href }}" class="project-name-link" data-project="{{ name }}"{%- if name_data_action %} data-action="{{ name_data_action }}"{% endif %}>{{ name }}</a>
+  {%- if show_path and path %}
+  <div class="project-path-row">
+    <span class="path-text truncate" data-tooltip="{{ path }}">{{ path | truncate_path }}</span>
+    {%- if show_copy %}
+    <button class="path-copy-btn" data-action="copy-project-path" data-clipboard-text="{{ path }}" title="Copy full path" aria-label="Copy project path">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+    </button>
+    {%- endif %}
+  </div>
+  {%- endif %}
+</td>
+{%- endmacro %}
+
+{# ============================================================================
+   AgentCell (P1: agent_cell)
+   Renders a canonical agent cell for data tables with avatar, agent name link,
+   and optional description.
+
+   Parameters:
+     name: required — agent display name
+     agent_key: required — internal agent key (claude_code, qoder, codex)
+     href: link URL (default: /agents/<agent_key>)
+     description: optional — secondary text shown below name
+     abbrev: avatar abbreviation (default: name[:2]|upper)
+     avatar_class: avatar style class (default: cc/qd/cx based on agent_key)
+     extra_classes: additional CSS classes on the <td>
+
+   Produces:
+     <td class="agent-cell [extra]">
+       <span class="agent-main">
+         <a href="..." class="link">
+           <div class="agent-avatar [avatar_class]">abbrev</div>
+         </a>
+         <div>
+           <div class="title-main">name</div>
+           <div class="title-sub">description</div>  {# optional #}
+         </div>
+       </span>
+     </td>
+#}
+{% macro agent_cell(name, agent_key, href='', description=None, abbrev='', avatar_class='', extra_classes=None) -%}
+  {%- set classes = ['agent-cell'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set effective_abbrev = abbrev if abbrev else name[:2]|upper -%}
+  {%- set effective_avatar = avatar_class if avatar_class else ('cc' if agent_key == 'claude_code' else 'qd' if agent_key == 'qoder' else 'cx') -%}
+  {%- set effective_href = href if href else '/agents/' ~ agent_key -%}
+<td class="{{ classes | join(' ') }}">
+  <span class="agent-main">
+    <a href="{{ effective_href }}" class="link" data-action="open-agent-link">
+      <div class="agent-avatar {{ effective_avatar }}">{{ effective_abbrev }}</div>
+    </a>
+    <div>
+      <div class="title-main">{{ name }}</div>
+      {%- if description %}
+      <div class="title-sub">{{ description }}</div>
+      {%- endif %}
+    </div>
+  </span>
+</td>
+{%- endmacro %}
+
+{# ============================================================================
+   MetricInfo (P2: metric_info)
+   Renders the canonical info button used inside metric card label rows.
+   Eliminates ~22 duplicated occurrences across dashboard, projects, agents,
+   agent, and glossary pages.
+
+   Parameters:
+     metric_name: required — the metric identifier (used in data-action/data-info)
+     label: accessible label suffix (default '指标说明')
+     title: hover tooltip text (default matches existing pattern)
+
+   Produces:
+     <button type="button" class="icon-button icon-button--info"
+             data-action="info-<metric_name>"
+             data-info="<metric_name>"
+             title="..."
+             aria-label="<metric_name> 指标说明">
+       &#x2139;&#xFE0F;
+     </button>
+#}
+{% macro metric_info(metric_name, label='指标说明', title='点击后显示当前指标或图表的解释浮层') -%}
+<button type="button" class="icon-button icon-button--info"
+        data-action="info-{{ metric_name }}"
+        data-info="{{ metric_name }}"
+        title="{{ title }}"
+        aria-label="{{ metric_name }} {{ label }}">
+  &#x2139;&#xFE0F;
+</button>
+{%- endmacro %}
+
+{# ============================================================================
+   MetricLabelRow (P2: metric_label_row)
+   Renders a complete metric card label row combining label, optional icon,
+   and the info button. Pairs naturally with metric_card or used inside
+   custom metric card bodies.
+
+   Parameters:
+     label: the visible metric label text
+     metric_name: identifier passed through to metric_info
+     info_label: accessible label suffix for metric_info
+     info_title: tooltip text for metric_info
+     icon: optional icon character/HTML rendered before the info button
+
+   Produces:
+     <div class="metric-card__label-row">
+       <span class="metric-card__label">Label</span>
+       [optional icon]
+       [metric_info button]
+     </div>
+#}
+{% macro metric_label_row(label, metric_name, info_label='指标说明', info_title='点击后显示当前指标或图表的解释浮层', icon=None) -%}
+<div class="metric-card__label-row">
+  <span class="metric-card__label">{{ label }}</span>
+  {%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}
+  {{ metric_info(metric_name, label=info_label, title=info_title) }}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   PathRow (P2: path_row)
+   Renders a canonical path row with a mono chip and optional copy button.
+   Used in page headers and data table cells for displaying filesystem paths.
+
+   Parameters:
+     path: required — the full filesystem path (used for tooltip + clipboard)
+     display: optional — display text shown in the chip (default: path,
+            commonly passed as `path | truncate_path` from the caller)
+     tooltip: optional — tooltip text (default: full path)
+     show_copy: if false, omit the copy button (default True)
+     extra_classes: additional CSS classes on the outer wrapper
+
+   Produces:
+     <div class="path-row [extra_classes]">
+       <span class="path-chip mono" data-tooltip="...">display or path</span>
+       <button class="btn small" data-action="copy-path" ...>...</button>  {# optional #}
+     </div>
+#}
+{% macro path_row(path, display=None, tooltip=None, show_copy=True, extra_classes=None) -%}
+  {%- set classes = ['path-row'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set effective_tooltip = tooltip if tooltip else path -%}
+  {%- set effective_display = display if display else path -%}
+<div class="{{ cls }}">
+  <span class="path-chip mono" data-tooltip="{{ effective_tooltip }}">{{ effective_display }}</span>
+  {%- if show_copy %}
+  <button class="btn small" data-action="copy-path" data-clipboard-text="{{ path }}" aria-label="Copy path" title="Copy full path">
+    <span class="emoji" aria-hidden="true">&#x1F4CB;</span>
+  </button>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   ProgressBar (P2: progress_bar)
+   Renders a canonical progress bar with proportional fill.
+   Commonly used for showing tool-call or token percentages.
+
+   Parameters:
+     fill_pct: required — percentage value (0-100) for the fill width
+     title: optional — tooltip text (default auto-generates from fill_pct)
+     extra_classes: additional CSS classes on the outer .progress-bar wrapper
+     color_class: optional CSS class for the fill (e.g. 'progress-fill--purple')
+
+   Produces:
+     <div class="progress-bar [extra_classes]" style="--fill-width: 42.3%" title="...">
+       <div class="progress-fill [color_class]"></div>
+     </div>
+#}
+{% macro progress_bar(fill_pct, title=None, extra_classes=None, color_class=None) -%}
+  {%- set classes = ['progress-bar'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set effective_title = title if title else 'Progress: ' ~ fill_pct|round(1) ~ '%' -%}
+<div class="{{ cls }}" style="--fill-width:{{ fill_pct|round(1) }}%" title="{{ effective_title }}">
+    <div class="progress-fill{% if color_class %} {{ color_class }}{% endif %}"></div>
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   ChartLegend (P2: chart_legend)
+   Renders a chart legend row with colored dots and labels.
+   Default items: Claude Code, Codex, Qoder with their brand colors.
+
+   Parameters:
+     items: optional — list of dicts with keys: label, dot_class
+            (default: Claude Code / Codex / Qoder)
+     extra_classes: additional CSS classes on the outer .legend-row
+
+   Produces:
+     <div class="legend-row [extra_classes]">
+       <span class="legend-item"><span class="legend-dot dot_class"></span>label</span>
+       ...
+     </div>
+#}
+{% macro chart_legend(items=None, extra_classes=None) -%}
+  {%- set classes = ['legend-row'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set default_items = [
+    {'label': 'Claude Code', 'dot_class': 'legend-dot--claude'},
+    {'label': 'Codex', 'dot_class': 'legend-dot--codex'},
+    {'label': 'Qoder', 'dot_class': 'legend-dot--qoder'},
+  ] -%}
+  {%- set legend_items = items if items else default_items -%}
+<div class="{{ cls }}">
+  {%- for item in legend_items %}
+  <span class="legend-item" aria-hidden="true"><span class="legend-dot {{ item.dot_class }}"></span>{{ item.label }}</span>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   ScopeSwitch (P2: scope_switch)
+   Renders a canonical scope switch / time-range toggle group.
+   Commonly used in dashboard headers for Day/Week/Month selection.
+
+   Parameters:
+     items: optional — list of scope identifiers (default: ['day', 'week', 'month'])
+     active: currently active scope (default: 'day')
+     aria_label: accessible label for the group (default: 'Time scope switch')
+     extra_classes: additional CSS classes on the outer wrapper
+
+   Produces:
+     <div class="scope-switch [extra_classes]" aria-label="...">
+       <button class="scope-switch__btn[ is-active]" data-scope="..." data-action="scope-...">...</button>
+       ...
+     </div>
+#}
+{% macro scope_switch(items=None, active='day', aria_label='Time scope switch', extra_classes=None) -%}
+  {%- set classes = ['scope-switch'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set default_items = ['day', 'week', 'month'] -%}
+  {%- set scope_items = items if items else default_items -%}
+<div class="{{ cls }}" aria-label="{{ aria_label }}">
+  {%- for scope in scope_items %}
+  <button class="scope-switch__btn{% if scope == active %} is-active{% endif %}" data-scope="{{ scope }}" data-action="scope-{{ scope }}">{{ scope | capitalize }}</button>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   SessionRow (P3: session_row)
+   Renders a complete session table row with configurable columns.
+   Used as a starting point for normalizing session rows across pages.
+
+   Parameters:
+     session: required — session object with attributes (session_id, agent,
+              title, project_key, project_name, model, total_tokens,
+              assistant_message_count, tool_call_count, failed_tool_count,
+              duration_seconds, ended_at)
+     show_project: toggle project column (default True)
+     show_agent: toggle agent column (default True)
+     show_model: toggle model column (default True)
+     show_tokens: toggle tokens column (default True)
+     show_rounds: toggle rounds column (default True)
+     show_tools: toggle tools column (default True)
+     show_failed: toggle failed column (default True)
+     show_duration: toggle duration column (default True)
+     show_updated: toggle updated-at column (default True)
+     extra_classes: additional CSS classes on the <tr>
+
+   Produces:
+     <tr class="session-row [extra]" data-session-id="..." data-agent="..." data-title="...">
+       <td class="project-cell">...</td>  {# optional #}
+       <td><span class="badge cc|cx|qd">...</span></td>  {# optional #}
+       <td class="mono">model</td>  {# optional #}
+       <td class="token-cell mono">1.5K</td>  {# optional #}
+       <td class="num mono">42</td>  {# optional #}
+       ...
+     </tr>
+#}
+{% macro session_row(session, show_project=True, show_agent=True, show_model=True, show_tokens=True, show_rounds=True, show_tools=True, show_failed=True, show_duration=True, show_updated=True, extra_classes=None) -%}
+  {%- set classes = ['session-row'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<tr class="{{ cls }}"
+    data-session-id="{{ session.session_id }}"
+    data-agent="{{ session.agent }}"
+    data-title="{{ session.title | lower }}">
+  {%- if show_project %}
+  <td class="project-cell">
+    <a href="/projects/{{ session.project_key | urlencode }}">{{ session.project_name }}</a>
+  </td>
+  {%- endif %}
+  {%- if show_agent %}
+  <td>
+    <span class="badge {% if session.agent == 'claude_code' %}cc{% elif session.agent == 'codex' %}cx{% elif session.agent == 'qoder' %}qd{% endif %}">
+      {{ 'CC' if session.agent == 'claude_code' else 'CX' if session.agent == 'codex' else 'QD' if session.agent == 'qoder' else session.agent }}
+    </span>
+  </td>
+  {%- endif %}
+  {%- if show_model %}
+  <td class="mono">{{ session.model or '—' }}</td>
+  {%- endif %}
+  {%- if show_tokens %}
+  <td class="token-cell mono">{{ session.total_tokens | format_compact_token }}</td>
+  {%- endif %}
+  {%- if show_rounds %}
+  <td class="num mono">{{ session.assistant_message_count }}</td>
+  {%- endif %}
+  {%- if show_tools %}
+  <td class="num mono">{{ session.tool_call_count }}</td>
+  {%- endif %}
+  {%- if show_failed %}
+  <td>
+    {%- if session.failed_tool_count > 0 %}
+    <span class="badge err">{{ session.failed_tool_count }}</span>
+    {%- else %}—{% endif %}
+  </td>
+  {%- endif %}
+  {%- if show_duration %}
+  <td class="mono">{{ session.duration_seconds | format_duration }}</td>
+  {%- endif %}
+  {%- if show_updated %}
+  <td class="muted">{{ session.ended_at | relative_time }}</td>
+  {%- endif %}
+</tr>
+{%- endmacro %}
+
+{# ============================================================================
+   Breadcrumb (P3: breadcrumb)
+   Renders a canonical breadcrumb navigation bar from a list of items.
+   Each item is a dict with keys: label, href (optional).
+   The last item is rendered as the current page (no trailing separator).
+   Non-last items without href render as plain <span>.
+
+   Parameters:
+     items: required — list of dicts with keys: label, href (optional)
+     extra_classes: additional CSS classes on the outer .breadcrumb wrapper
+
+   Produces:
+     <div class="breadcrumb [extra_classes]" aria-label="页面导航">
+       <a href="...">label</a>  {# or <span> if no href #}
+       <span class="sep">/</span>
+       ...
+       <span class="current">label</span>  {# last item, or <a> if href set #}
+     </div>
+#}
+{% macro breadcrumb(items, extra_classes=None) -%}
+  {%- set classes = ['breadcrumb'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<div class="{{ cls }}" aria-label="页面导航">
+  {%- for item in items %}
+    {%- if not loop.last -%}
+      {%- if item.href -%}
+  <a href="{{ item.href }}">{{ item.label }}</a>
+      {%- else -%}
+  <span>{{ item.label }}</span>
+      {%- endif -%}
+  <span class="sep">/</span>
+    {%- else -%}
+      {%- if item.href -%}
+  <a href="{{ item.href }}">{{ item.label }}</a>
+      {%- else -%}
+  <span class="current">{{ item.label }}</span>
+      {%- endif -%}
+    {%- endif %}
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
    Legacy macros (preserved for existing pages)
    ============================================================================ #}
 
@@ -577,7 +1252,12 @@
   {%- endif -%}
 {%- endmacro %}
 
-{% macro token_total(total, fresh_pct=0, cache_pct=0, output_pct=0) -%}
+{# --- Legacy sessions token total (backward compat) ---
+   Uses 'sessions-token-total' prefixed class names for the sessions grid.
+   New code should use the canonical token_total macro above instead.
+   Kept here to avoid breaking any templates that may import it directly.
+#}
+{% macro legacy_sessions_token_total(total, fresh_pct=0, cache_pct=0, output_pct=0) -%}
   <div class="sessions-token-total">
     <span class="sessions-token-total__value">{{ total }}</span>
     <span class="sessions-token-bar" aria-hidden="true">

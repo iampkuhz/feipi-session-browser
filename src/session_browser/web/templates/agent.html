@@ -43,7 +43,7 @@
 
 <div class="header">
     <div class="header-left">
-        <a class="btn back-btn" data-action="back" href="/agents" title="Back to Agents">←</a>
+        {{ ui.back_button('/agents', label='Back to Agents', icon='←', extra_classes='btn', title='Back to Agents', data_action='back') }}
         <div>
             <div class="agent-title-wrap">
                 <div class="agent-title">
@@ -57,58 +57,64 @@
 
 <!-- Agent detail metric cards (T143) -->
 <section class="metric-grid" aria-label="Agent detail metrics">
-    <article class="card metric-card">
-        <div class="metric-icon green">
-            <span class="emoji" aria-hidden="true">🧾</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Sessions <span class="info-icon" data-action="info" title="Total sessions for this agent">ⓘ</span></div>
-            <div class="metric-value">{{ agent_info.session_count | format_number }}</div>
-        </div>
-    </article>
-    <article class="card metric-card">
-        <div class="metric-icon purple">
-            <span class="emoji" aria-hidden="true">📁</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Projects <span class="info-icon" data-action="info" title="Number of projects with sessions from this agent">ⓘ</span></div>
-            <div class="metric-value">{{ agent_info.project_count }}</div>
+    <article class="metric-card">
+        <div class="metric-icon green" aria-hidden="true">🧾</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Sessions</span>
+                <button class="icon-button icon-button--info" data-action="info" title="Total sessions for this agent" aria-label="Sessions 指标说明">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ agent_info.session_count | format_number }}</div>
         </div>
     </article>
-    <article class="card metric-card">
-        <div class="metric-icon blue">
-            <span class="emoji" aria-hidden="true">⬇️</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Input-side Tokens <span class="info-icon" data-action="info" title="Total input tokens including cache reads and writes">ⓘ</span></div>
-            <div class="metric-value">{{ a_input_side | format_compact_token }}</div>
-        </div>
-    </article>
-    <article class="card metric-card">
-        <div class="metric-icon purple">
-            <span class="emoji" aria-hidden="true">⬆️</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Output Tokens <span class="info-icon" data-action="info" title="Total output tokens">ⓘ</span></div>
-            <div class="metric-value">{{ agent_info.total_output_tokens | format_compact_token }}</div>
+    <article class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">📁</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Projects</span>
+                <button class="icon-button icon-button--info" data-action="info" title="Number of projects with sessions from this agent" aria-label="Projects 指标说明">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ agent_info.project_count }}</div>
         </div>
     </article>
-    <article class="card metric-card">
-        <div class="metric-icon blue">
-            <span class="emoji" aria-hidden="true">♻️</span>
-        </div>
-        <div class="metric-body">
-            <div class="metric-label">Cache Reuse <span class="info-icon" data-action="info" title="Cache hit ratio: cached_input / input_side">ⓘ</span></div>
-            <div class="metric-value">{{ a_cache_reuse }}%</div>
+    <article class="metric-card">
+        <div class="metric-icon blue" aria-hidden="true">⬇️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Input-side Tokens</span>
+                <button class="icon-button icon-button--info" data-action="info" title="Total input tokens including cache reads and writes" aria-label="Input-side Tokens 指标说明">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ a_input_side | format_compact_token }}</div>
         </div>
     </article>
-    <article class="card metric-card">
-        <div class="metric-icon red">
-            <span class="emoji" aria-hidden="true">⚠️</span>
+    <article class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">⬆️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Output Tokens</span>
+                <button class="icon-button icon-button--info" data-action="info" title="Total output tokens" aria-label="Output Tokens 指标说明">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ agent_info.total_output_tokens | format_compact_token }}</div>
         </div>
-        <div class="metric-body">
-            <div class="metric-label">Failed Tools <span class="info-icon" data-action="info" title="Total failed tool calls across all sessions">ⓘ</span></div>
-            <div class="metric-value">{{ agent_info.total_failed_tools }}</div>
+    </article>
+    <article class="metric-card">
+        <div class="metric-icon blue" aria-hidden="true">♻️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Cache Reuse</span>
+                <button class="icon-button icon-button--info" data-action="info" title="Cache hit ratio: cached_input / input_side" aria-label="Cache Reuse 指标说明">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ a_cache_reuse }}%</div>
+        </div>
+    </article>
+    <article class="metric-card">
+        <div class="metric-icon red" aria-hidden="true">⚠️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Failed Tools</span>
+                <button class="icon-button icon-button--info" data-action="info" title="Total failed tool calls across all sessions" aria-label="Failed Tools 指标说明">ⓘ</button>
+            </div>
+            <div class="metric-card__value mono">{{ agent_info.total_failed_tools }}</div>
         </div>
     </article>
 </section>

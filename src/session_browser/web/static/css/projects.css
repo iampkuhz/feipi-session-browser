@@ -49,52 +49,9 @@
   font-weight: 700;
 }
 
-/* ── Metric grid (T101: canonical shared primitives) ──────── */
-
-/* Metric grid spacing below page head */
+/* ── Metric grid spacing below page head ─────── */
 .page-head + .metric-grid {
   margin-top: 12px;
-}
-
-/* Metric grid layout: 4 equal-width cards on desktop (T115) */
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-/* Metric card: bridge .card.metric HTML to .metric-card primitives (T115)
-   The HTML uses class="card metric" (two classes), while ui-primitives.css
-   defines .metric-card (single class). This selector applies the same layout
-   so the icon and content render side-by-side with proper spacing. */
-.card.metric {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 14px;
-  display: flex;
-  gap: 14px;
-  min-height: 112px;
-  min-width: 0;
-}
-
-/* Metric card sub-text row (panel-sub style, T115 alias) */
-.card.metric .metric-sub {
-  font-size: 12px;
-  color: var(--text-subtle);
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* Sub-text row inside metric card (panel-sub style) */
-.metric-card__panel-sub {
-  font-size: 12px;
-  color: var(--text-subtle);
-  margin-top: 4px;
 }
 
 /* ── Table toolbar (T103: migrated from .card-title.flex) ─── */
@@ -191,55 +148,6 @@ th.sortable[data-sorted="asc"]:after {
   font-size: 14px;
   color: var(--text-subtle);
   display: inline-block;
-}
-
-/* ── Project cell: name + path merged (T103) ─────────────── */
-
-.project-cell {
-  min-width: 200px;
-  max-width: 320px;
-}
-
-.project-name-link {
-  font-weight: 850;
-  color: var(--text);
-  text-decoration: none;
-}
-
-.project-name-link:hover {
-  color: var(--purple);
-  text-decoration: underline;
-}
-
-.project-path-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.project-path-row .path-text {
-  font: 650 11px var(--mono);
-  color: var(--text-subtle);
-}
-
-.path-copy-btn {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 0;
-  background: transparent;
-  color: var(--text-subtle);
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.path-copy-btn:hover {
-  background: var(--surface-soft);
-  color: var(--text);
 }
 
 /* ── Token cell with tokenbar (T103) ─────────────────────── */
@@ -542,56 +450,6 @@ th.sortable[data-sorted="asc"]:after {
   font-size: 12px;
 }
 
-/* ── Project detail: metric card layout ─────────────────────── */
-
-/* Metric label with info icon alignment */
-.metric-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Info icon inside metric labels */
-.info-icon {
-  font-size: 14px;
-  color: var(--text-subtle);
-  cursor: help;
-}
-
-/* Metric value canonical sizing */
-.metric-value {
-  font: 850 21px var(--mono);
-  margin: 3px 0;
-}
-
-/* Trend delta rows */
-.delta {
-  font-size: 12px;
-  color: var(--ok);
-  font-weight: 750;
-}
-
-.delta.down {
-  color: var(--err);
-}
-
-/* ── Project detail: agent mix badges ───────────────────────── */
-
-.agent-mix {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-/* Agent badge variants (HIFI canonical: .badge.cc / .badge.cx / .badge.qd)
-   Already defined in ui-primitives.css, aliased here for completeness. */
-.badge.cc .dot,
-.badge.cx .dot,
-.badge.qd .dot {
-  flex-shrink: 0;
-}
-
 /* ── Project detail: session title cells ────────────────────── */
 
 .title-main {
@@ -613,30 +471,6 @@ th.sortable[data-sorted="asc"]:after {
 
 .data-table tbody tr.row--failed:hover {
   background: var(--red-soft);
-}
-
-/* ── Project detail: metric sub text ────────────────────────── */
-
-.metric-card .metric-sub {
-  font-size: 12px;
-  color: var(--text-subtle);
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* Compact metric card variant (project summary cards) */
-.metric-card--compact {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 16px;
-}
-
-.metric-card--compact .metric-value {
-  font-size: 24px;
 }
 
 /* ── Project detail: sessions table toolbar ─────────────────── */
@@ -668,19 +502,4 @@ th.sortable[data-sorted="asc"]:after {
 
 .agent-dot.qoder {
   background: var(--qoder);
-}
-
-/* ── Responsive: metric grid ──────────────────────────────────── */
-
-@media (max-width: 1399px) and (min-width: 768px) {
-  .metric-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 767px) {
-  .metric-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
 }
