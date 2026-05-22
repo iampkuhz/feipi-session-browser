@@ -407,14 +407,15 @@ class TestProjectsTableStructure:
     def test_sortable_columns_data_sort_values(self):
         content = _read_template()
         for sort_key in ["sessions", "tokens", "tools", "last_active"]:
-            assert f'data-sort="{sort_key}"' in content, \
-                f"Table must have data-sort='{sort_key}'"
+            assert f'data-sort-key="{sort_key}"' in content, \
+                f"Table must have data-sort-key='{sort_key}'"
 
-    def test_sortable_headers_have_aria_label(self):
+    def test_sortable_headers_have_title(self):
         content = _read_template()
-        sort_buttons = re.findall(r'aria-label="Sort by [^"]*"', content)
-        assert len(sort_buttons) >= 4, \
-            f"Sortable headers must have aria-label, found {len(sort_buttons)}"
+        # Unified pattern: sort-button has title attribute (Chinese label)
+        sort_titles = re.findall(r'title="按[^"]*排序"', content)
+        assert len(sort_titles) >= 4, \
+            f"Sortable headers must have sort title, found {len(sort_titles)}"
 
     def test_table_toolbar_present(self):
         content = _read_template()
@@ -519,31 +520,32 @@ class TestProjectsRowStructure:
             "Must have Qoder agent badge via badge_with_dot macro"
 
     def test_tokenbar_present(self):
+        # Token cells are rendered via ui.token_cell macro
         content = _read_template()
-        assert 'class="tokenbar"' in content, \
-            "Row must have a tokenbar element"
+        assert 'ui.token_cell' in content, \
+            "projects.html must call ui.token_cell macro"
 
     def test_tokenbar_has_four_segments(self):
-        content = _read_template()
-        segs = re.findall(r'class="tokenbar-seg (fresh|read|write|out)"', content)
+        macro = _read_ui_primitives()
+        segs = re.findall(r'class="tokenbar-seg (fresh|read|write|out)"', macro)
         assert len(segs) >= 4, \
-            f"Tokenbar must have 4 segments (fresh/read/write/out), found {len(segs)}"
+            f"token_cell macro must have 4 segments, found {len(segs)}"
 
     def test_tokenbar_segments_classes(self):
-        content = _read_template()
+        macro = _read_ui_primitives()
         for seg_class in ["fresh", "read", "write", "out"]:
-            assert f'tokenbar-seg {seg_class}' in content, \
-                f"Tokenbar must have segment class '{seg_class}'"
+            assert f'tokenbar-seg {seg_class}' in macro, \
+                f"token_cell macro must have segment class '{seg_class}'"
 
     def test_tokenbar_tooltip_present(self):
-        content = _read_template()
-        assert 'class="tooltip"' in content, \
-            "Tokenbar must have tooltip element"
+        macro = _read_ui_primitives()
+        assert 'class="token-tooltip"' in macro, \
+            "token_cell macro must have tooltip element"
 
     def test_tokenbar_tooltip_has_breakdown(self):
-        content = _read_template()
-        assert "Token breakdown" in content, \
-            "Tokenbar tooltip must show token breakdown"
+        macro = _read_ui_primitives()
+        assert "Token Breakdown" in macro, \
+            "token_cell tooltip must show token breakdown"
 
     def test_tools_failed_badge(self):
         content = _read_template()

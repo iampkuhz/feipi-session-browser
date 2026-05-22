@@ -57,7 +57,7 @@
 .sessions-page .sessions-th__sort-btn:hover{text-decoration:none}
 .sessions-page .sessions-sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);font-size:11px;font-weight:900}
 .sessions-page .sessions-sort-icon--active{background:var(--sessions-brand);border-color:var(--sessions-brand);color:#fff}
-.sessions-page .sessions-row{display:contents}
+.sessions-page [data-sessions-grid] .sessions-row{display:contents}
 .sessions-page .sessions-row:hover .sessions-td{background:#fbfdff}
 .sessions-page .sessions-row.is-selected .sessions-td{background:linear-gradient(90deg,#f7f9ff,#fff)}
 .sessions-page .sessions-row.is-selected .sessions-td:first-child{box-shadow:inset 3px 0 0 var(--sessions-brand)}
@@ -67,7 +67,6 @@
 .sessions-page .sessions-meta{display:flex;align-items:center;gap:6px;min-width:0;color:var(--sessions-text-3);font-size:11.5px}
 .sessions-page .sessions-id{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);color:var(--sessions-text-3)}
 .sessions-page .sessions-project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
-.sessions-page .sessions-project-parent{font-size:11.5px;color:var(--sessions-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sessions-page .sessions-agent-badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;padding:0 8px;font-weight:780;font-size:11.5px}
 .sessions-page .sessions-agent-badge--claude_code{background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe}
 .sessions-page .sessions-agent-badge--codex{background:#ecfdf5;color:#059669;border:1px solid #bbf7d0}
@@ -101,89 +100,6 @@
   font-weight:600;
   text-align:center;
   grid-column:1 / -1;
-}
-
-/* ── Token Tooltip (hover on token bar in table cell) ─────────── */
-.sessions-page .sessions-token-tooltip{
-  position:absolute;
-  left:50%;
-  top:calc(100% + 8px);
-  transform:translateX(-50%);
-  background:#fff;
-  border:1px solid var(--sessions-line-soft);
-  border-radius:12px;
-  box-shadow:0 12px 28px rgba(15,23,42,.12);
-  padding:12px 14px;
-  width:240px;
-  z-index:20;
-  display:none;
-  pointer-events:none;
-}
-.sessions-page .sessions-token-tooltip::before{
-  content:'';
-  position:absolute;
-  top:-7px;
-  left:50%;
-  transform:translateX(-50%) rotate(45deg);
-  width:12px;
-  height:12px;
-  background:#fff;
-  border-left:1px solid var(--sessions-line-soft);
-  border-top:1px solid var(--sessions-line-soft);
-}
-.sessions-page .sessions-token-total:hover .sessions-token-tooltip,
-.sessions-page .sessions-token-total:focus-within .sessions-token-tooltip{
-  display:block;
-}
-.sessions-page .sessions-token-tooltip__title{
-  font-weight:880;
-  font-size:12px;
-  margin-bottom:8px;
-  color:var(--sessions-text);
-}
-.sessions-page .sessions-token-tooltip__row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  min-height:22px;
-  font-size:12px;
-}
-.sessions-page .sessions-token-tooltip__label{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  color:var(--sessions-text-3);
-  min-width:0;
-}
-.sessions-page .sessions-token-tooltip__dot{
-  width:8px;
-  height:8px;
-  border-radius:50%;
-  flex:0 0 8px;
-}
-.sessions-page .sessions-token-tooltip__dot--fresh{background:#2563eb}
-.sessions-page .sessions-token-tooltip__dot--cache{background:#f59e0b}
-.sessions-page .sessions-token-tooltip__dot--out{background:#059669}
-.sessions-page .sessions-token-tooltip__value{
-  font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);
-  font-weight:760;
-  text-align:right;
-}
-.sessions-page .sessions-token-tooltip__percent{
-  color:var(--sessions-text-3);
-  font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);
-  font-weight:600;
-  text-align:right;
-  font-size:11px;
-}
-.sessions-page .sessions-token-tooltip__sep{
-  height:1px;
-  background:var(--sessions-line-soft);
-  margin:6px 0;
-}
-.sessions-page .sessions-token-tooltip__total{
-  font-weight:880;
-  color:var(--sessions-text);
 }
 
 /* ── Pagination Nav Buttons (in footer) ───────────────────────── */
@@ -233,20 +149,83 @@
 .sessions-page .card.filter-card .filter-chip a{width:20px;height:20px;font-size:13px}
 
 /* ── Data Table Structure (HIFI canonical, migrated from inline style block) ── */
-.sessions-page .data-table{width:100%;border-collapse:collapse;table-layout:fixed}
-.sessions-page .data-table thead tr{display:table;table-layout:fixed;width:100%;grid-template-columns:minmax(340px,2fr) minmax(190px,1fr) 98px 126px 104px 112px 82px 108px 94px}
-.sessions-page .data-table tbody tr{display:table;table-layout:fixed;width:100%;grid-template-columns:minmax(340px,2fr) minmax(190px,1fr) 98px 126px 104px 112px 82px 108px 94px}
-.sessions-page .data-table th{padding:0 10px;border-bottom:1px solid var(--sessions-line-soft);height:34px;background:#f8fafc;color:var(--sessions-text-3);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.065em;position:sticky;top:0;z-index:3}
-.sessions-page .data-table th.static-header{background:linear-gradient(180deg,#f6f8ff,#f3f6ff);color:var(--sessions-text-2)}
-.sessions-page .data-table th.num,.sessions-page .data-table td.num{text-align:right}
-.sessions-page .data-table td{padding:0 10px;border-bottom:1px solid var(--sessions-line-soft);height:48px;vertical-align:middle;font-size:12.5px;color:var(--sessions-text-2);background:#fff}
-.sessions-page .data-table tbody tr:hover td{background:#fbfdff}
+/*
+ * Column width system: unit = 50px, min 2×, max 10×.
+ * Total = 35× = 1750px; table-layout:fixed scales proportionally
+ * when container is narrower.
+ *
+ * Title(10×) Project(4×) Agent(2×) Model(3×) Tokens(3×)
+ * Rounds(2×) Tools(2×) Duration(3×) Updated(3×)
+ */
+.sessions-page .table-wrap {
+  min-width: 960px;
+  max-width: 1900px;
+  margin-inline: auto;
+}
+
+.sessions-page .data-table {
+  width: 100%;
+  min-width: 100%; /* override ui-primitives min-width: max-content */
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* per-column widths applied to both th and td */
+.sessions-page .data-table .col-title   { width: 500px; }
+.sessions-page .data-table .col-project  { width: 200px; }
+.sessions-page .data-table .col-agent    { width: 100px; }
+.sessions-page .data-table .col-model    { width: 150px; }
+.sessions-page .data-table .col-tokens   { width: 150px; }
+.sessions-page .data-table .col-rounds   { width: 100px; }
+.sessions-page .data-table .col-tools    { width: 100px; }
+.sessions-page .data-table .col-duration { width: 150px; }
+.sessions-page .data-table .col-updated  { width: 150px; }
+
+.sessions-page .data-table th {
+  padding: 0;
+  border-bottom: 1px solid var(--sessions-line-soft);
+  height: 40px;
+  background: #f8fafc;
+  color: var(--sessions-text-3);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .065em;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  vertical-align: middle;
+}
+.sessions-page .data-table th.static-header {
+  padding: 0 10px;
+  background: linear-gradient(180deg, #f6f8ff, #f3f6ff);
+  color: var(--sessions-text-2);
+}
+.sessions-page .data-table th.sortable {
+  padding: 0 2px;
+}
+.sessions-page .data-table th:not(.sortable) {
+  padding: 0 10px;
+}
+.sessions-page .data-table th.num,
+.sessions-page .data-table td.num {
+  text-align: right;
+}
+.sessions-page .data-table td {
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sessions-line-soft);
+  height: 48px;
+  vertical-align: middle;
+  font-size: 12.5px;
+  color: var(--sessions-text-2);
+  background: #fff;
+}
+.sessions-page .data-table tbody tr:hover td { background: #fbfdff }
 .sessions-page .data-table tbody tr[data-action="row"]{cursor:pointer}
 .sessions-page .data-table .title-main{font-weight:790;color:var(--sessions-text);font-size:13px;line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sessions-page .data-table .title-sub.mono{display:flex;align-items:center;gap:6px;min-width:0;color:var(--sessions-text-3);font-size:11.5px;margin-top:2px}
 .sessions-page .data-table .title-sub .mono{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace)}
 .sessions-page .data-table .project-cell .project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
-.sessions-page .data-table .project-cell .project-tooltip{font-size:11.5px;color:var(--sessions-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sessions-page .data-table .badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;padding:0 8px;font-weight:780;font-size:11.5px}
 .sessions-page .data-table .badge.cc{background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe}
 .sessions-page .data-table .badge.cx{background:#ecfdf5;color:#059669;border:1px solid #bbf7d0}
@@ -262,14 +241,8 @@
 .sessions-page .data-table .tokenbar-seg.write{background:var(--token-cache-write,#f59e0b)}
 .sessions-page .data-table .tokenbar-seg.out{background:var(--token-output-visible,#059669)}
 .sessions-page .data-table td.muted{color:var(--sessions-text-3)}
-.sessions-page .sort-button{min-height:25px;border:1px solid transparent;background:transparent;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:flex;align-items:center;gap:6px;padding:0 5px;margin:-4px -5px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.sessions-page .sort-button{height:100%;min-height:36px;border:1px solid transparent;background:transparent;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .sessions-page .sort-button:hover,.sessions-page .sort-button:focus-visible{outline:0;border-color:#dfe3ff;background:#fff;color:var(--sessions-brand);box-shadow:0 1px 3px rgba(15,23,42,.07)}
 .sessions-page .sort-button:hover{text-decoration:none}
-.sessions-page .sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-size:11px;font-weight:900}
-.sessions-page .sort-button[aria-sort="ascending"] .sort-icon,.sessions-page .sort-button[aria-sort="descending"] .sort-icon{background:var(--sessions-brand);border-color:var(--sessions-brand);color:#fff}
-.sessions-page .info-icon{font-size:12px;color:var(--sessions-text-3);cursor:help;margin-left:4px}
-
-/* ── Token Cell Positioning (tooltip anchor) ──────────────────── */
-.sessions-page .sessions-token-total{
-  position:relative;
-}
+.sessions-page .data-table th.sortable .sort-mark{color:var(--sessions-text-3)}
+.sessions-page .data-table th.sortable[data-sort-dir] .sort-mark{color:var(--sessions-brand)}

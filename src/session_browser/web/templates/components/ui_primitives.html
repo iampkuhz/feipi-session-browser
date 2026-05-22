@@ -201,24 +201,41 @@
 {%- endmacro %}
 
 {# --- Pagination ---
-   HIFI structure: [prev] [page-status] [page-input] [page-status] [spacer] [next]
-   Single page: omit prev/next buttons.
+   HIFI structure: [prev] [page-status] [page-input] [page-status] [spacer] [page-size] [next]
+   Both prev and next buttons are always rendered; disabled attribute controls interactivity.
+   Single page: input is disabled, both buttons are disabled.
+
+   Parameters:
+     current_page: current page number (1-based)
+     total_pages: total number of pages
+     total_items: optional total count, shown in status text
+     page_size: current page size (default 20), renders a size selector when set
+     page_size_options: list of page size options (default [10, 20, 50, 100])
 #}
-{% macro pagination(current_page, total_pages, total_items=None, show_prev=None, show_next=None) -%}
-  {%- set show_prev = show_prev if show_prev is not none else (current_page > 1) -%}
-  {%- set show_next = show_next if show_next is not none else (current_page < total_pages) -%}
+{% macro pagination(current_page, total_pages, total_items=None, page_size=None, page_size_options=None) -%}
+  {%- set total_pages = total_pages if total_pages > 0 else 1 -%}
+  {%- set is_single_page = total_pages <= 1 -%}
+  {%- set is_first_page = current_page <= 1 -%}
+  {%- set is_last_page = current_page >= total_pages -%}
   {%- set total_items_text = ('of ' ~ total_items) if total_items else '' -%}
+  {%- set effective_options = page_size_options if page_size_options else [10, 20, 50, 100] -%}
 <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
-  {%- if show_prev %}
-  <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-  {%- endif %}
+  <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>
   <span class="page-status">Page</span>
-  <input class="page-input mono" data-action="page-input" value="{{ current_page }}" aria-label="Page number"/>
+  <input class="page-input mono" data-action="page-input" value="{{ current_page }}" aria-label="Page number"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ total_pages }}"/>
   <span class="page-status">of {{ total_pages }} {{ total_items_text }}</span>
   <span class="spacer"></span>
-  {%- if show_next %}
-  <button class="btn sm" data-action="next-page" aria-label="Next page">next &rsaquo;</button>
+  {%- if page_size -%}
+  <label class="page-size-label" aria-label="每页条数">
+    <span class="page-status">每页</span>
+    <select class="page-size-select" data-action="page-size">
+      {%- for opt in effective_options %}
+      <option value="{{ opt }}"{% if opt == page_size %} selected{% endif %}>{{ opt }}</option>
+      {%- endfor %}
+    </select>
+  </label>
   {%- endif %}
+  <button class="btn sm" data-action="next-page" aria-label="Next page"{% if is_last_page or is_single_page %} disabled{% endif %}>next &rsaquo;</button>
 </nav>
 {%- endmacro %}
 
@@ -278,6 +295,64 @@
     <span class="tokenbar-seg out" style="--segment-width:{{ out_pct | round(1) }}%"></span>
   </span>
 </div>
+{%- endmacro %}
+
+{# --- TokenCell ---
+   Renders a complete token table cell with value, bar, and CSS hover tooltip
+   showing the 4-segment breakdown (Fresh / Cached Read / Cached Write / Output).
+
+   Parameters:
+     total: display text for total (e.g. "12.3K")
+     fresh_pct, read_pct, write_pct, out_pct: segment widths (0-100)
+     fresh_val, read_val, write_val, out_val: formatted values for tooltip rows
+     title: tooltip title (default 'Token Breakdown')
+
+   Produces:
+     <td class="token-cell">
+       <div class="token-total">
+         <span class="token-total__value">...</span>
+         <span class="tokenbar" ...>segments...</span>
+         <div class="token-tooltip" aria-hidden="true">...</div>
+       </div>
+     </td>
+#}
+{% macro token_cell(total, fresh_pct=0, read_pct=0, write_pct=0, out_pct=0,
+                    fresh_val='0', read_val='0', write_val='0', out_val='0',
+                    title='Token Breakdown') -%}
+<td class="token-cell">
+  <div class="token-total">
+    <span class="token-total__value">{{ total }}</span>
+    <span class="tokenbar" aria-hidden="true">
+      <span class="tokenbar-seg fresh" style="--segment-width:{{ fresh_pct }}%"></span>
+      <span class="tokenbar-seg read" style="--segment-width:{{ read_pct }}%"></span>
+      <span class="tokenbar-seg write" style="--segment-width:{{ write_pct }}%"></span>
+      <span class="tokenbar-seg out" style="--segment-width:{{ out_pct }}%"></span>
+    </span>
+    <div class="token-tooltip" aria-hidden="true">
+      <div class="token-tooltip__title">{{ title }}</div>
+      <div class="token-tooltip__row">
+        <span class="token-tooltip__label"><span class="dot dot--fresh"></span>Fresh</span>
+        <span class="token-tooltip__value">{{ fresh_val }}</span>
+      </div>
+      <div class="token-tooltip__row">
+        <span class="token-tooltip__label"><span class="dot dot--read"></span>Cached Rd</span>
+        <span class="token-tooltip__value">{{ read_val }}</span>
+      </div>
+      <div class="token-tooltip__row">
+        <span class="token-tooltip__label"><span class="dot dot--write"></span>Cached Wr</span>
+        <span class="token-tooltip__value">{{ write_val }}</span>
+      </div>
+      <div class="token-tooltip__row">
+        <span class="token-tooltip__label"><span class="dot dot--out"></span>Output</span>
+        <span class="token-tooltip__value">{{ out_val }}</span>
+      </div>
+      <div class="token-tooltip__sep"></div>
+      <div class="token-tooltip__row token-tooltip__total">
+        <span>Total</span><span class="token-tooltip__value">{{ total }}</span>
+      </div>
+    </div>
+  </div>
+</td>
 {%- endmacro %}
 
 {# --- Tooltip ---
@@ -410,7 +485,7 @@
         {%- endif -%}
       <th class="{{ col_classes | join(' ') }}"{%- if h_sortable %} data-action="sort" data-sort-key="{{ h.key }}" role="columnheader" aria-sort="none" tabindex="0"{% else %} role="columnheader"{% endif %}{% if h.min_width %} style="min-width:{{ h.min_width }}"{% endif %} scope="col">
         {{ h.label }}
-        {%- if h_sortable %} <span class="sort-mark" aria-hidden="true">↕</span>{% endif -%}
+        {%- if h_sortable %} <span class="sort-mark" aria-hidden="true"></span>{% endif -%}
       </th>
       {%- endfor %}
     </tr>
@@ -940,15 +1015,14 @@
   {%- set cls = classes | join(' ') -%}
   {%- set is_active = (current_sort_key == sort_key) -%}
   {%- set aria_sort = ' aria-sort="' ~ ('ascending' if current_sort_dir == 'asc' else 'descending') ~ '"' if is_active else '' -%}
-  {%- set icon = '↑' if is_active and current_sort_dir == 'asc' else ('↓' if is_active else '↕') -%}
 <th class="{{ cls }}" data-action="sort" data-sort-key="{{ sort_key }}"{{ aria_sort|safe }}>{{ label }}
   {%- if href -%}
   <a class="sort-button" href="{{ href }}" data-action="sort" data-sort-key="{{ sort_key }}">
-    <span class="sort-mark" aria-hidden="true">{{ icon }}</span>
+    <span class="sort-mark" aria-hidden="true"></span>
   </a>
   {%- else -%}
   <button class="sort-button" type="button" data-action="sort" data-sort-key="{{ sort_key }}">
-    <span class="sort-mark" aria-hidden="true">{{ icon }}</span>
+    <span class="sort-mark" aria-hidden="true"></span>
   </button>
   {%- endif %}
 </th>

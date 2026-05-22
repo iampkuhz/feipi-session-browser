@@ -105,18 +105,9 @@
 <div class="page-section">
     {% if sessions %}
     {% set sessions_pagination %}
-    <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination">
-        {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
-        {%- if current_page > 1 %}
-        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-        {%- endif %}
-        <span class="page-status">Page</span>
-        <input class="page-input mono" data-action="page-input" aria-label="Page number"
-               value="1" title="输入页码后按 Enter，跳转到指定页" />
-        <span class="page-status" id="page-status-text">of 1 · {{ sessions | length }} sessions</span>
-        <span class="spacer"></span>
-        <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
-    </nav>
+    {% if current_page is not defined %}{% set current_page = 1 %}{% endif %}
+    {% if total_pages is not defined %}{% set total_pages = 1 %}{% endif %}
+    {{ ui.pagination(current_page, total_pages, total_items=sessions | length) }}
     {% endset %}
     {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button>', pagination_html=sessions_pagination) %}
             <table id="project-sessions-table" class="data-table" data-table-enhanced>
@@ -125,12 +116,12 @@
                     <th>Title</th>
                     <th>Agent</th>
                     <th>Model</th>
-                    <th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens <span class="sort-mark" aria-hidden="true">↕</span></th>
-                    <th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds <span class="sort-mark" aria-hidden="true">↕</span></th>
-                    <th class="numeric sortable" data-action="sort" data-sort="tools">Tools <span class="sort-mark" aria-hidden="true">↕</span></th>
-                    <th class="sortable" data-action="sort" data-sort="failed">Failed <span class="sort-mark" aria-hidden="true">↕</span></th>
-                    <th class="col-num sortable" data-action="sort" data-sort="duration">Duration <span class="sort-mark" aria-hidden="true">↕</span></th>
-                    <th class="sortable" data-action="sort" data-sort="updated">Updated <span class="sort-mark" aria-hidden="true">↕</span></th>
+                    <th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens <span class="sort-mark" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds <span class="sort-mark" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-action="sort" data-sort="tools">Tools <span class="sort-mark" aria-hidden="true"></span></th>
+                    <th class="sortable" data-action="sort" data-sort="failed">Failed <span class="sort-mark" aria-hidden="true"></span></th>
+                    <th class="col-num sortable" data-action="sort" data-sort="duration">Duration <span class="sort-mark" aria-hidden="true"></span></th>
+                    <th class="sortable" data-action="sort" data-sort="updated">Updated <span class="sort-mark" aria-hidden="true"></span></th>
                 </tr>
             </thead>
             <tbody>

@@ -621,6 +621,92 @@ a.btn:focus-visible {
   white-space: nowrap;
 }
 
+/* === TokenTooltip ========================================================== */
+/* CSS-only hover tooltip for token cells.
+ * Structure:
+ *   <td class="token-cell">
+ *     <div class="token-total">
+ *       <span class="token-total__value">...</span>
+ *       <span class="tokenbar">...</span>
+ *       <div class="token-tooltip" aria-hidden="true">...</div>
+ *     </div>
+ *   </td>
+ */
+.token-cell { position: relative; }
+.token-tooltip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .12);
+  padding: 12px 14px;
+  min-width: 220px;
+  z-index: 20;
+  display: none;
+  pointer-events: none;
+}
+.token-total:hover .token-tooltip,
+.token-total:focus-within .token-tooltip { display: block; }
+/* Arrow pointing up */
+.token-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+}
+.token-tooltip__title {
+  font-weight: 880;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.token-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 22px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.token-tooltip__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.token-tooltip__label .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+}
+.dot--fresh { background: var(--claude, #6d5dfc); }
+.dot--read { background: var(--codex, #10b981); }
+.dot--write { background: var(--qoder, #f59e0b); }
+.dot--out { background: var(--output, #98a2b3); }
+.token-tooltip__value {
+  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+  font-weight: 760;
+  text-align: right;
+}
+.token-tooltip__total {
+  font-weight: 880;
+  color: var(--text);
+}
+.token-tooltip__sep {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 0;
+}
+
 /* === ProgressBar ========================================================== */
 /* Canonical progress bar for showing proportional fill (e.g. tool calls %).
  * Structure:
@@ -874,25 +960,28 @@ a.btn:focus-visible {
   font-family: var(--mono);
 }
 /* Column-specific alignment — all th/td in a named column share alignment */
-.data-table th.col-num { font-size: 11px; }
+.data-table th.col-num { font-size: 12px; }
 
 /* Thead */
 .data-table thead th {
-  height: 38px;
+  padding: 0;
+  height: 40px;
   background: var(--surface-soft);
   border-bottom: 1px solid var(--line);
   color: #253044;
-  font-size: 11px;
-  font-weight: 880;
+  font-size: 12px;
+  font-weight: 860;
   white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 3;
+  vertical-align: middle;
 }
 
-/* Sortable header */
+/* Sortable header — always-visible sort arrow */
 .data-table th.sortable {
   cursor: pointer;
+  padding: 0 2px;
 }
 .data-table th.sortable:hover {
   color: var(--purple);
@@ -903,6 +992,41 @@ a.btn:focus-visible {
   background: var(--purple-soft);
   color: var(--purple);
 }
+/* Static headers get padding directly */
+.data-table th.static-header,
+.data-table th:not(.sortable) {
+  padding: 0 10px;
+}
+
+/* Sort button inside sortable th — fills full height, vertically centered */
+.data-table th .sort-button {
+  height: 100%;
+  min-height: 36px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.data-table th .sort-button:hover,
+.data-table th .sort-button:focus-visible {
+  outline: 0;
+  border-color: #dfe3ff;
+  background: #fff;
+  color: var(--purple);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .07);
+}
+.data-table th .sort-button:hover { text-decoration: none; }
+
 .data-table th .sort-mark {
   display: inline-grid;
   place-items: center;
@@ -912,11 +1036,11 @@ a.btn:focus-visible {
   color: var(--text-subtle);
   margin-left: 4px;
 }
+/* Always-visible arrow: ↕ default, ↑/↓ when sorted */
+.data-table th.sortable .sort-mark::after { content: '\2195'; }
 .data-table th.sortable[data-sort-dir="asc"] .sort-mark::after { content: '↑'; }
 .data-table th.sortable[data-sort-dir="desc"] .sort-mark::after { content: '↓'; }
 .data-table th.sortable[data-sort-dir] .sort-mark { color: var(--purple); }
-/* Default sort-mark when no direction is set */
-.data-table th.sortable:not([data-sort-dir]) .sort-mark::after { content: '\2195'; }
 
 /* ── Sort icon aliases (backward compat for legacy class names) ── */
 /* .sort-icon and .sort-caret are legacy names; .sort-mark is canonical.
@@ -931,14 +1055,14 @@ a.btn:focus-visible {
   color: var(--text-subtle);
   margin-left: 4px;
 }
+.data-table th.sortable:hover .sort-icon::after,
+.data-table th.sortable:hover .sort-caret::after { content: '\2195'; }
 .data-table th.sortable[data-sort-dir="asc"] .sort-icon::after,
 .data-table th.sortable[data-sort-dir="asc"] .sort-caret::after { content: '↑'; }
 .data-table th.sortable[data-sort-dir="desc"] .sort-icon::after,
 .data-table th.sortable[data-sort-dir="desc"] .sort-caret::after { content: '↓'; }
 .data-table th.sortable[data-sort-dir] .sort-icon,
 .data-table th.sortable[data-sort-dir] .sort-caret { color: var(--purple); }
-.data-table th.sortable:not([data-sort-dir]) .sort-icon::after,
-.data-table th.sortable:not([data-sort-dir]) .sort-caret::after { content: '\2195'; }
 
 /* Tbody */
 .data-table tbody td {
@@ -1141,10 +1265,40 @@ a.btn:focus-visible {
   font-family: var(--mono);
   font-weight: 760;
 }
+.page-input:disabled,
+input[data-action="page-input"]:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  background: var(--surface-soft);
+  color: var(--text-subtle);
+}
 .page-status { color: var(--text-subtle); font-size: 13px; }
 .spacer { flex: 1; }
+
+/* Page size selector */
+.page-size-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.page-size-select {
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+}
+.page-size-select:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 1px;
+}
+
 /* Hide non-standard pagination controls */
-.page-size, [data-action="page-size"], [data-action="page-jump"],
+.page-size, [data-action="page-jump"],
 [data-action="page-go"], .page-number,
 .data-table__pagination-controls, .data-table__page-btn,
 .data-table__page-ellipsis, .data-table__pagination-info,

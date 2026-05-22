@@ -17,6 +17,7 @@ import pytest
 _SESSIONS_PATH = "src/session_browser/web/templates/sessions.html"
 _SESSIONS_CSS_PATH = "src/session_browser/web/static/css/sessions-list.css"
 _SESSIONS_JS_PATH = "src/session_browser/web/static/js/sessions-list.js"
+_UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
 
 
 def _read(path: str) -> str:
@@ -26,6 +27,10 @@ def _read(path: str) -> str:
 
 def _read_sessions() -> str:
     return _read(_SESSIONS_PATH)
+
+
+def _read_ui_primitives() -> str:
+    return _read(_UI_PRIMITIVES_PATH)
 
 
 # ── TestSessionsTemplate ─────────────────────────────────────────────
@@ -192,10 +197,11 @@ class TestSessionsDataTable:
 
     def test_sortable_columns(self):
         content = _read_sessions()
-        sortable = re.findall(r'class="num sortable"', content)
-        # Tokens, Rounds, Tools are num sortable
-        assert len(sortable) >= 3, \
-            f"Must have at least 3 sortable columns, found {len(sortable)}"
+        # Unified pattern: col-num sortable or just sortable
+        sortable = re.findall(r'class="[^"]*sortable[^"]*"', content)
+        # Tokens, Rounds, Tools, Duration, Updated are sortable
+        assert len(sortable) >= 4, \
+            f"Must have at least 4 sortable columns, found {len(sortable)}"
 
     def test_sort_buttons_with_data_action(self):
         content = _read_sessions()
@@ -205,89 +211,92 @@ class TestSessionsDataTable:
 
     def test_sort_icons_present(self):
         content = _read_sessions()
-        assert 'class="sort-icon"' in content, \
-            "Sort buttons must have sort-icon class"
+        # Unified pattern: .sort-mark is the arrow container
+        assert 'class="sort-mark"' in content, \
+            "Sort buttons must have sort-mark class for arrow injection"
 
     def test_static_headers(self):
         content = _read_sessions()
-        static = re.findall(r'class="static-header"', content)
+        # static-header can appear as standalone or combined with col-* classes
+        static = re.findall(r'static-header', content)
         assert len(static) >= 3, \
             f"Must have at least 3 static (non-sortable) headers, found {len(static)}"
 
     def test_aria_sort_on_active(self):
         content = _read_sessions()
-        assert 'aria-sort=' in content, \
-            "Active sort button must have aria-sort attribute"
+        # Unified pattern: data-sort-dir tracks active sort state (replaces aria-sort)
+        assert 'data-sort-dir=' in content, \
+            "Active sortable th must have data-sort-dir attribute"
 
 
 # ── TestSessionsTokenBar ─────────────────────────────────────────────
 
 class TestSessionsTokenBar:
-    """Verify token bar rendering in token column."""
+    """Verify token bar rendering in token column.
+
+    Token cells are now rendered via ui.token_cell macro in ui_primitives.html.
+    Tests verify sessions.html calls the macro, and the macro provides the HTML.
+    """
 
     def test_token_cell_class(self):
         content = _read_sessions()
-        assert 'class="token-cell"' in content, \
-            "Must have token-cell class"
+        assert 'ui.token_cell' in content, \
+            "sessions.html must call ui.token_cell macro"
 
     def test_token_total_value(self):
-        content = _read_sessions()
-        assert 'class="token-total__value"' in content, \
-            "Must have token-total__value display"
-        assert "format_compact_token" in content, \
+        macro = _read_ui_primitives()
+        assert 'class="token-total__value"' in macro, \
+            "token_cell macro must have token-total__value"
+        assert 'class="token-cell"' in macro, \
+            "token_cell macro must have token-cell class"
+        assert "format_compact_token" in macro, \
             "Token value must use format_compact_token filter"
 
     def test_tokenbar_container(self):
-        content = _read_sessions()
-        assert 'class="tokenbar"' in content, \
-            "Must have tokenbar container"
+        macro = _read_ui_primitives()
+        assert 'class="tokenbar"' in macro, \
+            "token_cell macro must have tokenbar container"
 
     def test_tokenbar_segments(self):
-        content = _read_sessions()
+        macro = _read_ui_primitives()
         for seg_class in ["tokenbar-seg fresh", "tokenbar-seg read", "tokenbar-seg write", "tokenbar-seg out"]:
-            assert seg_class in content, \
-                f"Tokenbar must have segment: {seg_class}"
+            assert seg_class in macro, \
+                f"token_cell macro must have segment: {seg_class}"
 
     def test_tokenbar_has_four_segments(self):
-        content = _read_sessions()
-        segments = re.findall(r'class="tokenbar-seg ', content)
+        macro = _read_ui_primitives()
+        # Find the token_cell macro definition and count segments within it
+        macro_start = macro.find('{% macro token_cell(')
+        macro_end = macro.find('{%- endmacro %}', macro_start)
+        if macro_end == -1:
+            macro_end = macro.find('{% endmacro %}', macro_start)
+        macro_body = macro[macro_start:macro_end]
+        segments = re.findall(r'class="tokenbar-seg ', macro_body)
         assert len(segments) == 4, \
-            f"Tokenbar must have 4 segments, found {len(segments)}"
+            f"token_cell macro must have 4 segments, found {len(segments)}"
 
 
 # ── TestSessionsPagination ───────────────────────────────────────────
 
 class TestSessionsPagination:
-    """Verify pagination prev/input/next structure."""
+    """Verify pagination uses ui.pagination macro."""
 
-    def test_pagination_nav_present(self):
+    def test_pagination_uses_macro(self):
         content = _read_sessions()
-        assert 'class="pagination' in content, \
-            "Sessions must have pagination nav"
-        assert 'role="navigation"' in content, \
-            "Pagination must have role='navigation'"
+        assert "ui.pagination(" in content, \
+            "Sessions must use ui.pagination macro for pagination"
 
-    def test_prev_button(self):
+    def test_pagination_passes_page_params(self):
         content = _read_sessions()
-        assert 'data-action="prev-page"' in content, \
-            "Pagination must have prev-page button"
+        assert "current_page" in content, \
+            "Pagination macro call must pass current_page"
+        assert "total_pages" in content, \
+            "Pagination macro call must pass total_pages"
 
-    def test_page_input(self):
+    def test_pagination_passes_page_size(self):
         content = _read_sessions()
-        assert 'data-action="page-input"' in content, \
-            "Pagination must have page-input field"
-        assert 'class="page-input' in content, \
-            "Page input must have page-input class"
-
-    def test_next_button(self):
-        content = _read_sessions()
-        assert 'data-action="next-page"' in content, \
-            "Pagination must have next-page button"
-
-    def test_page_status(self):
-        content = _read_sessions()
-        assert 'class="page-status"' in content, \
-            "Pagination must have page-status spans"
+        assert "page_size" in content, \
+            "Pagination macro call must pass page_size for page size selector"
 
     def test_pagination_conditional(self):
         content = _read_sessions()

@@ -14,7 +14,6 @@
  *                   dispatches filter-clear event consumed here.
  *   - pagination:   prev/next links, page-input Enter, page-size select.
  *   - row-click:    click .sessions-row → navigate to session detail.
- *   - token-tooltip: augment token cells with structured tooltip on hover.
  *   - nav:          sidebar navigation buttons.
  *
  * Delegation model:
@@ -94,6 +93,13 @@
     if (form) form.submit();
   }
 
+  /**
+   * Handle browser back/forward: full reload since state is server-side.
+   */
+  window.addEventListener('popstate', function () {
+    window.location.reload();
+  });
+
   // ── Initialization: augment DOM for data-action delegation ──────────────
 
   function init() {
@@ -101,7 +107,7 @@
     removeInlinePageSizeHandler();
     bindFormSubmit();
     bindFilterClear();
-    bindTokenTooltips();
+    bindPagination();
 
     // Expose public API
     window.SessionsList = {
@@ -218,61 +224,131 @@
   // ── Pagination ──────────────────────────────────────────────────────────
 
   /**
-   * Handle prev/next page link clicks.
-   * Listens on document for links matching prev/next pagination patterns.
+   * Fetch a page via AJAX and replace table body + pagination.
+   * Uses X-Requested-With header to trigger partial response from server.
    */
-  document.addEventListener('click', function (event) {
-    var target = event.target;
-    var link = target.closest ? target.closest('a') : null;
-    if (!link) return;
+  function fetchPage(params) {
+    var qs = new URLSearchParams();
+    for (var k in params) {
+      if (params[k] !== '' && params[k] != null) {
+        qs.set(k, params[k]);
+      }
+    }
+    var url = '/sessions' + (qs.toString() ? '?' + qs.toString() : '');
 
-    // Check if it's a prev/next pagination link
-    if (link.textContent.trim().match(/^(Previous|Next|‹|›)/i) ||
-        link.getAttribute('aria-label') === 'Previous page' ||
-        link.getAttribute('aria-label') === 'Next page') {
-      var container = closest(link, '.sessions-table-footer');
-      if (container) {
-        event.preventDefault();
-        var href = link.getAttribute('href');
-        if (href) {
-          // Dispatch page-change event before navigating
-          document.dispatchEvent(new CustomEvent('page-change', {
-            detail: { href: href }
-          }));
-          window.location.href = href;
+    // Update URL with pushState (no reload)
+    window.history.pushState({ ajax: true }, '', url);
+
+    // Show loading state
+    var tbody = document.querySelector('.table-card .data-table tbody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-subtle);">Loading...</td></tr>';
+    }
+
+    fetch(url, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function (response) { return response.text(); })
+    .then(function (html) {
+      // Parse response: #sessions-ajax-response contains tbody + pagination
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(html, 'text/html');
+      var ajaxResponse = doc.getElementById('sessions-ajax-response');
+      if (!ajaxResponse) return;
+
+      // Replace table body
+      var newTbody = ajaxResponse.querySelector('tbody');
+      if (newTbody && tbody) {
+        tbody.innerHTML = newTbody.innerHTML;
+      }
+
+      // Replace pagination
+      var newPagination = ajaxResponse.querySelector('#ajax-pagination');
+      var oldPagination = document.getElementById('ajax-pagination');
+      if (newPagination) {
+        if (oldPagination) {
+          oldPagination.innerHTML = newPagination.innerHTML;
+        } else if (tbody) {
+          // Create pagination container if it doesn't exist
+          var tableCard = tbody.closest('.table-card') || tbody.closest('.card');
+          if (tableCard) {
+            var paginationDiv = document.createElement('div');
+            paginationDiv.id = 'ajax-pagination';
+            paginationDiv.innerHTML = newPagination.innerHTML;
+            tableCard.appendChild(paginationDiv);
+          }
         }
       }
-    }
-
-    // Row click navigation (only if no data-action is set)
-    if (link.closest('.sessions-row') && !link.getAttribute('data-action')) {
-      // Let link navigate naturally
-      return;
-    }
-  });
+    })
+    .catch(function (err) {
+      console.error('AJAX pagination error:', err);
+      // Fallback: full page reload
+      window.location.href = url;
+    });
+  }
 
   /**
-   * Handle page-size select change.
-   * Navigates to the selected page-size URL.
+   * Bind page-change and page-size-change events from ui_primitives.js.
+   * Uses AJAX to fetch and replace table content without page reload.
    */
-  document.addEventListener('change', function (event) {
-    var sel = event.target;
-    if (sel.classList.contains('sessions-footer-page-size__select')) {
-      var val = sel.value;
-      if (val) {
-        document.dispatchEvent(new CustomEvent('page-size-change', {
-          detail: { pageSize: val }
-        }));
-        window.location.href = val;
+  function bindPagination() {
+    // page-change: dispatched when prev/next buttons or page-input Enter
+    document.addEventListener('page-change', function (event) {
+      var detail = event.detail || {};
+      if (detail.page) {
+        var params = getFilterParams();
+        params.set('page', String(detail.page));
+        // Preserve hidden sort/dir fields
+        var form = document.getElementById('session-filter-form');
+        if (form) {
+          var sortInput = form.querySelector('input[name="sort"]');
+          var dirInput = form.querySelector('input[name="dir"]');
+          if (sortInput && sortInput.value) params.set('sort', sortInput.value);
+          if (dirInput && dirInput.value) params.set('dir', dirInput.value);
+        }
+        fetchPage(paramsToObject(params));
+      } else if (detail.href) {
+        // Legacy: direct URL navigation
+        window.location.href = detail.href;
       }
-    }
-  });
+    });
+
+    // page-size-change: dispatched when page-size select changes
+    document.addEventListener('page-size-change', function (event) {
+      var detail = event.detail || {};
+      if (detail.pageSize) {
+        var params = getFilterParams();
+        params.set('page_size', String(detail.pageSize));
+        params.set('page', '1'); // reset to first page on size change
+        var form = document.getElementById('session-filter-form');
+        if (form) {
+          var sortInput = form.querySelector('input[name="sort"]');
+          var dirInput = form.querySelector('input[name="dir"]');
+          if (sortInput && sortInput.value) params.set('sort', sortInput.value);
+          if (dirInput && dirInput.value) params.set('dir', dirInput.value);
+        }
+        fetchPage(paramsToObject(params));
+      }
+    });
+  }
+
+  /**
+   * Convert URLSearchParams to a plain object for navigate().
+   */
+  function paramsToObject(params) {
+    var obj = {};
+    params.forEach(function (value, key) {
+      obj[key] = value;
+    });
+    return obj;
+  }
 
   // ── Row click navigation ────────────────────────────────────────────────
 
   document.addEventListener('click', function (event) {
     var target = event.target;
-    var row = target.closest ? target.closest('.sessions-row') : null;
+    if (!target || target.nodeType !== 1) return;
+    var row = target.closest('.sessions-row');
     if (!row) return;
 
     // Don't navigate if clicking a link inside the row
@@ -294,86 +370,6 @@
       window.location.href = '/sessions/' + agent + '/' + sessionId;
     }
   });
-
-  // ── Token tooltip augmentation ─────────────────────────────────────────
-
-  /**
-   * Augment token cells with structured tooltip on hover.
-   * The CSS handles show/hide via .sessions-token-total:hover .sessions-token-tooltip.
-   * This function ensures the tooltip element exists with structured content.
-   */
-  function bindTokenTooltips() {
-    var tokenTotals = document.querySelectorAll('.sessions-token-total');
-    for (var i = 0; i < tokenTotals.length; i++) {
-      augmentTokenTooltip(tokenTotals[i]);
-    }
-  }
-
-  /**
-   * Add tooltip to a token-total cell if not already present.
-   */
-  function augmentTokenTooltip(container) {
-    if (container.querySelector('.sessions-token-tooltip')) return;
-
-    var row = closest(container, '.sessions-row');
-    if (!row) return;
-
-    var totalTokens = parseInt(row.dataset.totalTokens, 10) || 0;
-    var rounds = row.dataset.rounds || '0';
-    var tools = row.dataset.toolCount || '0';
-    var duration = row.dataset.duration || '0';
-
-    // Calculate breakdown from row data
-    // The token bar in the template already shows fresh/cache/output percentages
-    // We build the tooltip content from the cell's own data
-    var totalEl = container.querySelector('.sessions-token-total__value');
-    var totalText = totalEl ? totalEl.textContent.trim() : String(totalTokens);
-
-    // Build tooltip HTML
-    var tooltip = document.createElement('div');
-    tooltip.className = 'sessions-token-tooltip';
-    tooltip.setAttribute('aria-hidden', 'true');
-    tooltip.innerHTML =
-      '<div class="sessions-token-tooltip__title">Token Breakdown</div>' +
-      '<div class="sessions-token-tooltip__row">' +
-        '<span class="sessions-token-tooltip__label">' +
-          '<span class="sessions-token-tooltip__dot sessions-token-tooltip__dot--fresh"></span> Fresh' +
-        '</span>' +
-        '<span class="sessions-token-tooltip__value sessions-token-tooltip__fresh-val">—</span>' +
-      '</div>' +
-      '<div class="sessions-token-tooltip__row">' +
-        '<span class="sessions-token-tooltip__label">' +
-          '<span class="sessions-token-tooltip__dot sessions-token-tooltip__dot--cache"></span> Cache' +
-        '</span>' +
-        '<span class="sessions-token-tooltip__value sessions-token-tooltip__cache-val">—</span>' +
-      '</div>' +
-      '<div class="sessions-token-tooltip__row">' +
-        '<span class="sessions-token-tooltip__label">' +
-          '<span class="sessions-token-tooltip__dot sessions-token-tooltip__dot--out"></span> Output' +
-        '</span>' +
-        '<span class="sessions-token-tooltip__value sessions-token-tooltip__out-val">—</span>' +
-      '</div>' +
-      '<div class="sessions-token-tooltip__sep"></div>' +
-      '<div class="sessions-token-tooltip__row sessions-token-tooltip__total">' +
-        '<span class="sessions-token-tooltip__label">Total</span>' +
-        '<span class="sessions-token-tooltip__value">' + totalText + '</span>' +
-      '</div>' +
-      '<div class="sessions-token-tooltip__sep"></div>' +
-      '<div class="sessions-token-tooltip__row">' +
-        '<span class="sessions-token-tooltip__label">Rounds</span>' +
-        '<span>' + rounds + '</span>' +
-      '</div>' +
-      '<div class="sessions-token-tooltip__row">' +
-        '<span class="sessions-token-tooltip__label">Tools</span>' +
-        '<span>' + tools + '</span>' +
-      '</div>' +
-      '<div class="sessions-token-tooltip__row">' +
-        '<span class="sessions-token-tooltip__label">Duration</span>' +
-        '<span>' + duration + 's</span>' +
-      '</div>';
-
-    container.appendChild(tooltip);
-  }
 
   // ── Auto-init on DOM ready ──────────────────────────────────────────────
 
