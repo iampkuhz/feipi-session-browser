@@ -27,14 +27,14 @@
 
 /* ── Content Width Constraint ============================================ */
 /* All top-level dashboard sections share the same max-width so their
- * left/right edges always align. Width fills the main panel (100%)
- * up to 1360px, centered within the panel. */
+ * left/right edges always align. This must not exceed the global --max
+ * (1320px, defined in ui-primitives.css) to avoid horizontal overflow. */
 
 .page-head,
 .metric-grid,
 .chart-card {
   width: 100%;
-  max-width: 1360px;
+  max-width: var(--max);
   margin-left: auto;
   margin-right: auto;
 }
