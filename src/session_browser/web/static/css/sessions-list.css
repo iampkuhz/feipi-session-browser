@@ -55,8 +55,8 @@
 .sessions-page .sessions-th__sort-btn{min-height:25px;border:1px solid transparent;background:transparent;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:flex;align-items:center;gap:6px;padding:0 5px;margin-left:-5px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .sessions-page .sessions-th__sort-btn:hover,.sessions-page .sessions-th__sort-btn:focus-visible{outline:0;border-color:#dfe3ff;background:#fff;color:var(--sessions-brand);box-shadow:0 1px 3px rgba(15,23,42,.7)}
 .sessions-page .sessions-th__sort-btn:hover{text-decoration:none}
-.sessions-page .sessions-sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-family:var(--font-mono);font-size:11px;font-weight:900}
-.sessions-page .sessions-sort-icon--active{background:var(--sessions-brand);border-color:var(--sessions-brand);color:#fff}
+.sessions-page .sessions-sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:inline-block;font-size:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%235b5ce2' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3v8M4.5 5.5L7 3l2.5 2.5M4.5 8.5L7 11l2.5-2.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:14px 14px}
+.sessions-page .sessions-sort-icon--active{background:var(--sessions-brand);border-color:var(--sessions-brand);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10V4M4.5 6.5L7 4l2.5 2.5'/%3E%3C/svg%3E")}
 .sessions-page [data-sessions-grid] .sessions-row{display:contents}
 .sessions-page .sessions-row:hover .sessions-td{background:#fbfdff}
 .sessions-page .sessions-row.is-selected .sessions-td{background:linear-gradient(90deg,#f7f9ff,#fff)}
