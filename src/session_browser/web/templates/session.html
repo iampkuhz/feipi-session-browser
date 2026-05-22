@@ -4,11 +4,12 @@
 {% import "components/ui_primitives.html" as ui %}
 {% set hide_sidebar_extra = true %}
 {% set hide_payload_modal = true %}
-{% set hide_sidebar_nav = true %}
+
+{% block main_attrs %} data-trace-page{% endblock %}
 
 {% block title %}{{ session.title[:80] or 'Untitled' }} - Agent Run Profiler{% endblock %}
 
-{% block shell_class %}sd-shell session-detail-page{% endblock %}
+{% block shell_class %}no-inspector session-detail-page sd-shell{% endblock %}
 
 {% block breadcrumb %}
 Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span> {{ current_agent }} <span class="sep">/</span> <b>{{ session.session_id[-8:] if session.session_id else 'unknown' }}</b>
@@ -31,19 +32,16 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
 
 {# ── Error state: session data unavailable or parse failed ── #}
 {% if not session_summary or not session_summary.title %}
-<section class="sd-content session-detail-page" data-trace-page>
-  {{ ui.error_state(
+{{ ui.error_state(
     'Session data unavailable',
     action_button=ui.button('Back to Sessions', variant='primary', data_action='go-sessions', href='/sessions'),
     icon='🔌'
   ) }}
-</section>
 {% else %}
 
 {# ── Payload sources (hidden, read by JS via [data-payload-source]) ── #}
 
-<section class="sd-content session-detail-page" data-trace-page>
-  {{ sdt.hero(session_summary, hero_metrics, issue_links, session_url) }}
+{{ sdt.hero(session_summary, hero_metrics, issue_links, session_url) }}
 
   <nav class="sd-tabs" data-session-tabs aria-label="Session view tabs">
     <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace">
@@ -97,7 +95,6 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
 
   {{ sdt.payload_sources(payload_sources | default([])) }}
   {{ sdt.payload_modal() }}
-</section>
 {% endif %}
 
 {% endblock %}
