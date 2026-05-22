@@ -165,29 +165,29 @@ class TestListSessionsWithFilters:
 # ─── Template: footer controls ───────────────────────────────────────────
 
 class TestFooterTemplate:
-    """Verify sessions.html contains HIFI v4 footer controls."""
+    """Verify sessions.html contains contract-compliant pagination."""
 
-    def test_table_footer_nav(self):
+    def test_pagination_nav(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-table-footer"' in content
+        assert 'class="pagination unified-pagination"' in content
+        assert 'role="navigation"' in content
+        assert 'aria-label="Sessions pagination"' in content
 
     def test_prev_button(self):
         content = _read_sessions_templates()
-        assert "Previous" in content
+        assert 'data-action="prev-page"' in content
 
     def test_next_button(self):
         content = _read_sessions_templates()
-        assert "Next" in content
+        assert 'data-action="next-page"' in content
 
-    def test_rows_range(self):
+    def test_page_input(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-page-range"' in content
-        assert "Rows" in content
+        assert 'data-action="page-input"' in content
 
-    def test_footer_total(self):
+    def test_page_status(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-footer-total"' in content
-        assert "matching sessions" in content
+        assert 'class="page-status"' in content
 
     def test_no_sorted_by(self):
         """Footer must not contain 'sorted by' text."""
@@ -197,19 +197,22 @@ class TestFooterTemplate:
     def test_no_page_size_select_in_footer(self):
         """HIFI v4 footer does not have page size select."""
         content = _read_sessions_templates()
-        footer_section = content.split('sessions-table-footer')[1] if 'sessions-table-footer' in content else ""
-        assert '/ page' not in footer_section
+        assert "sessions-footer-page-size__select" not in content
 
     def test_no_page_info_text(self):
-        """No 'Page X of Y' text."""
+        """No 'Page X of Y' static text — uses page-status + page-input instead."""
         content = _read_sessions_templates()
         assert 'Page {{ page }} of {{ total_pages }}' not in content
 
-    def test_pagination_uses_anchor_links(self):
-        """Pagination uses <a> links with href from actions."""
+    def test_pagination_prev_conditional(self):
+        """Prev button is conditionally rendered (hidden on page 1)."""
         content = _read_sessions_templates()
-        assert "prev_url" in content
-        assert "next_url" in content
+        assert "current_page > 1" in content
+
+    def test_pagination_next_conditional(self):
+        """Next button is conditionally rendered (hidden on last page)."""
+        content = _read_sessions_templates()
+        assert "current_page < total_pages" in content
 
     def test_no_button_based_pagination(self):
         """No button with name=page (old form-based pagination)."""

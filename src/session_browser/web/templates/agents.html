@@ -194,6 +194,10 @@
 </table>
     </div>
     <nav class="pagination unified-pagination" role="navigation" aria-label="Agents pagination">
+        {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
+        {%- if current_page > 1 %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+        {%- endif %}
         <span class="page-status">Page</span>
         <input class="page-input mono" data-action="page-input" aria-label="Page number"
                value="1" title="输入页码后按 Enter，跳转到指定页" />

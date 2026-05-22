@@ -1,73 +1,109 @@
 /**
- * glossary.js — Glossary page search/filter.
+ * glossary.js — Glossary page canonical JavaScript.
  *
  * Loaded via script_extra in glossary.html.
+ *
+ * Features:
+ * - Search filtering with 150ms debounce
+ * - Match count display
+ * - Empty state toggle (class-based, no inline styles)
+ * - Info-icon hover tooltips for metric labels
  */
-(function() {
-    'use strict';
+(function () {
+  'use strict';
 
-    var searchInput = document.getElementById('glossary-search');
-    var matchCount = document.getElementById('glossary-match-count');
-    var emptyState = document.getElementById('glossary-empty');
-    var sections = document.querySelectorAll('.glossary-table-section');
+  // ── Search filtering ──────────────────────────────────────
 
-    if (!searchInput) return;
+  var searchInput = document.getElementById('glossary-search');
+  var matchCount = document.getElementById('glossary-match-count');
+  var emptyState = document.getElementById('glossary-empty');
+  var sections = document.querySelectorAll('.glossary-table-section');
 
-    function filterGlossary(query) {
-        var q = (query || '').trim().toLowerCase();
-        var totalVisible = 0;
-        var sectionsWithRows = 0;
+  if (!searchInput) return;
 
-        sections.forEach(function(section) {
-            var tables = section.querySelectorAll('table[data-table-enhanced]');
-            var sectionVisible = 0;
+  /**
+   * Filter glossary tables based on search query.
+   * Uses class toggling (.is-hidden) — never sets inline style.display.
+   */
+  function filterGlossary(query) {
+    var q = (query || '').trim().toLowerCase();
+    var totalVisible = 0;
+    var sectionsWithRows = 0;
 
-            tables.forEach(function(table) {
-                var rows = table.querySelectorAll('tbody tr');
-                var tableVisible = 0;
+    sections.forEach(function (section) {
+      var tables = section.querySelectorAll('table[data-table-enhanced]');
+      var sectionVisible = 0;
 
-                rows.forEach(function(row) {
-                    var text = row.textContent.toLowerCase();
-                    var match = !q || text.indexOf(q) !== -1;
-                    row.style.display = match ? '' : 'none';
-                    if (match) { tableVisible++; sectionVisible++; totalVisible++; }
-                });
+      tables.forEach(function (table) {
+        var rows = table.querySelectorAll('tbody tr');
+        var tableVisible = 0;
 
-                var tableWrap = table.closest('.table-scroll');
-                if (tableWrap) {
-                    tableWrap.style.display = tableVisible > 0 ? '' : 'none';
-                } else {
-                    table.style.display = tableVisible > 0 ? '' : 'none';
-                }
-            });
-
-            if (q && sectionVisible === 0) {
-                section.style.display = 'none';
-            } else {
-                section.style.display = '';
-                if (sectionVisible > 0) sectionsWithRows++;
-            }
+        rows.forEach(function (row) {
+          var text = row.textContent.toLowerCase();
+          var match = !q || text.indexOf(q) !== -1;
+          if (match) {
+            row.classList.remove('is-hidden');
+            tableVisible++;
+            sectionVisible++;
+            totalVisible++;
+          } else {
+            row.classList.add('is-hidden');
+          }
         });
 
-        if (q) {
-            matchCount.textContent = totalVisible + ' 条匹配';
+        var tableWrap = table.closest('.table-wrap');
+        if (tableWrap) {
+          tableWrap.classList.toggle('is-hidden', tableVisible === 0);
         } else {
-            matchCount.textContent = '';
+          table.classList.toggle('is-hidden', tableVisible === 0);
         }
+      });
 
-        if (q && totalVisible === 0) {
-            emptyState.style.display = '';
-        } else {
-            emptyState.style.display = 'none';
-        }
-    }
-
-    var debounceTimer;
-    searchInput.addEventListener('input', function() {
-        clearTimeout(debounceTimer);
-        var val = this.value;
-        debounceTimer = setTimeout(function() { filterGlossary(val); }, 150);
+      if (q && sectionVisible === 0) {
+        section.classList.add('is-hidden');
+      } else {
+        section.classList.remove('is-hidden');
+        if (sectionVisible > 0) sectionsWithRows++;
+      }
     });
 
-    searchInput.focus();
+    // Match count display
+    if (q) {
+      matchCount.textContent = totalVisible + ' 条匹配';
+    } else {
+      matchCount.textContent = '';
+    }
+
+    // Empty state toggle
+    if (q && totalVisible === 0) {
+      emptyState.classList.remove('is-hidden');
+    } else {
+      emptyState.classList.add('is-hidden');
+    }
+  }
+
+  // Debounced input listener (150ms)
+  var debounceTimer;
+  searchInput.addEventListener('input', function () {
+    clearTimeout(debounceTimer);
+    var val = this.value;
+    debounceTimer = setTimeout(function () {
+      filterGlossary(val);
+    }, 150);
+  });
+
+  // Auto-focus search on page load
+  searchInput.focus();
+
+  // ── Info-icon tooltips for metric labels ──────────────────
+
+  var infoIcons = document.querySelectorAll('.metric-label .info-icon');
+  infoIcons.forEach(function (icon) {
+    icon.addEventListener('click', function (e) {
+      e.preventDefault();
+    });
+    // Native title attribute handles tooltip; this listener
+    // ensures no default action and provides a hook for future
+    // custom tooltip implementation.
+  });
 })();

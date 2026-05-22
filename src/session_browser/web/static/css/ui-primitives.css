@@ -212,7 +212,7 @@ a.btn:focus-visible {
 /* === MetricCard / MetricGrid ============================================= */
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 .metric-card {
@@ -509,7 +509,11 @@ a.btn:focus-visible {
 .spacer { flex: 1; }
 /* Hide non-standard pagination controls */
 .page-size, [data-action="page-size"], [data-action="page-jump"],
-[data-action="page-go"], .page-number { display: none !important; }
+[data-action="page-go"], .page-number,
+.data-table__pagination-controls, .data-table__page-btn,
+.data-table__page-ellipsis, .data-table__pagination-info,
+.sessions-table-footer, .sessions-footer-page-size,
+.sessions-footer-page-size__select { display: none !important; }
 
 /* === Modal (PayloadModal) ================================================= */
 .modal-backdrop,
@@ -994,7 +998,7 @@ a.btn:focus-visible {
 /* ── Tablet: 768px–1023px ──────────────────────────────────────── */
 @media (max-width: 1023px) and (min-width: 768px) {
     .metric-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 

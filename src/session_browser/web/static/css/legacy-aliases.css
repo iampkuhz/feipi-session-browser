@@ -169,8 +169,8 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 
 /* Data table alias (recent sessions table) */
 .data-table{width:100%;border-collapse:separate;border-spacing:0}
-.data-table th{height:34px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.075em;color:var(--faint);font-weight:900;border-bottom:1px solid var(--line2);padding:0 10px;background:#fbfcff}
-.data-table td{height:50px;border-bottom:1px solid var(--line2);padding:0 10px;vertical-align:middle}
+.data-table th{height:34px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.075em;color:var(--faint);font-weight:900;border-bottom:1px solid var(--line2);padding:var(--hifi-cell-pad-y) var(--hifi-cell-pad-x);background:#fbfcff}
+.data-table td{height:50px;border-bottom:1px solid var(--line2);padding:var(--hifi-cell-pad-y) var(--hifi-cell-pad-x);vertical-align:middle}
 .data-table tbody tr:hover td{background:#fbfdff}
 
 /* Numeric column */

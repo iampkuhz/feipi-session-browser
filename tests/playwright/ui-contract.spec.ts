@@ -215,3 +215,29 @@ for (const vp of dashboardViewports) {
     });
   });
 }
+
+// ─── State pages viewport contract tests (T180) ───
+// Required viewports: 1440x900, 1280x800, 1180x800
+// 404 page is reachable via any unmapped URL.
+// error.html is a server-side 500 template; it cannot be reached via a normal
+// URL without triggering a real server error, so it is excluded from Playwright
+// screenshot checks. The 404 page covers the shared states.css styles.
+
+for (const vp of dashboardViewports) {
+  test(`404 @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    // Navigate to an unmapped URL to trigger the 404 handler
+    await page.goto('/__test-404-not-found__');
+
+    // Core structure visibility
+    await expect(page.locator('.state-panel')).toBeVisible();
+    await expect(page.locator('.state-panel__title')).toHaveText('Page Not Found');
+    await expect(page.locator('.state-panel__links')).toBeVisible();
+
+    // Full-page screenshot for visual regression
+    await expect(page).toHaveScreenshot(`404-${vp.label.replace('x', '-')}.png`, {
+      fullPage: true,
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+}

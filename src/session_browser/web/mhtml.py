@@ -13,13 +13,14 @@ _STATIC_DIR = Path(__file__).resolve().parent / "static"
 # Ordered list of JS files that must be inlined for a self-contained session page.
 # Order matches base.html load order.
 JS_LOAD_ORDER = [
-    "js/inspector.js",
+    "js/arp-storage.js",
     "js/view-state.js",
     "js/payload_viewer.js",
     "js/app.js",
     "js/data-table.js",
     "js/timeline.js",
     "js/keyboard.js",
+    "js/view-switching.js",
 ]
 
 

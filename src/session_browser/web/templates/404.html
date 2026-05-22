@@ -2,12 +2,24 @@
 
 {% block title %}Not Found - Agent Run Profiler{% endblock %}
 
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Not Found</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/states.css">
+{% endblock %}
+
+{% block topbar_toggles %}{% endblock %}
+
 {% block content %}
-<div class="state-panel">
-    <div class="state-panel__icon">404</div>
+<div class="state-panel" role="status" aria-live="polite">
+    <div class="state-panel__icon" aria-hidden="true">404</div>
     <h2 class="state-panel__title">Page Not Found</h2>
     <p class="state-panel__desc">The page you're looking for doesn't exist or has been removed.</p>
-    <nav class="state-panel__links">
+    <nav class="state-panel__links" aria-label="Navigation links">
         <a href="/dashboard" class="state-panel__link">&larr; Dashboard</a>
         <a href="/projects" class="state-panel__link">Projects</a>
         <a href="/sessions" class="state-panel__link">Sessions</a>

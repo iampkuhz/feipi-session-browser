@@ -20,9 +20,8 @@
            css/dashboard.css, css/sessions-list.css, css/session-detail.css,
            css/projects.css, css/agents.css, css/glossary.css, css/states.css
 
-         Layer 4 — Legacy/Versioned (temporary, to be removed in T181-T182):
-           session-browser (legacy v15), dashboard (legacy v16),
-           session-detail-timeline
+         Layer 4 — Legacy aliases (backward-compat only, no versioned files remain):
+           legacy-aliases.css
 
          禁止新增: 版本化或补丁 CSS 文件
          ============================================================ -->
@@ -31,8 +30,12 @@
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     {% endif %}
 
+    {% if export_mhtml %}
+    <script>{{ mhtml_js | safe }}</script>
+    {% else %}
     <!-- arpStorage bootstrap: loaded before shared JS so pages can use it immediately -->
     <script src="/static/js/arp-storage.js"></script>
+    {% endif %}
 
     {% block head_extra %}{% endblock %}
     {% block script_extra %}{% endblock %}
@@ -157,8 +160,10 @@
     <script src="/static/js/keyboard.js"></script>
     <script src="/static/js/trace-interactions.js"></script>
     {% endif %}
+    {% if not export_mhtml %}
     <!-- Shared JS: view/tab switching, round toggle, show-more, restore state -->
     <script src="/static/js/view-switching.js"></script>
+    {% endif %}
 
 {% block legacy_payload_modal %}
 <!-- ── Payload Modal (always available) ────────────────────── -->

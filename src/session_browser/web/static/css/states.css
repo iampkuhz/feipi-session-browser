@@ -1,0 +1,146 @@
+/* ======================================================================
+ * states.css — Canonical Page CSS for State Pages (404, 500/error)
+ * ======================================================================
+ *
+ * Component: .state-panel (standalone state/error page container)
+ *
+ * This is the page-level counterpart to .state-strip (inline empty/error
+ * state component defined in ui-primitives.css). Both share the same
+ * design token system for visual consistency.
+ *
+ * Consumed By:
+ *   404.html, error.html — templates extend base.html and render
+ *   .state-panel within the content block.
+ *
+ * Token Alignment with ui-primitives.css:
+ *   --line, --surface, --text, --text-subtle, --purple, --err, --err-bg,
+ *   --radius-lg, --radius-sm, --shadow
+ *
+ * Contract: No versioned filename. No inline styles. Canonical only.
+ * ====================================================================== */
+
+/* ─── State Panel: standalone centered container ────────────────── */
+.state-panel {
+    text-align: center;
+    padding: 48px 24px;
+    max-width: 520px;
+    margin: 40px auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+/* Icon: large centered indicator (text/emoji or number) */
+.state-panel__icon {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--text-subtle);
+    line-height: 1;
+    margin-bottom: 16px;
+}
+
+/* Error variant: red icon to signal failure */
+.state-panel__icon--error {
+    color: var(--err);
+}
+
+/* Title: primary heading */
+.state-panel__title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text);
+    margin: 0 0 10px;
+}
+
+/* Description: secondary explanatory text */
+.state-panel__desc {
+    color: var(--text-subtle);
+    font-size: 14px;
+    margin: 0 0 24px;
+    line-height: 1.5;
+}
+
+/* Links container: horizontal nav row */
+.state-panel__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* Individual nav link */
+.state-panel__link {
+    color: var(--purple);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+.state-panel__link:hover {
+    text-decoration: underline;
+}
+
+/* Collapsible details section (error page only) */
+.state-panel__details {
+    margin-top: 28px;
+    text-align: left;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    background: var(--surface);
+}
+.state-panel__details summary {
+    color: var(--text-subtle);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Raw error output inside details */
+.state-panel__raw {
+    background: #f6f8fc;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-size: 12px;
+    overflow-x: auto;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    font-family: var(--mono);
+    line-height: 1.5;
+    color: var(--text);
+}
+
+/* ======================================================================
+ * Responsive rules for state pages
+ * ====================================================================== */
+
+/* ── Mobile: <768px ─────────────────────────────────────────────── */
+@media (max-width: 767px) {
+    .state-panel {
+        margin: 16px 12px;
+        padding: 32px 16px;
+    }
+    .state-panel__icon {
+        font-size: 40px;
+    }
+    .state-panel__title {
+        font-size: 18px;
+    }
+    .state-panel__desc {
+        font-size: 13px;
+    }
+    .state-panel__links {
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+}
+
+/* ── Tablet: 768px–1023px ──────────────────────────────────────── */
+@media (max-width: 1023px) and (min-width: 768px) {
+    .state-panel {
+        margin: 24px auto;
+        padding: 36px 20px;
+    }
+}

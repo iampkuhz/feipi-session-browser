@@ -106,10 +106,10 @@ class TestGlossaryHeader:
             "Glossary must have a subtitle paragraph"
 
     def test_subtitle_text(self):
-        """Subtitle must describe the glossary purpose."""
+        """Subtitle must describe the glossary purpose per HIFI."""
         content = _read_template()
-        assert "Reference for token metrics" in content, \
-            "Subtitle must describe token metrics reference"
+        assert "必要术语说明" in content, \
+            "Subtitle must describe glossary as essential terminology reference"
 
     def test_breadcrumb(self):
         """Breadcrumb must link to dashboard."""
@@ -338,15 +338,16 @@ class TestGlossarySections:
     """Verify 8 card.section elements."""
 
     def test_card_section_class(self):
-        """Glossary must use card.section class for sections."""
+        """Glossary must use card.section.section-card.full-width class for sections."""
         content = _read_template()
-        assert 'class="card section"' in content, \
-            "Glossary must use card.section class"
+        assert 'class="card section section-card full-width"' in content, \
+            "Glossary must use card.section.section-card.full-width class"
 
     def test_eight_sections(self):
         """Glossary must have exactly 8 card.section elements."""
         content = _read_template()
-        sections = re.findall(r'class="card section"', content)
+        # Sections may have additional classes like glossary-table-section
+        sections = re.findall(r'class="card section[^"]*"', content)
         assert len(sections) == 8, \
             f"Glossary must have exactly 8 card.section elements, found {len(sections)}"
 
@@ -419,11 +420,11 @@ class TestGlossarySections:
             f"Glossary must have 8 section-title elements, found {len(titles)}"
 
     def test_section_sub_elements(self):
-        """Sections must have section-sub descriptions."""
+        """Sections must have section-desc descriptions (HIFI-aligned alias)."""
         content = _read_template()
-        subs = re.findall(r'class="section-sub"', content)
+        subs = re.findall(r'class="section-desc"', content)
         assert len(subs) == 5, \
-            f"Glossary must have exactly 5 section-sub elements, found {len(subs)}"
+            f"Glossary must have exactly 5 section-desc elements, found {len(subs)}"
 
 
 # -- TestGlossaryTables -----------------------------------------------------
@@ -442,9 +443,9 @@ class TestGlossaryTables:
     ]
 
     def test_six_data_tables(self):
-        """Glossary must have exactly 6 data-table elements."""
+        """Glossary must have exactly 6 data-table elements (may have additional classes like glossary-table)."""
         content = _read_template()
-        tables = re.findall(r'class="data-table"', content)
+        tables = re.findall(r'class="data-table[^"]*"', content)
         assert len(tables) == 6, \
             f"Glossary must have exactly 6 data-table elements, found {len(tables)}"
 

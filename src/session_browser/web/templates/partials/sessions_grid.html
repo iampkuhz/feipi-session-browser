@@ -68,21 +68,18 @@
         {% endfor %}
     </div>
     {% if total_count is defined and total_count > 0 %}
-    <div class="sessions-table-footer">
-        {%- if actions and actions.prev_url %}
-        <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.prev_url }}">Previous</a>
-        {% else %}
-        <span class="ui-btn ui-btn--secondary ui-btn--sm is-disabled">Previous</span>
-        {% endif %}
-        {%- if actions and actions.next_url %}
-        <a class="ui-btn ui-btn--secondary ui-btn--sm" href="{{ actions.next_url }}">Next</a>
-        {% else %}
-        <span class="ui-btn ui-btn--secondary ui-btn--sm is-disabled">Next</span>
-        {% endif %}
-        <span class="sessions-page-range">Rows {{ page_start }}–{{ page_end }}</span>
-        <span class="sessions-footer-spacer"></span>
-        <span class="sessions-footer-total">{{ total_count }} matching sessions</span>
-    </div>
+    <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination">
+        {%- if has_prev %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+        {%- endif %}
+        <span class="page-status">Page</span>
+        <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ page }}" title="输入页码后按 Enter，跳转到指定页" />
+        <span class="page-status">of {{ total_pages }} · {{ page_start }}–{{ page_end }} of {{ total_count | format_compact_token if total_count >= 1000 else total_count }} sessions</span>
+        <span class="spacer"></span>
+        {%- if has_next %}
+        <button class="btn sm" data-action="next-page" aria-label="Next page">next &rsaquo;</button>
+        {%- endif %}
+    </nav>
     {% endif %}
 </div>
 {% else %}

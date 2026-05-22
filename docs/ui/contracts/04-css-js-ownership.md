@@ -82,7 +82,7 @@ src/session_browser/web/static/js/states.js
 | 5 | `js/projects.js` | EXISTS | Projects page search, sort, filter persistence |
 | 6 | `js/agents.js` | MISSING | Needs creation |
 | 7 | `js/glossary.js` | MISSING | Needs creation |
-| 8 | `js/states.js` | MISSING | Needs creation |
+| 8 | `js/states.js` | EXISTS | 404/error pages — purely static, IIFE stub (T169) |
 
 **Existing non-canonical JS (currently imported, not in contract list — 7 files):**
 
@@ -114,8 +114,8 @@ src/session_browser/web/static/js/states.js
 | Canonical CSS targets need creation | 5/9 |
 | Versioned/legacy CSS files for later cleanup | 5 |
 | CSS orphans (on disk, never imported) | 2 |
-| Canonical JS targets already exist | 2/8 (`ui_primitives.js`, `projects.js`) |
-| Canonical JS targets need creation | 6/8 |
+| Canonical JS targets already exist | 3/8 (`ui_primitives.js`, `projects.js`, `states.js`) |
+| Canonical JS targets need creation | 5/8 |
 | Non-canonical JS currently imported | 7 (may need reclassification) |
 | Versioned/legacy JS files cleaned up | 5 |
 | JS orphans (on disk, never imported) | 0 (cleaned) |

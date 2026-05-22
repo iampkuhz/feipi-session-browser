@@ -669,3 +669,18 @@ th.sortable[data-sorted="asc"]:after {
 .agent-dot.qoder {
   background: var(--qoder);
 }
+
+/* ── Responsive: metric grid ──────────────────────────────────── */
+
+@media (max-width: 1399px) and (min-width: 768px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}

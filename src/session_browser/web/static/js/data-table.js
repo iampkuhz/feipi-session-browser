@@ -115,56 +115,64 @@
     if (currentPage > totalPages) currentPage = totalPages;
 
     container.innerHTML = '';
-    container.className = 'data-table__pagination';
+    container.className = 'pagination unified-pagination';
+    container.setAttribute('role', 'navigation');
+    container.setAttribute('aria-label', 'Pagination');
 
-    // info
-    var info = document.createElement('span');
-    info.className = 'data-table__pagination-info';
-    var start = (currentPage - 1) * pageSize + 1;
-    var end = Math.min(currentPage * pageSize, totalRows);
-    info.textContent = start + '-' + end + ' / ' + totalRows;
-    container.appendChild(info);
-
-    // controls
-    var controls = document.createElement('div');
-    controls.className = 'data-table__pagination-controls';
-
-    // prev
-    var prev = document.createElement('button');
-    prev.className = 'data-table__page-btn';
-    prev.textContent = '‹';
-    prev.disabled = currentPage <= 1;
-    prev.addEventListener('click', function () { onPageChange(currentPage - 1); });
-    controls.appendChild(prev);
-
-    // page buttons (show max 7)
-    var pages = _getPageRange(currentPage, totalPages);
-    for (var i = 0; i < pages.length; i++) {
-      (function (p) {
-        if (p === '...') {
-          var ell = document.createElement('span');
-          ell.className = 'data-table__page-ellipsis';
-          ell.textContent = '…';
-          controls.appendChild(ell);
-        } else {
-          var btn = document.createElement('button');
-          btn.className = 'data-table__page-btn' + (p === currentPage ? ' active' : '');
-          btn.textContent = p;
-          btn.addEventListener('click', function () { onPageChange(p); });
-          controls.appendChild(btn);
-        }
-      })(pages[i]);
+    // prev — hide on first page (contract: 首页不显示 prev)
+    if (currentPage > 1) {
+      var prev = document.createElement('button');
+      prev.className = 'btn sm';
+      prev.setAttribute('data-action', 'prev-page');
+      prev.setAttribute('aria-label', 'Previous page');
+      prev.textContent = '‹ prev';
+      prev.addEventListener('click', function () { onPageChange(currentPage - 1); });
+      container.appendChild(prev);
     }
 
-    // next
-    var next = document.createElement('button');
-    next.className = 'data-table__page-btn';
-    next.textContent = '›';
-    next.disabled = currentPage >= totalPages;
-    next.addEventListener('click', function () { onPageChange(currentPage + 1); });
-    controls.appendChild(next);
+    // page status + input (contract: 页码输入框)
+    var statusLabel = document.createElement('span');
+    statusLabel.className = 'page-status';
+    statusLabel.textContent = 'Page';
+    container.appendChild(statusLabel);
 
-    container.appendChild(controls);
+    var pageInput = document.createElement('input');
+    pageInput.className = 'page-input mono';
+    pageInput.setAttribute('data-action', 'page-input');
+    pageInput.setAttribute('aria-label', 'Page number');
+    pageInput.type = 'text';
+    pageInput.value = currentPage;
+    pageInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var p = parseInt(pageInput.value, 10);
+        if (p > 0 && p <= totalPages) onPageChange(p);
+      }
+    });
+    container.appendChild(pageInput);
+
+    var statusText = document.createElement('span');
+    statusText.className = 'page-status';
+    var start = (currentPage - 1) * pageSize + 1;
+    var end = Math.min(currentPage * pageSize, totalRows);
+    statusText.textContent = 'of ' + totalPages + ' · ' + start + '–' + end + ' of ' + totalRows;
+    container.appendChild(statusText);
+
+    // spacer
+    var spacer = document.createElement('span');
+    spacer.className = 'spacer';
+    container.appendChild(spacer);
+
+    // next — hide on last page (contract: 尾页不显示 next)
+    if (currentPage < totalPages) {
+      var next = document.createElement('button');
+      next.className = 'btn sm';
+      next.setAttribute('data-action', 'next-page');
+      next.setAttribute('aria-label', 'Next page');
+      next.textContent = 'next ›';
+      next.addEventListener('click', function () { onPageChange(currentPage + 1); });
+      container.appendChild(next);
+    }
   };
 
   /* ──────────────────────────────────────────────

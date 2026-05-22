@@ -214,36 +214,50 @@ class TestRoundsSortAsc:
         assert rows[0].assistant_message_count == 1
 
 
-# ─── 5. Page size 20/100/500/all ───────────────────────────────────
+# ─── 5. Pagination contract: prev/input/next, no page-size selector ──
 
-class TestPageSizeVariants:
-    """Verify page_size options work at the route/helper level."""
+class TestPaginationContract:
+    """Verify pagination follows the contract: prev/input/next only, no page-size selector."""
 
-    def test_page_size_20_in_routes(self):
-        content = _read_all_templates()
-        assert "20" in content
-
-    def test_page_size_100_in_routes(self):
-        content = _read_all_templates()
-        assert "100" in content
-
-    def test_page_size_500_in_routes(self):
-        content = _read_all_templates()
-        assert "500" in content
-
-    def test_page_size_all_in_routes(self):
-        content = _read_all_templates()
-        assert "all" in content.lower()
-
-    def test_footer_macro_has_page_size_select(self):
-        """Footer component must have page size selector."""
+    def test_footer_macro_has_page_input(self):
+        """Footer component must have page number input."""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
-        assert "sessions-footer-page-size__select" in content
-        assert "20" in content
-        assert "100" in content
-        assert "500" in content
-        assert "All" in content
+        assert 'data-action="page-input"' in content
+        assert 'class="page-input' in content
+
+    def test_footer_macro_has_prev_button(self):
+        """Footer component must have prev button."""
+        with open(_COMPONENTS_PATH) as f:
+            content = f.read()
+        assert 'data-action="prev-page"' in content
+
+    def test_footer_macro_has_next_button(self):
+        """Footer component must have next button."""
+        with open(_COMPONENTS_PATH) as f:
+            content = f.read()
+        assert 'data-action="next-page"' in content
+
+    def test_no_page_size_select_in_footer(self):
+        """Footer component must NOT have page-size selector (contract: no page-size)."""
+        with open(_COMPONENTS_PATH) as f:
+            content = f.read()
+        assert "sessions-footer-page-size__select" not in content
+        assert "page_size_urls" not in content
+
+    def test_prev_hidden_on_first_page(self):
+        """Prev button should be conditionally hidden on page 1."""
+        with open(_COMPONENTS_PATH) as f:
+            content = f.read()
+        # Jinja2 conditional: current_page > 1
+        assert "current_page > 1" in content
+
+    def test_next_hidden_on_last_page(self):
+        """Next button should be conditionally hidden on last page."""
+        with open(_COMPONENTS_PATH) as f:
+            content = f.read()
+        # Jinja2 conditional: current_page < total_pages
+        assert "current_page < total_pages" in content
 
     def test_page_size_20_returns_20(self, populated_db):
         rows = list_sessions(populated_db, limit=20)

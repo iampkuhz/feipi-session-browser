@@ -24,6 +24,7 @@ STATIC = ROOT / "src/session_browser/web/static"
 DOCS = ROOT / "docs/ui/contracts"
 STYLE_CSS = STATIC / "style.css"
 UI_PRIMITIVES = STATIC / "css/ui-primitives.css"
+STATES_CSS = STATIC / "css/states.css"
 
 FORBIDDEN_NAME_PATTERNS = [
     re.compile(r"v\d+\.(css|js|html)$"),
@@ -72,9 +73,9 @@ for path in TEMPLATES.rglob("*.html"):
             errors.append(f"button missing data-action/type submit: {path}:{text[:m.start()].count(chr(10))+1}")
 
 # ── Responsive breakpoint checks ──────────────────────────────────────
-# Combine style.css and ui-primitives.css for responsive checks.
+# Combine style.css, ui-primitives.css, and states.css for responsive checks.
 css_texts: list[str] = []
-for css_path in [STYLE_CSS, UI_PRIMITIVES]:
+for css_path in [STYLE_CSS, UI_PRIMITIVES, STATES_CSS]:
     if css_path.exists():
         css_texts.append(css_path.read_text(encoding="utf-8", errors="ignore"))
     else:

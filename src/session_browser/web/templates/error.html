@@ -2,12 +2,24 @@
 
 {% block title %}Error - Agent Run Profiler{% endblock %}
 
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Error</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/states.css">
+{% endblock %}
+
+{% block topbar_toggles %}{% endblock %}
+
 {% block content %}
-<div class="state-panel">
-    <div class="state-panel__icon state-panel__icon--error">!</div>
+<div class="state-panel" role="alert" aria-live="assertive">
+    <div class="state-panel__icon state-panel__icon--error" aria-hidden="true">!</div>
     <h2 class="state-panel__title">Something Went Wrong</h2>
-    <p class="state-panel__desc">{{ error }}</p>
-    <nav class="state-panel__links">
+    <p class="state-panel__desc">An unexpected error occurred while processing your request.</p>
+    <nav class="state-panel__links" aria-label="Navigation links">
         <a href="/dashboard" class="state-panel__link">&larr; Dashboard</a>
     </nav>
     {% if error %}

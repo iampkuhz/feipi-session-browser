@@ -101,6 +101,7 @@
             </div>
             <p class="chart-card__subtitle" data-subtitle="sessions">Daily session count by agent</p>
         </div>
+        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="sessions" title="Chart actions: export preview, open detail, copy link" aria-label="Session Trend chart menu">⋯</button>
     </div>
     {% if trend %}
     <div class="legend-row">
@@ -124,6 +125,7 @@
             </div>
             <p class="chart-card__subtitle" data-subtitle="tokens">Daily token usage by agent</p>
         </div>
+        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="tokens" title="Chart actions: export preview, open detail, copy link" aria-label="Token Trend chart menu">⋯</button>
     </div>
     {% if trend %}
     <div class="legend-row">
@@ -147,6 +149,7 @@
             </div>
             <p class="chart-card__subtitle" data-subtitle="prompts">Daily user-initiated inputs by agent</p>
         </div>
+        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="prompts" title="Chart actions: export preview, open detail, copy link" aria-label="Prompt Activity Trend chart menu">⋯</button>
     </div>
     {% if prompt_activity %}
     <div class="legend-row">

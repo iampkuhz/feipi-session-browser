@@ -218,33 +218,32 @@ class TestSortableHeaders:
 
 
 class TestFooter:
-    """Verify footer layout."""
+    """Verify footer layout — contract-compliant pagination."""
 
-    def test_has_table_footer(self):
+    def test_has_pagination_nav(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-table-footer"' in content
+        assert 'role="navigation"' in content
+        assert 'aria-label="Sessions pagination"' in content
 
     def test_has_previous_button(self):
         content = _read_sessions_templates()
-        assert "Previous" in content
+        assert 'data-action="prev-page"' in content
 
     def test_has_next_button(self):
         content = _read_sessions_templates()
-        assert "Next" in content
+        assert 'data-action="next-page"' in content
 
-    def test_has_rows_range(self):
+    def test_has_page_input(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-page-range"' in content
-        assert "Rows" in content
+        assert 'data-action="page-input"' in content
 
-    def test_has_footer_total(self):
+    def test_has_page_status(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-footer-total"' in content
-        assert "matching sessions" in content
+        assert 'class="page-status"' in content
 
-    def test_has_footer_spacer(self):
+    def test_has_spacer(self):
         content = _read_sessions_templates()
-        assert 'class="sessions-footer-spacer"' in content
+        assert 'class="spacer"' in content
 
     def test_no_sorted_by_in_footer(self):
         """Footer must not contain 'sorted by' text."""

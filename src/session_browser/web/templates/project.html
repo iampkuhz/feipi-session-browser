@@ -126,7 +126,7 @@
                     <th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds</th>
                     <th class="numeric sortable" data-action="sort" data-sort="tools">Tools</th>
                     <th class="sortable" data-action="sort" data-sort="failed">Failed</th>
-                    <th class="sortable" data-action="sort" data-sort="duration">Duration</th>
+                    <th class="col-num sortable" data-action="sort" data-sort="duration">Duration</th>
                     <th class="sortable" data-action="sort" data-sort="updated">Updated</th>
                 </tr>
             </thead>
@@ -176,13 +176,17 @@
                         <span class="badge err">{{ s.failed_tool_count }} failed</span>
                         {% else %}—{% endif %}
                     </td>
-                    <td class="mono">{{ s.duration_seconds | format_duration }}</td>
+                    <td class="col-num mono">{{ s.duration_seconds | format_duration }}</td>
                     <td class="muted">{{ s.ended_at | relative_time }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination">
+            {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
+            {%- if current_page > 1 %}
+            <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+            {%- endif %}
             <span class="page-status">Page</span>
             <input class="page-input mono" data-action="page-input" aria-label="Page number"
                    value="1" title="输入页码后按 Enter，跳转到指定页" />

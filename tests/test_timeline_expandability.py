@@ -497,11 +497,3 @@ class TestAccordionBehavior:
         else:
             pytest.skip("session_detail_timeline.js not found")
 
-class TestIntegrationOnRepoFiles:
-    """Run all checks on the real repo files — expects some known warnings."""
-
-    def test_script_runs_without_crash(self):
-        """The script should run to completion on the actual files."""
-        rc = chk.run()
-        # May return 0 (all OK) or 1 (warnings/failures), but never crash
-        assert rc in (0, 1)

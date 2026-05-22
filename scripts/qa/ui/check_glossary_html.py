@@ -164,10 +164,10 @@ def main() -> int:
 
         # ── Sections ───────────────────────────────────────────────
         ("T165-H27 7 .card.section elements",
-         lambda: (html.count('class="card section"') >= 7,
-                  f'{html.count("class=\"card section\"")} card.section(s) found'
-                  if html.count('class="card section"') >= 7
-                  else f"ONLY {html.count('class=\"card section\"')} card.section(s)")),
+         lambda: ('card section' in html and html.count('class="card section') >= 7,
+                  f'{html.count("class=\"card section")} card.section(s) found'
+                  if html.count('class="card section') >= 7
+                  else f"ONLY {html.count('class=\"card section')} card.section(s)")),
 
         ("T165-H28 .section-head in each section",
          lambda: ('class="section-head"' in html,
@@ -177,16 +177,16 @@ def main() -> int:
          lambda: ('class="section-title"' in html,
                   "section-title found" if 'class="section-title"' in html else "MISSING")),
 
-        ("T165-H30 .section-sub present",
-         lambda: ('class="section-sub"' in html,
-                  "section-sub found" if 'class="section-sub"' in html else "MISSING")),
+        ("T165-H30 .section-desc present",
+         lambda: ('class="section-desc"' in html,
+                  "section-desc found" if 'class="section-desc"' in html else "MISSING")),
 
         # ── Tables ─────────────────────────────────────────────────
         ("T165-H31 5 .data-table elements",
-         lambda: (html.count('class="data-table"') >= 5,
-                  f'{html.count("class=\"data-table\"")} data-table(s) found'
-                  if html.count('class="data-table"') >= 5
-                  else f"ONLY {html.count('class=\"data-table\"')} data-table(s)")),
+         lambda: ('data-table' in html and html.count('class="data-table') >= 5,
+                  f'{html.count("class=\"data-table")} data-table(s) found'
+                  if html.count('class="data-table') >= 5
+                  else f"ONLY {html.count('class=\"data-table')} data-table(s)")),
 
         ("T165-H32 data-table-enhanced on all tables",
          lambda: (html.count('data-table-enhanced') >= 5,
