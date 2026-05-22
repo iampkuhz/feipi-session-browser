@@ -123,46 +123,36 @@
     {% set projects_pagination %}
     <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
         {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
-        {%- if current_page > 1 %}
-        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-        {%- endif %}
+        {%- if total_pages is not defined %}{% set total_pages = 1 %}{% endif -%}
+        {% set is_single_page = total_pages <= 1 %}
+        {% set is_first_page = current_page <= 1 %}
+        {% set is_last_page = current_page >= total_pages %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>
         <span class="page-status">Page</span>
         <input class="page-input mono" data-action="page-input" aria-label="Page number"
-               value="1" title="输入页码后按 Enter，跳转到指定页" />
-        <span class="page-status" id="page-status-text">of 1 · {{ projects | length }} projects</span>
+               value="{{ current_page }}" title="输入页码后按 Enter，跳转到指定页"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ total_pages }}" />
+        <span class="page-status" id="page-status-text">of {{ total_pages }} · {{ projects | length }} projects</span>
         <span class="spacer"></span>
-        <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
+        <button class="btn sm" data-action="next-page" aria-label="Next page"{% if is_last_page or is_single_page %} disabled{% endif %}>next ›</button>
     </nav>
     {% endset %}
-    {% call ui.table_card('All Projects', subtitle='(<span id="project-count">' ~ projects | length ~ '</span>)', pagination_html=projects_pagination) %}
+    {% call ui.table_card('All Projects', subtitle='(' ~ projects | length ~ ' projects)', pagination_html=projects_pagination) %}
             <table id="projects-table" class="data-table" data-table-enhanced>
                 <thead>
                     <tr>
-                        <th>Project</th>
-                        <th>Agents</th>
-                        <th class="numeric sortable" data-sort-key="sessions">
-                            <button class="sortable-header" data-action="sort" data-sort="sessions"
-                                    aria-label="Sort by Sessions" title="按 Sessions 排序：第一次点击从大到小，再次点击反向">
-                                Sessions <span class="sort-caret">↕</span>
-                            </button>
+                        <th class="static-header col-project">Project</th>
+                        <th class="static-header col-agents">Agents</th>
+                        <th class="col-num sortable col-sessions" data-sort-key="sessions"{% if sort_by == 'sessions' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
+                            <button class="sort-button" type="button" data-action="sort" data-sort-key="sessions" title="按 Sessions 排序">Sessions <span class="sort-mark" aria-hidden="true"></span></button>
                         </th>
-                        <th class="numeric sortable" data-sort-key="tokens">
-                            <button class="sortable-header" data-action="sort" data-sort="tokens"
-                                    aria-label="Sort by Tokens" title="按 Tokens 排序：第一次点击从大到小，再次点击反向">
-                                Tokens <span class="sort-caret">↕</span>
-                            </button>
+                        <th class="col-num sortable col-tokens" data-sort-key="tokens"{% if sort_by == 'tokens' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
+                            <button class="sort-button" type="button" data-action="sort" data-sort-key="tokens" title="按 Tokens 排序">Tokens <span class="sort-mark" aria-hidden="true"></span></button>
                         </th>
-                        <th class="numeric sortable" data-sort-key="tools">
-                            <button class="sortable-header" data-action="sort" data-sort="tools"
-                                    aria-label="Sort by Tools" title="按 Tools 排序：第一次点击从大到小，再次点击反向">
-                                Tools <span class="sort-caret">↕</span>
-                            </button>
+                        <th class="col-num sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
+                            <button class="sort-button" type="button" data-action="sort" data-sort-key="tools" title="按 Tools 排序">Tools <span class="sort-mark" aria-hidden="true"></span></button>
                         </th>
-                        <th class="sortable" data-sort-key="last_active">
-                            <button class="sortable-header" data-action="sort" data-sort="last_active"
-                                    aria-label="Sort by Last Active" title="按 Last Active 排序：第一次点击从近到远，再次点击反向">
-                                Last Active <span class="sort-caret">↕</span>
-                            </button>
+                        <th class="sortable col-last-active" data-sort-key="last_active"{% if sort_by == 'last_active' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
+                            <button class="sort-button" type="button" data-action="sort" data-sort-key="last_active" title="按 Last Active 排序">Last Active <span class="sort-mark" aria-hidden="true"></span></button>
                         </th>
                     </tr>
                 </thead>
@@ -212,24 +202,17 @@
                             {% endif %}
                         </td>
                         <td class="numeric mono"><strong>{{ p.total_sessions }}</strong></td>
-                        <td class="numeric mono token-cell">
-                            <div class="token-value">{{ p_total_tokens | format_compact_token }}</div>
-                            <div class="tokenbar" title="Token breakdown: 悬浮展示 Fresh / Cached Read / Cached Write / Output">
-                                <span class="tokenbar-seg fresh" style="--segment-width:{{ p_fresh_pct }}%"></span>
-                                <span class="tokenbar-seg read" style="--segment-width:{{ p_read_pct }}%"></span>
-                                <span class="tokenbar-seg write" style="--segment-width:{{ p_write_pct }}%"></span>
-                                <span class="tokenbar-seg out" style="--segment-width:{{ p_out_pct }}%"></span>
-                                <div class="tooltip">
-                                    <div class="tip-title">Token breakdown</div>
-                                    <div class="tip-row"><span class="dot claude" aria-hidden="true"></span><span class="name">Fresh</span><span class="val">{{ p_fresh | format_compact_token }}</span><span>{{ p_fresh_pct }}%</span></div>
-                                    <div class="tip-row"><span class="dot codex" aria-hidden="true"></span><span class="name">Cached Rd</span><span class="val">{{ p_read | format_compact_token }}</span><span>{{ p_read_pct }}%</span></div>
-                                    <div class="tip-row"><span class="dot qoder" aria-hidden="true"></span><span class="name">Cached Wr</span><span class="val">{{ p_write | format_compact_token }}</span><span>{{ p_write_pct }}%</span></div>
-                                    <div class="tip-row"><span class="dot total" aria-hidden="true"></span><span class="name">Output</span><span class="val">{{ p_out | format_compact_token }}</span><span>{{ p_out_pct }}%</span></div>
-                                    <div class="tip-sep"></div>
-                                    <div class="tip-row"><b>Total</b><span></span><span class="val">{{ p_total_tokens | format_compact_token }}</span></div>
-                                </div>
-                            </div>
-                        </td>
+                        {{ ui.token_cell(
+                            total=p_total_tokens | format_compact_token,
+                            fresh_pct=p_fresh_pct,
+                            read_pct=p_read_pct,
+                            write_pct=p_write_pct,
+                            out_pct=p_out_pct,
+                            fresh_val=p_fresh | format_compact_token,
+                            read_val=p_read | format_compact_token,
+                            write_val=p_write | format_compact_token,
+                            out_val=p_out | format_compact_token
+                        ) }}
                         <td class="numeric mono">
                             {{ p.total_tool_calls | format_number }}
                             {% if p.total_failed_tools > 0 %}

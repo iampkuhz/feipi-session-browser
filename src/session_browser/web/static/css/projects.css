@@ -69,7 +69,6 @@
 th.sortable,
 th.numeric.sortable {
   cursor: pointer;
-  position: relative;
   user-select: none;
 }
 
@@ -77,29 +76,21 @@ th.sortable:hover {
   color: var(--purple);
 }
 
-th.sortable:after {
-  content: "\2195";
-  font-size: 11px;
-  color: var(--text-subtle);
-  margin-left: 5px;
-}
-
-th.sortable[data-sorted="desc"]:after {
-  content: "\2193";
-  color: var(--purple);
-}
-
-th.sortable[data-sorted="asc"]:after {
-  content: "\2191";
-  color: var(--purple);
-}
+/* Arrow is handled by .sort-mark::after in ui-primitives.css */
 
 /* ── Token total above tokenbar (T117) ────────────────────── */
 
 .token-total {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font: 780 12px var(--mono);
   line-height: 1;
-  margin-bottom: 4px;
+}
+
+.token-total__value {
+  font-weight: 800;
+  color: var(--text);
 }
 
 /* ── Sortable header buttons (T103) ───────────────────────── */
@@ -142,44 +133,32 @@ th.sortable[data-sorted="asc"]:after {
   padding-bottom: 6px;
 }
 
-.token-value {
-  font: 780 12px var(--mono);
-  line-height: 1;
-}
-
 /* Tokenbar inside data table — uses .tokenbar-seg with --segment-width */
 .token-cell .tokenbar {
   position: relative;
-  width: 132px;
-  height: 8px;
-  margin-top: 5px;
-  background: #d9e1ec;
+  width: 46px;
+  height: 7px;
+  background: var(--surface-soft);
   border-radius: 999px;
   display: flex;
-  overflow: visible;
+  overflow: hidden;
   cursor: help;
+  border: 1px solid var(--line-soft);
 }
 
 .token-cell .tokenbar .tokenbar-seg {
-  height: 8px;
-}
-
-.token-cell .tokenbar .tokenbar-seg:first-child {
-  border-radius: 999px 0 0 999px;
-}
-
-.token-cell .tokenbar .tokenbar-seg:last-of-type {
-  border-radius: 0 999px 999px 0;
+  height: 100%;
+  display: block;
 }
 
 /* Tokenbar segment colors for projects context (T117) */
-.token-cell .tokenbar .tokenbar-seg.fresh { background: #2563eb; }
-.token-cell .tokenbar .tokenbar-seg.read { background: #f59e0b; }
-.token-cell .tokenbar .tokenbar-seg.write { background: #fbbf24; }
-.token-cell .tokenbar .tokenbar-seg.out { background: #10b981; }
+.token-cell .tokenbar .tokenbar-seg.fresh { background: var(--token-input-fresh, #2563eb); }
+.token-cell .tokenbar .tokenbar-seg.read { background: var(--token-cache-read, #f59e0b); }
+.token-cell .tokenbar .tokenbar-seg.write { background: var(--token-cache-write, #f59e0b); }
+.token-cell .tokenbar .tokenbar-seg.out { background: var(--token-output-visible, #059669); }
 
-/* Tooltip inside tokenbar */
-.token-cell .tooltip {
+/* Tooltip inside tokenbar — uses .token-tooltip class from macro */
+.token-cell .token-tooltip {
   position: absolute;
   left: 48px;
   top: 22px;
@@ -194,7 +173,7 @@ th.sortable[data-sorted="asc"]:after {
   pointer-events: none;
 }
 
-.token-cell .tooltip:before {
+.token-cell .token-tooltip::before {
   content: '';
   position: absolute;
   top: -8px;
@@ -207,18 +186,18 @@ th.sortable[data-sorted="asc"]:after {
   transform: rotate(45deg);
 }
 
-.token-cell .tokenbar:hover .tooltip,
-.token-cell .tokenbar.show .tooltip {
+.token-cell .tokenbar:hover .token-tooltip,
+.token-cell .tokenbar:focus-within .token-tooltip {
   display: block;
 }
 
-.tip-title {
+.token-tooltip__title {
   font-weight: 850;
   margin-bottom: 8px;
   font-size: 12px;
 }
 
-.tip-row {
+.token-tooltip__row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -227,17 +206,34 @@ th.sortable[data-sorted="asc"]:after {
   margin: 6px 0;
 }
 
-.tip-row .name {
+.token-tooltip__label {
   margin-right: auto;
   color: var(--text-subtle);
 }
 
-.tip-row .val {
+.token-tooltip__label .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.token-tooltip__label .dot--fresh { background: var(--token-input-fresh, #2563eb); }
+.token-tooltip__label .dot--read { background: var(--token-cache-read, #f59e0b); }
+.token-tooltip__label .dot--write { background: var(--token-cache-write, #fbbf24); }
+.token-tooltip__label .dot--out { background: var(--token-output-visible, #10b981); }
+
+.token-tooltip__value {
   font-family: var(--mono);
   font-weight: 750;
 }
 
-.tip-sep {
+.token-tooltip__total {
+  font-weight: 850;
+}
+
+.token-tooltip__sep {
   border-top: 1px solid var(--line-strong);
   margin: 8px 0;
 }
