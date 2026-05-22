@@ -259,30 +259,34 @@ class TestProjectDetailTableToolbar:
     """Verify table toolbar structure."""
 
     def test_table_toolbar_present(self):
-        """Project must have a table-toolbar."""
+        """Project must use ui.table_card which renders table-toolbar."""
         content = _read_template()
-        assert 'class="table-toolbar"' in content, \
-            "Project must have a table-toolbar"
+        assert "ui.table_card(" in content, \
+            "Project must use ui.table_card macro which renders table-toolbar"
 
     def test_card_title_present(self):
-        """Table toolbar must have a card-title for Sessions."""
+        """Table toolbar must have a card-title for Sessions via table_card."""
         content = _read_template()
-        assert 'class="card-title"' in content, \
-            "Table toolbar must have a card-title"
-        assert ">Sessions" in content, \
+        assert "ui.table_card(" in content, \
+            "Table toolbar must use ui.table_card macro which renders card-title"
+        assert ">Sessions" in content or "'Sessions'" in content, \
             "Card title must reference Sessions"
 
     def test_card_sub_present(self):
-        """Table toolbar must have a card-sub."""
+        """Table toolbar must have a card-sub via table_card subtitle param."""
         content = _read_template()
-        assert 'class="card-sub"' in content, \
-            "Table toolbar must have a card-sub"
+        assert "ui.table_card(" in content, \
+            "Project must use ui.table_card macro which renders card-sub"
+        assert "subtitle=" in content, \
+            "table_card call must pass subtitle parameter"
 
     def test_search_input_present(self):
-        """Table toolbar must have a search input with data-action='search'."""
+        """Table toolbar must have a search input via table_card search_placeholder."""
         content = _read_template()
-        assert 'data-action="search"' in content, \
-            "Table toolbar must have a search input with data-action='search'"
+        assert "ui.table_card(" in content, \
+            "Project must use ui.table_card macro"
+        assert "search_placeholder=" in content, \
+            "table_card call must pass search_placeholder parameter"
 
     def test_search_input_has_placeholder(self):
         """Search input must have a placeholder text."""
@@ -659,7 +663,6 @@ class TestProjectDetailDataActions:
 
     _EXPECTED_ACTIONS = [
         "info",
-        "search",
         "copy-session",
         "sort",
         "open-session",

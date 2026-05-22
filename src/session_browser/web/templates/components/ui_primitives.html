@@ -407,6 +407,67 @@
 {%- endmacro %}
 
 {# ============================================================================
+   TableCard (Composite: toolbar + table body + optional pagination)
+   Wraps table_toolbar + caller() content in a canonical card structure.
+
+   Usage:
+     {% call ui.table_card('Title', search_placeholder='...') %}
+       <table class="data-table">...</table>
+       <nav class="pagination unified-pagination">...</nav>
+     {% endcall %}
+
+   Parameters:
+     title: required — card heading text
+     subtitle: optional — secondary text below title
+     search_placeholder: optional — renders a search input in the toolbar
+     toolbar_extra: optional — arbitrary HTML for the toolbar right side
+     insight: optional — insight text shown on the right side with a lightbulb icon
+     extra_classes: additional CSS classes on the outer section
+
+   Produces:
+     <section class="card table-card [extra_classes]">
+       <div class="table-toolbar">...</div>
+       <div class="table-wrap">
+         {{ caller() }}  — table + pagination from caller
+       </div>
+     </section>
+#}
+{% macro table_card(title, subtitle=None, search_placeholder=None, toolbar_extra=None, insight=None, extra_classes=None) -%}
+  {%- set classes = ['card', 'table-card'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<section class="{{ cls }}">
+  <div class="table-toolbar">
+    <div>
+      <div class="card-title">{{ title }}</div>
+      {%- if subtitle %}
+      <div class="card-sub">{{ subtitle }}</div>
+      {%- endif %}
+    </div>
+    {%- if search_placeholder or toolbar_extra or insight %}
+    <span class="spacer"></span>
+    {%- if search_placeholder %}
+    <input class="input search" data-action="search" placeholder="{{ search_placeholder }}" aria-label="Search" />
+    {%- endif %}
+    {%- if toolbar_extra %}
+    {{ toolbar_extra }}
+    {%- endif %}
+    {%- if insight %}
+    <span class="insight">{{ insight }}</span>
+    {%- endif %}
+    {%- endif %}
+  </div>
+  <div class="table-wrap">
+    {{ caller() }}
+  </div>
+</section>
+{%- endmacro %}
+
+{# ============================================================================
    FilterBar (T034 pass 3)
    Renders a filter bar with search + filter controls.
    filters: list of dicts with keys: label, name, type (search|select), options (for select), value

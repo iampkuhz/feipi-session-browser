@@ -1318,6 +1318,23 @@ a.btn:focus-visible {
 .state-strip.is-dismissed { display: none; }
 
 /* === PageHead ============================================================== */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 0 12px;
+}
+.page-head h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+.page-head .subtitle {
+  margin: 6px 0 0;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
 .page-head-actions {
   display: flex;
   align-items: center;

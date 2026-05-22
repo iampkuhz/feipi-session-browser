@@ -104,16 +104,7 @@
 <!-- Sessions table -->
 <div class="page-section">
     {% if sessions %}
-    <div class="card table-card">
-        <div class="table-toolbar">
-            <div>
-                <div class="card-title">Sessions <button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button></div>
-                <div class="card-sub">All indexed sessions in this project</div>
-            </div>
-            <span class="spacer"></span>
-            <input class="input search" data-action="search" placeholder="🔎 Search by title or session ID..." aria-label="Search sessions by title or session ID" />
-        </div>
-        <div class="table-wrap">
+    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button>') %}
             <table id="project-sessions-table" class="data-table" data-table-enhanced>
             <thead>
                 <tr>
@@ -192,8 +183,7 @@
             <span class="spacer"></span>
             <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
         </nav>
-    </div>
-    </div>
+    {% endcall %}
     {% else %}
     {{ ui.empty_state(
         'No sessions in this project yet',

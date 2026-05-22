@@ -158,8 +158,8 @@ class TestProjectsTemplateTitle:
         """Title should not use justify-between to separate ( and )."""
         content = _read_template()
         assert "justify-between" not in content
-        # Should use table-toolbar with table-title (T103: migrated from card-title)
-        assert 'class="table-title"' in content
+        # Should use ui.table_card macro which renders card-title (T103: migrated)
+        assert "ui.table_card(" in content
 
 
 # ── TestProjectsTemplate ──────────────────────────────────────────
@@ -412,18 +412,22 @@ class TestProjectsTableStructure:
 
     def test_table_toolbar_present(self):
         content = _read_template()
-        assert 'class="table-toolbar"' in content, \
-            "Table must have table-toolbar"
+        assert "ui.table_card(" in content, \
+            "Table must use ui.table_card macro which renders table-toolbar"
 
     def test_table_toolbar_has_table_title(self):
         content = _read_template()
-        assert 'class="table-title"' in content, \
-            "Table-toolbar must have table-title"
+        assert "ui.table_card(" in content, \
+            "Table must use ui.table_card macro which renders card-title"
+        assert "'All Projects'" in content or '"All Projects"' in content, \
+            "Table title must reference All Projects"
 
     def test_table_has_table_note(self):
         content = _read_template()
-        assert "Sortable columns" in content, \
-            "Table-toolbar must have sortable columns note"
+        assert "ui.table_card(" in content, \
+            "Table must use ui.table_card macro"
+        assert "subtitle=" in content, \
+            "table_card call must pass subtitle parameter"
 
 
 # ── TestProjectsRowStructure ──────────────────────────────────────

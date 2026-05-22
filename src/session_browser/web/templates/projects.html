@@ -120,12 +120,7 @@
 <!-- Projects data table: 6 columns, sortable headers, token bars -->
 <section class="page-section">
     {% if projects %}
-    <div class="table-card card">
-        <div class="table-toolbar">
-            <div class="table-title">All Projects <span class="text-muted">(<span id="project-count">{{ projects | length }}</span>)</span></div>
-            <div class="table-note">Sortable columns: Sessions, Tokens, Tools, Last Active</div>
-        </div>
-        <div class="table-wrap">
+    {% call ui.table_card('All Projects', subtitle='<span class="text-muted">(<span id="project-count">{{ projects | length }}</span>)</span>') %}
             <table id="projects-table" class="data-table" data-table-enhanced>
                 <thead>
                     <tr>
@@ -232,7 +227,6 @@
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
         <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
             {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
             {%- if current_page > 1 %}
@@ -245,7 +239,7 @@
             <span class="spacer"></span>
             <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
         </nav>
-    </div>
+    {% endcall %}
     <div id="projects-empty" class="state-strip is-hidden">
         <div class="state-icon" aria-hidden="true"><span class="emoji lg">📁</span></div>
         <div>

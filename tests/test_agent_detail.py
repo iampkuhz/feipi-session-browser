@@ -243,24 +243,26 @@ class TestAgentDetailModelBreakdown:
     ]
 
     def test_section_head_present(self):
-        """Model breakdown must have a section-head."""
+        """Model breakdown must use ui.table_card macro which renders table-toolbar."""
         content = _read_template()
-        assert 'class="section-head"' in content, \
-            "Model breakdown must have a section-head"
+        assert "ui.table_card(" in content, \
+            "Model breakdown must use ui.table_card macro"
 
     def test_section_title_present(self):
-        """Model breakdown must have a section-title."""
+        """Model breakdown must have a card-title via table_card."""
         content = _read_template()
-        assert 'class="section-title"' in content, \
-            "Model breakdown must have a section-title"
+        assert "ui.table_card(" in content, \
+            "Model breakdown must use ui.table_card macro which renders card-title"
         assert "Model Breakdown" in content, \
             "Section title must include 'Model Breakdown'"
 
     def test_section_sub_present(self):
-        """Model breakdown must have a section-sub."""
+        """Model breakdown must have a card-sub via table_card subtitle param."""
         content = _read_template()
-        assert 'class="section-sub"' in content, \
-            "Model breakdown must have a section-sub"
+        assert "ui.table_card(" in content, \
+            "Model breakdown must use ui.table_card macro which renders card-sub"
+        assert "Avg Duration" in content, \
+            "Model breakdown subtitle must mention Avg Duration"
 
     def test_model_breakdown_conditional(self):
         """Model breakdown must be conditionally rendered when models > 1."""
@@ -269,10 +271,10 @@ class TestAgentDetailModelBreakdown:
             "Model breakdown must be conditionally rendered"
 
     def test_card_section_class(self):
-        """Model breakdown must use card.section class."""
+        """Model breakdown must use ui.table_card which renders card table-card class."""
         content = _read_template()
-        assert 'class="card section"' in content, \
-            "Model breakdown must use card.section class"
+        assert "ui.table_card(" in content, \
+            "Model breakdown must use ui.table_card macro which renders 'card table-card'"
 
     def test_data_table_class(self):
         """Model breakdown table must use data-table class."""
@@ -281,10 +283,10 @@ class TestAgentDetailModelBreakdown:
             "Model breakdown table must use data-table class"
 
     def test_table_wrap_present(self):
-        """Model breakdown table must be inside a table-wrap."""
+        """Model breakdown table must be inside ui.table_card which renders table-wrap."""
         content = _read_template()
-        assert 'class="table-wrap"' in content, \
-            "Model breakdown table must be inside a table-wrap"
+        assert "ui.table_card(" in content, \
+            "Model breakdown must use ui.table_card macro which renders table-wrap"
 
     @pytest.mark.parametrize("column", _EXPECTED_COLUMNS)
     def test_column_headers_present(self, column):
@@ -352,11 +354,12 @@ class TestAgentDetailSessionsSection:
     ]
 
     def test_sessions_section_head_present(self):
-        """Sessions must have a section-head."""
+        """Sessions must use ui.table_card macro which renders table-toolbar."""
         content = _read_template()
-        sections = content.split('class="section-head"')
-        assert len(sections) >= 2, \
-            "Agent must have at least 2 section-head elements"
+        # agent.html has two table_card calls: Model Breakdown + Sessions
+        count = content.count("ui.table_card(")
+        assert count >= 2, \
+            f"Agent must have at least 2 ui.table_card calls, found {count}"
 
     def test_sessions_section_title(self):
         """Sessions section must have 'Sessions' in title."""
@@ -365,12 +368,11 @@ class TestAgentDetailSessionsSection:
             "Sessions section must have 'Sessions' title"
 
     def test_search_input_present(self):
-        """Sessions section must have a search input matching HIFI contract."""
+        """Sessions section must have a search input via table_card search_placeholder."""
         content = _read_template()
-        assert 'class="input"' in content, \
-            "Sessions must have a search input with class='input'"
-        assert 'aria-label="Search sessions"' in content, \
-            "Search input must have aria-label='Search sessions'"
+        # The Sessions table_card passes search_placeholder which renders the input
+        assert "search_placeholder=" in content, \
+            "Sessions must pass search_placeholder to table_card"
         # HIFI contract: search input must NOT have id or data-search attributes
         assert 'id="session-search"' not in content, \
             "HIFI contract: search input must NOT have id='session-search'"
@@ -390,10 +392,10 @@ class TestAgentDetailSessionsSection:
             "Search placeholder must mention Search"
 
     def test_search_input_aria_label(self):
-        """Search input must have aria-label."""
+        """Search input must have aria-label via table_card macro."""
         content = _read_template()
-        assert 'aria-label="Search sessions"' in content, \
-            "Search input must have aria-label='Search sessions'"
+        assert "search_placeholder=" in content, \
+            "Sessions must pass search_placeholder to table_card"
 
     def test_sessions_table_has_id(self):
         """Sessions table must have id='agent-sessions-table'."""
@@ -402,10 +404,10 @@ class TestAgentDetailSessionsSection:
             "Sessions table must have id='agent-sessions-table'"
 
     def test_card_section_for_sessions(self):
-        """Sessions section must use card.section class."""
+        """Sessions section must use ui.table_card which renders card table-card class."""
         content = _read_template()
-        assert 'class="card section"' in content, \
-            "Sessions section must use card.section class"
+        assert "ui.table_card(" in content, \
+            "Sessions section must use ui.table_card macro which renders 'card table-card'"
 
     @pytest.mark.parametrize("column", _EXPECTED_COLUMNS)
     def test_column_headers_present(self, column):
@@ -730,10 +732,10 @@ class TestAgentDetailAccessibility:
             "Sortable headers must have sort-mark elements"
 
     def test_search_input_aria_label(self):
-        """Search input must have aria-label."""
+        """Search input must have aria-label via table_card macro."""
         content = _read_template()
-        assert 'aria-label="Search sessions"' in content, \
-            "Search input must have aria-label='Search sessions'"
+        assert "search_placeholder=" in content, \
+            "Sessions must pass search_placeholder to table_card"
 
     def test_page_input_aria_label(self):
         """Page input must have aria-label."""
@@ -877,10 +879,10 @@ class TestAgentDetailModelBreakdownInsight:
     """Verify model breakdown insight line."""
 
     def test_insight_span_present(self):
-        """Model breakdown must have an insight span."""
+        """Model breakdown must pass insight param to table_card."""
         content = _read_template()
-        assert 'class="insight"' in content, \
-            "Model breakdown must have an insight span"
+        assert "insight=" in content, \
+            "Model breakdown must pass insight param to table_card"
 
     def test_most_active_model_text(self):
         """Model breakdown must show 'Most active model' text."""

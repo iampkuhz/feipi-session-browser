@@ -127,17 +127,7 @@
     {% endif %}
 {% endfor %}
 {% if models | length > 1 %}
-<section class="card section">
-<div class="section-head">
-    <div>
-        <div class="section-title">Model Breakdown <span class="info-icon" data-action="info" title="Model-level aggregation">ⓘ</span></div>
-        <div class="section-sub">Avg Duration means average LLM call response time, not whole session duration.</div>
-    </div>
-    <span class="spacer"></span>
-    <span class="insight"><span class="emoji" aria-hidden="true">💡</span>Most active model: {{ models[0] }}</span>
-</div>
-
-<div class="table-wrap">
+{% call ui.table_card('Model Breakdown', subtitle='Avg Duration means average LLM call response time, not whole session duration.', toolbar_extra='<span class="info-icon" data-action="info" title="Model-level aggregation">ⓘ</span>', insight='💡 Most active model: ' ~ models[0]) %}
     <table class="data-table">
         <colgroup>
             <col class="col-model-name"/>
@@ -217,24 +207,13 @@
             {% endfor %}
         </tbody>
     </table>
-</div>
-</section>
+{% endcall %}
 {% endif %}
 {% endif %}
 
 <!-- Sessions -->
-<section class="card section">
-<div class="section-head">
-    <div>
-        <div class="section-title">Sessions <span class="info-icon" data-action="info" title="Sessions run by this agent">ⓘ</span></div>
-        <div class="section-sub">Title and Project are not sortable. Metric headers sort the table.</div>
-    </div>
-    <span class="spacer"></span>
-    <input aria-label="Search sessions" class="input" placeholder="Search by Session ID or title..." />
-</div>
-
-{% if sessions %}
-<div class="table-wrap">
+{% call ui.table_card('Sessions', subtitle='Title and Project are not sortable. Metric headers sort the table.', search_placeholder='Search by Session ID or title...', toolbar_extra='<span class="info-icon" data-action="info" title="Sessions run by this agent">ⓘ</span>') %}
+    {% if sessions %}
     <table class="data-table" id="agent-sessions-table">
         <colgroup>
             <col class="col-title"/>
@@ -316,32 +295,29 @@
             {% endfor %}
         </tbody>
     </table>
-</div>
-{% else %}
-<section class="page-section">
+    {% else %}
     {{ ui.empty_state(
         '暂无该 Agent 的 Session 数据',
         action_button=ui.button('返回 Agents', variant='primary', href='/agents', data_action='back'),
         icon='🤖'
     ) }}
-</section>
-{% endif %}
+    {% endif %}
 
-<!-- Agent sessions pagination (T146) -->
-<div class="pagination unified-pagination" role="navigation" aria-label="Agent sessions pagination">
-    {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
-    {%- if total_pages is not defined %}{% set total_pages = 1 %}{% endif -%}
-    {%- if current_page > 1 %}
-    <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-    {%- endif %}
-    <span class="page-status">Page</span>
-    <input class="page-input mono" data-action="page-input" aria-label="Page number" value="1" title="输入页码后按 Enter，跳转到指定页" />
-    <span class="page-status" id="agent-page-status-text">of 1</span>
-    <span class="spacer"></span>
-    {%- if current_page < total_pages %}
-    <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
-    {%- endif %}
-</div>
-</section>
+    <!-- Agent sessions pagination (T146) -->
+    <div class="pagination unified-pagination" role="navigation" aria-label="Agent sessions pagination">
+        {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
+        {%- if total_pages is not defined %}{% set total_pages = 1 %}{% endif -%}
+        {%- if current_page > 1 %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
+        {%- endif %}
+        <span class="page-status">Page</span>
+        <input class="page-input mono" data-action="page-input" aria-label="Page number" value="1" title="输入页码后按 Enter，跳转到指定页" />
+        <span class="page-status" id="agent-page-status-text">of 1</span>
+        <span class="spacer"></span>
+        {%- if current_page < total_pages %}
+        <button class="btn sm" data-action="next-page" title="跳转到下一页；当前不是尾页时显示">next ›</button>
+        {%- endif %}
+    </div>
+{% endcall %}
 
 {% endblock %}

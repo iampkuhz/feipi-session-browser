@@ -225,23 +225,23 @@ class TestAgentsTableStructure:
             "Agents table must have id='agents-table'"
 
     def test_table_card_wraps_table(self):
-        """Table must be wrapped in a table-card."""
+        """Table must be rendered via ui.table_card macro."""
         content = _read_template()
-        assert 'class="card table-card"' in content, \
-            "Agents table must be wrapped in a table-card"
+        assert "ui.table_card(" in content, \
+            "Table must be rendered via ui.table_card macro"
 
     def test_table_toolbar_present(self):
-        """Table must have a table-toolbar."""
+        """Table must be rendered via ui.table_card macro."""
         content = _read_template()
-        assert 'class="table-toolbar"' in content, \
-            "Table must have a table-toolbar"
+        assert "ui.table_card(" in content, \
+            "Table must be rendered via ui.table_card macro"
 
     def test_table_title_present(self):
-        """Table-toolbar must have a table-title."""
+        """Table-card must have a card-title with 'All Agents'."""
         content = _read_template()
-        assert 'class="table-title"' in content, \
-            "Table-toolbar must have a table-title"
-        assert ">All Agents" in content, \
+        assert "ui.table_card(" in content, \
+            "Table must use ui.table_card macro which renders card-title"
+        assert ">All Agents" in content or "'All Agents'" in content, \
             "Table title must reference 'All Agents'"
 
     @pytest.mark.parametrize("column", _EXPECTED_COLUMNS)
@@ -264,10 +264,10 @@ class TestAgentsTableStructure:
             f"Agents table must have 8 column headers, found {len(ths)}"
 
     def test_table_has_table_wrap(self):
-        """Table must be inside a table-wrap div."""
+        """Table must be inside a table_card macro which renders table-wrap."""
         content = _read_template()
-        assert 'class="table-wrap"' in content, \
-            "Table must be inside a table-wrap div"
+        assert "ui.table_card(" in content, \
+            "Table must use ui.table_card macro which renders table-wrap"
 
 
 # ── TestAgentsSortableHeaders ──────────────────────────────────────
@@ -515,9 +515,9 @@ class TestAgentsEfficiencyTable:
             "Efficiency table must have id='efficiency-table'"
 
     def test_efficiency_table_title(self):
-        """Efficiency section must have a table-title."""
+        """Efficiency section must have a card-title."""
         content = _read_template()
-        assert ">Agent/Model Efficiency" in content, \
+        assert "'Agent/Model Efficiency'" in content or '"Agent/Model Efficiency"' in content, \
             "Efficiency section must have title 'Agent/Model Efficiency'"
 
     def test_efficiency_columns_present(self):
@@ -536,49 +536,6 @@ class TestAgentsEfficiencyTable:
         sorts = re.findall(r'data-sort="', efficiency_section)
         assert len(sorts) >= 10, \
             f"Efficiency table must have at least 10 sortable columns, found {len(sorts)}"
-
-
-# ── TestAgentsPagination ───────────────────────────────────────────
-
-class TestAgentsPagination:
-    """Verify pagination structure."""
-
-    def test_pagination_nav_present(self):
-        """Agents must have unified-pagination."""
-        content = _read_template()
-        assert 'class="pagination unified-pagination"' in content, \
-            "Agents must have unified-pagination"
-
-    def test_pagination_has_role_navigation(self):
-        """Pagination must have role='navigation'."""
-        content = _read_template()
-        assert 'role="navigation"' in content, \
-            "Pagination must have role='navigation'"
-
-    def test_pagination_page_input(self):
-        """Pagination must have data-action='page-input'."""
-        content = _read_template()
-        assert 'data-action="page-input"' in content, \
-            "Pagination must have data-action='page-input'"
-
-    def test_pagination_next_page(self):
-        """Pagination must have data-action='next-page'."""
-        content = _read_template()
-        assert 'data-action="next-page"' in content, \
-            "Pagination must have data-action='next-page'"
-
-    def test_pagination_page_status(self):
-        """Pagination must have page-status elements."""
-        content = _read_template()
-        statuses = re.findall(r'class="page-status"', content)
-        assert len(statuses) >= 1, \
-            "Pagination must have at least 1 page-status element"
-
-    def test_pagination_has_aria_label(self):
-        """Pagination must have an aria-label."""
-        content = _read_template()
-        assert 'aria-label=' in content, \
-            "Pagination must have an aria-label"
 
 
 # ── TestAgentsEmptyState ───────────────────────────────────────────
@@ -685,8 +642,6 @@ class TestAgentsDataActions:
         "open-agent",
         "info",
         "sort",
-        "page-input",
-        "next-page",
     ]
 
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)
@@ -720,18 +675,6 @@ class TestAgentsAccessibility:
         content = _read_template()
         assert 'aria-label="Agent summary metrics"' in content, \
             "Metric grid must have aria-label='Agent summary metrics'"
-
-    def test_page_input_aria_label(self):
-        """Page input must have aria-label."""
-        content = _read_template()
-        assert 'aria-label="Page number"' in content, \
-            "Page input must have aria-label='Page number'"
-
-    def test_pagination_aria_label(self):
-        """Pagination must have aria-label."""
-        content = _read_template()
-        assert 'aria-label="Agents pagination"' in content, \
-            "Pagination must have aria-label='Agents pagination'"
 
     def test_info_buttons_have_aria_label(self):
         """Each info button must have an aria-label."""

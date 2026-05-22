@@ -101,13 +101,13 @@ class TestSessionsPageHead:
 
     def test_page_head_section_present(self):
         content = _read_sessions()
-        assert 'class="page-head"' in content, \
-            "Sessions must have a page-head section"
+        assert 'ui.page_head(' in content, \
+            "Sessions must use ui.page_head() macro for page header"
 
     def test_page_head_has_h1(self):
         content = _read_sessions()
-        assert "<h1>Sessions</h1>" in content, \
-            "Page-head must contain <h1>Sessions</h1>"
+        assert "'Sessions'" in content, \
+            "Page-head must use 'Sessions' as title argument"
 
     def test_page_head_has_subtitle(self):
         content = _read_sessions()
