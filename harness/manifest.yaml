@@ -17,6 +17,9 @@ quality_gates:
   - name: unit-tests
     command: "./scripts/session-browser.sh test"
     required: true
+  - name: css-ownership
+    command: "python3 scripts/validate_css_ownership.py"
+    required: true
   - name: harness-doctor
     command: "bash scripts/harness/doctor.sh"
     required: true

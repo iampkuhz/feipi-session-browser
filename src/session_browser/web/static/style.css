@@ -2164,14 +2164,7 @@ a.link-muted:hover { color: var(--accent); }
     border-top: 1px solid var(--border-light);
 }
 
-/* Sessions filter card — replaces inline style on filter wrapper */
-.sessions-filter-card {
-    margin-bottom: 12px;
-    padding: 10px 14px;
-}
-.filter-bar__input--date { width: 130px; }
-.filter-bar__input--token { width: 100px; }
-.filter-bar__select--warn { border-color: var(--status-warning); }
+/* .sessions-filter-card moved to sessions-list.css */
 
 /* Responsive: stack filter bar on narrow screens */
 @media (max-width: 900px) {
@@ -2523,22 +2516,7 @@ a.link-muted:hover { color: var(--accent); }
     white-space: nowrap;
 }
 
-/* Project cell: truncate long project names, tooltip shows full path */
-.data-table.sessions-grid .project-cell {
-    overflow: hidden;
-    min-width: 0;
-}
-.data-table.sessions-grid .project-cell a {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.data-table.sessions-grid .project-cell:hover {
-    background: var(--surface-hover, rgba(0,0,0,0.04));
-    border-radius: var(--radius-sm, 4px);
-}
+/* .project-cell moved to projects.css */
 
 /* Session cell with single child: keep vertical alignment stable */
 .data-table.sessions-grid .table-row > div:only-child > .cell-title,
@@ -2857,73 +2835,7 @@ a.link-muted:hover { color: var(--accent); }
     background: var(--panel);
 }
 
-/* ─── State panel (404 / error) ───────────────────────────────── */
-.state-panel {
-    text-align: center;
-    padding: 40px 14px;
-    max-width: 520px;
-    margin: 24px auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-}
-.state-panel__icon {
-    font-size: 40px;
-    font-weight: 700;
-    color: var(--text-muted);
-    line-height: 1;
-    margin-bottom: 12px;
-}
-.state-panel__icon--error {
-    color: var(--status-error);
-    font-size: 36px;
-}
-.state-panel__title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text);
-    margin: 0 0 8px;
-}
-.state-panel__desc {
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    margin: 0 0 20px;
-    line-height: 1.5;
-}
-.state-panel__links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: center;
-}
-.state-panel__link {
-    color: var(--accent);
-    text-decoration: none;
-    font-size: var(--text-sm);
-}
-.state-panel__link:hover {
-    text-decoration: underline;
-}
-.state-panel__details {
-    margin-top: 24px;
-    text-align: left;
-}
-.state-panel__details summary {
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: var(--text-xs);
-}
-.state-panel__raw {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 12px;
-    font-size: var(--text-xs);
-    overflow-x: auto;
-    margin-top: 8px;
-    white-space: pre-wrap;
-    word-break: break-all;
-}
+/* .state-panel moved to states.css */
 
 /* ─── Page sections must not nest inside .card ────────────────── */
 .card .page-section,
@@ -3364,6 +3276,25 @@ a.link-muted:hover { color: var(--accent); }
     color: var(--text-muted);
 }
 
+/* ─── Session detail shell aliases ────────────────────────────── */
+/* .sd-shell and .sd-content are the session-detail-page shell.
+ * They use the same layout tokens as .shell/.content for consistency.
+ * Page-scoped CSS variables (--sd-*) are defined in session-detail.css. */
+.sd-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    min-height: 100vh;
+}
+.sd-shell.no-inspector {
+    grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+.sd-content {
+    padding: var(--space-md) 32px;
+    max-width: var(--max);
+    width: 100%;
+    margin: 0 auto;
+}
+
 /* ─── Utility ─────────────────────────────────────────────────── */
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
@@ -3496,19 +3427,7 @@ a.link-muted:hover { color: var(--accent); }
     gap: 4px;
 }
 
-/* ─── Data Table — token cell ──────────────────────────────── */
-.data-table .token-cell {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-.data-table .token-cell .token-value {
-    color: var(--text-primary);
-}
-.data-table .token-cell .token-delta {
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-}
+/* .token-cell moved to sessions-list.css */
 
 /* ─── Data Table — compact header variant ──────────────────── */
 .data-table--compact th {

@@ -58,6 +58,21 @@ done
 
 python3 -m compileall -q src || fail=1
 
+# CSS ownership validation
+# session-detail-timeline.css is a known deprecated file that triggers a
+# forbidden_filename warning — that one is expected and allowed until it
+# is fully removed from the repo.
+css_output="$(python3 scripts/validate_css_ownership.py 2>&1)" || true
+css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
+css_expected=1  # only the deprecated timeline file is allowed
+if [[ "$css_total" -gt "$css_expected" ]]; then
+  echo "[FAIL] CSS ownership violations: $css_total (expected $css_expected or fewer)" >&2
+  echo "$css_output" >&2
+  fail=1
+else
+  echo "[PASS] CSS ownership validation (${css_total} known warning)"
+fi
+
 # Check that personal/ephemeral files and dirs do NOT exist on disk.
 # Must use `test ! -e` (not git status) because .gitignore hides them.
 local_files=(.claude/settings.local.json .mcp.json .env)

@@ -17,6 +17,8 @@
  * Legacy file kept temporarily for T181-T182 cleanup.
  * ─────────────────────────────────────────────────────────────── */
 
+/* Session-detail page CSS variables (scoped to .session-detail-page).
+ * Shell layout (.sd-shell, .sd-content) is defined in style.css. */
 .sd-shell,
 .session-detail-page {
   --sd-bg: #f6f8fb;
@@ -48,12 +50,6 @@
   --sd-radius-panel: 18px;
 }
 
-.sd-shell {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  min-height: 100vh;
-}
-
 .sd-topbar {
   height: 46px;
   position: sticky;
@@ -65,12 +61,6 @@
   background: rgba(246,248,251,.88);
   border-bottom: 1px solid rgba(216,226,239,.88);
   backdrop-filter: saturate(160%) blur(12px);
-}
-
-.sd-content {
-  padding: 14px 18px 28px;
-  max-width: 1540px;
-  margin: 0 auto;
 }
 
 .sd-btn {
@@ -1158,33 +1148,7 @@
 /* ── v18: trace table (T089 HIFI migration) END ── */
 
 /* ── v17 consolidation: modal, truncation, tool tone, failed status, payload body ── */
-
-.session-detail-page,
-.sd-shell,
-.sd-page {
-  --sd-bg: #f6f8fb;
-  --sd-surface: #fff;
-  --sd-panel: #f8fafc;
-  --sd-line: #d9e2ef;
-  --sd-line-soft: #e8eef6;
-  --sd-text: #111827;
-  --sd-text-2: #334155;
-  --sd-muted: #64748b;
-  --sd-brand: #5b5ce2;
-  --sd-ok: #059669;
-  --sd-ok-bg: #ecfdf5;
-  --sd-ok-line: #bbf7d0;
-  --sd-warn: #d97706;
-  --sd-warn-bg: #fffbeb;
-  --sd-warn-line: #fde68a;
-  --sd-err: #dc2626;
-  --sd-err-bg: #fef2f2;
-  --sd-err-line: #fecaca;
-  --sd-blue: #2563eb;
-  --sd-blue-bg: #eff6ff;
-  --sd-blue-line: #bfdbfe;
-  --sd-mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
-}
+/* CSS variables are already defined in .sd-shell, .session-detail-page above. */
 
 /* 1) Round grid: preserve metric columns under narrow widths. */
 .session-detail-page .sd-round-summary,

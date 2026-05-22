@@ -27,7 +27,6 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 .nav{padding:10px}.nav-label{margin:8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:850}
 .nav-item{height:34px;border-radius:10px;display:flex;align-items:center;gap:8px;padding:0 10px;font-weight:760;font-size:13px;color:var(--text2);text-decoration:none}
 .nav-item.active{background:var(--brand-bg);color:var(--brand)}.nav-dot{width:8px;height:8px;border-radius:999px;background:currentColor;opacity:.58}
-.main{min-width:0}
 .crumb{display:flex;gap:7px;font-size:12px;color:var(--muted)}.crumb strong{color:var(--text2)}
 .hero{border:1px solid var(--line);background:linear-gradient(180deg,#fff,#fbfcff);border-radius:18px;box-shadow:var(--shadow);padding:12px 14px;margin-bottom:10px}
 .hero-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}.hero-id{display:flex;align-items:center;gap:8px;min-width:0}
@@ -203,7 +202,7 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 
 /* v12 session detail class aliases ── */
 .sd-shell,.session-detail-page{background:var(--bg)}
-.sd-content{padding:var(--space-md) 32px;max-width:var(--max);margin:0 auto;width:100%}
+/* .sd-content layout moved to style.css (shell alias layer) */
 .sd-hero{border:1px solid var(--line);background:linear-gradient(180deg,#fff,#fbfcff);border-radius:18px;box-shadow:var(--shadow);padding:12px 14px;margin-bottom:10px}
 .sd-hero__top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}
 .sd-hero__main{min-width:0}
