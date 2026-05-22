@@ -1978,7 +1978,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 has_next=has_next,
             )
             html = self._render_template(
-                "partials/sessions_grid.html",
+                "partials/sessions_ajax_page.html",
                 sessions=sessions_enriched,
                 total_count=total_count,
                 page=page,
@@ -1992,6 +1992,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 sort_dir=raw_dir,
                 actions=actions_ajax,
                 sessions_aggregate=sessions_aggregate,
+                filter_q=filter_q or "",
+                filter_agent=filter_agent or "",
+                filter_model=filter_model or "",
+                filter_project=filter_project or "",
             )
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")

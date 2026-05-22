@@ -394,30 +394,23 @@
         }
 
         /* ── Detail: pagination handlers ─────────────────────── */
-        // Page input: enter key to jump to page
-        var pageInputs = document.querySelectorAll('[data-action="page-input"]');
-        pageInputs.forEach(function(input) {
-            input.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    var pageNum = parseInt(input.value, 10);
-                    if (pageNum > 0) {
-                        navigateToPage(pageNum);
-                    }
-                }
-            });
+        // Listen for page-change events from ui_primitives.js delegation
+        document.addEventListener('page-change', function (event) {
+            var detail = event.detail || {};
+            if (detail.page) {
+                navigateToPage(detail.page);
+            }
         });
 
-        // Next page button
-        var nextPageBtns = document.querySelectorAll('[data-action="next-page"]');
-        nextPageBtns.forEach(function(btn) {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                var href = btn.getAttribute('href');
-                if (href) {
-                    window.location.href = href;
-                }
-            });
+        // Listen for page-size-change events
+        document.addEventListener('page-size-change', function (event) {
+            var detail = event.detail || {};
+            if (detail.pageSize) {
+                var params = new URLSearchParams(window.location.search);
+                params.set('page_size', String(detail.pageSize));
+                params.set('page', '1');
+                window.location.search = params.toString();
+            }
         });
     }
 

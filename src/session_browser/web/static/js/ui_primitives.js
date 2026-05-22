@@ -224,6 +224,19 @@
     }
   });
 
+  // ── Change delegation (page-size select) ─────────────────────────────────
+  document.addEventListener('change', function (event) {
+    var target = event.target;
+    if (target && target.getAttribute('data-action') === 'page-size') {
+      var newSize = parseInt(target.value, 10);
+      if (isNaN(newSize)) return;
+      target.dispatchEvent(new CustomEvent('page-size-change', {
+        bubbles: true,
+        detail: { pageSize: newSize }
+      }));
+    }
+  });
+
   // ── Backdrop click closes modal ─────────────────────────────────────────
   document.addEventListener('click', function (event) {
     var target = event.target;
@@ -301,6 +314,9 @@
 
   // ── Pagination handlers ─────────────────────────────────────────────────
   function handlePageNav(buttonEl, delta) {
+    // Don't navigate if button is disabled
+    if (buttonEl.disabled) return;
+
     var container = closest(buttonEl, '.pagination');
     if (!container) return;
 
@@ -310,8 +326,11 @@
     var current = parseInt(pageInput.value, 10);
     if (isNaN(current)) return;
 
+    // Clamp to total pages if available
+    var totalPages = parseInt(pageInput.getAttribute('data-total-pages'), 10);
     var newVal = current + delta;
     if (newVal < 1) return;
+    if (!isNaN(totalPages) && newVal > totalPages) return;
 
     pageInput.value = newVal;
     pageInput.dispatchEvent(new CustomEvent('page-change', {
@@ -321,10 +340,19 @@
   }
 
   function handlePageInput(inputEl) {
+    // Don't navigate if input is disabled (single-page state)
+    if (inputEl.disabled) return;
+
     var page = parseInt(inputEl.value, 10);
+    var totalPages = parseInt(inputEl.getAttribute('data-total-pages'), 10);
     if (isNaN(page) || page < 1) {
-      inputEl.value = 1;
       page = 1;
+      inputEl.value = 1;
+    }
+    // Clamp to total pages
+    if (!isNaN(totalPages) && page > totalPages) {
+      page = totalPages;
+      inputEl.value = totalPages;
     }
 
     inputEl.dispatchEvent(new CustomEvent('page-change', {

@@ -496,56 +496,13 @@ class TestAgentDetailSessionsSection:
 # -- TestAgentDetailPagination ----------------------------------------------
 
 class TestAgentDetailPagination:
-    """Verify pagination structure."""
+    """Verify pagination uses ui.pagination macro."""
 
     def test_unified_pagination_present(self):
-        """Agent must have unified-pagination."""
+        """Agent must use ui.pagination macro."""
         content = _read_template()
-        assert 'class="pagination unified-pagination"' in content, \
-            "Agent must have unified-pagination"
-
-    def test_pagination_role_navigation(self):
-        """Pagination must have role='navigation'."""
-        content = _read_template()
-        assert 'role="navigation"' in content, \
-            "Pagination must have role='navigation'"
-
-    def test_pagination_aria_label(self):
-        """Pagination must have aria-label."""
-        content = _read_template()
-        assert 'aria-label="Agent sessions pagination"' in content, \
-            "Pagination must have aria-label='Agent sessions pagination'"
-
-    def test_page_input_present(self):
-        """Pagination must have data-action='page-input'."""
-        content = _read_template()
-        assert 'data-action="page-input"' in content, \
-            "Pagination must have data-action='page-input'"
-
-    def test_page_input_aria_label(self):
-        """Page input must have aria-label."""
-        content = _read_template()
-        assert 'aria-label="Page number"' in content, \
-            "Page input must have aria-label='Page number'"
-
-    def test_prev_page_present(self):
-        """Pagination must have data-action='prev-page'."""
-        content = _read_template()
-        assert 'data-action="prev-page"' in content, \
-            "Pagination must have data-action='prev-page'"
-
-    def test_next_page_present(self):
-        """Pagination must have data-action='next-page'."""
-        content = _read_template()
-        assert 'data-action="next-page"' in content, \
-            "Pagination must have data-action='next-page'"
-
-    def test_page_status_present(self):
-        """Pagination must have page-status elements."""
-        content = _read_template()
-        statuses = re.findall(r'class="page-status"', content)
-        assert len(statuses) >= 1, \
-            "Pagination must have at least 1 page-status element"
+        assert "ui.pagination(" in content, \
+            "Agent must use ui.pagination macro for pagination"
 
 
 # -- TestAgentDetailEmptyState ----------------------------------------------
@@ -681,9 +638,6 @@ class TestAgentDetailDataActions:
         "info",
         "sort",
         "open-session",
-        "page-input",
-        "prev-page",
-        "next-page",
     ]
 
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)

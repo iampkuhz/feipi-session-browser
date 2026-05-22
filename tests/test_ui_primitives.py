@@ -115,10 +115,11 @@ class TestMacroMinimalRender:
         assert "Page" in html
 
     def test_pagination_single_page(self):
-        """Single page: omit prev/next buttons."""
+        """Single page: prev/next buttons are disabled."""
         html = _render_macro("pagination", current_page=1, total_pages=1)
-        assert "prev" not in html
-        assert "next" not in html
+        assert 'disabled' in html  # buttons and input should be disabled
+        assert 'data-action="prev-page"' in html
+        assert 'data-action="next-page"' in html
 
     def test_token_bar_renders(self):
         segments = [
@@ -469,19 +470,26 @@ class TestPaginationStructure:
 
     def test_single_page_no_prev_next(self):
         html = _render_macro("pagination", current_page=1, total_pages=1)
-        # Should only have page status and input, no prev/next buttons
-        assert "prev-page" not in html
-        assert "next-page" not in html
+        # Both buttons present but disabled on single page
+        assert "prev-page" in html
+        assert "next-page" in html
+        assert 'disabled' in html
 
     def test_first_page_no_prev(self):
         html = _render_macro("pagination", current_page=1, total_pages=5)
-        assert "prev-page" not in html
+        # prev button present but disabled on first page
+        assert "prev-page" in html
         assert "next-page" in html
+        # Check prev button is disabled
+        assert 'data-action="prev-page"' in html
+        assert html.count('disabled') >= 1  # at least prev button disabled
 
     def test_last_page_no_next(self):
         html = _render_macro("pagination", current_page=5, total_pages=5)
+        # next button present but disabled on last page
         assert "prev-page" in html
-        assert "next-page" not in html
+        assert "next-page" in html
+        assert 'data-action="next-page"' in html
 
     def test_page_input_has_class(self):
         html = _render_macro("pagination", current_page=1, total_pages=3)

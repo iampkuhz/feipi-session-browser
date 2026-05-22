@@ -742,9 +742,6 @@ body.sidebar-collapsed .sidebar-toggle-expand {
     display: flex;
     align-items: center;
     padding: 0 20px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
     gap: 12px;
 }
 .topbar-title {
@@ -1037,7 +1034,8 @@ body.focus .shell.phase1-shell,
 
 /* ─ Sessions list: no-inspector main area ── */
 .shell.no-inspector .main {
-    padding: var(--space-md);
+    padding: 0;
+    padding-bottom: var(--space-md);
 }
 
 /* ─── Metric section labels ───────────────────────────────────── */

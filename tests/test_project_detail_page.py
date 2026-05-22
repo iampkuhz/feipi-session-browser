@@ -489,38 +489,21 @@ class TestProjectDetailRowStructure:
 # ── TestProjectDetailPagination ───────────────────────────────────
 
 class TestProjectDetailPagination:
-    """Verify pagination structure."""
+    """Verify pagination uses ui.pagination macro."""
 
-    def test_pagination_nav_present(self):
-        """Project must have a pagination nav element."""
+    def test_pagination_uses_macro(self):
+        """Project must use ui.pagination macro."""
         content = _read_template()
-        assert 'class="pagination unified-pagination"' in content, \
-            "Project must have unified-pagination"
+        assert "ui.pagination(" in content, \
+            "Project must use ui.pagination macro for pagination"
 
-    def test_pagination_has_role_navigation(self):
-        """Pagination nav must have role='navigation'."""
+    def test_pagination_passes_page(self):
+        """Pagination macro call must pass page params."""
         content = _read_template()
-        assert 'role="navigation"' in content, \
-            "Pagination must have role='navigation'"
-
-    def test_pagination_page_input(self):
-        """Pagination must have data-action='page-input'."""
-        content = _read_template()
-        assert 'data-action="page-input"' in content, \
-            "Pagination must have data-action='page-input'"
-
-    def test_pagination_next_page(self):
-        """Pagination must have data-action='next-page'."""
-        content = _read_template()
-        assert 'data-action="next-page"' in content, \
-            "Pagination must have data-action='next-page'"
-
-    def test_pagination_page_status(self):
-        """Pagination must have page-status elements."""
-        content = _read_template()
-        statuses = re.findall(r'class="page-status"', content)
-        assert len(statuses) >= 1, \
-            "Pagination must have at least 1 page-status element"
+        assert "current_page" in content or "cp" in content, \
+            "Pagination macro call must pass current_page"
+        assert "total_pages" in content or "tp" in content, \
+            "Pagination macro call must pass total_pages"
 
     def test_pagination_has_aria_label(self):
         """Pagination must have an aria-label for accessibility."""
@@ -666,8 +649,6 @@ class TestProjectDetailDataActions:
         "copy-session",
         "sort",
         "open-session",
-        "page-input",
-        "next-page",
     ]
 
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)

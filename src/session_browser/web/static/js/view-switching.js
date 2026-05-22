@@ -191,7 +191,9 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
 
     /* ─── Wide table scroll hints ────────────────────────────── */
     document.addEventListener('scroll', function(e) {
-        var wrap = e.target.closest('.table-wrap');
+        var target = e.target;
+        if (!target || target.nodeType !== 1) return;
+        var wrap = target.closest('.table-wrap');
         if (!wrap) return;
         var isAtRight = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 2;
         if (isAtRight) {

@@ -430,7 +430,9 @@ class TestPaginationTemplate:
         """Pagination should use <a> links, not button forms."""
         content = _read_sessions_templates()
         assert 'name="page"' not in content or 'value="prev"' not in content
-        assert 'actions.prev_url' in content or 'actions.next_url' in content
+        # sessions.html uses ui.pagination macro which generates button-based pagination
+        assert "ui.pagination(" in content, \
+            "Sessions must use ui.pagination macro"
 
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()

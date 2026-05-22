@@ -34,9 +34,8 @@
             <div class="sessions-td">
                 <div class="sessions-cell-main">
                     <div class="sessions-project-name">
-                        <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}">{{ s.project_name }}</a>
+                        <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | display_path }}">{{ s.project_name }}</a>
                     </div>
-                    {% if s.cwd %}<div class="sessions-project-parent">{{ s.cwd | display_path }}</div>{% endif %}
                 </div>
             </div>
             <!-- Agent -->
@@ -68,17 +67,16 @@
         {% endfor %}
     </div>
     {% if total_count is defined and total_count > 0 %}
+    {% set is_single_page = total_pages <= 1 %}
+    {% set is_first_page = page <= 1 %}
+    {% set is_last_page = page >= total_pages %}
     <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination">
-        {%- if has_prev %}
-        <button class="btn sm" data-action="prev-page" aria-label="Previous page">&lsaquo; prev</button>
-        {%- endif %}
+        <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>
         <span class="page-status">Page</span>
-        <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ page }}" title="输入页码后按 Enter，跳转到指定页" />
+        <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ page }}" title="输入页码后按 Enter，跳转到指定页"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ total_pages }}" />
         <span class="page-status">of {{ total_pages }} · {{ page_start }}–{{ page_end }} of {{ total_count | format_compact_token if total_count >= 1000 else total_count }} sessions</span>
         <span class="spacer"></span>
-        {%- if has_next %}
-        <button class="btn sm" data-action="next-page" aria-label="Next page">next &rsaquo;</button>
-        {%- endif %}
+        <button class="btn sm" data-action="next-page" aria-label="Next page"{% if is_last_page or is_single_page %} disabled{% endif %}>next &rsaquo;</button>
     </nav>
     {% endif %}
 </div>
