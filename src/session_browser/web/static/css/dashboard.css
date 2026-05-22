@@ -109,6 +109,11 @@
   display: flex;
   gap: 12px;
   align-items: center;
+  justify-content: space-between;
+}
+.chart-card__head > :first-child {
+  flex: 1;
+  min-width: 0;
 }
 .chart-card__title-row {
   display: flex;
@@ -133,7 +138,6 @@
   gap: 12px;
   align-items: center;
   justify-content: flex-end;
-  margin-top: 10px;
   margin-bottom: 6px;
 }
 .legend-item {

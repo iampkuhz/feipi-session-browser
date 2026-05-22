@@ -13,13 +13,15 @@
             </div>
             <p class="chart-card__subtitle" data-subtitle="{{ chart_type }}">{{ subtitle }}</p>
         </div>
+        {% if data %}
+        <div class="legend-row">
+            <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--claude"></span>Claude Code</span>
+            <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--codex"></span>Codex</span>
+            <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--qoder"></span>Qoder</span>
+        </div>
+        {% endif %}
     </div>
     {% if data %}
-    <div class="legend-row">
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--claude"></span>Claude Code</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--codex"></span>Codex</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--qoder"></span>Qoder</span>
-    </div>
     <div class="chart-container" id="{{ chart_id }}" data-dashboard-chart></div>
     {% else %}
     <p class="text-muted text-sm chart-empty">No trend data. Run <code class="mono">scan</code> first.</p>
