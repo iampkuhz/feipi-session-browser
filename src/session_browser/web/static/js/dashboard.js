@@ -5,7 +5,6 @@
  *   - Chart scope switching (Day / Week / Month) via data-scope delegation
  *   - Chart range buttons (30d / 7d → 1d / 3d / 7d / 30d for Day scope)
  *   - Info button popover toggle (metric & chart card tooltips)
- *   - Chart menu toggle (export / detail / copy link)
  *   - Settings drawer open / close
  *   - Density toggle (delegates to ViewState)
  *
@@ -15,7 +14,6 @@
  * Routing:
  *   data-action="open-settings"   -> open settings drawer
  *   data-action="close-settings"  -> close settings drawer
- *   data-action="chart-menu"      -> open chart action menu popover
  *   data-action="density-toggle"  -> delegate to ViewState.toggleDensity()
  *   data-scope="day|week|month"   -> scope switch (Day/Week/Month)
  *
@@ -23,12 +21,10 @@
  *
  * Target DOM elements (contract):
  *   - #infoPopover     — info tooltip overlay
- *   - #menuPopover     — chart action menu overlay
  *   - #settingsDrawer  — settings slide-out drawer
  *   - .scope-switch__btn[data-scope] — scope switch buttons
  *   - .range-btn[data-range] / .range-btn[data-action="chart-range"] — range tabs
  *   - .icon-button--info[data-info] — info buttons
- *   - .icon-button--ghost[data-action="chart-menu"] — chart menu buttons
  */
 (function () {
     'use strict';
@@ -120,26 +116,6 @@
         var rect = button.getBoundingClientRect();
         infoPopover.style.left = Math.min(window.innerWidth - 320, rect.left) + 'px';
         infoPopover.style.top = (rect.bottom + 10) + 'px';
-    }
-
-    /** Position and show the chart menu popover. */
-    function showChartMenu(button) {
-        hideFloating();
-        if (!menuPopover) return;
-
-        var chartName = button.getAttribute('data-chart') || 'chart';
-        var menuHtml = '';
-        menuHtml += '<button type="button" data-action="chart-export" data-chart="' + chartName + '">Export PNG preview</button>';
-        menuHtml += '<button type="button" data-action="chart-detail" data-chart="' + chartName + '">Open detail analytics</button>';
-        menuHtml += '<button type="button" data-action="chart-copy-link" data-chart="' + chartName + '">Copy chart link</button>';
-        menuPopover.innerHTML = menuHtml;
-        menuPopover.style.display = '';
-        menuPopover.setAttribute('aria-hidden', 'false');
-        menuPopover.classList.add('is-visible');
-
-        var rect = button.getBoundingClientRect();
-        menuPopover.style.left = Math.min(window.innerWidth - 240, rect.left - 180) + 'px';
-        menuPopover.style.top = (rect.bottom + 8) + 'px';
     }
 
     /* ── Settings drawer ───────────────────────────────────────── */
@@ -291,7 +267,6 @@
         if (menuPopover && menuPopover.contains(target)) return;
         // Don't close if clicking the trigger button itself
         if (target.closest && target.closest('.icon-button--info')) return;
-        if (target.closest && target.closest('[data-action="chart-menu"]')) return;
         hideFloating();
     }
 
@@ -331,10 +306,6 @@
 
         // Route by data-action
         switch (action) {
-            case 'chart-menu':
-                showChartMenu(button);
-                break;
-
             case 'open-settings':
                 openSettings();
                 break;
@@ -353,7 +324,7 @@
             case 'chart-export':
             case 'chart-detail':
             case 'chart-copy-link':
-                // Menu item actions — show toast
+                // Legacy menu item actions — show toast and close
                 var chartType = button.getAttribute('data-chart') || 'chart';
                 var labels = {
                     'chart-export': 'Export PNG preview',
@@ -449,7 +420,6 @@
         openSettings: openSettings,
         closeSettings: closeSettings,
         showInfoPopover: showInfoPopover,
-        showChartMenu: showChartMenu,
         hideFloating: hideFloating
     };
 

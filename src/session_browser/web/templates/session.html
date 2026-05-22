@@ -2,25 +2,13 @@
 {% import "components/session_detail_primitives.html" as sdp %}
 {% import "components/session_detail_timeline.html" as sdt %}
 {% import "components/ui_primitives.html" as ui %}
+{% set hide_sidebar_extra = true %}
+{% set hide_payload_modal = true %}
+{% set hide_sidebar_nav = true %}
 
 {% block title %}{{ session.title[:80] or 'Untitled' }} - Agent Run Profiler{% endblock %}
 
 {% block shell_class %}sd-shell session-detail-page{% endblock %}
-
-{% block topbar_extras %}{% endblock %}
-
-{% block sidebar_nav %}
-<div class="nav-label">Core</div>
-<a class="nav-item active" href="/sessions">
-    <span class="nav-dot"></span> Sessions
-</a>
-{% endblock %}
-
-{% block sidebar_extra %}{% endblock %}
-
-{% block legacy_payload_modal %}{% endblock %}
-
-{% block topbar_toggles %}{% endblock %}
 
 {% block breadcrumb %}
 Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span> {{ current_agent }} <span class="sep">/</span> <b>{{ session.session_id[-8:] if session.session_id else 'unknown' }}</b>

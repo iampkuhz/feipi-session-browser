@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% set active_page = 'glossary' %}
+{% set hide_sidebar_extra = true %}
 
 {% block title %}术语表 - Agent Run Profiler{% endblock %}
+
+{% block shell_class %} no-inspector{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/glossary.css">

@@ -1,8 +1,11 @@
 {% extends "base.html" %}
-{% import "components/ui_primitives.html" as ui %}
 {% set active_page = 'agents' %}
+{% set hide_sidebar_extra = true %}
+{% import "components/ui_primitives.html" as ui %}
 
 {% block title %}{{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }} - Agent Run Profiler{% endblock %}
+
+{% block shell_class %} no-inspector{% endblock %}
 
 {% block breadcrumb %}
 <a href="/dashboard">Dashboard</a>

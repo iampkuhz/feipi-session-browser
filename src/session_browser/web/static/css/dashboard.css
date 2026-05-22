@@ -7,70 +7,23 @@
  * Dependencies:
  *   - ui-primitives.css (token variables, button, icon-button, tooltip,
  *     popover, toast, pagination, metric-card, metric-grid, badge)
- *   - common-hifi-rules.css (shared alignment, flex, display rules)
+ *   - style.css (app shell: .sidebar, .topbar, .footer, .breadcrumb,
+ *     .brand-card, .nav-list — these are now single-source in base.html)
  *
  * Contract:
- *   - Do NOT duplicate rules from ui-primitives.css.
+ *   - Do NOT duplicate rules from ui-primitives.css or style.css shell.
  *   - Use token variables (--bg, --surface, --line, --purple, --shadow,
  *     --radius-*, --hifi-icon-*) exclusively. No hardcoded colors.
  *   - Page-specific layout and component styles only.
  *
  * Covers:
- *   - App shell layout (.app-shell, .sidebar, .main-panel, .topbar)
- *   - Page head (.page-head, .breadcrumb)
+ *   - Page head (.page-head)
  *   - Scope switch (.scope-switch, .scope-switch__btn)
  *   - Chart stack & cards (.chart-stack, .chart-card, .chart-card__head, ...)
  *   - Chart bars & axes (.chart-wrap, .y-axis, .stacked-chart, .chart-group)
  *   - Legend (.legend-row, .legend-item, .legend-dot)
- *   - Footer (.footer)
- *   - Overlay containers (.drawer, .drawer__panel, .drawer__head, .drawer__body)
  *   - v16 backward compat (.hero, .hero-kpi, .chart, .plot, .bar, .x-axis)
  * ====================================================================== */
-
-/* ── App Shell Layout =================================================== */
-
-.app-shell {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-}
-
-.sidebar {
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(10px);
-  border-right: 1px solid var(--line);
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.main-panel {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.topbar {
-  height: 60px;
-  display: flex;
-  align-items: center;
-  padding: 0 28px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.8);
-}
-
-/* ── Breadcrumb (in topbar) ============================================= */
-
-.breadcrumb {
-  font-size: 15px;
-  color: var(--text-subtle);
-  font-weight: 600;
-}
-.breadcrumb span {
-  margin: 0 10px;
-  color: #9ba5b9;
-}
 
 /* ── Content Width Constraint ============================================ */
 /* All top-level dashboard sections share the same max-width so their
@@ -79,19 +32,14 @@
 
 .page-head,
 .metric-grid,
-.chart-card,
-.footer {
+.chart-card {
   width: 100%;
   max-width: 1360px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* ── Content: zero padding on dashboard so items align to panel edges ── */
-.content {
-  padding: 0;
-  max-width: none;
-}
+/* ── Content: use global .content padding from style.css ── */
 
 /* ── Page Head =========================================================== */
 
@@ -344,14 +292,7 @@
   white-space: nowrap;
 }
 
-/* ── Footer =============================================================== */
-
-.footer {
-  padding: 6px 0 20px;
-  color: var(--text-subtle);
-  font-size: 13px;
-  text-align: center;
-}
+/* ── Footer: single-source in base.html + style.css; no page override ── */
 
 /* ── Drawer (settings panel) ============================================== */
 

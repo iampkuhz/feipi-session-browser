@@ -1,8 +1,35 @@
 {% extends "base.html" %}
 {% set active_page = 'dashboard' %}
+{% set hide_sidebar_extra = true %}
 {% import "components/ui_primitives.html" as ui %}
 
+{% macro chart_card(chart_type, title, subtitle, data, chart_id) %}
+<section class="chart-card" data-chart-card="{{ chart_type }}">
+    <div class="chart-card__head">
+        <div>
+            <div class="chart-card__title-row">
+                <h2>{{ title }}</h2>
+                <button class="icon-button icon-button--info" data-action="info-chart-{{ chart_type }}" data-info="chart-{{ chart_type }}" title="点击后显示当前指标或图表的解释浮层" aria-label="{{ title }} 图表说明">&#x2139;&#xFE0F;</button>
+            </div>
+            <p class="chart-card__subtitle" data-subtitle="{{ chart_type }}">{{ subtitle }}</p>
+        </div>
+    </div>
+    {% if data %}
+    <div class="legend-row">
+        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--claude"></span>Claude Code</span>
+        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--codex"></span>Codex</span>
+        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--qoder"></span>Qoder</span>
+    </div>
+    <div class="chart-container" id="{{ chart_id }}" data-dashboard-chart></div>
+    {% else %}
+    <p class="text-muted text-sm chart-empty">No trend data. Run <code class="mono">scan</code> first.</p>
+    {% endif %}
+</section>
+{% endmacro %}
+
 {% block title %}Dashboard - Agent Run Profiler{% endblock %}
+
+{% block shell_class %} no-inspector{% endblock %}
 
 {% block breadcrumb %}
 <span class="current">Dashboard</span>
@@ -15,8 +42,6 @@
 {% block script_extra %}
 <script src="/static/js/dashboard.js"></script>
 {% endblock %}
-
-{% block topbar_toggles %}{% endblock %}
 
 {% block content %}
 
@@ -92,76 +117,31 @@
 </section>
 
 <!-- Session Trend -->
-<section class="chart-card" data-chart-card="sessions">
-    <div class="chart-card__head">
-        <div>
-            <div class="chart-card__title-row">
-                <h2>Session Trend</h2>
-                <button class="icon-button icon-button--info" data-action="info-chart-sessions" data-info="chart-sessions" title="点击后显示当前指标或图表的解释浮层" aria-label="Session Trend 图表说明">&#x2139;&#xFE0F;</button>
-            </div>
-            <p class="chart-card__subtitle" data-subtitle="sessions">Daily session count by agent</p>
-        </div>
-        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="sessions" title="Chart actions: export preview, open detail, copy link" aria-label="Session Trend chart menu">⋯</button>
-    </div>
-    {% if trend %}
-    <div class="legend-row">
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--claude"></span>Claude Code</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--codex"></span>Codex</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--qoder"></span>Qoder</span>
-    </div>
-    <div class="chart-container" id="trend-chart" data-dashboard-chart></div>
-    {% else %}
-    <p class="text-muted text-sm chart-empty">No trend data. Run <code class="mono">scan</code> first.</p>
-    {% endif %}
-</section>
+{{ chart_card(
+    chart_type="sessions",
+    title="Session Trend",
+    subtitle="Daily session count by agent",
+    data=trend,
+    chart_id="trend-chart"
+) }}
 
 <!-- Token Trend -->
-<section class="chart-card" data-chart-card="tokens">
-    <div class="chart-card__head">
-        <div>
-            <div class="chart-card__title-row">
-                <h2>Token Trend</h2>
-                <button class="icon-button icon-button--info" data-action="info-chart-tokens" data-info="chart-tokens" title="点击后显示当前指标或图表的解释浮层" aria-label="Token Trend 图表说明">&#x2139;&#xFE0F;</button>
-            </div>
-            <p class="chart-card__subtitle" data-subtitle="tokens">Daily token usage by agent</p>
-        </div>
-        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="tokens" title="Chart actions: export preview, open detail, copy link" aria-label="Token Trend chart menu">⋯</button>
-    </div>
-    {% if trend %}
-    <div class="legend-row">
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--claude"></span>Claude Code</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--codex"></span>Codex</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--qoder"></span>Qoder</span>
-    </div>
-    <div class="chart-container" id="token-trend-chart" data-dashboard-chart></div>
-    {% else %}
-    <p class="text-muted text-sm chart-empty">No trend data. Run <code class="mono">scan</code> first.</p>
-    {% endif %}
-</section>
+{{ chart_card(
+    chart_type="tokens",
+    title="Token Trend",
+    subtitle="Daily token usage by agent",
+    data=trend,
+    chart_id="token-trend-chart"
+) }}
 
 <!-- Prompt Activity Trend -->
-<section class="chart-card" data-chart-card="prompts">
-    <div class="chart-card__head">
-        <div>
-            <div class="chart-card__title-row">
-                <h2>Prompt Activity Trend</h2>
-                <button class="icon-button icon-button--info" data-action="info-chart-prompts" data-info="chart-prompts" title="点击后显示当前指标或图表的解释浮层" aria-label="Prompt Activity Trend 图表说明">&#x2139;&#xFE0F;</button>
-            </div>
-            <p class="chart-card__subtitle" data-subtitle="prompts">Daily user-initiated inputs by agent</p>
-        </div>
-        <button class="icon-button icon-button--ghost" data-action="chart-menu" data-chart="prompts" title="Chart actions: export preview, open detail, copy link" aria-label="Prompt Activity Trend chart menu">⋯</button>
-    </div>
-    {% if prompt_activity %}
-    <div class="legend-row">
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--claude"></span>Claude Code</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--codex"></span>Codex</span>
-        <span class="legend-item" aria-hidden="true"><span class="legend-dot legend-dot--qoder"></span>Qoder</span>
-    </div>
-    <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart></div>
-    {% else %}
-    <p class="text-muted text-sm chart-empty">No prompt activity data. Run <code class="mono">scan</code> first.</p>
-    {% endif %}
-</section>
+{{ chart_card(
+    chart_type="prompts",
+    title="Prompt Activity Trend",
+    subtitle="Daily user-initiated inputs by agent",
+    data=prompt_activity,
+    chart_id="prompt-activity-chart"
+) }}
 
 {% endif %}{# /stats.total_sessions == 0 #}
 {% endif %}{# /error #}

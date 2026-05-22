@@ -55,7 +55,7 @@
                 </div>
             </div>
             <nav class="nav-list" aria-label="主导航">
-                {% block sidebar_nav %}
+                {% if not hide_sidebar_nav %}
                 <a class="nav-item{% if active_page == 'dashboard' %} is-active{% endif %}" href="/dashboard" data-action="nav-dashboard" data-target="dashboard">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4CA;</span><span>Dashboard</span>
                 </a>
@@ -71,10 +71,12 @@
                 <a class="nav-item{% if active_page == 'glossary' %} is-active{% endif %}" href="/glossary" data-action="nav-glossary" data-target="glossary">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4D8;</span><span>Token Glossary</span>
                 </a>
-                {% endblock %}
+                {% elif sidebar_nav_html is defined %}
+                {{ sidebar_nav_html | safe }}
+                {% endif %}
             </nav>
 
-            {% block sidebar_extra %}
+            {% if not hide_sidebar_extra %}
             <!-- Round Map (not rendered on session detail pages) -->
             <div class="round-map">
                 <div class="nav-label">Round Map</div>
@@ -92,7 +94,7 @@
                     </div>
                 {% endif %}
             </div>
-            {% endblock %}
+            {% endif %}
         </aside>
 
         <!-- Main: grid column 2 -->
@@ -105,12 +107,6 @@
                     {% endblock %}
                 </div>
                 <div class="top-actions" aria-label="全局操作">
-                    {% block topbar_toggles %}
-                    <!-- Density toggle -->
-                    <button id="density-toggle" class="density-toggle" data-action="toggle-density" aria-pressed="false" title="当前：紧凑 · 点击切换为宽松" aria-label="密度切换">
-                        <span class="density-toggle__label" aria-hidden="true">紧凑</span>
-                    </button>
-                    {% endblock %}
                     {% block topbar_actions %}{% endblock %}
                 </div>
             </header>
@@ -165,6 +161,7 @@
     <script src="/static/js/view-switching.js"></script>
     {% endif %}
 
+{% if not hide_payload_modal %}
 {% block legacy_payload_modal %}
 <!-- ── Payload Modal (always available) ────────────────────── -->
 <dialog id="payload-modal" class="payload-modal" aria-labelledby="payload-modal-title" aria-label="Payload viewer">
@@ -182,6 +179,7 @@
   </div>
 </dialog>
 {% endblock %}
+{% endif %}
 
 </body>
 </html>

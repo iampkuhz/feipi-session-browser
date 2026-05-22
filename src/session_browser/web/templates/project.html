@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% set active_page = 'projects' %}
+{% set hide_sidebar_extra = true %}
 {% import "components/ui_primitives.html" as ui %}
 
 {% block title %}{{ project.project_name }} - Agent Run Profiler{% endblock %}
+
+{% block shell_class %} no-inspector{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/projects.css">

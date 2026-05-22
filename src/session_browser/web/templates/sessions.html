@@ -2,14 +2,11 @@
 {% import "components/ui_primitives.html" as ui %}
 {% import "components/sessions_list_components.html" as sl %}
 {% set active_page = 'sessions' %}
+{% set hide_sidebar_extra = true %}
 
 {% block title %}Sessions - Agent Run Profiler{% endblock %}
 
 {% block shell_class %} no-inspector{% endblock %}
-{% block inspector %}{% endblock %}
-
-{% block sidebar_extra %}{% endblock %}
-{% block topbar_toggles %}{% endblock %}
 
 {% block breadcrumb %}
 <a href="/dashboard">Dashboard</a>
@@ -28,7 +25,7 @@
 
 {% block content %}
 
-<section class="content sessions-page">
+<section class="sessions-page">
 
 <!-- Page header -->
 <section class="page-head">

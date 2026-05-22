@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% set active_page = 'projects' %}
+{% set hide_sidebar_extra = true %}
 {% import "components/ui_primitives.html" as ui %}
 
 {% block title %}Projects - Agent Run Profiler{% endblock %}
+
+{% block shell_class %} no-inspector{% endblock %}
 
 {% block breadcrumb %}
 <a href="/dashboard">Dashboard</a>
