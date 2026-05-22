@@ -97,9 +97,7 @@
 </section>
 
 <!-- Table card -->
-<section class="card table-card">
-    {{ ui.table_toolbar('All Sessions') }}
-    <div class="table-wrap">
+{% call ui.table_card('All Sessions', search_placeholder='🔎 Search by title, project, session ID...') %}
         <table class="data-table" role="table" aria-label="Sessions table">
             <thead>
                 <tr>
@@ -215,7 +213,6 @@
                 {% endif %}
             </tbody>
         </table>
-    </div>
     {% if total_count is defined and total_count > 0 %}
     {% set total_pages = ((total_count + page_size - 1) / page_size) | int %}
     <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
@@ -231,7 +228,7 @@
         {%- endif %}
     </nav>
     {% endif %}
-</section>
+{% endcall %}
 
 </div>
 

@@ -120,7 +120,7 @@
 <!-- Projects data table: 6 columns, sortable headers, token bars -->
 <section class="page-section">
     {% if projects %}
-    {% call ui.table_card('All Projects', subtitle='<span class="text-muted">(<span id="project-count">{{ projects | length }}</span>)</span>') %}
+    {% call ui.table_card('All Projects', subtitle='(<span id="project-count">' ~ projects | length ~ '</span>)') %}
             <table id="projects-table" class="data-table" data-table-enhanced>
                 <thead>
                     <tr>

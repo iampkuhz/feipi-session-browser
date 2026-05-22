@@ -760,7 +760,69 @@ a.btn:focus-visible {
 }
 .menu-popover button:hover { background: #f5f7fd; }
 
-/* === DataTable (canonical table primitives) ============================== */
+/* ── TableCard + scrollable table-wrap ────────────────────── */
+/* .table-card constrains to page width; .table-wrap can exceed
+ * it and scrolls horizontally. The inner .data-table uses
+ * min-width: max-content so columns keep their natural width. */
+
+.card.table-card {
+  overflow: hidden;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+/* When a table sits inside a scrollable .table-wrap, let it
+ * grow beyond the card width instead of squishing columns. */
+.table-wrap > .data-table {
+  min-width: max-content;
+}
+
+/* Sticky first column when table scrolls horizontally:
+ * Apply via <th class="sticky-col"> / <td class="sticky-col"> */
+.table-wrap > .data-table th.sticky-col,
+.table-wrap > .data-table td.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+}
+.table-wrap > .data-table thead th.sticky-col {
+  z-index: 4;
+}
+
+/* ── Scrollable cell content (inside td) ─────────────────── */
+/* .cell-scroll wraps td content that may overflow horizontally.
+ * It scrolls within the cell boundary without affecting table layout.
+ * Only activates when content exceeds the column's available width. */
+.cell-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  min-width: 0;
+  display: block;
+}
+
+/* Reset overflow/truncate on direct children so content can
+ * actually overflow and trigger the scroll on .cell-scroll. */
+.cell-scroll > * {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  max-width: none;
+}
+
+/* Preserve nowrap for .mono children (numbers, tokens, etc.)
+ * while allowing horizontal overflow to scroll. */
+.cell-scroll > .mono {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+/* ── DataTable (canonical table primitives) ============================== */
 .data-table {
   border-collapse: separate;
   border-spacing: 0;

@@ -347,7 +347,7 @@
 {# ============================================================================
    DataTable (T034 pass 3)
    Renders a complete data table with thead and tbody.
-   headers: list of dicts with keys: label, key, sortable (bool), align (left|right)
+   headers: list of dicts with keys: label, key, sortable (bool), align (left|right), min_width (CSS value, e.g. '180px')
    rows: list of dicts, keyed by header key; each value can be a string or dict with html/markup
    sortable: global toggle for all headers (default None = per-header)
    extra_classes: additional CSS classes on the <table>
@@ -361,6 +361,11 @@
   {%- endif -%}
   {%- set cls = classes | join(' ') -%}
 <table class="{{ cls }}">
+  <colgroup>
+    {%- for h in headers %}
+    <col{% if h.min_width %} style="min-width:{{ h.min_width }}"{% endif %}>
+    {%- endfor %}
+  </colgroup>
   <thead>
     <tr>
       {%- for h in headers %}
@@ -376,7 +381,7 @@
         {%- if h.key -%}
           {%- set _ = col_classes.append('col-' ~ h.key) -%}
         {%- endif -%}
-      <th class="{{ col_classes | join(' ') }}"{%- if h_sortable %} data-action="sort" data-sort-key="{{ h.key }}" role="columnheader" aria-sort="none" tabindex="0"{% else %} role="columnheader"{% endif %} scope="col">
+      <th class="{{ col_classes | join(' ') }}"{%- if h_sortable %} data-action="sort" data-sort-key="{{ h.key }}" role="columnheader" aria-sort="none" tabindex="0"{% else %} role="columnheader"{% endif %}{% if h.min_width %} style="min-width:{{ h.min_width }}"{% endif %} scope="col">
         {{ h.label }}
         {%- if h_sortable %} <span class="sort-mark" aria-hidden="true">↕</span>{% endif -%}
       </th>
@@ -398,7 +403,7 @@
         {%- else -%}
           {%- set cell_html = cell -%}
         {%- endif -%}
-      <td class="{{ td_classes | join(' ') }}">{{ cell_html }}</td>
+      <td class="{{ td_classes | join(' ') }}"{% if h.min_width %} style="min-width:{{ h.min_width }}"{% endif %}><div class="cell-scroll">{{ cell_html }}</div></td>
       {%- endfor %}
     </tr>
     {%- endfor %}
