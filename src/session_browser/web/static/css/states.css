@@ -106,7 +106,7 @@
     overflow-x: auto;
     margin-top: 8px;
     white-space: pre-wrap;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     line-height: 1.5;
     color: var(--text);
 }

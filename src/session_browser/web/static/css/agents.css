@@ -78,7 +78,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font: 700 12px var(--sans);
+  font: 700 12px var(--font-sans);
   color: var(--text);
   background: var(--surface-soft);
   border: 1px solid var(--line);
@@ -154,7 +154,7 @@
   min-width: 140px;
 }
 .token-total {
-  font: 700 13px var(--mono);
+  font: 700 13px var(--font-mono);
   margin-bottom: 2px;
 }
 
@@ -317,7 +317,7 @@
   gap: 12px;
 }
 .metric-card__value {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 19px;
   line-height: 1.15;
   font-weight: 900;
@@ -439,7 +439,7 @@
   color: white;
   padding: 8px 10px;
   border-radius: 9px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 11px;
   z-index: 10;
   box-shadow: 0 12px 30px rgba(16, 24, 40, .22);
@@ -534,7 +534,7 @@
   margin-right: auto;
 }
 .tip-row .val {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-weight: 850;
 }
 .tip-sep {

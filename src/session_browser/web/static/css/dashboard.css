@@ -331,7 +331,7 @@
   box-shadow: var(--shadow);
 }
 .hero-kpi b {
-  font: 900 16px/1.05 var(--mono, 'SF Mono', monospace);
+  font: 900 16px/1.05 var(--font-mono);
 }
 .hero-kpi span {
   display: block;
@@ -452,7 +452,7 @@
   border-radius: 12px;
   background: #0f172a;
   color: #fff;
-  font: 12px/1.45 var(--mono, 'SF Mono', monospace);
+  font: 12px/1.45 var(--font-mono);
   opacity: 0;
   pointer-events: none;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.24);
@@ -502,7 +502,7 @@
   gap: 0;
   padding: 8px 6px 0;
   color: #91a1ba;
-  font: 12px var(--mono, 'SF Mono', monospace);
+  font: 12px var(--font-mono);
 }
 .x-axis > span {
   text-align: center;

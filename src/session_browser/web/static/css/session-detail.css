@@ -40,8 +40,8 @@
   --sd-cyan: #0891b2;
   --sd-shadow: 0 10px 26px rgba(15,23,42,.065);
   --sd-shadow-sm: 0 1px 3px rgba(15,23,42,.07);
-  --sd-font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Noto Sans SC", sans-serif;
-  --sd-mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sd-font: var(--font-sans);
+  --sd-mono: var(--font-mono);
 
   --sd-h-btn-sm: 28px;
   --sd-h-btn-md: 30px;

@@ -55,7 +55,7 @@
 .sessions-page .sessions-th__sort-btn{min-height:25px;border:1px solid transparent;background:transparent;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;display:flex;align-items:center;gap:6px;padding:0 5px;margin-left:-5px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .sessions-page .sessions-th__sort-btn:hover,.sessions-page .sessions-th__sort-btn:focus-visible{outline:0;border-color:#dfe3ff;background:#fff;color:var(--sessions-brand);box-shadow:0 1px 3px rgba(15,23,42,.7)}
 .sessions-page .sessions-th__sort-btn:hover{text-decoration:none}
-.sessions-page .sessions-sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);font-size:11px;font-weight:900}
+.sessions-page .sessions-sort-icon{width:18px;height:18px;border-radius:7px;background:#eff1ff;border:1px solid #dfe3ff;color:var(--sessions-brand);display:grid;place-items:center;font-family:var(--font-mono);font-size:11px;font-weight:900}
 .sessions-page .sessions-sort-icon--active{background:var(--sessions-brand);border-color:var(--sessions-brand);color:#fff}
 .sessions-page [data-sessions-grid] .sessions-row{display:contents}
 .sessions-page .sessions-row:hover .sessions-td{background:#fbfdff}
@@ -65,14 +65,14 @@
 .sessions-page .sessions-cell-main{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
 .sessions-page .sessions-title{font-weight:790;color:var(--sessions-text);font-size:13px;line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sessions-page .sessions-meta{display:flex;align-items:center;gap:6px;min-width:0;color:var(--sessions-text-3);font-size:11.5px}
-.sessions-page .sessions-id{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);color:var(--sessions-text-3)}
+.sessions-page .sessions-id{font-family:var(--font-mono);color:var(--sessions-text-3)}
 .sessions-page .sessions-project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
 .sessions-page .sessions-agent-badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;padding:0 8px;font-weight:780;font-size:11.5px}
 .sessions-page .sessions-agent-badge--claude_code{background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe}
 .sessions-page .sessions-agent-badge--codex{background:#ecfdf5;color:#059669;border:1px solid #bbf7d0}
 .sessions-page .sessions-agent-badge--qoder{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
-.sessions-page .sessions-model{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
-.sessions-page .sessions-td--num{justify-content:flex-end;font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);font-variant-numeric:tabular-nums;color:var(--sessions-text-2)}
+.sessions-page .sessions-model{font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
+.sessions-page .sessions-td--num{justify-content:flex-end;font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--sessions-text-2)}
 .sessions-page .sessions-td--strong{font-weight:800;color:var(--sessions-text)}
 .sessions-page .sessions-token-total{display:flex;align-items:center;gap:7px;justify-content:flex-end;width:100%}
 .sessions-page .sessions-token-total__value{font-weight:800;color:var(--sessions-text)}
@@ -82,7 +82,7 @@
 .sessions-page .sessions-token-bar__cache{background:var(--token-cache-read,#f59e0b)}
 .sessions-page .sessions-token-bar__out{background:var(--token-output-visible,#059669)}
 .sessions-page .sessions-table-footer{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--sessions-line-soft);background:#fbfcff;color:var(--sessions-text-3);font-size:12px}
-.sessions-page .sessions-page-range{margin-left:4px;color:var(--sessions-text-2);font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);font-weight:720}
+.sessions-page .sessions-page-range{margin-left:4px;color:var(--sessions-text-2);font-family:var(--font-mono);font-weight:720}
 .sessions-page .sessions-footer-spacer{flex:1}
 .sessions-page .sessions-footer-total{color:var(--sessions-text-3)}
 .sessions-page .sessions-footer-page-size{font-size:12px;color:var(--sessions-text-3)}
@@ -224,13 +224,13 @@
 .sessions-page .data-table tbody tr[data-action="row"]{cursor:pointer}
 .sessions-page .data-table .title-main{font-weight:790;color:var(--sessions-text);font-size:13px;line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sessions-page .data-table .title-sub.mono{display:flex;align-items:center;gap:6px;min-width:0;color:var(--sessions-text-3);font-size:11.5px;margin-top:2px}
-.sessions-page .data-table .title-sub .mono{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace)}
+.sessions-page .data-table .title-sub .mono{font-family:var(--font-mono)}
 .sessions-page .data-table .project-cell .project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sessions-text-2)}
 .sessions-page .data-table .badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;padding:0 8px;font-weight:780;font-size:11.5px}
 .sessions-page .data-table .badge.cc{background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe}
 .sessions-page .data-table .badge.cx{background:#ecfdf5;color:#059669;border:1px solid #bbf7d0}
 .sessions-page .data-table .badge.qd{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
-.sessions-page .data-table td.mono{font-family:var(--font-mono,ui-monospace,Menlo,Consolas,monospace);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sessions-page .data-table td.mono{font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sessions-page .data-table .token-cell{position:relative}
 .sessions-page .data-table .token-total{display:flex;align-items:center;gap:7px;justify-content:flex-end;width:100%}
 .sessions-page .data-table .token-total__value{font-weight:800;color:var(--sessions-text)}

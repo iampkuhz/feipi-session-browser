@@ -177,7 +177,7 @@
 /* Term cell — monospaced, bold, dark (used in .glossary-table) */
 .glossary-table .term,
 .wide-table .term {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-weight: 850;
   color: var(--text);
   white-space: nowrap;
@@ -185,7 +185,7 @@
 
 /* Formula cell — inline code block style */
 .formula {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 12px;
   background: var(--surface-soft);
   border: 1px solid var(--line-strong);
@@ -197,7 +197,7 @@
 
 /* Sample value cell — monospaced, bold, dark */
 .sample-value {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-weight: 820;
   color: var(--text);
   white-space: nowrap;

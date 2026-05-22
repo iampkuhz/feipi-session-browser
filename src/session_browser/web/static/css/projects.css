@@ -84,7 +84,7 @@ th.sortable:hover {
   display: flex;
   align-items: center;
   gap: 7px;
-  font: 780 12px var(--mono);
+  font: 780 12px var(--font-mono);
   line-height: 1;
 }
 
@@ -100,7 +100,7 @@ th.sortable:hover {
   border: 0;
   background: transparent;
   color: inherit;
-  font: 850 11px var(--sans);
+  font: 850 11px var(--font-sans);
   padding: 0;
   cursor: pointer;
   display: inline-flex;
@@ -225,7 +225,7 @@ th.sortable:hover {
 .token-tooltip__label .dot--out { background: var(--token-output-visible, #10b981); }
 
 .token-tooltip__value {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-weight: 750;
 }
 

@@ -73,9 +73,7 @@
   --topbar: 52px;
   --max: 1320px;
 
-  /* Typography variables */
-  --mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
-  --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  /* Typography variables (aliases to style.css canonical --font-sans/--font-mono) */
   --hifi-icon-nav: 18px;
   --hifi-icon-inline: 16px;
   --hifi-icon-metric: 22px;
@@ -85,8 +83,8 @@
   --ui-radius-pill: 999px;
   --ui-h-control-sm: 28px;
   --ui-h-control-md: 30px;
-  --ui-font-ui: var(--sans);
-  --ui-font-mono: var(--mono);
+  --ui-font-ui: var(--font-sans);
+  --ui-font-mono: var(--font-mono);
   --ui-brand: var(--purple);
   --ui-brand-bg: var(--purple-soft);
   --ui-line: var(--line);
@@ -98,7 +96,7 @@
   --ui-shadow-sm: 0 1px 3px rgba(15, 23, 42, .07);
 }
 
-.mono { font-family: var(--mono); }
+.mono { font-family: var(--font-mono); }
 
 /* === Button ============================================================== */
 .btn {
@@ -250,7 +248,7 @@ a.btn:focus-visible {
 }
 
 .project-path-row .path-text {
-  font: 650 11px var(--mono);
+  font: 650 11px var(--font-mono);
   color: var(--text-subtle);
 }
 
@@ -311,7 +309,7 @@ a.btn:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font: 700 12px var(--sans);
+  font: 700 12px var(--font-sans);
   color: var(--text);
   background: var(--surface-soft);
   border: 1px solid var(--line);
@@ -384,7 +382,7 @@ a.btn:focus-visible {
 }
 
 .title-sub {
-  font: 11.5px var(--mono);
+  font: 11.5px var(--font-mono);
   color: var(--text-subtle);
   white-space: nowrap;
   overflow: hidden;
@@ -394,7 +392,7 @@ a.btn:focus-visible {
 
 /* .title-sub.mono — reinforce monospace when macro toggles mono=True */
 .title-sub.mono {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
 /* === Badge / Pill ======================================================== */
@@ -546,7 +544,7 @@ a.btn:focus-visible {
   color: var(--text);
   line-height: 1.2;
 }
-.metric-card__value.mono { font-family: var(--mono); }
+.metric-card__value.mono { font-family: var(--font-mono); }
 
 /* ── Subtitle ───────────────────────────────────────────────────────────── */
 /* min-height = 2 lines so cards align even when some have no subtitle. */
@@ -957,7 +955,7 @@ a.btn:focus-visible {
 .data-table th.numeric,
 .data-table td.numeric {
   text-align: right;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 /* Column-specific alignment — all th/td in a named column share alignment */
 .data-table th.col-num { font-size: 12px; }
@@ -1033,6 +1031,7 @@ a.btn:focus-visible {
   width: var(--hifi-icon-inline);
   height: var(--hifi-icon-inline);
   font-size: var(--hifi-icon-inline);
+  font-family: var(--font-sans);
   color: var(--text-subtle);
   margin-left: 4px;
 }
@@ -1052,6 +1051,7 @@ a.btn:focus-visible {
   width: var(--hifi-icon-inline);
   height: var(--hifi-icon-inline);
   font-size: var(--hifi-icon-inline);
+  font-family: var(--font-sans);
   color: var(--text-subtle);
   margin-left: 4px;
 }
@@ -1262,7 +1262,7 @@ a.btn:focus-visible {
   padding: 7px 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-weight: 760;
 }
 .page-input:disabled,
@@ -1368,7 +1368,7 @@ input[data-action="page-input"]:disabled {
   }
 }
 
-.modal-body .mono { font-family: var(--mono); }
+.modal-body .mono { font-family: var(--font-mono); }
 
 /* --- Payload modal header elements --- */
 .payload-modal__title {
@@ -1398,7 +1398,7 @@ input[data-action="page-input"]:disabled {
   border-radius: 7px;
   background: transparent;
   padding: 0 12px;
-  font: 800 12px var(--sans);
+  font: 800 12px var(--font-sans);
   cursor: pointer;
   color: var(--text-subtle);
   display: inline-flex;
@@ -1466,7 +1466,7 @@ input[data-action="page-input"]:disabled {
   background: var(--surface-soft);
   color: var(--text-subtle);
   font-weight: 900;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 
@@ -1496,7 +1496,7 @@ input[data-action="page-input"]:disabled {
 .payload-modal__raw pre,
 .modal-body pre,
 .payload-block pre {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -1514,7 +1514,7 @@ input[data-action="page-input"]:disabled {
 .payload-modal__raw code,
 .modal-body code,
 .payload-block code {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 12px;
   background: rgba(107, 78, 247, 0.06);
   padding: 2px 5px;
@@ -1725,7 +1725,7 @@ input[data-action="page-input"]:disabled {
   align-items: center;
   color: var(--text);
   font-size: 12px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   max-width: 420px;
   overflow: hidden;
   text-overflow: ellipsis;
