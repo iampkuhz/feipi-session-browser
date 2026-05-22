@@ -41,12 +41,7 @@
         <input type="hidden" name="sort" value="{{ sort_by }}"/>
         <input type="hidden" name="dir" value="{{ sort_dir }}"/>
         <div class="sessions-control-row">
-            <label class="ui-select ui-search">
-                <span class="ui-select__label">Search</span>
-                <span class="sessions-search__icon" aria-hidden="true">⌕</span>
-                <input id="session-search" class="input search" type="text" name="q" data-search="session-id" placeholder="Search by Session ID..." value="{{ filter_q }}" />
-            </label>
-            <span class="sessions-search-hint">仅支持 Session ID</span>
+            <input id="session-search" class="input search" type="text" name="q" data-search="session-id" placeholder="Search by Session ID..." value="{{ filter_q }}" />
             <label class="ui-select">
                 <span class="ui-select__label">Agent</span>
                 <select class="ui-select__control" id="filter-agent" name="agent">
@@ -85,14 +80,14 @@
             agent=filter_agent,
             model=filter_model,
             project=filter_project,
-            count_label=('Showing ' ~ page_start ~ '–' ~ page_end ~ ' of ' ~ total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions'),
+            count_label=(total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions'),
             remove_urls=actions.remove_filter_urls
         ) }}
     </form>
 </section>
 
 <!-- Table card -->
-{% call ui.table_card('All Sessions', search_placeholder='🔎 Search by title, project, session ID...') %}
+{% call ui.table_card('All Sessions') %}
         <table class="data-table" role="table" aria-label="Sessions table">
             <thead>
                 <tr>
