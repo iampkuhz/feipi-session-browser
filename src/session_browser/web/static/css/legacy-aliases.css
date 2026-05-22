@@ -19,7 +19,7 @@
 html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:14px/1.42 var(--font)}
 body{min-width:1240px;background:radial-gradient(780px 260px at 25% -16%,rgba(91,92,226,.10),transparent 60%),var(--bg)}
 button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+.app{display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr);min-height:100vh}
 .sidebar{background:#fff;border-right:1px solid var(--line)}
 .logo{height:58px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line2)}
 .logo-mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;color:#fff;font-weight:900}
@@ -27,9 +27,8 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 .nav{padding:10px}.nav-label{margin:8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:850}
 .nav-item{height:34px;border-radius:10px;display:flex;align-items:center;gap:8px;padding:0 10px;font-weight:760;font-size:13px;color:var(--text2);text-decoration:none}
 .nav-item.active{background:var(--brand-bg);color:var(--brand)}.nav-dot{width:8px;height:8px;border-radius:999px;background:currentColor;opacity:.58}
-.main{min-width:0}.topbar{height:46px;position:sticky;top:0;z-index:30;display:flex;align-items:center;padding:0 18px;background:rgba(246,248,251,.88);border-bottom:1px solid rgba(216,226,239,.88);backdrop-filter:saturate(160%) blur(12px)}
+.main{min-width:0}
 .crumb{display:flex;gap:7px;font-size:12px;color:var(--muted)}.crumb strong{color:var(--text2)}
-.content{padding:14px 18px 28px;max-width:1560px;margin:0 auto}
 .hero{border:1px solid var(--line);background:linear-gradient(180deg,#fff,#fbfcff);border-radius:18px;box-shadow:var(--shadow);padding:12px 14px;margin-bottom:10px}
 .hero-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}.hero-id{display:flex;align-items:center;gap:8px;min-width:0}
 .agent{height:24px;min-width:54px;padding:0 9px;border-radius:999px;background:var(--pur-bg);color:var(--pur);border:1px solid var(--pur-line);font-size:12px;font-weight:820;display:inline-flex;align-items:center;justify-content:center}
@@ -69,7 +68,9 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 @media(max-width:1360px){.llm-body,.sub-llm-body{grid-template-columns:1fr}.round-detail{padding-left:54px}.tool-row{grid-template-columns:58px minmax(260px,1fr) 140px 74px 78px}.payload-shell{grid-template-columns:1fr}}
 
 /* ── Shell compatibility aliases (base.html uses these) ── */
-.app,.shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+/* NOTE: Shell-level elements (.shell, .topbar, .content, .footer,
+ * .breadcrumb) are defined ONLY in style.css. Do NOT add overrides
+ * here — they break cross-page consistency. */
 .sidebar-inner{height:100%;display:flex;flex-direction:column}
 .sidebar-logo{border-bottom:1px solid var(--line2)}
 .sidebar-logo a{display:flex;align-items:center;gap:10px;padding:0 14px;height:58px;text-decoration:none;color:var(--text)}
@@ -77,17 +78,17 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 .logo-text{font-size:13px;font-weight:880}
 .sidebar .logo-sub{font-size:11px;color:var(--faint)}
 
-/* Topbar breadcrumb alias */
-.topbar-breadcrumb{display:flex;gap:7px;font-size:12px;color:var(--muted)}
+/* Topbar breadcrumb alias — non-conflicting: adds link hover color
+ * and .sep/.current styling that style.css doesn't cover. */
 .topbar-breadcrumb a{color:var(--text2);text-decoration:none}
 .topbar-breadcrumb .sep{color:var(--muted)}
 .topbar-breadcrumb .current{color:var(--text2);font-weight:700}
 
-/* Topbar actions */
-.topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+/* Topbar actions — style.css already defines this; kept here only
+ * as a reference alias, no override. */
 
-/* Footer alias */
-.footer{height:42px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 12px;border-top:1px solid var(--line2);background:#fbfcff;color:var(--muted);font-size:12px}
+/* Footer alias — style.css owns shell definition; this adds the
+ * old .footer bar styling for backward compat in legacy templates. */
 
 /* Density toggle */
 .density-toggle{height:30px;min-width:74px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:0 10px;font-size:12px;font-weight:780;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
@@ -202,7 +203,7 @@ button,input{font:inherit}.mono{font-family:var(--mono);font-variant-numeric:tab
 
 /* v12 session detail class aliases ── */
 .sd-shell,.session-detail-page{background:var(--bg)}
-.sd-content{padding:14px 18px 28px;max-width:1560px;margin:0 auto}
+.sd-content{padding:var(--space-md) 32px;max-width:var(--max);margin:0 auto;width:100%}
 .sd-hero{border:1px solid var(--line);background:linear-gradient(180deg,#fff,#fbfcff);border-radius:18px;box-shadow:var(--shadow);padding:12px 14px;margin-bottom:10px}
 .sd-hero__top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}
 .sd-hero__main{min-width:0}
