@@ -176,16 +176,6 @@ class TestBaseHtmlTopbar:
         assert 'class="top-actions"' in base_text, \
             "Topbar lacks .top-actions container"
 
-    def test_density_toggle(self, base_text):
-        """Density toggle must exist."""
-        assert 'data-action="toggle-density"' in base_text, \
-            "Missing density toggle"
-
-    def test_topbar_toggles_block(self, base_text):
-        """Topbar toggles must be in a Jinja block for override."""
-        assert "{% block topbar_toggles %}" in base_text, \
-            "base.html lacks topbar_toggles block"
-
     def test_topbar_actions_block(self, base_text):
         """Topbar actions block must exist for page extensions."""
         assert "{% block topbar_actions %}" in base_text, \

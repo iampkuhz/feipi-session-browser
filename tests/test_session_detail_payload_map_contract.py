@@ -100,7 +100,7 @@ def test_no_massive_payload_buttons():
 
 
 def test_css_has_sd_btn_styles():
-    """session-detail-timeline.css must define button styles."""
-    css_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css"
+    """session-detail.css must define button styles."""
+    css_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
     css = css_path.read_text(encoding="utf-8")
     assert ".sd-btn" in css, "CSS must define .sd-btn styles"

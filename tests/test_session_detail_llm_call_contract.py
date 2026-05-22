@@ -101,7 +101,7 @@ def test_payload_keys_in_routes():
 
 # ── CSS classes ─────────────────────────────────────────────────────
 
-_TIMELINE_CSS = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css"
+_TIMELINE_CSS = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 
 
 def _read_timeline_css():
@@ -109,7 +109,7 @@ def _read_timeline_css():
 
 
 def test_css_has_sd_llm_card_styles():
-    """session-detail-timeline.css must contain card styles for LLM calls."""
+    """session-detail.css must contain card styles for LLM calls."""
     css = _read_timeline_css()
     # LLM card uses base .sd-card class + .sd-llm-body
     assert ".sd-card" in css, "CSS must define .sd-card styles"
@@ -120,7 +120,7 @@ def test_css_has_sd_llm_card_styles():
 
 
 def test_css_has_tool_group_styles():
-    """session-detail-timeline.css must contain .sd-tool-group styles."""
+    """session-detail.css must contain .sd-tool-group styles."""
     css = _read_timeline_css()
     assert ".sd-tool-group" in css, "CSS must define .sd-tool-group styles"
     assert ".sd-tool-row" in css, "CSS must define .sd-tool-row styles"

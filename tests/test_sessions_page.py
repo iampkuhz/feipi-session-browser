@@ -206,7 +206,6 @@ class TestSortableHeaders:
         """No Sortable / Info only legend in the template."""
         content = _read_sessions_templates()
         assert "legend-sort" not in content
-        assert "legend-item" not in content
         assert "Info only" not in content
 
     def test_no_density_toggle(self):

@@ -15,7 +15,7 @@ TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" 
 BASE_TEMPLATE = TEMPLATE_DIR / "base.html"
 SESSION_TEMPLATE = TEMPLATE_DIR / "session.html"
 COMPONENTS = TEMPLATE_DIR / "components"
-CSS_PATH = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css"
+CSS_PATH = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 
 
 def _session_source():

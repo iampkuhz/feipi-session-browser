@@ -1232,8 +1232,8 @@
   </label>
 {%- endmacro %}
 
-{% macro stat_pill(value, label) -%}
-  <span class="ui-stat-pill" role="status"><b>{{ value }}</b> {{ label }}</span>
+{% macro stat_pill(value, label, id=None) -%}
+  <span class="ui-stat-pill" role="status"{% if id %} id="{{ id }}"{% endif %}><b>{{ value }}</b> {{ label }}</span>
 {%- endmacro %}
 
 {% macro th_static(label) -%}

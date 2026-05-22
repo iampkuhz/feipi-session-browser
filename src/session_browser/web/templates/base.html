@@ -55,6 +55,7 @@
                 </div>
             </div>
             <nav class="nav-list" aria-label="主导航">
+                {% block sidebar_nav %}
                 {% if not hide_sidebar_nav %}
                 <a class="nav-item{% if active_page == 'dashboard' %} is-active{% endif %}" href="/dashboard" data-action="nav-dashboard" data-target="dashboard">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4CA;</span><span>Dashboard</span>
@@ -74,6 +75,7 @@
                 {% elif sidebar_nav_html is defined %}
                 {{ sidebar_nav_html | safe }}
                 {% endif %}
+                {% endblock %}
             </nav>
 
             {% if not hide_sidebar_extra %}
