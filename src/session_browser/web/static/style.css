@@ -787,7 +787,7 @@ body.sidebar-collapsed .sidebar-toggle-expand {
 /* ─── Content ─────────────────────────────────────────────────── */
 .content {
     padding: var(--space-md) 32px;
-    max-width: var(--max);
+    max-width: min(100%, var(--max));
     width: 100%;
     margin-left: auto;
     margin-right: auto;
