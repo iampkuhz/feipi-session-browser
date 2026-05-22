@@ -27,18 +27,13 @@
 
 <div class="sessions-page">
 
-<!-- Page header -->
-<section class="page-head">
-    <div>
-        <h1>Sessions</h1>
-        <p>Browse indexed local agent runs</p>
-    </div>
-    <div class="sessions-page-stats">
-        <span class="ui-stat-pill"><b>{{ total_count }}</b> sessions</span>
-        <span class="ui-stat-pill"><b>{{ sessions_aggregate.project_count }}</b> projects</span>
-        <span class="ui-stat-pill"><b>{{ sessions_aggregate.total_tokens | format_compact_token }}</b> total tokens</span>
-    </div>
-</section>
+{{ ui.page_head(
+    'Sessions',
+    subtitle='Browse indexed local agent runs',
+    stat_pills=ui.stat_pill(total_count, "sessions")
+        + ui.stat_pill(sessions_aggregate.project_count, "projects")
+        + ui.stat_pill(sessions_aggregate.total_tokens | format_compact_token, "total tokens")
+) }}
 
 <!-- Filter card -->
 <section class="sessions-filter-card">
