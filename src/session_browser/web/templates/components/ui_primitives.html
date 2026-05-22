@@ -112,6 +112,33 @@
 <span class="{{ cls }}" role="status">{{ label }}</span>
 {%- endmacro %}
 
+{# Badge with Dot — dot indicator + label with proper vertical alignment.
+   Uses .badge--has-dot on the outer wrapper and .badge-dot for the dot.
+   Dot is flex-shrink: 0 + align-self: center to guarantee vertical centering.
+
+   Usage:
+     {{ ui.badge_with_dot('123', variant='cc', dot_variant='claude') }}
+     {{ ui.badge_with_dot('5 failed', variant='err', dot_variant='err') }}
+#}
+{% macro badge_with_dot(label, variant='info', dot_variant=None, extra_classes=None, tooltip=None) -%}
+  {%- set classes = ['badge'] -%}
+  {%- if variant in ['err', 'warn', 'ok', 'info', 'cc', 'cx', 'qd'] -%}
+    {%- set _ = classes.append(variant) -%}
+  {%- endif -%}
+  {%- set _ = classes.append('badge--has-dot') -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set dot_cls = 'badge-dot' -%}
+  {%- if dot_variant in ['claude', 'codex', 'qoder', 'total', 'err', 'warn', 'ok'] -%}
+    {%- set dot_cls = dot_cls ~ ' badge-dot--' ~ dot_variant -%}
+  {%- endif -%}
+<span class="{{ cls }}"{% if tooltip %} data-tooltip="{{ tooltip }}"{% endif %} role="status"><span class="{{ dot_cls }}" aria-hidden="true"></span>{{ label }}</span>
+{%- endmacro %}
+
 {# MetricCard — label + value with optional icon.
    Variant A (simple): label + value + optional icon
    Variant B (horizontal icon): icon_color + label + value
@@ -415,6 +442,10 @@
    TableCard (Composite: toolbar + table body + optional pagination)
    Wraps table_toolbar + caller() content in a canonical card structure.
 
+   The .table-wrap inside the card scrolls horizontally when the table
+   exceeds the card width. Use header min_width (e.g. '200px') in the
+   data_table macro to set column minimum widths.
+
    Usage:
      {% call ui.table_card('Title', search_placeholder='...') %}
        <table class="data-table">...</table>
@@ -432,7 +463,7 @@
    Produces:
      <section class="card table-card [extra_classes]">
        <div class="table-toolbar">...</div>
-       <div class="table-wrap">
+       <div class="table-wrap">  ← scrolls horizontally when content overflows
          {{ caller() }}  — table + pagination from caller
        </div>
      </section>
@@ -473,11 +504,163 @@
 {%- endmacro %}
 
 {# ============================================================================
-   FilterBar (T034 pass 3)
-   Renders a filter bar with search + filter controls.
-   filters: list of dicts with keys: label, name, type (search|select), options (for select), value
-   action_url: form action URL (default None)
-   extra_classes: additional CSS classes on the outer div
+   Filter Components (unified filter card system)
+
+   Macros:
+     filter_card   — outer card wrapper with <form>
+     filter_search — search input with icon slot
+     filter_select — labeled <select> with uniform height
+     filter_footer — active-filters bar with label + chips + count
+
+   All controls share 30px height for visual consistency.
+
+   Usage:
+     {% call ui.filter_card(method='get', action='/sessions') %}
+       <div class="filter-row">
+         {{ ui.filter_search(name='q', placeholder='Search...', value=filter_q) }}
+         {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent) }}
+         <span class="filter-row__push"></span>
+         {{ ui.button('Apply', 'primary', 'sm', type='submit') }}
+       </div>
+       {% call ui.filter_footer() %}
+         ... active filter chips ...
+       {% endcall %}
+     {% endcall %}
+#}
+
+{# --- FilterCard — outer card wrapper ---
+   Wraps a <form> inside a .card.filter-card.
+   Uses caller() for the filter-row content.
+   Optional filter_footer via nested caller or manual div.
+
+   Parameters:
+     method: form method (default 'get')
+     action: form action URL (default None)
+     id: form id (default None)
+     extra_classes: additional CSS classes on the card
+#}
+{% macro filter_card(method='get', action=None, id=None, extra_classes=None) -%}
+  {%- set classes = ['card', 'filter-card'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<section class="{{ cls }}">
+  <form method="{{ method }}"{%- if action %} action="{{ action }}"{% endif %}{%- if id %} id="{{ id }}"{% endif %} class="filter-form">
+    {{ caller() }}
+  </form>
+</section>
+{%- endmacro %}
+
+{# --- FilterSearch — search input ---
+   Uniform 30px height search input.
+
+   Parameters:
+     name: required — form field name
+     placeholder: placeholder text (default 'Search...')
+     value: current value (default '')
+     id: element id (default '<name>-search')
+     extra_classes: additional CSS classes
+#}
+{% macro filter_search(name, placeholder='Search...', value='', id=None, extra_classes=None) -%}
+  {%- set classes = ['input', 'search'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set eid = id if id else (name ~ '-search') -%}
+<input type="search" class="{{ cls }}" id="{{ eid }}" name="{{ name }}" placeholder="{{ placeholder }}" value="{{ value }}" autocomplete="off" />
+{%- endmacro %}
+
+{# --- FilterSelect — labeled select dropdown ---
+   Uniform 30px height select with inline label.
+
+   Parameters:
+     label: visible label text (required)
+     name: form field name (required)
+     options: list of dicts with keys: value, label — or plain strings
+     selected: currently selected value (default '')
+     all_label: if set, prepends an "All <label>" option with empty value (default None)
+     id: element id (default 'filter-<name>')
+     extra_classes: additional CSS classes on the <label> wrapper
+#}
+{% macro filter_select(label, name, options=None, selected='', all_label=None, id=None, extra_classes=None) -%}
+  {%- set classes = ['ui-select'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set eid = id if id else ('filter-' ~ name) -%}
+  {%- set effective_all = all_label if all_label else ('All ' ~ label) -%}
+<label class="{{ cls }}">
+  <span class="ui-select__label">{{ label }}</span>
+  <select class="ui-select__control" id="{{ eid }}" name="{{ name }}">
+    <option value="">{{ effective_all }}</option>
+    {%- for opt in (options | default([])) %}
+      {%- set opt_value = opt.value if opt is mapping and opt.value is defined else (opt[0] if opt is sequence and opt is not string else opt) -%}
+      {%- set opt_label = opt.label if opt is mapping and opt.label is defined else (opt[1] if opt is sequence and opt is not string and opt | length > 1 else opt_value) -%}
+    <option value="{{ opt_value }}"{%- if opt_value == selected %} selected{% endif %}>{{ opt_label }}</option>
+    {%- endfor %}
+  </select>
+</label>
+{%- endmacro %}
+
+{# --- FilterFooter — active filters bar ---
+   Renders the footer area of a filter card with optional label,
+   active filter chips, and a results count.
+
+   Parameters:
+     show_label: whether to show "Active Filters" label (default True)
+     count: optional results count text shown on the right
+
+   Usage:
+     {% call ui.filter_footer(count='123 matching sessions') %}
+       {{ ui.filter_chip('Session ID: abc123', href='#') }}
+     {% endcall %}
+#}
+{% macro filter_footer(show_label=True, count=None) -%}
+<div class="filter-footer">
+  {%- if show_label %}
+  <span class="active-filters__label">Active Filters</span>
+  {%- endif %}
+  {{ caller() }}
+  {%- if count %}
+  <span class="active-filters__count">{{ count }}</span>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# --- FilterChip — single active filter chip with remove button ---
+   Renders a chip showing the filter label and a remove (×) link.
+
+   Parameters:
+     label: visible filter label (e.g. 'Agent: claude_code')
+     remove_url: URL to remove this filter (default '#')
+     extra_classes: additional CSS classes
+#}
+{% macro filter_chip(label, remove_url='#', extra_classes=None) -%}
+  {%- set classes = ['filter-chip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<span class="{{ cls }}">
+  {{ label }}
+  <a href="{{ remove_url }}" data-action="remove-filter" aria-label="Remove filter: {{ label }}">×</a>
+</span>
+{%- endmacro %}
+
+{# ============================================================================
+   FilterBar (legacy — deprecated, use filter_card + filter_search/filter_select)
+   Kept for backward compatibility.
 #}
 {% macro filter_bar(filters, action_url=None, extra_classes=None) -%}
   {%- set classes = ['filter-card'] -%}

@@ -104,18 +104,16 @@
 {% endif %}
 
 <!-- Filter card: canonical structure with shared primitives (T102) -->
-<div class="card filter-card">
+{% call ui.filter_card() %}
     <div class="filter-row">
-        <input id="project-search" type="text" class="input search"
-               placeholder="Search by name or path..."
-               data-search="project-name" />
-        <button class="btn" data-action="apply-search">Apply</button>
-        <button class="btn" data-action="clear-search">Clear</button>
+        {{ ui.filter_search(name='q', placeholder='Search by name or path...', id='project-search', extra_classes='js-search') }}
+        {{ ui.button('Apply', 'md', 'sm', data_action='apply-search') }}
+        {{ ui.button('Clear', 'md', 'sm', data_action='clear-search') }}
     </div>
-    <div class="active-filters" aria-live="polite">
+    <div class="filter-footer">
         <span class="filter-chip">Search: none</span>
     </div>
-</div>
+{% endcall %}
 
 <!-- Projects data table: 6 columns, sortable headers, token bars -->
 <section class="page-section">
@@ -190,9 +188,9 @@
                         data-total-failed="{{ p.total_failed_tools }}">
                         {{ ui.project_cell(p.project_name, p.project_key, '/projects/' ~ p.project_key | urlencode, name_data_action='open-project-link') }}
                         <td class="agents-cell">
-                            {% if p.claude_sessions > 0 %}<span class="badge cc" data-tooltip="Claude Code"><span class="dot claude" aria-hidden="true"></span>{{ p.claude_sessions }}</span>{% endif %}
-                            {% if p.codex_sessions > 0 %}<span class="badge cx" data-tooltip="Codex"><span class="dot codex" aria-hidden="true"></span>{{ p.codex_sessions }}</span>{% endif %}
-                            {% if p.qoder_sessions > 0 %}<span class="badge qd" data-tooltip="Qoder"><span class="dot qoder" aria-hidden="true"></span>{{ p.qoder_sessions }}</span>{% endif %}
+                            {% if p.claude_sessions > 0 %}{{ ui.badge_with_dot(p.claude_sessions, 'cc', 'claude', tooltip='Claude Code') }}{% endif %}
+                            {% if p.codex_sessions > 0 %}{{ ui.badge_with_dot(p.codex_sessions, 'cx', 'codex', tooltip='Codex') }}{% endif %}
+                            {% if p.qoder_sessions > 0 %}{{ ui.badge_with_dot(p.qoder_sessions, 'qd', 'qoder', tooltip='Qoder') }}{% endif %}
                             {% if p.claude_sessions == 0 and p.codex_sessions == 0 and p.qoder_sessions == 0 %}
                             <span class="muted-zero">—</span>
                             {% endif %}

@@ -1690,11 +1690,13 @@ a.link-muted:hover { color: var(--accent); }
     transform: translateX(-50%) translateY(4px);
     background: var(--text);
     color: var(--surface);
-    padding: 4px 8px;
+    padding: 6px 12px;
     border-radius: var(--radius-sm);
     font-size: var(--text-micro);
-    white-space: pre-wrap;
+    white-space: normal;
+    min-width: 80px;
     max-width: 320px;
+    width: max-content;
     word-break: break-word;
     opacity: 0;
     visibility: hidden;

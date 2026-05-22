@@ -403,10 +403,10 @@ class TestProjectDetailRowStructure:
             "Row must have a copy-session button"
 
     def test_agent_badge_cc(self):
-        """Row must have CC agent badge."""
+        """Row must have CC agent badge via badge_with_dot macro."""
         content = _read_template()
-        assert 'class="badge cc"' in content, \
-            "Row must have CC agent badge"
+        assert 'badge_with_dot' in content and "'cc'" in content, \
+            "Row must have CC agent badge via badge_with_dot macro"
 
     def test_agent_badge_cx(self):
         """Row must have CX agent badge."""

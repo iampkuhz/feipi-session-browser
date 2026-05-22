@@ -132,7 +132,10 @@
                         </div>
                     </td>
                     <td>
-                        <span class="badge cc"><span class="dot {{ 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' }}" aria-hidden="true"></span>{{ 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' }}</span>
+                        {% set _agent_key = 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' %}
+                        {% set _agent_label = 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' %}
+                        {% set _agent_badge_variant = 'cc' if s.agent == 'claude_code' else 'qd' if s.agent == 'qoder' else 'cx' %}
+                        {{ ui.badge_with_dot(_agent_label, _agent_badge_variant, _agent_key) }}
                         {{ 'Claude Code' if s.agent == 'claude_code' else 'Qoder' if s.agent == 'qoder' else 'Codex' }}
                     </td>
                     <td class="mono">{{ s.model or '—' }}</td>

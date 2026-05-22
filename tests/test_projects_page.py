@@ -499,18 +499,18 @@ class TestProjectsRowStructure:
 
     def test_agent_badge_cc(self):
         content = _read_template()
-        assert 'class="badge cc"' in content, \
-            "Must have Claude Code agent badge"
+        assert 'badge_with_dot' in content and "'cc'" in content, \
+            "Must have Claude Code agent badge via badge_with_dot macro"
 
     def test_agent_badge_cx(self):
         content = _read_template()
-        assert 'class="badge cx"' in content, \
-            "Must have Codex agent badge"
+        assert 'badge_with_dot' in content and "'cx'" in content, \
+            "Must have Codex agent badge via badge_with_dot macro"
 
     def test_agent_badge_qd(self):
         content = _read_template()
-        assert 'class="badge qd"' in content, \
-            "Must have Qoder agent badge"
+        assert 'badge_with_dot' in content and "'qd'" in content, \
+            "Must have Qoder agent badge via badge_with_dot macro"
 
     def test_tokenbar_present(self):
         content = _read_template()

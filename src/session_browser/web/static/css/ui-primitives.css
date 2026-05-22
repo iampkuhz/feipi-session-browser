@@ -419,6 +419,27 @@ a.btn:focus-visible {
 .badge.manual { background: #f0f0ff; color: #5b5ce2; border-color: #d5d0ff; }
 .badge.model { background: var(--surface-soft); color: var(--text-subtle); border-color: var(--line); }
 
+/* ── Badge with dot ───────────────────────────────────────── */
+.badge--has-dot {
+  gap: 4px;
+}
+
+.badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.badge-dot--claude { background: var(--claude, #6d5dfc); }
+.badge-dot--codex  { background: var(--codex, #10b981); }
+.badge-dot--qoder  { background: var(--qoder, #f59e0b); }
+.badge-dot--total  { background: var(--text, #374151); }
+.badge-dot--err    { background: var(--err, #dc2626); }
+.badge-dot--warn   { background: var(--warn, #d97706); }
+.badge-dot--ok     { background: var(--ok, #059669); }
+
 /* === MetricCard / MetricGrid ============================================= */
 /*
  * Unified metric card component — the ONLY definition across all pages.
@@ -947,13 +968,105 @@ a.btn:focus-visible {
 .round-row.failed td { background: var(--red-soft); }
 .round-row.manual td { background: #f5f3ff; }
 
+/* === FilterCard ============================================================
+ * Reusable filter card with consistent control heights (30px).
+ * HTML structure (via ui_primitives.html#filter_card macro):
+ *
+ *   <section class="card filter-card">
+ *     <form method="get" action="..." class="filter-form">
+ *       <div class="filter-row">
+ *         <input class="input search" ... />
+ *         <label class="ui-select">...</label>
+ *         <span class="filter-row__push"></span>
+ *         <button class="btn sm" ...>Apply</button>
+ *       </div>
+ *       <div class="filter-footer">
+ *         {{ active_filters }}
+ *       </div>
+ *     </form>
+ *   </section>
+ */
+
+.card.filter-card {
+  background: linear-gradient(180deg, #fff, #fbfcff);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.filter-form {
+  width: 100%;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.filter-row__push {
+  margin-left: auto;
+}
+
+.filter-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  background: #fbfcff;
+}
+
+/* Override .ui-select to align height with other filter controls (30px).
+ * Already set via --ui-h-control-md = 30px; reinforcing here for clarity. */
+.card.filter-card .ui-select {
+  height: 30px;
+}
+
+.card.filter-card .input.search {
+  min-width: 260px;
+}
+
+.card.filter-card .ui-select__control {
+  min-width: 140px;
+}
+
+/* === ActiveFilters (shared across pages) =================================== */
+.active-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.active-filters__label {
+  font-size: 11px;
+  font-weight: 820;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.active-filters__count {
+  margin-left: auto;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
 /* === FilterBar ============================================================ */
-.filter-card { padding: 16px; margin: 16px 0; display: grid; gap: 12px; }
-.filter-row { display: flex; align-items: end; gap: 12px; }
+/* Legacy filter-card alias (deprecated, use .card.filter-card) */
+.filter-card:not(.card) { padding: 16px; margin: 16px 0; display: grid; gap: 12px; }
+.filter-row:not(.card .filter-row) { display: flex; align-items: end; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field label { font-size: 11px; color: #667085; font-weight: 850; }
 .input, .select {
-  height: 36px;
+  height: 30px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: #fff;
@@ -968,7 +1081,7 @@ a.btn:focus-visible {
 }
 .input.search { min-width: 300px; }
 .select { min-width: 184px; }
-.active-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.active-filters:not(.filter-footer .active-filters) { display: flex; gap: 8px; flex-wrap: wrap; }
 .filter-chip {
   height: 28px;
   border: 1px solid var(--line);
@@ -980,6 +1093,28 @@ a.btn:focus-visible {
   gap: 8px;
   color: #344054;
   font-weight: 680;
+  font-size: 12px;
+}
+.filter-chip a,
+.filter-chip button {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: rgba(91, 92, 226, .10);
+  color: var(--purple);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 13px;
+  text-decoration: none;
+}
+.filter-chip a:hover,
+.filter-chip button:hover {
+  background: rgba(91, 92, 226, .20);
 }
 
 /* === Pagination =========================================================== */

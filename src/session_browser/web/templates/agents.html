@@ -142,7 +142,7 @@
             data-total-failed="{{ a.total_failed_tools }}"
             data-last-active="{{ a.last_active }}">
             {{ ui.agent_cell(a_name, a.agent, href='/agents/' ~ a.agent, description=a_desc, abbrev=a_abbrev, avatar_class=a_avatar_cls) }}
-            <td><span class="badge {{ a_badge_cls }}"><span class="dot {{ a_dot_cls }}"></span>{{ a_provider }}</span></td>
+            <td>{{ ui.badge_with_dot(a_provider, a_badge_cls, a_dot_cls) }}</td>
             <td class="numeric mono">{{ a.session_count | format_number }}</td>
             <td class="numeric mono">{{ a.project_count }}</td>
             <td class="token-cell">
