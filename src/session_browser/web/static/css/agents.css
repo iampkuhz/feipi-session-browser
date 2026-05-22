@@ -487,6 +487,15 @@
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+/* Override: dot inside tip-row flex container — block for proper flex centering */
+.tip-row .dot {
+  display: block;
+  margin-right: 4px;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 /* 11. Tokenbar tooltip (HIFI uses .t-fresh etc., not .tokenbar-seg) */
@@ -507,7 +516,7 @@
   position: absolute;
   left: 44px;
   top: 20px;
-  width: 225px;
+  width: 270px;
   z-index: 20;
   background: #fff;
   border: 1px solid var(--line);
@@ -525,17 +534,22 @@
 .tip-row {
   display: flex;
   align-items: center;
-  gap: 7px;
-  justify-content: space-between;
+  gap: 6px;
   font-size: 12px;
   margin: 6px 0;
 }
+.tip-row .dot {
+  margin-right: 4px;
+}
 .tip-row .name {
+  min-width: 85px;
   margin-right: auto;
 }
 .tip-row .val {
   font-family: var(--font-mono);
   font-weight: 850;
+  min-width: 55px;
+  text-align: right;
 }
 .tip-sep {
   border-top: 1px solid var(--line-soft, #eef2f7);

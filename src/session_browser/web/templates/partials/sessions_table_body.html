@@ -41,7 +41,11 @@
             fresh_val=s.input_tokens | format_compact_token,
             read_val=s.cached_input_tokens | format_compact_token,
             write_val=s.cached_output_tokens | format_compact_token,
-            out_val=s.output_tokens | format_compact_token
+            out_val=s.output_tokens | format_compact_token,
+            fresh_pct_val=fresh_pct,
+            read_pct_val=(s.cached_input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0,
+            write_pct_val=(s.cached_output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0,
+            out_pct_val=output_pct
         ) }}
         <td class="num mono col-rounds">{{ s.assistant_message_count }}</td>
         <td class="num mono col-tools">{{ s.tool_call_count }}</td>

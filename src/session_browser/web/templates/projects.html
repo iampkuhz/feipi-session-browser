@@ -211,7 +211,11 @@
                             fresh_val=p_fresh | format_compact_token,
                             read_val=p_read | format_compact_token,
                             write_val=p_write | format_compact_token,
-                            out_val=p_out | format_compact_token
+                            out_val=p_out | format_compact_token,
+                            fresh_pct_val=p_fresh_pct,
+                            read_pct_val=p_read_pct,
+                            write_pct_val=p_write_pct,
+                            out_pct_val=p_out_pct
                         ) }}
                         <td class="numeric mono">
                             {{ p.total_tool_calls | format_number }}

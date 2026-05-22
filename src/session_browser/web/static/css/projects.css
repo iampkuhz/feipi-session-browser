@@ -167,7 +167,7 @@ th.sortable:hover {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
   border-radius: 12px;
   padding: 12px;
-  width: 220px;
+  width: 260px;
   z-index: 5;
   display: none;
   pointer-events: none;
@@ -207,16 +207,26 @@ th.sortable:hover {
 }
 
 .token-tooltip__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+  flex-shrink: 0;
   margin-right: auto;
   color: var(--text-subtle);
 }
 
 .token-tooltip__label .dot {
-  display: inline-block;
+  display: block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-right: 4px;
+  flex-shrink: 0;
+  margin: auto 0;
+}
+
+.token-tooltip__type-name {
+  line-height: 1;
 }
 
 .token-tooltip__label .dot--fresh { background: var(--token-input-fresh, #2563eb); }
@@ -227,6 +237,16 @@ th.sortable:hover {
 .token-tooltip__value {
   font-family: var(--font-mono);
   font-weight: 750;
+  min-width: 60px;
+  text-align: right;
+}
+
+.token-tooltip__pct {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  min-width: 52px;
+  text-align: right;
+  color: var(--text-subtle);
 }
 
 .token-tooltip__total {

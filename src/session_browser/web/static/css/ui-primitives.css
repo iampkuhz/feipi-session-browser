@@ -641,7 +641,7 @@ a.btn:focus-visible {
   border-radius: 12px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, .12);
   padding: 12px 14px;
-  min-width: 220px;
+  min-width: 260px;
   z-index: 20;
   display: none;
   pointer-events: none;
@@ -676,15 +676,22 @@ a.btn:focus-visible {
   color: var(--text-subtle);
 }
 .token-tooltip__label {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 90px;
+  flex-shrink: 0;
 }
 .token-tooltip__label .dot {
+  display: block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex: 0 0 8px;
+  margin: auto 0;
+}
+.token-tooltip__type-name {
+  line-height: 1;
 }
 .dot--fresh { background: var(--claude, #6d5dfc); }
 .dot--read { background: var(--codex, #10b981); }
@@ -694,6 +701,14 @@ a.btn:focus-visible {
   font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
   font-weight: 760;
   text-align: right;
+  min-width: 60px;
+}
+.token-tooltip__pct {
+  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+  font-weight: 600;
+  text-align: right;
+  min-width: 52px;
+  color: var(--text-subtle);
 }
 .token-tooltip__total {
   font-weight: 880;
