@@ -94,13 +94,13 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
             "session-detail": ["tests/test_web_template_contract.py", "tests/test_web_static_contract.py"],
             "python-src": ["tests"],
             "hook-runtime": [
-                "tests/test_claude_hooks_hook_io.py",
-                "tests/test_claude_hooks_classify.py",
-                "tests/test_claude_hooks_bash_policy.py",
-                "tests/test_claude_hooks_file_policy.py",
-                "tests/test_claude_hooks_evidence.py",
-                "tests/test_claude_hooks_stop_policy.py",
-                "tests/test_quality_artifact.py",
+                "tests/hooks/test_claude_hooks_hook_io.py",
+                "tests/hooks/test_claude_hooks_classify.py",
+                "tests/hooks/test_claude_hooks_bash_policy.py",
+                "tests/hooks/test_claude_hooks_file_policy.py",
+                "tests/hooks/test_claude_hooks_evidence.py",
+                "tests/hooks/test_claude_hooks_stop_policy.py",
+                "tests/quality/test_quality_artifact.py",
             ],
         }
         items = [x for x in test_candidates.get(target, ["tests"]) if (repo_root / x).exists()]
