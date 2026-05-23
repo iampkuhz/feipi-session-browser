@@ -2730,10 +2730,13 @@ def _build_v11_view_model(
                     sa_note_text = "Subagent LLM call"
                     sa_note_tone = "warn"
 
+                # Inner card title: LLM Call #N (SR title keeps thinking preview)
+                sa_inner_title = f"LLM Call #{m_idx + 1}"
+
                 steps = [{
                     "type": "llm_call",
                     "call_id": call_ref,
-                    "title": (m.content or "")[:80] or "Sub LLM Call",
+                    "title": sa_inner_title,
                     "model": (m.model or "unknown")[:40],
                     "status_label": "OK",
                     "status_tone": "ok",
@@ -2800,6 +2803,13 @@ def _build_v11_view_model(
                     st_mix["write"] = round(st_cache_write / st_total * 100, 1)
                     st_mix["out"] = round(st_output / st_total * 100, 1)
 
+                # Check if any tool in this sub-round failed
+                sr_has_fail = any(
+                    t["status_tone"] == "fail"
+                    for s in steps if s["type"] == "tool_batch"
+                    for t in s["tools"]
+                )
+
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
@@ -2810,8 +2820,10 @@ def _build_v11_view_model(
                     "token_output": st_output,
                     "token_total_raw": st_total,
                     "token_mix": st_mix,
-                    "status": "ok",
-                    "status_tone": "ok",
+                    "status": "error" if sr_has_fail else "ok",
+                    "status_label": "fail tool" if sr_has_fail else "ok",
+                    "status_tone": "err" if sr_has_fail else "ok",
+                    "has_fail": sr_has_fail,
                     "is_open": is_open_for_round,
                     "steps": steps,
                 })
@@ -3568,10 +3580,13 @@ def _build_v9_view_model(
                     sa_note_text = "Subagent LLM call"
                     sa_note_tone = "warn"
 
+                # Inner card title: LLM Call #N (SR title keeps thinking preview)
+                sa_inner_title = f"LLM Call #{m_idx + 1}"
+
                 steps = [{
                     "type": "llm_call",
                     "call_id": call_ref,
-                    "title": (m.content or "")[:80] or "Sub LLM Call",
+                    "title": sa_inner_title,
                     "model": (m.model or "unknown")[:40],
                     "status_label": "OK",
                     "status_tone": "ok",
@@ -3589,11 +3604,22 @@ def _build_v9_view_model(
                     "note_tone": sa_note_tone,
                     "finish_reason": getattr(m, "stop_reason", "") or "",
                 }]
+
+                # Check if any tool in this sub-round failed
+                sr_has_fail = any(
+                    t["status_tone"] == "fail"
+                    for s in steps if s["type"] == "tool_batch"
+                    for t in s["tools"]
+                )
+
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
                     "metric": _format_compact_token(usage.get("output_tokens", 0)),
-                    "status": "ok",
+                    "status": "error" if sr_has_fail else "ok",
+                    "status_label": "fail tool" if sr_has_fail else "ok",
+                    "status_tone": "err" if sr_has_fail else "ok",
+                    "has_fail": sr_has_fail,
                     "steps": steps,
                 })
 

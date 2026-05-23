@@ -44,10 +44,10 @@ class TestLLMCallCardActionsRenamed:
             "View model must generate response_payload_id"
         )
 
-    def test_context_button_in_macro(self):
-        """LLM call card macro must have Context button."""
+    def test_request_button_in_macro(self):
+        """LLM call card macro must have Request button (renamed from Context)."""
         timeline = (TEMPLATE_DIR / "components" / "session_detail_timeline.html").read_text(encoding="utf-8")
-        assert "sdp.button('Context'" in timeline, "Template must have Context button"
+        assert "sdp.button('Request'" in timeline, "Template must have Request button"
 
     def test_response_button_in_macro(self):
         """LLM call card macro must have Response button."""

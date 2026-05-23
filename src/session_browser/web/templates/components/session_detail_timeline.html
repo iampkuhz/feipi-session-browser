@@ -207,9 +207,8 @@
           {{ sdp.metric_cell('Cache Write', call.usage.cache_write|default('—')) }}
           {{ sdp.metric_cell('Output', call.usage.output|default('—')) }}
         </div>
-        <div class="sd-payload-line">
-          {{ sdp.button('Context', 'open-payload', 'primary', 'sm', call.context_payload_id|default(''), attrs='data-payload-kind="context" data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Context')) ~ '"') }}
-          {{ sdp.payload_note(call.note|default('已捕获渲染上下文；raw request 可能不可用'), call.note_tone|default('ok')) }}
+        <div class="sd-llm-action-group">
+          {{ sdp.button('Request', 'open-payload', 'primary', 'sm', call.context_payload_id|default(''), attrs='data-payload-kind="context" data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Request')) ~ '"') }}
           {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id|default(''), attrs='data-payload-kind="response" data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
         </div>
       </div>
@@ -233,7 +232,7 @@
             <span class="sd-tool-kind">{{ tool.kind }}</span>
             <span class="sd-tool-cmd" title="{{ tool.command }}">{{ tool.command }}</span>
             <span class="sd-tool-result" title="{{ tool.result_summary }}">{{ tool.result_summary }}</span>
-            <span class="sd-exit">{{ tool.exit_label|default('ok') }}</span>
+            {% if tool.status_tone == 'fail' %}<span class="sd-exit">{{ tool.exit_label|default('error') }}</span>{% endif %}
             {% if tool.payload_id %}{{ sdp.button('Result', 'open-payload', 'primary', 'sm', tool.payload_id, extra_class='sd-tool-result-btn', attrs='data-payload-kind="result"') }}{% endif %}
           </div>
         {% endfor %}
@@ -254,7 +253,7 @@
       </div>
       <div class="sd-sub-rounds">
         {% for sr in block.sub_rounds %}
-          <div class="sd-sub-round" data-sub-round-id="{{ sr.sub_round_id }}">
+          <div class="sd-sub-round {% if sr.has_fail %}sd-sub-round--fail{% endif %}" data-sub-round-id="{{ sr.sub_round_id }}">
             <div class="sd-sub-round__summary">
               <span class="sd-sub-id">SR{{ sr.sub_round_id }}</span>
               <span class="sd-sub-title">{{ sr.title }}</span>
@@ -293,7 +292,7 @@
                   </div>
                 </div>
               </span>
-              <span class="sd-sub-status {{ sr.status_tone|default('ok') }}">{{ sr.status }}</span>
+              <span class="sd-sub-status {{ sr.status_tone|default('ok') }}">{{ sr.status_label|default(sr.status) }}</span>
             </div>
             <div class="sd-sub-steps">
               {% for step in sr.steps %}
@@ -410,8 +409,24 @@
             {% if payload.warning %}<div class="sd-payload-warning payload-warning">{{ payload.warning }}</div>{% endif %}
             {% if payload.html %}
               {{ payload.html|safe }}
+            {% elif payload.kind == 'tool.result' and payload.text %}
+              <section class="sd-content-block content-block">
+                <div class="sd-response-block-head block-head">
+                  <span class="sd-card-title">Tool Result</span>
+                </div>
+                <div class="sd-response-block-body block-body">
+                  <pre>{{ payload.text }}</pre>
+                </div>
+              </section>
             {% elif payload.text %}
-              <pre>{{ payload.text }}</pre>
+              <section class="sd-content-block content-block">
+                <div class="sd-response-block-head block-head">
+                  <span class="sd-card-title">{{ payload.kind|default('content') }}</span>
+                </div>
+                <div class="sd-response-block-body block-body">
+                  <pre>{{ payload.text }}</pre>
+                </div>
+              </section>
             {% else %}
               <div class="sd-payload-empty">No content</div>
             {% endif %}
@@ -437,7 +452,7 @@
         <section class="sd-payload-empty-state" data-payload-empty>
           <div class="sd-payload-empty-state__icon" aria-hidden="true">&#x1F4E6;</div>
           <div class="sd-payload-empty-state__title">No payload loaded</div>
-          <div class="sd-payload-empty-state__desc">Click Context / Response / Result in a trace round to view its payload.</div>
+          <div class="sd-payload-empty-state__desc">Click Request / Response / Result in a trace round to view its payload.</div>
         </section>
       </div>
     </div>

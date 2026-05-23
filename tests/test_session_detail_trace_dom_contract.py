@@ -151,9 +151,9 @@ class TestNoNestedButtonConflict:
 
     def test_payload_buttons_in_detail(self, template_source):
         """Payload buttons should be invoked inside detail context (llm_call_card, tool_batch)."""
-        # v9 uses sdp.button() macro calls with 'open-payload' action
-        assert "sdp.button('Context'" in template_source or "'Context'" in template_source, (
-            "Must have Context button in detail"
+        # v9 uses sdp.button() macro calls with 'open-payload' action; Request renamed from Context
+        assert "sdp.button('Request'" in template_source or "'Request'" in template_source, (
+            "Must have Request button in detail"
         )
         assert "sdp.button('Response'" in template_source or "'Response'" in template_source, (
             "Must have Response button in detail"

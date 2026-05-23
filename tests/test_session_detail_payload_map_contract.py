@@ -73,9 +73,9 @@ def test_payload_buttons_have_id():
 
 
 def test_payload_button_titles():
-    """Buttons must have descriptive labels: Context, Response, Result."""
+    """Buttons must have descriptive labels: Request (renamed from Context), Response, Result."""
     timeline = _timeline_component()
-    assert "sdp.button('Context'" in timeline, "Must have Context button"
+    assert "sdp.button('Request'" in timeline, "Must have Request button"
     assert "sdp.button('Response'" in timeline, "Must have Response button"
     assert "sdp.button('Result'" in timeline, "Must have Result button"
 
