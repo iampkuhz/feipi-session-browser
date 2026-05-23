@@ -1,8 +1,12 @@
+"""文件分类器：根据路径将文件归类到预定义类别，确定是否需要 quality gate。
+
+由 post-write hook 调用，为每个被修改的文件打上 category、risk_level、
+quality_target 等标签，写入 changed-files.jsonl 作为 stop hook 校验依据。
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import PurePosixPath
-import fnmatch
+import re
 
 
 # 01. 分类结果模型
@@ -41,17 +45,23 @@ def normalize_repo_path(path: str) -> str:
     return value.strip("/")
 
 
-# 04. glob 匹配
-def _match(path: str, pattern: str) -> bool:
+# 04. glob 匹配：使用正则支持 ** 语义。
+def _glob_match(path: str, pattern: str) -> bool:
+    """支持 ** 语义的 glob 匹配。** 匹配零或多个目录段。"""
     p = normalize_repo_path(path)
     pat = normalize_repo_path(pattern)
-    if fnmatch.fnmatch(p, pat):
-        return True
-    # pathlib 的 match 对 ** 语义更接近路径匹配。
-    try:
-        return PurePosixPath(p).match(pat)
-    except Exception:
-        return False
+    regex = re.escape(pat)
+    regex = regex.replace(r'\*\*', '\x00')
+    regex = regex.replace(r'\*', '[^/]*')
+    regex = regex.replace(r'\?', '.')
+    regex = regex.replace('\x00/', '(?:.+/)?')
+    regex = regex.replace('\x00', '.*')
+    return bool(re.match(f'^{regex}$', p))
+
+
+def _match(path: str, pattern: str) -> bool:
+    """文件路径 glob 匹配，优先使用 ** 感知的正则实现。"""
+    return _glob_match(path, pattern)
 
 
 # 05. 单文件分类

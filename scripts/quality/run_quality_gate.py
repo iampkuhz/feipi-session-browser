@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Deterministic quality gate runner.
 
-Executes deterministic quality gates for a given target and writes
-a structured summary artifact.
+按指定 target 运行质量门禁检查，并写入结构化 summary artifact。
 
-Usage:
+用法:
     python3 scripts/quality/run_quality_gate.py --target session-detail --change-id fix-xyz
     python3 scripts/quality/run_quality_gate.py --target hook-runtime --change-id hook-runtime-selftest
 """
@@ -12,13 +11,14 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import subprocess
 import sys
 import time
 import shutil
 
-# Ensure repo root is on sys.path for `scripts.*` imports when run directly.
+# 确保 repo_root 在 sys.path 中，使 `scripts.*` 导入在直接运行时可用。
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))

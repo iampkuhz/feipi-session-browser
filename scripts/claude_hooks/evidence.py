@@ -1,3 +1,9 @@
+"""Hook evidence 记录：变更文件摘要、分类标签、JSONL 写入。
+
+PostToolUse (Write/Edit/MultiEdit/NotebookEdit) 完成后调用此模块，
+为每个被修改的文件记录 sha256、size、category、quality_target 等元数据，
+写入 changed-files.jsonl 和 per-change task-evidence 目录。
+"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
