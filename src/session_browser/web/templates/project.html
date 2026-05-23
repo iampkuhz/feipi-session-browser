@@ -40,7 +40,7 @@
     project.project_name,
     subtitle='Performance and cost profiling for agent runs across all models and agents.',
     leading_content=ui.back_button('/projects', label='Back to Projects list', icon='⬅️', title='返回到项目列表'),
-    extra_content=ui.path_row(project.project_key, display=project.project_key | truncate_path)
+    extra_content=ui.path_row(project.project_key, display=project.project_key | shorten_path)
 ) }}
 
 <!-- Project summary metrics -->

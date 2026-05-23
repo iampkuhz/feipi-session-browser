@@ -1120,7 +1120,7 @@
      <td class="project-cell [extra]">
        <a href="..." class="project-name-link">name</a>
        <div class="project-path-row">
-         <span class="path-text truncate" data-tooltip="path">path</span>
+         <span class="path-text truncate" data-tooltip="{{ path }}">{{ path | shorten_path }}</span>
          <button class="path-copy-btn" ...>...</button>  {# optional #}
        </div>  {# optional #}
      </td>
@@ -1137,7 +1137,7 @@
   <a href="{{ href }}" class="project-name-link" data-project="{{ name }}"{%- if name_data_action %} data-action="{{ name_data_action }}"{% endif %}>{{ name }}</a>
   {%- if show_path and path %}
   <div class="project-path-row">
-    <span class="path-text truncate" data-tooltip="{{ path }}">{{ path | truncate_path }}</span>
+    <span class="path-text truncate" data-tooltip="{{ path }}">{{ path | shorten_path }}</span>
     {%- if show_copy %}
     <button class="path-copy-btn" data-action="copy-project-path" data-clipboard-text="{{ path }}" title="Copy full path" aria-label="Copy project path">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
@@ -1266,7 +1266,7 @@
    Parameters:
      path: required — the full filesystem path (used for tooltip + clipboard)
      display: optional — display text shown in the chip (default: path,
-            commonly passed as `path | truncate_path` from the caller)
+            commonly passed as `path | shorten_path` from the caller)
      tooltip: optional — tooltip text (default: full path)
      show_copy: if false, omit the copy button (default True)
      extra_classes: additional CSS classes on the outer wrapper

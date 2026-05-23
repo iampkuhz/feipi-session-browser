@@ -492,6 +492,9 @@ _template_env.filters["truncate_path"] = lambda path: (
 _template_env.filters["relative_to_repo"] = lambda path: (
     _relative_to_repo(path)
 )
+_template_env.filters["shorten_path"] = lambda path: (
+    _shorten_path(path)
+)
 _template_env.filters["format_duration"] = lambda seconds: (
     f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}min" if seconds >= 3600
     else f"{int(seconds // 60)}min {int(seconds % 60)}s" if seconds >= 60
@@ -802,6 +805,30 @@ def _relative_to_repo(path: str) -> str:
     except Exception:
         pass
     return path
+
+
+def _shorten_path(path: str) -> str:
+    """Shorten a path for display: repo-relative → ~ → truncate.
+
+    Order matters: repo-relative comparison requires absolute path,
+    so we try that before replacing home with ~.
+    """
+    if not path:
+        return path or ""
+    # Step 1: try repo-relative (needs absolute path for comparison)
+    abs_path = os.path.abspath(path)
+    repo_root = _SESSION_REPO_ROOT or _REPO_ROOT
+    if repo_root:
+        try:
+            if abs_path.startswith(repo_root + os.sep) or abs_path == repo_root:
+                result = os.path.relpath(abs_path, repo_root)
+                return _truncate_path(result)
+        except Exception:
+            pass
+    # Not in repo: replace home with ~
+    result = _display_path(path)
+    # Step 2: truncate if still long
+    return _truncate_path(result)
 
 
 def _relative_time(iso_str: str) -> str:
@@ -2127,9 +2154,9 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                 grid_rows = []
                 grid_rows.append(f'<div class="key">name</div><div>{_html_escape(tool_name)}</div>')
                 if params.get("file_path"):
-                    grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(str(params["file_path"]))}</div>')
+                    grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(_shorten_path(str(params["file_path"])))}</div>')
                 if params.get("command"):
-                    grid_rows.append(f'<div class="key">command</div><div>{_html_escape(str(params["command"])[:200])}</div>')
+                    grid_rows.append(f'<div class="key">command</div><div>{_html_escape(_shorten_path(str(params["command"]))[:200])}</div>')
 
                 try:
                     raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
@@ -2178,9 +2205,9 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                 grid_rows = []
                 grid_rows.append(f'<div class="key">name</div><div>{_html_escape(tool_name)}</div>')
                 if params.get("file_path"):
-                    grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(str(params["file_path"]))}</div>')
+                    grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(_shorten_path(str(params["file_path"])))}</div>')
                 if params.get("command"):
-                    grid_rows.append(f'<div class="key">command</div><div>{_html_escape(str(params["command"])[:200])}</div>')
+                    grid_rows.append(f'<div class="key">command</div><div>{_html_escape(_shorten_path(str(params["command"]))[:200])}</div>')
 
                 try:
                     raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
@@ -2538,6 +2565,7 @@ def _build_v11_view_model(
             or params.get("path", "")
             or getattr(tc, "name", "tool")
         )
+        command = _shorten_path(str(command))
         result_text = (getattr(tc, "result", "") or "").strip()
         if result_text:
             result_summary = result_text[:60]
@@ -2859,7 +2887,7 @@ def _build_v11_view_model(
                     {
                         "type": "tool_step",
                         "kind": tc.name[:4].upper(),
-                        "text": tc.parameters.get("command", tc.parameters.get("file_path", ""))[:80] or tc.name,
+                        "text": _shorten_path(tc.parameters.get("command", tc.parameters.get("file_path", "")))[:80] or tc.name,
                         "result": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                     }
                     for tc in display_tools[:10]
@@ -3139,10 +3167,11 @@ def _build_v11_view_model(
                             })
                         elif cb_type == "tool_use":
                             tc_params = cb.get("parameters", {}) or {}
-                            tc_command = (tc_params.get("command", "")
+                            tc_command_raw = (tc_params.get("command", "")
                                           or tc_params.get("file_path", "")
                                           or tc_params.get("path", "")
-                                          or cb.get("name", "tool"))[:100]
+                                          or cb.get("name", "tool"))
+                            tc_command = _shorten_path(str(tc_command_raw))[:100]
                             rsp_blocks.append({
                                 "type": "tool_use",
                                 "name": cb.get("name", "unknown")[:40],
@@ -3158,10 +3187,11 @@ def _build_v11_view_model(
                         })
                     for tc in ix_tool_calls_for_response:
                         tc_params = getattr(tc, "parameters", {}) or {}
-                        tc_command = (tc_params.get("command", "")
+                        tc_command_raw = (tc_params.get("command", "")
                                       or tc_params.get("file_path", "")
                                       or tc_params.get("path", "")
-                                      or getattr(tc, "name", "tool"))[:100]
+                                      or getattr(tc, "name", "tool"))
+                        tc_command = _shorten_path(str(tc_command_raw))[:100]
                         rsp_blocks.append({
                             "type": "tool_use",
                             "name": getattr(tc, "name", "unknown")[:40],
@@ -3193,10 +3223,11 @@ def _build_v11_view_model(
                 rsp_blocks = []
                 for tc in ix_tool_calls_for_llm:
                     tc_params = getattr(tc, "parameters", {}) or {}
-                    tc_command = (tc_params.get("command", "")
+                    tc_command_raw = (tc_params.get("command", "")
                                   or tc_params.get("file_path", "")
                                   or tc_params.get("path", "")
-                                  or getattr(tc, "name", "tool"))[:100]
+                                  or getattr(tc, "name", "tool"))
+                    tc_command = _shorten_path(str(tc_command_raw))[:100]
                     rsp_blocks.append({
                         "type": "tool_use",
                         "name": getattr(tc, "name", "unknown")[:40],
@@ -3576,7 +3607,7 @@ def _build_v9_view_model(
                 "steps": [
                     {
                         "kind": tc.name[:4].upper(),
-                        "text": tc.parameters.get("command", tc.parameters.get("file_path", ""))[:80] or tc.name,
+                        "text": _shorten_path(tc.parameters.get("command", tc.parameters.get("file_path", "")))[:80] or tc.name,
                         "result": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                     }
                     for tc in sa_tools[:10]
@@ -3707,7 +3738,7 @@ def _build_v9_view_model(
                     batch_tools.append({
                         "tool_id": f"R{rid}-T{tc_global_idx}",
                         "kind": tc.name[:4].upper(),
-                        "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
+                        "command": _shorten_path(tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
                         "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                         "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                         "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
@@ -3780,7 +3811,7 @@ def _build_v9_view_model(
                 batch_tools.append({
                     "tool_id": f"R{rid}-T{tc_idx + 1}",
                     "kind": tc.name[:4].upper(),
-                    "command": (tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
+                    "command": _shorten_path(tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
                     "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                     "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                     "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),

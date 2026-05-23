@@ -803,7 +803,7 @@
   border: 1px solid #bae6fd;
   background: #f0f9ff;
   border-radius: var(--sd-radius-card);
-  overflow: hidden;
+  overflow: visible;
 }
 .sd-subagent__head {
   height: 36px;
@@ -824,7 +824,7 @@
   background: #fff;
   border-radius: 12px;
   margin-bottom: 7px;
-  overflow: hidden;
+  overflow: visible;
 }
 .sd-sub-round:last-child { margin-bottom: 0; }
 
@@ -843,7 +843,7 @@
 .sd-sub-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 760; }
 
 /* ── Subagent tokenbar (lighter tint, right-aligned) ── */
-.sd-sub-tokenbar { position: relative; display: flex; align-items: center; justify-content: flex-end; width: 100%; }
+.sd-sub-tokenbar { position: relative; display: flex; align-items: center; justify-content: flex-end; width: 100%; z-index: 2; }
 .tokenbar-sub {
   display: flex;
   height: 6px;
@@ -858,23 +858,27 @@
 .tokenbar-sub .out   { width: var(--segment-width, 0%); background: rgba(239, 68, 68, 0.35); }
 .sd-sub-tokenbar .token-tooltip {
   position: absolute;
-  bottom: 100%;
-  right: 0;
-  margin-bottom: 6px;
+  top: calc(100% + 8px);
+  right: -8px;
   display: none;
   z-index: 100;
   background: #fff;
   border: 1px solid var(--sd-line, #e2e8f0);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
   border-radius: 12px;
-  padding: 12px;
-  width: 240px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  width: 272px;
   color: var(--sd-text, #0f172a);
   font-size: 11px;
   line-height: 1.6;
-  white-space: nowrap;
+  white-space: normal;
+  background-clip: padding-box;
 }
-.sd-sub-tokenbar:hover .token-tooltip { display: block; }
+.sd-sub-tokenbar:hover,
+.sd-sub-tokenbar:focus-within { z-index: 80; }
+.sd-sub-tokenbar:hover .token-tooltip,
+.sd-sub-tokenbar:focus-within .token-tooltip { display: block; }
 
 /* ── Subagent status pill ── */
 .sd-sub-status { font-size: 11px; font-weight: 600; text-transform: capitalize; padding: 1px 6px; border-radius: 4px; text-align: right; width: fit-content; white-space: nowrap; margin-left: auto; }
@@ -1229,10 +1233,10 @@
 }
 
 .token-tooltip__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) minmax(48px, max-content) minmax(38px, max-content);
   align-items: center;
-  gap: 8px;
-  justify-content: space-between;
+  column-gap: 10px;
   font-size: 12px;
   margin: 5px 0;
 }
@@ -1241,8 +1245,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 80px;
-  flex-shrink: 0;
+  min-width: 0;
   color: var(--sd-muted);
 }
 
@@ -1282,6 +1285,7 @@
 }
 
 .token-tooltip__total {
+  grid-template-columns: minmax(92px, 1fr) minmax(48px, max-content);
   font-weight: 800;
   border-top: 1px solid var(--sd-line-soft);
   padding-top: 6px;

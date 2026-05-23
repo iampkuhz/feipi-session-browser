@@ -42,6 +42,14 @@ if [[ $QG_EXIT -ne 0 ]]; then
   BLOCK=1
 fi
 
+# Test baseline enforcement: block if NEW test failures appear (not in baseline).
+python3 "$ROOT/scripts/hooks/stop_test_baseline.py" >&2
+TB_EXIT=$?
+if [[ $TB_EXIT -ne 0 ]]; then
+  hook_log "BLOCK" "stop_test_baseline.py blocked stop (new test failures)"
+  BLOCK=1
+fi
+
 [[ $BLOCK -ne 0 ]] && exit $EXIT_BLOCK
 [[ $WARN -ne 0 ]] && exit $EXIT_WARN
 exit $EXIT_OK

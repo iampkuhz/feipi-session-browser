@@ -34,7 +34,7 @@
             <div class="sessions-td">
                 <div class="sessions-cell-main">
                     <div class="sessions-project-name">
-                        <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | display_path }}">{{ s.project_name }}</a>
+                        <a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | shorten_path }}">{{ s.project_name }}</a>
                     </div>
                 </div>
             </div>

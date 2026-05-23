@@ -265,7 +265,7 @@
                 <td>
                     <span class="project-cell">
                         <a href="/projects/{{ s.project_key | urlencode }}">{{ s.project_name }}</a>
-                        <span class="path-tooltip">{{ s.project_key }}</span>
+                        <span class="path-tooltip">{{ s.project_key | shorten_path }}</span>
                     </span>
                 </td>
                 <td class="mono" data-tooltip="{{ s.model or 'unknown' }}">{{ s.model or '—' }}</td>

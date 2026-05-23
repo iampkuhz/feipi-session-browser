@@ -27,7 +27,7 @@
         </td>
         <td class="col-project">
             <div class="project-cell">
-                <span class="project-name"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | display_path }}">{{ s.project_name }}</a></span>
+                <span class="project-name"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | shorten_path }}">{{ s.project_name }}</a></span>
             </div>
         </td>
         <td class="col-agent"><span class="badge {% if s.agent == 'claude_code' %}cc{% elif s.agent == 'codex' %}cx{% elif s.agent == 'qoder' %}qd{% endif %}" title="{{ 'Claude Code' if s.agent == 'claude_code' else 'Codex' if s.agent == 'codex' else 'Qoder' }} agent badge">{{ 'CC' if s.agent == 'claude_code' else 'CX' if s.agent == 'codex' else 'QD' if s.agent == 'qoder' else s.agent }}</span></td>
