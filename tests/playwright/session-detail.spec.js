@@ -1,32 +1,32 @@
 /**
- * session-detail.spec.js — Playwright visual/smoke quality gate for Phase 1 session detail page.
+ * session-detail.spec.js — 会话详情 Phase 1 视觉/冒烟质量门禁
  *
- * This test verifies:
- * 1. Session detail page loads with hero, issue summary, and trace panel — no console errors
- * 2. No visible disabled placeholder buttons or "待实现" stubs
- * 3. All visible buttons use supported data-action values
- * 4. All/Failed filter works correctly
- * 5. Expand All / Collapse All works
- * 6. Round toggle changes aria-expanded state
- * 7. First failed round is auto-expanded on page load
- * 8. Payload modal opens and closes
- * 9. Long session (100 rounds) performance and DOM node budget
+ * 验证项：
+ * 1. 会话详情页面加载 hero、问题摘要和 trace 面板 — 无控制台错误
+ * 2. 无可见的禁用占位按钮或"待实现"桩
+ * 3. 所有可见按钮使用支持的 data-action 值
+ * 4. 全部/失败筛选功能正常
+ * 5. 展开全部 / 折叠全部 功能正常
+ * 6. 轮次切换改变 aria-expanded 状态
+ * 7. 首个失败轮次页面加载时自动展开
+ * 8. Payload 弹窗正常打开和关闭
+ * 9. 长会话（100 轮）性能和 DOM 节点预算
  *
- * Setup:
- *   1. Start the fixture server: python3 scripts/start_fixture_server.py
- *      Or start your own server: ./scripts/session-browser.sh serve
- *   2. Run tests: PW_SESSION_URL=http://127.0.0.1:18999/sessions/claude_code/<session-id> npx playwright test
+ * 环境准备：
+ *   1. 启动测试服务：python3 scripts/start_fixture_server.py
+ *      或启动实际服务：./scripts/session-browser.sh serve
+ *   2. 运行测试：PW_SESSION_URL=http://127.0.0.1:18999/sessions/claude_code/<session-id> npx playwright test
  *
- * Updating screenshot baselines:
+ * 更新截图基线：
  *   npx playwright test --update-snapshots
  *
- * Running with a visible browser:
+ * 带可见浏览器运行：
  *   npx playwright test --headed
  *
- * The test auto-discovers a session detail URL via one of:
- *   - PW_SESSION_URL environment variable (full URL, e.g. http://127.0.0.1:18999/sessions/claude/xxx)
- *   - SB_TEST_DB environment variable pointing to a SQLite index (queries first session)
- *   - Falls back to /dashboard if nothing else is available (partial coverage)
+ * 测试自动发现会话详情 URL，优先级：
+ *   - PW_SESSION_URL 环境变量（完整 URL）
+ *   - SB_TEST_DB 环境变量指向 SQLite 索引（查询首个会话）
+ *   - 回退到 /dashboard（部分覆盖）
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -35,11 +35,10 @@ const path = require('path');
 const SCREENSHOT_DIR = path.join(__dirname, '..', 'test-results', 'screenshots');
 
 /**
- * Resolve a session detail URL for testing.
- * Priority: PW_SESSION_URL env > SB_TEST_DB env query > null (skip).
+ * 解析会话详情 URL。优先级：PW_SESSION_URL 环境变量 > SB_TEST_DB 查询 > null（跳过）。
  */
 function resolveSessionUrl() {
-  // Direct URL override — set this before running tests
+  // 直接覆盖 URL — 运行测试前设置
   const direct = process.env.PW_SESSION_URL;
   if (direct) return direct;
 
@@ -47,7 +46,7 @@ function resolveSessionUrl() {
 }
 
 /**
- * Ensure screenshot directory exists.
+ * 确保截图目录存在。
  */
 function ensureScreenshotDir() {
   if (!fs.existsSync(SCREENSHOT_DIR)) {
@@ -55,9 +54,9 @@ function ensureScreenshotDir() {
   }
 }
 
-// ── Tests ──────────────────────────────────────────────────────────
+// ── 会话详情 Phase 1 测试 ─────────────────────────────────────────
 
-test.describe('Session Detail — Phase 1', () => {
+test.describe('会话详情 — Phase 1', () => {
   let sessionUrl;
 
   test.beforeAll(() => {
@@ -65,9 +64,9 @@ test.describe('Session Detail — Phase 1', () => {
     sessionUrl = resolveSessionUrl();
   });
 
-  test('page loads with summary and trace panel — no console errors', async ({ page }) => {
+  test('页面加载包含摘要和 trace 面板 — 无控制台错误', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping session detail test.');
+      console.log('无测试会话 URL；跳过会话详情测试。');
       test.skip();
     }
 
@@ -80,49 +79,49 @@ test.describe('Session Detail — Phase 1', () => {
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
 
-    // Trace is the default (and only) view in Phase 1 — verify core sections
+    // Trace 是 Phase 1 的默认（也是唯一）视图 — 验证核心区域
     await expect(page.locator('.hero').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-issue-summary]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
-    // Assert no console errors
-    expect(consoleErrors, 'Page should not have console errors').toEqual([]);
+    // 断言无控制台错误
+    expect(consoleErrors, '页面不应有控制台错误').toEqual([]);
 
-    // Screenshot: top viewport
+    // 截图：顶部视口
     await page.screenshot({
       path: path.join(SCREENSHOT_DIR, 'session-detail-overview.png'),
       fullPage: false,
     });
   });
 
-  test('no visible disabled placeholder buttons', async ({ page }) => {
+  test('无可见的禁用占位按钮', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping disabled placeholder test.');
+      console.log('无测试会话 URL；跳过禁用占位测试。');
       test.skip();
     }
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.hero').first()).toBeVisible({ timeout: 10000 });
 
-    // No visible button should have disabled=true
+    // 可见按钮不应有 disabled=true
     const disabledButtons = page.locator('button:visible[disabled="true"], button:visible[disabled]');
     expect(await disabledButtons.count()).toBe(0);
 
-    // No visible button with title containing "待实现"
+    // 可见按钮标题不应包含"待实现"
     const stubButtons = page.locator('button:visible[title*="待实现"]');
     expect(await stubButtons.count()).toBe(0);
   });
 
-  test('all visible buttons have supported data-action', async ({ page }) => {
+  test('所有可见按钮都有支持的 data-action', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping data-action test.');
+      console.log('无测试会话 URL；跳过 data-action 测试。');
       test.skip();
     }
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.hero').first()).toBeVisible({ timeout: 10000 });
 
-    // Supported data-action values in Phase 1
+    // Phase 1 支持的 data-action 值
     const supportedActions = new Set([
       'filter-status',
       'expand-all',
@@ -142,51 +141,48 @@ test.describe('Session Detail — Phase 1', () => {
       const action = await btn.getAttribute('data-action');
       expect(
         supportedActions.has(action),
-        `Button with data-action="${action}" is not in supported set`,
+        `按钮 data-action="${action}" 不在支持集合中`,
       ).toBe(true);
     }
   });
 
-  test('All/Failed filter works', async ({ page }) => {
+  test('全部/失败筛选功能正常', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping filter test.');
+      console.log('无测试会话 URL；跳过筛选测试。');
       test.skip();
     }
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
-    // Count all trace rows
+    // 统计全部 trace 行
     const totalRows = await page.locator('.trace-row').count();
     expect(totalRows).toBeGreaterThan(0);
 
-    // All filter: no rows should have is-filtered-out
+    // 全部筛选：不应有被过滤的行
     await page.locator('.trace-panel__chip[data-status="all"]').click();
     await page.waitForTimeout(100);
     const filteredOutAll = await page.locator('.trace-row.is-filtered-out').count();
     expect(filteredOutAll).toBe(0);
 
-    // Failed filter: only failed rows visible, at least one non-failed row gets filtered
+    // 失败筛选：只有失败行可见
     const totalFailed = await page.locator('.trace-row[data-status="failed"]').count();
     await page.locator('.trace-panel__chip[data-status="failed"]').click();
     await page.waitForTimeout(100);
 
-    // All visible rows should be failed
     const visibleRows = await page.locator('.trace-row:not(.is-filtered-out)').count();
     if (totalFailed > 0) {
       expect(visibleRows).toBe(totalFailed);
-      // Non-failed rows should be filtered out
       const filteredOutFailed = await page.locator('.trace-row.is-filtered-out').count();
       expect(filteredOutFailed).toBe(totalRows - totalFailed);
     } else {
-      // No failed rows — all should be filtered out
       expect(visibleRows).toBe(0);
     }
   });
 
-  test('Expand All / Collapse All works', async ({ page }) => {
+  test('展开全部 / 折叠全部功能正常', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping expand/collapse test.');
+      console.log('无测试会话 URL；跳过展开/折叠测试。');
       test.skip();
     }
 
@@ -196,7 +192,7 @@ test.describe('Session Detail — Phase 1', () => {
     const totalRows = await page.locator('.trace-row').count();
     expect(totalRows).toBeGreaterThan(0);
 
-    // Collapse All: all trace-row details should be hidden
+    // 折叠全部：所有详情应隐藏
     const collapseBtn = page.locator('[data-action="collapse-all"]');
     await expect(collapseBtn).toBeVisible({ timeout: 5000 });
     await collapseBtn.click();
@@ -207,7 +203,7 @@ test.describe('Session Detail — Phase 1', () => {
     );
     expect(visibleCountAfterCollapse).toBe(0);
 
-    // Expand All: all trace-row details should be visible
+    // 展开全部：所有详情应可见
     const expandBtn = page.locator('[data-action="expand-all"]');
     await expect(expandBtn).toBeVisible({ timeout: 5000 });
     await expandBtn.click();
@@ -219,118 +215,117 @@ test.describe('Session Detail — Phase 1', () => {
     expect(visibleCountAfterExpand).toBe(totalRows);
   });
 
-  test('round toggle changes aria-expanded', async ({ page }) => {
+  test('轮次切换改变 aria-expanded', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping round toggle test.');
+      console.log('无测试会话 URL；跳过轮次切换测试。');
       test.skip();
     }
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
-    // Start from a collapsed state
+    // 从折叠状态开始
     await page.locator('[data-action="collapse-all"]').click();
     await page.waitForTimeout(100);
 
-    // Pick the first trace row
+    // 选中首个 trace 行
     const firstRow = page.locator('.trace-row').first();
     const firstDetail = page.locator('[data-round-detail]').first();
-    const toggleIcon = firstRow.locator('[data-toggle-icon]').first();
 
-    // Verify detail is initially hidden
+    // 验证详情初始隐藏
     await expect(firstDetail).toBeHidden({ timeout: 3000 });
 
-    // Click the trace row to expand
+    // 点击 trace 行展开
     await firstRow.click();
     await page.waitForTimeout(150);
 
-    // Detail should now be visible
+    // 详情应可见
     await expect(firstDetail).toBeVisible({ timeout: 3000 });
 
-    // Click again to collapse
+    // 再次点击折叠
     await firstRow.click();
     await page.waitForTimeout(150);
 
-    // Detail should be hidden again
+    // 详情应隐藏
     await expect(firstDetail).toBeHidden({ timeout: 3000 });
   });
 
-  test('first failed round expanded by default', async ({ page }) => {
+  test('首个失败轮次默认展开', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping first-failed-round test.');
+      console.log('无测试会话 URL；跳过首个失败轮次测试。');
       test.skip();
     }
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
-    // Find the first failed round
+    // 找到首个失败轮次
     const firstFailedRow = page.locator('.trace-row[data-status="failed"]').first();
     const failedCount = await firstFailedRow.count();
 
     if (failedCount === 0) {
-      // No failed rounds — nothing to auto-expand, test passes vacuously
-      console.log('No failed rounds in this session; skipping first-failed-round test.');
+      // 无失败轮次 — 无需自动展开，测试通过
+      console.log('本会话无失败轮次；跳过首个失败轮次测试。');
       return;
     }
 
-    // Get the round index of the first failed round
+    // 获取首个失败轮次的索引
     const roundIdx = await firstFailedRow.getAttribute('data-round-idx');
     const correspondingDetail = page.locator(`[data-round-detail="${roundIdx}"]`);
 
-    // On page load, the first failed round detail should be visible
+    // 页面加载时首个失败轮次详情应可见
     await expect(correspondingDetail).toBeVisible({ timeout: 3000 });
   });
 
-  test('payload modal opens and closes', async ({ page }) => {
+  test('payload 弹窗正常打开和关闭', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('No fixture session URL available; skipping payload modal test.');
+      console.log('无测试会话 URL；跳过 payload 弹窗测试。');
       test.skip();
     }
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
-    // Expand all rounds to find payload buttons inside trace details
+    // 展开所有轮次以查找 payload 按钮
     await page.locator('[data-action="expand-all"]').click();
     await page.waitForTimeout(200);
 
-    // Look for open-payload buttons
+    // 查找 open-payload 按钮
     const payloadBtn = page.locator('button[data-action="open-payload"]').first();
     const hasPayloadBtn = await payloadBtn.count().then(c => c > 0);
 
     if (!hasPayloadBtn) {
-      console.log('No payload buttons available in this session; skipping payload modal test.');
+      console.log('本会话无 payload 按钮；跳过 payload 弹窗测试。');
       return;
     }
 
     const modal = page.locator('#payload-modal');
 
-    // Modal should be hidden initially
+    // 初始弹窗应隐藏
     await expect(modal).toBeHidden({ timeout: 3000 });
 
-    // Click to open
+    // 点击打开
     await payloadBtn.click();
     await page.waitForTimeout(200);
 
-    // Modal should be open (dialog with showModal() is :modal or [open])
+    // 弹窗应打开
     await expect(modal).toHaveAttribute('open', { timeout: 5000 });
 
-    // Click close button
+    // 点击关闭
     const closeBtn = page.locator('[data-action="close-modal"]');
     await closeBtn.click();
     await page.waitForTimeout(200);
 
-    // Modal should be closed
+    // 弹窗应关闭
     await expect(modal).toBeHidden({ timeout: 5000 });
   });
 });
 
-// ── Long session performance tests (100+ rounds) ──────────────────────────
+// ── 长会话性能测试（100+ 轮） ──────────────────────────────────────────
 
-test.describe('Long Session — 100 Rounds Performance', () => {
+test.describe('长会话 — 100 轮性能', () => {
   /**
-   * Resolve long session URL from environment or use fixture URL pattern.
+   * 解析长会话 URL。
    */
   function resolveLongSessionUrl() {
     const direct = process.env.PW_LONG_SESSION_URL;
@@ -338,79 +333,77 @@ test.describe('Long Session — 100 Rounds Performance', () => {
     return null;
   }
 
-  test('trace view renders 100 rounds without timeout', async ({ page }) => {
+  test('trace 视图在 100 轮下无超时渲染', async ({ page }) => {
     const longUrl = resolveLongSessionUrl();
     if (!longUrl) {
-      console.log('No long fixture session URL available; skipping long session test.');
+      console.log('无长会话 URL；跳过长会话测试。');
       test.skip();
     }
 
-    // Measure page load time
+    // 测量页面加载时间
     const startTime = Date.now();
     await page.goto(longUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     const loadTime = Date.now() - startTime;
 
     await expect(page.locator('.hero').first()).toBeVisible({ timeout: 10000 });
 
-    // Verify trace panel is visible (trace is default in Phase 1 — no switching needed)
+    // 验证 trace 面板可见
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 5000 });
 
-    // Count visible trace rows (should match 100 rounds)
+    // 统计可见 trace 行数（应匹配 100 轮）
     const rowCount = await page.locator('.trace-row').count();
-    console.log(`Long session: ${rowCount} trace rows rendered in ${loadTime}ms`);
+    console.log(`长会话：${rowCount} 行 trace，耗时 ${loadTime}ms`);
 
-    // Assert all 100 rounds are present
+    // 断言全部 100 轮存在
     expect(rowCount).toBeGreaterThanOrEqual(100);
 
-    // Assert page loads within reasonable time (<5s for 100 rounds)
+    // 断言页面加载在合理时间内（<5s for 100 轮）
     expect(loadTime).toBeLessThan(5000);
 
-    // Screenshot for visual regression
+    // 截图用于视觉回归
     await page.screenshot({
       path: path.join(SCREENSHOT_DIR, 'long-session-trace.png'),
       fullPage: false,
     });
   });
 
-  test('DOM node count stays reasonable for 100 rounds', async ({ page }) => {
+  test('100 轮下 DOM 节点数保持合理', async ({ page }) => {
     const longUrl = resolveLongSessionUrl();
     if (!longUrl) {
-      console.log('No long fixture session URL available; skipping DOM node test.');
+      console.log('无长会话 URL；跳过 DOM 节点测试。');
       test.skip();
     }
 
     await page.goto(longUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await expect(page.locator('.hero').first()).toBeVisible({ timeout: 10000 });
 
-    // Collapse all rounds (details hidden by default after auto-expand of first failed)
+    // 折叠所有轮次后统计 DOM 节点 — 应低于 20k
     await page.locator('[data-action="collapse-all"]').click();
     await page.waitForTimeout(200);
 
-    // Count total DOM nodes — should be under 15k for 100 collapsed rounds
     const nodeCount = await page.evaluate(() => document.querySelectorAll('*').length);
-    console.log(`Long session: ${nodeCount} total DOM nodes (collapsed)`);
+    console.log(`长会话：${nodeCount} 总 DOM 节点（折叠）`);
 
-    // Node count should be under a reasonable threshold
     expect(nodeCount).toBeLessThan(20000);
 
-    // Expand all rounds and re-check
+    // 展开所有轮次后复查
     const expandAllBtn = page.locator('[data-action="expand-all"]');
     if (await expandAllBtn.count() > 0) {
       await expandAllBtn.click();
       await page.waitForTimeout(500);
 
       const expandedNodeCount = await page.evaluate(() => document.querySelectorAll('*').length);
-      console.log(`Long session: ${expandedNodeCount} total DOM nodes (expanded)`);
+      console.log(`长会话：${expandedNodeCount} 总 DOM 节点（展开）`);
 
-      // Even with all expanded, should not exceed 50k nodes
+      // 全部展开后不应超过 50k 节点
       expect(expandedNodeCount).toBeLessThan(50000);
     }
   });
 
-  test('expand-all behavior on 100 rounds', async ({ page }) => {
+  test('100 轮下展开全部行为正常', async ({ page }) => {
     const longUrl = resolveLongSessionUrl();
     if (!longUrl) {
-      console.log('No long fixture session URL available; skipping expand-all test.');
+      console.log('无长会话 URL；跳过展开全部测试。');
       test.skip();
     }
 
@@ -420,21 +413,21 @@ test.describe('Long Session — 100 Rounds Performance', () => {
     const totalRows = await page.locator('.trace-row').count();
     expect(totalRows).toBeGreaterThanOrEqual(100);
 
-    // Collapse all first
+    // 先折叠全部
     await page.locator('[data-action="collapse-all"]').click();
     await page.waitForTimeout(200);
 
     const collapsedVisible = await page.locator('.trace-detail:not([style*="display: none"])').count();
     expect(collapsedVisible).toBe(0);
 
-    // Expand all
+    // 展开全部
     await page.locator('[data-action="expand-all"]').click();
     await page.waitForTimeout(300);
 
     const expandedVisible = await page.locator('.trace-detail:not([style*="display: none"])').count();
     expect(expandedVisible).toBe(totalRows);
 
-    // Collapse all again
+    // 再次折叠
     await page.locator('[data-action="collapse-all"]').click();
     await page.waitForTimeout(200);
 

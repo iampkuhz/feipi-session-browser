@@ -74,7 +74,7 @@ The fixture session is served on port 18902 by the `hifi_fixture_session` fixtur
 Use this URL for Playwright visual tests:
 
 ```javascript
-// e2e/session-detail.spec.js
+// tests/playwright/session-detail.spec.js
 const baseURL = process.env.HIFFI_FIXTURE_URL || "http://127.0.0.1:18902";
 await page.goto(`${baseURL}/sessions/claude_code/hifi-viz-session-001`);
 ```

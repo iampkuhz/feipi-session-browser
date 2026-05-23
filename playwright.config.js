@@ -2,26 +2,26 @@
 const { defineConfig } = require('@playwright/test');
 
 /**
- * Playwright config for session-browser visual/smoke quality gate.
+ * Playwright 视觉/冒烟质量门禁配置
  *
- * Usage:
- *   npx playwright test                          # run all tests (server must be running)
- *   npx playwright test --headed                 # run with visible browser
- *   npx playwright test session-detail           # run session-detail tests only
- *   npx playwright test --update-snapshots       # update screenshot baselines
+ * 用法：
+ *   npx playwright test                          # 运行全部测试（需先启动服务）
+ *   npx playwright test --headed                 # 带浏览器可见性运行
+ *   npx playwright test session-detail           # 仅运行会话详情测试
+ *   npx playwright test --update-snapshots       # 更新截图基线
  *
- * Server must be started separately before running tests:
+ * 服务需提前启动：
  *   ./scripts/session-browser.sh serve
- * (or point SB_TEST_DB to a valid SQLite index and run the test harness)
+ * 或设置 SB_TEST_DB 指向有效的 SQLite 索引并运行测试工具
  */
 module.exports = defineConfig({
-  testDir: './',
-  testMatch: ['e2e/**/*.spec.{js,ts}', 'tests/playwright/**/*.spec.{js,ts}'],
+  testDir: './tests/playwright',
+  testMatch: ['**/*.spec.{js,ts}'],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: [['html', { outputFolder: 'playwright-report' }], ['list']],
+  reporter: [['html', { outputFolder: 'reports/playwright-report' }], ['list']],
 
   use: {
     baseURL: process.env.BASE_URL || 'http://127.0.0.1:18999',

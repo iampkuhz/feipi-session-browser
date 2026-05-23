@@ -38,9 +38,6 @@ openspec/changes/*
 # Harness archive
 /harness/archive/
 
-# Prompts (input definitions, not authoritative)
-/prompts/
-
 # Reports
 reports/
 
@@ -53,7 +50,6 @@ reports/
 
 # Playwright
 test-results/
-playwright-report/
 blob-report/
 playwright/.cache/
 

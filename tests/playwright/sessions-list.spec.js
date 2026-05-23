@@ -1,25 +1,26 @@
+/**
+ * sessions-list.spec.js — 会话列表页 Playwright 截图与交互检查
+ */
 import { test, expect } from '@playwright/test';
 
-// T082 — Sessions List Playwright screenshot and interaction checks.
-
-test.describe('Sessions List Page', () => {
-  test('core page loads and structure', async ({ page }) => {
+test.describe('会话列表页', () => {
+  test('核心页面加载与结构', async ({ page }) => {
     await page.goto('/sessions');
     await expect(page.locator('body')).toBeVisible();
 
-    // Page head
+    // 页面标题
     await expect(page.locator('.page-head h1')).toHaveText('Sessions');
 
-    // Filter bar
+    // 筛选栏
     await expect(page.locator('#session-search')).toBeVisible();
     await expect(page.locator('#filter-agent')).toBeVisible();
     await expect(page.locator('#filter-model')).toBeVisible();
     await expect(page.locator('#filter-project')).toBeVisible();
 
-    // Data table
+    // 数据表格
     await expect(page.locator('.data-table')).toBeVisible();
 
-    // Pagination (only visible when there are sessions)
+    // 分页（仅在有数据时显示）
     const totalCount = await page.locator('.sessions-page-stats').textContent();
     if (totalCount && /\d+ sessions?/.test(totalCount)) {
       const pagination = page.locator('.pagination');
@@ -27,7 +28,7 @@ test.describe('Sessions List Page', () => {
     }
   });
 
-  test('screenshot at 1440x900', async ({ page }) => {
+  test('1440x900 截图', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/sessions');
     await expect(page.locator('body')).toBeVisible();
@@ -37,7 +38,7 @@ test.describe('Sessions List Page', () => {
     });
   });
 
-  test('data table has all column headers', async ({ page }) => {
+  test('数据表格包含全部列头', async ({ page }) => {
     await page.goto('/sessions');
     const headers = page.locator('.data-table th');
     const count = await headers.count();
@@ -56,13 +57,13 @@ test.describe('Sessions List Page', () => {
     expect(combined).toContain('updated');
   });
 
-  test('sort buttons are clickable and functional', async ({ page }) => {
+  test('排序按钮可点击且生效', async ({ page }) => {
     await page.goto('/sessions');
     const sortButtons = page.locator('.sort-button[data-action="sort"]');
     const count = await sortButtons.count();
     expect(count).toBeGreaterThanOrEqual(4);
 
-    // Click tokens sort button and verify URL changes
+    // 点击 tokens 排序按钮，验证 URL 变化
     const tokensSort = page.locator('.sort-button[data-sort-key="tokens"]');
     if (await tokensSort.isVisible()) {
       const currentUrl = page.url();
@@ -72,7 +73,7 @@ test.describe('Sessions List Page', () => {
     }
   });
 
-  test('session rows have data attributes', async ({ page }) => {
+  test('会话行包含 data 属性', async ({ page }) => {
     await page.goto('/sessions');
     const rows = page.locator('tr[data-action="row"]');
     const count = await rows.count();
@@ -84,19 +85,19 @@ test.describe('Sessions List Page', () => {
     }
   });
 
-  test('agent badges render with correct classes', async ({ page }) => {
+  test('agent 徽章渲染正确', async ({ page }) => {
     await page.goto('/sessions');
     const badges = page.locator('.data-table .badge');
     const count = await badges.count();
     if (count > 0) {
-      // At least one badge should have cc, cx, or qd class
+      // 至少一个徽章应有 cc、cx 或 qd 类
       const firstBadge = badges.first();
       const className = await firstBadge.getAttribute('class');
       expect(className).toMatch(/(cc|cx|qd)/);
     }
   });
 
-  test('token bar has four segments', async ({ page }) => {
+  test('token 条包含四段', async ({ page }) => {
     await page.goto('/sessions');
     const tokenbars = page.locator('.tokenbar');
     const count = await tokenbars.count();
@@ -107,12 +108,12 @@ test.describe('Sessions List Page', () => {
     }
   });
 
-  test('filter form submits and changes URL', async ({ page }) => {
+  test('筛选表单提交并改变 URL', async ({ page }) => {
     await page.goto('/sessions');
     const searchInput = page.locator('#session-search');
     if (await searchInput.isVisible()) {
       await searchInput.fill('test-query-t082');
-      // Click apply
+      // 点击应用
       const applyBtn = page.locator('button[data-action="apply"], input[type="submit"]');
       if (await applyBtn.count() > 0) {
         await applyBtn.first().click();

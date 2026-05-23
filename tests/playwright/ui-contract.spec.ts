@@ -1,4 +1,11 @@
+/**
+ * ui-contract.spec.ts — 页面视觉契约测试（截图 + 可见性）
+ *
+ * 覆盖所有主要页面的多视口截图和核心结构验证。
+ */
 import { test, expect } from '@playwright/test';
+
+// ─── 核心页面截图 ───────────────────────────────────────────────────
 
 const pages = [
   ['/dashboard', 'dashboard'],
@@ -9,36 +16,36 @@ const pages = [
 ];
 
 for (const [url, name] of pages) {
-  test(`${name} core screenshot`, async ({ page }) => {
+  test(`${name} 核心截图`, async ({ page }) => {
     await page.goto(url);
     await expect(page.locator('body')).toBeVisible();
     await expect(page).toHaveScreenshot(`${name}-1440.png`, { fullPage: true, maxDiffPixelRatio: 0.05 });
   });
 }
 
-// ─── Dashboard viewport contract tests (06-validation-contract) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
+// ─── 仪表板视口契约测试（06-validation-contract） ────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
 
-const dashboardViewports = [
+const viewports = [
   { width: 1440, height: 900, label: '1440x900' },
   { width: 1280, height: 800, label: '1280x800' },
   { width: 1180, height: 800, label: '1180x800' },
 ] as const;
 
-for (const vp of dashboardViewports) {
-  test(`dashboard @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`仪表板 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/dashboard');
 
-    // Core structure visibility
+    // 核心结构可见
     await expect(page.locator('.page-head')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
     await expect(page.locator('.chart-card').first()).toBeVisible();
 
-    // Scope switch must be present on dashboard
+    // 范围切换必须存在
     await expect(page.locator('.scope-switch')).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`dashboard-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
@@ -46,10 +53,9 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── Session detail viewport contract tests (T096) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
-// Requires a running server with indexed session data.
-// Set PW_SESSION_URL to a valid session detail URL, otherwise tests skip.
+// ─── 会话详情视口契约测试（T096） ────────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
+// 需要运行服务并包含索引数据。设置 PW_SESSION_URL 指向有效会话 URL，否则跳过。
 
 function resolveSessionUrl(): string | null {
   const direct = process.env.PW_SESSION_URL;
@@ -57,23 +63,23 @@ function resolveSessionUrl(): string | null {
   return null;
 }
 
-for (const vp of dashboardViewports) {
-  test(`session-detail @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`会话详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     const sessionUrl = resolveSessionUrl();
     if (!sessionUrl) {
-      console.log('No PW_SESSION_URL set; skipping session-detail viewport test.');
+      console.log('未设置 PW_SESSION_URL；跳过会话详情视口测试。');
       return;
     }
 
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto(sessionUrl);
 
-    // Core structure visibility: hero, tabs, trace table
+    // 核心结构可见：hero、标签页、trace 表格
     await expect(page.locator('.hero').first()).toBeVisible();
     await expect(page.locator('.sd-tabs')).toBeVisible();
     await expect(page.locator('[data-trace-panel]')).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`session-detail-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
@@ -81,20 +87,20 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── Projects viewport contract tests (T110) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
+// ─── 项目页视口契约测试（T110） ──────────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
 
-for (const vp of dashboardViewports) {
-  test(`projects @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`项目页 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/projects');
 
-    // Core structure visibility
+    // 核心结构可见
     await expect(page.locator('.page-head')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
     await expect(page.locator('.data-table')).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`projects-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
@@ -102,10 +108,9 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── Project detail viewport contract tests (T124) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
-// Requires a running server with indexed project data.
-// Set PW_PROJECT_URL to a valid project detail URL, otherwise tests skip.
+// ─── 项目详情页视口契约测试（T124） ──────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
+// 设置 PW_PROJECT_URL 指向有效项目 URL，否则跳过。
 
 function resolveProjectUrl(): string | null {
   const direct = process.env.PW_PROJECT_URL;
@@ -113,23 +118,23 @@ function resolveProjectUrl(): string | null {
   return null;
 }
 
-for (const vp of dashboardViewports) {
-  test(`project-detail @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`项目详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     const projectUrl = resolveProjectUrl();
     if (!projectUrl) {
-      console.log('No PW_PROJECT_URL set; skipping project-detail viewport test.');
+      console.log('未设置 PW_PROJECT_URL；跳过项目详情视口测试。');
       return;
     }
 
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto(projectUrl);
 
-    // Core structure visibility
+    // 核心结构可见
     await expect(page.locator('.page-head')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
     await expect(page.locator('.data-table')).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`project-detail-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
@@ -137,20 +142,20 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── Agents list viewport contract tests (T138) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
+// ─── Agent 列表页视口契约测试（T138） ────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
 
-for (const vp of dashboardViewports) {
-  test(`agents @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`Agent 列表 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/agents');
 
-    // Core structure visibility
+    // 核心结构可见
     await expect(page.locator('.page-head')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
     await expect(page.locator('.data-table')).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`agents-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
@@ -158,22 +163,22 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── Glossary viewport contract tests (T166) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
+// ─── 术语表视口契约测试（T166） ──────────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
 
-for (const vp of dashboardViewports) {
-  test(`glossary @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`术语表 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/glossary');
 
-    // Core structure visibility
+    // 核心结构可见
     await expect(page.locator('.page-head')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
     await expect(page.locator('.filter-card')).toBeVisible();
     await expect(page.locator('.card.section').first()).toBeVisible();
     await expect(page.locator('.data-table').first()).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`glossary-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
@@ -181,10 +186,9 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── Agent detail viewport contract tests (T152) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
-// Requires a running server with indexed agent data.
-// Set PW_AGENT_URL to a valid agent detail URL (e.g. /agents/claude_code), otherwise tests skip.
+// ─── Agent 详情页视口契约测试（T152） ─────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
+// 设置 PW_AGENT_URL 指向有效 Agent URL（如 /agents/claude_code），否则跳过。
 
 function resolveAgentUrl(): string | null {
   const direct = process.env.PW_AGENT_URL;
@@ -192,23 +196,23 @@ function resolveAgentUrl(): string | null {
   return null;
 }
 
-for (const vp of dashboardViewports) {
-  test(`agent-detail @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`Agent 详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     const agentUrl = resolveAgentUrl();
     if (!agentUrl) {
-      console.log('No PW_AGENT_URL set; skipping agent-detail viewport test.');
+      console.log('未设置 PW_AGENT_URL；跳过 Agent 详情视口测试。');
       return;
     }
 
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto(agentUrl);
 
-    // Core structure visibility
+    // 核心结构可见
     await expect(page.locator('.header')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
     await expect(page.locator('.data-table').first()).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`agent-detail-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
@@ -216,25 +220,24 @@ for (const vp of dashboardViewports) {
   });
 }
 
-// ─── State pages viewport contract tests (T180) ───
-// Required viewports: 1440x900, 1280x800, 1180x800
-// 404 page is reachable via any unmapped URL.
-// error.html is a server-side 500 template; it cannot be reached via a normal
-// URL without triggering a real server error, so it is excluded from Playwright
-// screenshot checks. The 404 page covers the shared states.css styles.
+// ─── 状态页视口契约测试（T180） ──────────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800
+// 404 页可通过任意未映射 URL 触发。
+// error.html 是服务端 500 模板，无法通过普通 URL 触发（会引发真实服务错误），
+// 因此排除在 Playwright 截图检查之外。404 页已覆盖共享的 states.css 样式。
 
-for (const vp of dashboardViewports) {
-  test(`404 @ ${vp.label} — screenshot + visibility`, async ({ page }) => {
+for (const vp of viewports) {
+  test(`404 页 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    // Navigate to an unmapped URL to trigger the 404 handler
+    // 导航到未映射 URL 触发 404
     await page.goto('/__test-404-not-found__');
 
-    // Core structure visibility
+    // 核心结构可见
     await expect(page.locator('.state-panel')).toBeVisible();
     await expect(page.locator('.state-panel__title')).toHaveText('Page Not Found');
     await expect(page.locator('.state-panel__links')).toBeVisible();
 
-    // Full-page screenshot for visual regression
+    // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`404-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
