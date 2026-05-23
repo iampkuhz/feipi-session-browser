@@ -258,8 +258,42 @@
             <div class="sd-sub-round__summary">
               <span class="sd-sub-id">SR{{ sr.sub_round_id }}</span>
               <span class="sd-sub-title">{{ sr.title }}</span>
-              <span class="sd-sub-tokens" title="{{ sr.metric_label|default('') }}">{{ sr.metric }}</span>
-              <span class="sd-sub-status {{ sr.status_tone_class|default('') }}">{{ sr.status }}</span>
+              <span class="sd-sub-tokenbar">
+                <span class="tokenbar-sub" aria-hidden="true">
+                  <span class="fresh" style="--segment-width:{{ sr.token_mix.fresh|default(0) }}%"></span>
+                  <span class="read" style="--segment-width:{{ sr.token_mix.read|default(0) }}%"></span>
+                  <span class="write" style="--segment-width:{{ sr.token_mix.write|default(0) }}%"></span>
+                  <span class="out" style="--segment-width:{{ sr.token_mix.out|default(0) }}%"></span>
+                </span>
+                <div class="token-tooltip" aria-hidden="true">
+                  <div class="token-tooltip__title">Token Breakdown</div>
+                  <div class="token-tooltip__row">
+                    <span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh</span></span>
+                    <span class="token-tooltip__value">{{ sr.token_input|default(0)|format_compact_token }}</span>
+                    <span class="token-tooltip__pct">{{ sr.token_mix.fresh|default(0) }}%</span>
+                  </div>
+                  <div class="token-tooltip__row">
+                    <span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
+                    <span class="token-tooltip__value">{{ sr.token_cache_read|default(0)|format_compact_token }}</span>
+                    <span class="token-tooltip__pct">{{ sr.token_mix.read|default(0) }}%</span>
+                  </div>
+                  <div class="token-tooltip__row">
+                    <span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
+                    <span class="token-tooltip__value">{{ sr.token_cache_write|default(0)|format_compact_token }}</span>
+                    <span class="token-tooltip__pct">{{ sr.token_mix.write|default(0) }}%</span>
+                  </div>
+                  <div class="token-tooltip__row">
+                    <span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span>
+                    <span class="token-tooltip__value">{{ sr.token_output|default(0)|format_compact_token }}</span>
+                    <span class="token-tooltip__pct">{{ sr.token_mix.out|default(0) }}%</span>
+                  </div>
+                  <div class="token-tooltip__sep"></div>
+                  <div class="token-tooltip__row token-tooltip__total">
+                    <span>Total</span><span class="token-tooltip__value">{{ sr.token_total_raw|default(0)|format_compact_token }}</span>
+                  </div>
+                </div>
+              </span>
+              <span class="sd-sub-status {{ sr.status_tone|default('ok') }}">{{ sr.status }}</span>
             </div>
             <div class="sd-sub-steps">
               {% for step in sr.steps %}

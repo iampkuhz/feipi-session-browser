@@ -2587,6 +2587,10 @@ def _build_v11_view_model(
         sa_output = sum((m.usage or {}).get("output_tokens", 0) for m in sa_messages)
         sa_failed = sum(1 for tc in display_tools if tc.is_failed)
 
+        # Build tool_use_id → ToolCall mapping for per-round distribution
+        sa_tool_by_id = {tc.tool_use_id: tc for tc in display_tools if tc.tool_use_id}
+        matched_tool_ids = set()
+
         sub_rounds = []
         for m_idx, m in enumerate(sa_messages):
             if m.role == "assistant":
@@ -2719,49 +2723,121 @@ def _build_v11_view_model(
                     "note_tone": sa_note_tone,
                     "finish_reason": getattr(m, "stop_reason", "") or "",
                 }]
+
+                # Match tool calls belonging to this specific round
+                round_tool_tcs = []
+                for tc_ref in (m.tool_calls or []):
+                    tc_id = tc_ref.get("id", "") if isinstance(tc_ref, dict) else ""
+                    if tc_id and tc_id in sa_tool_by_id and tc_id not in matched_tool_ids:
+                        round_tool_tcs.append(sa_tool_by_id[tc_id])
+                        matched_tool_ids.add(tc_id)
+
+                if round_tool_tcs:
+                    round_tool_rows = []
+                    for t_idx, tc in enumerate(round_tool_tcs, start=1):
+                        t_payload_id = f"sub-{sa_id}-{m_idx + 1}-T{t_idx}-result" if tc.result else ""
+                        t_payload_title = f"Subagent · {tc.name} · Result"
+                        if tc.result:
+                            add_payload(
+                                payload_id=t_payload_id,
+                                kind="subagent.tool.result",
+                                title=t_payload_title,
+                                text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                            )
+                        round_tool_rows.append(tool_vm(tc, f"sub-{sa_id}-T{t_idx}", t_payload_id, t_payload_title))
+
+                    steps.append({
+                        "type": "tool_batch",
+                        "batch_id": f"sub-{sa_id}-R{m_idx + 1}-batch",
+                        "title": f"Subagent tool batch ({len(round_tool_rows)} call{'s' if len(round_tool_rows) != 1 else ''})",
+                        "summary_label": f"{len(round_tool_rows)} tools",
+                        "status_label": "error" if any(t["status_tone"] == "fail" for t in round_tool_rows) else "",
+                        "status_tone": "err" if any(t["status_tone"] == "fail" for t in round_tool_rows) else "tool",
+                        "tools": round_tool_rows,
+                    })
+                    is_open_for_round = True
+                else:
+                    is_open_for_round = False
+
+                # Compute token mix for sub-round tokenbar
+                st_input = usage.get("input_tokens", 0)
+                st_cache_read = usage.get("cache_read_input_tokens", 0)
+                st_cache_write = usage.get("cache_creation_input_tokens", 0)
+                st_output = usage.get("output_tokens", 0)
+                st_total = st_input + st_cache_read + st_cache_write + st_output
+                st_mix = {"fresh": 0, "read": 0, "write": 0, "out": 0}
+                if st_total > 0:
+                    st_mix["fresh"] = round(st_input / st_total * 100, 1)
+                    st_mix["read"] = round(st_cache_read / st_total * 100, 1)
+                    st_mix["write"] = round(st_cache_write / st_total * 100, 1)
+                    st_mix["out"] = round(st_output / st_total * 100, 1)
+
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
-                    "metric": _format_compact_token(usage.get("output_tokens", 0)),
+                    "metric": _format_compact_token(st_output),
+                    "token_input": st_input,
+                    "token_cache_read": st_cache_read,
+                    "token_cache_write": st_cache_write,
+                    "token_output": st_output,
+                    "token_total_raw": st_total,
+                    "token_mix": st_mix,
                     "status": "ok",
                     "status_tone": "ok",
-                    "is_open": False,
+                    "is_open": is_open_for_round,
                     "steps": steps,
                 })
 
-        if display_tools:
-            sub_tool_rows = []
-            for st_idx, tc in enumerate(display_tools, start=1):
-                sub_payload_id = f"sub-{sa_id}-tool-{st_idx}-result" if tc.result else ""
-                sub_payload_title = f"Subagent · {tc.name} · Result"
+        # Handle unmatched tools (fallback: no tool_use_id or not matched to any message)
+        unmatched_tools = [tc for tc in display_tools if not tc.tool_use_id or tc.tool_use_id not in matched_tool_ids]
+        if unmatched_tools:
+            unmatched_rows = []
+            for u_idx, tc in enumerate(unmatched_tools, start=1):
+                u_payload_id = f"sub-{sa_id}-unmatched-T{u_idx}-result" if tc.result else ""
+                u_payload_title = f"Subagent · {tc.name} · Result"
                 if tc.result:
                     add_payload(
-                        payload_id=sub_payload_id,
+                        payload_id=u_payload_id,
                         kind="subagent.tool.result",
-                        title=sub_payload_title,
+                        title=u_payload_title,
                         text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
                     )
-                sub_tool_rows.append(tool_vm(tc, f"sub-{sa_id}-T{st_idx}", sub_payload_id, sub_payload_title))
+                unmatched_rows.append(tool_vm(tc, f"sub-{sa_id}-UT{u_idx}", u_payload_id, u_payload_title))
 
-            sub_tool_step = {
-                "type": "tool_batch",
-                "title": f"Subagent tool batch ({len(sub_tool_rows)} call{'s' if len(sub_tool_rows) != 1 else ''})",
-                "summary_label": f"{len(sub_tool_rows)} tools",
-                "status_label": "error" if any(t["status_tone"] == "fail" for t in sub_tool_rows) else "",
-                "status_tone": "err" if any(t["status_tone"] == "fail" for t in sub_tool_rows) else "tool",
-                "tools": sub_tool_rows,
-            }
             if sub_rounds:
-                sub_rounds[-1]["steps"].append(sub_tool_step)
+                sub_rounds[-1]["steps"].append({
+                    "type": "tool_batch",
+                    "batch_id": f"sub-{sa_id}-unmatched-batch",
+                    "title": f"Subagent tool batch ({len(unmatched_rows)} call{'s' if len(unmatched_rows) != 1 else ''})",
+                    "summary_label": f"{len(unmatched_rows)} tools",
+                    "status_label": "error" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "",
+                    "status_tone": "err" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "tool",
+                    "tools": unmatched_rows,
+                })
                 sub_rounds[-1]["is_open"] = True
             else:
                 sub_rounds.append({
                     "sub_round_id": 1,
-                    "title": f"{len(display_tools)} tool call{'s' if len(display_tools) > 1 else ''}",
+                    "title": f"{len(unmatched_tools)} tool call{'s' if len(unmatched_tools) != 1 else ''}",
                     "metric": _format_compact_token(sa_output),
+                    "token_input": 0,
+                    "token_cache_read": 0,
+                    "token_cache_write": 0,
+                    "token_output": sa_output,
+                    "token_total_raw": sa_output,
+                    "token_mix": {"fresh": 0, "read": 0, "write": 0, "out": 100} if sa_output > 0 else {"fresh": 0, "read": 0, "write": 0, "out": 0},
                     "status": "failed" if sa_failed > 0 else "ok",
+                    "status_tone": "err" if sa_failed > 0 else "ok",
                     "is_open": True,
-                    "steps": [sub_tool_step],
+                    "steps": [{
+                        "type": "tool_batch",
+                        "batch_id": f"sub-{sa_id}-unmatched-batch",
+                        "title": f"Subagent tool batch ({len(unmatched_rows)} call{'s' if len(unmatched_rows) != 1 else ''})",
+                        "summary_label": f"{len(unmatched_rows)} tools",
+                        "status_label": "error" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "",
+                        "status_tone": "err" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "tool",
+                        "tools": unmatched_rows,
+                    }],
                 })
 
         # If no sub-rounds from messages, synthesize from tool calls
@@ -2770,7 +2846,14 @@ def _build_v11_view_model(
                 "sub_round_id": 1,
                 "title": f"{len(display_tools)} tool call{'s' if len(display_tools) > 1 else ''}",
                 "metric": _format_compact_token(sa_output),
+                "token_input": 0,
+                "token_cache_read": 0,
+                "token_cache_write": 0,
+                "token_output": sa_output,
+                "token_total_raw": sa_output,
+                "token_mix": {"fresh": 0, "read": 0, "write": 0, "out": 100} if sa_output > 0 else {"fresh": 0, "read": 0, "write": 0, "out": 0},
                 "status": "failed" if sa_failed > 0 else "ok",
+                "status_tone": "err" if sa_failed > 0 else "ok",
                 "is_open": False,
                 "steps": [
                     {
