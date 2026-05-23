@@ -37,6 +37,7 @@
     "skipDangerousModePermissionPrompt": true
   },
   "env": {
-    "SESSION_BROWSER_DEV_MODE": "1"
+    "SESSION_BROWSER_DEV_MODE": "1",
+    "FEIPI_AGENT_LOG_DIR": "tmp/agent_log"
   }
 }

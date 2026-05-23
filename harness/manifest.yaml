@@ -1,7 +1,14 @@
+schemaVersion: 1
 project:
   name: feipi-session-browser
   type: python-web-tool
   description: Local session browser for Claude Code, Codex, and Qoder session data.
+
+runtime:
+  hook_entry: .claude/hooks/claude-hook.sh
+  python_package: scripts/claude_hooks
+  log_dir: tmp/agent_log
+  legacy_log_dir: .agent
 
 entrypoints:
   deps: "./scripts/session-browser.sh deps"
@@ -9,6 +16,14 @@ entrypoints:
   scan: "./scripts/session-browser.sh scan"
   serve: "./scripts/session-browser.sh serve"
   doctor: "bash scripts/harness/doctor.sh"
+
+quality:
+  runner: scripts/quality/run_quality_gate.py
+  targets:
+    - session-detail
+    - python-src
+    - hook-runtime
+    - harness
 
 quality_gates:
   - name: python-compile
@@ -24,6 +39,12 @@ quality_gates:
     command: "bash scripts/harness/doctor.sh"
     required: true
 
+docs:
+  - harness/README.md
+  - harness/quality/quality-gate-matrix.md
+  - harness/quality/deterministic-quality-gate.md
+  - harness/workflow/hook-runtime-lifecycle.md
+
 local_only:
   - ".claude/settings.local.json"
   - ".mcp.json"
@@ -32,3 +53,4 @@ local_only:
   - ".pytest_cache/"
   - "data/"
   - "output/"
+  - "tmp/agent_log/"

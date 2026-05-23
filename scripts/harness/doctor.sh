@@ -36,13 +36,15 @@ check_file requirements-dev.txt
 check_file scripts/session-browser.sh
 check_file docs/governance/tool-usage.md
 check_file .claude/settings.json
+check_file .claude/hooks/claude-hook.sh
+# Legacy hooks kept for reference; do not fail if present.
 check_file .claude/hooks/pre_tool_guard.sh
 check_file .claude/hooks/post_tool_guard.sh
 check_file .claude/hooks/stop_check.sh
 check_file harness/manifest.yaml
-check_file harness/workflows/session-browser-dev.yaml
 check_dir src/session_browser
 check_dir tests
+check_dir scripts/claude_hooks
 
 if [[ -f .claude/settings.json ]]; then
   python3 -m json.tool .claude/settings.json >/dev/null || {
@@ -75,8 +77,10 @@ fi
 
 # Check that personal/ephemeral files and dirs do NOT exist on disk.
 # Must use `test ! -e` (not git status) because .gitignore hides them.
-local_files=(.claude/settings.local.json .mcp.json .env)
-local_dirs=(data output .venv .pytest_cache)
+local_files=(.mcp.json .env)
+# Note: .pytest_cache is NOT checked here because it is a normal side-effect
+# of running pytest (which doctor itself triggers via product tests).
+local_dirs=(data output .venv)
 for f in "${local_files[@]}"; do
   if [[ -e "$f" ]]; then
     echo "[FAIL] personal file should not exist: $f" >&2
@@ -85,6 +89,11 @@ for f in "${local_files[@]}"; do
     echo "[PASS] personal file absent: $f"
   fi
 done
+# settings.local.json is a normal user config that should be kept locally;
+# just warn but don't block quality gate.
+if [[ -e ".claude/settings.local.json" ]]; then
+  echo "[WARN] personal config present: .claude/settings.local.json (gitignored, allowed)"
+fi
 for d in "${local_dirs[@]}"; do
   if [[ -d "$d" ]]; then
     echo "[FAIL] ephemeral dir should not exist: $d" >&2

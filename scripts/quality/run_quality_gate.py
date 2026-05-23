@@ -1,434 +1,170 @@
 #!/usr/bin/env python3
-"""Unified quality gate runner.
+"""Deterministic quality gate runner.
 
 Executes deterministic quality gates for a given target and writes
-a structured summary artifact to tmp/quality/<change-id>/.
+a structured summary artifact.
 
 Usage:
-    python3 scripts/quality/run_quality_gate.py --target session-detail
     python3 scripts/quality/run_quality_gate.py --target session-detail --change-id fix-xyz
-    python3 scripts/quality/run_quality_gate.py --target session-detail --out tmp/quality/demo
-    python3 scripts/quality/run_quality_gate.py --target session-detail --allow-missing-service
-    python3 scripts/quality/run_quality_gate.py --self-test
+    python3 scripts/quality/run_quality_gate.py --target hook-runtime --change-id hook-runtime-selftest
 """
+from __future__ import annotations
+
 import argparse
-import json
-import os
-import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
+import subprocess
+import sys
+import time
+import shutil
 
+# Ensure repo root is on sys.path for `scripts.*` imports when run directly.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-QUALITY_DIR = REPO_ROOT / "tmp" / "quality"
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-SCRIPTS = {
-    "staticCssContract": "scripts/quality/check_session_detail_static.py",
-    "browserLayout": "scripts/quality/run_session_detail_layout_gate.py",
-}
-
-PYTEST_TEST = "tests/test_session_detail_layout_contract.py"
-
-
-def resolve_change_id(explicit: str | None) -> str:
-    """Resolve change ID from args, env, or file fallback."""
-    if explicit:
-        return explicit
-    env = os.environ.get("ACTIVE_CHANGE_ID")
-    if env:
-        return env
-    active_file = REPO_ROOT / "tmp" / "active-change"
-    if active_file.exists():
-        return active_file.read_text().strip()
-    return "unknown"
+from scripts.quality.quality_artifact import (
+    GateDetail,
+    QualitySummary,
+    compute_overall,
+    utc_now,
+    write_quality_summary,
+    PASS,
+    FAIL,
+    BLOCKED,
+)
+from scripts.quality.quality_targets import required_gates_for_target, validate_target
 
 
-def resolve_out_dir(change_id: str, explicit: str | None) -> Path:
-    if explicit:
-        p = Path(explicit)
-        if not p.is_absolute():
-            p = REPO_ROOT / p
-        return p
-    return QUALITY_DIR / change_id
+# 01. 命令执行工具
+def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True) -> GateDetail:
+    started = time.time()
+    if not cmd or shutil.which(cmd[0]) is None:
+        status = BLOCKED if required else FAIL
+        return GateDetail(name=name, status=status, command=cmd, durationMs=0, output=f"命令不存在：{cmd[0] if cmd else '<empty>'}")
 
-
-def run_command(cmd: list[str], cwd: Path | None = None) -> dict:
-    """Run a subprocess and return result info."""
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=cwd or REPO_ROOT,
-            timeout=120,
+        proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
+        duration = int((time.time() - started) * 1000)
+        output = (proc.stdout or "").strip()
+        if len(output) > 4000:
+            output = output[-4000:]
+        return GateDetail(
+            name=name,
+            status=PASS if proc.returncode == 0 else FAIL,
+            command=cmd,
+            exitCode=proc.returncode,
+            durationMs=duration,
+            output=output,
         )
-        return {
-            "exitCode": result.returncode,
-            "stdout": result.stdout[:4000],
-            "stderr": result.stderr[:4000],
+    except subprocess.TimeoutExpired as exc:
+        return GateDetail(name=name, status=FAIL, command=cmd, durationMs=int((time.time() - started) * 1000), output=f"超时：{exc}")
+
+
+# 02. gate 命令映射
+def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
+    if gate == "settingsJson":
+        return ["python3", "-m", "json.tool", ".claude/settings.json"]
+    if gate == "bashSyntax":
+        shell_files = [
+            ".claude/hooks/claude-hook.sh",
+            "scripts/harness/doctor.sh",
+        ]
+        existing = [f for f in shell_files if (repo_root / f).exists()]
+        return ["bash", "-n", *existing] if existing else []
+    if gate == "pythonCompile":
+        paths = ["scripts/claude_hooks", "scripts/quality"]
+        if target == "python-src":
+            paths = ["src"]
+        if target == "harness":
+            paths = ["scripts/harness", "scripts/quality"]
+        return ["python3", "-m", "compileall", "-q", *paths]
+    if gate == "hookSelfTest":
+        return ["python3", "-m", "scripts.claude_hooks.main", "--self-test"]
+    if gate == "templateContract":
+        return ["python3", "scripts/quality/template_contract_check.py"]
+    if gate == "staticCssContract":
+        return ["python3", "scripts/quality/static_contract_check.py"]
+    if gate == "browserLayout":
+        if (repo_root / "e2e").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
+            return ["npx", "playwright", "test"]
+        return []
+    if gate == "pytest":
+        test_candidates = {
+            "session-detail": ["tests/test_web_template_contract.py", "tests/test_web_static_contract.py"],
+            "python-src": ["tests"],
+            "hook-runtime": [
+                "tests/test_claude_hooks_hook_io.py",
+                "tests/test_claude_hooks_classify.py",
+                "tests/test_claude_hooks_bash_policy.py",
+                "tests/test_claude_hooks_file_policy.py",
+                "tests/test_claude_hooks_evidence.py",
+                "tests/test_claude_hooks_stop_policy.py",
+                "tests/test_quality_artifact.py",
+            ],
         }
-    except subprocess.TimeoutExpired:
-        return {"exitCode": -1, "stdout": "", "stderr": "timeout after 120s"}
-    except FileNotFoundError:
-        return {"exitCode": 127, "stdout": "", "stderr": f"command not found: {cmd[0]}"}
-    except Exception as e:
-        return {"exitCode": 2, "stdout": "", "stderr": str(e)}
+        items = [x for x in test_candidates.get(target, ["tests"]) if (repo_root / x).exists()]
+        return ["pytest", "-q", *items] if items else []
+    if gate == "doctor":
+        return ["bash", "scripts/harness/doctor.sh"]
+    if gate == "repoStructure":
+        return ["python3", "scripts/quality/validate_repo_structure.py"]
+    if gate == "harnessStructure":
+        return ["python3", "scripts/harness/validate_harness_structure.py"]
+    if gate == "openspecLayout":
+        return ["python3", "scripts/harness/validate_openspec_layout.py"]
+    return []
 
 
-def gate_static_css(out_dir: Path, allow_missing: bool = False) -> dict:
-    """Run static CSS gate if available."""
-    script = REPO_ROOT / SCRIPTS["staticCssContract"]
-    if not script.exists():
-        return {"gate": "staticCssContract", "status": "SKIPPED", "summary": "Script not found"}
-
-    result = run_command([sys.executable, str(script)])
-    summary_text = (result["stdout"] or result["stderr"]).strip().split("\n")[-1] if result["stdout"] or result["stderr"] else "no output"
-    return {
-        "gate": "staticCssContract",
-        "status": "PASS" if result["exitCode"] == 0 else "FAIL",
-        "command": f"python3 {SCRIPTS['staticCssContract']}",
-        "exitCode": result["exitCode"],
-        "summary": summary_text,
-    }
+# 03. target 执行
+def run_target(repo_root: Path, target: str) -> list[GateDetail]:
+    details: list[GateDetail] = []
+    for gate in required_gates_for_target(target):
+        cmd = gate_command(gate, repo_root, target)
+        if not cmd:
+            details.append(GateDetail(name=gate, status=BLOCKED, command=[], output=f"required gate {gate} 没有可执行命令或依赖缺失。"))
+            continue
+        details.append(run_cmd(gate, cmd, repo_root, required=True))
+    return details
 
 
-def gate_template_contract(out_dir: Path, allow_missing: bool = False) -> dict:
-    """Run template contract pytest if available."""
-    test = REPO_ROOT / PYTEST_TEST
-    if not test.exists():
-        return {"gate": "templateContract", "status": "SKIPPED", "summary": "Test not found"}
-
-    result = run_command([sys.executable, "-m", "pytest", str(test), "-v", "--tb=short"])
-    stdout = result.get("stdout", "")
-    # Extract summary line
-    summary_lines = [l for l in stdout.split("\n") if "passed" in l or "failed" in l or "error" in l.lower()]
-    summary = summary_lines[-1] if summary_lines else "pytest completed"
-    return {
-        "gate": "templateContract",
-        "status": "PASS" if result["exitCode"] == 0 else "FAIL",
-        "command": f"python3 -m pytest {PYTEST_TEST}",
-        "exitCode": result["exitCode"],
-        "summary": summary,
-    }
-
-
-def gate_browser_layout(out_dir: Path, allow_missing: bool = False) -> dict:
-    """Run browser layout gate if available."""
-    script = REPO_ROOT / SCRIPTS["browserLayout"]
-    if not script.exists():
-        return {"gate": "browserLayout", "status": "SKIPPED", "summary": "Script not found"}
-
-    # Check if we have a URL to test against
-    url = os.environ.get("QUALITY_GATE_URL")
-    if not url:
-        return {
-            "gate": "browserLayout",
-            "status": "SKIPPED",
-            "summary": "No URL provided (set QUALITY_GATE_URL or pass --url via runner)",
-        }
-
-    cmd = [sys.executable, str(script), "--url", url, "--out", str(out_dir)]
-    if allow_missing:
-        cmd.append("--allow-missing-service")
-    result = run_command(cmd)
-    summary_text = (result["stdout"] or result["stderr"] or "").strip().split("\n")[-1]
-    artifact = str(out_dir / "session-detail-layout-result.json")
-    return {
-        "gate": "browserLayout",
-        "status": "PASS" if result["exitCode"] == 0 else "FAIL",
-        "command": " ".join(cmd),
-        "exitCode": result["exitCode"],
-        "summary": summary_text,
-        "artifact": artifact,
-    }
+# 04. summary 生成
+def build_summary(target: str, change_id: str, started_at: str, details: list[GateDetail]) -> QualitySummary:
+    required = {detail.name: detail.status for detail in details}
+    status, failures = compute_overall(required)
+    return QualitySummary(
+        schemaVersion=2,
+        status=status,
+        target=target,
+        changeId=change_id,
+        startedAt=started_at,
+        finishedAt=utc_now(),
+        requiredGates=required,
+        blockingFailures=failures,
+        warnings=[],
+        artifacts={},
+        gateDetails=[detail.__dict__ for detail in details],
+    )
 
 
-def gate_pytest(out_dir: Path, allow_missing: bool = False) -> dict:
-    """Run product pytest suite."""
-    # Try session-browser.sh first
-    sh_script = REPO_ROOT / "scripts" / "session-browser.sh"
-    if sh_script.exists() and os.access(sh_script, os.X_OK):
-        result = run_command([str(sh_script), "test"])
-        if result["exitCode"] == 0:
-            return {
-                "gate": "pytest",
-                "status": "PASS",
-                "command": "./scripts/session-browser.sh test",
-                "exitCode": 0,
-                "summary": "session-browser.sh test passed",
-            }
-
-    # Fallback to pytest
-    result = run_command([sys.executable, "-m", "pytest", "-q", "--tb=short"])
-    stdout = result.get("stdout", "")
-    summary_lines = [l for l in stdout.split("\n") if "passed" in l or "failed" in l or "error" in l.lower()]
-    summary = summary_lines[-1] if summary_lines else "pytest completed"
-    return {
-        "gate": "pytest",
-        "status": "PASS" if result["exitCode"] == 0 else "FAIL",
-        "command": "python3 -m pytest",
-        "exitCode": result["exitCode"],
-        "summary": summary,
-    }
-
-
-def aggregate_status(gate_results: list[dict]) -> tuple[str, list[str], list[str]]:
-    """Compute overall status from gate results."""
-    blocking: list[str] = []
-    warnings: list[str] = []
-
-    for r in gate_results:
-        status = r["status"]
-        gate_name = r["gate"]
-        if status == "FAIL":
-            blocking.append(f"{gate_name}: {r.get('summary', '')}")
-        elif status == "BLOCKED":
-            blocking.append(f"{gate_name}: {r.get('summary', 'blocked')}")
-        elif status == "SKIPPED":
-            warnings.append(f"{gate_name}: skipped (not yet implemented)")
-
-    overall = "PASS" if not blocking else "FAIL"
-    return overall, blocking, warnings
-
-
-def build_summary(
-    target: str,
-    change_id: str,
-    gate_results: list[dict],
-    overall: str,
-    blocking: list[str],
-    warnings: list[str],
-    started_at: str,
-) -> dict:
-    """Build the quality-gate-summary.json structure."""
-    finished = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    required_gates = {r["gate"]: r["status"] for r in gate_results}
-
-    return {
-        "schemaVersion": 1,
-        "status": overall,
-        "target": target,
-        "changeId": change_id,
-        "startedAt": started_at,
-        "finishedAt": finished,
-        "requiredGates": required_gates,
-        "blockingFailures": blocking,
-        "warnings": warnings,
-        "artifacts": {
-            r["gate"]: r.get("artifact", "")
-            for r in gate_results
-            if r.get("artifact")
-        },
-        "gateDetails": gate_results,
-    }
-
-
-def _write_summary_artifact(out_dir: Path, summary: dict) -> Path:
-    """Write summary to artifact file."""
-    out_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = out_dir / "quality-gate-summary.json"
-    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return summary_path
-
-
-def run_gates(target: str, change_id: str, out_dir: Path, allow_missing: bool = False) -> dict:
-    """Run all gates for the target and return summary."""
-    out_dir.mkdir(parents=True, exist_ok=True)
-    started_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    results: list[dict] = []
-
-    if target == "session-detail":
-        results.append(gate_static_css(out_dir, allow_missing))
-        results.append(gate_template_contract(out_dir, allow_missing))
-        results.append(gate_browser_layout(out_dir, allow_missing))
-        results.append(gate_pytest(out_dir, allow_missing))
-    else:
-        results.append(gate_pytest(out_dir, allow_missing))
-
-    overall, blocking, warnings = aggregate_status(results)
-    summary = build_summary(target, change_id, results, overall, blocking, warnings, started_at)
-
-    # Write artifact
-    _write_summary_artifact(out_dir, summary)
-    return summary
-
-
-def _self_test():
-    """Run self-tests for the quality runner."""
-    import tempfile
-    failures = 0
-
-    def _run(name, func):
-        nonlocal failures
-        try:
-            func()
-            print(f"  PASS: {name}")
-        except AssertionError as e:
-            failures += 1
-            print(f"  FAIL: {name} - {e}")
-        except Exception as e:
-            failures += 1
-            print(f"  FAIL: {name} - {type(e).__name__}: {e}")
-
-    def _t1_change_id_fallback():
-        """Change ID falls back to 'unknown'."""
-        old = os.environ.get("ACTIVE_CHANGE_ID")
-        try:
-            os.environ.pop("ACTIVE_CHANGE_ID", None)
-            # We can't test tmp/active-change without side effects,
-            # so test resolve_change_id with explicit None and no env
-            # by checking it returns something non-empty
-            cid = resolve_change_id(None)
-            assert isinstance(cid, str) and len(cid) > 0
-        finally:
-            if old is not None:
-                os.environ["ACTIVE_CHANGE_ID"] = old
-
-    def _t2_change_id_explicit():
-        """Explicit change ID takes priority."""
-        assert resolve_change_id("my-change") == "my-change"
-
-    def _t3_change_id_env():
-        """ENV change ID used when explicit is None."""
-        old = os.environ.get("ACTIVE_CHANGE_ID")
-        try:
-            os.environ["ACTIVE_CHANGE_ID"] = "env-change"
-            assert resolve_change_id(None) == "env-change"
-        finally:
-            if old is not None:
-                os.environ["ACTIVE_CHANGE_ID"] = old
-            else:
-                os.environ.pop("ACTIVE_CHANGE_ID", None)
-
-    def _t4_summary_json_written():
-        """Summary JSON is written to correct path with required schema."""
-        with tempfile.TemporaryDirectory() as td:
-            out = Path(td)
-            started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            results = [
-                {"gate": "staticCssContract", "status": "SKIPPED", "summary": "not yet"},
-                {"gate": "templateContract", "status": "SKIPPED", "summary": "not yet"},
-                {"gate": "browserLayout", "status": "SKIPPED", "summary": "not yet"},
-                {"gate": "pytest", "status": "PASS", "summary": "mocked"},
-            ]
-            overall, blocking, warnings = aggregate_status(results)
-            summary = build_summary("session-detail", "test-change", results, overall, blocking, warnings, started)
-            _write_summary_artifact(out, summary)
-            summary_path = out / "quality-gate-summary.json"
-            assert summary_path.exists(), f"Summary not written to {summary_path}"
-            data = json.loads(summary_path.read_text())
-            assert data["schemaVersion"] == 1
-            assert data["target"] == "session-detail"
-            assert data["changeId"] == "test-change"
-            assert "requiredGates" in data
-            assert "startedAt" in data
-            assert "finishedAt" in data
-
-    def _t5_gate_status_aggregation():
-        """Gate statuses are aggregated correctly."""
-        results = [
-            {"gate": "staticCssContract", "status": "PASS", "summary": ""},
-            {"gate": "pytest", "status": "PASS", "summary": ""},
-        ]
-        overall, blocking, warnings = aggregate_status(results)
-        assert overall == "PASS"
-        assert blocking == []
-
-    def _t6_blocking_failure_causes_fail():
-        """A single FAIL gate causes overall FAIL."""
-        results = [
-            {"gate": "staticCssContract", "status": "PASS", "summary": "ok"},
-            {"gate": "templateContract", "status": "FAIL", "summary": "test failed"},
-        ]
-        overall, blocking, warnings = aggregate_status(results)
-        assert overall == "FAIL"
-        assert len(blocking) == 1
-        assert "templateContract" in blocking[0]
-
-    def _t7_skipped_not_pass():
-        """Skipped gates go to warnings, not hidden."""
-        results = [
-            {"gate": "staticCssContract", "status": "SKIPPED", "summary": ""},
-            {"gate": "pytest", "status": "PASS", "summary": ""},
-        ]
-        overall, blocking, warnings = aggregate_status(results)
-        assert overall == "PASS"
-        assert len(warnings) >= 1
-
-    def _t8_unknown_change_id_still_works():
-        """unknown change ID still writes artifact."""
-        with tempfile.TemporaryDirectory() as td:
-            out = Path(td)
-            started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            summary = build_summary("session-detail", "unknown", [], "PASS", [], [], started)
-            _write_summary_artifact(out, summary)
-            data = json.loads((out / "quality-gate-summary.json").read_text())
-            assert data["changeId"] == "unknown"
-
-    _run("change id fallback", _t1_change_id_fallback)
-    _run("change id explicit", _t2_change_id_explicit)
-    _run("change id env", _t3_change_id_env)
-    _run("summary JSON written", _t4_summary_json_written)
-    _run("gate status aggregation", _t5_gate_status_aggregation)
-    _run("blocking failure causes FAIL", _t6_blocking_failure_causes_fail)
-    _run("skipped not伪装成 PASS", _t7_skipped_not_pass)
-    _run("unknown change id works", _t8_unknown_change_id_still_works)
-
-    if failures:
-        print(f"\n{failures} test(s) failed")
-        sys.exit(1)
-    else:
-        print(f"\nAll self-tests passed")
-        sys.exit(0)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Quality gate runner")
-    parser.add_argument("--target", default="session-detail", help="Quality gate target")
-    parser.add_argument("--change-id", default=None, help="Override change ID")
-    parser.add_argument("--out", default=None, help="Override output directory")
-    parser.add_argument("--allow-missing-service", action="store_true", help="Don't fail when service is unavailable")
-    parser.add_argument("--self-test", action="store_true", help="Run self-tests")
+# 05. CLI
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Deterministic quality gate runner")
+    parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness"])
+    parser.add_argument("--change-id", required=True)
+    parser.add_argument("--out", default="tmp/agent_log/quality")
     args = parser.parse_args()
 
-    if args.self_test:
-        _self_test()
-        return
-
-    change_id = resolve_change_id(args.change_id)
-    out_dir = resolve_out_dir(change_id, args.out)
-
-    print(f"Quality gate: target={args.target}, change-id={change_id}")
-    print(f"Output: {out_dir}")
-    print()
-
-    summary = run_gates(args.target, change_id, out_dir, args.allow_missing_service)
-
-    # Print summary to stdout
-    print(f"Overall status: {summary['status']}")
-    print()
-    for gate_name, status in summary["requiredGates"].items():
-        print(f"  {gate_name}: {status}")
-
-    if summary["blockingFailures"]:
-        print()
-        print("Blocking failures:")
-        for f in summary["blockingFailures"]:
-            print(f"  - {f}")
-
-    if summary["warnings"]:
-        print()
-        print("Warnings:")
-        for w in summary["warnings"]:
-            print(f"  - {w}")
-
-    print()
-    print(f"Artifact: {out_dir / 'quality-gate-summary.json'}")
-
-    if summary["status"] != "PASS":
-        sys.exit(1)
+    repo_root = Path.cwd()
+    validate_target(args.target)
+    started_at = utc_now()
+    details = run_target(repo_root, args.target)
+    summary = build_summary(args.target, args.change_id, started_at, details)
+    out = write_quality_summary(repo_root / args.out, summary, target_specific=True)
+    print(f"quality summary: {out}")
+    print(f"status: {summary.status}")
+    return 0 if summary.status == PASS else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

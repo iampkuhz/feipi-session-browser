@@ -1,1 +1,1 @@
-# Quality gate scripts
+"""Deterministic quality gate tools。"""

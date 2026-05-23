@@ -4,6 +4,12 @@
 output/
 data/
 
+# Hook/harness runtime logs
+tmp/agent_log/
+
+# Legacy agent runtime logs
+.agent/
+
 # Python
 .venv/
 __pycache__/

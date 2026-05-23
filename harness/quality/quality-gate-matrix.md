@@ -1,30 +1,30 @@
-# Quality Gate Matrix
+# Deterministic Quality Gate Matrix
 
-| 改动类型 | 必跑 deterministic gates | Stop hook enforcement | LLM diagnostic |
+## 01. 原则
+
+- required gate 只能是 `PASS|FAIL|BLOCKED|SKIPPED`。
+- required gate 出现 `SKIPPED` 时，overall 必须是 `FAIL`。
+- required gate 缺失时，overall 必须是 `BLOCKED` 或 `FAIL`。
+- 不允许 `score`、`rating`、`qualityScore` 等主观评分字段。
+- Stop hook 不跑重型测试，只验证最新 summary artifact。
+
+## 02. 触发矩阵
+
+| 变更路径 | category | target | required gates |
 |---|---|---|---|
-| UI CSS | static CSS + browser layout + pytest | required PASS artifact | optional |
-| UI template | template contract + browser layout + pytest | required PASS artifact | optional |
-| UI JS | browser interaction/layout gate + pytest | required PASS artifact | optional |
-| hook scripts | hook self-test + pytest | required PASS artifact | optional |
-| quality scripts | self-test + pytest | required PASS artifact | optional |
-| docs only | no browser gate | no UI gate | optional |
-| openspec only | openspec validators | existing harness gate | optional |
+| `src/session_browser/web/templates/**/*.html` | ui-template | session-detail | pythonCompile, templateContract, staticCssContract, browserLayout, pytest |
+| `src/session_browser/web/static/**/*.css` | ui-css | session-detail | pythonCompile, templateContract, staticCssContract, browserLayout, pytest |
+| `src/session_browser/web/static/**/*.js` | ui-js | session-detail | pythonCompile, templateContract, staticCssContract, browserLayout, pytest |
+| `src/session_browser/**/*.py` | python-src | python-src | pythonCompile, pytest |
+| `.claude/settings.json` | claude-config | hook-runtime | settingsJson, bashSyntax, pythonCompile, hookSelfTest, pytest, doctor, repoStructure |
+| `.claude/hooks/**` | hook | hook-runtime | settingsJson, bashSyntax, pythonCompile, hookSelfTest, pytest, doctor, repoStructure |
+| `scripts/claude_hooks/**` | hook | hook-runtime | settingsJson, bashSyntax, pythonCompile, hookSelfTest, pytest, doctor, repoStructure |
+| `scripts/quality/**` | quality-gate | hook-runtime | settingsJson, bashSyntax, pythonCompile, hookSelfTest, pytest, doctor, repoStructure |
+| `harness/**` | harness | harness | bashSyntax, pythonCompile, doctor, repoStructure, harnessStructure, openspecLayout |
+| `scripts/harness/**` | harness | harness | bashSyntax, pythonCompile, doctor, repoStructure, harnessStructure, openspecLayout |
 
-## Gate Scripts
+## 03. 输出路径
 
-| Gate | Script |
-|---|---|
-| static CSS | `scripts/quality/check_session_detail_static.py` |
-| template contract | `tests/test_session_detail_layout_contract.py` (pytest) |
-| browser layout | `scripts/quality/run_session_detail_layout_gate.py` |
-| pytest suite | `./scripts/session-browser.sh test` |
-| quality runner | `scripts/quality/run_quality_gate.py --target session-detail` |
-| stop enforcement | `scripts/hooks/stop_quality_gate.py` |
-| LLM diagnostic | `.claude/commands/diagnose-ui-gate.md` |
-
-## Artifact Paths
-
-- `tmp/quality/<change-id>/quality-gate-summary.json` — unified summary
-- `tmp/quality/<change-id>/session-detail-layout-result.json` — browser metrics
-- `tmp/quality/<change-id>/session-detail-layout-1440.png` — screenshot
-- `tmp/changed-files.jsonl` — changed file log (read by stop hook)
+```text
+tmp/agent_log/quality/<change-id>/quality-gate-summary.<target>.json
+```

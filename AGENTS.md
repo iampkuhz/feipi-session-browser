@@ -106,6 +106,27 @@ python3 scripts/quality/run_quality_gate.py --target session-detail
 - 模板中的占位符说明（如 `<change-id>`、`<描述>`）使用中文。
 - 此策略适用于 `harness/`、`.claude/`、`openspec/`、`docs/`、`prompts/` 下的所有文档。
 
+## Claude Code 运行态约定
+
+### Hook Runtime
+
+- Claude Code hook 统一入口：`.claude/hooks/claude-hook.sh <event>`。
+- 业务逻辑统一在 `scripts/claude_hooks/`。
+- 不再把复杂逻辑散落在 `.claude/hooks/*.sh`、`scripts/hooks/*.py`、`scripts/agent_hooks/*.py`。
+- `settings.json` 保持宽权限：权限宽，质量强。
+
+### Agent Log
+
+- 新运行态目录：`tmp/agent_log/`。
+- `.agent/` 只作为 legacy 只读兼容路径。
+- quality 输出：`tmp/agent_log/quality/<change-id>/quality-gate-summary.<target>.json`。
+
+### Quality Gate
+
+- 禁止主观评分 gate。
+- required gate 不允许 SKIPPED 后 overall PASS。
+- Stop hook 只检查 artifact，不跑重型测试。
+
 ## prompts/ 目录策略
 
 `prompts/` 目录是 **输入定义，非权威入口**。

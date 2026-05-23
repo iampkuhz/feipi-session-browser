@@ -2,110 +2,94 @@
 
 本文件描述强制执行 OpenSpec 工作流的 hook 架构。
 
+> **注**：旧 hook 入口（`scripts/agent_hooks/`、`.claude/hooks/pre_tool_guard.sh` 等）
+> 已迁移至 `.claude/hooks/claude-hook.sh` + `scripts/claude_hooks/`。
+> 本文档保留架构说明，实际路径以 `harness/workflow/hook-runtime-lifecycle.md` 为准。
+
 ## 概览
 
 Hook 配置在 `.claude/settings.json` 中，在特定生命周期点执行。它们是主要执行机制——没有 hook，工作流仅依赖 agent 提示的合规性。
 
 ## Hook 类型
 
+### SessionStart / SubagentStart
+
+在新会话或子 agent 会话开始时执行。
+
+- 入口：`.claude/hooks/claude-hook.sh session-start`
+- 行为：记录会话启动事件，不注入重型上下文。
+- 输出：`tmp/agent_log/hook-events.jsonl`
+
 ### PreToolUse
 
 在工具（Write、Edit、MultiEdit、Bash）运行**之前**执行。
 
-- **Write|Edit|MultiEdit 守卫**（`guard_active_openspec_change.py`）：
-  - 检查目标文件是否在受保护根目录下。
-  - 受保护根目录：`CLAUDE.md`、`AGENTS.md`、`openspec/`、`.claude/`、`scripts/`、`harness/`、`src/`。
-  - 如果是受保护的，需要 `tmp/active_change.json` 中存在有效 `change_id` 且匹配的 `openspec/changes/<change-id>/` 目录。
-  - 匹配的变更目录还必须包含 `proposal.md`、`design.md`、`tasks.md`，避免空 change 目录放行产品或 harness 编辑。
-  - Exit 0 = 允许，Exit 1 = 阻止。
-  - 创建例外：写入 `openspec/changes/` 或 `tmp/active_change.json` 始终允许。
-
-- **Bash 守卫**（`pre_tool_guard.sh`）：
-  - 通用 Bash 预执行检查。
+- **Bash 守卫**：入口 `.claude/hooks/claude-hook.sh pre-bash`
+  - hard block 少数危险命令（`rm -rf /`、`git reset --hard` 等）。
+  - 允许 pytest、rg、git diff、git status、python3 scripts/*、bash scripts/*。
+- **Write 守卫**：入口 `.claude/hooks/claude-hook.sh pre-write`
+  - 仓库内编辑默认允许，敏感路径（`~/.ssh`、`~/.aws`）阻止。
 
 ### PostToolUse
 
 在工具完成**之后**执行。
 
-- **Write|Edit|MultiEdit 记录器**（`log_change_evidence.py`）：
+- **Write 记录器**：入口 `.claude/hooks/claude-hook.sh post-write`
   - 记录编辑的文件路径、工具名、时间戳和 change_id。
-  - 追加到 `tmp/task-evidence/<change-id>.jsonl`。
-  - 如果没有活跃变更，记录到 `unknown.jsonl`。
-  - 始终 exit 0（非阻塞）。
+  - 输出到 `tmp/agent_log/changed-files.jsonl` 和 `tmp/agent_log/task-evidence/<change-id>.jsonl`。
 
 ### Stop / SubagentStop
 
 在 agent 会话即将结束时执行。
 
-- **Stop 检查**（`stop_check.sh`）：
-  - 警告 git status 中的本地文件。
-  - 调用 `stop_validate_change.py` 检查变更完整性。
+- 入口：`.claude/hooks/claude-hook.sh stop`
+- 行为：只检查 deterministic quality artifact，不跑重型测试。
+- 读取 `tmp/agent_log/changed-files.jsonl`，找出需要 quality gate 的变更。
+- 验证对应 summary 是否存在、status 是否 PASS、finishedAt 是否晚于变更记录。
+- 失败时 exit 2，并给出可执行命令。
 
-- **Stop 验证**（`stop_validate_change.py`）：
-  - 检查受保护根目录中未提交的变更。
-  - 如果存在变更，验证：
-    1. `tmp/active_change.json` 存在且含 `change_id`。
-    2. `openspec/changes/<change-id>/` 存在。
-    3. 所需文件存在：`proposal.md`、`design.md`、`tasks.md`。
-    4. `tmp/task-evidence/<change-id>.jsonl` 中有证据条目。
-  - 如果不完整，以 exit 2 阻止，并输出“继续修复而不是停止”的动作列表。
-  - 紧急绕过：`FEIPI_SKIP_STOP_HOOK=1`。
+### ConfigChange
 
-### OpenSpec change 激活
+当 Claude Code 配置变更时执行。
+
+- 入口：`.claude/hooks/claude-hook.sh config-change`
+- 行为：记录配置变更到 `tmp/agent_log/config-change-log.jsonl`。
+
+## OpenSpec change 激活
 
 `scripts/openspec/create_active_change.py` 负责创建并激活 change。重复运行同一个 `change_id` 时，不覆盖已存在的 proposal/design/tasks/spec 文件；运行不同 `change_id` 时，必须更新 `tmp/active_change.json` 指向新的 active change。
 
 这保证子 agent 和 hook 不会继续沿用旧任务的 active sentinel。
 
-### SessionStart / SubagentStart
-
-在新会话或子 agent 会话开始时执行。
-
-- **上下文注入器**（`inject_session_context.py`）：
-  - 向 stdout 打印简洁的上下文。
-  - 包含：仓库根路径、活跃变更状态、证据路径、受保护根目录。
-  - 如果没有活跃变更，警告受保护编辑将被阻止，直到 `/change` 创建一个。
-  - 自测验证了有/无活跃变更的场景。
-
 ## 接线
 
-所有 hook 在 `.claude/settings.json` 的 `hooks` 键下配置：
+所有 hook 通过统一入口 `.claude/hooks/claude-hook.sh` 分发：
 
 ```json
 {
   "hooks": {
-    "SessionStart": [{ "command": "python3 scripts/agent_hooks/inject_session_context.py" }],
-    "SubagentStart": [{ "command": "python3 scripts/agent_hooks/inject_session_context.py" }],
+    "SessionStart": [{ "command": ".claude/hooks/claude-hook.sh session-start" }],
+    "SubagentStart": [{ "command": ".claude/hooks/claude-hook.sh subagent-start" }],
     "PreToolUse": [
-      { "matcher": "Write|Edit|MultiEdit", "command": "python3 scripts/agent_hooks/guard_active_openspec_change.py" },
-      { "matcher": "Bash", "command": ".claude/hooks/pre_tool_guard.sh" }
+      { "matcher": "Bash", "command": ".claude/hooks/claude-hook.sh pre-bash" },
+      { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "command": ".claude/hooks/claude-hook.sh pre-write" }
     ],
     "PostToolUse": [
-      { "matcher": "Write|Edit|MultiEdit", "command": "python3 scripts/agent_hooks/log_change_evidence.py" }
+      { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "command": ".claude/hooks/claude-hook.sh post-write" }
     ],
-    "Stop": [{ "command": ".claude/hooks/stop_check.sh" }],
-    "SubagentStop": [{ "command": "python3 scripts/agent_hooks/stop_validate_change.py" }]
+    "Stop": [{ "command": ".claude/hooks/claude-hook.sh stop" }],
+    "SubagentStop": [{ "command": ".claude/hooks/claude-hook.sh subagent-stop" }],
+    "ConfigChange": [{ "command": ".claude/hooks/claude-hook.sh config-change" }]
   }
 }
 ```
 
-## 自测
+## 质量门禁
 
-每个 hook 脚本支持 `--self-test` 模式，在临时 git 仓库中运行确定性的 pass/fail 检查：
+需要 deterministic quality gate 的变更，必须显式运行：
 
 ```bash
-python3 scripts/agent_hooks/guard_active_openspec_change.py --self-test   # 8/8
-python3 scripts/agent_hooks/stop_validate_change.py --self-test           # 8/8
-python3 scripts/agent_hooks/inject_session_context.py --self-test         # 10/10
-python3 scripts/agent_hooks/log_change_evidence.py --self-test            # 3/3
+python3 scripts/quality/run_quality_gate.py --target <target> --change-id <change-id>
 ```
 
-## 失败模式
-
-| 场景 | Hook | 结果 |
-|----------|------|--------|
-| 受保护编辑，无活跃变更 | PreToolUse 守卫 | 阻止（exit 1） |
-| 会话启动，无活跃变更 | SessionStart 注入 | 警告（exit 0，上下文显示 NONE） |
-| Stop 时受保护变更存在，变更不完整 | Stop 验证 | 阻止（exit 2），输出修复步骤 |
-| Stop，紧急绕过 | Stop 验证 | 允许（FEIPI_SKIP_STOP_HOOK=1） |
-| PostToolUse，无活跃变更 | 证据记录器 | 记录到 unknown.jsonl（exit 0） |
+Stop hook 只验证 summary artifact，不跑重型测试。

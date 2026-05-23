@@ -59,6 +59,28 @@ localhost/feipi/session-browser:<VERSION>
 localhost/feipi/session-browser:latest
 ```
 
+## Claude Hook / Harness Runtime
+
+本仓库使用宽权限 Claude Code hook + deterministic quality gate：
+
+```text
+.claude/hooks/claude-hook.sh
+scripts/claude_hooks/
+scripts/quality/
+tmp/agent_log/
+```
+
+运行态文件统一写入 `tmp/agent_log/`。`.agent/` 仅保留 legacy 只读兼容。
+
+常用质量命令：
+
+```bash
+python3 scripts/quality/run_quality_gate.py --target session-detail --change-id <change-id>
+python3 scripts/quality/run_quality_gate.py --target python-src --change-id <change-id>
+python3 scripts/quality/run_quality_gate.py --target hook-runtime --change-id <change-id>
+python3 scripts/quality/run_quality_gate.py --target harness --change-id <change-id>
+```
+
 ### 发布流
 
 版本管理以 `VERSION` 文件为真源，推荐流程：

@@ -41,6 +41,16 @@
 | OpenSpec 布局 | `python3 scripts/harness/validate_openspec_layout.py` |
 | 产品测试 | `./scripts/session-browser.sh test` |
 
+## Claude Code Runtime Contract
+
+1. 使用 `.claude/hooks/claude-hook.sh` 作为唯一 hook shell 入口。
+2. 使用 `scripts/claude_hooks/` 承载 hook 业务逻辑。
+3. 默认写入 `tmp/agent_log/`，不再写 `.agent/`。
+4. 仓库内编辑默认允许。
+5. 极少数破坏性命令 hard block。
+6. 需要 deterministic quality gate 的变更，必须显式运行 `scripts/quality/run_quality_gate.py`。
+7. Stop hook 只验证 summary artifact。
+
 ## UI 质量门禁
 
 修改 `src/session_browser/web/templates/`、
@@ -51,7 +61,7 @@
 python3 scripts/quality/run_quality_gate.py --target session-detail
 ```
 
-UI 任务完成的前提是 `tmp/quality/<change-id>/quality-gate-summary.json`
+UI 任务完成的前提是 `tmp/agent_log/quality/<change-id>/quality-gate-summary.json`
 报告 `status: PASS`。
 
 详见：

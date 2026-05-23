@@ -31,22 +31,20 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/agent_hooks/inject_session_context.py"
+            "command": ".claude/hooks/claude-hook.sh session-start"
           }
         ]
       }
     ],
     "SubagentStart": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/agent_hooks/inject_session_context.py"
+            "command": ".claude/hooks/claude-hook.sh subagent-start"
           }
         ]
       }
@@ -57,53 +55,67 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre_tool_guard.sh"
+            "command": ".claude/hooks/claude-hook.sh pre-bash"
           }
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/agent_hooks/guard_active_openspec_change.py"
+            "command": ".claude/hooks/claude-hook.sh pre-write"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/post_tool_guard.sh"
-          },
+            "command": ".claude/hooks/claude-hook.sh post-write"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/agent_hooks/log_change_evidence.py"
+            "command": ".claude/hooks/claude-hook.sh tool-failure"
           }
         ]
       }
     ],
     "Stop": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/stop_check.sh"
+            "command": ".claude/hooks/claude-hook.sh stop"
           }
         ]
       }
     ],
     "SubagentStop": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/agent_hooks/stop_validate_change.py"
+            "command": ".claude/hooks/claude-hook.sh subagent-stop"
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/claude-hook.sh config-change"
           }
         ]
       }
