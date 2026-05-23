@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "quality" / "check_session_detail_static.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "quality" / "check_session_detail_static.py"
 _spec = importlib.util.spec_from_file_location("check_session_detail_static", SCRIPT_PATH)
 _csd = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_csd)

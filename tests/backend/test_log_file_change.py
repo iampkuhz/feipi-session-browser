@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-HOOK_PATH = Path(__file__).resolve().parents[1] / "scripts" / "hooks" / "log_file_change.py"
+HOOK_PATH = Path(__file__).resolve().parents[2] / "scripts" / "hooks" / "log_file_change.py"
 _spec = importlib.util.spec_from_file_location("log_file_change", HOOK_PATH)
 _lfc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_lfc)

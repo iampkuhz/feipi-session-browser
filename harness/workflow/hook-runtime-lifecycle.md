@@ -39,3 +39,16 @@
 
 - 入口：`.claude/hooks/claude-hook.sh config-change`
 - 行为：记录配置变更到 `tmp/agent_log/config-change-log.jsonl`。
+
+## 07. Hook 测试保护策略
+
+`tests/hooks/` 目录为**受保护目录**，包含所有 Hook 场景的校验脚本和单测。
+
+**规则：任何对 `tests/hooks/` 下文件的修改，必须逐文件经用户确认后方可执行。**
+
+原因：Hook 测试是 Claude Code 运行时安全/质量门的验证层，误改可能导致：
+- 危险命令拦截失效
+- 敏感目录保护被绕过
+- Stop Hook 质量门降级
+
+对应产品代码：`scripts/claude_hooks/`、`.claude/hooks/claude-hook.sh`

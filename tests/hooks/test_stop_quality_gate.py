@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "hooks" / "stop_quality_gate.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "hooks" / "stop_quality_gate.py"
 _spec = importlib.util.spec_from_file_location("stop_quality_gate", SCRIPT_PATH)
 _sqg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_sqg)

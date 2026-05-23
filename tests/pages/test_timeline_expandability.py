@@ -11,7 +11,7 @@ import pytest
 import sys
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 import check_timeline_expandability as chk  # noqa: E402
@@ -339,7 +339,7 @@ class TestChildrenVisibilityCss:
 # ---------------------------------------------------------------------------
 
 # Path to session.html: tests/ is at repo root, so ../src/session_browser/web/templates/
-SESSION_HTML = (Path(__file__).resolve().parent.parent
+SESSION_HTML = (Path(__file__).resolve().parents[2]
                 / "src" / "session_browser" / "web" / "templates" / "session.html")
 
 
@@ -398,7 +398,7 @@ class TestEventDelegationPresent:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         # v9: JS is in session_detail_timeline.js, handles data-action="toggle-round"
-        js_path = (Path(__file__).resolve().parent.parent
+        js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
@@ -413,10 +413,10 @@ class TestEventDelegationPresent:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         # v9: Uses data-action="collapse-all" (no separate expand-visible)
-        timeline_css_path = (Path(__file__).resolve().parent.parent
+        timeline_css_path = (Path(__file__).resolve().parents[2]
                             / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css")
         # Check timeline CSS/JS for collapse-all
-        js_path = (Path(__file__).resolve().parent.parent
+        js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
@@ -430,7 +430,7 @@ class TestEventDelegationPresent:
     def test_delegation_handles_collapse_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        js_path = (Path(__file__).resolve().parent.parent
+        js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
@@ -446,7 +446,7 @@ class TestEventDelegationPresent:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         # v9: filter-status is in timeline component
-        timeline_path = (Path(__file__).resolve().parent.parent
+        timeline_path = (Path(__file__).resolve().parents[2]
                         / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html")
         if timeline_path.exists():
             html = timeline_path.read_text(encoding="utf-8")
@@ -468,7 +468,7 @@ class TestAccordionBehavior:
     def test_collapse_others_function_exists(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        js_path = (Path(__file__).resolve().parent.parent
+        js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
@@ -483,7 +483,7 @@ class TestAccordionBehavior:
     def test_toggle_round_detail_calls_collapse_others(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        js_path = (Path(__file__).resolve().parent.parent
+        js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
