@@ -3268,6 +3268,7 @@ a.link-muted:hover { color: var(--accent); }
 
 /* ─── Footer ──────────────────────────────────────────────────── */
 .footer {
+    margin-top: auto;
     padding: 12px 20px;
     border-top: 1px solid var(--border);
     font-size: var(--text-micro);
