@@ -216,7 +216,8 @@
 {% if sessions %}
 {% set cp = current_page | default(1) %}
 {% set tp = total_pages | default(1) %}
-{{ ui.pagination(cp, tp) }}
+{# aria-label="Agent sessions pagination" #}
+{{ ui.pagination(cp, tp, custom_label='Agent sessions pagination') }}
 {% endif %}
 {% endset %}
 {% call ui.table_card('Sessions', subtitle='Title and Project are not sortable. Metric headers sort the table.', search_placeholder='Search by Session ID or title...', toolbar_extra='<span class="info-icon" data-action="info" title="Sessions run by this agent">ⓘ</span>', pagination_html=agent_sessions_pagination) %}

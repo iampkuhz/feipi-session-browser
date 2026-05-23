@@ -833,9 +833,13 @@
 }
 .sd-sub-round:last-child { margin-bottom: 0; }
 .sd-sub-round--fail {
-  background: #fef2f2;
-  border-color: #fecaca;
-  box-shadow: inset 3px 0 0 var(--sd-err);
+  background: #fff5f5;
+  border-color: #fca5a5;
+  border-left: 3px solid #dc2626;
+  padding-left: 9px;
+}
+.sd-sub-round--fail:last-child {
+  border-bottom-left-radius: 12px;
 }
 
 .sd-sub-round__summary {
@@ -846,7 +850,10 @@
   align-items: center;
   padding: 0 9px;
   border-bottom: 1px solid #eef2ff;
-  background: #fff;
+  background: transparent;
+}
+.sd-sub-round--fail .sd-sub-round__summary {
+  border-bottom-color: #fca5a5;
 }
 
 .sd-sub-id { font-family: var(--sd-mono); font-weight: 850; color: var(--sd-cyan); }

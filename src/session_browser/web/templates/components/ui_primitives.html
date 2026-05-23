@@ -212,14 +212,15 @@
      page_size: current page size (default 20), renders a size selector when set
      page_size_options: list of page size options (default [10, 20, 50, 100])
 #}
-{% macro pagination(current_page, total_pages, total_items=None, page_size=None, page_size_options=None) -%}
+{% macro pagination(current_page, total_pages, total_items=None, page_size=None, page_size_options=None, custom_label=None) -%}
   {%- set total_pages = total_pages if total_pages > 0 else 1 -%}
   {%- set is_single_page = total_pages <= 1 -%}
   {%- set is_first_page = current_page <= 1 -%}
   {%- set is_last_page = current_page >= total_pages -%}
   {%- set total_items_text = ('of ' ~ total_items) if total_items else '' -%}
   {%- set effective_options = page_size_options if page_size_options else [10, 20, 50, 100] -%}
-<nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
+  {%- set label = custom_label or 'Pagination' -%}
+<nav class="pagination unified-pagination" role="navigation" aria-label="{{ label }}">
   <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>
   <span class="page-status">Page</span>
   <input class="page-input mono" data-action="page-input" value="{{ current_page }}" aria-label="Page number"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ total_pages }}"/>
