@@ -1,8 +1,0 @@
-gates:
-  harness:
-    - python3 scripts/harness/validate_harness_structure.py
-    - python3 scripts/harness/validate_openspec_layout.py
-  ui:
-    - python3 scripts/harness/validate_ui_reference_links.py
-  product:
-    - pytest

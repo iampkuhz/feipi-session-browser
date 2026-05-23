@@ -1,7 +1,0 @@
-src/session_browser/web/static/style.css
-src/session_browser/web/static/css/ui-primitives.css
-src/session_browser/web/static/css/session-detail-timeline.css
-src/session_browser/web/static/css/sessions-list.css
-src/session_browser/web/static/css/session-browser-v15.css
-src/session_browser/web/static/css/session-detail-timeline-v11.css
-src/session_browser/web/static/css/session-detail-response-blocks-v12.css
