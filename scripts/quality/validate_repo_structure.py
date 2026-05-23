@@ -15,7 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 # 01. 必需路径
 REQUIRED_PATHS = [
     ".claude/settings.json",
-    ".claude/hooks/claude-hook.sh",
+    ".claude/hooks/stop.sh",
     "scripts/claude_hooks/main.py",
     "scripts/claude_hooks/hook_io.py",
     "scripts/claude_hooks/classify.py",

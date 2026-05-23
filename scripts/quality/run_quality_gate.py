@@ -33,7 +33,7 @@ from scripts.quality.quality_artifact import (
     FAIL,
     BLOCKED,
 )
-from scripts.quality.quality_targets import required_gates_for_target, validate_target
+from scripts.quality.quality_targets import required_gates_for_target, applicable_gates_for_target, validate_target
 
 
 # 01. 命令执行工具
@@ -67,7 +67,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "-m", "json.tool", ".claude/settings.json"]
     if gate == "bashSyntax":
         shell_files = [
-            ".claude/hooks/claude-hook.sh",
+            ".claude/hooks/stop.sh",
             "scripts/harness/doctor.sh",
         ]
         existing = [f for f in shell_files if (repo_root / f).exists()]
@@ -99,7 +99,6 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
                 "tests/hooks/test_claude_hooks_bash_policy.py",
                 "tests/hooks/test_claude_hooks_file_policy.py",
                 "tests/hooks/test_claude_hooks_evidence.py",
-                "tests/hooks/test_claude_hooks_stop_policy.py",
                 "tests/quality/test_quality_artifact.py",
             ],
         }
@@ -117,9 +116,9 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
 
 
 # 03. target 执行
-def run_target(repo_root: Path, target: str) -> list[GateDetail]:
+def run_target(repo_root: Path, target: str, changed_files: list[str] | None = None) -> list[GateDetail]:
     details: list[GateDetail] = []
-    for gate in required_gates_for_target(target):
+    for gate in applicable_gates_for_target(target, changed_files):
         cmd = gate_command(gate, repo_root, target)
         if not cmd:
             details.append(GateDetail(name=gate, status=BLOCKED, command=[], output=f"required gate {gate} 没有可执行命令或依赖缺失。"))
@@ -153,17 +152,57 @@ def main() -> int:
     parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness"])
     parser.add_argument("--change-id", required=True)
     parser.add_argument("--out", default="tmp/agent_log/quality")
+    parser.add_argument("--changed-files", default=None,
+                        help="JSON array of changed file paths, or 'auto' to read from changed-files.jsonl")
     args = parser.parse_args()
 
     repo_root = Path.cwd()
     validate_target(args.target)
     started_at = utc_now()
-    details = run_target(repo_root, args.target)
+
+    # 解析 changed files
+    changed_files: list[str] | None = None
+    if args.changed_files == "auto":
+        changed_files = _read_changed_files(repo_root)
+    elif args.changed_files:
+        import json
+        changed_files = json.loads(args.changed_files)
+
+    details = run_target(repo_root, args.target, changed_files)
     summary = build_summary(args.target, args.change_id, started_at, details)
     out = write_quality_summary(repo_root / args.out, summary, target_specific=True)
     print(f"quality summary: {out}")
     print(f"status: {summary.status}")
     return 0 if summary.status == PASS else 1
+
+
+def _read_changed_files(repo_root: Path) -> list[str]:
+    """从 tmp/agent_log/changed-files.jsonl 读取当前 session 的文件列表。"""
+    changed_file = repo_root / "tmp" / "agent_log" / "changed-files.jsonl"
+    if not changed_file.exists():
+        return []
+    # 优先按 session ID 过滤
+    session_id_file = repo_root / "tmp" / "agent_log" / "session-id.txt"
+    session_id = None
+    if session_id_file.exists():
+        session_id = session_id_file.read_text().strip() or None
+
+    files: list[str] = []
+    for line in changed_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            import json
+            record = json.loads(line)
+            if session_id and record.get("sessionId") != session_id:
+                continue
+            f = record.get("file") or record.get("file_path")
+            if f:
+                files.append(f)
+        except (json.JSONDecodeError, Exception):
+            continue
+    return files
 
 
 if __name__ == "__main__":

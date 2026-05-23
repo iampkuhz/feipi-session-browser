@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-# 01. target -> required gate 矩阵
+# 01. target -> required gate 矩阵（全量 baseline）
 QUALITY_TARGETS: dict[str, list[str]] = {
     "session-detail": [
         "pythonCompile",
@@ -34,12 +34,157 @@ QUALITY_TARGETS: dict[str, list[str]] = {
 }
 
 
-# 02. 查询函数
+# 02. gate -> 文件模式映射（增量触发）
+# 只有当 changed-files 中至少一个文件匹配 gate 的模式时，才运行该 gate。
+# 如果没有提供 changed-files 列表（如手动运行 --target），则回退到全量 baseline。
+GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
+    "session-detail": {
+        "templateContract": [
+            "src/session_browser/web/templates/**/*.html",
+        ],
+        "staticCssContract": [
+            "src/session_browser/web/static/**/*.css",
+        ],
+        "browserLayout": [
+            "src/session_browser/web/templates/**/*.html",
+            "src/session_browser/web/static/**/*.css",
+            "src/session_browser/web/static/**/*.js",
+        ],
+        "pythonCompile": [
+            "src/session_browser/**/*.py",
+        ],
+    },
+    "python-src": {
+        "pythonCompile": [
+            "src/session_browser/**/*.py",
+        ],
+    },
+    "hook-runtime": {
+        "settingsJson": [
+            ".claude/settings.json",
+            ".claude/settings.local.json",
+        ],
+        "bashSyntax": [
+            ".claude/hooks/**/*.sh",
+            "scripts/hooks/**/*.sh",
+            "scripts/agent_hooks/**/*.sh",
+        ],
+        "pythonCompile": [
+            "scripts/claude_hooks/**/*.py",
+            "scripts/hooks/**/*.py",
+            "scripts/agent_hooks/**/*.py",
+            "scripts/quality/**/*.py",
+        ],
+        "hookSelfTest": [
+            "scripts/claude_hooks/**/*.py",
+        ],
+        "pytest": [
+            "scripts/claude_hooks/**/*.py",
+            "scripts/hooks/**/*.py",
+            "scripts/agent_hooks/**/*.py",
+            "scripts/quality/**/*.py",
+        ],
+        "doctor": [
+            ".claude/hooks/**/*.sh",
+            ".claude/settings.json",
+            "scripts/**/*.sh",
+        ],
+        "repoStructure": [
+            ".claude/**",
+            "scripts/**/*.py",
+            "scripts/**/*.sh",
+            "AGENTS.md",
+            "CLAUDE.md",
+            "README.md",
+            "docs/**",
+        ],
+    },
+    "harness": {
+        "bashSyntax": [
+            "scripts/harness/**/*.sh",
+        ],
+        "pythonCompile": [
+            "scripts/harness/**/*.py",
+            "scripts/quality/**/*.py",
+        ],
+        "doctor": [
+            "scripts/harness/**/*.sh",
+        ],
+        "repoStructure": [
+            "scripts/harness/**",
+        ],
+        "harnessStructure": [
+            "harness/**",
+            "scripts/harness/**/*.py",
+        ],
+        "openspecLayout": [
+            "openspec/**",
+        ],
+    },
+}
+
+
+# 03. 路径规范化与 glob 匹配
+def _normalize(path: str) -> str:
+    value = path.replace("\\", "/")
+    while value.startswith("./"):
+        value = value[2:]
+    return value.strip("/")
+
+
+def _glob_match(path: str, pattern: str) -> bool:
+    """支持 ** 语义的 glob 匹配。** 匹配零或多个目录段。"""
+    import re
+    p = _normalize(path)
+    pat = _normalize(pattern)
+    regex = re.escape(pat)
+    regex = regex.replace(r'\*\*', '\x00')
+    regex = regex.replace(r'\*', '[^/]*')
+    regex = regex.replace(r'\?', '.')
+    regex = regex.replace('\x00/', '(?:.+/)?')
+    regex = regex.replace('\x00', '.*')
+    return bool(re.match(f'^{regex}$', p))
+
+
+def _match(path: str, pattern: str) -> bool:
+    """兼容旧 classify.py 的 _match 接口。"""
+    return _glob_match(path, pattern)
+
+
+# 04. 查询函数
 def required_gates_for_target(target: str) -> list[str]:
     return list(QUALITY_TARGETS.get(target, []))
 
 
-# 03. target 校验
+def applicable_gates_for_target(target: str, changed_files: list[str] | None = None) -> list[str]:
+    """根据实际修改的文件，返回该 target 下应该运行的 gates。
+
+    如果没有提供 changed_files（None），回退到全量 baseline。
+    如果提供了 changed_files，只返回至少有一个文件匹配该 gate 模式的 gates。
+    """
+    if changed_files is None:
+        return required_gates_for_target(target)
+
+    gate_patterns = GATE_PATTERNS.get(target, {})
+    # 全量 baseline 中的 gate，如果没有在 GATE_PATTERNS 中定义，也默认运行（安全兜底）
+    all_gates = set(required_gates_for_target(target))
+    applicable: set[str] = set()
+
+    for gate, patterns in gate_patterns.items():
+        for f in changed_files:
+            if any(_match(f, pattern) for pattern in patterns):
+                applicable.add(gate)
+                break
+
+    # 安全兜底：GATE_PATTERNS 中未定义的 gate，如果在全量 baseline 中存在，默认运行
+    defined_gates = set(gate_patterns.keys())
+    for gate in all_gates - defined_gates:
+        applicable.add(gate)
+
+    return [g for g in required_gates_for_target(target) if g in applicable]
+
+
+# 05. target 校验
 def validate_target(target: str) -> None:
     if target not in QUALITY_TARGETS:
         raise ValueError(f"未知 quality target：{target}")

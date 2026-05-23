@@ -302,7 +302,7 @@ def _self_test():
 
     def _t10_hook_category():
         """Hook script classified as hook."""
-        cat, qg = _classify(".claude/hooks/stop_check.sh")
+        cat, qg = _classify(".claude/hooks/stop.sh")
         assert cat == "hook", f"Got {cat}"
         assert qg is True
 

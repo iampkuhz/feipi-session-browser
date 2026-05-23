@@ -57,3 +57,5 @@ playwright/.cache/
 node_modules/
 /tmp/
 /tests/playwright/ui-contract.spec.ts-snapshots/
+
+*.egg-info/

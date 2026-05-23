@@ -8,7 +8,6 @@ from .evidence import record_hook_event, record_post_write
 from .result import HookResult, emit
 from .policy.bash_policy import evaluate_command
 from .policy.file_policy import evaluate_write_path
-from .policy.stop_policy import check_stop, write_stop_summary
 from .policy.session_context import handle_session_start
 from .policy.config_policy import record_config_change
 
@@ -41,25 +40,7 @@ def handle_post_write(paths, ctx) -> HookResult:
     return HookResult(status="PASS", details={"changedFileCount": len(records)})
 
 
-# 04. 事件处理：stop
-def handle_stop(paths, ctx) -> HookResult:
-    result = check_stop(paths)
-    write_stop_summary(paths, result)
-    if not result.passed:
-        return HookResult(
-            status="FAIL",
-            exit_code=2,
-            message="deterministic quality gate 未通过。",
-            details={
-                "changeId": result.change_id,
-                "requiredTargets": result.required_targets,
-                "blockingFailures": result.blocking_failures,
-            },
-        )
-    return HookResult(status="PASS", warnings=result.warnings)
-
-
-# 05. 通用事件
+# 04. 通用事件
 def handle_default(paths, ctx, label: str) -> HookResult:
     if label in {"session-start", "subagent-start"}:
         handle_session_start(paths, ctx, label)
@@ -85,8 +66,6 @@ def main(argv: list[str] | None = None) -> int:
         return emit(handle_pre_write(paths, ctx))
     if event_name == "post-write":
         return emit(handle_post_write(paths, ctx))
-    if event_name == "stop" or event_name == "subagent-stop":
-        return emit(handle_stop(paths, ctx))
     if event_name == "--self-test":
         from .self_test import run_self_test
         run_self_test()

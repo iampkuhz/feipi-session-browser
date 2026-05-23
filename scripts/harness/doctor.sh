@@ -36,11 +36,20 @@ check_file requirements-dev.txt
 check_file scripts/session-browser.sh
 check_file docs/governance/tool-usage.md
 check_file .claude/settings.json
-check_file .claude/hooks/claude-hook.sh
-# Legacy hooks kept for reference; do not fail if present.
+# Hook entry scripts — each hook type has its own shell script.
+check_file .claude/hooks/stop.sh
+check_file .claude/hooks/session-start.sh
+check_file .claude/hooks/subagent-start.sh
+check_file .claude/hooks/pre-bash.sh
+check_file .claude/hooks/pre-write.sh
+check_file .claude/hooks/post-write.sh
+check_file .claude/hooks/tool-failure.sh
+check_file .claude/hooks/subagent-stop.sh
+check_file .claude/hooks/config-change.sh
+check_file .claude/hooks/lib/common.sh
+# Legacy helpers kept for reference.
 check_file .claude/hooks/pre_tool_guard.sh
 check_file .claude/hooks/post_tool_guard.sh
-check_file .claude/hooks/stop_check.sh
 check_file harness/manifest.yaml
 check_dir src/session_browser
 check_dir tests

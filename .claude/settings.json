@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh session-start"
+            "command": ".claude/hooks/session-start.sh"
           }
         ]
       }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh subagent-start"
+            "command": ".claude/hooks/subagent-start.sh"
           }
         ]
       }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh pre-bash"
+            "command": ".claude/hooks/pre-bash.sh"
           }
         ]
       },
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh pre-write"
+            "command": ".claude/hooks/pre-write.sh"
           }
         ]
       }
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh post-write"
+            "command": ".claude/hooks/post-write.sh"
           }
         ]
       }
@@ -85,7 +85,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh tool-failure"
+            "command": ".claude/hooks/tool-failure.sh"
           }
         ]
       }
@@ -95,7 +95,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh stop"
+            "command": ".claude/hooks/stop.sh"
           }
         ]
       }
@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh subagent-stop"
+            "command": ".claude/hooks/subagent-stop.sh"
           }
         ]
       }
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/claude-hook.sh config-change"
+            "command": ".claude/hooks/config-change.sh"
           }
         ]
       }

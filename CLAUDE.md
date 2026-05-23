@@ -43,8 +43,9 @@
 
 ## Claude Code Runtime Contract
 
-1. 使用 `.claude/hooks/claude-hook.sh` 作为唯一 hook shell 入口。
-2. 使用 `scripts/claude_hooks/` 承载 hook 业务逻辑。
+1. 使用 `.claude/hooks/` 下的独立脚本作为 hook 入口（如 `stop.sh`、`pre-bash.sh`）。
+2. 使用 `scripts/claude_hooks/` 承载非 Stop hook 的 Python 策略逻辑。
+3. Stop/SubagentStop hook 直接调用 `scripts/agent_hooks/stop_validate_change.py` 和 `scripts/hooks/stop_quality_gate.py`。
 3. 默认写入 `tmp/agent_log/`，不再写 `.agent/`。
 4. 仓库内编辑默认允许。
 5. 极少数破坏性命令 hard block。
