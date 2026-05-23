@@ -16,7 +16,7 @@ from pathlib import Path
 from scripts.claude_hooks.classify import required_quality_targets
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-LOG_DIR = Path(os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_log"))
+LOG_DIR = Path(os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_logs/adhoc"))
 CHANGED_FILES = LOG_DIR / "changed-files.jsonl"
 QUALITY_DIR = LOG_DIR / "quality"
 SESSION_ID_FILE = LOG_DIR / "session-id.txt"

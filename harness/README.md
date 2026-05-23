@@ -6,8 +6,8 @@
 
 本目录描述 `feipi-session-browser` 的 Claude Code 本地工程化改造约束：
 
-- Hook runtime 单入口
-- `tmp/agent_log/` 运行态目录
+- Hook runtime 独立入口
+- `tmp/agent_logs/` per-session 运行态目录
 - deterministic quality gate
 - 高权限、强质量
 - 文档、脚本、测试三者一致
@@ -33,17 +33,22 @@ harness/
 新代码默认只写：
 
 ```text
-tmp/agent_log/
+tmp/agent_logs/MMDD_<session-id>/
 ```
 
+每个 session 有独立目录，多个 agent 实例同时运行时互不干扰。
 `.agent/` 只作为 legacy 只读兼容路径。
 
 ## 04. Hook Runtime
 
-入口：
+入口（每个 hook type 独立脚本）：
 
 ```text
-.claude/hooks/claude-hook.sh
+.claude/hooks/
+  session-start.sh
+  stop.sh
+  pre-bash.sh
+  ...
 ```
 
 Python 逻辑：
@@ -68,8 +73,8 @@ python3 scripts/quality/run_quality_gate.py --target harness --change-id <change
 输出：
 
 ```text
-tmp/agent_log/quality/<change-id>/quality-gate-summary.<target>.json
-tmp/agent_log/quality/<change-id>/gate-details.<target>.json
+tmp/agent_logs/<session>/quality/<change-id>/quality-gate-summary.<target>.json
+tmp/agent_logs/<session>/quality/<change-id>/gate-details.<target>.json
 ```
 
 Stop hook 只检查 artifact，不跑重型测试。

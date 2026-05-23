@@ -64,13 +64,13 @@ localhost/feipi/session-browser:latest
 本仓库使用宽权限 Claude Code hook + deterministic quality gate：
 
 ```text
-.claude/hooks/claude-hook.sh
+.claude/hooks/      # 独立 hook shell 入口
 scripts/claude_hooks/
 scripts/quality/
-tmp/agent_log/
+tmp/agent_logs/     # per-session 运行态目录
 ```
 
-运行态文件统一写入 `tmp/agent_log/`。`.agent/` 仅保留 legacy 只读兼容。
+运行态文件统一写入 `tmp/agent_logs/MMDD_<session-id>/`（多 agent 隔离）。`.agent/` 仅保留 legacy 只读兼容。
 
 常用质量命令：
 

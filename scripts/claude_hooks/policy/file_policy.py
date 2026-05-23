@@ -50,7 +50,7 @@ def _self_test() -> None:
     assert d.allowed
     assert d.requires_quality_gate
     assert d.quality_target == "session-detail"
-    local = evaluate_write_path("tmp/agent_log/a.jsonl", ".")
+    local = evaluate_write_path("tmp/agent_logs/session1/a.jsonl", ".")
     assert local.allowed
     assert local.warnings
 

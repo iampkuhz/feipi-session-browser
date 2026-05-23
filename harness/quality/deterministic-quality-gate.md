@@ -33,7 +33,7 @@
 
 ## 03. Stop Hook 行为
 
-1. 读取 `tmp/agent_log/changed-files.jsonl`。
+1. 读取当前 session 的 `changed-files.jsonl`（位于 `tmp/agent_logs/<session>/`）。
 2. 找出最近 change-id 的 required target。
 3. 检查对应 summary 是否存在。
 4. 检查 status 是否 PASS。

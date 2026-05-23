@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 def main() -> None:
-    log_dir = os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_log")
+    log_dir = os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_logs/adhoc")
     changed_file = Path(log_dir) / "changed-files.jsonl"
 
     # 尝试从 stdin 读取 session ID（Claude hook 传入的 JSON）。

@@ -46,11 +46,11 @@
 1. 使用 `.claude/hooks/` 下的独立脚本作为 hook 入口（如 `stop.sh`、`pre-bash.sh`）。
 2. 使用 `scripts/claude_hooks/` 承载非 Stop hook 的 Python 策略逻辑。
 3. Stop/SubagentStop hook 直接调用 `scripts/agent_hooks/stop_validate_change.py` 和 `scripts/hooks/stop_quality_gate.py`。
-3. 默认写入 `tmp/agent_log/`，不再写 `.agent/`。
-4. 仓库内编辑默认允许。
-5. 极少数破坏性命令 hard block。
-6. 需要 deterministic quality gate 的变更，必须显式运行 `scripts/quality/run_quality_gate.py`。
-7. Stop hook 只验证 summary artifact。
+4. 默认写入 `tmp/agent_logs/MMDD_<session-id>/`（per-session 隔离），不再写 `.agent/`。
+5. 仓库内编辑默认允许。
+6. 极少数破坏性命令 hard block。
+7. 需要 deterministic quality gate 的变更，必须显式运行 `scripts/quality/run_quality_gate.py`。
+8. Stop hook 只验证 summary artifact。
 
 ## UI 质量门禁
 
@@ -62,7 +62,7 @@
 python3 scripts/quality/run_quality_gate.py --target session-detail
 ```
 
-UI 任务完成的前提是 `tmp/agent_log/quality/<change-id>/quality-gate-summary.json`
+UI 任务完成的前提是 `tmp/agent_logs/<session>/quality/<change-id>/quality-gate-summary.json`
 报告 `status: PASS`。
 
 详见：

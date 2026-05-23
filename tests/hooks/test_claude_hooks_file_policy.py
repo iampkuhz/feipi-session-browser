@@ -8,6 +8,6 @@ def test_repo_write_allowed(tmp_path):
 
 
 def test_local_generated_warns(tmp_path):
-    d = evaluate_write_path("tmp/agent_log/a.jsonl", tmp_path)
+    d = evaluate_write_path("tmp/agent_logs/session1/a.jsonl", tmp_path)
     assert d.allowed
     assert d.warnings

@@ -26,5 +26,5 @@
 ## 03. 输出路径
 
 ```text
-tmp/agent_log/quality/<change-id>/quality-gate-summary.<target>.json
+tmp/agent_logs/<session>/quality/<change-id>/quality-gate-summary.<target>.json
 ```

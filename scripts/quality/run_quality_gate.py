@@ -151,7 +151,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Deterministic quality gate runner")
     parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness"])
     parser.add_argument("--change-id", required=True)
-    parser.add_argument("--out", default="tmp/agent_log/quality")
+    parser.add_argument("--out", default="tmp/agent_logs/adhoc/quality")
     parser.add_argument("--changed-files", default=None,
                         help="JSON array of changed file paths, or 'auto' to read from changed-files.jsonl")
     args = parser.parse_args()
@@ -177,12 +177,31 @@ def main() -> int:
 
 
 def _read_changed_files(repo_root: Path) -> list[str]:
-    """从 tmp/agent_log/changed-files.jsonl 读取当前 session 的文件列表。"""
-    changed_file = repo_root / "tmp" / "agent_log" / "changed-files.jsonl"
+    """从当前 session 的 changed-files.jsonl 读取文件列表。
+
+    优先使用 FEIPI_AGENT_LOG_DIR 环境变量；未设置时回退到
+    tmp/agent_logs 下最新的 session 目录。
+    """
+    # 优先使用环境变量
+    log_dir_str = os.environ.get("FEIPI_AGENT_LOG_DIR", "")
+    if log_dir_str:
+        log_dir = Path(log_dir_str)
+    else:
+        # 回退：找 tmp/agent_logs 下最新的 session 目录
+        base = repo_root / "tmp" / "agent_logs"
+        if not base.exists():
+            return []
+        dirs = sorted([d for d in base.iterdir() if d.is_dir()],
+                      key=lambda d: d.stat().st_mtime, reverse=True)
+        if not dirs:
+            return []
+        log_dir = dirs[0]
+
+    changed_file = log_dir / "changed-files.jsonl"
     if not changed_file.exists():
         return []
-    # 优先按 session ID 过滤
-    session_id_file = repo_root / "tmp" / "agent_log" / "session-id.txt"
+
+    session_id_file = log_dir / "session-id.txt"
     session_id = None
     if session_id_file.exists():
         session_id = session_id_file.read_text().strip() or None

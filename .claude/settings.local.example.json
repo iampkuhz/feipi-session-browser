@@ -38,6 +38,6 @@
   },
   "env": {
     "SESSION_BROWSER_DEV_MODE": "1",
-    "FEIPI_AGENT_LOG_DIR": "tmp/agent_log"
+    "FEIPI_AGENT_LOGS_BASE": "tmp/agent_logs"
   }
 }

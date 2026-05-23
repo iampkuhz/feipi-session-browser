@@ -58,7 +58,8 @@ scripts/hooks/stop_quality_gate.py
 默认写入：
 
 ```text
-tmp/agent_log/
+tmp/agent_logs/MMDD_<session-id>/
 ```
 
+每个 session 有独立目录，多个 agent 实例同时运行时互不干扰。
 `.agent/` 只作为 legacy 只读兼容路径。

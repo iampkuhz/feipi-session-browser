@@ -69,7 +69,7 @@ def find_repo_root(start: str | Path | None = None) -> Path:
 # 03. 运行态路径构造
 def build_paths(repo_root: str | Path | None = None) -> RepoPaths:
     root = find_repo_root(repo_root)
-    log_rel = os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_log")
+    log_rel = os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_logs/adhoc")
     log_dir = (root / log_rel).resolve() if not Path(log_rel).is_absolute() else Path(log_rel).resolve()
     return RepoPaths(repo_root=root, agent_log_dir=log_dir, legacy_agent_dir=root / ".agent")
 

@@ -30,7 +30,7 @@ REQUIRED_PATHS = [
 
 # 02. 不应被 git 跟踪的运行态路径
 GENERATED_PREFIXES = [
-    "tmp/agent_log/",
+    "tmp/agent_logs/",
     ".agent/",
     "data/",
     "output/",
@@ -59,7 +59,7 @@ def validate(root: Path) -> list[str]:
     tracked = git_tracked_files(root)
     for item in tracked:
         if any(item == p.rstrip("/") or item.startswith(p) for p in GENERATED_PREFIXES):
-            # tmp/.gitkeep 允许被 tracked；tmp/agent_log 不允许。
+            # tmp/.gitkeep 允许被 tracked；tmp/agent_logs 不允许。
             if item != "tmp/.gitkeep":
                 failures.append(f"运行态/生成物不应进入 git tracked：{item}")
         if item.endswith((".sqlite", ".sqlite3", ".db")):

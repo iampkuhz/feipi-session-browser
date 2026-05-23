@@ -4,8 +4,8 @@
 output/
 data/
 
-# Hook/harness runtime logs
-tmp/agent_log/
+# Hook/harness runtime logs (per-session subdirectories)
+tmp/agent_logs/
 
 # Legacy agent runtime logs
 .agent/

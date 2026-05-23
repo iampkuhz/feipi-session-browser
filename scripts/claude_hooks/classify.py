@@ -93,7 +93,7 @@ def _self_test() -> None:
     assert classify_file("src/session_browser/web/static/app.css").category == "ui-css"
     assert classify_file("src/session_browser/foo.py").quality_target == "python-src"
     assert classify_file(".claude/settings.json").quality_target == "hook-runtime"
-    assert classify_file("tmp/agent_log/x.jsonl").category == "local-or-generated"
+    assert classify_file("tmp/agent_logs/session1/x.jsonl").category == "local-or-generated"
 
 
 if __name__ == "__main__":

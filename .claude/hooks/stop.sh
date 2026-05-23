@@ -8,7 +8,13 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 cd "$ROOT" || exit $EXIT_WARN
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
-export FEIPI_AGENT_LOG_DIR="${FEIPI_AGENT_LOG_DIR:-tmp/agent_log}"
+
+# 保存 stdin 供后续 Python 脚本读取（Claude hook 传入的 JSON 包含 sessionId）。
+STDIN_TMP="$(mktemp)"
+cat > "$STDIN_TMP" 2>/dev/null || true
+
+# 解析当前 session 的日志目录（per-session 隔离）
+export FEIPI_AGENT_LOG_DIR="$(resolve_current_log_dir "$STDIN_TMP")"
 
 STOP_SUMMARY="${FEIPI_AGENT_LOG_DIR}/stop-check-summary.json"
 WARN=0
@@ -20,17 +26,12 @@ BLOCK=0
 # 这是最可靠的判断 —— 覆盖 Claude 所有写操作（Write/Edit/MultiEdit/NotebookEdit），
 # 不受 git dirty state 干扰，也不受跨 session 历史数据影响。
 
-# 保存 stdin 供后续 Python 脚本读取（Claude hook 传入的 JSON 包含 sessionId）。
-STDIN_TMP="$(mktemp)"
-cat > "$STDIN_TMP" 2>/dev/null || true
-
 write_session_script="${ROOT}/scripts/claude_hooks/policy/write_session_check.py"
 if [[ -f "$write_session_script" ]]; then
   SESSION_CHECK="$(python3 "$write_session_script" < "$STDIN_TMP" 2>/dev/null || echo "unknown")"
 else
   SESSION_CHECK="unknown"
 fi
-rm -f "$STDIN_TMP"
 
 if [[ "$SESSION_CHECK" == "no_changes" ]]; then
   hook_log "INFO" "本次无文件修改（当前 session 无 Write/Edit 记录），跳过质量门禁校验"
@@ -54,6 +55,7 @@ d = {
 summary_path.parent.mkdir(parents=True, exist_ok=True)
 summary_path.write_text(json.dumps(d, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 "
+  rm -f "$STDIN_TMP"
   exit $EXIT_OK
 fi
 
@@ -116,6 +118,7 @@ summary_path.parent.mkdir(parents=True, exist_ok=True)
 summary_path.write_text(json.dumps(d, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 "
 
+rm -f "$STDIN_TMP"
 [[ $BLOCK -ne 0 ]] && exit $EXIT_BLOCK
 [[ $WARN -ne 0 ]] && exit $EXIT_WARN
 exit $EXIT_OK
