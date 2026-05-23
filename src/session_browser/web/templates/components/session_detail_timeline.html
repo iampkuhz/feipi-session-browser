@@ -16,8 +16,8 @@
         </div>
         {% if session_url %}
         <div class="sd-hero-url">
-          <span class="sd-hero-url-text" title="{{ session_url }}">{{ session_url }}</span>
-          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy-session-url" title="Copy session URL">
+          <span class="sd-hero-url-text" title="{{ session_url }}">{{ summary.session_id|default('') }}</span>
+          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy-session-id" data-session-id="{{ summary.session_id|default('') }}" title="Copy session ID">
             <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
           </button>
         </div>
@@ -26,7 +26,6 @@
           <span class="sd-chip sd-chip--mono">{{ summary.model|default('—') }}</span>
           {% if summary.project_name %}<span class="sd-chip">{{ summary.project_name }}</span>{% endif %}
           <span class="sd-chip">{{ summary.date|default('—') }}</span>
-          <span class="sd-chip sd-chip--mono">{{ summary.short_id|default('—') }}</span>
         </div>
         {% if issues %}
         <div class="sd-issue-strip" data-issue-strip>
@@ -51,14 +50,9 @@
     </div>
     <div class="sd-summary-strip" data-summary-strip>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon" aria-hidden="true">&#x2705;</span>
-        <b>Status</b>
-        <span>{{ summary.status_label|default('Completed') }}</span>
-      </div>
-      <div class="sd-summary-item">
         <span class="sd-summary-icon" aria-hidden="true">&#x270D;&#xFE0F;</span>
-        <b>Manual input</b>
-        <span>{{ summary.manual_input_count|default('0') }} rounds</span>
+        <b>User input 轮数</b>
+        <span>{{ summary.manual_input_count|default('0') }}</span>
       </div>
       <div class="sd-summary-item">
         <span class="sd-summary-icon" aria-hidden="true">&#x1F9F0;</span>
@@ -85,7 +79,7 @@
         <button type="button" class="sd-seg-btn is-active" data-action="filter-status" data-status="all" data-action="status-all">All</button>
         <button type="button" class="sd-seg-btn" data-action="filter-status" data-status="failed" data-action="status-failed">Failed</button>
       </div>
-      <button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-action="collapse-all">Collapse all</button>
+      <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-toggle-all-btn" data-action="toggle-all" data-state="collapse" style="min-width:120px">Expand all</button>
     </div>
   </div>
 {%- endmacro %}
@@ -116,15 +110,46 @@
   <td><span class="round-id {% if row.status_key == 'manual' %}manual{% endif %} {% if 'fail' in row.status_key|default('') %}failed{% endif %}">R{{ row.round_id }}</span></td>
   <td><span class="summary-title">{{ row.preview_title }}</span></td>
   <td>
-    <div class="metric-stack">
-      <span class="metric-token">{{ row.token_total_raw|default(0)|format_compact_token }}</span>
-      <span>{{ row.tool_count_label|default('0 tools') }}</span>
-      <span class="tokenbar" aria-hidden="true">
-        <span class="fresh" style="--segment-width:{{ row.token_mix.fresh|default(0) }}%"></span>
-        <span class="read" style="--segment-width:{{ row.token_mix.read|default(0) }}%"></span>
-        <span class="write" style="--segment-width:{{ row.token_mix.write|default(0) }}%"></span>
-        <span class="out" style="--segment-width:{{ row.token_mix.out|default(0) }}%"></span>
-      </span>
+    <div class="metric-cell">
+      <span class="metric-tools">{{ row.tool_count_label|default('0 tools') }}</span>
+      <div class="token-group">
+        <span class="metric-token">{{ row.token_total_raw|default(0)|format_compact_token }}</span>
+        <span class="tokenbar-wrap" aria-hidden="true" tabindex="0">
+          <span class="tokenbar">
+            <span class="fresh" style="--segment-width:{{ row.token_mix.fresh|default(0) }}%"></span>
+            <span class="read" style="--segment-width:{{ row.token_mix.read|default(0) }}%"></span>
+            <span class="write" style="--segment-width:{{ row.token_mix.write|default(0) }}%"></span>
+            <span class="out" style="--segment-width:{{ row.token_mix.out|default(0) }}%"></span>
+          </span>
+          <div class="token-tooltip" aria-hidden="true">
+            <div class="token-tooltip__title">Token Breakdown</div>
+            <div class="token-tooltip__row">
+              <span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh</span></span>
+              <span class="token-tooltip__value">{{ row.token_input|default(0)|format_compact_token }}</span>
+              <span class="token-tooltip__pct">{{ row.token_mix.fresh|default(0) }}%</span>
+            </div>
+            <div class="token-tooltip__row">
+              <span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
+              <span class="token-tooltip__value">{{ row.token_cache_read|default(0)|format_compact_token }}</span>
+              <span class="token-tooltip__pct">{{ row.token_mix.read|default(0) }}%</span>
+            </div>
+            <div class="token-tooltip__row">
+              <span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
+              <span class="token-tooltip__value">{{ row.token_cache_write|default(0)|format_compact_token }}</span>
+              <span class="token-tooltip__pct">{{ row.token_mix.write|default(0) }}%</span>
+            </div>
+            <div class="token-tooltip__row">
+              <span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span>
+              <span class="token-tooltip__value">{{ row.token_output|default(0)|format_compact_token }}</span>
+              <span class="token-tooltip__pct">{{ row.token_mix.out|default(0) }}%</span>
+            </div>
+            <div class="token-tooltip__sep"></div>
+            <div class="token-tooltip__row token-tooltip__total">
+              <span>Total</span><span class="token-tooltip__value">{{ row.token_total }}</span>
+            </div>
+          </div>
+        </span>
+      </div>
     </div>
   </td>
   <td>
@@ -134,17 +159,12 @@
       <span class="badge badge-err">Failed</span>
     {% endif %}
   </td>
-  <td>
-    <button type="button" class="round-toggle-btn" data-action="toggle-round" data-target="#round-{{ row.round_id }}-detail" data-round="{{ row.round_id }}" aria-expanded="{{ 'true' if row.is_open else 'false' }}" aria-controls="round-{{ row.round_id }}-detail" title="Expand / collapse">
-      <span aria-hidden="true">{% if row.is_open %}&#x2303;{% else %}&#x2304;{% endif %}</span>
-    </button>
-  </td>
 </tr>
 {%- endmacro %}
 
 {% macro expanded_row(row) -%}
 <tr class="expanded-row" id="round-{{ row.round_id }}-detail" data-trace-detail {% if not row.is_open %}hidden{% endif %}>
-  <td colspan="5">
+  <td colspan="4">
     <div class="sd-timeline">
       {% for item in row.timeline_items %}
         {% if item.type == 'llm_call' %}
@@ -238,16 +258,23 @@
             <div class="sd-sub-round__summary">
               <span class="sd-sub-id">SR{{ sr.sub_round_id }}</span>
               <span class="sd-sub-title">{{ sr.title }}</span>
-              <span class="sd-sub-metric">{{ sr.metric }}</span>
-              <span class="sd-sub-metric">{{ sr.status }}</span>
+              <span class="sd-sub-tokens" title="{{ sr.metric_label|default('') }}">{{ sr.metric }}</span>
+              <span class="sd-sub-status {{ sr.status_tone_class|default('') }}">{{ sr.status }}</span>
             </div>
             <div class="sd-sub-steps">
               {% for step in sr.steps %}
-                <div class="sd-sub-step">
-                  <span class="sd-sub-kind">{{ step.kind }}</span>
-                  <span class="sd-sub-main">{{ step.text }}</span>
-                  <span class="sd-sub-result">{{ step.result }}</span>
-                </div>
+                {% if step.type == "llm_call" %}
+                  {{ llm_call_card(step) }}
+                {% elif step.type == "tool_batch" %}
+                  {{ tool_batch(step) }}
+                {% else %}
+                  {# tool_step fallback #}
+                  <div class="sd-sub-step">
+                    <span class="sd-sub-kind">{{ step.kind }}</span>
+                    <span class="sd-sub-main">{{ step.text }}</span>
+                    <span class="sd-sub-result">{{ step.result }}</span>
+                  </div>
+                {% endif %}
               {% endfor %}
             </div>
           </div>
@@ -336,19 +363,26 @@
             {% endif %}
           </main>
         </div>
-      {# Fallback: generic payload #}
+      {# Fallback: generic payload (tool.result, subagent, etc.) #}
       {% else %}
-        {% if payload.warning %}
-          <div class="sd-payload-empty">{{ payload.warning }}</div>
-        {% endif %}
-        <section class="sd-payload-content">
-          <h3>{{ payload.title|default('Payload') }}</h3>
-          {% if payload.html %}
-            {{ payload.html|safe }}
-          {% else %}
-            <pre>{{ payload.text|default('') }}</pre>
-          {% endif %}
-        </section>
+        <div class="sd-payload-shell payload-shell">
+          <aside class="sd-payload-meta payload-meta">
+            <h3>Metadata</h3>
+            <div class="sd-kv"><span>kind</span><span>{{ payload.kind|default('unknown') }}</span></div>
+            <div class="sd-kv"><span>status</span><span>{{ payload.status|default('available') }}</span></div>
+            <div class="sd-kv"><span>size</span><span>{{ payload.size|default('—') }}</span></div>
+          </aside>
+          <main class="sd-payload-main payload-main">
+            {% if payload.warning %}<div class="sd-payload-warning payload-warning">{{ payload.warning }}</div>{% endif %}
+            {% if payload.html %}
+              {{ payload.html|safe }}
+            {% elif payload.text %}
+              <pre>{{ payload.text }}</pre>
+            {% else %}
+              <div class="sd-payload-empty">No content</div>
+            {% endif %}
+          </main>
+        </div>
       {% endif %}
     </template>
   {% endfor %}
@@ -364,25 +398,13 @@
         </div>
         <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-modal-close" data-action="close-payload" autofocus>Close</button>
       </div>
-      <div class="sd-modal-body">
-        <div class="sd-payload-shell">
-          <aside class="sd-payload-meta">
-            <h3>Metadata</h3>
-            <div class="sd-kv"><span>payload id</span><span data-meta-id>—</span></div>
-            <div class="sd-kv"><span>kind</span><span data-meta-kind>—</span></div>
-            <div class="sd-kv"><span>status</span><span data-meta-status>—</span></div>
-            <div class="sd-kv"><span>size</span><span data-meta-size>—</span></div>
-            <div class="sd-kv"><span>source</span><span>template</span></div>
-          </aside>
-          <main class="sd-payload-main" data-payload-body>
-            {# Empty state: no payload selected ── #}
-            <section class="sd-payload-empty-state" data-payload-empty>
-              <div class="sd-payload-empty-state__icon" aria-hidden="true">&#x1F4E6;</div>
-              <div class="sd-payload-empty-state__title">No payload loaded</div>
-              <div class="sd-payload-empty-state__desc">Click Context / Response / Result in a trace round to view its payload.</div>
-            </section>
-          </main>
-        </div>
+      <div class="sd-modal-body" data-payload-body>
+        {# Empty state: no payload selected ── #}
+        <section class="sd-payload-empty-state" data-payload-empty>
+          <div class="sd-payload-empty-state__icon" aria-hidden="true">&#x1F4E6;</div>
+          <div class="sd-payload-empty-state__title">No payload loaded</div>
+          <div class="sd-payload-empty-state__desc">Click Context / Response / Result in a trace round to view its payload.</div>
+        </section>
       </div>
     </div>
   </dialog>

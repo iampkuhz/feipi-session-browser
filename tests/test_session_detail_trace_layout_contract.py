@@ -110,7 +110,7 @@ class TestTemplateStructure:
 
     def test_trace_row_has_token_mix(self):
         css = _read_css()
-        # v18 uses tokenbar in metric-stack
+        # v18 uses tokenbar in metric-cell
         assert 'tokenbar' in css or 'sd-tokenbar' in css, (
             "CSS must include token bar styles"
         )

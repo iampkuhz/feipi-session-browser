@@ -12,6 +12,26 @@
     return String(value || "").replace(/["\\]/g, "\\$&");
   }
 
+  function syncToggleAllButton(page) {
+    var btn = qs(page, '[data-action="toggle-all"]');
+    if (!btn) return;
+    var rounds = qsa(page, '[data-trace-round-row]');
+    var anyOpen = false;
+    for (var i = 0; i < rounds.length; i++) {
+      if (!rounds[i].hidden && rounds[i].classList.contains('is-open')) {
+        anyOpen = true;
+        break;
+      }
+    }
+    if (anyOpen) {
+      btn.textContent = 'Collapse all';
+      btn.setAttribute('data-state', 'expand');
+    } else {
+      btn.textContent = 'Expand all';
+      btn.setAttribute('data-state', 'collapse');
+    }
+  }
+
   function setRoundOpen(round, open) {
     if (!round) return;
     var btn = qs(round, '[data-action="toggle-round"]');
@@ -19,6 +39,8 @@
     round.classList.toggle('is-open', open);
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (detail) detail.hidden = !open;
+    var page = closest(round, '[data-trace-page]') || document;
+    syncToggleAllButton(page);
   }
 
   function toggleRound(button) {
@@ -26,6 +48,12 @@
     if (!round) return;
     var next = !round.classList.contains('is-open');
     setRoundOpen(round, next);
+  }
+
+  function toggleRoundByRow(row) {
+    if (!row) return;
+    var next = !row.classList.contains('is-open');
+    setRoundOpen(row, next);
   }
 
   function setFilter(page, status) {
@@ -51,6 +79,37 @@
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
       setRoundOpen(round, false);
     });
+  }
+
+  function expandAll(page) {
+    qsa(page, '[data-trace-round-row]').forEach(function (round) {
+      if (!round.hidden) setRoundOpen(round, true);
+    });
+  }
+
+  function toggleAll(page) {
+    var btn = qs(page, '[data-action="toggle-all"]');
+    var rounds = qsa(page, '[data-trace-round-row]');
+    var anyOpen = false;
+    for (var i = 0; i < rounds.length; i++) {
+      if (!rounds[i].hidden && rounds[i].classList.contains('is-open')) {
+        anyOpen = true;
+        break;
+      }
+    }
+    if (anyOpen) {
+      collapseAll(page);
+      if (btn) {
+        btn.setAttribute('data-state', 'collapse');
+        btn.textContent = 'Expand all';
+      }
+    } else {
+      expandAll(page);
+      if (btn) {
+        btn.setAttribute('data-state', 'expand');
+        btn.textContent = 'Collapse all';
+      }
+    }
   }
 
   function jumpRound(page, roundId) {
@@ -149,52 +208,69 @@
 
   document.addEventListener('click', function (event) {
     var actionEl = closest(event.target, '[data-action]');
-    if (!actionEl) return;
-
-    var action = actionEl.getAttribute('data-action');
     var page = closest(actionEl, '[data-trace-page]') || document;
 
-    if (action === 'toggle-round') {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleRound(actionEl);
-    } else if (action === 'filter-status') {
-      event.preventDefault();
-      event.stopPropagation();
-      setFilter(page, (actionEl.getAttribute('data-status') || 'all').toLowerCase());
-    } else if (action === 'status-all') {
-      event.preventDefault();
-      event.stopPropagation();
-      setFilter(page, 'all');
-    } else if (action === 'status-failed') {
-      event.preventDefault();
-      event.stopPropagation();
-      setFilter(page, 'failed');
-    } else if (action === 'collapse-all') {
-      event.preventDefault();
-      event.stopPropagation();
-      collapseAll(page);
-    } else if (action === 'copy-session-url') {
-      event.preventDefault();
-      event.stopPropagation();
-      var urlContainer = closest(actionEl, '.sd-hero-url');
-      var urlText = urlContainer ? qs(urlContainer, '.sd-hero-url-text') : null;
-      var url = urlText ? (urlText.getAttribute('title') || urlText.textContent.trim()) : window.location.href;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url);
+    // Handle data-action elements
+    if (actionEl) {
+      var action = actionEl.getAttribute('data-action');
+
+      if (action === 'toggle-round') {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleRound(actionEl);
+        return;
+      } else if (action === 'filter-status') {
+        event.preventDefault();
+        event.stopPropagation();
+        setFilter(page, (actionEl.getAttribute('data-status') || 'all').toLowerCase());
+      } else if (action === 'status-all') {
+        event.preventDefault();
+        event.stopPropagation();
+        setFilter(page, 'all');
+      } else if (action === 'status-failed') {
+        event.preventDefault();
+        event.stopPropagation();
+        setFilter(page, 'failed');
+      } else if (action === 'toggle-all') {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleAll(page);
+      } else if (action === 'collapse-all') {
+        event.preventDefault();
+        event.stopPropagation();
+        collapseAll(page);
+      } else if (action === 'copy-session-id') {
+        event.preventDefault();
+        event.stopPropagation();
+        var sessionId = actionEl.getAttribute('data-session-id');
+        if (!sessionId) {
+          var metaEl = document.querySelector('meta[name="session-id"]');
+          sessionId = metaEl ? metaEl.getAttribute('content') : '';
+        }
+        if (sessionId && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(sessionId);
+        }
+      } else if (action === 'jump-round') {
+        event.preventDefault();
+        event.stopPropagation();
+        jumpRound(page, actionEl.getAttribute('data-round'));
+      } else if (action === 'open-payload') {
+        event.preventDefault();
+        event.stopPropagation();
+        openPayload(actionEl);
+      } else if (action === 'close-payload') {
+        event.preventDefault();
+        event.stopPropagation();
+        closePayload();
       }
-    } else if (action === 'jump-round') {
+      return;
+    }
+
+    // Row click: toggle round detail when clicking anywhere on the row
+    var roundRow = closest(event.target, '[data-trace-round-row]');
+    if (roundRow) {
       event.preventDefault();
-      event.stopPropagation();
-      jumpRound(page, actionEl.getAttribute('data-round'));
-    } else if (action === 'open-payload') {
-      event.preventDefault();
-      event.stopPropagation();
-      openPayload(actionEl);
-    } else if (action === 'close-payload') {
-      event.preventDefault();
-      event.stopPropagation();
-      closePayload();
+      toggleRoundByRow(roundRow);
     }
   }, true);
 
@@ -208,5 +284,7 @@
       var open = round.classList.contains('is-open') || (button && button.getAttribute('aria-expanded') === 'true');
       setRoundOpen(round, open);
     });
+    // Sync toggle-all button text on load
+    syncToggleAllButton(document);
   });
 })();

@@ -159,24 +159,17 @@ class TestNoNestedButtonConflict:
             "Must have Response button in detail"
         )
 
-    def test_toggle_button_in_open_column(self, template_source):
-        """v18: toggle button exists in the Open column <td>."""
-        # The chevron button has data-action="toggle-round" and is inside a <td>
-        pattern = re.compile(r'class="round-toggle-btn"')
+    def test_row_clickable_for_toggle(self, template_source):
+        """v18: round rows must have data-trace-round-row for row-click toggle."""
+        pattern = re.compile(r'data-trace-round-row')
         matches = pattern.findall(template_source)
-        assert len(matches) >= 1, f"Expected at least 1 toggle button in Open column, found {len(matches)}"
+        assert len(matches) >= 1, f"Expected at least 1 data-trace-round-row for row-click toggle, found {len(matches)}"
 
-    def test_no_direct_button_children_without_wrapper(self, template_source):
-        """No button should be an unmanaged child of the round row <tr>."""
-        # v18 pattern: <tr> > <td> > button.round-toggle-btn is valid
-        # We check no <button> appears as direct child of <tr> (illegal HTML)
-        pattern = re.compile(
-            r'data-trace-round-row[^>]*>\s*<button',
-            re.DOTALL
-        )
-        matches = pattern.findall(template_source)
-        assert len(matches) == 0, (
-            f"No button should be direct child of <tr>: {matches}"
+    def test_no_open_column(self, template_source):
+        """v18: open column and toggle button removed; clicking row toggles detail."""
+        # Ensure no col-open in colgroup
+        assert "col-open" not in template_source, (
+            "Open column should be removed from colgroup"
         )
 
 

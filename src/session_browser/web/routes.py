@@ -2724,6 +2724,7 @@ def _build_v11_view_model(
                     "title": (m.content or "")[:80] or "Assistant response",
                     "metric": _format_compact_token(usage.get("output_tokens", 0)),
                     "status": "ok",
+                    "status_tone": "ok",
                     "is_open": False,
                     "steps": steps,
                 })
@@ -2797,15 +2798,21 @@ def _build_v11_view_model(
         rid = r_idx + 1
         rb = r.token_breakdown()
         rt = rb["input"] + rb["cache_read"] + rb["cache_write"] + rb["output"]
+        # Classify round status: failed takes priority, then user input, then ok
         has_failed = any(tc.is_failed for tc in r.tool_calls)
         has_llm_err = r.llm_error_count > 0
-        status_key = "failed" if (has_failed or has_llm_err) else "ok"
-        status_label = "Failed" if (has_failed or has_llm_err) else "OK"
-        status_tone = "fail" if (has_failed or has_llm_err) else "ok"
+        has_user_input = bool(r.user_msg.content)
 
-        # For user rounds that have content but no assistant/tools, mark as "user"
-        if not has_failed and not has_llm_err and r.user_msg.content and not r.assistant_msg.content and not r.tool_calls:
+        if has_failed or has_llm_err:
+            status_key = "failed"
+            status_label = "Failed"
+            status_tone = "fail"
+        elif has_user_input:
             status_key = "user"
+            status_label = "OK"
+            status_tone = "ok"
+        else:
+            status_key = "ok"
             status_label = "OK"
             status_tone = "ok"
 
@@ -3224,6 +3231,11 @@ def _build_v11_view_model(
             "token_total": token_total,
             "token_total_raw": rt_sum,
             "token_mix": token_mix,
+            "token_input": total_input,
+            "token_cache_read": total_cache_read,
+            "token_cache_write": total_cache_write,
+            "token_output": total_output,
+            "tool_count": tool_total,
             "tool_count_label": tool_count_label,
             "has_user_input": bool(r.user_msg.content),
             "is_open": False,
@@ -3257,6 +3269,7 @@ def _build_v11_view_model(
             "branch": session.git_branch or "branch main",
             "date": started,
             "short_id": short_id,
+            "session_id": session.session_id,
             "project_name": session.project_name if hasattr(session, "project_name") else "",
             "status_label": status_label,
             "manual_input_count": manual_input_count,
@@ -3502,11 +3515,23 @@ def _build_v9_view_model(
         rid = r_idx + 1
         rb = r.token_breakdown()
         rt = rb["input"] + rb["cache_read"] + rb["cache_write"] + rb["output"]
+        # Classify round status: failed takes priority, then user input, then ok
         has_failed = any(tc.is_failed for tc in r.tool_calls)
         has_llm_err = r.llm_error_count > 0
-        status_key = "failed" if (has_failed or has_llm_err) else "ok"
-        status_label = "Failed" if (has_failed or has_llm_err) else "OK"
-        status_tone = "fail" if (has_failed or has_llm_err) else "ok"
+        has_user_input = bool(r.user_msg.content)
+
+        if has_failed or has_llm_err:
+            status_key = "failed"
+            status_label = "Failed"
+            status_tone = "fail"
+        elif has_user_input:
+            status_key = "user"
+            status_label = "OK"
+            status_tone = "ok"
+        else:
+            status_key = "ok"
+            status_label = "OK"
+            status_tone = "ok"
 
         # Preview: user input first if available
         if r.user_msg.content:
@@ -3540,6 +3565,7 @@ def _build_v9_view_model(
                     all_tools.add(id(_tc))
         all_tools.update(id(tc) for tc in r.tool_calls if not getattr(tc, "subagent_id", ""))
         tool_count_label = f"{len(all_tools)} tools" if all_tools else "0 tools"
+        tool_total = len(all_tools)
 
         # Token mix percentages
         token_mix = {"fresh": 0, "read": 0, "write": 0, "out": 0}
@@ -3700,6 +3726,11 @@ def _build_v9_view_model(
             "token_total": token_total,
             "token_total_raw": rt_sum,
             "token_mix": token_mix,
+            "token_input": total_input,
+            "token_cache_read": total_cache_read,
+            "token_cache_write": total_cache_write,
+            "token_output": total_output,
+            "tool_count": tool_total,
             "tool_count_label": tool_count_label,
             "is_open": False,
             "timeline_items": items,

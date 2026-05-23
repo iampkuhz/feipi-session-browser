@@ -60,13 +60,11 @@ class TestHeroArea:
             "Hero title must use summary.title"
 
     def test_hero_meta_chips(self, timeline):
-        """Hero must show model, project, date, short-id chips."""
+        """Hero must show model, project, date chips (short-id moved to breadcrumb)."""
         assert "summary.model" in timeline, "Missing model chip in hero"
         assert "summary.project_name" in timeline, \
             "Missing project chip in hero"
         assert "summary.date" in timeline, "Missing date chip in hero"
-        assert "summary.short_id" in timeline, \
-            "Missing short-id chip in hero"
 
     def test_kpi_container_exists(self, timeline):
         """KPI container must use .sd-kpis."""
@@ -218,7 +216,6 @@ class TestTraceTableStructure:
         assert "col-summary" in session, "Missing col-summary"
         assert "col-metrics" in session, "Missing col-metrics"
         assert "col-status" in session, "Missing col-status"
-        assert "col-open" in session, "Missing col-open"
 
     def test_thead_structure(self, session):
         """Table must have <thead> with column headers."""
@@ -283,16 +280,12 @@ class TestTraceTableStructure:
         assert "is-open" in timeline, \
             "Missing is-open class support in round-row"
 
-    def test_toggle_button_in_open_td(self, timeline):
-        """Toggle button must be inside <td> of Open column."""
-        assert "round-toggle-btn" in timeline, \
-            "Missing round-toggle-btn class"
-        assert 'data-action="toggle-round"' in timeline, \
-            "Toggle button missing data-action=\"toggle-round\""
-        assert "aria-expanded=" in timeline, \
-            "Toggle button missing aria-expanded"
-        assert "aria-controls=" in timeline, \
-            "Toggle button missing aria-controls"
+    def test_row_clickable_for_toggle(self, timeline):
+        """Round rows must be clickable to toggle (cursor:pointer on round-row)."""
+        assert "data-trace-round-row" in timeline, \
+            "Missing data-trace-round-row on round rows"
+        assert "is-open" in timeline, \
+            "Missing is-open class support for expanded state"
 
 
 # ── Filter buttons ───────────────────────────────────────────────────
@@ -325,9 +318,9 @@ class TestFilterButtons:
             "Missing data-status=\"failed\""
 
     def test_collapse_all_button(self, timeline):
-        """Must have collapse-all button."""
-        assert 'data-action="collapse-all"' in timeline, \
-            "Missing collapse-all button"
+        """Must have toggle-all button (expand/collapse)."""
+        assert 'data-action="toggle-all"' in timeline, \
+            "Missing toggle-all button"
 
     def test_filter_buttons_in_seg_group(self, timeline):
         """Filter buttons must be in a segmented control group."""
@@ -472,12 +465,15 @@ class TestPayloadModal:
             "Missing sd-modal-close class"
 
     def test_modal_metadata(self, timeline):
-        """Modal must show payload metadata fields."""
-        assert "data-meta-id" in timeline, "Missing data-meta-id"
-        assert "data-meta-kind" in timeline, "Missing data-meta-kind"
-        assert "data-meta-status" in timeline, \
-            "Missing data-meta-status"
-        assert "data-meta-size" in timeline, "Missing data-meta-size"
+        """Modal body has data-payload-body; metadata lives in payload source templates."""
+        # Modal shell: must have body container for content injection
+        assert "data-payload-body" in timeline, "Missing data-payload-body"
+        # Payload source template: metadata stored as data-* attrs on <template>
+        assert "data-payload-kind" in timeline, "Missing data-payload-kind"
+        assert "data-payload-status" in timeline, "Missing data-payload-status"
+        assert "data-payload-size" in timeline, "Missing data-payload-size"
+        # Metadata card inside each template
+        assert "sd-payload-meta" in timeline, "Missing sd-payload-meta metadata card"
 
     def test_modal_body(self, timeline):
         """Modal must have body container with data-payload-body."""
