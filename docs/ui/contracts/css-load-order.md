@@ -23,7 +23,7 @@
 | 页面模板 | CSS 文件 |
 |---|---|
 | `dashboard.html` | `css/dashboard.css` |
-| `sessions.html` | `css/ui-primitives.css` (重复) + `css/sessions-list.css` |
+| `sessions.html` | `css/sessions-list.css` |
 | `session.html` | `css/session-detail.css` |
 | `projects.html` / `project.html` | `css/projects.css` |
 | `agents.html` | `css/agents.css` |
@@ -43,22 +43,6 @@
 4. **page CSS 必须通过 head_extra 在 base CSS 之后加载**：禁止在 `head_extra` 之外加载页面专用 CSS。
 
 5. **不允许页面重复加载 base 已加载过的 CSS**：base.html 已加载 `style.css`、`ui-primitives.css`、`legacy-aliases.css`，页面不得在 `head_extra` 中重复加载。
-
----
-
-## 已知问题
-
-### sessions.html 重复加载 ui-primitives.css
-
-`src/session_browser/web/templates/sessions.html:18` 在 `head_extra` 中再次加载了 `ui-primitives.css`：
-
-```html
-<link rel="stylesheet" href="/static/css/ui-primitives.css">
-```
-
-该文件已在 base.html:29 全局加载。重复加载无功能性作用，仅增加网络请求。
-
-**处理**: 本 P0 仅记录，标记为 P1 后续修复项。不在本次顺带修改。
 
 ---
 
