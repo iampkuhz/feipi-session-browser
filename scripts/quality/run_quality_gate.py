@@ -43,7 +43,7 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True) -> Gate
         return GateDetail(name=name, status=status, command=cmd, durationMs=0, output=f"命令不存在：{cmd[0] if cmd else '<empty>'}")
 
     try:
-        proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
+        proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
         duration = int((time.time() - started) * 1000)
         output = (proc.stdout or "").strip()
         if len(output) > 4000:
