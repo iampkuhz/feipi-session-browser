@@ -13,7 +13,7 @@ Covers:
 """
 
 import pytest
-from session_browser.web.routes import (
+from session_browser.web.template_env import (
     normalize_llm_content,
     render_llm_blocks_html,
     _detect_line_number_gutter,

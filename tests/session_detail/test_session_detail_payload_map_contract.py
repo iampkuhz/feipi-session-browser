@@ -13,6 +13,7 @@ from pathlib import Path
 
 TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 ROUTES = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "routes.py"
+TEMPLATE_ENV = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "template_env.py"
 COMPONENTS = TEMPLATE_DIR / "components"
 
 
@@ -22,6 +23,15 @@ def _session_source():
 
 def _read_routes():
     return ROUTES.read_text(encoding="utf-8")
+
+
+def _read_template_env():
+    return TEMPLATE_ENV.read_text(encoding="utf-8")
+
+
+def _all_source():
+    """Combined routes + template_env source for cross-file checks."""
+    return _read_routes() + "\n" + _read_template_env()
 
 
 def _timeline_component():
@@ -50,8 +60,8 @@ def test_payload_map_script_has_required_fields():
 
 def test_payload_map_uses_safe_json():
     """View model must use safe JSON serialization."""
-    routes = _read_routes()
-    assert "safe_json_display" in routes or "tojson" in routes, (
+    source = _all_source()
+    assert "safe_json_display" in source or "tojson" in source, (
         "View model must use safe JSON serialization"
     )
 

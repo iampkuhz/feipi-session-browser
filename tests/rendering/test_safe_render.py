@@ -179,8 +179,8 @@ class TestBackwardCompat:
 
     @pytest.fixture
     def env(self):
-        from session_browser.web.routes import _template_env
-        return _template_env
+        from session_browser.web.template_env import env as _env
+        return _env
 
     def test_tojson_safe_is_now_safe(self, env):
         tpl = env.from_string("{{ data | tojson_safe }}")

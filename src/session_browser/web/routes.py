@@ -9,15 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
-import subprocess
 import time
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-
-import jinja2
-from markdown_it import MarkdownIt
 
 from session_browser.index.indexer import (
     _get_connection,
@@ -25,12 +20,9 @@ from session_browser.index.indexer import (
     list_sessions,
     count_sessions,
     get_sessions_list_aggregate,
-    list_projects,
-    get_project_stats,
     get_session,
     get_trend_data,
     get_prompt_activity_trend,
-    list_agents,
 )
 from session_browser.index.metrics import (
     get_token_breakdown,
@@ -38,13 +30,26 @@ from session_browser.index.metrics import (
     get_agent_distribution,
     compute_derived_metrics,
     compute_aggregate_metrics,
-    compute_agent_efficiency,
 )
 from session_browser.index.anomalies import (
     detect_all_anomalies,
     get_needs_attention,
     enrich_sessions_with_anomalies,
     AnomalyType,
+)
+from session_browser.web.presenters.sessions import (
+    parse_sessions_query_params,
+    compute_pagination,
+    fetch_sessions_view_model,
+)
+from session_browser.web.presenters.dashboard import build_dashboard_view_model
+from session_browser.web.presenters.agents import (
+    build_agents_view_model,
+    build_agent_view_model,
+)
+from session_browser.web.presenters.projects import (
+    build_projects_view_model,
+    build_project_view_model,
 )
 from session_browser.domain.models import (
     ChatMessage,
@@ -57,481 +62,26 @@ from session_browser.web.presenters.session_detail import (
     build_llm_calls,
     assign_interactions_to_rounds,
 )
+from session_browser.web.template_env import (
+    env as _template_env,
+    _relative_to_repo,
+    _shorten_path,
+    _truncate_path,
+    _display_path,
+    normalize_llm_content,
+    render_llm_blocks_html,
+    _format_compact_token,
+    _format_bytes,
+    _to_local_time,
+    _renumber_lines,
+    _content_parts_to_blocks,
+    _parts_mode_from_raw,
+    _tojson_repo_html,
+)
+from session_browser.web.renderers.markdown import render_markdown as _md_filter
+from session_browser.web import template_env as _template_mod
 
 logger = logging.getLogger("session_browser.web")
-
-# Template directory
-_TEMPLATE_DIR = Path(__file__).parent / "templates"
-
-from session_browser.web.safe_render import register_filters as _register_safe_filters, safe_json_display
-from session_browser.domain.normalizer import normalize_message_content
-from session_browser.domain.content_part import ContentPart
-
-_template_env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
-    autoescape=True,
-)
-_register_safe_filters(_template_env)
-
-
-def _get_repo_root(cwd: str | None = None) -> str | None:
-    """Detect git repo root from cwd. Returns None if not in a git repo."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=cwd or os.getcwd(),
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except Exception:
-        pass
-    return None
-
-# Cache the repo root at server startup
-_REPO_ROOT = _get_repo_root()
-
-# Per-request repo root (set before template render)
-_SESSION_REPO_ROOT: str | None = None
-
-# Markdown renderer (shared instance) — CommonMark + table extension for basic table support.
-# GFM plugins (strikethrough, tasklist) would require mdit_py_plugins — optional dependency.
-_md = MarkdownIt().enable("table")
-
-
-def _md_filter(text: str) -> str:
-    """Render markdown to HTML. Escapes raw HTML in input to prevent XSS."""
-    if not text:
-        return ""
-    import html
-    escaped = html.escape(text)
-    return _md.render(escaped)
-
-
-# ─── LLM content block normalization ──────────────────────────────────
-
-# Heuristic pattern for tool result boundaries:
-# "Tool result for <tool_id>:" at the start of a line
-_TOOL_RESULT_RE = re.compile(r'^(Tool result for (?:toolu_\S+|[^:]+):)\s*$', re.MULTILINE)
-
-# Heuristic for file content markers: "# <filename>" at start of a line
-# Only match if it looks like a file path/name, not a generic heading
-_FILE_MARKER_RE = re.compile(r'^#\s+([\w\-]+\.\w+)\s*$', re.MULTILINE)
-
-# Heuristic for presentation-style line numbers:
-# A line starts with digits followed by a tab, and this pattern is consistent across many lines.
-# We only strip when >60% of lines match, to avoid breaking real ordered lists.
-_LINE_NUM_RE = re.compile(r'^\d+\t', re.MULTILINE)
-
-
-def _detect_line_number_gutter(text: str) -> bool:
-    """Return True if text looks like it has UI-added line numbers (tab-separated gutter)."""
-    lines = text.splitlines()
-    if len(lines) < 3:
-        return False
-    matched = sum(1 for line in lines if _LINE_NUM_RE.match(line))
-    return matched > len(lines) * 0.6
-
-
-def _strip_line_number_gutter(text: str) -> str:
-    """Remove leading 'N\t' from each line when line numbers are detected."""
-    if not _detect_line_number_gutter(text):
-        return text
-    return re.sub(r'^\d+\t', '', text, flags=re.MULTILINE)
-
-
-def _infer_code_language(filename_hint: str = "", content: str = "") -> str | None:
-    """Infer code block language from filename or content. Returns None for markdown."""
-    filename_hint = (filename_hint or "").lower()
-    md_extensions = {".md", ".markdown", ".mdx"}
-    lang_map = {
-        ".py": "python", ".ts": "typescript", ".tsx": "tsx", ".js": "javascript",
-        ".jsx": "jsx", ".yaml": "yaml", ".yml": "yaml", ".json": "json",
-        ".sh": "bash", ".bash": "bash", ".zsh": "zsh", ".rb": "ruby",
-        ".rs": "rust", ".go": "go", ".java": "java", ".cpp": "cpp",
-        ".c": "c", ".cs": "csharp", ".swift": "swift", ".kt": "kotlin",
-        ".scala": "scala", ".php": "php", ".html": "html", ".css": "css",
-        ".scss": "scss", ".sql": "sql", ".xml": "xml", ".toml": "toml",
-        ".ini": "ini", ".cfg": "ini", ".conf": "ini", ".env": "bash",
-        ".Dockerfile": "dockerfile", "Dockerfile": "dockerfile",
-        ".makefile": "makefile", "Makefile": "makefile",
-        ".proto": "protobuf", ".graphql": "graphql",
-    }
-    for ext, lang in lang_map.items():
-        if filename_hint.endswith(ext):
-            return lang
-    # Heuristic: if content looks like code (starts with common code patterns)
-    # Check more specific patterns first (e.g. "import {" before "import ")
-    stripped = content.lstrip()
-    if stripped.startswith(("def ", "class ", "from ", "async def ")) or stripped.startswith("import ") and not stripped.startswith("import {"):
-        return "python"
-    if stripped.startswith(("const ", "let ", "var ", "function ", "export ", "import {")):
-        return "typescript"
-    return None
-
-
-def normalize_llm_content(input: str) -> list[dict]:
-    """Split raw LLM request/response string into structured content blocks.
-
-    Returns a list of dicts with keys:
-    - kind: 'tool_result' | 'file_code' | 'file_markdown' | 'plain_text' | 'unknown'
-    - title: optional header text (e.g. tool_id, filename)
-    - subtitle: optional subtitle
-    - language: optional code language hint
-    - content: the actual content string (clean, no UI line numbers for non-raw)
-    - raw: the original content string (unchanged, for Raw tab reference)
-    """
-    if not input:
-        return []
-
-    text = input
-
-    # Heuristic: if the text has presentation-style line numbers, strip them
-    # for the rendered content but keep the original for raw display.
-    has_line_numbers = _detect_line_number_gutter(text)
-    clean_text = _strip_line_number_gutter(text) if has_line_numbers else text
-
-    blocks: list[dict] = []
-
-    # Try to split by "Tool result for <id>:" boundaries
-    tool_parts = _TOOL_RESULT_RE.split(clean_text)
-    # split() returns: [before, match_group1, match_group2, after, ...]
-    # Odd indices are the captured group (tool_id), even are the content.
-
-    if len(tool_parts) > 2:
-        # We found tool result boundaries — parse structured blocks
-        pre_text = tool_parts[0].strip()
-        if pre_text:
-            blocks.append(_make_plain_block(pre_text, "Message preamble"))
-
-        i = 1
-        while i + 1 < len(tool_parts):
-            tool_id_match = tool_parts[i]
-            content_part = tool_parts[i + 1].strip()
-            # Extract tool_id from "Tool result for <id>:"
-            tool_id = tool_id_match.replace("Tool result for ", "").rstrip(":")
-
-            # Try to detect file content within this tool result
-            file_blocks = _try_split_files(content_part)
-            if file_blocks:
-                # Prepend tool ID to the first block's title
-                first = file_blocks[0]
-                first["title"] = f"Tool Result: {tool_id}" + (f" · {first['title']}" if first.get("title") else "")
-                blocks.extend(file_blocks)
-            elif content_part:
-                blocks.append(_make_block_from_content(content_part, f"Tool Result: {tool_id}"))
-
-            i += 2
-
-        # Any trailing text after last tool result
-        if len(tool_parts) % 2 == 0:
-            trailing = tool_parts[-1].strip()
-            if trailing:
-                blocks.append(_make_plain_block(trailing, "Trailing text"))
-    else:
-        # No tool result boundaries — try file-level splitting
-        file_blocks = _try_split_files(clean_text)
-        if file_blocks and len(file_blocks) > 1:
-            blocks.extend(file_blocks)
-        elif clean_text:
-            # Single block — check if it looks like a file
-            file_hint = _detect_file_marker(clean_text)
-            if file_hint:
-                lang = _infer_code_language(file_hint, clean_text)
-                if lang:
-                    blocks.append({
-                        "kind": "file_code",
-                        "title": f"File: {file_hint}",
-                        "subtitle": "",
-                        "language": lang,
-                        "content": clean_text,
-                        "raw": text,
-                    })
-                else:
-                    blocks.append({
-                        "kind": "file_markdown",
-                        "title": f"File: {file_hint}",
-                        "subtitle": "",
-                        "language": "",
-                        "content": clean_text,
-                        "raw": text,
-                    })
-            else:
-                blocks.append({
-                    "kind": "plain_text",
-                    "title": "",
-                    "subtitle": "",
-                    "language": "",
-                    "content": clean_text,
-                    "raw": text,
-                })
-
-    # Ensure at least one block
-    if not blocks:
-        blocks.append({
-            "kind": "unknown",
-            "title": "",
-            "subtitle": "",
-            "language": "",
-            "content": text,
-            "raw": text,
-        })
-
-    return blocks
-
-
-def _make_plain_block(text: str, title: str = "") -> dict:
-    """Create a plain text block."""
-    if not text:
-        return {"kind": "unknown", "title": title, "subtitle": "", "language": "", "content": text, "raw": text}
-    lang = _infer_code_language(content=text)
-    return {
-        "kind": "plain_text",
-        "title": title,
-        "subtitle": "",
-        "language": lang or "",
-        "content": text,
-        "raw": text,
-    }
-
-
-def _make_block_from_content(text: str, title: str = "") -> dict:
-    """Create a block, trying to detect if it's code or markdown."""
-    lang = _infer_code_language(content=text)
-    if lang:
-        return {
-            "kind": "file_code",
-            "title": title,
-            "subtitle": "",
-            "language": lang,
-            "content": text,
-            "raw": text,
-        }
-    return {
-        "kind": "plain_text",
-        "title": title,
-        "subtitle": "",
-        "language": "",
-        "content": text,
-        "raw": text,
-    }
-
-
-def _detect_file_marker(text: str) -> str | None:
-    """Check if text starts with a file-like heading like '# AGENTS.md'."""
-    first_lines = text.split("\n")[:5]
-    for line in first_lines:
-        stripped = line.strip()
-        m = re.match(r'^#\s+([\w\-\./]+\.\w+)\s*$', stripped)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _try_split_files(text: str) -> list[dict]:
-    """Try to split text by file heading markers (lines like '# filename.ext').
-    Returns list of blocks if split succeeds, empty list otherwise."""
-    # Split on lines that look like file headings: # filename.ext
-    file_header_re = re.compile(r'^(#\s+[\w\-\./]+\.(?:md|markdown|txt|py|ts|tsx|js|jsx|json|yaml|yml|sh|bash|rb|rs|go|java|cpp|c|css|html|xml|toml|ini|cfg|conf|sql|graphql|proto))\s*$', re.MULTILINE)
-
-    parts = file_header_re.split(text)
-    if len(parts) < 3:
-        return []
-
-    blocks = []
-    i = 0
-    # Check for pre-text before first file header
-    if parts[0].strip():
-        blocks.append(_make_plain_block(parts[0].strip(), "Message content"))
-        i = 0
-    else:
-        i = 0
-
-    while i + 1 < len(parts):
-        header = parts[i + 1]  # e.g. "# AGENTS.md"
-        content = parts[i + 2] if i + 2 < len(parts) else ""
-        filename = re.sub(r'^#\s+', '', header).strip()
-
-        content_stripped = content.strip()
-        if not content_stripped:
-            i += 2
-            continue
-
-        # Prepend the filename heading to content so the file marker is preserved
-        content_with_heading = f"# {filename}\n{content_stripped}"
-
-        lang = _infer_code_language(filename, content_with_heading)
-        if lang:
-            blocks.append({
-                "kind": "file_code",
-                "title": f"File: {filename}",
-                "subtitle": "",
-                "language": lang,
-                "content": content_with_heading,
-                "raw": content_with_heading,
-            })
-        else:
-            blocks.append({
-                "kind": "file_markdown",
-                "title": f"File: {filename}",
-                "subtitle": "",
-                "language": "",
-                "content": content_with_heading,
-                "raw": content_with_heading,
-            })
-        i += 2
-
-    return blocks if blocks else []
-
-
-def render_llm_blocks_html(input: str | list[dict]) -> str:
-    """Accept a raw string or pre-normalized blocks, render as HTML cards.
-
-    When given a string (the common template case), normalizes it into
-    content blocks first.  When given a list[dict], renders directly.
-    """
-    if isinstance(input, str):
-        blocks = normalize_llm_content(input)
-    elif isinstance(input, list):
-        blocks = input
-    else:
-        blocks = []
-
-    if not blocks:
-        return '<p class="text-muted">(No content available)</p>'
-
-    parts = []
-    for block in blocks:
-        kind = block.get("kind", "unknown")
-        title = block.get("title", "")
-        subtitle = block.get("subtitle", "")
-        language = block.get("language", "")
-        content = block.get("content", "")
-
-        # Build header
-        header_parts = []
-        if title:
-            header_parts.append(_html_escape(title))
-        if subtitle:
-            header_parts.append(_html_escape(subtitle))
-        if language and kind == "file_code":
-            header_parts.append(f'<code class="block-lang-tag">{_html_escape(language)}</code>')
-
-        header_html = ""
-        if header_parts:
-            header_html = '<div class="llm-block__header">' + " ".join(header_parts) + '</div>'
-
-        # Build content based on kind
-        if kind == "file_code":
-            lang_attr = f' class="language-{_html_escape(language)}"' if language else ''
-            content_html = f'<pre><code{lang_attr}>{_html_escape(content)}</code></pre>'
-        elif kind == "file_markdown" or kind == "plain_text":
-            # Render markdown content through the markdown renderer
-            import html
-            escaped = html.escape(content)
-            content_html = _md.render(escaped)
-        else:
-            # unknown or tool_result — try markdown rendering
-            import html
-            escaped = html.escape(content)
-            content_html = _md.render(escaped)
-
-        parts.append(
-            f'<div class="llm-block">{header_html}<div class="llm-block__content">{content_html}</div></div>'
-        )
-
-    return "\n".join(parts)
-
-
-def _html_escape(text: str) -> str:
-    """Escape HTML entities."""
-    import html
-    return html.escape(text)
-
-
-def _format_bytes(n) -> str:
-    """Format byte count to human-readable string."""
-    if n is None or n == 0:
-        return "0 B"
-    n = int(n)
-    if n < 1024:
-        return f"{n} B"
-    if n < 1024 * 1024:
-        return f"{n / 1024:.1f} KB"
-    if n < 1024 * 1024 * 1024:
-        return f"{n / (1024 * 1024):.1f} MB"
-    return f"{n / (1024 * 1024 * 1024):.1f} GB"
-
-
-def _format_compact_token(n: int | float | None) -> str:
-    """Format token count to compact string (e.g. 1.5K, 2.3M)."""
-    if n is None:
-        return "0"
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.1f}K"
-    return str(int(n))
-
-
-# Register template filters
-def _format_compact_num(n: int | float | None) -> str:
-    """Format number with K/M suffix for display."""
-    if n is None:
-        return "0"
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.1f}K"
-    return str(int(n))
-
-
-_template_env.filters["format_number"] = _format_compact_num
-_template_env.filters["format_number_short"] = _format_compact_num
-_template_env.filters["format_compact_token"] = _format_compact_token
-_template_env.filters["format_1d"] = lambda n: f"{n:.1f}" if n is not None else "0.0"
-_template_env.globals["max"] = max
-_template_env.filters["truncate_path"] = lambda path: (
-    _truncate_path(path)
-)
-_template_env.filters["relative_to_repo"] = lambda path: (
-    _relative_to_repo(path)
-)
-_template_env.filters["shorten_path"] = lambda path: (
-    _shorten_path(path)
-)
-_template_env.filters["format_duration"] = lambda seconds: (
-    f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}min" if seconds >= 3600
-    else f"{int(seconds // 60)}min {int(seconds % 60)}s" if seconds >= 60
-    else f"{int(seconds)}s"
-)
-_template_env.filters["format_bytes"] = _format_bytes
-_template_env.filters["relative_time"] = lambda iso_str: (
-    _relative_time(iso_str)
-)
-_template_env.filters["local_time"] = lambda iso_str: (
-    _to_local_time(iso_str)
-)
-_template_env.filters["urlencode"] = urllib.parse.quote
-_template_env.filters["urldecode"] = urllib.parse.unquote
-_template_env.filters["markdown"] = _md_filter
-_template_env.filters["render_llm_blocks_html"] = render_llm_blocks_html
-_template_env.filters["tojson_safe"] = lambda v: safe_json_display(v)
-_template_env.filters["strip_line_numbers"] = lambda text: (
-    re.sub(r'^\d+\t', '', text, flags=re.MULTILINE)
-    if text and re.search(r'^\d+\t', text, flags=re.MULTILINE)
-    else text
-)
-def _renumber_lines(text: str) -> str:
-    if not text or not re.search(r'^\d+\t', text, flags=re.MULTILINE):
-        return text
-    tab = '\t'
-    lines = []
-    for i, line in enumerate(text.splitlines()):
-        cleaned = re.sub(r'^\d+\t', '', line)
-        lines.append(f"{i + 1}{tab}{cleaned}")
-    return "\n".join(lines) + "\n"
-
 
 # ── Query state / URL builder for /sessions ────────────────────────
 
@@ -673,207 +223,6 @@ def _build_view_actions(
         "next_url": next_url,
         "page_size_urls": page_size_urls,
     }
-
-_template_env.filters["renumber_lines"] = _renumber_lines
-_template_env.filters["normalize_llm_content"] = normalize_llm_content
-
-
-def _content_parts_to_blocks(parts: list) -> list[dict]:
-    """Convert [ContentPart, ...] to the dict format the viewer template expects.
-
-    Maps ContentPart fields:
-    - part_type -> kind
-    - content -> content
-    - language -> language
-    - context_type -> context_type (I-08)
-    - title -> title (I-08)
-    - content_bytes -> content_bytes (I-08)
-    - token_hint -> token_hint (I-08)
-    - Adds fallback title from context_type or part_type if missing.
-    """
-    blocks = []
-    for part in parts:
-        if isinstance(part, ContentPart):
-            kind = part.part_type
-            title = part.title or part.metadata.get('title', '')
-            if not title:
-                # Derive title from context_type if available.
-                ctx = part.context_type
-                if ctx:
-                    title = ctx.replace('_', ' ').capitalize()
-                else:
-                    title = kind.capitalize()
-            blocks.append({
-                'kind': kind,
-                'title': title,
-                'subtitle': '',
-                'language': part.language or '',
-                'content': part.content,
-                'raw': part.content,
-                'context_type': part.context_type,
-                'content_bytes': part.content_bytes,
-                'token_hint': part.token_hint,
-            })
-        elif isinstance(part, dict):
-            # Already a dict (backward compat) — ensure new fields exist.
-            block = dict(part)
-            block.setdefault('context_type', '')
-            block.setdefault('content_bytes', 0)
-            block.setdefault('token_hint', 0)
-            blocks.append(block)
-    return blocks
-
-
-_template_env.filters["content_parts"] = _content_parts_to_blocks
-
-
-def _parts_mode_from_raw(text: str) -> list[dict]:
-    """Bridge: raw string -> normalize via new normalizer -> viewer-compatible dicts.
-
-    Usage in viewer.html: ``{% set blocks = content | parts_mode_from_raw %}``
-    """
-    if not text:
-        return []
-    parts = normalize_message_content(text)
-    return _content_parts_to_blocks(parts)
-
-
-_template_env.filters["parts_mode_from_raw"] = _parts_mode_from_raw
-
-
-def _relative_paths_in_json(obj: any) -> any:
-    """Recursively replace file_path values in a dict with relative-to-repo paths."""
-    if isinstance(obj, dict):
-        return {
-            k: (_relative_to_repo(v) if k == "file_path" and isinstance(v, str) else _relative_paths_in_json(v))
-            for k, v in obj.items()
-        }
-    if isinstance(obj, list):
-        return [_relative_paths_in_json(item) for item in obj]
-    return obj
-
-
-def _tojson_repo_html(v: Any, indent: int | None = None) -> str:
-    """tojson_repo with HTML escaping — safe for <pre> embedding."""
-    if not v:
-        return "null"
-    raw = json.dumps(_relative_paths_in_json(v), indent=indent, ensure_ascii=False)
-    import html as _html
-    return _html.escape(raw)
-
-_template_env.filters["tojson_repo"] = _tojson_repo_html
-
-
-def _display_path(path: str) -> str:
-    """Replace the user's home prefix with ``~`` for display.
-
-    Only affects paths that start with the current user's home directory.
-    Non-home and short paths are returned unchanged.
-    """
-    if not path:
-        return path or ""
-    home = os.path.expanduser("~")
-    if path == home:
-        return "~"
-    sep = os.sep
-    if path.startswith(home + sep):
-        return "~" + path[len(home):]
-    return path
-
-
-_template_env.filters["display_path"] = _display_path
-
-
-def _truncate_path(path: str) -> str:
-    """Truncate a long path, keeping first and last segments."""
-    if not path or len(path) <= 40:
-        return path or ""
-    parts = path.replace("\\", "/").split("/")
-    if len(parts) <= 3:
-        return path[:40] + "…"
-    # Keep first 2 and last 2 segments
-    return "/".join(parts[:2]) + "/…/" + "/".join(parts[-2:])
-
-
-def _relative_to_repo(path: str) -> str:
-    """If path is within the current session's git repo, return relative path.
-    Falls back to server-level _REPO_ROOT, then absolute path."""
-    if not path:
-        return path or ""
-    repo_root = _SESSION_REPO_ROOT or _REPO_ROOT
-    if not repo_root:
-        return path
-    try:
-        abs_path = os.path.abspath(path)
-        if abs_path.startswith(repo_root + os.sep) or abs_path == repo_root:
-            return os.path.relpath(abs_path, repo_root)
-    except Exception:
-        pass
-    return path
-
-
-def _shorten_path(path: str) -> str:
-    """Shorten a path for display: repo-relative → ~ → truncate.
-
-    Order matters: repo-relative comparison requires absolute path,
-    so we try that before replacing home with ~.
-    """
-    if not path:
-        return path or ""
-    # Step 1: try repo-relative (needs absolute path for comparison)
-    abs_path = os.path.abspath(path)
-    repo_root = _SESSION_REPO_ROOT or _REPO_ROOT
-    if repo_root:
-        try:
-            if abs_path.startswith(repo_root + os.sep) or abs_path == repo_root:
-                result = os.path.relpath(abs_path, repo_root)
-                return _truncate_path(result)
-        except Exception:
-            pass
-    # Not in repo: replace home with ~
-    result = _display_path(path)
-    # Step 2: truncate if still long
-    return _truncate_path(result)
-
-
-def _relative_time(iso_str: str) -> str:
-    """Convert ISO8601 to relative time string."""
-    if not iso_str:
-        return ""
-    from datetime import datetime, timezone
-    try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
-        delta = now - dt
-        days = delta.days
-        if days > 30:
-            return f"{days // 30}mo ago"
-        if days > 0:
-            return f"{days}d ago"
-        hours = delta.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = delta.seconds // 60
-        return f"{minutes}m ago"
-    except (ValueError, TypeError):
-        return iso_str[:16]
-
-
-def _to_local_time(iso_str: str) -> str:
-    """Convert UTC ISO8601 timestamp to local-time display string.
-
-    E.g. \"2026-05-12T06:20:29+00:00\" -> \"2026-05-12 14:20:29\" (Beijing UTC+8).
-    If already in local time (has non-zero offset), just reformat.
-    """
-    if not iso_str:
-        return ""
-    from datetime import datetime, timezone
-    try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        local_dt = dt.astimezone()
-        return local_dt.strftime("%Y-%m-%d %H:%M:%S")
-    except (ValueError, TypeError):
-        return str(iso_str)[:19].replace("T", " ")
 
 
 def _to_local_time_hms(iso_str: str) -> str:
@@ -1125,69 +474,26 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
     def _serve_dashboard(self) -> None:
         conn = _get_connection()
-        stats = get_dashboard_stats(conn)
-        projects = list_projects(conn, limit=10)
-        trend = get_trend_data(conn, days=365)
-        prompt_activity = get_prompt_activity_trend(conn, days=365)
-        model_dist = get_model_distribution(conn)
-        agent_dist = get_agent_distribution(conn)
-        token_breakdown = get_token_breakdown(conn)
-        aggregate_metrics = compute_aggregate_metrics(conn)
-
-        # Anomaly detection for all sessions
-        all_sessions_raw = list_sessions(conn, limit=2000, order_by="ended_at")
-        sessions_data = []
-        sessions_lookup = {}
-        for s in all_sessions_raw:
-            d = compute_derived_metrics(s.to_dict())
-            sessions_data.append(d)
-            sessions_lookup[d["session_key"]] = d
-
-        anomalies_map = detect_all_anomalies(sessions_data)
-        needs_attention = get_needs_attention(anomalies_map, sessions_lookup, limit=8)
-
+        view_model = build_dashboard_view_model(conn)
         conn.close()
 
-        html = self._render_template(
-            "dashboard.html",
-            stats=stats,
-            projects=projects,
-            trend=trend,
-            prompt_activity=prompt_activity,
-            model_dist=model_dist.distribution,
-            agent_dist=agent_dist,
-            tokens=token_breakdown,
-            aggregate=aggregate_metrics,
-            needs_attention=needs_attention,
-            active_page="dashboard",
-        )
+        html = self._render_template("dashboard.html", **view_model)
         self._send_html(html)
 
     def _serve_projects(self) -> None:
         conn = _get_connection()
-        projects = list_projects(conn, limit=100)
+        view_model = build_projects_view_model(conn)
         conn.close()
 
-        html = self._render_template(
-            "projects.html",
-            projects=projects,
-            active_page="projects",
-        )
+        html = self._render_template("projects.html", **view_model)
         self._send_html(html)
 
     def _serve_project(self, project_key: str) -> None:
         conn = _get_connection()
-        pstats = get_project_stats(conn, project_key)
-        sessions = list_sessions(conn, project_key=project_key, limit=100)
+        view_model = build_project_view_model(conn, project_key)
         conn.close()
 
-        html = self._render_template(
-            "project.html",
-            project=pstats,
-            sessions=sessions,
-            project_key=project_key,
-            active_page="projects",
-        )
+        html = self._render_template("project.html", **view_model)
         self._send_html(html)
 
     def _serve_session(self, agent: str, session_id: str, export_mhtml: bool = False) -> None:
@@ -1277,8 +583,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             )
 
         # Set repo root to session's project directory for relative path rendering
-        global _SESSION_REPO_ROOT
-        _SESSION_REPO_ROOT = _get_repo_root(session.project_key) if session.project_key else None
+        _template_mod._SESSION_REPO_ROOT = _template_mod._get_repo_root(session.project_key) if session.project_key else None
 
         # Build v11 timeline view model
         v11_vm = _build_v11_view_model(session, rounds, llm_calls, tool_calls, subagent_runs, sa)
@@ -1382,39 +687,18 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
     def _serve_agent(self, agent: str) -> None:
         conn = _get_connection()
-        agents = list_agents(conn)
-        sessions = list_sessions(conn, agent=agent, limit=100, order_by="ended_at")
+        view_model = build_agent_view_model(conn, agent)
         conn.close()
 
-        agent_info = None
-        for a in agents:
-            if a["agent"] == agent:
-                agent_info = a
-                break
-
-        html = self._render_template(
-            "agent.html",
-            agents=agents,
-            agent_info=agent_info,
-            sessions=sessions,
-            current_agent=agent,
-            active_page="agents",
-        )
+        html = self._render_template("agent.html", **view_model)
         self._send_html(html)
 
     def _serve_agents(self) -> None:
         conn = _get_connection()
-        agents = list_agents(conn)
-        efficiency = compute_agent_efficiency(conn)
+        view_model = build_agents_view_model(conn)
         conn.close()
 
-        html = self._render_template(
-            "agents.html",
-            agents=agents,
-            efficiency=efficiency,
-            current_agent="__all__",
-            active_page="agents",
-        )
+        html = self._render_template("agents.html", **view_model)
         self._send_html(html)
 
     def _serve_static(self, filename: str) -> None:
@@ -1438,166 +722,80 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         # ── Parse query parameters ──────────────────────────────────
         parsed = urllib.parse.urlparse(self.path)
-        params = urllib.parse.parse_qs(parsed.query)
+        raw_params = urllib.parse.parse_qs(parsed.query)
 
-        # Pagination
-        try:
-            page = int(params.get("page", ["1"])[0])
-            if page < 1:
-                page = 1
-        except (ValueError, IndexError):
-            page = 1
+        params = parse_sessions_query_params(raw_params)
 
-        VALID_PAGE_SIZES = {20, 100, 500}
-        raw_size = params.get("page_size", ["20"])[0].strip().lower()
-        if raw_size == "all":
-            page_size = "all"
-        else:
-            try:
-                page_size_int = int(raw_size)
-                if page_size_int in VALID_PAGE_SIZES:
-                    page_size = page_size_int
-                else:
-                    page_size = 20
-            except ValueError:
-                page_size = 20
-
-        # Filters (server-side)
-        filter_agent = params.get("agent", [""])[0].strip() or None
-        filter_model = params.get("model", [""])[0].strip() or None
-        filter_project = params.get("project", [""])[0].strip() or None
-        filter_q = params.get("q", [""])[0].strip() or None
-
-        # Sort
-        raw_sort = params.get("sort", [""])[0].strip().lower()
-        raw_dir = params.get("dir", ["desc"])[0].strip().lower()
-        if raw_dir not in ("asc", "desc"):
-            raw_dir = "desc"
-        SORT_KEY_MAP = {
-            "ended-at": "ended_at",
-            "duration": "duration_seconds",
-            "tokens": "total_tokens",
-            "total-tokens": "total_tokens",
-            "rounds": "assistant_message_count",
-            "tools": "tool_call_count",
-        }
-        sort_by = SORT_KEY_MAP.get(raw_sort, "ended_at")
-
-        # ── Compute limit/offset ────────────────────────────────────
+        # ── Fetch view model ────────────────────────────────────────
         total_count = count_sessions(
             conn,
-            agent=filter_agent,
-            project_key=filter_project,
-            model=filter_model,
-            title_like=filter_q,
+            agent=params["filter_agent"],
+            project_key=params["filter_project"],
+            model=params["filter_model"],
+            title_like=params["filter_q"],
         )
 
-        sessions_aggregate = get_sessions_list_aggregate(
-            conn,
-            agent=filter_agent,
-            project_key=filter_project,
-            model=filter_model,
-            title_like=filter_q,
+        pagination = compute_pagination(
+            total_count=total_count,
+            page=params["page"],
+            page_size=params["page_size"],
         )
 
-        if page_size == "all":
-            limit = total_count if total_count > 0 else 2000
-            offset = 0
-            effective_page_size = total_count
-            total_pages = 1
-        else:
-            limit = page_size
-            total_pages = max(1, (total_count + page_size - 1) // page_size)
-            if page > total_pages:
-                page = total_pages
-            offset = (page - 1) * page_size
-            effective_page_size = page_size
-
-        # Fetch paginated sessions
-        sessions = list_sessions(
-            conn,
-            agent=filter_agent,
-            project_key=filter_project,
-            model=filter_model,
-            title_like=filter_q,
-            limit=limit,
-            offset=offset,
-            order_by=sort_by,
-            order_dir=raw_dir,
+        vm = fetch_sessions_view_model(
+            conn=conn,
+            filter_agent=params["filter_agent"],
+            filter_model=params["filter_model"],
+            filter_project=params["filter_project"],
+            filter_q=params["filter_q"],
+            sort_by=params["sort_by"],
+            sort_dir=params["sort_dir"],
+            limit=pagination["limit"],
+            offset=pagination["offset"],
         )
-
-        # Pagination metadata
-        if total_count == 0:
-            page_start = 0
-            page_end = 0
-        else:
-            page_start = offset + 1
-            page_end = min(offset + len(sessions), total_count)
-
-        has_prev = page > 1
-        has_next = page_start < total_count if page_size != "all" else False
-
-        # ── Filter dropdowns (unfiltered lists) ────────────────────
-        models = conn.execute(
-            "SELECT DISTINCT model FROM sessions WHERE model != '' ORDER BY model"
-        ).fetchall()
-        projects = conn.execute(
-            "SELECT DISTINCT project_key, project_name FROM sessions ORDER BY project_name"
-        ).fetchall()
-
-        # ── Anomaly detection (scoped to filtered set for performance) ──
-        all_sessions_raw = list_sessions(conn, limit=2000, order_by="ended_at")
-        sessions_data = []
-        sessions_lookup = {}
-        for s in all_sessions_raw:
-            d = compute_derived_metrics(s.to_dict())
-            sessions_data.append(d)
-            sessions_lookup[d["session_key"]] = d
-
-        anomalies_map = detect_all_anomalies(sessions_data)
-        sessions_enriched = enrich_sessions_with_anomalies(sessions, anomalies_map)
 
         conn.close()
+
+        # Normalize sort key for template (ui uses 'updated' for 'ended-at')
+        ui_sort = "updated" if params["raw_sort"] == "ended-at" else (params["raw_sort"] or "ended-at")
+
+        filters_for_actions = {
+            "q": params["filter_q"] or "",
+            "agent": params["filter_agent"] or "",
+            "model": params["filter_model"] or "",
+            "project": params["filter_project"] or "",
+        }
+        actions = _build_view_actions(
+            filters=filters_for_actions,
+            sort_key=ui_sort,
+            sort_dir=params["sort_dir"],
+            page=pagination["page"],
+            page_size=params["page_size"],
+            has_prev=pagination["has_prev"],
+            has_next=pagination["has_next"],
+        )
 
         # ── AJAX partial response (X-Requested-With header) ─────────
         is_ajax = self.headers.get("X-Requested-With") == "XMLHttpRequest"
         if is_ajax:
-            # Normalize sort key for template (ui uses 'updated' for 'ended-at')
-            ui_sort_ajax = "updated" if raw_sort == "ended-at" else (raw_sort or "ended-at")
-            filters_for_actions_ajax = {
-                "q": filter_q or "",
-                "agent": filter_agent or "",
-                "model": filter_model or "",
-                "project": filter_project or "",
-            }
-            actions_ajax = _build_view_actions(
-                filters=filters_for_actions_ajax,
-                sort_key=ui_sort_ajax,
-                sort_dir=raw_dir,
-                page=page,
-                page_size=page_size,
-                has_prev=has_prev,
-                has_next=has_next,
-            )
             html = self._render_template(
                 "partials/sessions_ajax_page.html",
-                sessions=sessions_enriched,
-                total_count=total_count,
-                page=page,
-                page_size=page_size,
-                total_pages=total_pages,
-                page_start=page_start,
-                page_end=page_end,
-                has_prev=has_prev,
-                has_next=has_next,
-                sort_key=ui_sort_ajax,
-                sort_dir=raw_dir,
-                actions=actions_ajax,
-                sessions_aggregate=sessions_aggregate,
-                filter_q=filter_q or "",
-                filter_agent=filter_agent or "",
-                filter_model=filter_model or "",
-                filter_project=filter_project or "",
+                sessions=vm["sessions_enriched"],
+                total_count=vm["total_count"],
+                page=pagination["page"],
+                page_size=params["page_size"],
+                total_pages=pagination["total_pages"],
+                page_start=pagination["page_start"],
+                page_end=pagination["page_end"],
+                has_prev=pagination["has_prev"],
+                has_next=pagination["has_next"],
+                sort_key=ui_sort,
+                sort_dir=params["sort_dir"],
+                actions=actions,
+                sessions_aggregate=vm["sessions_aggregate"],
+                filter_q=params["filter_q"] or "",
+                filter_agent=params["filter_agent"] or "",
+                filter_model=params["filter_model"] or "",
+                filter_project=params["filter_project"] or "",
             )
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1605,51 +803,29 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             self.wfile.write(html.encode("utf-8"))
             return
 
-        model_list = [r["model"] for r in models]
-        project_list = [(r["project_key"], r["project_name"]) for r in projects]
-
-        # Normalize sort key for template (ui uses 'updated' for 'ended-at')
-        ui_sort = "updated" if raw_sort == "ended-at" else (raw_sort or "ended-at")
-
-        filters_for_actions = {
-            "q": filter_q or "",
-            "agent": filter_agent or "",
-            "model": filter_model or "",
-            "project": filter_project or "",
-        }
-        actions = _build_view_actions(
-            filters=filters_for_actions,
-            sort_key=ui_sort,
-            sort_dir=raw_dir,
-            page=page,
-            page_size=page_size,
-            has_prev=has_prev,
-            has_next=has_next,
-        )
-
         html = self._render_template(
             "sessions.html",
-            sessions=sessions_enriched,
-            total_count=total_count,
-            page=page,
-            current_page=page,
-            page_size=page_size,
-            total_pages=total_pages,
-            page_start=page_start,
-            page_end=page_end,
-            has_prev=has_prev,
-            has_next=has_next,
-            filter_agent=filter_agent or "",
-            filter_model=filter_model or "",
-            filter_project=filter_project or "",
-            filter_q=filter_q or "",
+            sessions=vm["sessions_enriched"],
+            total_count=vm["total_count"],
+            page=pagination["page"],
+            current_page=pagination["page"],
+            page_size=params["page_size"],
+            total_pages=pagination["total_pages"],
+            page_start=pagination["page_start"],
+            page_end=pagination["page_end"],
+            has_prev=pagination["has_prev"],
+            has_next=pagination["has_next"],
+            filter_agent=params["filter_agent"] or "",
+            filter_model=params["filter_model"] or "",
+            filter_project=params["filter_project"] or "",
+            filter_q=params["filter_q"] or "",
             sort_by=ui_sort,
-            sort_dir=raw_dir,
-            model_list=model_list,
-            project_list=[p[0] for p in project_list],
+            sort_dir=params["sort_dir"],
+            model_list=vm["model_list"],
+            project_list=vm["project_list"],
             active_page="sessions",
             actions=actions,
-            sessions_aggregate=sessions_aggregate,
+            sessions_aggregate=vm["sessions_aggregate"],
         )
         self._send_html(html)
 

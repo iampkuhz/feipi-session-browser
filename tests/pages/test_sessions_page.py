@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import pytest
 
-from session_browser.web.routes import _display_path
+from session_browser.web.template_env import _display_path
 
 # Grid content is in the main template and the partial.
 _TEMPLATE_PATH = "src/session_browser/web/templates/sessions.html"

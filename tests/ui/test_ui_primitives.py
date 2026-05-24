@@ -408,7 +408,7 @@ class TestFormatCompactToken:
     """Token formatter produces expected output."""
 
     def _fmt(self, n):
-        from session_browser.web.routes import _format_compact_token
+        from session_browser.web.template_env import _format_compact_token
         return _format_compact_token(n)
 
     def test_none(self):

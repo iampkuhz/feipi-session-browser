@@ -33,13 +33,13 @@ class TestTruncatePath:
 
     def test_repo_root_not_dot(self):
         """A full absolute path should never be truncated to '.'."""
-        from session_browser.web.routes import _truncate_path
+        from session_browser.web.template_env import _truncate_path
         result = _truncate_path("/Users/zhehan/Documents/tools/llm/feipi-agent-kit")
         assert result != "."
         assert "feipi-agent-kit" in result
 
     def test_long_path_truncated(self):
-        from session_browser.web.routes import _truncate_path
+        from session_browser.web.template_env import _truncate_path
         path = "/Users/zhehan/some/very/long/path/to/project"
         result = _truncate_path(path)
         # Should preserve beginning and end
@@ -47,7 +47,7 @@ class TestTruncatePath:
         assert "project" in result
 
     def test_short_path_preserved(self):
-        from session_browser.web.routes import _truncate_path
+        from session_browser.web.template_env import _truncate_path
         path = "/tmp/short"
         result = _truncate_path(path)
         assert result == path
