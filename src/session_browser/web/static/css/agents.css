@@ -376,28 +376,9 @@
   min-width: 252px;
 }
 
-/* 6. Button base */
-.btn {
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  color: #1f2937;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  cursor: pointer;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.btn.sm {
-  height: 30px;
-  padding: 0 10px;
-  font-size: 12px;
-}
+/* 6. Button base — removed: .btn is defined in ui-primitives.css
+   Page CSS should not redefine global primitives. Use page-scoped
+   modifiers if adjustment is needed (e.g. .agents-page .btn.sm). */
 
 /* 7. Data table improvements */
 .data-table .col-num {
@@ -448,38 +429,9 @@
   display: block;
 }
 
-/* 9. Badge base and variants */
-.badge {
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  font-size: 11px;
-  font-weight: 850;
-}
-.badge.cc {
-  background: #f1edff;
-  color: #5338e9;
-  border-color: #ddd6fe;
-}
-.badge.cx {
-  background: #ecfdf5;
-  color: #047857;
-  border-color: #bcebd8;
-}
-.badge.qd {
-  background: #fff7ed;
-  color: #b45309;
-  border-color: #fed7aa;
-}
-.badge.err {
-  background: var(--error-bg, #fef2f2);
-  color: var(--error, #dc2626);
-  border-color: #fecaca;
-}
+/* 9. Badge — removed: .badge and variants are defined in ui-primitives.css
+   (.badge.cc, .badge.cx, .badge.qd, .badge.err all have canonical definitions
+   in ui-primitives.css). Page CSS should not redefine global primitives. */
 
 /* 10. Dot base (type-colored variants already exist above) */
 .dot {
@@ -511,7 +463,8 @@
 .tokenbar .t-out {
   background: var(--total, #98a2b3);
 }
-.tooltip {
+/* Tokenbar-specific tooltip (scoped to avoid conflict with global .tooltip in ui-primitives.css) */
+.tokenbar .tooltip {
   display: none;
   position: absolute;
   left: 44px;

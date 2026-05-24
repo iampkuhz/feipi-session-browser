@@ -1,23 +1,19 @@
 /* ───────────────────────────────────────────────────────────────
- * style.css — 已拆分为 css/tokens.css 和 css/base.css（Task 06）
+ * style.css — Legacy component file (NOT loaded by base.html).
  *
- * 本文件保留组件样式（breadcrumb、nav、card、badge、table 等）。
- * CSS 变量已迁移至 css/tokens.css。
- * Reset / html / body / typography / focus / reduced motion 已迁移至 css/base.css。
+ * Split history:
+ *   Task 06: tokens → css/tokens.css, base → css/base.css
+ *   Task 07: primitives (.btn, .badge, .tabs, .breadcrumb, .pagination-bar,
+ *            .empty-state) → css/ui-primitives.css
+ *
+ * This file retains: nav, card, table, round, message, tool-call,
+ * trace-grid, payload-viewer, responsive rules, and other non-primitive
+ * component styles. It is NOT a CSS load entry point.
  * ─────────────────────────────────────────────────────────────── */
 
 /* Shell Grid 三栏布局 — moved to css/shell.css (Task 05) */
 
-/* ─── Breadcrumb ─── */
-.breadcrumb {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    font-weight: 600;
-}
-.breadcrumb span {
-    margin: 0 6px;
-    color: var(--border);
-}
+/* ─── Breadcrumb — migrated to ui-primitives.css ─── */
 
 /* ─── Brand card ─── */
 .brand-card {
@@ -623,87 +619,7 @@ tbody tr { transition: background 150ms ease; }
 tbody tr:hover { background: var(--surface-hover); }
 td.muted-zero { color: var(--text-muted); opacity: 0.5; }
 
-/* ─── Badges ──────────────────────────────────────────────────── */
-/* Unified badge component — BEM naming: badge--[variant]--[value]
-   Design: transparent light tint + dark text + low-contrast border
-   Height: 20-22px via --badge-h */
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 1px 7px;
-    min-height: var(--badge-h);
-    max-height: 22px;
-    border-radius: 999px;
-    font-size: var(--text-micro);
-    font-weight: 600;
-    white-space: nowrap;
-    line-height: var(--lh-tight);
-    border: 1px solid transparent;
-}
-
-/* ── Status variants ── */
-.badge--status-success  { background: var(--status-success-bg);  color: var(--status-success);  border-color: rgba(5,150,105,0.18); }
-.badge--status-warning  { background: var(--status-warning-bg);  color: #92400e;               border-color: rgba(217,119,6,0.18); }
-.badge--status-error    { background: var(--status-error-bg);    color: var(--status-error);    border-color: rgba(220,38,38,0.18); }
-.badge--status-info     { background: var(--status-info-bg);     color: var(--status-info);     border-color: rgba(79,70,229,0.15); }
-.badge--status-muted    { background: var(--border-light);       color: var(--text-muted);      border-color: var(--border); }
-
-/* ── Token variants ── */
-.badge--token-input       { background: var(--token-input-fresh-bg);     color: #2563eb;     border-color: rgba(37,99,235,0.16); }
-.badge--token-cache-read  { background: var(--token-cache-read-bg);      color: #b45309;     border-color: rgba(180,83,9,0.16); }
-.badge--token-cache-write { background: var(--token-cache-write-bg);     color: #c2410c;     border-color: rgba(194,65,12,0.16); }
-.badge--token-output      { background: var(--token-output-visible-bg);  color: #047857;     border-color: rgba(4,120,87,0.16); }
-.badge--token-reasoning   { background: var(--token-reasoning-bg);       color: #7c3aed;     border-color: rgba(124,58,237,0.16); }
-.badge--token-unknown     { background: var(--token-unknown-bg);         color: var(--token-unknown);         border-color: var(--border); }
-
-/* ── Agent variants ── */
-.badge--agent-claude { background: var(--agent-claude-bg); color: #7c3aed; border-color: rgba(124,58,237,0.16); }
-.badge--agent-codex  { background: var(--agent-codex-bg);  color: #047857; border-color: rgba(4,120,87,0.16); }
-.badge--agent-qoder  { background: var(--agent-qoder-bg);  color: #b45309; border-color: rgba(180,83,9,0.16); }
-
-/* ── Tool badge ── */
-.badge--tool { background: var(--token-tool-bg); color: #0891b2; border-color: rgba(8,145,178,0.16); }
-
-/* ── Anomaly variant (reuses status colors via dedicated mapping) ── */
-.badge--anomaly-critical { background: var(--status-error-bg);   color: var(--status-error);   border-color: rgba(220,38,38,0.18); }
-.badge--anomaly-warning  { background: var(--status-warning-bg); color: #92400e;               border-color: rgba(217,119,6,0.18); }
-.badge--anomaly-info     { background: var(--status-info-bg);    color: var(--status-info);    border-color: rgba(79,70,229,0.15); }
-
-/* ─── Legacy badge aliases (backward compatible) ──────────────── */
-/* These map old .badge-*/.token-badge-*/.anomaly-badge classes to the unified system.
-   Keep until all templates are migrated. */
-.badge-claude { background: var(--agent-claude-bg); color: #7c3aed; }
-.badge-codex  { background: var(--agent-codex-bg);  color: #047857; }
-.badge-qoder  { background: var(--agent-qoder-bg);  color: #b45309; }
-.badge-primary { background: var(--status-info-bg); color: var(--status-info); }
-.badge-muted   { background: var(--border-light); color: var(--text-muted); }
-.badge-success { background: var(--status-success-bg); color: var(--status-success); }
-.badge-warning { background: var(--status-warning-bg); color: #92400e; }
-.badge-error   { background: var(--status-error-bg);   color: var(--status-error); }
-.badge-estimated { background: var(--status-warning-bg); color: #92400e; }
-
-/* Agents cell layout */
-.agents-cell { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: nowrap; }
-.agents-cell .badge { font-size: var(--text-xs); padding: 1px 6px; }
-
-/* Token-specific legacy classes */
-.token-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: var(--text-micro);
-    font-weight: 500;
-    font-family: var(--font-mono);
-}
-.token-badge--input       { background: var(--token-input-fresh-bg);    color: var(--token-input-fresh); }
-.token-badge--cache-read  { background: var(--token-cache-read-bg);     color: var(--token-cache-read); }
-.token-badge--cache-write { background: var(--token-cache-write-bg);    color: var(--token-cache-write); }
-.token-badge--output      { background: var(--token-output-visible-bg); color: var(--token-output-visible); }
-.token-badge--reasoning   { background: var(--token-reasoning-bg);      color: var(--token-reasoning); }
-.token-badge--unknown     { background: var(--token-unknown-bg);        color: var(--token-unknown); }
+/* ─── Badges — migrated to ui-primitives.css (all badge primitives removed from style.css) ─── */
 
 /* ─── Links ───────────────────────────────────────────────────── */
 a.link {
@@ -1197,158 +1113,10 @@ a.link-muted:hover { color: var(--accent); }
  * Unified design tokens for interactive elements.
  * ────────────────────────────────────────────────────────────── */
 
-/* ── Button base ── */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-xs);
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    font-family: var(--font-sans);
-    line-height: var(--lh-normal);
-    color: var(--text-secondary);
-    background: var(--surface);
-    cursor: pointer;
-    transition: all 150ms ease;
-    white-space: nowrap;
-    user-select: none;
-    /* Match toolbar density: total height ~22px (4+14+4 border-box) */
-    min-height: 22px;
-}
-.btn:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-    border-color: var(--gray-300);
-}
-.btn:active {
-    background: var(--gray-100);
-    border-color: var(--gray-400);
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
-}
-.btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-bg);
-}
-.btn:disabled,
-.btn[disabled] {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
-}
+/* ── Button base — migrated to ui-primitives.css ─── */
+/* .btn, .btn--primary, .btn--icon, .btn--ghost definitions removed from style.css */
 
-/* Primary variant */
-.btn--primary {
-    background: var(--accent);
-    color: var(--text-inverse);
-    border-color: var(--accent);
-}
-.btn--primary:hover {
-    background: #4f46e5;
-    border-color: #4f46e5;
-    color: #fff;
-    box-shadow: 0 1px 2px rgba(79,70,229,0.25);
-}
-.btn--primary:active {
-    background: #4338ca;
-    border-color: #4338ca;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
-}
-.btn--primary:focus-visible {
-    outline-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-bg);
-}
-
-/* Icon-only variant — square, slightly smaller */
-.btn--icon {
-    padding: 4px 6px;
-    min-width: 22px;
-    min-height: 22px;
-    font-size: var(--text-sm);
-    border-radius: var(--radius-sm);
-}
-
-/* Ghost variant — no border/background, text-only */
-.btn--ghost {
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    padding: 4px 8px;
-    min-height: auto;
-    border-radius: var(--radius-xs);
-}
-.btn--ghost:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-}
-.btn--ghost:active {
-    background: var(--gray-100);
-    color: var(--text);
-}
-.btn--ghost:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-    box-shadow: 0 0 0 3px var(--accent-bg);
-}
-
-/* ── Legacy button aliases (keep existing classes working) ── */
-/* Apply btn base properties to legacy buttons */
-.filter-bar__btn {
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    background: var(--surface);
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: all 150ms ease;
-    min-height: 22px;
-}
-.filter-bar__btn:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-    border-color: var(--gray-300);
-}
-.filter-bar__btn:active {
-    background: var(--gray-100);
-    border-color: var(--gray-400);
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
-}
-.filter-bar__btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-bg);
-}
-.filter-bar__btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
-}
-.filter-bar__btn--primary {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-}
-.filter-bar__btn--primary:hover {
-    background: #4f46e5;
-    border-color: #4f46e5;
-}
-.filter-bar__btn--primary:active {
-    background: #4338ca;
-    border-color: #4338ca;
-}
-.filter-bar__btn--primary:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-    box-shadow: 0 0 0 3px var(--accent-bg);
-}
+/* ── Legacy button aliases (keep existing classes working) — removed, dead code ── */
 
 .expand-all-btn {
     padding: 3px 8px;
@@ -1377,76 +1145,8 @@ a.link-muted:hover { color: var(--accent); }
     box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
-/* ── Tabs (session detail / generic) — DEPRECATED: migrated to Workbench Header ── */
-/* The .tabs / .tab / .tab-content system is replaced by .wb-head + [data-view] containers.
-   Old styles retained for backward compatibility with non-workbench pages. */
-.tabs {
-    display: flex;
-    flex-wrap: wrap;
-    border-bottom: 2px solid var(--border);
-    margin-bottom: 12px;
-    gap: 0;
-    align-items: center;
-}
-.tab {
-    padding: 8px 14px;
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--text-muted);
-    text-decoration: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    cursor: pointer;
-    transition: all 150ms ease;
-    background: none;
-    border-top: none;
-    border-left: none;
-    border-right: none;
-    font-family: var(--font-sans);
-    line-height: var(--lh-normal);
-    min-height: 22px;
-}
-.tab:hover { color: var(--text); }
-.tab:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-    border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-}
-.tab.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-    font-weight: 600;
-    background: var(--accent-bg);
-    border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-}
-
-/* Chart tabs (dashboard trend chart toggle) — pill style within toolbar */
-.tab--chart {
-    padding: 3px 10px;
-    font-size: var(--text-xs);
-    font-weight: 500;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    background: var(--surface);
-    color: var(--text-muted);
-    transition: all 150ms ease;
-    font-family: var(--font-sans);
-    min-height: 22px;
-}
-.tab--chart:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-}
-.tab--chart:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-}
-.tab--chart.active {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-}
+/* ── Tabs (session detail / generic) — migrated to ui-primitives.css (.modal-tab) ─── */
+/* .tabs, .tab, .tab--chart definitions removed from style.css */
 
 /* Modal content tabs (segmented control) */
 .content-modal__tabs {
@@ -1747,61 +1447,7 @@ a.link-muted:hover { color: var(--accent); }
     background-position: right 6px center;
     padding-right: 22px;
 }
-/* ─── Pagination bar ────────────────────────────────────────── */
-.pagination-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-sm);
-    padding: var(--space-sm) 0;
-    margin-top: var(--space-sm);
-    border-top: 1px solid var(--line2);
-    font-size: var(--text-xs);
-    color: var(--t2);
-}
-.pagination-bar__info {
-    white-space: nowrap;
-}
-.pagination-bar__controls {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-}
-.pagination-bar__btn {
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    background: var(--surface);
-    color: var(--t1);
-    cursor: pointer;
-    transition: background var(--duration-fast) var(--ease-out);
-    outline: none;
-}
-.pagination-bar__btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-}
-.pagination-bar__btn:active:not(:disabled) {
-    background: var(--bg-active);
-}
-.pagination-bar__btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-    pointer-events: none;
-}
-.pagination-bar__page-info {
-    padding: 0 var(--space-xs);
-    white-space: nowrap;
-}
-.pagination-bar__select {
-    padding: 4px 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    background: var(--surface);
-    outline: none;
-}
+/* ─── Pagination bar — migrated to ui-primitives.css (.pagination) ─── */
 
 /* ─── Search page ─────────────────────────────────────────────── */
 .search-panel {
@@ -1904,14 +1550,7 @@ a.link-muted:hover { color: var(--accent); }
     white-space: nowrap;
 }
 
-/* Empty state override for calls view */
-.data-table + .empty-state,
-.empty-state {
-    padding: 24px;
-    text-align: center;
-    color: var(--t4);
-    font-size: 13px;
-}
+/* Empty state — migrated to ui-primitives.css (.state-strip, .empty-state) */
 
 /* ── Calls View: card header ─────────────────────────────── */
 .calls-card-head {
@@ -2295,25 +1934,7 @@ a.link-muted:hover { color: var(--accent); }
     margin-left: 4px;
 }
 
-/* Empty state override for calls view */
-.data-table + .empty-state,
-.empty-state {
-    padding: 40px 20px;
-    text-align: center;
-    color: var(--t4);
-    font-size: 13px;
-}
-
-/* ─── Empty state ─────────────────────────────────────────────── */
-.empty-state {
-    text-align: center;
-    padding: 24px 16px;
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-md);
-    background: var(--panel);
-}
+/* Empty state — migrated to ui-primitives.css (see .state-strip) */
 
 /* .state-panel moved to states.css */
 

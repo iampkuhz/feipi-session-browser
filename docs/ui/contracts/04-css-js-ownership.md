@@ -3,8 +3,8 @@
 ## 规范 CSS
 
 ```text
-src/session_browser/web/static/style.css                 # tokens + shell only
-src/session_browser/web/static/css/ui-primitives.css      # shared primitives
+src/session_browser/web/static/style.css                 # legacy dead code (not loaded; primitives migrated)
+src/session_browser/web/static/css/ui-primitives.css      # shared primitives (canonical: .btn, .badge, .tabs, .pagination, .toast, .popover, .tooltip, .data-table, .empty-state, .breadcrumb)
 src/session_browser/web/static/css/dashboard.css          # dashboard only
 src/session_browser/web/static/css/sessions-list.css      # sessions list only
 src/session_browser/web/static/css/session-detail.css     # session detail only

@@ -17,6 +17,7 @@ STATIC_DIR = ROOT / "src" / "session_browser" / "web" / "static"
 BASE_HTML = TEMPLATE_DIR / "base.html"
 STYLE_CSS = STATIC_DIR / "style.css"
 SHELL_CSS = STATIC_DIR / "css" / "shell.css"
+UI_PRIMITIVES_CSS = STATIC_DIR / "css" / "ui-primitives.css"
 
 
 def _base_source():
@@ -56,6 +57,18 @@ def style_text():
 @pytest.fixture(scope="module")
 def shell_text():
     return _shell_source()
+
+
+def _ui_primitives_source():
+    """Return ui-primitives.css text, skipping tests if file is missing."""
+    if not UI_PRIMITIVES_CSS.exists():
+        pytest.skip(f"ui-primitives.css not found at {UI_PRIMITIVES_CSS}")
+    return UI_PRIMITIVES_CSS.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def ui_primitives_text():
+    return _ui_primitives_source()
 
 
 # ── base.html shell structure ─────────────────────────────────────────────
@@ -246,10 +259,10 @@ class TestCssShellRules:
             "shell.css lacks .topbar rule"
 
     # Rules remaining in style.css
-    def test_breadcrumb_rule(self, style_text):
-        """.breadcrumb rule must exist in style.css."""
-        assert re.search(r'\.breadcrumb\s*\{', style_text), \
-            "style.css lacks .breadcrumb rule"
+    def test_breadcrumb_rule(self, ui_primitives_text):
+        """.breadcrumb rule must exist in ui-primitives.css (migrated from style.css)."""
+        assert re.search(r'\.breadcrumb\s*\{', ui_primitives_text), \
+            "ui-primitives.css lacks .breadcrumb rule"
 
     def test_top_actions_rule(self, shell_text):
         """.top-actions rule must exist in shell.css."""
