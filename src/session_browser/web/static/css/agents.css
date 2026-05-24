@@ -1,16 +1,14 @@
 /* ───────────────────────────────────────────────────────────────
- * Agents — Canonical CSS (T126)
- *
- * Scope:
- *   agents.html only (agents list and agent detail views).
- *
- * Do not globally override .card, .btn, .pill, .tabs, or
- * sessions-list styles.
- *
- * ─────────────────────────────────────────────────────────────── */
-
+* Agents — Canonical CSS (T126)
+*
+* Scope:
+*   agents.html only (agents list and agent detail views).
+*
+* Do not globally override .card, .btn, .pill, .tabs, or
+* sessions-list styles.
+*
+* ─────────────────────────────────────────────────────────────── */
 /* ── Page Head (canonical .page-head pattern, T128) ───────── */
-
 .page-head {
   display: flex;
   align-items: flex-start;
@@ -31,23 +29,19 @@
 .page-head + .metric-grid {
   margin-top: 12px;
 }
-
 /* Emoji icon inside metric-icon */
 .emoji {
   font-size: 16px;
   line-height: 1;
   display: inline-block;
 }
-
 /* Subtitle text below page title (T128) */
 .subtitle {
   color: var(--text-subtle);
   font-size: 14px;
   margin: 0;
 }
-
 /* ── Table toolbar (T128: efficiency section header) ─────── */
-
 .table-toolbar {
   height: 48px;
   padding: 0 16px;
@@ -60,7 +54,6 @@
   font-size: 16px;
   font-weight: 850;
 }
-
 /* Table card wrapper */
 .table-card {
   overflow: hidden;
@@ -68,9 +61,7 @@
 .table-card .table-wrap {
   overflow-x: auto;
 }
-
 /* ── Agent avatar (HIFI: 34x34 circular badge) ────────────── */
-
 .agent-avatar {
   width: 34px;
   height: 34px;
@@ -84,24 +75,19 @@
   border: 1px solid var(--line);
   flex-shrink: 0;
 }
-
 .agent-avatar.claude {
   background: var(--claude-soft, rgba(169, 120, 255, 0.1));
   color: var(--claude, #a978ff);
 }
-
 .agent-avatar.codex {
   background: var(--codex-soft, rgba(52, 211, 153, 0.1));
   color: var(--codex, #34d399);
 }
-
 .agent-avatar.qoder {
   background: var(--qoder-soft, rgba(251, 146, 60, 0.1));
   color: var(--qoder, #fb923c);
 }
-
 /* ── Agent dot (legacy alias, still used in some contexts) ─── */
-
 .agent-dot {
   width: 8px;
   height: 8px;
@@ -109,21 +95,16 @@
   display: inline-block;
   flex-shrink: 0;
 }
-
 .agent-dot.claude {
   background: var(--claude);
 }
-
 .agent-dot.codex {
   background: var(--codex);
 }
-
 .agent-dot.qoder {
   background: var(--qoder);
 }
-
 /* ── Agent main cell layout (T131) ────────────────────────── */
-
 .agent-main {
   display: flex;
   align-items: center;
@@ -137,7 +118,6 @@
   font-size: 12px;
   color: var(--text-subtle);
 }
-
 /* Agent dot with agent-specific colors (T131) */
 .dot.claude {
   background: var(--claude);
@@ -148,7 +128,6 @@
 .dot.qoder {
   background: var(--qoder);
 }
-
 /* Token cell (T131) */
 .token-cell {
   min-width: 140px;
@@ -157,26 +136,20 @@
   font: 700 13px var(--font-mono);
   margin-bottom: 2px;
 }
-
 /* ── Agent name cell ───────────────────────────────────────── */
-
 .agent-name-cell {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-
 .agent-name-cell .agent-name {
   font-weight: 600;
 }
-
 .agent-name-cell .agent-desc {
   font-size: 11px;
   color: var(--text-subtle);
 }
-
 /* ── Token bar (shared) ────────────────────────────────────── */
-
 .tokenbar {
   position: relative;
   width: 132px;
@@ -188,41 +161,32 @@
   overflow: visible;
   cursor: help;
 }
-
 .tokenbar .tokenbar-seg {
   height: 8px;
 }
-
 .tokenbar .tokenbar-seg:first-child {
   border-radius: 999px 0 0 999px;
 }
-
 .tokenbar .tokenbar-seg:last-of-type {
   border-radius: 0 999px 999px 0;
 }
-
 .tokenbar .tokenbar-seg.fresh {
   background: var(--fresh, #4a90d9);
   width: var(--segment-width, 25%);
 }
-
 .tokenbar .tokenbar-seg.read {
   background: var(--read, #67b26f);
   width: var(--segment-width, 25%);
 }
-
 .tokenbar .tokenbar-seg.write {
   background: var(--write, #f5a623);
   width: var(--segment-width, 25%);
 }
-
 .tokenbar .tokenbar-seg.out {
   background: var(--out, #d0021b);
   width: var(--segment-width, 25%);
 }
-
 /* ── Progress bar (tool calls) ─────────────────────────────── */
-
 .progress-bar {
   width: 100%;
   height: 4px;
@@ -231,22 +195,17 @@
   overflow: hidden;
   margin-top: 4px;
 }
-
 .progress-bar .progress-fill {
   height: 100%;
   background: var(--text-subtle);
   border-radius: 999px;
   width: var(--fill-width, 0%);
 }
-
 /* ── Empty state ───────────────────────────────────────────── */
-
 #agents-empty.is-hidden {
   display: none;
 }
-
 /* ── Pagination ────────────────────────────────────────────── */
-
 .unified-pagination {
   height: 58px;
   display: flex;
@@ -256,14 +215,11 @@
   padding: 0 14px;
   border-top: 1px solid var(--line-strong);
 }
-
 .page-input {
   width: 64px;
   text-align: center;
 }
-
 /* ── Agent Detail page styles (T140) ────────────────────────── */
-
 /* 1. Page header for agent detail */
 .header {
   display: flex;
@@ -305,7 +261,6 @@
   color: var(--muted, #667085);
   font-size: 13px;
 }
-
 /* 2. Metric card layout (4-card grid for agents list) */
 .metric-grid:has(.metric-card) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -324,7 +279,6 @@
   letter-spacing: -.02em;
   white-space: nowrap;
 }
-
 /* 4. Section cards */
 .section {
   margin-top: 16px;
@@ -363,7 +317,6 @@
   align-items: center;
   gap: 7px;
 }
-
 /* 5. Input (search) */
 .input {
   height: 36px;
@@ -375,11 +328,9 @@
   font-weight: 650;
   min-width: 252px;
 }
-
 /* 6. Button base — removed: .btn is defined in ui-primitives.css
-   Page CSS should not redefine global primitives. Use page-scoped
-   modifiers if adjustment is needed (e.g. .agents-page .btn.sm). */
-
+Page CSS should not redefine global primitives. Use page-scoped
+modifiers if adjustment is needed (e.g. .agents-page .btn.sm). */
 /* 7. Data table improvements */
 .data-table .col-num {
   text-align: right;
@@ -401,7 +352,6 @@
   color: var(--muted, #667085);
   margin-top: 2px;
 }
-
 /* 8. Project cell with path tooltip */
 .project-cell {
   position: relative;
@@ -428,11 +378,9 @@
 .project-cell:hover .path-tooltip {
   display: block;
 }
-
 /* 9. Badge — removed: .badge and variants are defined in ui-primitives.css
-   (.badge.cc, .badge.cx, .badge.qd, .badge.err all have canonical definitions
-   in ui-primitives.css). Page CSS should not redefine global primitives. */
-
+(.badge.cc, .badge.cx, .badge.qd, .badge.err all have canonical definitions
+in ui-primitives.css). Page CSS should not redefine global primitives. */
 /* 10. Dot base (type-colored variants already exist above) */
 .dot {
   width: 8px;
@@ -449,7 +397,6 @@
   margin-top: auto;
   margin-bottom: auto;
 }
-
 /* 11. Tokenbar tooltip (HIFI uses .t-fresh etc., not .tokenbar-seg) */
 .tokenbar .t-fresh {
   background: var(--claude, #6d5dfc);
@@ -508,27 +455,53 @@
   border-top: 1px solid var(--line-soft, #eef2f7);
   margin: 8px 0;
 }
-
 /* 13. Table colgroup column widths (HIFI alignment) */
-
 /* Model Breakdown table column widths */
-col.col-model-name { width: 22%; }
-col.col-sessions   { width: 9%; }
-col.col-token-md   { width: 28%; min-width: 160px; }
-col.col-cache      { width: 11%; }
-col.col-tools      { width: 10%; }
-col.col-failed     { width: 9%; }
-col.col-avg        { width: 11%; }
-
+col.col-model-name {
+  width: 22%;
+}
+col.col-sessions   {
+  width: 9%;
+}
+col.col-token-md   {
+  width: 28%;
+  min-width: 160px;
+}
+col.col-cache      {
+  width: 11%;
+}
+col.col-tools      {
+  width: 10%;
+}
+col.col-failed     {
+  width: 9%;
+}
+col.col-avg        {
+  width: 11%;
+}
 /* Sessions table column widths */
-col.col-title      { width: 26%; }
-col.col-project    { width: 14%; }
-col.col-model      { width: 14%; }
-col.col-token      { width: 18%; min-width: 140px; }
-col.col-num-sm     { width: 7%; }
-col.col-duration   { width: 10%; }
-col.col-updated    { width: 9%; }
-
+col.col-title      {
+  width: 26%;
+}
+col.col-project    {
+  width: 14%;
+}
+col.col-model      {
+  width: 14%;
+}
+col.col-token      {
+  width: 18%;
+  min-width: 140px;
+}
+col.col-num-sm     {
+  width: 7%;
+}
+col.col-duration   {
+  width: 10%;
+}
+col.col-updated    {
+  width: 9%;
+}
 /* Ensure sort-mark has consistent spacing */
 .data-table th.sortable .sort-mark {
   display: inline;

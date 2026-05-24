@@ -1,20 +1,19 @@
 /* ───────────────────────────────────────────────────────────────
- * Projects — Canonical CSS (T098, T103)
- *
- * Scope:
- *   projects.html only (projects list and project detail views).
- *
- * Do not globally override .card, .btn, .pill, .tabs, or
- * sessions-list styles.
- *
- * T103: Added table toolbar, sortable headers, token bars,
- * agent badges, and merged project/path cell styles.
- *
- * ─────────────────────────────────────────────────────────────── */
-
+* Projects — Canonical CSS (T098, T103)
+*
+* Scope:
+*   projects.html only (projects list and project detail views).
+*
+* Do not globally override .card, .btn, .pill, .tabs, or
+* sessions-list styles.
+*
+* T103: Added table toolbar, sortable headers, token bars,
+* agent badges, and merged project/path cell styles.
+*
+* ─────────────────────────────────────────────────────────────── */
 /* ── Page Head (canonical .page-head pattern, T100) ─── */
-/* Base .page-head styles in ui-primitives.css; overrides below. */
-
+/* Base .page-head styles in ui-primitives.css;
+overrides below. */
 .page-head-stats {
   display: flex;
   gap: 8px;
@@ -32,18 +31,14 @@
   color: var(--text-primary);
   font-weight: 700;
 }
-
 /* ── Metric grid spacing below page head ─────── */
 .page-head + .metric-grid {
   margin-top: 12px;
 }
-
 /* ── Table toolbar (T103: migrated from .card-title.flex) ─── */
-
 .table-card {
   overflow: hidden;
 }
-
 .table-toolbar {
   height: 48px;
   padding: 0 16px;
@@ -52,34 +47,26 @@
   gap: 16px;
   border-bottom: 1px solid var(--line);
 }
-
 .table-title {
   font-size: 16px;
   font-weight: 850;
 }
-
 .table-note {
   font-size: 12px;
   color: var(--text-subtle);
   font-weight: 650;
 }
-
 /* ── Sortable th elements (T117: project detail table headers) ── */
-
 th.sortable,
 th.numeric.sortable {
   cursor: pointer;
   user-select: none;
 }
-
 th.sortable:hover {
   color: var(--purple);
 }
-
 /* Arrow is handled by .sort-mark::after in ui-primitives.css */
-
 /* ── Token total above tokenbar (T117) ────────────────────── */
-
 .token-total {
   display: flex;
   align-items: center;
@@ -87,14 +74,11 @@ th.sortable:hover {
   font: 780 12px var(--font-mono);
   line-height: 1;
 }
-
 .token-total__value {
   font-weight: 800;
   color: var(--text);
 }
-
 /* ── Sortable header buttons (T103) ───────────────────────── */
-
 .sortable-header {
   height: 28px;
   border: 0;
@@ -108,31 +92,25 @@ th.sortable:hover {
   gap: 5px;
   white-space: nowrap;
 }
-
 .sortable-header:hover {
   color: var(--purple);
 }
-
 .sortable-header:focus-visible {
   outline: 2px solid var(--purple);
   outline-offset: -1px;
   border-radius: 4px;
 }
-
 .sort-caret {
   font-size: 14px;
   color: var(--text-subtle);
   display: inline-block;
 }
-
 /* ── Token cell with tokenbar (T103) ─────────────────────── */
-
 .token-cell {
   min-width: 170px;
   padding-top: 6px;
   padding-bottom: 6px;
 }
-
 /* Tokenbar inside data table — uses .tokenbar-seg with --segment-width */
 .token-cell .tokenbar {
   position: relative;
@@ -145,18 +123,23 @@ th.sortable:hover {
   cursor: help;
   border: 1px solid var(--line-soft);
 }
-
 .token-cell .tokenbar .tokenbar-seg {
   height: 100%;
   display: block;
 }
-
 /* Tokenbar segment colors for projects context (T117) */
-.token-cell .tokenbar .tokenbar-seg.fresh { background: var(--token-input-fresh, #2563eb); }
-.token-cell .tokenbar .tokenbar-seg.read { background: var(--token-cache-read, #f59e0b); }
-.token-cell .tokenbar .tokenbar-seg.write { background: var(--token-cache-write, #f59e0b); }
-.token-cell .tokenbar .tokenbar-seg.out { background: var(--token-output-visible, #059669); }
-
+.token-cell .tokenbar .tokenbar-seg.fresh {
+  background: var(--token-input-fresh, #2563eb);
+}
+.token-cell .tokenbar .tokenbar-seg.read {
+  background: var(--token-cache-read, #f59e0b);
+}
+.token-cell .tokenbar .tokenbar-seg.write {
+  background: var(--token-cache-write, #f59e0b);
+}
+.token-cell .tokenbar .tokenbar-seg.out {
+  background: var(--token-output-visible, #059669);
+}
 /* Tooltip inside tokenbar — uses .token-tooltip class from macro */
 .token-cell .token-tooltip {
   position: absolute;
@@ -172,7 +155,6 @@ th.sortable:hover {
   display: none;
   pointer-events: none;
 }
-
 .token-cell .token-tooltip::before {
   content: '';
   position: absolute;
@@ -185,18 +167,15 @@ th.sortable:hover {
   border-top: 1px solid var(--line);
   transform: rotate(45deg);
 }
-
 .token-cell .tokenbar:hover .token-tooltip,
 .token-cell .tokenbar:focus-within .token-tooltip {
   display: block;
 }
-
 .token-tooltip__title {
   font-weight: 850;
   margin-bottom: 8px;
   font-size: 12px;
 }
-
 .token-tooltip__row {
   display: flex;
   align-items: center;
@@ -205,7 +184,6 @@ th.sortable:hover {
   font-size: 12px;
   margin: 6px 0;
 }
-
 .token-tooltip__label {
   display: flex;
   align-items: center;
@@ -215,7 +193,6 @@ th.sortable:hover {
   margin-right: auto;
   color: var(--text-subtle);
 }
-
 .token-tooltip__label .dot {
   display: block;
   width: 8px;
@@ -224,23 +201,27 @@ th.sortable:hover {
   flex-shrink: 0;
   margin: auto 0;
 }
-
 .token-tooltip__type-name {
   line-height: 1;
 }
-
-.token-tooltip__label .dot--fresh { background: var(--token-input-fresh, #2563eb); }
-.token-tooltip__label .dot--read { background: var(--token-cache-read, #f59e0b); }
-.token-tooltip__label .dot--write { background: var(--token-cache-write, #fbbf24); }
-.token-tooltip__label .dot--out { background: var(--token-output-visible, #10b981); }
-
+.token-tooltip__label .dot--fresh {
+  background: var(--token-input-fresh, #2563eb);
+}
+.token-tooltip__label .dot--read {
+  background: var(--token-cache-read, #f59e0b);
+}
+.token-tooltip__label .dot--write {
+  background: var(--token-cache-write, #fbbf24);
+}
+.token-tooltip__label .dot--out {
+  background: var(--token-output-visible, #10b981);
+}
 .token-tooltip__value {
   font-family: var(--font-mono);
   font-weight: 750;
   min-width: 60px;
   text-align: right;
 }
-
 .token-tooltip__pct {
   font-family: var(--font-mono);
   font-weight: 600;
@@ -248,65 +229,51 @@ th.sortable:hover {
   text-align: right;
   color: var(--text-subtle);
 }
-
 .token-tooltip__total {
   font-weight: 850;
 }
-
 .token-tooltip__sep {
   border-top: 1px solid var(--line-strong);
   margin: 8px 0;
 }
-
 /* ── Agent badges (T103: dot + soft badge) ────────────────── */
-
 .agents-cell {
   display: flex;
   gap: 5px;
   align-items: center;
   flex-wrap: wrap;
 }
-
 .agents-cell .badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
-
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   display: inline-block;
 }
-
 .dot.claude {
   background: var(--claude);
 }
-
 .dot.codex {
   background: var(--codex);
 }
-
 .dot.qoder {
   background: var(--qoder);
 }
-
 .dot.total {
   background: var(--output);
 }
-
 /* ── Tools failed badge inline ────────────────────────────── */
-
 .tools-failed {
   margin-left: 6px;
   font-size: 10px;
   height: 20px;
   padding: 0 6px;
 }
-
 /* ── Health badge (legacy alias, still used in some contexts) */
-
 .health-badge {
   display: inline-flex;
   align-items: center;
@@ -315,24 +282,19 @@ th.sortable:hover {
   font-size: 11px;
   font-weight: 700;
 }
-
 .health-badge.health--healthy {
   background: var(--green-soft);
   color: var(--green);
 }
-
 .health-badge.health--warning {
   background: var(--warn-bg);
   color: var(--warn);
 }
-
 .health-badge.health--error {
   background: var(--err-bg);
   color: var(--err);
 }
-
 /* ── Pagination ───────────────────────────────────────────── */
-
 .unified-pagination {
   height: 58px;
   display: flex;
@@ -342,52 +304,41 @@ th.sortable:hover {
   padding: 0 14px;
   border-top: 1px solid var(--line-strong);
 }
-
 .page-input {
   width: 64px;
   text-align: center;
 }
-
 /* ── Empty state ──────────────────────────────────────────── */
-
 #projects-empty.is-hidden {
   display: none;
 }
-
 /* ── Emoji size classes (T106: icon size contract) ────────── */
 /* These classes document and enforce the icon sizing contract.
- * Actual rendered size may be governed by the parent container
- * (.metric-icon, .state-icon) which sets a larger font-size.
- * ─────────────────────────────────────────────────────────── */
-
+* Actual rendered size may be governed by the parent container
+* (.metric-icon, .state-icon) which sets a larger font-size.
+* ─────────────────────────────────────────────────────────── */
 /* inline action / nav icon: 14–16px */
 .emoji {
   font-size: 16px;
   line-height: 1;
   display: inline-block;
 }
-
 /* metric / state / decorative icon: 20–24px (inherited from container) */
 .emoji.lg {
   font-size: 22px;
   line-height: 1;
   display: inline-block;
 }
-
 /* ── Utility ──────────────────────────────────────────────── */
-
 .text-muted {
   color: var(--text-subtle);
 }
-
 .text-xs {
   font-size: 12px;
 }
-
 .normal-case {
   text-transform: none;
 }
-
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -395,14 +346,11 @@ th.sortable:hover {
   max-width: 280px;
   display: inline-block;
 }
-
 .muted-zero {
   color: var(--text-subtle);
   opacity: 0.5;
 }
-
 /* ── Project detail: page head extras ───────────────────────── */
-
 /* Back button (HIFI canonical, used alongside .page-header__back) */
 .back-btn {
   width: 42px;
@@ -417,27 +365,22 @@ th.sortable:hover {
   font-weight: 900;
   cursor: pointer;
 }
-
 .back-btn:hover {
   background: var(--surface-soft);
   border-color: var(--line-strong);
 }
-
 /* Subtitle text below page title */
 .subtitle {
   color: var(--text-subtle);
   font-size: 14px;
   margin: 0;
 }
-
 /* ── Project detail: path row ───────────────────────────────── */
-
 .path-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-
 .path-chip {
   height: 30px;
   padding: 0 12px;
@@ -449,41 +392,31 @@ th.sortable:hover {
   color: var(--text);
   font-size: 12px;
 }
-
 /* ── Project detail: session title cells ────────────────────── */
-
 .title-main {
   font-weight: 850;
   line-height: 1.3;
 }
-
 .title-sub {
   font-size: 11px;
   color: var(--text-subtle);
   margin-top: 2px;
 }
-
 /* ── Project detail: failed row tone ────────────────────────── */
-
 .data-table tbody tr.row--failed {
   background: var(--red-soft);
 }
-
 .data-table tbody tr.row--failed:hover {
   background: var(--red-soft);
 }
-
 /* ── Project detail: sessions table toolbar ─────────────────── */
-
 /* card-title standalone (project detail uses .card-title without .table-toolbar) */
 .page-section .card-title {
   font-size: 16px;
   font-weight: 860;
   margin-bottom: 8px;
 }
-
 /* ── Agent dot alias for projects.css scope ─────────────────── */
-
 /* project.html uses .agent-dot (global style), align with .dot here */
 .agent-dot {
   width: 8px;
@@ -491,15 +424,12 @@ th.sortable:hover {
   border-radius: 50%;
   display: inline-block;
 }
-
 .agent-dot.claude {
   background: var(--claude);
 }
-
 .agent-dot.codex {
   background: var(--codex);
 }
-
 .agent-dot.qoder {
   background: var(--qoder);
 }

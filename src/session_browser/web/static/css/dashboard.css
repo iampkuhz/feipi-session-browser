@@ -1,34 +1,32 @@
 /* ======================================================================
- * dashboard.css — Canonical Dashboard Page Styles
- * ======================================================================
- *
- * Scope: Dashboard page (/dashboard) only.
- *
- * Dependencies:
- *   - ui-primitives.css (token variables, button, icon-button, tooltip,
- *     popover, toast, pagination, metric-card, metric-grid, badge)
- *   - style.css (app shell: .sidebar, .topbar, .footer, .breadcrumb,
- *     .brand-card, .nav-list — these are now single-source in base.html)
- *
- * Contract:
- *   - Do NOT duplicate rules from ui-primitives.css or style.css shell.
- *   - Use token variables (--bg, --surface, --line, --purple, --shadow,
- *     --radius-*, --hifi-icon-*) exclusively. No hardcoded colors.
- *   - Page-specific layout and component styles only.
- *
- * Covers:
- *   - Page head (.page-head)
- *   - Scope switch (.scope-switch, .scope-switch__btn)
- *   - Chart stack & cards (.chart-stack, .chart-card, .chart-card__head, ...)
- *   - Chart bars & axes (.chart-wrap, .y-axis, .stacked-chart, .chart-group)
- *   - Legend (.legend-row, .legend-item, .legend-dot)
- * ====================================================================== */
-
+* dashboard.css — Canonical Dashboard Page Styles
+* ======================================================================
+*
+* Scope: Dashboard page (/dashboard) only.
+*
+* Dependencies:
+*   - ui-primitives.css (token variables, button, icon-button, tooltip,
+*     popover, toast, pagination, metric-card, metric-grid, badge)
+*   - style.css (app shell: .sidebar, .topbar, .footer, .breadcrumb,
+*     .brand-card, .nav-list — these are now single-source in base.html)
+*
+* Contract:
+*   - Do NOT duplicate rules from ui-primitives.css or style.css shell.
+*   - Use token variables (--bg, --surface, --line, --purple, --shadow,
+*     --radius-*, --hifi-icon-*) exclusively. No hardcoded colors.
+*   - Page-specific layout and component styles only.
+*
+* Covers:
+*   - Page head (.page-head)
+*   - Scope switch (.scope-switch, .scope-switch__btn)
+*   - Chart stack & cards (.chart-stack, .chart-card, .chart-card__head, ...)
+*   - Chart bars & axes (.chart-wrap, .y-axis, .stacked-chart, .chart-group)
+*   - Legend (.legend-row, .legend-item, .legend-dot)
+* ====================================================================== */
 /* ── Content Width Constraint ============================================ */
 /* All top-level dashboard sections share the same max-width so their
- * left/right edges always align. This must not exceed the global --max
- * (1320px, defined in ui-primitives.css) to avoid horizontal overflow. */
-
+* left/right edges always align. This must not exceed the global --max
+* (1320px, defined in ui-primitives.css) to avoid horizontal overflow. */
 .page-head,
 .metric-grid,
 .chart-card {
@@ -37,11 +35,8 @@
   margin-left: auto;
   margin-right: auto;
 }
-
 /* ── Content: use global .content padding from style.css ── */
-
 /* ── Page Head =========================================================== */
-
 .page-head {
   display: flex;
   align-items: flex-start;
@@ -59,9 +54,7 @@
   color: var(--text-subtle);
   font-size: 13px;
 }
-
 /* ── Scope Switch (global Day/Week/Month) ================================ */
-
 .scope-switch {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -83,18 +76,14 @@
   background: var(--purple);
   color: white;
 }
-
 /* ── Chart Stack ========================================================= */
-
 .chart-stack {
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 14px 0 24px;
 }
-
 /* ── Chart Card ========================================================== */
-
 .chart-card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -129,9 +118,7 @@
   color: var(--text-subtle);
   font-size: 12px;
 }
-
 /* ── Legend Row ========================================================== */
-
 .legend-row {
   display: flex;
   gap: 12px;
@@ -152,12 +139,16 @@
   border-radius: 999px;
   display: inline-block;
 }
-.legend-dot--claude { background: var(--purple); }
-.legend-dot--codex { background: var(--green); }
-.legend-dot--qoder { background: var(--orange); }
-
+.legend-dot--claude {
+  background: var(--purple);
+}
+.legend-dot--codex {
+  background: var(--green);
+}
+.legend-dot--qoder {
+  background: var(--orange);
+}
 /* ── Chart Area (wrapped bar chart with y-axis) ========================== */
-
 .chart-wrap {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
@@ -185,11 +176,11 @@
   border-bottom: 1px solid var(--line);
   padding: 10px 8px 26px 12px;
   background-image: repeating-linear-gradient(
-    to top,
-    transparent 0,
-    transparent calc(20% - 1px),
-    #eff3fa calc(20% - 1px),
-    #eff3fa 20%
+  to top,
+  transparent 0,
+  transparent calc(20% - 1px),
+  #eff3fa calc(20% - 1px),
+  #eff3fa 20%
   );
   background-size: 100% 100%;
 }
@@ -218,10 +209,18 @@
 .chart-group__stack:hover {
   transform: translateY(-2px);
 }
-.segment { width: 100%; }
-.segment--claude { background: var(--purple); }
-.segment--codex { background: var(--green); }
-.segment--qoder { background: var(--orange); }
+.segment {
+  width: 100%;
+}
+.segment--claude {
+  background: var(--purple);
+}
+.segment--codex {
+  background: var(--green);
+}
+.segment--qoder {
+  background: var(--orange);
+}
 .chart-group__label {
   position: absolute;
   bottom: -19px;
@@ -229,11 +228,9 @@
   color: var(--text-subtle);
   white-space: nowrap;
 }
-
-/* ── Footer: single-source in base.html + style.css; no page override ── */
-
+/* ── Footer: single-source in base.html + style.css;
+no page override ── */
 /* ── Drawer (settings panel) ============================================== */
-
 .drawer {
   position: fixed;
   inset: 0;
@@ -270,18 +267,16 @@
 .drawer__body ul {
   padding-left: 18px;
 }
-
 /* ── v16 Backward Compat (hero, legacy chart structure) =================== */
 /*
- * These styles support the current dashboard.html template (v16 hero +
- * chart structure). They coexist with the newer patterns above and will
- * be phased out when the template migrates to the canonical structure.
- *
- * NOTE: .chart-card, .legend, .legend-item, .dot rules are intentionally
- * not redefined here — they are either covered by ui-primitives.css or
- * by the newer canonical rules above. Only v16-unique patterns are listed.
- */
-
+* These styles support the current dashboard.html template (v16 hero +
+* chart structure). They coexist with the newer patterns above and will
+* be phased out when the template migrates to the canonical structure.
+*
+* NOTE: .chart-card, .legend, .legend-item, .dot rules are intentionally
+* not redefined here — they are either covered by ui-primitives.css or
+* by the newer canonical rules above. Only v16-unique patterns are listed.
+*/
 .hero {
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -341,7 +336,6 @@
   letter-spacing: 0.08em;
   font-weight: 850;
 }
-
 /* v16 chart head with range tabs */
 .chart-head {
   display: flex;
@@ -382,7 +376,6 @@
   border-color: var(--purple);
   color: #fff;
 }
-
 /* v16 chart grid (y-axis + plot + x-axis) */
 .chart {
   display: grid;
@@ -395,9 +388,9 @@
   height: 190px;
   border-bottom: 2px solid #dbe5f1;
   background:
-    linear-gradient(to bottom, transparent 0, transparent 24%, #edf2f7 24.5%, transparent 25%),
-    linear-gradient(to bottom, transparent 0, transparent 49%, #edf2f7 49.5%, transparent 50%),
-    linear-gradient(to bottom, transparent 0, transparent 74%, #edf2f7 74.5%, transparent 75%);
+  linear-gradient(to bottom, transparent 0, transparent 24%, #edf2f7 24.5%, transparent 25%),
+  linear-gradient(to bottom, transparent 0, transparent 49%, #edf2f7 49.5%, transparent 50%),
+  linear-gradient(to bottom, transparent 0, transparent 74%, #edf2f7 74.5%, transparent 75%);
   display: grid;
   grid-template-columns: repeat(var(--n, 27), 1fr);
   gap: 0;
@@ -424,21 +417,24 @@
   border-radius: 4px 4px 0 0;
   overflow: hidden;
 }
-.seg-claude { background: var(--purple); }
-.seg-codex { background: var(--green); }
-.seg-qoder { background: var(--orange); }
-
+.seg-claude {
+  background: var(--purple);
+}
+.seg-codex {
+  background: var(--green);
+}
+.seg-qoder {
+  background: var(--orange);
+}
 /* Ensure segments are visible even at very low percentages */
 .seg-claude, .seg-codex, .seg-qoder {
   min-height: 1px;
   display: block;
 }
-
 /* Chart container: contain tooltip overflow */
 .chart-container {
   overflow: hidden;
 }
-
 /* v16 tooltip (dark overlay on chart bars) */
 .dashboard-tooltip {
   position: fixed;
@@ -479,10 +475,18 @@
   height: 8px;
   border-radius: 999px;
 }
-.tooltip-dot--claude { background: var(--purple); }
-.tooltip-dot--codex { background: var(--green); }
-.tooltip-dot--qoder { background: var(--orange); }
-.tooltip-dot--total { background: #cbd5e1; }
+.tooltip-dot--claude {
+  background: var(--purple);
+}
+.tooltip-dot--codex {
+  background: var(--green);
+}
+.tooltip-dot--qoder {
+  background: var(--orange);
+}
+.tooltip-dot--total {
+  background: #cbd5e1;
+}
 .tooltip-label {
   color: #dbeafe;
   white-space: nowrap;
@@ -492,7 +496,6 @@
   font-weight: 850;
   text-align: right;
 }
-
 /* v16 x-axis labels */
 .x-axis {
   grid-column: 2;
@@ -508,7 +511,6 @@
   display: block;
   min-width: 0;
 }
-
 /* v16 responsive */
 @media (max-width: 1400px) {
   .hero {
@@ -524,11 +526,9 @@
     width: auto;
   }
 }
-
 /* ── Utility: status color modifiers ===================================== */
 /* These are simple color utility classes used by metric-card sub text.
- * .success and .danger are defined in the Metric Card section above. */
-
+* .success and .danger are defined in the Metric Card section above. */
 /* ── Chart empty state ================================================== */
 .chart-empty {
   padding: 12px;
