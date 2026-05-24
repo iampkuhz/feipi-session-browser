@@ -1,4 +1,4 @@
-# 01 Global UI Contract
+# 01 全局 UI 契约
 
 ## 通用视觉规则
 

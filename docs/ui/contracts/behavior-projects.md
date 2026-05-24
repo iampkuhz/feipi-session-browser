@@ -1,9 +1,9 @@
-# Behavior Contract: Projects Pages
+# Projects 页面行为契约
 
 覆盖 **Projects List**（项目列表）和 **Project Detail**（项目详情）两个页面。
 数据来源：HIFI 高保真页面 + 生产模板交叉验证。
 
-## 1. Button Behavior Table
+## 1. 按钮行为表
 
 ### Projects List 按钮行为
 
@@ -53,7 +53,7 @@
 | 21 | `button.icon-btn[data-action="help"]` / "?" | Topbar | `data-action="help"` | 打开帮助说明和快捷键 | HIFI: `data-action="help"`；生产: 无对应按钮 |
 | 22 | `button.icon-btn[data-action="shell"]` / "💻" | Topbar | `data-action="shell"` | 打开本地 CLI/open-folder 操作 | HIFI: `data-action="shell"`；生产: 无对应按钮 |
 
-## 2. Icon Behavior Table
+## 2. 图标行为表
 
 ### Projects List 图标行为
 
@@ -113,7 +113,7 @@
 | 26 | ❔ | Topbar help button | Help — 帮助说明 | Action (button) | 点击打开帮助面板 | `emoji` — inline (16–18px) |
 | 27 | 💻 | Topbar shell button | Terminal — 本地 CLI | Action (button) | 点击打开本地 CLI 操作面板 | `emoji` — inline (16–18px) |
 
-## 3. Statistics
+## 3. 统计数据
 
 | 指标 | Projects List | Project Detail | 合计 |
 |---|---|---|---|
@@ -124,7 +124,7 @@
 | 可点击图标 | 11 | 14 | 25 |
 | 装饰性图标 | 10 | 13 | 23 |
 
-## 4. Production vs HIFI Gap Analysis
+## 4. 生产 vs HIFI 差异分析
 
 | 差异项 | HIFI 状态 | 生产状态 | 风险 |
 |---|---|---|---|

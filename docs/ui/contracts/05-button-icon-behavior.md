@@ -1,4 +1,4 @@
-# 05 Button and Icon Behavior Contract
+# 05 按钮与图标行为契约
 
 ## 全局按钮行为表要求
 
@@ -36,7 +36,7 @@ icon / location / semantic meaning / decorative-or-action / expected behavior / 
 
 ---
 
-## Current State
+## 当前状态
 
 > Scanned 2026-05-21 against repo `docs/ui/hifi/` and `src/session_browser/web/templates/`.
 

@@ -1,4 +1,4 @@
-# Session Detail Page — Button & Icon Behavior Table
+# Session Detail 页面 — 按钮与图标行为表
 
 > 覆盖 HIFI session-detail-trace / session-detail-metrics / session-detail-payloads 三张页面。
 > 共享壳（sidebar + topbar + hero + tabs）合并为一份，各 tab 独有部分分开列出。

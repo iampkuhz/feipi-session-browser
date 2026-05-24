@@ -1,6 +1,6 @@
-# 04 CSS / JS Ownership Contract
+# 04 CSS / JS 所有权契约
 
-## Canonical CSS
+## 规范 CSS
 
 ```text
 src/session_browser/web/static/style.css                 # tokens + shell only
@@ -14,7 +14,7 @@ src/session_browser/web/static/css/glossary.css           # glossary only
 src/session_browser/web/static/css/states.css             # 404/error/empty only
 ```
 
-## Canonical JS
+## 规范 JS
 
 ```text
 src/session_browser/web/static/js/ui_primitives.js
@@ -40,14 +40,14 @@ src/session_browser/web/static/js/states.js
 
 ---
 
-## Current State
+## 当前状态
 
 > Appended: 2026-05-21
 > Task: T011 — Install CSS/JS Ownership Contract
 > Source: `$HOME/Downloads/feipi-session-browser-ui-contract-taskpack/contracts/04-css-js-ownership.md`
 > Cross-reference: `docs/ui/contracts/current-imports.md` (T004)
 
-### CSS: On-disk vs Contract
+### CSS：磁盘文件 vs 规范
 
 | # | File on disk | Status | Imported by |
 |---|---|---|---|
@@ -71,7 +71,7 @@ src/session_browser/web/static/js/states.js
 | `session-detail-timeline.css` | Imported by `session.html` | Migrate into `session-detail.css` |
 | `session-detail-v18-polish-patch.css` | Orphaned (not imported) | Safe to remove |
 
-### JS: On-disk vs Contract
+### JS：磁盘文件 vs 规范
 
 | # | Canonical file | Status | Notes |
 |---|---|---|---|
@@ -106,7 +106,7 @@ src/session_browser/web/static/js/states.js
 | `session_detail_timeline_v11.js` | Cleaned | Orphan removed |
 | `session_detail_timeline_v17_reference.js` | Cleaned | Orphan removed |
 
-### Summary
+### 汇总
 
 | Metric | Count |
 |---|---|
@@ -120,7 +120,7 @@ src/session_browser/web/static/js/states.js
 | Versioned/legacy JS files cleaned up | 5 |
 | JS orphans (on disk, never imported) | 0 (cleaned) |
 
-### Notes
+### 备注
 
 - `style.css` at 243KB is far too large for "tokens + shell only" — will need significant瘦身 during migration.
 - The contract's canonical JS list has no `app.js`/`data-table.js`/etc. These 7 shared utilities may either need to be absorbed into page-specific files or added to the canonical list as shared modules.

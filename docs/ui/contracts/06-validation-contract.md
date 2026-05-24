@@ -1,4 +1,4 @@
-# 06 Validation Contract
+# 06 验证契约
 
 ## 每个任务至少运行
 

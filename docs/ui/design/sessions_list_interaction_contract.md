@@ -1,36 +1,36 @@
-# Sessions List Interaction Contract
+# Sessions List 交互契约
 
-## Current observed failure pattern
+## 当前观察到的失效模式
 
-The HIFI structure is close, but interaction wiring is incomplete.
+HIFI 结构已接近，但交互接线不完整。
 
-Observed from saved MHTML:
-- Sort controls are rendered as header label text plus a separate icon-only button. The label is not part of the clickable control.
-- Table sort form submits only `sort=<key>` and loses active filter state.
-- Pagination buttons submit only `page=prev|next` and lose active filters/sort state.
-- `ui_primitives.js` was not loaded in the captured page, so button behavior cannot depend on that script.
-- Filter chips exist visually, but remove behavior needs deterministic links or submit actions.
-- Clear All is hidden even when state should be explicit.
-- Topbar Refresh was absent/empty in the captured page.
+从捕获的 MHTML 观察：
+- 排序控件渲染为标题文本加上独立的图标按钮。标题标签不是可点击控件的一部分。
+- 表格排序表单只提交 `sort=<key>`，丢失当前过滤状态。
+- 分页按钮只提交 `page=prev|next`，丢失过滤器/排序状态。
+- 捕获的页面未加载 `ui_primitives.js`，因此按钮行为不能依赖该脚本。
+- 过滤芯片视觉上存在，但移除行为需要确定性链接或提交动作。
+- Clear All 在状态应该显式时被隐藏。
+- Topbar Refresh 在捕获的页面中缺失/为空。
 
-## Required policy
+## 要求策略
 
-Prefer server-rendered GET links for sort, pagination, and filter chip removal. They work without JavaScript and are easier to test.
+优先使用服务端渲染的 GET 链接处理排序、分页和过滤芯片移除。无需 JavaScript 即可工作，也更容易测试。
 
-Allowed implementation:
-1. Link-based controls:
-   - sort headers use `<a class="sessions-th__sort-btn" href="...">`
-   - pagination uses `<a class="ui-btn ...">`
-   - chip removal uses `<a href="...">×</a>`
+允许的实现方式：
+1. 基于链接的控件：
+   - 排序标题使用 `<a class="sessions-th__sort-btn" href="...">`
+   - 分页使用 `<a class="ui-btn ...">`
+   - 芯片移除使用 `<a href="...">×</a>`
 
-2. Form-based controls:
-   - controls may use `<button type="submit">`
-   - but every secondary form must include hidden inputs for current state:
-     `q/session_id`, `agent`, `model`, `project`, `date`, `sort`, `dir`, and page reset rules.
+2. 基于表单的控件：
+   - 控件可使用 `<button type="submit">`
+   - 但每个辅助表单必须包含当前状态的隐藏输入：
+     `q/session_id`、`agent`、`model`、`project`、`date`、`sort`、`dir`，以及页码重置规则。
 
-Disallowed:
-- icon-only sort buttons
-- sort/pagination forms that lose filters
-- controls that rely on JS not loaded by the page
-- nested forms
-- duplicated query state logic in templates
+禁止：
+- 纯图标排序按钮
+- 丢失过滤器的排序/分页表单
+- 依赖页面未加载 JS 的控件
+- 嵌套表单
+- 模板中重复的查询状态逻辑

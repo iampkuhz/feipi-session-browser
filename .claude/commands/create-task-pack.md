@@ -1,13 +1,13 @@
 # /create-task-pack
 
-Create serial task files from an approved OpenSpec change.
+从已批准的 OpenSpec 变更创建串行任务文件。
 
 Arguments: `$ARGUMENTS`
 
-Output under:
+输出路径：
 
 ```text
 tasks/changes/<change-id>/
 ```
 
-Each task file must include goal, scope, files to inspect, likely files to change, validation command, acceptance criteria, risks, and manual QA.
+每个任务文件必须包含：目标、范围、需检查的文件、可能变更的文件、验证命令、验收标准、风险和手动 QA。

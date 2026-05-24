@@ -1,7 +1,7 @@
 # /quality-gate
 
-Run the repository quality gate.
+运行仓库质量门禁。
 
-Use the scripts under `scripts/harness/` first, then product-specific tests if present.
+优先运行 `scripts/harness/` 下的脚本，然后运行产品相关测试（如有）。
 
-Return a table with command, result, and evidence.
+返回一个表格，包含命令、结果和证据。

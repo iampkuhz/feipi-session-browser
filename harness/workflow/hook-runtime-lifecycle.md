@@ -1,4 +1,4 @@
-# Hook Runtime Lifecycle
+# Hook Runtime 生命周期
 
 ## 01. SessionStart
 

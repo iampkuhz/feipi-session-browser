@@ -1,4 +1,4 @@
-# Sessions Page Behavior Contract
+# Sessions 页面行为契约
 
 > 来源: HIFI `pages/session-list.html` + `docs/session-list.md` + 生产模板 `src/session_browser/web/templates/sessions.html` + `components/sessions_list_components.html` + `components/ui_primitives.html` + `static/css/sessions-list.css`
 > 生成时间: 2026-05-21 (Task T017)

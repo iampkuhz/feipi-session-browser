@@ -1,4 +1,4 @@
-# Agents Page Behavior Contract
+# Agents 页面行为契约
 
 > 来源: HIFI `pages/agents.html` + `pages/agent-detail.html` + `docs/agents.md` + `docs/agent-detail.md` + 生产模板 `src/session_browser/web/templates/agents.html` + `src/session_browser/web/templates/agent.html`
 > 生成时间: 2026-05-21 (Task T020)

@@ -1,6 +1,6 @@
-# 07 Data Contract
+# 07 数据契约
 
-## Token format
+## Token 格式化
 
 新增 shared formatter：
 
@@ -12,7 +12,7 @@ def format_compact_token(n: int | float | None) -> str:
     return str(int(n))
 ```
 
-## Pagination data
+## 分页数据
 
 页面模板必须接收：
 
@@ -28,7 +28,7 @@ next_url
 page_input_url_pattern or form params
 ```
 
-## Button behavior metadata
+## 按钮行为元数据
 
 复杂按钮必须含：
 
@@ -36,7 +36,7 @@ page_input_url_pattern or form params
 <button data-action="..." aria-label="...">...</button>
 ```
 
-## Payload modal data
+## Payload Modal 数据
 
 Payload modal 统一接收：
 

@@ -1,36 +1,36 @@
-# Sessions List Component System
+# Sessions List 组件体系
 
-## Objective
+## 目标
 
-Sessions List should be assembled from stable UI primitives rather than one-off HTML.
+Sessions List 应由稳定的 UI 原始组件组装而成，而非一次性 HTML。
 
-## Component layers
+## 组件层级
 
 1. `ui_primitives.html`
-   - Generic Jinja macros: buttons, select controls, stat pills, sortable headers, token cell.
+   - 通用 Jinja 宏：按钮、选择控件、统计药丸、可排序标题、token 单元格。
 
 2. `sessions_list_components.html`
-   - Page-specific composition: page title, active filters, table header, footer.
+   - 页面级组合：页面标题、活跃过滤器、表格标题、页脚。
 
 3. `ui-primitives.css`
-   - Generic primitive styles.
+   - 通用原始样式。
 
 4. `sessions-list.css`
-   - Page-scoped layout and table styles under `.sessions-page`.
+   - 页面作用域的布局和表格样式，限定在 `.sessions-page` 下。
 
 5. `ui_primitives.js`
-   - Small generic behavior, primarily sort-button form integration.
+   - 小型通用行为，主要是排序按钮表单集成。
 
-## Button contract
+## 按钮契约
 
-Use `ui.btn(label, variant, size)` or equivalent `.ui-btn` classes.
+使用 `ui.btn(label, variant, size)` 或等价的 `.ui-btn` 类。
 
-Allowed variants:
+允许的变体：
 - `primary`
 - `secondary`
 
-Allowed sizes:
+允许的尺寸：
 - `sm`
 - `md`
 
-Avoid one-off button classes on Sessions List unless a new primitive is first defined.
+除非首先定义新的原始组件，否则避免在 Sessions List 上使用一次性按钮类。

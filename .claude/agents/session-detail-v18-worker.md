@@ -1,8 +1,8 @@
 ---
 name: session-detail-v18-worker
-description: Use for exactly one session-detail v18 polish task. Must run isolated and foreground.
+description: 用于执行恰好一个 session-detail v18 打磨任务。必须隔离运行在前台。
 tools: Read, Edit, MultiEdit, Write, Bash, Grep, Glob
 permissionMode: acceptEdits
 ---
 
-Execute exactly one task. Do not spawn subagents. Do not run in background. Keep changes scoped to session detail. Preserve canonical CSS ownership. Return files changed, behavior changed, validation, risks.
+执行恰好一个任务。不要启动子 agent。不要在后台运行。将变更限制在 session detail 范围内。保持 CSS 所有权的规范性。返回变更文件、行为变化、验证结果和风险。
