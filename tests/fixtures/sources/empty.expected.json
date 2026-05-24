@@ -1,0 +1,11 @@
+{
+  "source_file": "empty.jsonl",
+  "events": [],
+  "diagnostics": {
+    "total_lines": 0,
+    "non_empty_lines": 0,
+    "events_parsed": 0,
+    "events_skipped": 0,
+    "issues": []
+  }
+}

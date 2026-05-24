@@ -1,0 +1,10 @@
+{"type":"user","message":{"role":"user","content":"First valid message"},"timestamp":"2026-05-03T08:00:00.000Z"}
+this is not json at all
+{"type":"assistant","message":{"model":"claude-sonnet-4-20250514","role":"assistant","content":[{"type":"text","text":"Response to first message."}],"usage":{"input_tokens":100,"output_tokens":30}},"timestamp":"2026-05-03T08:00:05.000Z"}
+["this", "is", "an", "array"]
+this line has no braces
+{"type":"user","message":{"role":"user","content":"Second valid message"},"timestamp":"2026-05-03T08:00:10.000Z"}
+42
+{"type":"assistant","message":{"model":"claude-sonnet-4-20250514","role":"assistant","content":[{"type":"text","text":"Response to second message."}],"usage":{"input_tokens":200,"output_tokens":50}},"timestamp":"2026-05-03T08:00:15.000Z"}
+null
+{"type":"user","message":{"role":"user","content":"Third valid message"},"timestamp":"2026-05-03T08:00:20.000Z"}

@@ -1029,11 +1029,14 @@ def _extract_tool_calls(
     return tool_calls
 
 
-def scan_all_sessions() -> Iterator[SessionSummary]:
+def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
     """Scan all Claude sessions and yield SessionSummary for each.
 
     This is the main entry point for the indexer.
     It reads history.jsonl for the session list, then parses each session file.
+
+    Args:
+        verbose: If True, print diagnostic info about skipped JSON lines.
     """
     history = parse_history()
 
@@ -1046,7 +1049,9 @@ def scan_all_sessions() -> Iterator[SessionSummary]:
     for entry in history:
         sid = entry["session_id"]
         project = entry["project"]
-        summary, _msgs, _tcs, _sa = parse_session_detail(project, sid, history_entry=entry)
+        summary, _msgs, _tcs, _sa = parse_session_detail(
+            project, sid, history_entry=entry, verbose=verbose
+        )
         # Ensure title from history if empty (fallback)
         if not summary.title and entry.get("display"):
             summary.title = _extract_readable_title(entry["display"])

@@ -1,0 +1,137 @@
+{
+  "source_file": "qoder_valid.jsonl",
+  "events": [
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": "请帮我生成一个 PlantUML 架构图"
+      },
+      "timestamp": "2026-05-02T14:00:00.000Z",
+      "cwd": "/Users/test/uml-project",
+      "entrypoint": "cli",
+      "gitBranch": "feature/uml",
+      "sessionId": "qoder-session-001",
+      "version": "1.0.0"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "qwen3.6-plus",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "用户需要一个 PlantUML 架构图。"
+          }
+        ],
+        "usage": {
+          "input_tokens": 800,
+          "output_tokens": 0
+        }
+      },
+      "timestamp": "2026-05-02T14:00:05.000Z",
+      "sessionId": "qoder-session-001",
+      "version": "1.0.0"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "qwen3.6-plus",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "好的，我来帮你创建架构图。"
+          }
+        ],
+        "usage": {
+          "input_tokens": 800,
+          "output_tokens": 50
+        }
+      },
+      "timestamp": "2026-05-02T14:00:08.000Z",
+      "sessionId": "qoder-session-001",
+      "version": "1.0.0"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "qwen3.6-plus",
+        "role": "assistant",
+        "content": [
+          {
+            "name": "PlantUML",
+            "input": {
+              "description": "创建系统架构图",
+              "content": "@startuml\npackage WebLayer\n  [Frontend]\n@enduml"
+            },
+            "id": "toolu_qoder_001",
+            "type": "tool_use"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "cache_creation_input_tokens": 500,
+          "cache_read_input_tokens": 0,
+          "output_tokens": 150
+        },
+        "stop_reason": "tool_use",
+        "uuid": "qoder-assistant-001",
+        "timestamp": "2026-05-02T14:00:12.000Z",
+        "sessionId": "qoder-session-001",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "tool_use_id": "toolu_qoder_001",
+            "type": "tool_result",
+            "content": [
+              {
+                "type": "text",
+                "text": "PlantUML diagram rendered successfully."
+              }
+            ]
+          }
+        ]
+      },
+      "timestamp": "2026-05-02T14:00:15.000Z",
+      "sessionId": "qoder-session-001",
+      "version": "1.0.0",
+      "sourceToolAssistantUUID": "qoder-assistant-001"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "qwen3.6-plus",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "架构图已生成完毕。"
+          }
+        ],
+        "usage": {
+          "input_tokens": 500,
+          "cache_read_input_tokens": 500,
+          "output_tokens": 40
+        }
+      },
+      "timestamp": "2026-05-02T14:00:18.000Z",
+      "sessionId": "qoder-session-001",
+      "version": "1.0.0"
+    }
+  ],
+  "diagnostics": {
+    "total_lines": 6,
+    "non_empty_lines": 6,
+    "events_parsed": 6,
+    "events_skipped": 0,
+    "issues": []
+  }
+}

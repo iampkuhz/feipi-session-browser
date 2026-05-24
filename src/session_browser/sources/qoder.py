@@ -22,6 +22,7 @@ from typing import Iterator, Optional
 from session_browser.config import QODER_DATA_DIR
 from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
 from session_browser.domain.token_normalizer import normalize_tokens, TokenPrecision, TokenProvider
+from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
 # ─── Interval merging (shared with Claude) ──────────────────────────────
@@ -108,139 +109,6 @@ def _ts_ms_to_iso(ts_ms: int | float) -> str:
         return ""
     dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).astimezone()
     return dt.isoformat()
-
-
-def _parse_session_events(path: Path, verbose: bool = False) -> list[dict]:
-    """Parse a single session .jsonl event stream file.
-
-    Handles standard JSONL, pretty-printed multi-line JSON, and mixed
-    formats (including concatenated ``}{...}{`` on transition lines).
-    Uses string-aware brace depth tracking.
-    Non-object JSON values are skipped.
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    events: list[dict] = []
-    skipped: list[tuple[int, str, str]] = []
-    current_lines: list[str] = []
-    depth = 0
-
-    for line_no, raw_line in enumerate(content.split("\n"), 1):
-        stripped = raw_line.rstrip()
-        if not stripped:
-            continue
-
-        for ch in _brace_chars_outside_strings(stripped):
-            if ch in "{[":
-                depth += 1
-            elif ch in "}]":
-                depth -= 1
-
-        current_lines.append(stripped)
-
-        if depth == 0:
-            full = "\n".join(current_lines).strip()
-            current_lines = []
-            _try_parse_json(full, line_no, events, skipped)
-
-    if verbose and skipped:
-        print(f"  ⚠ {path.name}: {len(skipped)} non-dict JSON item(s) skipped:")
-        for line_no, type_name, preview in skipped:
-            print(f"    L{line_no} [{type_name}] {preview}")
-
-    return events
-
-
-def _brace_chars_outside_strings(text: str) -> str:
-    """Return only ``{}[]`` characters outside JSON string values."""
-    result: list[str] = []
-    in_string = False
-    escaped = False
-    for ch in text:
-        if escaped:
-            escaped = False
-            continue
-        if ch == "\\":
-            escaped = True
-            continue
-        if ch == '"':
-            in_string = not in_string
-            continue
-        if not in_string and ch in "{}[]":
-            result.append(ch)
-    return "".join(result)
-
-
-def _try_parse_json(
-    text: str, line_no: int,
-    events: list[dict], skipped: list[tuple[int, str, str]],
-) -> None:
-    """Parse JSON text, splitting at ``}{`` boundaries if needed."""
-    try:
-        obj = json.loads(text)
-        if isinstance(obj, dict):
-            events.append(obj)
-        else:
-            skipped.append((line_no, type(obj).__name__, repr(text[:120])))
-        return
-    except json.JSONDecodeError:
-        pass
-
-    parts = _split_at_depth0(text)
-    if len(parts) > 1:
-        for part in parts:
-            try:
-                obj = json.loads(part)
-                if isinstance(obj, dict):
-                    events.append(obj)
-                else:
-                    skipped.append(
-                        (line_no, type(obj).__name__, repr(part[:120]))
-                    )
-            except json.JSONDecodeError:
-                skipped.append((line_no, "BAD_JSON", repr(part[:120])))
-    else:
-        skipped.append((line_no, "BAD_JSON", repr(text[:120])))
-
-
-def _split_at_depth0(text: str) -> list[str]:
-    """Split concatenated JSON objects at top-level ``}{`` boundaries."""
-    parts: list[str] = []
-    current_start = 0
-    depth = 0
-    in_string = False
-    escaped = False
-
-    for i, ch in enumerate(text):
-        if escaped:
-            escaped = False
-            continue
-        if ch == "\\":
-            escaped = True
-            continue
-        if ch == '"':
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0 and i + 1 < len(text) and text[i + 1] == "{":
-                candidate = text[current_start:i + 1].strip()
-                if candidate:
-                    parts.append(candidate)
-                current_start = i + 1
-
-    if current_start == 0:
-        return [text]
-
-    tail = text[current_start:].strip()
-    if tail:
-        parts.append(tail)
-    return parts if parts else [text]
 
 
 def _scan_project_dirs(project_dir: Path) -> list[str]:
@@ -703,7 +571,7 @@ def parse_session_detail(
             s = _empty_session(session_id, project_key)
             return s, [], [], []
 
-    events = _parse_session_events(session_file, verbose=verbose)
+    events, _ = parse_jsonl_events(session_file, verbose=verbose)
     summary = _build_summary_from_events(events, session_id, project_key)
     messages = _extract_messages(events)
     tool_calls = _extract_tool_calls(events, messages)
@@ -1179,7 +1047,7 @@ def _parse_cache_session(
     with no timestamps, tool calls, or usage data. Returns best-effort summary.
     When events lack timestamps, uses file_mtime for started_at/ended_at.
     """
-    events = _parse_session_events(session_file)
+    events, _ = parse_jsonl_events(session_file)
 
     # Extract user text for title
     user_texts = []

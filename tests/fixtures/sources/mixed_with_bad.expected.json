@@ -1,0 +1,108 @@
+{
+  "source_file": "mixed_with_bad.jsonl",
+  "events": [
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": "First valid message"
+      },
+      "timestamp": "2026-05-03T08:00:00.000Z"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-sonnet-4-20250514",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Response to first message."
+          }
+        ],
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 30
+        }
+      },
+      "timestamp": "2026-05-03T08:00:05.000Z"
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": "Second valid message"
+      },
+      "timestamp": "2026-05-03T08:00:10.000Z"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-sonnet-4-20250514",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Response to second message."
+          }
+        ],
+        "usage": {
+          "input_tokens": 200,
+          "output_tokens": 50
+        }
+      },
+      "timestamp": "2026-05-03T08:00:15.000Z"
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": "Third valid message"
+      },
+      "timestamp": "2026-05-03T08:00:20.000Z"
+    }
+  ],
+  "diagnostics": {
+    "total_lines": 10,
+    "non_empty_lines": 10,
+    "events_parsed": 5,
+    "events_skipped": 5,
+    "issues": [
+      {
+        "issue": "BAD_JSON",
+        "severity": "ERROR",
+        "line_no": 2,
+        "detail": "Unparseable JSON at line 2",
+        "preview": "'this is not json at all'"
+      },
+      {
+        "issue": "NON_OBJECT_SKIPPED",
+        "severity": "WARNING",
+        "line_no": 4,
+        "detail": "Non-dict JSON value skipped: list",
+        "preview": "'[\"this\", \"is\", \"an\", \"array\"]'"
+      },
+      {
+        "issue": "BAD_JSON",
+        "severity": "ERROR",
+        "line_no": 5,
+        "detail": "Unparseable JSON at line 5",
+        "preview": "'this line has no braces'"
+      },
+      {
+        "issue": "NON_OBJECT_SKIPPED",
+        "severity": "WARNING",
+        "line_no": 7,
+        "detail": "Non-dict JSON value skipped: int",
+        "preview": "'42'"
+      },
+      {
+        "issue": "NON_OBJECT_SKIPPED",
+        "severity": "WARNING",
+        "line_no": 9,
+        "detail": "Non-dict JSON value skipped: NoneType",
+        "preview": "'null'"
+      }
+    ]
+  }
+}
