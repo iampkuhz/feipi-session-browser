@@ -1,14 +1,25 @@
 /* ───────────────────────────────────────────────────────────────
- * style.css — Legacy component file (NOT loaded by base.html).
+ * style.css — Legacy component file (NOT loaded by any template).
  *
- * Split history:
- *   Task 06: tokens → css/tokens.css, base → css/base.css
- *   Task 07: primitives (.btn, .badge, .tabs, .breadcrumb, .pagination-bar,
- *            .empty-state) → css/ui-primitives.css
+ * ⚠️  此文件不被任何 HTML 模板加载。所有 6090 行 CSS 均为孤儿代码。
  *
- * This file retains: nav, card, table, round, message, tool-call,
- * trace-grid, payload-viewer, responsive rules, and other non-primitive
- * component styles. It is NOT a CSS load entry point.
+ * 已拆分：
+ *   css/tokens.css       — 设计令牌
+ *   css/base.css         — reset / typography
+ *   css/shell.css        — 布局骨架
+ *   css/ui-primitives.css — 原子组件
+ *   css/session-detail.css — session-detail 页面
+ *   css/sessions-list.css  — sessions-list 页面
+ *
+ * 剩余内容（不被加载，保留用于归档）：
+ *   - nav / brand / overview 组件
+ *   - card / table / round 变体
+ *   - timeline / trace-grid / payload-viewer
+ *   - tool-call / message / interaction 组件
+ *   - responsive 断点规则
+ *   - utility 类 (.text-*, .flex, .gap-*, .mt-*, .mb-*)
+ *
+ * 后续计划：确认无引用后整体删除。
  * ─────────────────────────────────────────────────────────────── */
 
 /* Shell Grid 三栏布局 — moved to css/shell.css (Task 05) */

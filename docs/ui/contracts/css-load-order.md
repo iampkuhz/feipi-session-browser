@@ -20,8 +20,8 @@
 
 详见 `src/session_browser/web/templates/base.html:28-42`。
 
-> `style.css` 已于 Task 06 拆分为 `css/tokens.css` 和 `css/base.css`，不再作为 CSS 加载入口。
-> 文件保留以承载历史组件样式（breadcrumb、nav、card、badge、table 等），但通过其他方式加载。
+> `style.css` 已于 post-mega-css-cleanup sprint 完全拆分为 `css/tokens.css`、`css/base.css`、`css/shell.css`、`css/ui-primitives.css` 及各页面专用 CSS。
+> 文件保留 ~6000 行历史组件样式，但 **不被任何模板加载**（孤儿 CSS）。后续确认无引用后可整体删除。
 
 ### 页面专用 CSS（通过 head_extra）
 
