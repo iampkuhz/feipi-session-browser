@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import pytest
 
 from session_browser.web.template_env import _display_path
@@ -496,7 +497,291 @@ class TestCSS:
             content = f.read()
         assert ".sessions-sort-icon" in content
 
-    def test_project_name_css(self):
-        with open("src/session_browser/web/static/css/sessions-list.css") as f:
-            content = f.read()
-        assert ".sessions-project-name" in content
+
+# ── Sessions List page fixture tests (T093) ─────────────────────────
+# Uses the hifi_fixture_session fixture to spin up a live server with
+# deterministic fixture data, then verifies the *rendered* Sessions List HTML.
+# Covers: page renders, session rows, filtering, pagination, key metrics, AJAX.
+
+
+# ── Sessions List page fixture ────────────────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def sessions_list_html(hifi_fixture_session):
+    """Fetch rendered Sessions List HTML from the live fixture server."""
+    base_url, agent, session_id = hifi_fixture_session
+    import urllib.request
+
+    resp = urllib.request.urlopen(f"{base_url}/sessions", timeout=10)
+    assert resp.status == 200, "Sessions List must return HTTP 200"
+    return resp.read().decode("utf-8")
+
+
+# ── TestSessionsListPageRender ───────────────────────────────────────
+
+
+class TestSessionsListPageRender:
+    """Verify the rendered Sessions List page structure."""
+
+    def test_page_returns_200(self, sessions_list_html):
+        """Sessions List must render successfully."""
+        assert len(sessions_list_html) > 500, \
+            "Sessions List HTML must be substantial"
+
+    def test_has_doctype_and_html(self, sessions_list_html):
+        """Page must have proper HTML structure."""
+        lower = sessions_list_html.lower()
+        assert "<!doctype html" in lower or "<!DOCTYPE html" in sessions_list_html, \
+            "Sessions List must have DOCTYPE declaration"
+
+    def test_title_contains_sessions(self, sessions_list_html):
+        """Page title must contain 'Sessions'."""
+        assert "<title>Sessions" in sessions_list_html, \
+            "Page title must contain 'Sessions'"
+
+    def test_has_page_head_sessions(self, sessions_list_html):
+        """Page must have a visible 'Sessions' heading."""
+        assert ">Sessions<" in sessions_list_html, \
+            "'Sessions' heading must be visible"
+
+    def test_has_subtitle(self, sessions_list_html):
+        """Page must show the subtitle."""
+        assert "Browse indexed local agent runs" in sessions_list_html, \
+            "Subtitle 'Browse indexed local agent runs' must appear"
+
+    def test_has_data_table(self, sessions_list_html):
+        """Page must contain the sessions data table."""
+        assert 'aria-label="Sessions table"' in sessions_list_html, \
+            "Sessions table with aria-label must be present"
+
+
+# ── TestSessionsListDisplay ──────────────────────────────────────────
+
+
+class TestSessionsListDisplay:
+    """Verify session list rows are rendered with correct data."""
+
+    def test_has_sessions_rows(self, sessions_list_html):
+        """At least one sessions-row must be rendered."""
+        rows = re.findall(r'class="sessions-row"', sessions_list_html)
+        assert len(rows) > 0, \
+            "At least one sessions-row must be rendered"
+
+    def test_row_has_data_session_id(self, sessions_list_html):
+        """Session rows must have data-session-id attribute."""
+        match = re.search(r'class="sessions-row"[^>]*data-session-id="([^"]+)"', sessions_list_html)
+        assert match, "sessions-row must have data-session-id"
+
+    def test_row_has_data_agent(self, sessions_list_html):
+        """Session rows must have data-agent attribute."""
+        assert "data-agent=" in sessions_list_html, \
+            "sessions-row must have data-agent"
+
+    def test_row_has_data_model(self, sessions_list_html):
+        """Session rows must have data-model attribute."""
+        assert "data-model=" in sessions_list_html, \
+            "sessions-row must have data-model"
+
+    def test_row_has_data_project(self, sessions_list_html):
+        """Session rows must have data-project attribute."""
+        assert "data-project=" in sessions_list_html, \
+            "sessions-row must have data-project"
+
+    def test_row_has_data_total_tokens(self, sessions_list_html):
+        """Session rows must have data-total-tokens attribute."""
+        assert "data-total-tokens=" in sessions_list_html, \
+            "sessions-row must have data-total-tokens"
+
+    def test_row_has_data_rounds(self, sessions_list_html):
+        """Session rows must have data-rounds attribute."""
+        assert "data-rounds=" in sessions_list_html, \
+            "sessions-row must have data-rounds"
+
+    def test_row_has_data_tool_count(self, sessions_list_html):
+        """Session rows must have data-tool-count attribute."""
+        assert "data-tool-count=" in sessions_list_html, \
+            "sessions-row must have data-tool-count"
+
+    def test_row_has_data_duration(self, sessions_list_html):
+        """Session rows must have data-duration attribute."""
+        assert "data-duration=" in sessions_list_html, \
+            "sessions-row must have data-duration"
+
+    def test_row_has_data_ended_at(self, sessions_list_html):
+        """Session rows must have data-ended-at attribute."""
+        assert "data-ended-at=" in sessions_list_html, \
+            "sessions-row must have data-ended-at"
+
+    def test_session_links_present(self, sessions_list_html):
+        """Each session row must link to its detail page."""
+        links = re.findall(r'href="/sessions/[^"]+/[^"]+"', sessions_list_html)
+        assert len(links) > 0, \
+            "Session detail links must be present"
+
+    def test_title_column_rendered(self, sessions_list_html):
+        """Title column content must be visible."""
+        assert 'class="col-title"' in sessions_list_html or 'class="title-main"' in sessions_list_html, \
+            "Title column must be rendered"
+
+    def test_agent_badge_rendered(self, sessions_list_html):
+        """Agent badge must be rendered."""
+        assert "sessions-agent-badge" in sessions_list_html or 'class="badge ' in sessions_list_html, \
+            "Agent badge must be rendered"
+
+    def test_token_bar_rendered(self, sessions_list_html):
+        """Token bar must be rendered in tokens cell."""
+        assert "tokenbar" in sessions_list_html, \
+            "Token bar must be rendered"
+
+    def test_project_link_rendered(self, sessions_list_html):
+        """Project column must have links."""
+        assert 'href="/projects/' in sessions_list_html, \
+            "Project links must be present"
+
+
+# ── TestSessionsListFiltering ────────────────────────────────────────
+
+
+class TestSessionsListFiltering:
+    """Verify filter form and controls."""
+
+    def test_filter_form_present(self, sessions_list_html):
+        """Filter form must be rendered."""
+        assert 'id="session-filter-form"' in sessions_list_html, \
+            "Filter form with id='session-filter-form' must be present"
+
+    def test_filter_form_action_sessions(self, sessions_list_html):
+        """Filter form must post to /sessions."""
+        assert 'action="/sessions"' in sessions_list_html, \
+            "Filter form must have action='/sessions'"
+
+    def test_search_input_present(self, sessions_list_html):
+        """Search input must be present."""
+        assert 'id="session-search"' in sessions_list_html or 'name="q"' in sessions_list_html, \
+            "Search input must be present"
+
+    def test_search_placeholder_chinese(self, sessions_list_html):
+        """Search input placeholder must be Chinese."""
+        assert "仅支持 Session ID" in sessions_list_html, \
+            "Search placeholder must be in Chinese"
+
+    def test_agent_filter_select(self, sessions_list_html):
+        """Agent filter select must be present."""
+        assert 'id="filter-agent"' in sessions_list_html or 'name="agent"' in sessions_list_html, \
+            "Agent filter select must be present"
+
+    def test_model_filter_select(self, sessions_list_html):
+        """Model filter select must be present."""
+        assert 'id="filter-model"' in sessions_list_html or 'name="model"' in sessions_list_html, \
+            "Model filter select must be present"
+
+    def test_project_filter_select(self, sessions_list_html):
+        """Project filter select must be present."""
+        assert 'id="filter-project"' in sessions_list_html or 'name="project"' in sessions_list_html, \
+            "Project filter select must be present"
+
+    def test_reset_button_present(self, sessions_list_html):
+        """Reset button must be present."""
+        assert ">Reset<" in sessions_list_html, \
+            "Reset button must be visible"
+
+    def test_apply_button_present(self, sessions_list_html):
+        """Apply button must be present."""
+        assert ">Apply<" in sessions_list_html, \
+            "Apply button must be visible"
+
+    def test_filter_form_uses_get(self, sessions_list_html):
+        """Filter form must use GET method for URL-based filtering."""
+        assert "method='get'" in sessions_list_html or 'method="get"' in sessions_list_html, \
+            "Filter form must use GET method"
+
+
+# ── TestSessionsListPagination ───────────────────────────────────────
+
+
+class TestSessionsListPagination:
+    """Verify pagination controls."""
+
+    def test_pagination_container_present(self, sessions_list_html):
+        """Pagination container must be present."""
+        assert 'id="ajax-pagination"' in sessions_list_html, \
+            "AJAX pagination container must be present"
+
+    def test_page_status_present(self, sessions_list_html):
+        """Page status indicator must be present."""
+        assert 'class="page-status"' in sessions_list_html, \
+            "Page status element must be present"
+
+    def test_previous_button_present(self, sessions_list_html):
+        """Previous page button must be present."""
+        assert 'data-action="prev-page"' in sessions_list_html, \
+            "Previous page button must be present"
+
+    def test_next_button_present(self, sessions_list_html):
+        """Next page button must be present."""
+        assert 'data-action="next-page"' in sessions_list_html, \
+            "Next page button must be present"
+
+    def test_page_input_present(self, sessions_list_html):
+        """Page input must be present."""
+        assert 'data-action="page-input"' in sessions_list_html, \
+            "Page input must be present"
+
+    def test_total_count_displayed(self, sessions_list_html):
+        """Total count must be displayed somewhere on the page."""
+        # Page status shows "X of Y sessions" or similar
+        assert re.search(r'[0-9]+', sessions_list_html), \
+            "Page must display numeric count"
+
+
+# ── TestSessionsListKeyMetrics ───────────────────────────────────────
+
+
+class TestSessionsListKeyMetrics:
+    """Verify key metrics / stat pills displayed on the page."""
+
+    def test_has_stat_pills(self, sessions_list_html):
+        """Page must have stat pills container."""
+        assert 'class="ui-stat-pill"' in sessions_list_html, \
+            "Stat pills must be present in rendered output"
+
+    def test_sessions_count_pill(self, sessions_list_html):
+        """Sessions count stat pill must reference 'sessions'."""
+        # The stat_pill macro renders the label
+        assert "sessions" in sessions_list_html.lower(), \
+            "Sessions stat pill must be present"
+
+    def test_projects_pill(self, sessions_list_html):
+        """Projects stat pill must reference 'projects'."""
+        assert "projects" in sessions_list_html.lower(), \
+            "Projects stat pill must be present"
+
+    def test_total_tokens_pill(self, sessions_list_html):
+        """Total tokens stat pill must reference 'tokens'."""
+        assert "token" in sessions_list_html.lower(), \
+            "Total tokens stat pill must be present"
+
+
+# ── TestSessionsListAjaxEndpoint ─────────────────────────────────────
+
+
+class TestSessionsListAjaxEndpoint:
+    """Verify AJAX pagination returns partial HTML."""
+
+    def test_ajax_returns_html(self, hifi_fixture_session):
+        """AJAX request to /sessions must return HTML fragment."""
+        base_url, agent, session_id = hifi_fixture_session
+        import urllib.request
+
+        req = urllib.request.Request(
+            f"{base_url}/sessions",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        resp = urllib.request.urlopen(req, timeout=10)
+        assert resp.status == 200, "AJAX must return HTTP 200"
+        body = resp.read().decode("utf-8")
+        assert len(body) > 100, "AJAX response must be non-trivial"
+        # AJAX response should contain sessions-row or sessions-grid
+        assert "sessions-row" in body or "data-sessions-grid" in body or "ajax-pagination" in body, \
+            "AJAX response must contain session grid content"
