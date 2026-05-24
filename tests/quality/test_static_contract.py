@@ -193,33 +193,38 @@ class TestCheckNoDuplicateBaseCss:
 
 class TestCheckPayloadModalOwnership:
     def test_ui_primitives_exempt(self, tmp_path):
-        """ui-primitives.css is the authority, should not warn."""
+        """ui-primitives.css is the authority, should not error or warn."""
         css = tmp_path / "ui-primitives.css"
         css.write_text(".payload-modal { display: flex; }")
-        warnings = check_payload_modal_ownership([css])
+        errors, warnings = check_payload_modal_ownership([css])
+        assert errors == []
         assert warnings == []
 
-    def test_bare_payload_modal_warns(self, tmp_path):
-        """Bare .payload-modal in non-primitive file should WARN."""
-        css = tmp_path / "style.css"
+    def test_bare_payload_modal_blocks(self, tmp_path):
+        """Bare .payload-modal in non-primitive, non-legacy file should BLOCK."""
+        css = tmp_path / "session-detail.css"
         css.write_text(".payload-modal { display: flex; }")
-        warnings = check_payload_modal_ownership([css])
-        assert len(warnings) == 1
-        assert "payload-modal" in warnings[0].lower()
+        errors, warnings = check_payload_modal_ownership([css])
+        assert len(errors) == 1
+        assert "payload-modal" in errors[0].lower()
+        assert warnings == []
 
     def test_page_scoped_not_warn(self, tmp_path):
-        """Page-scoped .session-detail-page .payload-modal should not WARN."""
+        """Page-scoped .session-detail-page .payload-modal should not BLOCK."""
         css = tmp_path / "session-detail.css"
         css.write_text(".session-detail-page .payload-modal { width: 80vw; }")
-        warnings = check_payload_modal_ownership([css])
+        errors, warnings = check_payload_modal_ownership([css])
+        assert errors == []
         assert warnings == []
 
-    def test_hash_payload_modal_warns(self, tmp_path):
-        """#payload-modal bare definition should WARN."""
+    def test_legacy_aliases_warn_not_block(self, tmp_path):
+        """legacy-aliases.css bare #payload-modal should WARN, not BLOCK."""
         css = tmp_path / "legacy-aliases.css"
         css.write_text("#payload-modal { display: flex; }")
-        warnings = check_payload_modal_ownership([css])
+        errors, warnings = check_payload_modal_ownership([css])
+        assert errors == []
         assert len(warnings) == 1
+        assert "payload-modal" in warnings[0].lower()
 
 
 # ── check_shell_ownership ─────────────────────────────────────────────
