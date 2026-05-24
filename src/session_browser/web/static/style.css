@@ -286,6 +286,36 @@ body.focus .shell                      { grid-template-columns: 0 minmax(0, 1fr)
 
 body.hide-left .sidebar,
 body.focus .sidebar                    { display: none; }
+body.focus .inspector                  { display: none; }
+
+/* ─── Shell state overrides: prevent .main collapse ─────────────
+ * body.focus and body.hide-left need explicit .no-inspector variants
+ * to avoid grid-template-columns specificity conflicts.
+ * Without these, the middle column can resolve to 0px when combined
+ * with .app-shell alias and .no-inspector on the same element.
+ * See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
+ */
+body.hide-left .shell.no-inspector     { grid-template-columns: minmax(0, 1fr); }
+body.hide-left .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr); }
+body.focus .shell,
+body.focus .shell.no-inspector         { grid-template-columns: minmax(0, 1fr); }
+body.focus .app-shell,
+body.focus .app-shell.no-inspector     { grid-template-columns: minmax(0, 1fr); }
+body.hide-right .shell.no-inspector    { grid-template-columns: minmax(0, 1fr); }
+body.hide-right .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr); }
+
+.shell,
+.app-shell,
+.phase1-shell {
+    min-width: 0;
+}
+
+.main,
+.content,
+.page-main {
+    min-width: 0;
+    max-width: 100%;
+}
 
 /* ─── Shell aliases (HIFI naming → production) ──────────────────
  * base.html uses both production (.shell/.main) and HIFI (.app-shell/.main-panel)
