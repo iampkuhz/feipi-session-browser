@@ -18,9 +18,9 @@ html {
 body {
   font-family: var(--font-sans);
   background:
-  radial-gradient(840px 300px at 20% -16%, rgba(91,92,226,.10), transparent 60%),
-  radial-gradient(760px 320px at 92% -15%, rgba(8,145,178,.08), transparent 62%),
-  var(--bg);
+    radial-gradient(840px 300px at 20% -16%, rgba(91,92,226,.10), transparent 60%),
+    radial-gradient(760px 320px at 92% -15%, rgba(8,145,178,.08), transparent 62%),
+    var(--bg);
   color: var(--text);
   line-height: var(--lh-loose);
   -webkit-font-smoothing: antialiased;
