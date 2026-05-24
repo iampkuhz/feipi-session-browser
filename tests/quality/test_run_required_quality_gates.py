@@ -155,7 +155,10 @@ class TestChangeIdResolution:
     def test_explicit_change_id(self):
         assert _runner.resolve_change_id("my-change") == "my-change"
 
-    def test_env_fallback(self):
+    def test_env_fallback(self, monkeypatch):
+        """When ACTIVE_CHANGE_ID env var is set, it should be returned."""
+        tmp_dir = Path(tempfile.mkdtemp())
+        monkeypatch.setattr(_runner, "REPO_ROOT", tmp_dir)
         old = os.environ.get("ACTIVE_CHANGE_ID")
         try:
             os.environ["ACTIVE_CHANGE_ID"] = "env-change"
@@ -166,7 +169,10 @@ class TestChangeIdResolution:
             else:
                 os.environ["ACTIVE_CHANGE_ID"] = old
 
-    def test_unknown_fallback(self):
+    def test_unknown_fallback(self, monkeypatch):
+        """When no env var and no active-change file, return 'unknown'."""
+        tmp_dir = Path(tempfile.mkdtemp())
+        monkeypatch.setattr(_runner, "REPO_ROOT", tmp_dir)
         old = os.environ.get("ACTIVE_CHANGE_ID")
         try:
             if "ACTIVE_CHANGE_ID" in os.environ:
@@ -174,6 +180,22 @@ class TestChangeIdResolution:
             # active-change file doesn't exist in temp env
             result = _runner.resolve_change_id(None)
             assert result == "unknown"
+        finally:
+            if old is not None:
+                os.environ["ACTIVE_CHANGE_ID"] = old
+
+    def test_active_change_file_exists(self, monkeypatch):
+        """When active-change file exists and no env var, return file content."""
+        tmp_dir = Path(tempfile.mkdtemp())
+        (tmp_dir / "tmp").mkdir()
+        (tmp_dir / "tmp" / "active-change").write_text("from-file-change")
+        monkeypatch.setattr(_runner, "REPO_ROOT", tmp_dir)
+        old = os.environ.get("ACTIVE_CHANGE_ID")
+        try:
+            if "ACTIVE_CHANGE_ID" in os.environ:
+                del os.environ["ACTIVE_CHANGE_ID"]
+            result = _runner.resolve_change_id(None)
+            assert result == "from-file-change"
         finally:
             if old is not None:
                 os.environ["ACTIVE_CHANGE_ID"] = old
