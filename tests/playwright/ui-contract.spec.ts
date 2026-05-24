@@ -153,7 +153,7 @@ for (const vp of viewports) {
     // 核心结构可见
     await expect(page.locator('.page-head')).toBeVisible();
     await expect(page.locator('.metric-grid')).toBeVisible();
-    await expect(page.locator('.data-table')).toBeVisible();
+    await expect(page.locator('#agents-table.data-table')).toBeVisible();
 
     // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`agents-${vp.label.replace('x', '-')}.png`, {

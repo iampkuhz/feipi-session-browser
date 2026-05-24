@@ -21,7 +21,7 @@ test.describe('会话列表页', () => {
     await expect(page.locator('.data-table')).toBeVisible();
 
     // 分页（仅在有数据时显示）
-    const totalCount = await page.locator('.sessions-page-stats').textContent();
+    const totalCount = await page.locator('.page-status').first().textContent();
     if (totalCount && /\d+ sessions?/.test(totalCount)) {
       const pagination = page.locator('.pagination');
       await expect(pagination).toBeVisible();

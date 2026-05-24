@@ -25,7 +25,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     const resp = await page.goto(knownUrl, { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
     if (resp && resp.ok()) {
       // 检查是否拿到真实会话页面（非 404 重定向）
-      const hero = await page.locator('.hero').first().isVisible({ timeout: 5000 }).catch(() => false);
+      const hero = await page.locator('.page-head').first().isVisible({ timeout: 5000 }).catch(() => false);
       if (hero) {
         detailUrl = knownUrl;
       }
@@ -34,7 +34,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     // 回退：从 /sessions 列表提取第一个会话链接
     if (!detailUrl) {
       await page.goto(sessionsListUrl, { waitUntil: 'domcontentloaded', timeout: 10000 });
-      await expect(page.locator('.hero').first()).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.page-head').first()).toBeVisible({ timeout: 10000 });
 
       // 找到第一个会话详情链接
       const firstLink = await page.locator('a[href*="/sessions/"]').first();
@@ -47,7 +47,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
 
     // 导航到会话详情
     await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await expect(page.locator('.session-detail-phase1').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.session-detail-page').first()).toBeVisible({ timeout: 10000 });
 
     // 评估布局指标
     const result = await page.evaluate(() => {
@@ -67,8 +67,8 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
 
       const shell = document.querySelector('.shell');
       const main = document.querySelector('.main');
-      const title = document.querySelector('.session-detail-phase1 .hero-title');
-      const kpis = document.querySelector('.session-detail-phase1 .kpis');
+      const title = document.querySelector('.session-detail-page .page-head h1, .session-detail-page h1');
+      const kpis = document.querySelector('.session-detail-page .sd-kpis, .session-detail-page .kpis');
 
       const titleRect = title ? title.getBoundingClientRect() : null;
       const kpisRect = kpis ? kpis.getBoundingClientRect() : null;
@@ -84,10 +84,10 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
           ? `${getComputedStyle(main).gridColumnStart}/${getComputedStyle(main).gridColumnEnd}`
           : null,
         main: rect('.main'),
-        detail: rect('.session-detail-phase1'),
-        hero: rect('.session-detail-phase1 .hero, .session-detail-phase1 .hero-main'),
-        title: rect('.session-detail-phase1 .hero-title'),
-        kpis: rect('.session-detail-phase1 .kpis'),
+        detail: rect('.session-detail-page'),
+        hero: rect('.session-detail-page .main'),
+        title: rect('.session-detail-page .page-head h1, .session-detail-page h1'),
+        kpis: rect('.session-detail-page .sd-kpis, .session-detail-page .kpis'),
         titleBeforeKpis: titleRect && kpisRect
           ? titleRect.bottom <= kpisRect.top + 4
           : false,
@@ -126,7 +126,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
 
     expect(result.main.width, `.main 宽度不足。结果：${resultStr}`).toBeGreaterThan(1200);
 
-    expect(result.detail.width, `.session-detail-phase1 宽度不足。结果：${resultStr}`).toBeGreaterThan(1100);
+    expect(result.detail.width, `.session-detail-page 宽度不足。结果：${resultStr}`).toBeGreaterThan(1100);
 
     expect(result.hero.width, `.hero 宽度不足。结果：${resultStr}`).toBeGreaterThan(900);
 

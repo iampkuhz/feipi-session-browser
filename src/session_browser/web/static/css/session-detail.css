@@ -529,7 +529,8 @@
   display: none;
 }
 .sd-round.is-open > .sd-round-detail { display: block; }
-.sd-round-detail[hidden] { display: none; }
+.sd-round-detail[hidden],
+.sd-round.is-open > .sd-round-detail[hidden] { display: none; }
 
 .sd-timeline {
   position: relative;
@@ -1514,13 +1515,17 @@
   color: var(--sd-err);
 }
 
-/* 4) Payload modal: fixed centered modal, never full-page flow.
-   <dialog> with showModal() is already position:fixed and centered by UA.
-   We only constrain size and appearance. */
-#sd-payload-modal,
-#payload-modal,
-.sd-payload-modal,
-.payload-modal {
+/* 4) Payload modal: page-scoped fixed centered modal.
+   Keep this scoped to session detail containers to avoid leaking payload-modal styles
+   into other pages. */
+.session-detail-page #sd-payload-modal,
+.session-detail-page #payload-modal,
+.session-detail-page .sd-payload-modal,
+.session-detail-page .payload-modal,
+.sd-page #sd-payload-modal,
+.sd-page #payload-modal,
+.sd-page .sd-payload-modal,
+.sd-page .payload-modal {
   position: fixed;
   inset: auto;
   left: 50%;
@@ -1968,10 +1973,14 @@
     padding-inline: 10px;
   }
 
-  #sd-payload-modal,
-  #payload-modal,
-  .sd-payload-modal,
-  .payload-modal {
+  .session-detail-page #sd-payload-modal,
+  .session-detail-page #payload-modal,
+  .session-detail-page .sd-payload-modal,
+  .session-detail-page .payload-modal,
+  .sd-page #sd-payload-modal,
+  .sd-page #payload-modal,
+  .sd-page .sd-payload-modal,
+  .sd-page .payload-modal {
     width: 92vw;
     max-width: 92vw;
     min-width: 0;

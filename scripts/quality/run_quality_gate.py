@@ -91,7 +91,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return []
     if gate == "pytest":
         test_candidates = {
-            "session-detail": ["tests/test_web_template_contract.py", "tests/test_web_static_contract.py"],
+            "session-detail": ["tests/ui/test_web_template_contract.py", "tests/ui/test_web_static_contract.py"],
             "python-src": ["tests"],
             "hook-runtime": [
                 "tests/hooks/test_claude_hooks_hook_io.py",
