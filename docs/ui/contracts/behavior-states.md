@@ -64,17 +64,8 @@
 | 图标/标识总数 | 2（404 文本 + ! 文本） |
 | 可交互元素 | 0（全部为链接或原生 details 元素，无按钮） |
 
-## 与 HIFI 差异备注
-
-- **HIFI 无独立 404/error 页面**：`feipi-session-browser-hifi-integrated-v1/pages/` 中无对应的 state/error 页面 HTML。
-- HIFI `03-page-contracts.md` 中记录：「State Pages: unified primitive — Confirmed; `.state-strip` pattern used across pages — PASS (no dedicated 404 HiFi)」。
-- 生产 `.state-panel` 组件与 HIFI `.state-strip` 组件语义一致，但 DOM 结构不同。
-- 404 页面提供 4 个导航链接（Dashboard + 3 个核心页面），error 页面只提供 1 个（Dashboard）。
-- error 页面的 `{{ error }}` 变量同时显示在描述区和 details 展开区（如果非空）。
-
 ## 已知风险
 
-1. **无 HIFI 参考**：404/error 页面没有 HiFi 设计稿作为对照，行为合同完全基于生产模板推导。
-2. **图标使用纯文本**：`.state-panel__icon` 使用 `404` 和 `!` 文本而非图标字体/emoji，与全局图标合同中的尺寸分级（nav/metric/inline）不一致。
-3. **缺少 data-action**：导航链接使用 `<a>` 而非 `button[data-action]`，符合链接语义但不符合按钮合同（这些本身就是链接而非按钮）。
-4. **Agent 页面链接缺失于 error**：error 页面只有 Dashboard 一个链接，而 404 有 4 个——用户从错误页恢复的路径较少。
+1. **图标使用纯文本**：`.state-panel__icon` 使用 `404` 和 `!` 文本而非图标字体/emoji，与全局图标合同中的尺寸分级（nav/metric/inline）不一致。
+2. **缺少 data-action**：导航链接使用 `<a>` 而非 `button[data-action]`，符合链接语义但不符合按钮合同（这些本身就是链接而非按钮）。
+3. **Agent 页面链接缺失于 error**：error 页面只有 Dashboard 一个链接，而 404 有 4 个——用户从错误页恢复的路径较少。

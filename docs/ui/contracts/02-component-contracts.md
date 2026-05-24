@@ -60,14 +60,13 @@ Button 内部图标和文字必须 `inline-flex; align-items:center`。
 - 数字列可右对齐；文本列左对齐；但表头与单元格必须一致。
 - sortable header 必须有明确 affordance；非 sortable 不显示 sort icon。
 
-## HiFi 交叉验证补充（2026-05-21）
+## 交叉验证补充（2026-05-21）
 
-以下来自 HIFI_ROOT (`$HOME/Downloads/feipi-session-browser-hifi-integrated-v1/pages/`) 10 个页面的实际观察，
-用于补充合同未明确但应约束的细节。
+以下来自页面模板的实际观察，用于补充合同未明确但应约束的细节。
 
-### Button — HiFi 实际使用的 class 变体
+### Button — 实际使用的 class 变体
 
-| HiFi class | 对应合同 variant | 备注 |
+| 实际 class | 对应合同 variant | 备注 |
 |---|---|---|
 | `btn` | secondary (默认) | 无变体后缀时为次按钮 |
 | `btn primary` | primary | 主操作按钮 |
@@ -82,7 +81,7 @@ Button 内部图标和文字必须 `inline-flex; align-items:center`。
 - `scope-switch__btn` 和 `scope-switch__btn is-active` 是 Dashboard 特有的范围切换按钮组。
 - 按钮图标使用 emoji（`span.emoji` 或 `span.ui-icon`），非 SVG。
 
-### Badge — HiFi 实际使用的 class 变体
+### Badge — 实际使用的 class 变体
 
 | HiFi class | 语义 |
 |---|---|
@@ -95,7 +94,7 @@ Button 内部图标和文字必须 `inline-flex; align-items:center`。
 | `badge err tools-failed` | 工具失败专用（带修饰符） |
 | `badge cc` / `badge cx` / `badge qd` | Agent 来源标记（Claude/Codex/Qoder） |
 
-### MetricCard / MetricGrid — HiFi 结构
+### MetricCard / MetricGrid — 实际结构
 
 MetricCard 有两种形态：
 
@@ -125,9 +124,9 @@ MetricCard 有两种形态：
 - MetricGrid 统一使用 `class="metric-grid"` 包裹。
 - 内联 token 指标使用 `metric-stack` + `metric-token`（非 MetricCard）。
 
-### TokenBar — HiFi 实际 class 映射
+### TokenBar — class 映射
 
-| 合同 segment | HiFi class（页面级 bar） | HiFi class（DataTable 内嵌） |
+| 合同 segment | 页面级 class | DataTable 内嵌 class |
 |---|---|---|
 | fresh | `fresh` | `t-fresh` |
 | cache-read | `read` | `t-read` |
@@ -140,7 +139,7 @@ MetricCard 有两种形态：
 - 独立 TokenBar 可带 `show` 修饰符（`tokenbar show`）。
 - TokenBar 段颜色通过 CSS 类名（非 style 背景色）区分。
 
-### DataTable — HiFi 补充观察
+### DataTable — 补充观察
 
 - 统一使用 `<table class="data-table">`。
 - 使用 `<colgroup>` 定义列宽（如 `col-token-md`、`col-num`、`col-duration`）。
@@ -149,7 +148,7 @@ MetricCard 有两种形态：
 - 数字列统一加 `class="col-num"`，内容用 `class="mono"`。
 - 行可带语义类：`class="round-row failed"`、`class="round-row manual"`。
 
-### Pagination — HiFi 验证
+### Pagination — 验证
 
 完整结构（非首页）：
 ```html
@@ -163,9 +162,9 @@ MetricCard 有两种形态：
 ```
 
 单页情况（agents.html，of 1）：只渲染 `page-status` + `page-input`，不渲染 prev/next。
-验证结果：合同描述的 prev/input/next 模式与 HiFi 一致。
+验证结果：合同描述的 prev/input/next 模式与页面模板一致。
 
-### PayloadModal — HiFi 结构
+### PayloadModal — 实际结构
 
 ```html
 <div class="modal-backdrop" data-modal="">
@@ -190,7 +189,7 @@ MetricCard 有两种形态：
 - 内容由 `data-modal-meta` 和 `data-modal-content` 占位。
 - Toast 通知使用独立 `.toast` 元素（`data-toast=""`），不属于 Modal。
 
-### SectionCard — HiFi 结构
+### SectionCard — 实际结构
 
 ```html
 <section class="card section">
@@ -206,7 +205,7 @@ MetricCard 有两种形态：
 
 变体：`card section-card full-width`（全宽表格卡片）。
 
-### EmptyState / ErrorState — HiFi 观察
+### EmptyState / ErrorState — 观察
 
 EmptyState 使用 `.state-strip` 容器：
 ```html
@@ -219,9 +218,9 @@ EmptyState 使用 `.state-strip` 容器：
 </section>
 ```
 
-ErrorState 未在 HiFi pages 中独立出现（通过 EmptyState 和 inline badges 替代）。
+ErrorState 未在页面模板中独立出现（通过 EmptyState 和 inline badges 替代）。
 
-### AppShell — HiFi 验证
+### AppShell — 验证
 
 两种根容器：
 - `<div class="app">` — 部分页面使用

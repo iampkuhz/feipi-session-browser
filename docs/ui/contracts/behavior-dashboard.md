@@ -1,6 +1,6 @@
 # Dashboard 页面行为合同
 
-> 源自 HIFI 页面 `pages/dashboard.html`（feipi-session-browser-hifi-integrated-v1）。
+> 源自生产模板 `src/session_browser/web/templates/dashboard.html`。
 > T016 生成，2026-05-21。
 
 ## 按钮行为表
@@ -64,5 +64,4 @@
 
 - 生产模板 `src/session_browser/web/templates/dashboard.html` 当前只有 4 个按钮（`range-btn`），使用 `onclick` 而非 `data-action`。
 - 生产模板缺少 sidebar（由 `base.html` 提供）、scope-switch Day/Week/Month、info 图标、chart-menu 图标、Settings drawer。
-- 生产模板只有 2 张图表（Session Trend + Token Trend），HIFI 有 3 张（新增 Prompt Activity Trend）。
-- 生产模板使用 `30d/7d` 粒度切换，HIFI 使用 `Day/Week/Month`。
+- 生产模板只有 2 张图表（Session Trend + Token Trend）。

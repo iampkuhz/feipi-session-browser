@@ -22,7 +22,6 @@
  *   - Chart stack & cards (.chart-stack, .chart-card, .chart-card__head, ...)
  *   - Chart bars & axes (.chart-wrap, .y-axis, .stacked-chart, .chart-group)
  *   - Legend (.legend-row, .legend-item, .legend-dot)
- *   - v16 backward compat (.hero, .hero-kpi, .chart, .plot, .bar, .x-axis)
  * ====================================================================== */
 
 /* ── Content Width Constraint ============================================ */

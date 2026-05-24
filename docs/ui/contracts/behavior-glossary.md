@@ -1,6 +1,5 @@
 # Token Glossary 页面行为合同
 
-> 源自 HIFI 页面 `pages/token-glossary.html`（feipi-session-browser-hifi-integrated-v1）。
 > 对应生产模板 `src/session_browser/web/templates/glossary.html`。
 > T021 生成，2026-05-21。
 
@@ -74,30 +73,10 @@
 | 可交互图标 | 10（10 个 ℹ️ info-icon） |
 | 纯装饰图标 | 14（brand + nav + metric + legend dots + note + state icons） |
 
-## HIFI docs/token-glossary.md 补充按钮逻辑
-
-| 按钮 | 点击效果 |
-|---|---|
-| Search | 过滤所有 glossary table rows（HIFI 文档中提到但 HTML 未实现） |
-| Clear Search | 清空搜索条件，恢复所有卡片和表格（HIFI 文档中提到但 HTML 未实现） |
-| badge / token legend | 作为语义示例，默认不点击 |
-| ℹ️ | 打开对应术语组说明 |
-| Settings | 打开 Settings 抽屉 |
-
-## HIFI docs/token-glossary.md 补充图标说明
-
-| 图标 | 含义 | 是否可点击 |
-|---|---|---|
-| 📘 / 📚 | Glossary / reference | 导航或识别 |
-| 🔎 | 搜索 | 输入框交互（HIFI 文档中提到但 HTML 未渲染） |
-| ℹ️ | 术语组说明 | 是 |
-| ✅ ⚠️ ❌ | status badge 示例 | 否 |
-
 ## 与生产模板差异备注
 
-- 生产模板 `glossary.html` 有搜索过滤功能（`#glossary-search` + 150ms debounce + `#glossary-match-count` 计数），HIFI 页面 `token-glossary.html` 无搜索框。
-- 生产模板有 `#glossary-empty` 空状态元素（搜索无匹配时显示）；HIFI 无此组件。
-- 生产模板 badge 规范示范区使用 Jinja2 宏（`{{ status_success("成功") }}` 等）渲染 badge 示例，HIFI 使用纯 HTML badge + dot 元素。
-- 生产模板使用 `data-table-enhanced` 表格增强；HIFI 使用 `.glossary-table` + `.wide-table` 类。
-- 404 和 error 页面在生产模板中使用 `.state-panel` 组件布局，HIFI 无对应的独立 state/error 页面。
-- HIFI docs 提到 Search/Clear Search 按钮，但 `token-glossary.html` 实际 HTML 中未实现。
+- 生产模板 `glossary.html` 有搜索过滤功能（`#glossary-search` + 150ms debounce + `#glossary-match-count` 计数）。
+- 生产模板有 `#glossary-empty` 空状态元素（搜索无匹配时显示）。
+- 生产模板 badge 规范示范区使用 Jinja2 宏（`{{ status_success("成功") }}` 等）渲染 badge 示例。
+- 生产模板使用 `data-table-enhanced` 表格增强。
+- 404 和 error 页面在生产模板中使用 `.state-panel` 组件布局。

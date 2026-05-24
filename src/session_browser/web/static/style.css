@@ -154,69 +154,6 @@ body.density-comfortable {
     --density-card-gap:    var(--space-md);
 }
 
-/* 以下样式已迁移至 css/base.css（Task 06）
-   Reset, html, body, reduced motion, focus visible */
-
-/* ─── Sidebar children (DEPRECATED T053: migrated to shell grid in task 02)
- * No templates reference .sidebar-logo or its children.
- * Kept as no-op rules for backward compatibility. ── */
-.sidebar-logo {
-    /* DEPRECATED T053: no template references — no-op */
-    padding: 12px 14px 10px;
-    border-bottom: 1px solid var(--border);
-}
-.sidebar-logo a {
-    text-decoration: none;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.sidebar-logo .logo-icon {
-    width: 24px; height: 24px;
-    background: var(--accent);
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: var(--text-micro);
-    font-weight: 700;
-}
-.sidebar-logo .logo-text {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    letter-spacing: -0.01em;
-}
-.sidebar-logo .logo-sub {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    font-weight: 400;
-}
-/* ─── Sidebar nav (DEPRECATED: migrated to .nav in task 03; marked T053) ── */
-.sidebar-nav {
-    /* replaced by .nav system */
-    display: none;
-}
-.sidebar-nav-divider {
-    display: none;
-}
-.sidebar-nav a {
-    display: none;
-}
-.sidebar-nav a:hover {
-    display: none;
-}
-.sidebar-nav a.active {
-    display: none;
-}
-.sidebar-nav a .nav-icon {
-    display: none;
-}
-.sidebar-nav a.active .nav-icon {
-    display: none;
-}
-
 /* ─── Sidebar nav: Hi-Fi nav system ────────────────────────── */
 .nav {
     padding: 10px;
@@ -335,28 +272,7 @@ body.density-comfortable {
     background: var(--status-warning, #d97706);
 }
 
-/* ─── Main area (DEPRECATED: migrated to .main in task 02; marked T053) ──── */
-.main-area {
-    /* replaced by .main grid column — kept for backward compat */
-    margin-left: var(--sidebar-w);
-    min-height: 100vh;
-}
-
-/* Deprecated sidebar collapse rules — moved to css/shell.css (Task 05) */
-
-/* Topbar + content — moved to css/shell.css (Task 05) */
-
-/* ─── Content area (DEPRECATED: migrated to .main in task 02) ─ */
-.content-area {
-    /* replaced by .main grid column */
-    display: block;
-    min-height: 0;
-    position: relative;
-}
-
-/* Topbar actions — moved to css/shell.css (Task 05) */
-
-/* ─── Density toggle ──────────────────────────────────────── */
+/* ─── Density toggle
 .density-toggle {
     display: inline-flex;
     align-items: center;
@@ -982,7 +898,6 @@ a.link-muted:hover { color: var(--accent); }
 }
 
 /* ─── Tabs ────────────────────────────────────────────────────── */
-/* (moved to Base Controls section; this block kept for legacy compat) */
 /* ─── Session header (compact) ────────────────────────────────── */
 .session-header {
     display: flex;
@@ -1550,8 +1465,6 @@ a.link-muted:hover { color: var(--accent); }
     white-space: nowrap;
 }
 
-/* Empty state — migrated to ui-primitives.css (.state-strip, .empty-state) */
-
 /* ── Calls View: card header ─────────────────────────────── */
 .calls-card-head {
     padding: 12px 14px;
@@ -2012,119 +1925,6 @@ a.link-muted:hover { color: var(--accent); }
     color: var(--text);
 }
 
-/* ─── Hotspots Diagnostic (deprecated) ─────────────────── */
-/* DEPRECATED (Task 08/10): Old Hotspots list layout.
-   HTML replaced by .grid3 + .hot-card card layout.
-   These rules are kept for empty-state reuse (.hotspots-diagnostic__empty).
-   Safe to remove .hotspots-diagnostic__header, __list, .hotspot-item* rules
-   once no references remain. */
-/* ─── Hotspots diagnostic tab ─── */
-.hotspots-diagnostic {
-    padding: var(--space-md) 0;
-}
-.hotspots-diagnostic__header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-    margin-bottom: var(--space-md);
-    padding: var(--space-sm) var(--space-md);
-    background: var(--surface);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-}
-.hotspots-diagnostic__count {
-    font-weight: 600;
-    font-size: var(--text-sm);
-}
-.hotspots-diagnostic__severity-breakdown {
-    display: flex;
-    gap: var(--space-xs);
-}
-
-.hotspots-diagnostic__list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.hotspot-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
-    background: var(--surface);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-sm);
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
-.hotspot-item--critical {
-    border-left: 3px solid var(--status-error);
-}
-.hotspot-item--warning {
-    border-left: 3px solid var(--status-warning);
-}
-.hotspot-item--info {
-    border-left: 3px solid var(--accent);
-}
-
-.hotspot-item__round {
-    font-weight: 700;
-    color: var(--accent);
-    min-width: 50px;
-    font-size: var(--text-sm);
-}
-.hotspot-item__type {
-    font-weight: 600;
-    min-width: 90px;
-    color: var(--text);
-}
-.hotspot-item__severity-badge {
-    min-width: 60px;
-    text-align: center;
-    font-size: var(--text-micro);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.hotspot-item__reason {
-    flex: 1;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.hotspot-item__jump-btn {
-    flex-shrink: 0;
-    padding: 2px 10px;
-    font-size: var(--text-xs);
-    font-weight: 600;
-    color: var(--accent);
-    background: var(--accent-bg);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-.hotspot-item__jump-btn:hover {
-    background: var(--accent);
-    color: #fff;
-}
-
-.hotspots-diagnostic__empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-xl) var(--space-md);
-    color: var(--text-muted);
-    text-align: center;
-}
-.hotspots-diagnostic__empty-icon {
-    font-size: 48px;
-    line-height: 1;
-}
-
 /* ─── Hotspots View: Grid + Cards ──────────────────────────── */
 .grid3 {
     display: grid;
@@ -2225,7 +2025,7 @@ a.link-muted:hover { color: var(--accent); }
     100% { background: var(--accent-bg); }
 }
 
-/* ─── Hotspots grid (legacy - kept for backward compat) ─── */
+/* ─── Hotspots grid ─── */
 .hotspots-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3447,12 +3247,11 @@ tr.row--anomaly {
     font-weight: 600;
 }
 
-/* ─── Round summary table (DEPRECATED: superseded by .trace grid) ── */
-/* Kept for legacy compatibility; consider removing after full migration. */
+/* ─── Round summary table ─── */
 .round-summary-table {
     font-size: var(--text-xs);
 }
-/* Column width constraints for timeline table (DEPRECATED) */
+/* Column width constraints for timeline table */
 .round-summary-table {
     table-layout: auto;
     width: 100%;
@@ -4654,7 +4453,7 @@ tr.row--anomaly {
     font-family: var(--font-mono);
     margin-top: 2px;
 }
-/* Old round chart bar (deprecated, kept for backward compat) */
+/* Round chart bar */
 .round-chart-bar {
     display: flex;
     align-items: flex-end;
@@ -6679,7 +6478,7 @@ tr.keyboard-focus a {
     color: var(--t2, var(--text-primary));
 }
 
-/* Round ID cell (legacy, kept for compatibility) */
+/* Round ID cell */
 .rid {
     display: flex;
     align-items: center;
@@ -6804,7 +6603,6 @@ tr.keyboard-focus a {
     contain: layout style;
 }
 
-/* Span list placeholder (Task 07细化) */
 .span-list {
     position: relative;
     padding-left: 28px;
@@ -7089,7 +6887,7 @@ tr.keyboard-focus a {
     padding: 2px 0;
 }
 
-/* Unavailable placeholder */
+/* Unavailable state */
 .unavailable {
     padding: 20px 12px;
     text-align: center;

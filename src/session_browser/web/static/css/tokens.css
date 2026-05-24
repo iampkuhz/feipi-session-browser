@@ -187,8 +187,6 @@
     --sidebar-hover-bg: var(--bg-surface-hover);
     --sidebar-active-bg: var(--accent-bg);
     --sidebar-active-text: var(--accent);
-    /* DEPRECATED T053: sidebar-toggle removed; vars kept for backward compat */
-    /* --sidebar-toggle-bg / --sidebar-toggle-shadow — no template references */
 
     /* Topbar component */
     --topbar-bg:       var(--bg-surface);
@@ -222,7 +220,7 @@
     --tooltip-radius:  var(--radius-sm);
     --tooltip-shadow:  var(--shadow);
 
-    /* ── 4. Legacy aliases（向后兼容，旧变量 → 新变量） ── */
+    /* ── Alias variables (short names → core tokens) ── */
 
     --bg:             var(--bg-app);
     --surface:        var(--bg-surface);

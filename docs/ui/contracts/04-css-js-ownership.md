@@ -61,15 +61,13 @@ src/session_browser/web/static/js/states.js
 | 8 | `css/glossary.css` | Canonical target — MISSING | — |
 | 9 | `css/states.css` | Canonical target — MISSING | — |
 
-**Versioned/legacy CSS to clean up later (5 files):**
+**Versioned/legacy CSS（待迁移或删除）：**
 
 | File | Status | Notes |
 |---|---|---|
-| `dashboard-v16-tooltip-dots.css` | Orphaned (not imported) | Safe to remove |
 | `dashboard-v16.css` | Imported by `dashboard.html` | Replace with `dashboard.css` |
 | `session-browser-v15.css` | Imported by `base.html` | Replace with canonical files |
 | `session-detail-timeline.css` | Imported by `session.html` | Migrate into `session-detail.css` |
-| `session-detail-v18-polish-patch.css` | Orphaned (not imported) | Safe to remove |
 
 ### JS：磁盘文件 vs 规范
 
@@ -96,15 +94,8 @@ src/session_browser/web/static/js/states.js
 | `view-state.js` | `base.html` | Shared utility |
 | `session_detail_timeline.js` | `session.html` | Page-specific, not in canonical list |
 
-**Versioned/legacy JS cleaned up (2026-05):**
-
-| File | Status | Notes |
-|---|---|---|
-| `session_browser_ui_v15.js` | Cleaned | Removed |
-| `dashboard_v16.js` | Cleaned | Orphan removed |
-| `session_detail_response_blocks_v12.js` | Cleaned | Orphan removed |
-| `session_detail_timeline_v11.js` | Cleaned | Orphan removed |
-| `session_detail_timeline_v17_reference.js` | Cleaned | Orphan removed |
+**Versioned/legacy JS（已清理）：**
+`session_browser_ui_v15.js`、`dashboard_v16.js`、`session_detail_response_blocks_v12.js`、`session_detail_timeline_v11.js`、`session_detail_timeline_v17_reference.js` 均已移除。
 
 ### 汇总
 
@@ -112,13 +103,11 @@ src/session_browser/web/static/js/states.js
 |---|---|
 | Canonical CSS targets already exist | 4/9 (`style.css`, `ui-primitives.css`, `sessions-list.css`, `projects.css`) |
 | Canonical CSS targets need creation | 5/9 |
-| Versioned/legacy CSS files for later cleanup | 5 |
-| CSS orphans (on disk, never imported) | 2 |
+| Versioned/legacy CSS files for later cleanup | 3 |
 | Canonical JS targets already exist | 3/8 (`ui_primitives.js`, `projects.js`, `states.js`) |
 | Canonical JS targets need creation | 5/8 |
 | Non-canonical JS currently imported | 7 (may need reclassification) |
 | Versioned/legacy JS files cleaned up | 5 |
-| JS orphans (on disk, never imported) | 0 (cleaned) |
 
 ### 备注
 

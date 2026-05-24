@@ -203,9 +203,7 @@
   white-space: nowrap;
 }
 
-/* ── Section compatibility (HIFI vs production) ─────────────── */
-
-/* section-desc: HIFI alias for production .section-sub */
+/* section-desc: production section subtitle */
 .section-desc {
   margin: 0 0 12px;
   color: var(--text-subtle);

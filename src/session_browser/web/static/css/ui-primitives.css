@@ -8,7 +8,7 @@
  *   - Spacing variables (--shadow, --radius-lg/md/sm, --hifi-cell-pad-x/y,
  *     --sidebar, --topbar, --max)
  *   - Typography variables (--mono, --sans, --hifi-icon-nav/inline/metric)
- *   - Legacy backward-compat aliases (--ui-*, --ui-brand, --ui-line, etc.)
+ *   - Alias variables (--ui-* family mapped to core tokens)
  *
  * Primitives Covered:
  *   Button (.btn, .ui-btn)        IconButton (.icon-btn, .icon-button)
@@ -78,7 +78,7 @@
   --hifi-icon-inline: 16px;
   --hifi-icon-metric: 22px;
 
-  /* Legacy custom properties (backward compat) */
+  /* UI component tokens */
   --ui-radius-btn: 9px;
   --ui-radius-pill: 999px;
   --ui-h-control-sm: 28px;
@@ -138,7 +138,7 @@ a.btn:focus-visible {
   outline-offset: 2px;
 }
 
-/* Legacy button aliases (backward compat) */
+/* UI button alias */
 .ui-btn {
   display: inline-flex;
   align-items: center;
@@ -330,7 +330,7 @@ a.btn:focus-visible {
   color: var(--codex);
 }
 
-/* Legacy full-name avatar variants (backward compat) */
+/* Agent avatar: full-name variant aliases */
 .agent-avatar.claude {
   background: rgba(109, 93, 252, 0.1);
   color: var(--claude);
@@ -369,7 +369,6 @@ a.btn:focus-visible {
  *   </div>
  *
  * Page-specific overrides may adjust max-width, line-height, or font-size.
- * legacy-aliases.css provides backward-compat for the legacy agent theme.
  */
 
 .title-main {
@@ -1068,9 +1067,7 @@ a.btn:focus-visible {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v6M4.5 7.5L7 10l2.5-2.5'/%3E%3C/svg%3E");
 }
 
-/* ── Sort icon aliases (backward compat for legacy class names) ── */
-/* .sort-icon and .sort-caret are legacy names; .sort-mark is canonical.
-   These aliases ensure old templates still render correctly. */
+/* Sort icon aliases — .sort-icon and .sort-caret are legacy names; .sort-mark is canonical */
 .data-table th .sort-icon,
 .data-table th .sort-caret {
   display: inline-block;
@@ -1226,7 +1223,7 @@ a.btn:focus-visible {
 }
 
 /* === FilterBar ============================================================ */
-/* Legacy filter-card alias (deprecated, use .card.filter-card) */
+/* FilterCard: alias rules for standalone .filter-card / .filter-row / .field usage */
 .filter-card:not(.card) { padding: 16px; margin: 16px 0; display: grid; gap: 12px; }
 .filter-row:not(.card .filter-row) { display: flex; align-items: end; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 5px; }
@@ -2085,7 +2082,7 @@ input[data-action="page-input"]:disabled {
   font-weight: 700;
 }
 
-/* === Legacy aliases (backward compat) ==================================== */
+/* === UI aliases =========================================================== */
 .ui-select {
   height: var(--ui-h-control-md);
   border: 1px solid var(--ui-line);

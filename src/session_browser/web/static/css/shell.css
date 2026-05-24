@@ -215,38 +215,6 @@ body.focus .inspector                  { display: none; }
     flex-shrink: 0;
 }
 
-/* ── Session detail: single-page debug layout, hide sidebar/inspector ── */
-/*
- * DEPRECATED T053: phase1-shell has no template references.
- * Kept as no-op rules for backward compatibility.
- *
- * CRITICAL: phase1-shell must override body.hide-left / body.focus / body.hide-right
- * rules that set grid-template-columns to include a 0px first column.
- * body.hide-left .shell.no-inspector has specificity (0,3,0), higher than
- * the old .shell.phase1-shell (0,2,0). All variants below use (0,3,0)+ to win.
- */
-body.hide-left .shell.phase1-shell,
-body.hide-left .shell.no-inspector.phase1-shell,
-body.hide-right .shell.phase1-shell,
-body.focus .shell.phase1-shell,
-.shell.no-inspector.phase1-shell,
-.shell.phase1-shell {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.shell.phase1-shell .sidebar,
-.shell.phase1-shell .topbar-actions {
-    display: none;
-}
-
-.shell.phase1-shell .main {
-    grid-column: 1 / -1;
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    padding: 0;
-}
-
 /* ─ Sessions list: no-inspector main area ── */
 .shell.no-inspector .main {
     padding: 0;
