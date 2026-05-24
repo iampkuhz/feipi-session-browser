@@ -77,18 +77,17 @@ test.describe('Shell states — Session Detail', () => {
     expect(result.scrollWidth, 'normal: 不应出现水平滚动').toBeLessThanOrEqual(result.viewportWidth + 2);
   });
 
-  // ── Shell state matrix: hide-left (KNOWN BUG) ─────────────────
-  test.fixme('hide-left state — sidebar collapsed, main + inspector visible', async ({ page }) => {
-    // fixme: body.hide-left causes .main width → 0px; known shell grid specificity conflict.
-    // See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
-    // Requires P2 shell grid refactor to fix.
+  // ── Shell state matrix: hide-left ─────────────────────────────
+  test('hide-left state — sidebar collapsed, main visible (no-inspector page)', async ({ page }) => {
+    // Previously fixme: body.hide-left caused .main width → 0px; fixed by
+    // adding explicit .no-inspector body state variants in style.css.
+    // Note: session detail pages use no-inspector class, so there is no inspector element.
     await page.setViewportSize({ width: 1440, height: 1100 });
     await gotoSessionDetail(page);
     const result = await setShellStateAndMeasure(page, 'hide-left');
 
     expect(result.sidebarWidth, 'hide-left: .sidebar 宽度必须为 0').toBe(0);
     expect(result.mainWidth, 'hide-left: .main 宽度必须 > 900').toBeGreaterThan(900);
-    expect(result.inspectorWidth, 'hide-left: .inspector 宽度必须 > 0').toBeGreaterThan(0);
     expect(result.scrollWidth, 'hide-left: 不应出现水平滚动').toBeLessThanOrEqual(result.viewportWidth + 2);
   });
 
@@ -104,12 +103,10 @@ test.describe('Shell states — Session Detail', () => {
     expect(result.scrollWidth, 'hide-right: 不应出现水平滚动').toBeLessThanOrEqual(result.viewportWidth + 2);
   });
 
-  // ── Shell state matrix: focus (KNOWN BUG) ─────────────────────
-  test.fixme('focus state — only main visible, sidebar + inspector collapsed', async ({ page }) => {
-    // fixme: body.focus causes .main width → 0px; grid-template-columns "0 minmax(0,1fr) 0"
-    // resolves to 0 for the middle column due to shell grid specificity conflict.
-    // See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
-    // Requires P2 shell grid refactor to fix.
+  // ── Shell state matrix: focus ─────────────────────────────────
+  test('focus state — only main visible, sidebar + inspector collapsed', async ({ page }) => {
+    // Previously fixme: body.focus caused .main width → 0px; fixed by
+    // adding explicit .no-inspector body state variants in style.css.
     await page.setViewportSize({ width: 1440, height: 1100 });
     await gotoSessionDetail(page);
     const result = await setShellStateAndMeasure(page, 'focus');
@@ -141,11 +138,10 @@ test.describe('Shell states — Session Detail', () => {
     }
   }
 
-  // ── Screenshot baselines for known-bug shell states (evidence only) ──
+  // ── Screenshot baselines for hide-left and focus states ──
   for (const vp of viewports) {
     for (const state of ['hide-left', 'focus']) {
-      test.fixme(`shell @ ${state} ${vp.label} — screenshot (known bug evidence)`, async ({ page }) => {
-        // fixme: same as above — .main collapses to 0px under hide-left/focus.
+      test(`shell @ ${state} ${vp.label} — screenshot`, async ({ page }) => {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         await gotoSessionDetail(page);
         await setShellStateAndMeasure(page, state);
@@ -189,9 +185,9 @@ test.describe('Shell states — Dashboard (no-inspector)', () => {
     expect(result.sidebarWidth, 'dashboard normal: .sidebar 宽度必须 > 0').toBeGreaterThan(0);
   });
 
-  test.fixme('hide-left state — dashboard sidebar collapsed', async ({ page }) => {
-    // fixme: same shell grid bug — body.hide-left causes .main width → 0 on dashboard.
-    // Requires P2 shell grid refactor to fix.
+  test('hide-left state — dashboard sidebar collapsed', async ({ page }) => {
+    // Previously fixme: same shell grid bug; fixed by adding explicit
+    // .no-inspector body state variants in style.css.
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 10000 });
     await expect(page.locator('.page-head').first()).toBeVisible({ timeout: 5000 });

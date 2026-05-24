@@ -278,31 +278,35 @@
     grid-template-columns: var(--sidebar) minmax(0, 1fr);
 }
 
-/* ─── Body class 切换规则 ─────────────────────────────────── */
-body.hide-left .shell                  { grid-template-columns: 0 minmax(0, 1fr) var(--inspector); }
-body.hide-left .shell.no-inspector     { grid-template-columns: 0 minmax(0, 1fr); }
-body.hide-right .shell                 { grid-template-columns: var(--sidebar) minmax(0, 1fr) 0; }
-body.focus .shell                      { grid-template-columns: 0 minmax(0, 1fr) 0; }
-
-body.hide-left .sidebar,
-body.focus .sidebar                    { display: none; }
-body.focus .inspector                  { display: none; }
-
-/* ─── Shell state overrides: prevent .main collapse ─────────────
- * body.focus and body.hide-left need explicit .no-inspector variants
- * to avoid grid-template-columns specificity conflicts.
- * Without these, the middle column can resolve to 0px when combined
- * with .app-shell alias and .no-inspector on the same element.
+/* ─── Body class 切换规则（统一覆盖块） ───────────────────────
+ * All body-level shell state rules are defined here in one block
+ * to avoid specificity conflicts between .shell and .app-shell aliases.
+ * .no-inspector variants use single-column; others use appropriate column count.
  * See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
  */
+
+/* hide-left: sidebar hidden, main + inspector visible */
+body.hide-left .shell                  { grid-template-columns: minmax(0, 1fr) var(--inspector); }
 body.hide-left .shell.no-inspector     { grid-template-columns: minmax(0, 1fr); }
+body.hide-left .app-shell              { grid-template-columns: minmax(0, 1fr) var(--inspector); }
 body.hide-left .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr); }
+
+/* hide-right: sidebar + main visible, inspector hidden */
+body.hide-right .shell                 { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+body.hide-right .shell.no-inspector    { grid-template-columns: minmax(0, 1fr); }
+body.hide-right .app-shell             { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+body.hide-right .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr); }
+
+/* focus: only main visible */
 body.focus .shell,
 body.focus .shell.no-inspector         { grid-template-columns: minmax(0, 1fr); }
 body.focus .app-shell,
 body.focus .app-shell.no-inspector     { grid-template-columns: minmax(0, 1fr); }
-body.hide-right .shell.no-inspector    { grid-template-columns: minmax(0, 1fr); }
-body.hide-right .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr); }
+
+/* Hide sidebar/inspector when their columns are 0 */
+body.hide-left .sidebar,
+body.focus .sidebar                    { display: none; }
+body.focus .inspector                  { display: none; }
 
 .shell,
 .app-shell,
@@ -329,10 +333,8 @@ body.hide-right .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr);
 .app-shell.no-inspector {
     grid-template-columns: var(--sidebar) minmax(0, 1fr);
 }
-body.hide-left .app-shell              { grid-template-columns: 0 minmax(0, 1fr) var(--inspector); }
-body.hide-left .app-shell.no-inspector { grid-template-columns: 0 minmax(0, 1fr); }
-body.hide-right .app-shell             { grid-template-columns: var(--sidebar) minmax(0, 1fr) 0; }
-body.focus .app-shell                  { grid-template-columns: 0 minmax(0, 1fr) 0; }
+/* body state rules for .app-shell are defined in the unified override block
+   above (lines 298-305) to avoid specificity conflicts. */
 
 /* ─── Main panel (alias to .main) ─── */
 .main-panel {
