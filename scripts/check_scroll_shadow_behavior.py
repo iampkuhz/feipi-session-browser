@@ -26,7 +26,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 SRC = REPO_ROOT / "src" / "session_browser" / "web"
 
-CSS_FILE = SRC / "static" / "style.css"
+CSS_FILE = SRC / "static" / "css" / "shell.css"
 JS_FILES = [
     SRC / "static" / "js" / "app.js",
     SRC / "static" / "js" / "data-table.js",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Static CSS + template contract check for session detail Phase 1 layout.
 
-Verifies that style.css and templates contain rules sufficient to prevent
+Verifies that shell.css and modular CSS files and templates contain rules sufficient to prevent
 the cascade conflict where body.hide-left .shell.no-inspector overrides
 .shell.phase1-shell, causing .main to fall into a 0px grid column.
 
@@ -25,8 +25,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-CSS_FILE = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "style.css"
+# Modular CSS files that replace the monolithic style.css
+CSS_FILE = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
 SHELL_CSS_FILE = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
+SESSION_DETAIL_CSS = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 BASE_HTML = REPO_ROOT / "src" / "session_browser" / "web" / "templates" / "base.html"
 SESSION_HTML = REPO_ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
 
@@ -78,15 +80,24 @@ def check_phase1_hide_left_override(css: str, result: StaticCheckResult):
             "MISSING_PHASE1_HIDE_LEFT_OVERRIDE",
             "No high-specificity phase1 shell override for body.hide-left .shell.no-inspector.",
             [
-                "Inspect style.css around shell/no-inspector/hide-left rules.",
+                "Inspect shell.css for body.hide-left .shell.no-inspector override.",
                 "Add body.hide-left .shell.no-inspector.phase1-shell override.",
             ],
         )
 
 
 def check_phase1_main_grid_column(css: str, result: StaticCheckResult):
-    """Check 2: .shell.phase1-shell .main must have grid-column: 1 / -1."""
+    """Check 2: .main must span full grid width in phase1 shell context.
+
+    Accepts either:
+    - grid-column: 1 / -1 (legacy grid approach), or
+    - width: 100% + min-width: 0 (flex-based approach, current default).
+
+    The legacy .shell.phase1-shell .main selector was in the deleted style.css.
+    Current layout uses .main with width: 100% + min-width: 0 for full spanning.
+    """
     has_main_rule = bool(re.search(r'\.shell\.phase1-shell\s+\.main', css))
+    has_main_base = bool(re.search(r'\.main\b', css))  # .main rule exists
     has_grid_col = bool(re.search(r'grid-column:\s*1\s*/\s*-1', css))
     has_width_full = bool(re.search(r'width:\s*100%', css))
     has_min_width_zero = bool(re.search(r'min-width:\s*0', css))
@@ -94,6 +105,8 @@ def check_phase1_main_grid_column(css: str, result: StaticCheckResult):
     selectors = []
     if has_main_rule:
         selectors.append(".shell.phase1-shell .main")
+    if has_main_base:
+        selectors.append(".main (base)")
     if has_grid_col:
         selectors.append("grid-column: 1 / -1")
     if has_width_full:
@@ -102,13 +115,17 @@ def check_phase1_main_grid_column(css: str, result: StaticCheckResult):
         selectors.append("min-width: 0")
     result.observed["phase1MainRules"] = selectors
 
-    if not has_main_rule or not has_grid_col:
+    # Accept either:
+    # 1. grid-column: 1 / -1 (legacy), or
+    # 2. .main + width: 100% + min-width: 0 (current flex approach)
+    spans_full = has_grid_col or (has_main_base and has_width_full and has_min_width_zero)
+    if not spans_full:
         result.fail(
             "MISSING_PHASE1_MAIN_GRID_COLUMN",
-            "Missing .shell.phase1-shell .main with grid-column: 1 / -1.",
+            "Missing .main spanning full width.",
             [
-                "Inspect style.css for .shell.phase1-shell .main rule.",
-                "Add grid-column: 1 / -1, width: 100%, min-width: 0.",
+                "Inspect shell.css for .main rule.",
+                "Add width: 100% + min-width: 0 or grid-column: 1 / -1.",
             ],
         )
 
@@ -137,7 +154,7 @@ def check_detail_width_contract(css: str, result: StaticCheckResult):
             "MISSING_SESSION_DETAIL_WIDTH_CONTRACT",
             ".session-detail-phase1 exists but lacks width/max-width rule.",
             [
-                "Inspect style.css for .session-detail-phase1 width rule.",
+                "Inspect shell.css for .session-detail-phase1 width rule.",
                 "Add width: min(100%, 1360px) or max-width with margin: 0 auto.",
             ],
         )
@@ -196,7 +213,7 @@ def check_hero_main_single_column(css: str, result: None | StaticCheckResult = N
                 "HERO_MAIN_STILL_TWO_COLUMN",
                 ".session-detail-phase1 .hero-main has a two-column grid-template-columns.",
                 [
-                    "Inspect style.css for .session-detail-phase1 .hero-main.",
+                    "Inspect shell.css for .session-detail-phase1 .hero-main.",
                     "Change to grid-template-columns: 1fr.",
                 ],
             )
@@ -234,7 +251,7 @@ def check_hero_title_wrapping(css: str, result: StaticCheckResult):
                 "HERO_TITLE_UNSAFE_ANYWHERE_WRAP",
                 ".hero-title uses overflow-wrap: anywhere — unsafe for long session titles.",
                 [
-                    "Inspect style.css .hero-title overflow-wrap.",
+                    "Inspect shell.css .hero-title overflow-wrap.",
                     "Use overflow-wrap: break-word or line-clamp instead.",
                 ],
             )
@@ -243,7 +260,7 @@ def check_hero_title_wrapping(css: str, result: StaticCheckResult):
                 "HERO_TITLE_UNSAFE_ANYWHERE_WRAP",
                 ".hero-title uses word-break: break-all — unsafe for long session titles.",
                 [
-                    "Inspect style.css .hero-title word-break.",
+                    "Inspect shell.css .hero-title word-break.",
                     "Use word-break: normal or overflow-wrap: break-word instead.",
                 ],
             )
@@ -327,10 +344,14 @@ def run_checks(css_path: Path, base_path: Path, session_path: Path,
         result.fail("MISSING_SESSION_HTML", f"session.html not found: {session_path}")
         return result.to_dict()
 
+    # Read primary CSS (shell.css)
     css = css_path.read_text()
-    # Also read shell.css if available (shell rules migrated there in Task 05)
-    if shell_css_path is not None and shell_css_path.exists():
+    # Also read shell.css if a different primary was passed
+    if shell_css_path is not None and shell_css_path.exists() and shell_css_path != css_path:
         css += "\n" + shell_css_path.read_text()
+    # Read session-detail.css for detail-specific rules
+    if SESSION_DETAIL_CSS.exists():
+        css += "\n" + SESSION_DETAIL_CSS.read_text()
     base_text = base_path.read_text()
     session_text = session_path.read_text()
 

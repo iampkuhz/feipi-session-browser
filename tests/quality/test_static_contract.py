@@ -226,9 +226,9 @@ class TestCheckPayloadModalOwnership:
 
 
 class TestCheckShellOwnership:
-    def test_style_css_exempt(self, tmp_path):
-        """style.css may contain residual shell references."""
-        css = tmp_path / "style.css"
+    def test_legacy_aliases_exempt(self, tmp_path):
+        """legacy-aliases.css may contain shell references for backward compat."""
+        css = tmp_path / "legacy-aliases.css"
         css.write_text(".shell { display: grid; }")
         warnings = check_shell_ownership([css])
         assert warnings == []

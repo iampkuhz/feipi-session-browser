@@ -82,7 +82,7 @@ class TestLongSessionRendering:
 
     def test_css_contain_property(self, long_session_url):
         """CSS should include contain: layout style on trace elements."""
-        css_path = os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "style.css")
+        css_path = os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "css", "session-detail.css")
         with open(css_path) as f:
             css = f.read()
         assert "contain: layout style" in css

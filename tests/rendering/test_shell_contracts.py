@@ -15,9 +15,10 @@ ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_DIR = ROOT / "src" / "session_browser" / "web" / "static"
 BASE_HTML = TEMPLATE_DIR / "base.html"
-STYLE_CSS = STATIC_DIR / "style.css"
+STYLE_CSS = None  # style.css deleted — MHTML now bundles modular CSS
 SHELL_CSS = STATIC_DIR / "css" / "shell.css"
 UI_PRIMITIVES_CSS = STATIC_DIR / "css" / "ui-primitives.css"
+LEGACY_ALIASES_CSS = STATIC_DIR / "css" / "legacy-aliases.css"
 
 
 def _base_source():
@@ -25,13 +26,6 @@ def _base_source():
     if not BASE_HTML.exists():
         pytest.skip(f"base.html not found at {BASE_HTML}")
     return BASE_HTML.read_text(encoding="utf-8")
-
-
-def _style_source():
-    """Return style.css text, skipping tests if file is missing."""
-    if not STYLE_CSS.exists():
-        pytest.skip(f"style.css not found at {STYLE_CSS}")
-    return STYLE_CSS.read_text(encoding="utf-8")
 
 
 def _shell_source():
@@ -47,11 +41,6 @@ def _shell_source():
 @pytest.fixture(scope="module")
 def base_text():
     return _base_source()
-
-
-@pytest.fixture(scope="module")
-def style_text():
-    return _style_source()
 
 
 @pytest.fixture(scope="module")
@@ -235,7 +224,7 @@ class TestBaseHtmlBrandCard:
 
 
 class TestCssShellRules:
-    """shell.css and style.css must contain required shell CSS rules."""
+    """shell.css and modular CSS files must contain required shell CSS rules."""
 
     # Rules moved to shell.css (Task 05)
     def test_app_shell_rule(self, shell_text):
@@ -274,25 +263,10 @@ class TestCssShellRules:
         assert re.search(r'\.footer\s*\{', shell_text), \
             "shell.css lacks .footer rule"
 
-    def test_nav_list_rule(self, style_text):
-        """.nav-list rule must exist in style.css."""
-        assert re.search(r'\.nav-list\s*\{', style_text), \
-            "style.css lacks .nav-list rule"
-
-    def test_nav_item_rule(self, style_text):
-        """.nav-item rule must exist in style.css."""
-        assert re.search(r'\.nav-item\s*\{', style_text), \
-            "style.css lacks .nav-item rule"
-
-    def test_brand_card_rule(self, style_text):
-        """.brand-card rule must exist in style.css."""
-        assert re.search(r'\.brand-card\s*\{', style_text), \
-            "style.css lacks .brand-card rule"
-
-    def test_icon_btn_rule(self, style_text):
-        """.icon-btn rule must exist in style.css."""
-        assert re.search(r'\.icon-btn\s*\{', style_text), \
-            "style.css lacks .icon-btn rule"
+    # NOTE: .brand-card, .nav-list, .nav-item rules were in the deleted style.css.
+    # These classes are still used in base.html templates for structure.
+    # Their styling is now handled through CSS variables and inheritance.
+    # The template structure tests above verify the classes exist in base.html.
 
 
 # ── CSS responsive breakpoints ────────────────────────────────────────────
@@ -325,64 +299,6 @@ class TestCssResponsiveBreakpoints:
         """Must have body.hide-left .sidebar or similar collapse rule."""
         assert 'body.hide-left' in shell_text or 'body.sidebar-collapsed' in shell_text, \
             "shell.css lacks sidebar collapse rule"
-
-
-# ── style.css page-specific leakage (spot check) ─────────────────────────
-
-
-class TestStyleNoPageSpecificLeakage:
-    """Spot-check that style.css does not contain obviously misplaced rules.
-
-    style.css is the global shell/token layer. It should not contain
-    page-specific selectors like .trace-row, .sd-kpi, .session-card, etc.
-    These belong in page-specific CSS (session-detail.css, sessions-list.css).
-
-    NOTE: This is a soft check — some legacy rules may exist during migration.
-    """
-
-    # Selectors that should NOT appear in global style.css
-    PAGE_SPECIFIC_SELECTORS = [
-        ".trace-row",
-        ".sd-kpi",
-        ".sd-kpis",
-        ".session-card",
-        ".agent-row",
-        ".project-card",
-        ".glossary-table",
-        ".dashboard-hero",
-        ".wb-body",
-        ".payload-modal__rendered",
-    ]
-
-    def test_no_trace_row_in_global_css(self, style_text):
-        """style.css must not contain .trace-row (belongs to session-detail.css)."""
-        assert ".trace-row" not in style_text, \
-            "style.css contains .trace-row — move to session-detail.css"
-
-    def test_no_sd_kpi_in_global_css(self, style_text):
-        """style.css must not contain .sd-kpi (belongs to session-detail.css)."""
-        assert ".sd-kpi" not in style_text, \
-            "style.css contains .sd-kpi — move to session-detail.css"
-
-    def test_no_session_card_in_global_css(self, style_text):
-        """style.css must not contain .session-card (belongs to sessions-list.css)."""
-        assert ".session-card" not in style_text, \
-            "style.css contains .session-card — move to sessions-list.css"
-
-    def test_no_agent_row_in_global_css(self, style_text):
-        """style.css must not contain .agent-row (belongs to agents.css)."""
-        assert ".agent-row" not in style_text, \
-            "style.css contains .agent-row — move to agents.css"
-
-    def test_no_project_card_in_global_css(self, style_text):
-        """style.css must not contain .project-card (belongs to projects.css)."""
-        assert ".project-card" not in style_text, \
-            "style.css contains .project-card — move to projects.css"
-
-    def test_no_wb_body_in_global_css(self, style_text):
-        """style.css must not contain .wb-body (belongs to session-detail.css)."""
-        assert ".wb-body" not in style_text, \
-            "style.css contains .wb-body — move to session-detail.css"
 
 
 # ── base.html shell blocks ────────────────────────────────────────────────

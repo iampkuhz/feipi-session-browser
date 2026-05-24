@@ -120,7 +120,7 @@ def check_no_dead_css(css_files: list[Path]) -> list[str]:
 def check_payload_modal_ownership(css_files: list[Path]) -> list[str]:
     """检查 payload-modal 裸定义的位置。WARN。
 
-    权威来源应为 ui-primitives.css。在 style.css、session-detail.css 等处出现
+    权威来源应为 ui-primitives.css。在 session-detail.css、legacy-aliases.css 等处出现
     裸 `.payload-modal` 或 `#payload-modal` 定义时输出 WARN，
     但不 BLOCK（历史债暂不强制清理）。
     """
@@ -149,8 +149,8 @@ def check_payload_modal_ownership(css_files: list[Path]) -> list[str]:
 def check_shell_ownership(css_files: list[Path]) -> list[str]:
     """检查 page CSS 是否出现 shell 级选择器。WARN。
 
-    shell 层选择器（.app-shell, .shell, body.hide-left 等）应由 style.css
-    或专属 shell.css 定义，页面 CSS 不应覆盖。
+    shell 层选择器（.app-shell, .shell, body.hide-left 等）应由专属 shell.css 定义，
+    页面 CSS 不应覆盖。
     历史存在可以 WARN；新增应在后续 diff gate 中 BLOCK。
     """
     warnings: list[str] = []
@@ -158,8 +158,8 @@ def check_shell_ownership(css_files: list[Path]) -> list[str]:
         ".app-shell", ".shell", ".phase1-shell",
         "body.hide-left", "body.hide-right", "body.focus",
     ]
-    # 豁免文件：style.css（历史组件残留）、shell.css（当前 shell 权威）、base.css（基础样式）、legacy-aliases.css（兼容层）
-    exempt = {"style.css", "shell.css", "base.css", "legacy-aliases.css", "tokens.css"}
+    # 豁免文件：shell.css（当前 shell 权威）、base.css（基础样式）、legacy-aliases.css（兼容层）、tokens.css（设计令牌）
+    exempt = {"shell.css", "base.css", "legacy-aliases.css", "tokens.css"}
     for path in css_files:
         name = path.name
         if name in exempt:

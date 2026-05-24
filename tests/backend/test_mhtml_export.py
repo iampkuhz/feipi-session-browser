@@ -5,7 +5,16 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_JS = ROOT / "src" / "session_browser" / "web" / "static" / "js"
-STATIC_CSS = ROOT / "src" / "session_browser" / "web" / "static" / "style.css"
+STATIC_CSS_DIR = ROOT / "src" / "session_browser" / "web" / "static" / "css"
+
+# CSS files bundled by mhtml.py get_css()
+MHTML_CSS_FILES = [
+    "css/tokens.css",
+    "css/base.css",
+    "css/shell.css",
+    "css/ui-primitives.css",
+    "css/legacy-aliases.css",
+]
 
 
 class TestMhtmlTemplateContracts:
@@ -18,7 +27,13 @@ class TestMhtmlTemplateContracts:
         return (STATIC_JS / name).read_text(encoding="utf-8")
 
     def _read_css(self) -> str:
-        return STATIC_CSS.read_text(encoding="utf-8")
+        """Read all MHTML-bundled CSS files concatenated."""
+        parts = []
+        for rel in MHTML_CSS_FILES:
+            p = ROOT / "src" / "session_browser" / "web" / "static" / rel
+            if p.exists():
+                parts.append(p.read_text(encoding="utf-8"))
+        return "\n".join(parts)
 
     # ── Trace panel structure (Phase 1 simplified) ──
 
@@ -101,11 +116,13 @@ class TestMhtmlSelfContained:
         """No Google Fonts references in either mode."""
         base = self._read("base.html")
         assert "fonts.googleapis.com" not in base, "Google Fonts reference found in base.html"
-        css = (STATIC_CSS).read_text(encoding="utf-8")
-        # font-family fallback stack is OK, but no googleapis URL
-        for line in css.split("\n"):
-            if "fonts.googleapis" in line.lower():
-                raise AssertionError(f"Google Fonts URL in CSS: {line.strip()}")
+        for rel in MHTML_CSS_FILES:
+            p = ROOT / "src" / "session_browser" / "web" / "static" / rel
+            if p.exists():
+                css = p.read_text(encoding="utf-8")
+                for line in css.split("\n"):
+                    if "fonts.googleapis" in line.lower():
+                        raise AssertionError(f"Google Fonts URL in CSS ({rel}): {line.strip()}")
 
 
 class TestPhase1SimplifiedStructure:

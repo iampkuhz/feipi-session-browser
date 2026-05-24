@@ -21,7 +21,8 @@ from scripts.check_scroll_shadow_behavior import (
     _fail,
 )
 
-CSS_PATH = "src/session_browser/web/static/style.css"
+CSS_PATH = "src/session_browser/web/static/css/shell.css"
+CSS_TABLE_WRAP = "src/session_browser/web/static/css/ui-primitives.css"
 JS_PATH = "src/session_browser/web/static/js/app.js"
 
 
@@ -72,6 +73,6 @@ class TestTableWrapLayoutPreserved:
     """Verify .table-wrap layout CSS itself is NOT removed."""
 
     def test_table_wrap_base_exists(self):
-        css = open(CSS_PATH).read()
+        css = open(CSS_TABLE_WRAP).read()
         assert ".table-wrap" in css, ".table-wrap base rule must still exist"
         assert "overflow-x" in css, "overflow-x:auto must be preserved for scrolling"

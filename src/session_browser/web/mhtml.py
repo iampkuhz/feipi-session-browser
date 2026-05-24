@@ -24,13 +24,29 @@ JS_LOAD_ORDER = [
 ]
 
 
+# Ordered list of CSS files that must be inlined for a self-contained page.
+# Order matches base.html <link> load order.
+CSS_LOAD_ORDER = [
+    "css/tokens.css",
+    "css/base.css",
+    "css/shell.css",
+    "css/ui-primitives.css",
+    "css/legacy-aliases.css",
+]
+
+
 @lru_cache(maxsize=1)
 def get_css() -> str:
-    """Read and cache the main stylesheet."""
-    css_path = _STATIC_DIR / "style.css"
-    if not css_path.exists():
-        return "/* style.css not found */"
-    return css_path.read_text(encoding="utf-8")
+    """Read and bundle all modular CSS files in base.html load order."""
+    parts = []
+    for rel in CSS_LOAD_ORDER:
+        css_path = _STATIC_DIR / rel
+        if css_path.exists():
+            parts.append(f"/* === {rel} === */\n")
+            parts.append(css_path.read_text(encoding="utf-8"))
+        else:
+            parts.append(f"/* {rel} not found */\n")
+    return "\n\n".join(parts)
 
 
 @lru_cache(maxsize=1)
