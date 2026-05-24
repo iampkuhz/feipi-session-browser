@@ -21,7 +21,7 @@ import pytest
 
 # ── Jinja2 environment setup ─────────────────────────────────────────────
 
-_TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[1] / "src" / "session_browser" / "web" / "templates"
+_TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
 
 
 def _make_env() -> jinja2.Environment:
@@ -567,7 +567,7 @@ class TestButtonVariants:
 class TestUIPrimitivesJS:
     """ui_primitives.js syntax and data-action delegation pattern."""
 
-    JS_PATH = pathlib.Path(__file__).resolve().parents[1] / "src" / "session_browser" / "web" / "static" / "js" / "ui_primitives.js"
+    JS_PATH = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "static" / "js" / "ui_primitives.js"
 
     def test_file_exists(self):
         assert self.JS_PATH.exists(), f"ui_primitives.js not found at {self.JS_PATH}"

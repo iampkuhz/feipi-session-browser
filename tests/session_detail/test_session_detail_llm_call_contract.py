@@ -8,7 +8,7 @@ v9 renders LLM calls via sdt.llm_call_card macro in session_detail_timeline.html
 
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 COMPONENTS = TEMPLATE_DIR / "components"
 
 
@@ -94,14 +94,14 @@ def test_session_uses_trace_round_macro():
 
 def test_payload_keys_in_routes():
     """routes.py view model must generate payload IDs for LLM calls."""
-    routes = (Path(__file__).parent.parent / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
+    routes = (Path(__file__).parents[2] / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
     assert "context_payload_id" in routes, "View model must generate context_payload_id"
     assert "response_payload_id" in routes, "View model must generate response_payload_id"
 
 
 # ── CSS classes ─────────────────────────────────────────────────────
 
-_TIMELINE_CSS = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
+_TIMELINE_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 
 
 def _read_timeline_css():

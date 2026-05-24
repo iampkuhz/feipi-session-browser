@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
-SCRIPT = Path(__file__).parent.parent / "scripts" / "check_payload_visibility.py"
+SCRIPT = Path(__file__).parents[2] / "scripts" / "check_payload_visibility.py"
 
 
 def _run_script(fixture: Path) -> subprocess.CompletedProcess:

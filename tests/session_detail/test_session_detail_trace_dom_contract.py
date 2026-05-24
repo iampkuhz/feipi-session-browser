@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 TIMELINE = ROOT / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html"
 JS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "js" / "session-detail.js"
 CSS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"

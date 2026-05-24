@@ -19,7 +19,7 @@ import pytest
 
 # ── Mirror routes.py template environment ──────────────────────────────
 
-_TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[1] / "src" / "session_browser" / "web" / "templates"
+_TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
 
 
 def _make_page_env() -> jinja2.Environment:

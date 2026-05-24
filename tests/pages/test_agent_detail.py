@@ -692,10 +692,15 @@ class TestAgentDetailAccessibility:
             "Sessions must pass search_placeholder to table_card"
 
     def test_page_input_aria_label(self):
-        """Page input must have aria-label."""
-        content = _read_template()
-        assert 'aria-label="Page number"' in content, \
-            "Page input must have aria-label='Page number'"
+        """Pagination component must have aria-label on page input."""
+        # ui.pagination macro in ui_primitives.html provides the aria-label
+        assert "ui.pagination" in _read_template(), \
+            "Agent must use ui.pagination for pagination"
+        # Verify the macro definition has aria-label
+        with open("src/session_browser/web/templates/components/ui_primitives.html") as f:
+            primitives = f.read()
+        assert 'aria-label="Page number"' in primitives, \
+            "Pagination macro must have aria-label on page input"
 
     def test_pagination_aria_label(self):
         """Pagination must have aria-label."""

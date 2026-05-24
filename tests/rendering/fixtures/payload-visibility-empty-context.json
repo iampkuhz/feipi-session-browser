@@ -1,0 +1,9 @@
+{
+  "llm_calls": [
+    {
+      "input_tokens": 8000,
+      "request_full": "",
+      "response_full": "Response without context"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 COMPONENTS = TEMPLATE_DIR / "components"
 BASE_HTML_PATH = TEMPLATE_DIR / "base.html"
@@ -271,7 +271,7 @@ class TestTracePanel:
             "Session must use sdt.trace_header macro"
 
     def test_toggle_js_in_timeline_js(self):
-        js_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js"
+        js_path = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js"
         js = js_path.read_text(encoding="utf-8")
         assert "toggleRound" in js, \
             "Must have toggleRound JS function"

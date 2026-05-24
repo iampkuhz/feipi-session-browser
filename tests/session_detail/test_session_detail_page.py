@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 COMPONENTS = TEMPLATE_DIR / "components"
 SESSION_HTML = TEMPLATE_DIR / "session.html"

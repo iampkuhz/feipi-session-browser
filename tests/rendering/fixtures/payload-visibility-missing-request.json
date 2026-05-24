@@ -1,0 +1,8 @@
+{
+  "llm_calls": [
+    {
+      "input_tokens": 12000,
+      "response_full": "orphan response"
+    }
+  ]
+}

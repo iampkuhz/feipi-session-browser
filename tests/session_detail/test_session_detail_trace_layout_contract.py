@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 CSS_PATH = (
-    Path(__file__).resolve().parent.parent
+    Path(__file__).parents[2]
     / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 )
 
@@ -88,7 +88,7 @@ class TestTemplateStructure:
 
     def test_trace_row_has_trace_round(self):
         template_path = (
-            Path(__file__).resolve().parent.parent
+            Path(__file__).parents[2]
             / "src" / "session_browser" / "web" / "templates" / "session.html"
         )
         content = template_path.read_text(encoding="utf-8")
@@ -99,7 +99,7 @@ class TestTemplateStructure:
 
     def test_trace_table_structure(self):
         template_path = (
-            Path(__file__).resolve().parent.parent
+            Path(__file__).parents[2]
             / "src" / "session_browser" / "web" / "templates" / "session.html"
         )
         content = template_path.read_text(encoding="utf-8")

@@ -254,25 +254,34 @@ class TestSearch:
     """Verify search input contract."""
 
     def test_search_placeholder_session_id(self):
+        """Search placeholder should indicate Session ID only."""
         content = _read_sessions_templates()
-        assert "Search by Session ID" in content
+        assert "仅支持 Session ID" in content
 
     def test_search_hint_chinese(self):
         """Search hint should be in Chinese: 仅支持 Session ID."""
         content = _read_sessions_templates()
         assert "仅支持 Session ID" in content
 
-    def test_search_hint_class(self):
+    def test_search_placeholder_in_input(self):
+        """Search hint should be inside the search input as placeholder, not a separate element."""
         content = _read_sessions_templates()
-        assert 'class="sessions-search-hint"' in content
+        assert "placeholder=" in content
+        assert "仅支持 Session ID" in content
+        # Must NOT have a separate hint element
+        assert 'sessions-search-hint' not in content
 
-    def test_no_broad_search_hint(self):
-        """Search hint should NOT mention title, project, or prompt."""
+    def test_no_broad_search_placeholder(self):
+        """Search placeholder should NOT mention title, project, or prompt."""
         content = _read_sessions_templates()
-        hint_section = content.split('sessions-search-hint')[1].split('<')[0] if 'sessions-search-hint' in content else ""
-        assert "title" not in hint_section.lower()
-        assert "project" not in hint_section.lower()
-        assert "prompt" not in hint_section.lower()
+        # Extract placeholder value (single or double quotes)
+        import re
+        match = re.search(r"placeholder=['\"]([^'\"]*)['\"]", content)
+        assert match, "Search input must have placeholder"
+        hint = match.group(1).lower()
+        assert "title" not in hint
+        assert "project" not in hint
+        assert "prompt" not in hint
 
 
 class TestSessionsTemplateJS:
@@ -462,10 +471,10 @@ class TestCSS:
             content = f.read()
         assert ".sessions-table-footer" in content
 
-    def test_search_hint_css(self):
+    def test_search_input_css(self):
         with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".sessions-search-hint" in content
+        assert ".sessions-search input" in content
 
     def test_sessions_title_css(self):
         with open("src/session_browser/web/static/css/sessions-list.css") as f:

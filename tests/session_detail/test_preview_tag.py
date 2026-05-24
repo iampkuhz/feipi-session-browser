@@ -8,7 +8,7 @@ v9 builds preview text in the view model (routes.py):
 
 import os
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROUTES = os.path.join(ROOT, "src", "session_browser", "web", "routes.py")
 
 

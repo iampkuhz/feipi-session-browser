@@ -9,8 +9,8 @@ v9 architecture:
 
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
-VIEW_SWITCHING_JS = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "js" / "view-switching.js"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
+VIEW_SWITCHING_JS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "js" / "view-switching.js"
 
 
 def _session_source():

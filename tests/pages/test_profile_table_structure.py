@@ -9,7 +9,7 @@ v9 uses component-based Jinja2 macros:
 
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 COMPONENTS = TEMPLATE_DIR / "components"
 
 
@@ -72,7 +72,7 @@ def test_spans_have_data_attributes():
 
 def test_preview_has_truncation_in_viewmodel():
     """Preview text truncation is done in routes.py view model."""
-    routes = (Path(__file__).parent.parent / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
+    routes = (Path(__file__).parents[2] / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
     # preview_title is truncated
     assert "[:120]" in routes or "[:80]" in routes, (
         "View model should truncate preview text"

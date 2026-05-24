@@ -10,8 +10,8 @@ v9 architecture:
 import re
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
-ROUTES = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "routes.py"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
+ROUTES = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "routes.py"
 
 
 def _read_routes():
@@ -94,7 +94,7 @@ def test_payload_modal_in_base():
 
 def test_js_handles_payload_unavailable():
     """JS must handle missing payload gracefully."""
-    js = (Path(__file__).resolve().parent.parent
+    js = (Path(__file__).resolve().parents[2]
           / "src" / "session_browser" / "web" / "static" / "js"
           / "session_detail_timeline.js").read_text(encoding="utf-8")
     assert "unavailable" in js.lower() or "payload" in js.lower(), (

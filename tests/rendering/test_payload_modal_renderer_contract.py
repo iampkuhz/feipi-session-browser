@@ -12,9 +12,9 @@ were removed in the v9 component migration.
 
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
-STATIC_JS = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "js"
-STATIC_CSS = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "style.css"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
+STATIC_JS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "js"
+STATIC_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "style.css"
 
 
 def _base_source():

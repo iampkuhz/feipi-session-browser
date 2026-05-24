@@ -2,7 +2,7 @@
 import os
 import pathlib
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_JS = ROOT / "src" / "session_browser" / "web" / "static" / "js"
 STATIC_CSS = ROOT / "src" / "session_browser" / "web" / "static" / "style.css"

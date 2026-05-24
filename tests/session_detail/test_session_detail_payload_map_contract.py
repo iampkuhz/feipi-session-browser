@@ -11,8 +11,8 @@ v9 architecture:
 import re
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
-ROUTES = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "routes.py"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
+ROUTES = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "routes.py"
 COMPONENTS = TEMPLATE_DIR / "components"
 
 
@@ -101,6 +101,6 @@ def test_no_massive_payload_buttons():
 
 def test_css_has_sd_btn_styles():
     """session-detail.css must define button styles."""
-    css_path = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
+    css_path = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
     css = css_path.read_text(encoding="utf-8")
     assert ".sd-btn" in css, "CSS must define .sd-btn styles"

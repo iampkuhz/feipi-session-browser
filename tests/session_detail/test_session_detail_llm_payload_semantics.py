@@ -14,11 +14,11 @@ from pathlib import Path
 import pytest
 
 TEMPLATE_DIR = (
-    Path(__file__).resolve().parent.parent
+    Path(__file__).parents[2]
     / "src" / "session_browser" / "web" / "templates"
 )
 ROUTES = (
-    Path(__file__).resolve().parent.parent
+    Path(__file__).parents[2]
     / "src" / "session_browser" / "web" / "routes.py"
 )
 
@@ -113,7 +113,7 @@ class TestPayloadUnavailableMessage:
 
     def test_unavailable_message_in_js(self):
         """JS must show message when payload is unavailable."""
-        js = (Path(__file__).resolve().parent.parent
+        js = (Path(__file__).resolve().parents[2]
               / "src" / "session_browser" / "web" / "static" / "js"
               / "session_detail_timeline.js").read_text(encoding="utf-8")
         assert "unavailable" in js.lower() or "payload" in js.lower(), (

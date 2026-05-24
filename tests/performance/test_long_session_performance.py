@@ -15,7 +15,7 @@ import urllib.request
 
 import pytest
 
-SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_DIR = os.path.join(SB_ROOT, "src")
 
 

@@ -45,7 +45,7 @@
     <div class="filter-row">
         <input type="hidden" name="sort" value="{{ sort_by }}"/>
         <input type="hidden" name="dir" value="{{ sort_dir }}"/>
-        {{ ui.filter_search(name='q', placeholder='Search by Session ID...', value=filter_q, id='session-search', extra_classes='js-search') }}
+        {{ ui.filter_search(name='q', placeholder='仅支持 Session ID', value=filter_q, id='session-search', extra_classes='js-search') }}
         {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent, id='filter-agent') }}
         {{ ui.filter_select(label='Model', name='model', options=model_list, selected=filter_model, id='filter-model', all_label='All Models') }}
         {{ ui.filter_select(label='Project', name='project', options=project_list, selected=filter_project, id='filter-project', all_label='All Projects') }}

@@ -11,11 +11,11 @@ v9 architecture:
 import re
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 BASE_TEMPLATE = TEMPLATE_DIR / "base.html"
 SESSION_TEMPLATE = TEMPLATE_DIR / "session.html"
 COMPONENTS = TEMPLATE_DIR / "components"
-CSS_PATH = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
+CSS_PATH = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 
 
 def _session_source():

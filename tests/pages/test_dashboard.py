@@ -225,7 +225,7 @@ class TestDashboardScopeSwitch:
 def _render_scope_switch() -> str:
     """Render the scope_switch macro from ui_primitives.html."""
     import jinja2
-    _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[1] / "src" / "session_browser" / "web" / "templates"
+    _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)), autoescape=True)
     tmpl_str = (
         '{% from "components/ui_primitives.html" import scope_switch %}'

@@ -10,7 +10,7 @@ v9 architecture:
 import re
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "session_browser" / "web" / "templates"
+TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 TIMELINE = TEMPLATE_DIR / "components" / "session_detail_timeline.html"
 
 

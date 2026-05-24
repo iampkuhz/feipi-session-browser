@@ -11,7 +11,7 @@ import re
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_DIR = ROOT / "src" / "session_browser" / "web" / "static"
 BASE_HTML = TEMPLATE_DIR / "base.html"
