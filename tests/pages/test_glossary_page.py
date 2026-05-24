@@ -636,3 +636,184 @@ class TestGlossaryNoStalePatterns:
         content = _read_template()
         assert 'class="hero"' not in content, \
             "Glossary must not have hero section"
+
+
+# ── Glossary fixed fixture tests (T097) ─────────────────────────────
+# Uses the hifi_fixture_session fixture to spin up a live server with
+# deterministic fixture data, then verifies the *rendered* Glossary HTML.
+# Covers: page renders, terms list, key data display.
+
+
+@pytest.fixture(scope="module")
+def glossary_html(hifi_fixture_session):
+    """Fetch rendered Glossary HTML from the live fixture server."""
+    base_url, agent, session_id = hifi_fixture_session
+    import urllib.request
+
+    resp = urllib.request.urlopen(f"{base_url}/glossary", timeout=10)
+    assert resp.status == 200, "Glossary must return HTTP 200"
+    return resp.read().decode("utf-8")
+
+
+# -- TestGlossaryPageRender -----------------------------------------------
+
+
+class TestGlossaryPageRender:
+    """Verify the rendered Glossary page structure."""
+
+    def test_page_returns_200(self, glossary_html):
+        """Glossary must render successfully."""
+        assert len(glossary_html) > 500, \
+            "Glossary HTML must be substantial"
+
+    def test_has_doctype_and_html(self, glossary_html):
+        """Page must have proper HTML structure."""
+        lower = glossary_html.lower()
+        assert "<!doctype html" in lower or "<!DOCTYPE html" in glossary_html, \
+            "Glossary must have DOCTYPE declaration"
+
+    def test_title_contains_glossary(self, glossary_html):
+        """Page title must contain '术语表' or 'Glossary'."""
+        assert "<title>" in glossary_html, \
+            "Glossary must have a title tag"
+        assert "术语表" in glossary_html or "Glossary" in glossary_html or "Token Glossary" in glossary_html, \
+            "Page title must reference Glossary"
+
+
+# -- TestGlossaryPageDisplay ----------------------------------------------
+
+
+class TestGlossaryPageDisplay:
+    """Verify Glossary page displays terms and key data from rendered HTML."""
+
+    def test_has_page_head(self, glossary_html):
+        """Page must show the 'Token Glossary' heading."""
+        assert "Token Glossary" in glossary_html, \
+            "'Token Glossary' heading must be visible"
+
+    def test_has_subtitle(self, glossary_html):
+        """Page must show the subtitle about terminology."""
+        assert "必要术语说明" in glossary_html or "术语说明" in glossary_html or "术语" in glossary_html, \
+            "Subtitle about terminology must appear"
+
+    def test_has_metric_grid(self, glossary_html):
+        """Glossary must render the summary metric grid."""
+        assert 'class="metric-grid"' in glossary_html, \
+            "Metric grid must be rendered"
+
+    def test_four_metric_cards_rendered(self, glossary_html):
+        """Glossary must have exactly 4 metric cards in rendered output."""
+        cards = re.findall(r'class="metric-card"', glossary_html)
+        assert len(cards) == 4, \
+            f"Glossary must have 4 metric cards, found {len(cards)}"
+
+    def test_token_types_card(self, glossary_html):
+        """Must display Token Types metric card."""
+        assert "Token Types" in glossary_html, \
+            "Token Types metric card must be visible"
+
+    def test_derived_metrics_card(self, glossary_html):
+        """Must display Derived Metrics metric card."""
+        assert "Derived Metrics" in glossary_html, \
+            "Derived Metrics metric card must be visible"
+
+    def test_provider_fields_card(self, glossary_html):
+        """Must display Provider Fields metric card."""
+        assert "Provider Fields" in glossary_html, \
+            "Provider Fields metric card must be visible"
+
+    def test_round_signals_card(self, glossary_html):
+        """Must display Round Signals metric card."""
+        assert "Round Signals" in glossary_html, \
+            "Round Signals metric card must be visible"
+
+    def test_search_input_rendered(self, glossary_html):
+        """Glossary must render the search/filter input."""
+        assert 'id="glossary-search"' in glossary_html, \
+            "Search input must be rendered"
+
+    def test_filter_card_rendered(self, glossary_html):
+        """Glossary must render the filter card."""
+        assert "filter-card" in glossary_html or "filter" in glossary_html, \
+            "Filter card must be rendered"
+
+    def test_sections_rendered(self, glossary_html):
+        """Glossary must render section cards."""
+        sections = re.findall(r'class="card section', glossary_html)
+        assert len(sections) >= 6, \
+            f"Glossary must have at least 6 section cards, found {len(sections)}"
+
+    def test_data_tables_rendered(self, glossary_html):
+        """Glossary must render data tables."""
+        tables = re.findall(r'class="data-table', glossary_html)
+        assert len(tables) >= 4, \
+            f"Glossary must have at least 4 data tables, found {len(tables)}"
+
+    def test_token_overview_section(self, glossary_html):
+        """Must render Token 概览 section."""
+        assert "Token 概览" in glossary_html, \
+            "Token Overview section must be visible"
+
+    def test_token_composition_section(self, glossary_html):
+        """Must render Token 组成 section."""
+        assert "Token 组成" in glossary_html, \
+            "Token Composition section must be visible"
+
+    def test_derived_metrics_section(self, glossary_html):
+        """Must render 派生指标 section."""
+        assert "派生指标" in glossary_html, \
+            "Derived Metrics section must be visible"
+
+    def test_provider_mapping_section(self, glossary_html):
+        """Must render Provider 映射 section."""
+        assert "Provider 映射" in glossary_html, \
+            "Provider Mapping section must be visible"
+
+    def test_badge_reference_section(self, glossary_html):
+        """Must render Badge Reference section."""
+        assert "Badge Reference" in glossary_html, \
+            "Badge Reference section must be visible"
+
+    def test_known_terms_present(self, glossary_html):
+        """Glossary must display key terms like 'cache read'."""
+        assert "cache" in glossary_html.lower() or "Cache" in glossary_html, \
+            "Key terms like 'cache' must appear in glossary"
+
+    def test_no_inline_onclick(self, glossary_html):
+        """Rendered Glossary must not have inline onclick handlers."""
+        matches = re.findall(r'\bonclick\s*=', glossary_html, re.IGNORECASE)
+        assert len(matches) == 0, \
+            f"Glossary must not have inline onclick, found {len(matches)}"
+
+    def test_empty_state_rendered(self, glossary_html):
+        """Glossary must render the empty state element."""
+        assert "state-strip" in glossary_html or "glossary-empty" in glossary_html, \
+            "Empty state element must be rendered"
+
+    def test_breadcrumb_rendered(self, glossary_html):
+        """Glossary must show the breadcrumb."""
+        assert 'href="/dashboard"' in glossary_html, \
+            "Breadcrumb must link to dashboard"
+
+
+# -- TestGlossaryNoStalePatterns ------------------------------------------
+
+
+class TestGlossaryNoStalePatternsFixture:
+    """Verify stale patterns are NOT present in rendered HTML."""
+
+    def test_no_filter_bar_class(self, glossary_html):
+        """Glossary must not use .filter-bar class."""
+        assert 'class="filter-bar"' not in glossary_html, \
+            "Glossary must not have filter-bar class"
+
+    def test_no_hero_section(self, glossary_html):
+        """Glossary must not have hero section."""
+        assert 'class="hero"' not in glossary_html, \
+            "Glossary must not have hero section"
+
+    def test_no_inline_script(self, glossary_html):
+        """Rendered HTML must not have inline script blocks."""
+        script_tags = re.findall(r'<script(?! src)[^>]*>', glossary_html)
+        assert len(script_tags) == 0, \
+            f"Glossary must not have inline script tags, found {len(script_tags)}"
