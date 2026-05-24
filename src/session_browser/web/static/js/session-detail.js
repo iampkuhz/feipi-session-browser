@@ -152,7 +152,7 @@
 
     modal = document.createElement("dialog");
     modal.id = "sd-payload-modal";
-    modal.className = "sd-payload-modal";
+    modal.className = "sd-payload-modal payload-modal payload-modal--sd";
     modal.setAttribute("aria-labelledby", "sd-payload-title");
     modal.innerHTML = [
       '<div class="sd-modal-panel payload-modal__panel">',

@@ -1020,13 +1020,10 @@
 .sd-sub-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 760; }
 .sd-sub-result { font-family: var(--sd-mono); font-size: 11px; color: var(--sd-muted); }
 
-.sd-payload-modal {
-  width: min(1040px, 86vw);
-  border: 0;
-  border-radius: 18px;
-  box-shadow: 0 20px 60px rgba(15,23,42,.22);
-  padding: 0;
-}
+/* @deprecated sd-payload-modal container overrides.
+   Dialog container (position/size) now handled by .payload-modal primitive
+   + .payload-modal--sd modifier in ui-primitives.css.
+   These rules only set backdrop and sd-modal-* child element styles. */
 .sd-payload-modal::backdrop { background: rgba(15,23,42,.35); }
 .sd-modal-panel { background: #fff; }
 .sd-modal-head {
@@ -1579,131 +1576,6 @@
   color: var(--sd-err);
 }
 
-/* 4) Payload modal: page-scoped fixed centered modal.
-   Keep this scoped to session detail containers to avoid leaking payload-modal styles
-   into other pages. */
-.session-detail-page #sd-payload-modal,
-.session-detail-page #payload-modal,
-.session-detail-page .sd-payload-modal,
-.session-detail-page .payload-modal,
-.sd-page #sd-payload-modal,
-.sd-page #payload-modal,
-.sd-page .sd-payload-modal,
-.sd-page .payload-modal {
-  position: fixed;
-  inset: auto;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(70vw, 1120px);
-  max-width: min(70vw, 1120px);
-  min-width: min(720px, 92vw);
-  height: auto;
-  max-height: 82vh;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--sd-line);
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, .22);
-  overflow: hidden;
-  z-index: 9999;
-}
-
-.session-detail-page #sd-payload-modal::backdrop,
-.session-detail-page #payload-modal::backdrop,
-.session-detail-page .sd-payload-modal::backdrop,
-.sd-page #sd-payload-modal::backdrop,
-.sd-page #payload-modal::backdrop,
-.sd-page .sd-payload-modal::backdrop,
-.sd-shell #sd-payload-modal::backdrop,
-.sd-shell #payload-modal::backdrop,
-.sd-shell .sd-payload-modal::backdrop {
-  background: rgba(15, 23, 42, .36);
-}
-
-.session-detail-page .sd-modal-panel,
-.session-detail-page .payload-modal__panel,
-.session-detail-page .payload-modal-panel,
-.sd-page .sd-modal-panel,
-.sd-page .payload-modal__panel,
-.sd-page .payload-modal-panel,
-.sd-shell .sd-modal-panel,
-.sd-shell .payload-modal__panel,
-.sd-shell .payload-modal-panel {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-height: 82vh;
-  background: #fff;
-  border-radius: 18px;
-  overflow: hidden;
-}
-
-.session-detail-page .sd-modal-head,
-.session-detail-page .payload-modal__head,
-.session-detail-page .payload-modal-head,
-.sd-page .sd-modal-head,
-.sd-page .payload-modal__head,
-.sd-page .payload-modal-head,
-.sd-shell .sd-modal-head,
-.sd-shell .payload-modal__head,
-.sd-shell .payload-modal-head {
-  flex: 0 0 auto;
-  min-height: 54px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--sd-line-soft);
-  background: linear-gradient(180deg, #fff, #fbfcff);
-}
-
-.session-detail-page .sd-modal-title,
-.session-detail-page .payload-modal__title,
-.sd-page .sd-modal-title,
-.sd-page .payload-modal__title,
-.sd-shell .sd-modal-title,
-.sd-shell .payload-modal__title {
-  font-weight: 850;
-  color: var(--sd-text);
-}
-
-.session-detail-page .sd-modal-subtitle,
-.session-detail-page .payload-modal__subtitle,
-.sd-page .sd-modal-subtitle,
-.sd-page .payload-modal__subtitle,
-.sd-shell .sd-modal-subtitle,
-.sd-shell .payload-modal__subtitle {
-  font: 12px/1.3 var(--sd-mono);
-  color: var(--sd-muted);
-}
-
-.session-detail-page .sd-modal-close,
-.session-detail-page .payload-modal__close,
-.sd-page .sd-modal-close,
-.sd-page .payload-modal__close,
-.sd-shell .sd-modal-close,
-.sd-shell .payload-modal__close {
-  margin-left: auto;
-}
-
-.session-detail-page .sd-modal-body,
-.session-detail-page .payload-modal__body,
-.session-detail-page [data-payload-body],
-.sd-page .sd-modal-body,
-.sd-page .payload-modal__body,
-.sd-page [data-payload-body],
-.sd-shell .sd-modal-body,
-.sd-shell .payload-modal__body,
-.sd-shell [data-payload-body] {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px;
-  background: #fff;
-}
-
 /* 5) Payload body layout. */
 .session-detail-page .sd-payload-shell,
 .session-detail-page .payload-shell,
@@ -2035,20 +1907,6 @@
     grid-template-columns: 52px 78px minmax(0, 1fr) 76px 68px 88px;
     column-gap: 8px;
     padding-inline: 10px;
-  }
-
-  .session-detail-page #sd-payload-modal,
-  .session-detail-page #payload-modal,
-  .session-detail-page .sd-payload-modal,
-  .session-detail-page .payload-modal,
-  .sd-page #sd-payload-modal,
-  .sd-page #payload-modal,
-  .sd-page .sd-payload-modal,
-  .sd-page .payload-modal {
-    width: 92vw;
-    max-width: 92vw;
-    min-width: 0;
-    max-height: 86vh;
   }
 
   .session-detail-page .sd-payload-shell,

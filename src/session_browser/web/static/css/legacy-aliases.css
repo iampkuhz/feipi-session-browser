@@ -1189,16 +1189,22 @@ input {
     z-index: 90
 }
 
+/* @deprecated payload-modal primitive moved to ui-primitives.css.
+   This lightweight alias provides backward-compatible centering for
+   any code that still applies only .payload-modal without the --sd
+   modifier.  The authoritative definition lives in ui-primitives.css. */
 .payload-modal {
     position: fixed;
-    inset: 50% auto auto 50%;
-    transform: translate(-50%, -50%);
-    z-index: 100;
-    width: min(1140px, 88vw);
-    border-radius: 18px;
-    box-shadow: 0 20px 60px rgba(15, 23, 42, .22);
-    background: #fff;
-    overflow: hidden
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    z-index: 60
 }
 
 .modal-head {
@@ -3129,19 +3135,26 @@ input {
     color: var(--muted)
 }
 
-/* v15 payload modal aliases (from v12 modal) */
+/* @deprecated sd-payload-modal dialog container.
+   Dialog positioning and sizing now handled by .payload-modal primitive
+   + .payload-modal--sd modifier in ui-primitives.css.
+   This alias ensures backward compat without overriding the primitive. */
 .sd-payload-modal {
     position: fixed;
-    inset: 50% auto auto 50%;
-    transform: translate(-50%, -50%);
-    z-index: 100;
-    width: min(1140px, 88vw);
-    border-radius: 18px;
-    box-shadow: 0 20px 60px rgba(15, 23, 42, .22);
-    background: #fff;
-    overflow: hidden
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    z-index: 60
 }
 
+/* @deprecated sd-payload-modal child aliases — kept for backward compat.
+   These are lightweight styling overrides for sd-modal-* class usage. */
 .sd-payload-modal__panel {
     min-width: 0
 }
