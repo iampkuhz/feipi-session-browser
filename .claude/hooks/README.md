@@ -25,9 +25,11 @@
 - **只读会话**（`changed-files.jsonl` 为空或不存在）：跳过质量门禁校验，仅做敏感文件快速检查，写入 `readOnly: true` 的 summary。
 - **有写操作会话**：执行完整校验链：
   1. OpenSpec 变更完整性（`stop_validate_change.py`）
-  2. UI 质量门禁（`stop_quality_gate.py`）
-  3. task-ledger 表头格式检查
-  4. 写入 `readOnly: false` 的 summary
+  2. 自动运行 required quality gates（`run_required_quality_gates.py --include-session-detail`）
+  3. UI 质量门禁 artifact 校验（`stop_quality_gate.py`）
+  4. 非 session-detail targets artifact 校验（`stop_check_targets.py`）
+  5. task-ledger 表头格式检查
+  6. 写入 `readOnly: false` 的 summary
 
 ## 03. 业务逻辑位置
 
@@ -41,7 +43,9 @@ Stop hook 直接调用独立校验脚本：
 
 ```text
 scripts/agent_hooks/stop_validate_change.py
+scripts/quality/run_required_quality_gates.py
 scripts/hooks/stop_quality_gate.py
+scripts/quality/stop_check_targets.py
 ```
 
 不再把复杂逻辑散落在 `.claude/hooks/*.sh` 的 shell 脚本中。

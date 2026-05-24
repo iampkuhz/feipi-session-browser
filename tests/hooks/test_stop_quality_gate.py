@@ -100,3 +100,36 @@ class TestDocsOnly:
         }])
         status, msgs = _sqg.run_check("test")
         assert status == "PASS"
+
+
+class TestFreshArtifactAfterRunner:
+    """Scenario: run_required_quality_gates.py just ran and created a fresh artifact.
+    stop_quality_gate.py should PASS because the artifact is fresh."""
+
+    def test_fresh_artifact_from_runner_passes(self):
+        """UI changed, runner just created PASS artifact => stop_quality_gate should PASS."""
+        now_ts = "2026-05-24T10:00:00Z"
+        # Artifact finished after the UI edit (fresh)
+        artifact = _make_artifact("PASS", finished="2026-05-24T10:00:30Z")
+        _setup_env([{
+            "ts": now_ts, "tool": "Edit",
+            "file": "src/session_browser/web/static/style.css",
+            "category": "ui-css", "requiresQualityGate": True,
+        }], artifact=artifact)
+        status, msgs = _sqg.run_check("test")
+        assert status == "PASS", f"Expected PASS with fresh artifact, got {status}: {msgs}"
+
+
+class TestNoFeipiAgentLogDir:
+    def test_stop_quality_gate_no_feipi_agent_log_dir(self):
+        """stop_quality_gate.py must not reference FEIPI_AGENT_LOG_DIR."""
+        source = SCRIPT_PATH.read_text()
+        assert "FEIPI_AGENT_LOG_DIR" not in source, \
+            "stop_quality_gate.py must not reference FEIPI_AGENT_LOG_DIR"
+
+    def test_stop_check_targets_no_feipi_agent_log_dir(self):
+        """stop_check_targets.py must not reference FEIPI_AGENT_LOG_DIR."""
+        script = Path(__file__).resolve().parents[2] / "scripts" / "quality" / "stop_check_targets.py"
+        source = script.read_text()
+        assert "FEIPI_AGENT_LOG_DIR" not in source, \
+            "stop_check_targets.py must not reference FEIPI_AGENT_LOG_DIR"

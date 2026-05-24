@@ -76,7 +76,15 @@ if [[ $HOOK_EXIT -ne 0 ]]; then
   BLOCK=1
 fi
 
-# 2b. UI 质量门禁（session-detail target）
+# 2b. 自动运行 required quality gates（包含 session-detail）
+python3 "$ROOT/scripts/quality/run_required_quality_gates.py" --include-session-detail >&2
+RG_EXIT=$?
+if [[ $RG_EXIT -ne 0 ]]; then
+  hook_log "BLOCK" "run_required_quality_gates.py 运行失败 (exit=$RG_EXIT)"
+  BLOCK=1
+fi
+
+# 2c. UI 质量门禁校验（session-detail artifact  freshness + PASS）
 python3 "$ROOT/scripts/hooks/stop_quality_gate.py" >&2
 QG_EXIT=$?
 if [[ $QG_EXIT -ne 0 ]]; then
@@ -84,15 +92,7 @@ if [[ $QG_EXIT -ne 0 ]]; then
   BLOCK=1
 fi
 
-# 2c. 非 UI quality targets 自动运行（hook-runtime, harness, python-src）
-python3 "$ROOT/scripts/quality/run_required_quality_gates.py" >&2
-RG_EXIT=$?
-if [[ $RG_EXIT -ne 0 ]]; then
-  hook_log "BLOCK" "run_required_quality_gates.py 运行失败 (exit=$RG_EXIT)"
-  BLOCK=1
-fi
-
-# 2d. 非 UI quality targets artifact 校验（hook-runtime, harness, python-src）
+# 2d. 非 session-detail quality targets artifact 校验
 python3 "$ROOT/scripts/quality/stop_check_targets.py" >&2
 ST_EXIT=$?
 if [[ $ST_EXIT -ne 0 ]]; then

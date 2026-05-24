@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Stop hook runner for non-session-detail quality targets.
+"""Stop hook runner for quality targets.
 
 Reads tmp/agent_logs/current/changed-files.jsonl, computes required targets
-via classify.required_quality_targets(), excludes session-detail (handled by
-stop_quality_gate.py), and runs run_quality_gate.py for each remaining target.
+via classify.required_quality_targets(), and runs run_quality_gate.py for each.
+
+By default excludes session-detail (handled by stop_quality_gate.py).
+Pass --include-session-detail to include it in the runner (used by stop.sh).
 
 Usage:
     python3 scripts/quality/run_required_quality_gates.py
     python3 scripts/quality/run_required_quality_gates.py --change-id fix-xyz
     python3 scripts/quality/run_required_quality_gates.py --change-id fix-xyz --dry-run
+    python3 scripts/quality/run_required_quality_gates.py --change-id fix-xyz --include-session-detail
 
 Exit codes:
     0 — all targets PASS or no targets to run
@@ -32,7 +35,7 @@ CHANGED_FILES = AGENT_LOG_DIR / "changed-files.jsonl"
 SESSION_ID_FILE = AGENT_LOG_DIR / "session-id.txt"
 QUALITY_DIR = REPO_ROOT / "tmp" / "quality"
 
-# session-detail 由 stop_quality_gate.py 单独处理，此处排除
+# session-detail 由 stop_quality_gate.py 单独处理，默认排除
 EXCLUDED_TARGETS = {"session-detail"}
 
 
@@ -78,12 +81,12 @@ def get_changed_files() -> list[str]:
     return files
 
 
-def compute_required_targets(changed_files: list[str]) -> list[str]:
-    """Compute required quality targets from changed files, excluding session-detail."""
+def compute_required_targets(changed_files: list[str], excluded: set[str]) -> list[str]:
+    """Compute required quality targets from changed files, applying exclusions."""
     from scripts.claude_hooks.classify import required_quality_targets
 
     all_targets = required_quality_targets(changed_files)
-    return [t for t in all_targets if t not in EXCLUDED_TARGETS]
+    return [t for t in all_targets if t not in excluded]
 
 
 def run_gate(target: str, change_id: str) -> tuple[bool, str]:
@@ -120,10 +123,20 @@ def run_gate(target: str, change_id: str) -> tuple[bool, str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run required quality gates (excluding session-detail)")
+    parser = argparse.ArgumentParser(description="Run required quality gates (excluding session-detail by default)")
     parser.add_argument("--change-id", default=None, help="Override change-id")
     parser.add_argument("--dry-run", action="store_true", help="Print what would run without executing")
+    parser.add_argument("--include-session-detail", action="store_true",
+                        help="Include session-detail in runner targets (default: excluded)")
     args = parser.parse_args()
+
+    # Determine effective exclusions
+    effective_excluded = set(EXCLUDED_TARGETS)
+    if args.include_session_detail:
+        effective_excluded.discard("session-detail")
+        print("[run_required_quality_gates] --include-session-detail: session-detail will be executed by this runner", file=sys.stderr)
+    else:
+        print("[run_required_quality_gates] session-detail excluded (handled by stop_quality_gate.py)", file=sys.stderr)
 
     change_id = resolve_change_id(args.change_id)
     changed_files = get_changed_files()
@@ -131,12 +144,16 @@ def main() -> int:
     print(f"[run_required_quality_gates] change-id={change_id}", file=sys.stderr)
     print(f"[run_required_quality_gates] changed-files={CHANGED_FILES.relative_to(REPO_ROOT)}", file=sys.stderr)
 
-    all_required = compute_required_targets(changed_files)
-    # Also compute full list including excluded for logging
     from scripts.claude_hooks.classify import required_quality_targets
     full_required = required_quality_targets(changed_files)
 
+    # Targets actually executed after exclusions
+    all_required = [t for t in full_required if t not in effective_excluded]
+    skipped = [t for t in full_required if t in effective_excluded]
+
     print(f"[run_required_quality_gates] required targets: {', '.join(sorted(full_required)) if full_required else '(none)'}", file=sys.stderr)
+    if skipped:
+        print(f"[run_required_quality_gates] skipped targets (excluded): {', '.join(sorted(skipped))}", file=sys.stderr)
 
     if not changed_files:
         print("[run_required_quality_gates] no changed files, exit 0", file=sys.stderr)
@@ -149,7 +166,7 @@ def main() -> int:
     if args.dry_run:
         for t in sorted(all_required):
             print(f"[run_required_quality_gates] would run target: {t}", file=sys.stderr)
-        for t in sorted(EXCLUDED_TARGETS & set(full_required)):
+        for t in sorted(effective_excluded & set(full_required)):
             print(f"[run_required_quality_gates] skip target handled elsewhere: {t}", file=sys.stderr)
         return 0
 
@@ -166,7 +183,7 @@ def main() -> int:
             blocked = True
 
     # Log skipped targets
-    for t in sorted(EXCLUDED_TARGETS & set(full_required)):
+    for t in sorted(effective_excluded & set(full_required)):
         print(f"[run_required_quality_gates] skip target handled elsewhere: {t}", file=sys.stderr)
 
     return 1 if blocked else 0

@@ -116,7 +116,7 @@ class TestSessionDetailExcluded:
         }])
 
         changed_files = _runner.get_changed_files()
-        all_targets = _runner.compute_required_targets(changed_files)
+        all_targets = _runner.compute_required_targets(changed_files, _runner.EXCLUDED_TARGETS)
         assert "session-detail" not in all_targets, \
             "session-detail must be excluded from runner targets"
 
@@ -185,3 +185,86 @@ class TestNoFeipiAgentLogDir:
         source = SCRIPT_PATH.read_text()
         assert "FEIPI_AGENT_LOG_DIR" not in source, \
             "run_required_quality_gates.py must not reference FEIPI_AGENT_LOG_DIR"
+
+
+class TestIncludeSessionDetail:
+    def test_default_excludes_session_detail_dry_run(self):
+        """Default behavior: session-detail excluded from dry-run targets."""
+        td = _setup_env([{
+            "ts": "2026-05-24T00:00:00Z",
+            "tool": "Edit",
+            "file": "src/session_browser/web/static/style.css",
+            "category": "ui-css",
+            "requiresQualityGate": True,
+            "sessionId": "test-session-001",
+        }])
+
+        old_argv = sys.argv
+        try:
+            sys.argv = ["run_required_quality_gates.py", "--dry-run"]
+            rc = _runner.main()
+        finally:
+            sys.argv = old_argv
+        assert rc == 0
+
+    def test_include_session_detail_dry_run(self):
+        """--include-session-detail: session-detail appears in dry-run targets."""
+        td = _setup_env([{
+            "ts": "2026-05-24T00:00:00Z",
+            "tool": "Edit",
+            "file": "src/session_browser/web/static/style.css",
+            "category": "ui-css",
+            "requiresQualityGate": True,
+            "sessionId": "test-session-001",
+        }])
+
+        old_argv = sys.argv
+        try:
+            sys.argv = ["run_required_quality_gates.py", "--dry-run", "--include-session-detail"]
+            rc = _runner.main()
+        finally:
+            sys.argv = old_argv
+        assert rc == 0
+
+    def test_include_session_detail_computes_targets(self):
+        """--include-session-detail: compute_required_targets includes session-detail."""
+        td = _setup_env([{
+            "ts": "2026-05-24T00:00:00Z",
+            "tool": "Edit",
+            "file": "src/session_browser/web/static/style.css",
+            "category": "ui-css",
+            "requiresQualityGate": True,
+            "sessionId": "test-session-001",
+        }])
+
+        changed_files = _runner.get_changed_files()
+        # With exclusion (default)
+        excluded_targets = _runner.compute_required_targets(changed_files, _runner.EXCLUDED_TARGETS)
+        assert "session-detail" not in excluded_targets
+
+        # Without exclusion (--include-session-detail)
+        no_exclusion = set()
+        all_targets = _runner.compute_required_targets(changed_files, no_exclusion)
+        assert "session-detail" in all_targets
+
+
+class TestStopShOrdering:
+    def test_run_required_before_stop_quality_gate(self):
+        """stop.sh must call run_required_quality_gates.py before stop_quality_gate.py."""
+        stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"
+        text = stop_sh.read_text()
+
+        run_required_pos = text.find("run_required_quality_gates.py")
+        stop_quality_pos = text.find("stop_quality_gate.py")
+
+        assert run_required_pos != -1, "run_required_quality_gates.py not found in stop.sh"
+        assert stop_quality_pos != -1, "stop_quality_gate.py not found in stop.sh"
+        assert run_required_pos < stop_quality_pos, \
+            f"run_required_quality_gates.py (pos {run_required_pos}) must appear before stop_quality_gate.py (pos {stop_quality_pos})"
+
+    def test_stop_sh_includes_session_detail_flag(self):
+        """stop.sh must pass --include-session-detail to run_required_quality_gates.py."""
+        stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"
+        text = stop_sh.read_text()
+        assert "--include-session-detail" in text, \
+            "stop.sh must pass --include-session-detail to run_required_quality_gates.py"
