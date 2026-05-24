@@ -8,6 +8,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "templateContract",
         "staticCssContract",
         "browserLayout",
+        "browserInteraction",
         "pytest",
     ],
     "python-src": [
@@ -48,6 +49,8 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         "browserLayout": [
             "src/session_browser/web/templates/**/*.html",
             "src/session_browser/web/static/**/*.css",
+        ],
+        "browserInteraction": [
             "src/session_browser/web/static/**/*.js",
         ],
         "pythonCompile": [

@@ -871,6 +871,19 @@ def _to_local_time(iso_str: str) -> str:
         return str(iso_str)[:19].replace("T", " ")
 
 
+def _to_local_time_hms(iso_str: str) -> str:
+    """Convert UTC ISO8601 timestamp to local-time HH:MM:SS only."""
+    if not iso_str:
+        return ""
+    from datetime import datetime
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        local_dt = dt.astimezone()
+        return local_dt.strftime("%H:%M:%S")
+    except (ValueError, TypeError):
+        return str(iso_str)[-8:]
+
+
 def _build_rounds(
     messages: list[ChatMessage],
     tool_calls: list[ToolCall],
@@ -2813,6 +2826,7 @@ def _build_v11_view_model(
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
+                    "start_time": _to_local_time_hms(m.timestamp or ""),
                     "metric": _format_compact_token(st_output),
                     "token_input": st_input,
                     "token_cache_read": st_cache_read,
@@ -2940,6 +2954,7 @@ def _build_v11_view_model(
             status_tone = "ok"
 
         # Round summary: user input first if available
+        start_time = _to_local_time_hms(r.user_msg.timestamp or r.assistant_msg.timestamp or "")
         if r.user_msg.content:
             preview_title = (r.user_msg.content or "")[:120]
         else:
@@ -3364,6 +3379,7 @@ def _build_v11_view_model(
             "tool_count": tool_total,
             "tool_count_label": tool_count_label,
             "has_user_input": bool(r.user_msg.content),
+            "start_time": start_time,
             "is_open": False,
             "timeline_items": items,
         })
@@ -3619,6 +3635,7 @@ def _build_v9_view_model(
                 sub_rounds.append({
                     "sub_round_id": m_idx + 1,
                     "title": (m.content or "")[:80] or "Assistant response",
+                    "start_time": _to_local_time_hms(m.timestamp or ""),
                     "metric": _format_compact_token(usage.get("output_tokens", 0)),
                     "status": "error" if sr_has_fail else "ok",
                     "status_label": "fail tool" if sr_has_fail else "ok",
@@ -3678,6 +3695,7 @@ def _build_v9_view_model(
             status_tone = "ok"
 
         # Preview: user input first if available
+        start_time = _to_local_time_hms(r.user_msg.timestamp or r.assistant_msg.timestamp or "")
         if r.user_msg.content:
             preview_title = (r.user_msg.content or "")[:120]
         else:
@@ -3877,6 +3895,7 @@ def _build_v9_view_model(
             "tool_count": tool_total,
             "tool_count_label": tool_count_label,
             "is_open": False,
+            "start_time": start_time,
             "timeline_items": items,
         })
 

@@ -42,8 +42,11 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True) -> Gate
         status = BLOCKED if required else FAIL
         return GateDetail(name=name, status=status, command=cmd, durationMs=0, output=f"命令不存在：{cmd[0] if cmd else '<empty>'}")
 
+    # Playwright 测试在并行化后应在 20s 内完成，120s 足够
+    timeout = 120 if cmd[:2] == ["npx", "playwright"] else 300
+
     try:
-        proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
+        proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
         duration = int((time.time() - started) * 1000)
         output = (proc.stdout or "").strip()
         if len(output) > 4000:
@@ -86,7 +89,11 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "scripts/quality/static_contract_check.py"]
     if gate == "browserLayout":
         if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
-            return ["npx", "playwright", "test"]
+            return ["npx", "playwright", "test", "session-detail-layout", "shell-states"]
+        return []
+    if gate == "browserInteraction":
+        if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
+            return ["npx", "playwright", "test", "session-detail.spec.js", "sessions-list.spec.js", "--grep-invert", "100 轮"]
         return []
     if gate == "pytest":
         test_candidates = {

@@ -926,6 +926,7 @@
 
 .sd-sub-id { font-family: var(--sd-mono); font-weight: 850; color: var(--sd-cyan); }
 .sd-sub-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 760; }
+.sd-sub-time { font-family: var(--sd-mono); font-size: 11px; color: var(--sd-muted); white-space: nowrap; flex-shrink: 0; margin-left: 4px; }
 
 /* ── Subagent tokenbar (lighter tint, right-aligned) ── */
 .sd-sub-tokenbar { position: relative; display: flex; align-items: center; justify-content: flex-end; width: 100%; z-index: 2; }
@@ -964,12 +965,6 @@
 .sd-sub-tokenbar:focus-within { z-index: 80; }
 .sd-sub-tokenbar:hover .token-tooltip,
 .sd-sub-tokenbar:focus-within .token-tooltip { display: block; }
-
-/* ── Subagent status pill ── */
-.sd-sub-status { font-size: 11px; font-weight: 600; text-transform: capitalize; padding: 1px 6px; border-radius: 4px; text-align: right; width: fit-content; white-space: nowrap; margin-left: auto; }
-.sd-sub-status.ok { color: var(--sd-ok, #16a34a); background: #f0fdf4; }
-.sd-sub-status.err, .sd-sub-status.fail { color: var(--sd-err, #dc2626); background: #fef2f2; }
-.sd-sub-status.warn { color: var(--sd-warn, #d97706); background: #fffbeb; }
 
 .sd-sub-steps {
   position: relative;
@@ -1131,7 +1126,8 @@
 .trace-table col.col-round { width: 64px; }
 .trace-table col.col-summary { width: auto; }
 .trace-table col.col-metrics { width: 180px; }
-.trace-table col.col-status { width: 140px; }
+.trace-table col.col-status { width: 110px; }
+.trace-table col.col-time { width: 90px; }
 
 .trace-table thead th {
   height: 36px;
@@ -1396,6 +1392,15 @@
 }
 .round-id.manual { color: var(--sd-purple); }
 .round-id.failed { color: var(--sd-err); }
+
+/* Time column */
+.time-col { white-space: nowrap; }
+.round-time {
+  font-size: 12px;
+  font-family: var(--sd-mono, ui-monospace, monospace);
+  color: var(--sd-muted);
+  white-space: nowrap;
+}
 
 /* Badge variants moved to ui-primitives.css (.badge-manual, .badge-err, .badge-warn, .badge-info, .badge-model)
    Page CSS should not redefine global primitives. */

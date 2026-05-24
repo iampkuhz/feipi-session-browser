@@ -161,12 +161,15 @@
       <span class="badge badge-err">Failed</span>
     {% endif %}
   </td>
+  <td>
+    <span class="round-time">{{ row.start_time|default('—') }}</span>
+  </td>
 </tr>
 {%- endmacro %}
 
 {% macro expanded_row(row) -%}
 <tr class="expanded-row" id="round-{{ row.round_id }}-detail" data-trace-detail {% if not row.is_open %}hidden{% endif %}>
-  <td colspan="4">
+  <td colspan="5">
     <div class="sd-timeline">
       {% for item in row.timeline_items %}
         {% if item.type == 'llm_call' %}
@@ -259,6 +262,7 @@
             <div class="sd-sub-round__summary">
               <span class="sd-sub-id">SR{{ sr.sub_round_id }}</span>
               <span class="sd-sub-title">{{ sr.title }}</span>
+              <span class="sd-sub-time">{{ sr.start_time|default('—') }}</span>
               <span class="sd-sub-tokenbar">
                 <span class="tokenbar-sub" aria-hidden="true">
                   <span class="fresh" style="--segment-width:{{ sr.token_mix.fresh|default(0) }}%"></span>
@@ -294,7 +298,6 @@
                   </div>
                 </div>
               </span>
-              <span class="sd-sub-status {{ sr.status_tone|default('ok') }}">{{ sr.status_label|default(sr.status) }}</span>
             </div>
             <div class="sd-sub-steps">
               {% for step in sr.steps %}
