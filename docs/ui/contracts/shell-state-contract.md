@@ -27,12 +27,14 @@
 
 ### Grid 定义位置
 
-`style.css` 中 `grid-template-columns` 在以下区域定义 shell 布局：
+`css/shell.css` 中 `grid-template-columns` 在以下区域定义 shell 布局：
 
-- lines 272-285: `.shell` + body state 规则
-- lines 296-305: `.app-shell` + body state 规则
-- lines 1020-1030: `.phase1-shell` override
-- lines 9323-9339: 媒体查询中 body state override
+- lines 10-80: `.shell` + body state 规则
+- lines 82-110: `.app-shell` + body state 规则（aliases）
+- lines 210-240: `.phase1-shell` override
+- lines 320-360: 媒体查询中 body state override
+
+`style.css` 中的 shell grid 已抽取至 `css/shell.css`（Task 05）。
 
 ### 当前 grid 规则（desktop）
 

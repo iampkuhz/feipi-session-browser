@@ -11,7 +11,8 @@
          详见 docs/ui/contracts/04-css-js-ownership.md
 
          Layer 1 — Tokens + Shell (global):
-           /static/style.css              → 设计令牌、布局骨架
+           /static/style.css              → 设计令牌
+           /static/css/shell.css          → 布局骨架
 
          Layer 2 — Shared Primitives (global):
            /static/css/ui-primitives.css  → 按钮、徽章、卡片等原子组件
@@ -26,6 +27,7 @@
          禁止新增: 版本化或补丁 CSS 文件
          ============================================================ -->
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     {% endif %}

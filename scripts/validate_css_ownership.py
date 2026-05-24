@@ -90,6 +90,7 @@ KNOWN_CSS = {
     "css/glossary.css",
     "css/states.css",
     "css/ui-primitives.css",
+    "css/shell.css",
 }
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -245,6 +246,8 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
         rel = str(f.relative_to(css_dir))
         if f.name == "style.css":
             continue  # Layer 1 is the authority
+        if rel == "css/shell.css":
+            continue  # Layer 2 shell authority
         sels = extract_selectors(f)
         for sel in sels:
             if sel not in selector_map:

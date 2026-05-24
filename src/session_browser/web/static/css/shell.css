@@ -1,0 +1,400 @@
+/* ==========================================================================
+ * Shell / Layout — CSS Grid 三栏布局
+ * 从 style.css 抽取 (Task 05)
+ * 所有者：shell 层，不得被页面 CSS 覆盖
+ * ========================================================================== */
+
+/* ─── Shell: CSS Grid 三栏布局 ─────────────────────────────── */
+.shell {
+    display: grid;
+    grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--inspector);
+    min-height: 100vh;
+}
+
+/* 默认不含 inspector 的页面（如 dashboard, sessions list）使用两栏 */
+.shell.no-inspector {
+    grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+
+/* ─── Body class 切换规则（统一覆盖块） ───────────────────────
+ * All body-level shell state rules are defined here in one block
+ * to avoid specificity conflicts between .shell and .app-shell aliases.
+ * .no-inspector variants use single-column; others use appropriate column count.
+ * See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
+ */
+
+/* hide-left: sidebar hidden, main + inspector visible */
+body.hide-left .shell                  { grid-template-columns: minmax(0, 1fr) var(--inspector); }
+body.hide-left .shell.no-inspector     { grid-template-columns: minmax(0, 1fr); }
+body.hide-left .app-shell              { grid-template-columns: minmax(0, 1fr) var(--inspector); }
+body.hide-left .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr); }
+
+/* hide-right: sidebar + main visible, inspector hidden */
+body.hide-right .shell                 { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+body.hide-right .shell.no-inspector    { grid-template-columns: minmax(0, 1fr); }
+body.hide-right .app-shell             { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+body.hide-right .app-shell.no-inspector { grid-template-columns: minmax(0, 1fr); }
+
+/* focus: only main visible */
+body.focus .shell,
+body.focus .shell.no-inspector         { grid-template-columns: minmax(0, 1fr); }
+body.focus .app-shell,
+body.focus .app-shell.no-inspector     { grid-template-columns: minmax(0, 1fr); }
+
+/* Hide sidebar/inspector when their columns are 0 */
+body.hide-left .sidebar,
+body.focus .sidebar                    { display: none; }
+body.focus .inspector                  { display: none; }
+
+.shell,
+.app-shell,
+.phase1-shell {
+    min-width: 0;
+}
+
+.main,
+.content,
+.page-main {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* ─── Session detail shell containment (moved from session-detail.css) ── */
+.sd-shell {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* ─── Shell aliases (HIFI naming → production) ──────────────────
+ * base.html uses both production (.shell/.main) and HIFI (.app-shell/.main-panel)
+ * class names on the same element. These aliases ensure both names resolve correctly.
+ * ─── App shell root (alias to .shell) ─── */
+.app-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--inspector);
+    min-height: 100vh;
+}
+.app-shell.no-inspector {
+    grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+/* body state rules for .app-shell are defined in the unified override block
+   above (lines 298-305) to avoid specificity conflicts. */
+
+/* ─── Main panel (alias to .main) ─── */
+.main-panel {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ─── Sidebar: sticky 内嵌容器 ─────────────────────────────── */
+.sidebar {
+    position: static;            /* 覆盖旧的 position: fixed — task 02 */
+    background: rgba(255, 255, 255, 0.88);
+    border-right: 1px solid var(--line);
+    backdrop-filter: saturate(150%) blur(10px);
+    min-width: 0;
+    /* grid 默认 align-self: stretch，让 sidebar 撑满行高，sidebar-inner 才能 sticky */
+}
+.sidebar-inner {
+    width: var(--sidebar);
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ─── Main: grid 中间栏 ───────────────────────────────────── */
+.main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ─── Top bar ─────────────────────────────────────────────────── */
+.topbar {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+}
+.topbar-title {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text);
+}
+.topbar-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.topbar-breadcrumb a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.topbar-breadcrumb a:hover { color: var(--accent); }
+.topbar-breadcrumb .sep { color: var(--border); }
+.topbar-breadcrumb .current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.topbar-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ─── Content ─────────────────────────────────────────────────── */
+.content {
+    padding: var(--space-md) 32px;
+    max-width: min(100%, var(--max));
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ─── Topbar actions ──────────────────────────────────────────── */
+.topbar-action {
+    width: var(--topbar-action-size);
+    height: var(--topbar-action-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+}
+.topbar-action:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+}
+.topbar-action:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.action-icon {
+    font-size: var(--text-lg);
+    line-height: 1;
+}
+
+/* Placeholder actions: visible but clearly not wired to real features */
+.topbar-action--placeholder {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.topbar-action--placeholder:hover {
+    background: transparent;
+    color: var(--text-muted);
+}
+.topbar-action--placeholder:disabled {
+    pointer-events: none;
+}
+
+/* ─── Top actions container ─── */
+.top-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* ── Session detail: single-page debug layout, hide sidebar/inspector ── */
+/*
+ * DEPRECATED T053: phase1-shell has no template references.
+ * Kept as no-op rules for backward compatibility.
+ *
+ * CRITICAL: phase1-shell must override body.hide-left / body.focus / body.hide-right
+ * rules that set grid-template-columns to include a 0px first column.
+ * body.hide-left .shell.no-inspector has specificity (0,3,0), higher than
+ * the old .shell.phase1-shell (0,2,0). All variants below use (0,3,0)+ to win.
+ */
+body.hide-left .shell.phase1-shell,
+body.hide-left .shell.no-inspector.phase1-shell,
+body.hide-right .shell.phase1-shell,
+body.focus .shell.phase1-shell,
+.shell.no-inspector.phase1-shell,
+.shell.phase1-shell {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.shell.phase1-shell .sidebar,
+.shell.phase1-shell .topbar-actions {
+    display: none;
+}
+
+.shell.phase1-shell .main {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 0;
+}
+
+/* ─ Sessions list: no-inspector main area ── */
+.shell.no-inspector .main {
+    padding: 0;
+    padding-bottom: var(--space-md);
+}
+
+/* ─── Footer ──────────────────────────────────────────────────── */
+.footer {
+    margin-top: auto;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    font-size: var(--text-micro);
+    color: var(--text-muted);
+}
+
+/* ─── Sidebar collapse toggle (DEPRECATED: task 02; marked T053) ─────────── */
+.sidebar-toggle {
+    /* hide old collapse button — replaced by shell grid toggles */
+    display: none;
+}
+
+/* Expand button (DEPRECATED: task 02; marked T053) */
+.sidebar-toggle-expand {
+    /* hide old expand button — replaced by shell grid toggles */
+    display: none;
+}
+
+/* Collapsed state (DEPRECATED: task 02; marked T053) */
+body.sidebar-collapsed .sidebar {
+    /* replaced by body.hide-left in shell grid */
+    transform: translateX(calc(-1 * var(--sidebar-w)));
+}
+body.sidebar-collapsed .main-area {
+    margin-left: 0;
+}
+body.sidebar-collapsed .sidebar-toggle {
+    opacity: 0;
+    pointer-events: none;
+}
+body.sidebar-collapsed .sidebar-toggle-expand {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Transition (DEPRECATED: task 02; marked T053) */
+.sidebar {
+    /* transform transition no longer needed — shell grid handles it */
+    transition: none;
+}
+.main-area {
+    transition: margin-left 200ms ease;
+}
+
+/* ======================================================================
+ * Responsive layout — shell breakpoints
+ * ====================================================================== */
+
+/* ── Tablet: 1024px–1399px ─────────────────────────────────────────── */
+@media (max-width: 1399px) and (min-width: 1024px) {
+    .sidebar-inner {
+        width: calc(var(--sidebar) * 0.82);
+    }
+    :root {
+        --sidebar: calc(var(--sidebar) * 0.82);
+    }
+    .main {
+        padding: var(--space-md);
+    }
+    .hero-main {
+        padding: var(--space-md) var(--space-lg);
+    }
+}
+
+/* ── Tablet and below: hide sidebar by default (<1024px) ──────────── */
+@media (max-width: 1023px) {
+    .sidebar-inner {
+        display: none;
+    }
+
+    /* All shell variants collapse to single column on small screens.
+       Use a combined selector list to match specificity of body.* rules. */
+    .app-shell,
+    .app-shell.no-inspector,
+    body.hide-left .app-shell,
+    body.hide-left .app-shell.no-inspector,
+    body.hide-right .app-shell,
+    body.focus .app-shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* .shell retains inspector column by default on tablet; body states collapse */
+    .shell {
+        grid-template-columns: minmax(0, 1fr) var(--inspector);
+    }
+    .shell.no-inspector,
+    body.hide-left .shell,
+    body.hide-left .shell.no-inspector,
+    body.hide-right .shell,
+    body.focus .shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .main {
+        padding: var(--space-sm) var(--space-md);
+    }
+    .hero-main {
+        padding: var(--space-sm) var(--space-md);
+    }
+}
+
+/* ── Mobile: <768px — shell-related rules ───────────────────── */
+@media (max-width: 767px) {
+    :root {
+        --inspector-w: 100vw;
+    }
+    .main {
+        padding: var(--space-xs) var(--space-sm);
+    }
+    .hero-main {
+        padding: var(--space-xs) var(--space-sm);
+    }
+    .brand-title {
+        font-size: var(--text-lg);
+    }
+    .page-title {
+        font-size: var(--text-xl);
+    }
+    .hero-main .page-header {
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+    }
+    .top-btn {
+        font-size: var(--text-micro);
+        height: 26px;
+        padding: 0 8px;
+    }
+    .inspector {
+        min-width: 0;
+        width: 100vw;
+    }
+}
+
+/* ── Desktop: >=1400px ─────────────────────────────────────────── */
+@media (min-width: 1400px) {
+    .main {
+        padding: var(--space-lg) var(--space-xl);
+    }
+    .hero-main {
+        padding: var(--space-lg) var(--space-xl);
+    }
+}

@@ -38,7 +38,7 @@ def check_no_duplicate_base_css(html_files: list[Path]) -> list[str]:
     页面模板不得在 head_extra 或其他位置重复 link 这些文件。
     """
     errors: list[str] = []
-    base_names = {"style.css", "ui-primitives.css", "legacy-aliases.css"}
+    base_names = {"style.css", "shell.css", "ui-primitives.css", "legacy-aliases.css"}
     for path in html_files:
         text = path.read_text(encoding="utf-8", errors="replace")
         # 排除 base.html 自身
@@ -63,13 +63,15 @@ def check_css_load_order(base_html_text: str) -> list[str]:
 
     期望顺序：
     1. /static/style.css
-    2. /static/css/ui-primitives.css
-    3. /static/css/legacy-aliases.css
-    4. {% block head_extra %}
+    2. /static/css/shell.css
+    3. /static/css/ui-primitives.css
+    4. /static/css/legacy-aliases.css
+    5. {% block head_extra %}
     """
     errors: list[str] = []
     expected = [
         "/static/style.css",
+        "/static/css/shell.css",
         "/static/css/ui-primitives.css",
         "/static/css/legacy-aliases.css",
         "{% block head_extra %}",
@@ -152,8 +154,8 @@ def check_shell_ownership(css_files: list[Path]) -> list[str]:
         ".app-shell", ".shell", ".phase1-shell",
         "body.hide-left", "body.hide-right", "body.focus",
     ]
-    # 豁免文件：style.css（当前 shell 所在位置）、legacy-aliases.css（兼容层）
-    exempt = {"style.css", "legacy-aliases.css"}
+    # 豁免文件：style.css（历史 shell 残留）、shell.css（当前 shell 权威）、legacy-aliases.css（兼容层）
+    exempt = {"style.css", "shell.css", "legacy-aliases.css"}
     for path in css_files:
         name = path.name
         if name in exempt:

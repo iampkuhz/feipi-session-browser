@@ -16,6 +16,7 @@ TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_DIR = ROOT / "src" / "session_browser" / "web" / "static"
 BASE_HTML = TEMPLATE_DIR / "base.html"
 STYLE_CSS = STATIC_DIR / "style.css"
+SHELL_CSS = STATIC_DIR / "css" / "shell.css"
 
 
 def _base_source():
@@ -32,6 +33,13 @@ def _style_source():
     return STYLE_CSS.read_text(encoding="utf-8")
 
 
+def _shell_source():
+    """Return shell.css text, skipping tests if file is missing."""
+    if not SHELL_CSS.exists():
+        pytest.skip(f"shell.css not found at {SHELL_CSS}")
+    return SHELL_CSS.read_text(encoding="utf-8")
+
+
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
 
@@ -43,6 +51,11 @@ def base_text():
 @pytest.fixture(scope="module")
 def style_text():
     return _style_source()
+
+
+@pytest.fixture(scope="module")
+def shell_text():
+    return _shell_source()
 
 
 # ── base.html shell structure ─────────────────────────────────────────────
@@ -209,60 +222,62 @@ class TestBaseHtmlBrandCard:
 
 
 class TestCssShellRules:
-    """style.css must contain required shell CSS rules."""
+    """shell.css and style.css must contain required shell CSS rules."""
 
-    def test_app_shell_rule(self, style_text):
-        """.app-shell rule must exist."""
-        assert re.search(r'\.app-shell\s*\{', style_text), \
-            "style.css lacks .app-shell rule"
+    # Rules moved to shell.css (Task 05)
+    def test_app_shell_rule(self, shell_text):
+        """.app-shell rule must exist in shell.css."""
+        assert re.search(r'\.app-shell\s*\{', shell_text), \
+            "shell.css lacks .app-shell rule"
 
-    def test_sidebar_rule(self, style_text):
-        """.sidebar rule must exist."""
-        assert re.search(r'\.sidebar\s*\{', style_text), \
-            "style.css lacks .sidebar rule"
+    def test_sidebar_rule(self, shell_text):
+        """.sidebar rule must exist in shell.css."""
+        assert re.search(r'\.sidebar\s*\{', shell_text), \
+            "shell.css lacks .sidebar rule"
 
-    def test_main_panel_rule(self, style_text):
-        """.main-panel rule must exist."""
-        assert re.search(r'\.main-panel\s*\{', style_text), \
-            "style.css lacks .main-panel rule"
+    def test_main_panel_rule(self, shell_text):
+        """.main-panel rule must exist in shell.css."""
+        assert re.search(r'\.main-panel\s*\{', shell_text), \
+            "shell.css lacks .main-panel rule"
 
-    def test_topbar_rule(self, style_text):
-        """.topbar rule must exist."""
-        assert re.search(r'\.topbar\s*\{', style_text), \
-            "style.css lacks .topbar rule"
+    def test_topbar_rule(self, shell_text):
+        """.topbar rule must exist in shell.css."""
+        assert re.search(r'\.topbar\s*\{', shell_text), \
+            "shell.css lacks .topbar rule"
 
+    # Rules remaining in style.css
     def test_breadcrumb_rule(self, style_text):
-        """.breadcrumb rule must exist."""
+        """.breadcrumb rule must exist in style.css."""
         assert re.search(r'\.breadcrumb\s*\{', style_text), \
             "style.css lacks .breadcrumb rule"
 
-    def test_top_actions_rule(self, style_text):
-        """.top-actions rule must exist."""
-        assert re.search(r'\.top-actions\s*\{', style_text), \
-            "style.css lacks .top-actions rule"
+    def test_top_actions_rule(self, shell_text):
+        """.top-actions rule must exist in shell.css."""
+        assert re.search(r'\.top-actions\s*\{', shell_text), \
+            "shell.css lacks .top-actions rule"
 
-    def test_footer_rule(self, style_text):
-        """.footer rule must exist."""
-        assert re.search(r'\.footer\s*\{', style_text), \
-            "style.css lacks .footer rule"
+    def test_footer_rule(self, shell_text):
+        """.footer rule must exist in shell.css."""
+        assert re.search(r'\.footer\s*\{', shell_text), \
+            "shell.css lacks .footer rule"
 
     def test_nav_list_rule(self, style_text):
-        """.nav-list rule must exist."""
+        """.nav-list rule must exist in style.css."""
         assert re.search(r'\.nav-list\s*\{', style_text), \
             "style.css lacks .nav-list rule"
 
     def test_nav_item_rule(self, style_text):
-        """.nav-item rule must exist."""
+        """.nav-item rule must exist in style.css."""
         assert re.search(r'\.nav-item\s*\{', style_text), \
             "style.css lacks .nav-item rule"
 
     def test_brand_card_rule(self, style_text):
-        """.brand-card rule must exist."""
+        """.brand-card rule must exist in style.css."""
         assert re.search(r'\.brand-card\s*\{', style_text), \
             "style.css lacks .brand-card rule"
 
     def test_icon_btn_rule(self, style_text):
-        """.icon-btn rule must exist."""
+        """.icon-btn rule must exist in style.css."""
         assert re.search(r'\.icon-btn\s*\{', style_text), \
             "style.css lacks .icon-btn rule"
 
@@ -271,27 +286,27 @@ class TestCssShellRules:
 
 
 class TestCssResponsiveBreakpoints:
-    """style.css must contain responsive breakpoints for shell."""
+    """shell.css must contain responsive breakpoints for shell."""
 
-    def test_has_mobile_768_breakpoint(self, style_text):
+    def test_has_mobile_768_breakpoint(self, shell_text):
         """Must have @media (max-width: 768px) or similar."""
-        assert re.search(r'@media\s*\(max-width:\s*(768|767)', style_text), \
-            "style.css lacks mobile breakpoint (~768px)"
+        assert re.search(r'@media\s*\(max-width:\s*(768|767)', shell_text), \
+            "shell.css lacks mobile breakpoint (~768px)"
 
-    def test_has_tablet_1024_breakpoint(self, style_text):
+    def test_has_tablet_1024_breakpoint(self, shell_text):
         """Must have @media (max-width: 1024px) or similar."""
-        assert re.search(r'@media\s*\(max-width:\s*(1024|1023)', style_text), \
-            "style.css lacks tablet breakpoint (~1024px)"
+        assert re.search(r'@media\s*\(max-width:\s*(1024|1023)', shell_text), \
+            "shell.css lacks tablet breakpoint (~1024px)"
 
-    def test_has_large_1400_breakpoint(self, style_text):
+    def test_has_large_1400_breakpoint(self, shell_text):
         """Must have @media (min-width: 1400px) or (max-width: 1400px)."""
-        assert re.search(r'@media\s*\([^)]*(min-width|max-width):\s*1400', style_text), \
-            "style.css lacks large-screen breakpoint (~1400px)"
+        assert re.search(r'@media\s*\([^)]*(min-width|max-width):\s*1400', shell_text), \
+            "shell.css lacks large-screen breakpoint (~1400px)"
 
-    def test_sidebar_collapse_rule(self, style_text):
+    def test_sidebar_collapse_rule(self, shell_text):
         """Must have body.hide-left .sidebar or similar collapse rule."""
-        assert 'body.hide-left' in style_text or 'body.sidebar-collapsed' in style_text, \
-            "style.css lacks sidebar collapse rule"
+        assert 'body.hide-left' in shell_text or 'body.sidebar-collapsed' in shell_text, \
+            "shell.css lacks sidebar collapse rule"
 
 
 # ── style.css page-specific leakage (spot check) ─────────────────────────

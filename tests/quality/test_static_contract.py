@@ -61,6 +61,7 @@ class TestCheckCssLoadOrder:
     def test_correct_order_passes(self):
         html = """
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     {% block head_extra %}{% endblock %}
@@ -71,6 +72,7 @@ class TestCheckCssLoadOrder:
         """legacy-aliases before ui-primitives should BLOCK."""
         html = """
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
     {% block head_extra %}{% endblock %}
@@ -92,6 +94,7 @@ class TestCheckCssLoadOrder:
         """head_extra must come after legacy-aliases."""
         html = """
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
     {% block head_extra %}{% endblock %}
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">
@@ -212,8 +215,15 @@ class TestCheckPayloadModalOwnership:
 
 class TestCheckShellOwnership:
     def test_style_css_exempt(self, tmp_path):
-        """style.css is the current shell owner, should not warn."""
+        """style.css may contain residual shell references."""
         css = tmp_path / "style.css"
+        css.write_text(".shell { display: grid; }")
+        warnings = check_shell_ownership([css])
+        assert warnings == []
+
+    def test_shell_css_exempt(self, tmp_path):
+        """shell.css is the shell authority, should not warn."""
+        css = tmp_path / "shell.css"
         css.write_text(".shell { display: grid; }")
         warnings = check_shell_ownership([css])
         assert warnings == []
