@@ -50,6 +50,68 @@
   --sd-radius-panel: 18px;
 }
 
+/* ── Horizontal overflow containment (sprint 02) ─────────────
+ * Prevent session detail content from overflowing the shell grid column.
+ * The root cause is typically grid children with min-width: max-content
+ * or long unbroken text (paths, JSON, trace summaries).
+ * These rules constrain containers and children without hiding content.
+ */
+.sd-shell,
+.session-detail-page {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sd-tabs {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sd-trace-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Grid children that can expand beyond their column without constraint.
+ * min-width: 0 allows grid items to shrink below their content width. */
+.sd-round-preview,
+.sd-round-metric,
+.sd-round-mix,
+.sd-round-status {
+  min-width: 0;
+}
+
+/* Long text containers: allow wrapping instead of forcing horizontal scroll. */
+.sd-hero-url-text,
+.sd-round-preview__title,
+.sd-round-preview__sub,
+.sd-tool-cmd,
+.sd-tool-result {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Tables and data grids: keep within their column, scroll locally if needed. */
+.sd-round-summary {
+  overflow: hidden;
+}
+
+.sd-llm-content-row {
+  min-width: 0;
+}
+
+.sd-sub-llm-content-row {
+  min-width: 0;
+}
+
+.sd-tool-row {
+  min-width: 0;
+}
+
+.sd-hero__top {
+  max-width: 100%;
+}
+
 .sd-topbar {
   height: 46px;
   position: sticky;
