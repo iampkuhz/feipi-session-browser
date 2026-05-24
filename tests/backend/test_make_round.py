@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from session_browser.domain.models import ChatMessage, ToolCall
-from session_browser.web.routes import _make_round
+from session_browser.web.presenters.session_detail import _make_round
 
 
 def _assistant_msg(usage: dict | None = None, llm_call_id: str = "msg-1") -> ChatMessage:
