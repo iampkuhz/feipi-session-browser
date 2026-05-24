@@ -80,6 +80,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
             paths = ["src"]
         if target == "harness":
             paths = ["scripts/harness", "scripts/quality"]
+        if target == "index":
+            paths = ["src/session_browser/index", "scripts/quality/check_index_integrity.py"]
         return ["python3", "-m", "compileall", "-q", *paths]
     if gate == "hookSelfTest":
         return ["python3", "-m", "scripts.claude_hooks.main", "--self-test"]
@@ -107,6 +109,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
                 "tests/hooks/test_claude_hooks_evidence.py",
                 "tests/quality/test_quality_artifact.py",
             ],
+            "index": ["tests/index/"],
         }
         items = [x for x in test_candidates.get(target, ["tests"]) if (repo_root / x).exists()]
         return ["pytest", "-q", *items] if items else []
@@ -120,6 +123,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "scripts/harness/validate_openspec_layout.py"]
     if gate == "repoSlimming":
         return ["python3", "scripts/quality/repo_slimming_contract_check.py"]
+    if gate == "indexIntegrity":
+        return ["python3", "scripts/quality/check_index_integrity.py"]
     return []
 
 
@@ -157,7 +162,7 @@ def build_summary(target: str, change_id: str, started_at: str, details: list[Ga
 # 05. CLI
 def main() -> int:
     parser = argparse.ArgumentParser(description="Deterministic quality gate runner")
-    parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness"])
+    parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness", "index"])
     parser.add_argument("--change-id", required=True)
     parser.add_argument("--out", default="tmp/quality",
                         help="Quality artifact directory. Default: tmp/quality")

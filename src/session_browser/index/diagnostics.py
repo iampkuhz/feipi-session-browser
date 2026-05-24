@@ -6,9 +6,161 @@ Two distinct groups:
 
 Templates and filters must derive their candidate values from these definitions,
 not hard-code them.
+
+ParseDiagnostics bridges JSONL-level parse diagnostics (from jsonl_reader.JsonlDiagnostics)
+to the domain layer, enabling the indexer and anomaly engine to see parse-time issues.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum, auto
+
+
+# ─── Parse-level severity & issues ────────────────────────────────────────
+
+
+class ParseSeverity(Enum):
+    """Parse-diagnostic severity (domain-level, decoupled from JSONL reader)."""
+    INFO = auto()
+    WARNING = auto()
+    CRITICAL = auto()
+
+
+class ParseIssue(Enum):
+    """Categories of parse-time issues that affect session quality."""
+    # JSONL-level issues (mapped from jsonl_reader.ParseIssue)
+    BAD_JSON = "BAD_JSON"
+    NON_OBJECT_SKIPPED = "NON_OBJECT_SKIPPED"
+
+    # File-level issues
+    FILE_NOT_FOUND = "FILE_NOT_FOUND"
+    EMPTY_FILE = "EMPTY_FILE"
+
+    # Data-quality issues
+    MISSING_TIMESTAMP = "MISSING_TIMESTAMP"
+    TOKEN_ESTIMATED = "TOKEN_ESTIMATED"
+
+
+@dataclass
+class ParseIssueItem:
+    """Single parse-level issue attached to a session."""
+    issue: ParseIssue
+    severity: ParseSeverity
+    message: str
+    line_no: int = 0          # 0 = file-level; >0 = JSONL line number
+    detail: str = ""          # optional context (preview of bad JSON, etc.)
+
+
+@dataclass
+class ParseDiagnostics:
+    """Domain-level parse diagnostics for a single session.
+
+    Produced by converting jsonl_reader.JsonlDiagnostics via build_parse_diagnostics(),
+    optionally enriched with adapter-specific issues (FILE_NOT_FOUND, TOKEN_ESTIMATED, etc.).
+    """
+    session_key: str = ""
+    file_path: str = ""
+
+    total_lines: int = 0
+    events_parsed: int = 0
+    events_skipped: int = 0
+
+    issues: list[ParseIssueItem] = field(default_factory=list)
+
+    # ─── Computed properties ──────────────────────────────────────────
+
+    @property
+    def has_critical(self) -> bool:
+        return any(i.severity == ParseSeverity.CRITICAL for i in self.issues)
+
+    @property
+    def has_warnings(self) -> bool:
+        return any(i.severity == ParseSeverity.WARNING for i in self.issues)
+
+    @property
+    def critical_count(self) -> int:
+        return sum(1 for i in self.issues if i.severity == ParseSeverity.CRITICAL)
+
+    @property
+    def warning_count(self) -> int:
+        return sum(1 for i in self.issues if i.severity == ParseSeverity.WARNING)
+
+    @property
+    def info_count(self) -> int:
+        return sum(1 for i in self.issues if i.severity == ParseSeverity.INFO)
+
+    # ─── Mutators ─────────────────────────────────────────────────────
+
+    def add(self, item: ParseIssueItem) -> None:
+        self.issues.append(item)
+
+    # ─── Serialization ────────────────────────────────────────────────
+
+    def to_dict(self) -> dict:
+        return {
+            "session_key": self.session_key,
+            "file_path": self.file_path,
+            "total_lines": self.total_lines,
+            "events_parsed": self.events_parsed,
+            "events_skipped": self.events_skipped,
+            "has_critical": self.has_critical,
+            "has_warnings": self.has_warnings,
+            "critical_count": self.critical_count,
+            "warning_count": self.warning_count,
+            "info_count": self.info_count,
+            "issues": [
+                {
+                    "issue": item.issue.value if isinstance(item.issue, Enum) else item.issue,
+                    "severity": item.severity.name if isinstance(item.severity, Enum) else item.severity,
+                    "message": item.message,
+                    "line_no": item.line_no,
+                    "detail": item.detail,
+                }
+                for item in self.issues
+            ],
+        }
+
+
+# ─── Builder: JSONL reader → domain ParseDiagnostics ─────────────────────
+
+
+def build_parse_diagnostics(
+    session_key: str,
+    file_path: str,
+    jsonl_diag,                       # jsonl_reader.JsonlDiagnostics
+) -> ParseDiagnostics:
+    """Convert a JsonlDiagnostics from the JSONL reader into domain-level ParseDiagnostics.
+
+    This is the primary bridge between the parsing layer and the domain layer.
+    """
+    diag = ParseDiagnostics(
+        session_key=session_key,
+        file_path=file_path,
+        total_lines=jsonl_diag.total_lines,
+        events_parsed=jsonl_diag.events_parsed,
+        events_skipped=jsonl_diag.events_skipped,
+    )
+
+    for item in jsonl_diag.issues:
+        # Map jsonl_reader ParseSeverity → domain ParseSeverity
+        if item.severity.name == "ERROR":
+            sev = ParseSeverity.CRITICAL
+        elif item.severity.name == "WARNING":
+            sev = ParseSeverity.WARNING
+        else:
+            sev = ParseSeverity.INFO
+
+        diag.issues.append(ParseIssueItem(
+            issue=ParseIssue(item.issue.value),
+            severity=sev,
+            message=item.detail,
+            line_no=item.line_no,
+            detail=item.preview,
+        ))
+
+    return diag
+
 
 # ─── Session-level anomaly tags ─────────────────────────────────────────
 # Used by: /dashboard Needs Attention, /sessions anomaly filter,

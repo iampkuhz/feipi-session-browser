@@ -33,6 +33,9 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "harnessStructure",
         "openspecLayout",
     ],
+    "index": [
+        "indexIntegrity",
+    ],
 }
 
 
@@ -134,6 +137,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
         "openspecLayout": [
             "openspec/**",
+        ],
+    },
+    "index": {
+        "indexIntegrity": [
+            "src/session_browser/index/**/*.py",
+            "src/session_browser/config.py",
+            "scripts/quality/check_index_integrity.py",
         ],
     },
 }

@@ -142,6 +142,14 @@ def parse_session_detail(
 
     Returns: (SessionSummary, chat_messages, tool_calls, []).
     """
+    from session_browser.index.diagnostics import (
+        ParseDiagnostics,
+        ParseIssue,
+        ParseIssueItem,
+        ParseSeverity,
+        build_parse_diagnostics,
+    )
+
     # Get metadata from threads DB
     thread_info = (threads_db or {}).get(session_id, {})
 
@@ -149,9 +157,18 @@ def parse_session_detail(
     rollout_path = thread_info.get("rollout_path", "")
     session_file = _find_session_file(session_id, rollout_path)
     if session_file is None:
-        return _empty_session(session_id, thread_info), [], [], []
+        s = _empty_session(session_id, thread_info)
+        s.parse_diagnostics = ParseDiagnostics(
+            session_key=s.session_key,
+            issues=[ParseIssueItem(
+                issue=ParseIssue.FILE_NOT_FOUND,
+                severity=ParseSeverity.WARNING,
+                message=f"Session file not found",
+            )],
+        ).to_dict()
+        return s, [], [], []
 
-    events, _ = parse_jsonl_events(session_file, verbose=verbose)
+    events, jsonl_diag = parse_jsonl_events(session_file, verbose=verbose)
 
     # Extract session_meta for cwd, source
     session_meta = {}
@@ -165,6 +182,14 @@ def parse_session_detail(
     )
     messages = _extract_messages(events)
     tool_calls = _extract_tool_calls(events)
+
+    # Attach parse diagnostics from JSONL reader
+    parse_diag = build_parse_diagnostics(
+        session_key=summary.session_key,
+        file_path=str(session_file),
+        jsonl_diag=jsonl_diag,
+    )
+    summary.parse_diagnostics = parse_diag.to_dict()
 
     return summary, messages, tool_calls, []
 

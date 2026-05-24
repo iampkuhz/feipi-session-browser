@@ -110,6 +110,7 @@ class SessionSummary:
     # New fields for token breakdown
     token_breakdown: Optional[TokenBreakdown] = None
     failed_tool_count: int = 0
+    parse_diagnostics: Optional[dict] = None  # domain ParseDiagnostics.to_dict() payload, attached by adapters
 
     @property
     def session_key(self) -> str:

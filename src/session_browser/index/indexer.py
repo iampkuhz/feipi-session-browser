@@ -451,19 +451,22 @@ def incremental_scan(
 
     # Load existing sessions from DB: session_key → {ended_at, file_mtime, file_path, agent, model_execution_seconds, tool_execution_seconds}
     existing = {}
-    columns = [r[0] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
     has_model_exec = "model_execution_seconds" in columns
     has_tool_exec = "tool_execution_seconds" in columns
     for row in conn.execute(
-        "SELECT session_key, ended_at, file_mtime, file_path, agent FROM sessions"
+        "SELECT session_key, ended_at, file_mtime, file_path, agent"
+        + (", model_execution_seconds" if has_model_exec else "")
+        + (", tool_execution_seconds" if has_tool_exec else "")
+        + " FROM sessions"
     ).fetchall():
         existing[row["session_key"]] = {
             "ended_at": row["ended_at"],
             "file_mtime": row["file_mtime"],
             "file_path": row["file_path"],
             "agent": row["agent"],
-            "model_execution_seconds": row[5] if has_model_exec else 0,
-            "tool_execution_seconds": row[6] if len(row) > 6 and has_tool_exec else 0,
+            "model_execution_seconds": row["model_execution_seconds"] if has_model_exec else 0,
+            "tool_execution_seconds": row["tool_execution_seconds"] if has_tool_exec else 0,
         }
 
     # Also load session_id → project_key mapping from DB for Claude sessions

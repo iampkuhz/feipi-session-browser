@@ -565,16 +565,40 @@ def parse_session_detail(
 
     Returns (SessionSummary, chat_messages, tool_calls, subagent_runs).
     """
+    from session_browser.index.diagnostics import (
+        ParseDiagnostics,
+        ParseIssue,
+        ParseIssueItem,
+        ParseSeverity,
+        build_parse_diagnostics,
+    )
+
     if session_file is None:
         session_file = _find_session_file(project_key, session_id)
         if session_file is None:
             s = _empty_session(session_id, project_key)
+            s.parse_diagnostics = ParseDiagnostics(
+                session_key=s.session_key,
+                issues=[ParseIssueItem(
+                    issue=ParseIssue.FILE_NOT_FOUND,
+                    severity=ParseSeverity.WARNING,
+                    message=f"Session file not found",
+                )],
+            ).to_dict()
             return s, [], [], []
 
-    events, _ = parse_jsonl_events(session_file, verbose=verbose)
+    events, jsonl_diag = parse_jsonl_events(session_file, verbose=verbose)
     summary = _build_summary_from_events(events, session_id, project_key)
     messages = _extract_messages(events)
     tool_calls = _extract_tool_calls(events, messages)
+
+    # Attach parse diagnostics from JSONL reader
+    parse_diag = build_parse_diagnostics(
+        session_key=summary.session_key,
+        file_path=str(session_file),
+        jsonl_diag=jsonl_diag,
+    )
+    summary.parse_diagnostics = parse_diag.to_dict()
 
     return summary, messages, tool_calls, []
 
