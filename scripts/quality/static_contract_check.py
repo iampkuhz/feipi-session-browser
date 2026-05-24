@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """静态资源契约检查。
 
-Exit 1 仅针对真正阻塞性问题（!important、load order、dead CSS 等）。
-position: fixed 和 innerHTML 作为警告输出，不阻塞提交。
+Exit 1 仅针对真正阻塞性问题（!important、load order、dead CSS、duplicate base CSS 等）。
+position: fixed、payload-modal ownership、shell ownership 作为警告输出，不阻塞提交。
 
 纯函数拆出以支持单测：
 - check_no_important(css_files)
 - check_css_load_order(base_html_text)
 - check_no_dead_css(css_files)
+- check_no_duplicate_base_css(html_files)
+- check_payload_modal_ownership(css_files)
+- check_shell_ownership(css_files)
 """
 from __future__ import annotations
 
@@ -25,6 +28,33 @@ def check_no_important(css_files: list[Path]) -> list[str]:
         text = path.read_text(encoding="utf-8", errors="replace")
         if re.search(r"!important", text):
             errors.append(f"{path}: 禁止 !important（contract: payload-modal-contract）。")
+    return errors
+
+
+def check_no_duplicate_base_css(html_files: list[Path]) -> list[str]:
+    """检查页面模板是否重复加载 base 已加载的 CSS。BLOCK。
+
+    base.html 已经加载 style.css、ui-primitives.css、legacy-aliases.css，
+    页面模板不得在 head_extra 或其他位置重复 link 这些文件。
+    """
+    errors: list[str] = []
+    base_names = {"style.css", "ui-primitives.css", "legacy-aliases.css"}
+    for path in html_files:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        # 排除 base.html 自身
+        if path.name == "base.html":
+            continue
+        # 找出所有 stylesheet link 的 href
+        links = re.findall(r'href="([^"]*\.css[^"]*)"', text)
+        found_duplicates = []
+        for link in links:
+            basename = link.split("/")[-1].split("?")[0]
+            if basename in base_names:
+                found_duplicates.append(basename)
+        if found_duplicates:
+            errors.append(
+                f"{path}: 页面模板重复加载 base 已加载的 CSS: {', '.join(sorted(set(found_duplicates)))}。"
+            )
     return errors
 
 
@@ -82,6 +112,64 @@ def check_no_dead_css(css_files: list[Path]) -> list[str]:
     return errors
 
 
+def check_payload_modal_ownership(css_files: list[Path]) -> list[str]:
+    """检查 payload-modal 裸定义的位置。WARN。
+
+    权威来源应为 ui-primitives.css。在 style.css、session-detail.css 等处出现
+    裸 `.payload-modal` 或 `#payload-modal` 定义时输出 WARN，
+    但不 BLOCK（历史债暂不强制清理）。
+    """
+    warnings: list[str] = []
+    # 允许的文件/区域：ui-primitives.css 是权威来源
+    # 裸定义指不以 page-contract 前缀（如 .session-detail-page .payload-modal）开头的定义
+    bare_pattern = re.compile(
+        r"^(?!\s*\.session-detail-page|\s*\.sd-page|\s*\.sd-shell)"  # 不以 page namespace 开头
+        r".*(?:\.payload-modal\b|#payload-modal|#sd-payload-modal|\.sd-payload-modal\b)",
+        re.MULTILINE,
+    )
+    for path in css_files:
+        rel = path.relative_to(path.parent.parent.parent.parent).as_posix() if path.parent.name == "css" else path.name
+        if "ui-primitives.css" in rel:
+            continue  # 权威来源，不 warn
+        text = path.read_text(encoding="utf-8", errors="replace")
+        matches = bare_pattern.findall(text)
+        if matches:
+            warnings.append(
+                f"{path}: payload-modal 裸定义（{len(matches)} 处），建议收敛至 ui-primitives.css。"
+            )
+    return warnings
+
+
+def check_shell_ownership(css_files: list[Path]) -> list[str]:
+    """检查 page CSS 是否出现 shell 级选择器。WARN。
+
+    shell 层选择器（.app-shell, .shell, body.hide-left 等）应由 style.css
+    或专属 shell.css 定义，页面 CSS 不应覆盖。
+    历史存在可以 WARN；新增应在后续 diff gate 中 BLOCK。
+    """
+    warnings: list[str] = []
+    shell_selectors = [
+        ".app-shell", ".shell", ".phase1-shell",
+        "body.hide-left", "body.hide-right", "body.focus",
+    ]
+    # 豁免文件：style.css（当前 shell 所在位置）、legacy-aliases.css（兼容层）
+    exempt = {"style.css", "legacy-aliases.css"}
+    for path in css_files:
+        name = path.name
+        if name in exempt:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        found = []
+        for sel in shell_selectors:
+            if sel in text:
+                found.append(sel)
+        if found:
+            warnings.append(
+                f"{path}: 包含 shell 级选择器: {', '.join(found)}，应归属 shell.css 或 style.css。"
+            )
+    return warnings
+
+
 # ── Composite check ────────────────────────────────────────────────────
 
 
@@ -108,6 +196,18 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
 
     # BLOCK: no-dead-css-file
     errors.extend(check_no_dead_css(css_files))
+
+    # BLOCK: no-duplicate-base-css
+    templates = static.parent / "templates"
+    if templates.exists():
+        html_files = list(templates.rglob("*.html"))
+        errors.extend(check_no_duplicate_base_css(html_files))
+
+    # WARN: payload-modal ownership
+    warnings.extend(check_payload_modal_ownership(css_files))
+
+    # WARN: shell ownership
+    warnings.extend(check_shell_ownership(css_files))
 
     # WARN: position:fixed (non-blocking)
     for path in css_files:

@@ -42,17 +42,21 @@
 
 4. **page CSS 必须通过 head_extra 在 base CSS 之后加载**：禁止在 `head_extra` 之外加载页面专用 CSS。
 
-5. **不允许页面重复加载 base 已加载过的 CSS**：base.html 已加载 `style.css`、`ui-primitives.css`、`legacy-aliases.css`，页面不得在 `head_extra` 中重复加载。
+5. **不允许页面重复加载 base 已加载过的 CSS**：base.html 已加载 `style.css`、`ui-primitives.css`、`legacy-aliases.css`，页面不得在 `head_extra` 中重复加载。**BLOCK**。
+
+6. **payload-modal 裸定义应收敛至 ui-primitives.css**：在 `style.css`、`session-detail.css`、`legacy-aliases.css` 等处出现裸 `.payload-modal` 或 `#payload-modal` 定义时输出 **WARN**，不 BLOCK（历史债后续清理）。
+
+7. **shell 级选择器不应出现在页面 CSS**：`.app-shell`、`.shell`、`body.hide-left` 等选择器应归属 `style.css` 或 `shell.css`，页面 CSS 出现时输出 **WARN**，不 BLOCK（历史存在可接受，新增应在后续 BLOCK）。
 
 ---
 
-## Static Gate: css-load-order-contract
+## Static Gate 状态
 
-`scripts/quality/static_contract_check.py` 检查 `base.html` 中 CSS link 顺序必须为：
-
-1. `/static/style.css`
-2. `/static/css/ui-primitives.css`
-3. `/static/css/legacy-aliases.css`
-4. `{% block head_extra %}`
-
-顺序变化则 **BLOCK**。
+| 检查 | 级别 | 说明 |
+|---|---|---|
+| !important | BLOCK | 禁止任何 !important |
+| css-load-order | BLOCK | base.html 中 CSS link 顺序 |
+| no-dead-css | BLOCK | 无 0 规则 CSS 文件 |
+| no-duplicate-base-css | BLOCK | 页面不重复加载 base CSS |
+| payload-modal ownership | WARN | 裸定义应收敛至 ui-primitives.css |
+| shell ownership | WARN | shell 选择器不应在页面 CSS |

@@ -13,6 +13,9 @@ from static_contract_check import (
     check_no_important,
     check_css_load_order,
     check_no_dead_css,
+    check_no_duplicate_base_css,
+    check_payload_modal_ownership,
+    check_shell_ownership,
 )
 
 
@@ -131,6 +134,112 @@ class TestCheckNoDeadCss:
         css = tmp_path / "has_rules.css"
         css.write_text("/* Header */\n.header { display: flex; }")
         assert check_no_dead_css([css]) == []
+
+
+# ── check_no_duplicate_base_css ─────────────────────────────────────
+
+
+class TestCheckNoDuplicateBaseCss:
+    def test_base_html_skipped(self, tmp_path):
+        """base.html itself should be skipped."""
+        base = tmp_path / "base.html"
+        base.write_text('<link rel="stylesheet" href="/static/style.css">')
+        assert check_no_duplicate_base_css([base]) == []
+
+    def test_page_without_base_css_passes(self, tmp_path):
+        """Page template with only page-specific CSS should pass."""
+        page = tmp_path / "dashboard.html"
+        page.write_text('<link rel="stylesheet" href="/static/css/dashboard.css">')
+        assert check_no_duplicate_base_css([page]) == []
+
+    def test_page_with_style_css_blocks(self, tmp_path):
+        """Page loading style.css should BLOCK."""
+        page = tmp_path / "dashboard.html"
+        page.write_text('<link rel="stylesheet" href="/static/style.css">')
+        errors = check_no_duplicate_base_css([page])
+        assert len(errors) == 1
+        assert "style.css" in errors[0]
+
+    def test_page_with_multiple_base_css_blocks(self, tmp_path):
+        """Page loading multiple base CSS should list all."""
+        page = tmp_path / "page.html"
+        page.write_text(
+            '<link rel="stylesheet" href="/static/style.css">\n'
+            '<link rel="stylesheet" href="/static/css/ui-primitives.css">'
+        )
+        errors = check_no_duplicate_base_css([page])
+        assert len(errors) == 1
+        assert "style.css" in errors[0]
+        assert "ui-primitives.css" in errors[0]
+
+
+# ── check_payload_modal_ownership ─────────────────────────────────────
+
+
+class TestCheckPayloadModalOwnership:
+    def test_ui_primitives_exempt(self, tmp_path):
+        """ui-primitives.css is the authority, should not warn."""
+        css = tmp_path / "ui-primitives.css"
+        css.write_text(".payload-modal { display: flex; }")
+        warnings = check_payload_modal_ownership([css])
+        assert warnings == []
+
+    def test_bare_payload_modal_warns(self, tmp_path):
+        """Bare .payload-modal in non-primitive file should WARN."""
+        css = tmp_path / "style.css"
+        css.write_text(".payload-modal { display: flex; }")
+        warnings = check_payload_modal_ownership([css])
+        assert len(warnings) == 1
+        assert "payload-modal" in warnings[0].lower()
+
+    def test_page_scoped_not_warn(self, tmp_path):
+        """Page-scoped .session-detail-page .payload-modal should not WARN."""
+        css = tmp_path / "session-detail.css"
+        css.write_text(".session-detail-page .payload-modal { width: 80vw; }")
+        warnings = check_payload_modal_ownership([css])
+        assert warnings == []
+
+    def test_hash_payload_modal_warns(self, tmp_path):
+        """#payload-modal bare definition should WARN."""
+        css = tmp_path / "legacy-aliases.css"
+        css.write_text("#payload-modal { display: flex; }")
+        warnings = check_payload_modal_ownership([css])
+        assert len(warnings) == 1
+
+
+# ── check_shell_ownership ─────────────────────────────────────────────
+
+
+class TestCheckShellOwnership:
+    def test_style_css_exempt(self, tmp_path):
+        """style.css is the current shell owner, should not warn."""
+        css = tmp_path / "style.css"
+        css.write_text(".shell { display: grid; }")
+        warnings = check_shell_ownership([css])
+        assert warnings == []
+
+    def test_legacy_aliases_exempt(self, tmp_path):
+        """legacy-aliases.css is compat layer, should not warn."""
+        css = tmp_path / "legacy-aliases.css"
+        css.write_text(".app-shell { display: grid; }")
+        warnings = check_shell_ownership([css])
+        assert warnings == []
+
+    def test_page_css_warns(self, tmp_path):
+        """Page CSS with shell selectors should WARN."""
+        css = tmp_path / "dashboard.css"
+        css.write_text(".app-shell { display: grid; }")
+        warnings = check_shell_ownership([css])
+        assert len(warnings) == 1
+        assert ".app-shell" in warnings[0]
+
+    def test_body_hide_left_warns(self, tmp_path):
+        """body.hide-left in page CSS should WARN."""
+        css = tmp_path / "agents.css"
+        css.write_text("body.hide-left .sidebar { display: none; }")
+        warnings = check_shell_ownership([css])
+        assert len(warnings) == 1
+        assert "body.hide-left" in warnings[0]
 
 
 # ── Integration: actual repo files ────────────────────────────────────
