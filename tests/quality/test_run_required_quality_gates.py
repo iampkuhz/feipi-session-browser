@@ -109,7 +109,7 @@ class TestSessionDetailExcluded:
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css",
             "requiresQualityGate": True,
             "sessionId": "test-session-001",
@@ -215,7 +215,7 @@ class TestIncludeSessionDetail:
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css",
             "requiresQualityGate": True,
             "sessionId": "test-session-001",
@@ -234,7 +234,7 @@ class TestIncludeSessionDetail:
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css",
             "requiresQualityGate": True,
             "sessionId": "test-session-001",
@@ -253,7 +253,7 @@ class TestIncludeSessionDetail:
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css",
             "requiresQualityGate": True,
             "sessionId": "test-session-001",

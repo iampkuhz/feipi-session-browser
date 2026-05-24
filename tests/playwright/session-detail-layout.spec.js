@@ -16,7 +16,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     await page.setViewportSize({ width: 1440, height: 1100 });
 
     // 先尝试已知会话 URL，回退到会话列表
-    const knownUrl = '/sessions/claude_code/7d7347d4-4501-44f5-afc0-ff6de915ce5b';
+    const knownUrl = '/sessions/claude_code/hifi-viz-session-001';
     const sessionsListUrl = '/sessions';
 
     let detailUrl = null;

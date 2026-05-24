@@ -22,7 +22,7 @@ test.describe('Shell states — Session Detail', () => {
 
   // ── Helper: navigate to a session detail page ─────────────────
   async function gotoSessionDetail(page) {
-    const knownUrl = '/sessions/claude_code/7d7347d4-4501-44f5-afc0-ff6de915ce5b';
+    const knownUrl = '/sessions/claude_code/hifi-viz-session-001';
     await page.goto(knownUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     await expect(page.locator('.session-detail-page').first()).toBeVisible({ timeout: 10000 });
   }
@@ -80,7 +80,7 @@ test.describe('Shell states — Session Detail', () => {
   // ── Shell state matrix: hide-left ─────────────────────────────
   test('hide-left state — sidebar collapsed, main visible (no-inspector page)', async ({ page }) => {
     // Previously fixme: body.hide-left caused .main width → 0px; fixed by
-    // adding explicit .no-inspector body state variants in style.css.
+    // adding explicit .no-inspector body state variants in shell.css.
     // Note: session detail pages use no-inspector class, so there is no inspector element.
     await page.setViewportSize({ width: 1440, height: 1100 });
     await gotoSessionDetail(page);
@@ -106,7 +106,7 @@ test.describe('Shell states — Session Detail', () => {
   // ── Shell state matrix: focus ─────────────────────────────────
   test('focus state — only main visible, sidebar + inspector collapsed', async ({ page }) => {
     // Previously fixme: body.focus caused .main width → 0px; fixed by
-    // adding explicit .no-inspector body state variants in style.css.
+    // adding explicit .no-inspector body state variants in shell.css.
     await page.setViewportSize({ width: 1440, height: 1100 });
     await gotoSessionDetail(page);
     const result = await setShellStateAndMeasure(page, 'focus');
@@ -187,7 +187,7 @@ test.describe('Shell states — Dashboard (no-inspector)', () => {
 
   test('hide-left state — dashboard sidebar collapsed', async ({ page }) => {
     // Previously fixme: same shell grid bug; fixed by adding explicit
-    // .no-inspector body state variants in style.css.
+    // .no-inspector body state variants in shell.css.
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 10000 });
     await expect(page.locator('.page-head').first()).toBeVisible({ timeout: 5000 });

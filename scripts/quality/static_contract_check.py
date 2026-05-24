@@ -180,7 +180,7 @@ def check_shell_ownership(css_files: list[Path]) -> list[str]:
                 found.append(sel)
         if found:
             warnings.append(
-                f"{path}: 包含 shell 级选择器: {', '.join(found)}，应归属 shell.css 或 style.css。"
+                f"{path}: 包含 shell 级选择器: {', '.join(found)}，应归属 shell.css。"
             )
     return warnings
 

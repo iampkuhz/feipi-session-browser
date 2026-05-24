@@ -413,7 +413,7 @@ body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
 
     def _run(name, css_text, base_text, session_text, expect_pass):
         with tempfile.TemporaryDirectory() as td:
-            css_p = Path(td) / "style.css"
+            css_p = Path(td) / "shell.css"
             base_p = Path(td) / "base.html"
             session_p = Path(td) / "session.html"
             css_p.write_text(css_text)

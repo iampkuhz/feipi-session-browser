@@ -364,7 +364,7 @@ class TestEdgeCases:
     def test_missing_css_file(self):
         from pathlib import Path
         from scripts.check_ui_density_and_font_size import run_checks
-        all_pass, lines = run_checks(Path("/nonexistent/path/style.css"))
+        all_pass, lines = run_checks(Path("/nonexistent/path/css/shell.css"))
         assert not all_pass
         assert "FAIL" in _report_text(lines)
 

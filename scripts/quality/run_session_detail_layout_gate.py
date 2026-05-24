@@ -101,7 +101,7 @@ def check_layout(metrics: dict) -> list[dict]:
                 ".shell.phase1-shell .main may lack grid-column: 1 / -1",
             ],
             "nextInspection": [
-                "Inspect style.css around shell/no-inspector/hide-left rules.",
+                "Inspect shell.css around shell/no-inspector/hide-left rules.",
                 "Inspect base.html shell class composition.",
                 "Verify session.html declares shell_class including phase1-shell and no-inspector.",
             ],
@@ -140,7 +140,7 @@ def check_layout(metrics: dict) -> list[dict]:
                 ".session-detail-phase1 width rule missing or too narrow.",
             ],
             "nextInspection": [
-                "Inspect style.css for .session-detail-phase1 width/max-width.",
+                "Inspect shell.css for .session-detail-phase1 width/max-width.",
             ],
         })
 

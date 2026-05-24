@@ -20,7 +20,7 @@ _make_entry = _lfc._make_entry
 
 class TestClassify:
     def test_css_ui(self):
-        cat, qg = _classify("src/session_browser/web/static/style.css")
+        cat, qg = _classify("src/session_browser/web/static/css/shell.css")
         assert cat == "ui-css"
         assert qg is True
 
@@ -142,9 +142,9 @@ class TestExtractToolName:
 
 class TestMakeEntry:
     def test_entry_structure(self):
-        entry = _make_entry("src/session_browser/web/static/style.css", "Edit")
+        entry = _make_entry("src/session_browser/web/static/css/shell.css", "Edit")
         assert "ts" in entry
         assert entry["tool"] == "Edit"
-        assert entry["file"] == "src/session_browser/web/static/style.css"
+        assert entry["file"] == "src/session_browser/web/static/css/shell.css"
         assert entry["category"] == "ui-css"
         assert entry["requiresQualityGate"] is True

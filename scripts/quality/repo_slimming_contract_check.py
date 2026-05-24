@@ -30,7 +30,7 @@ def check_no_historical_version_comments(
 ) -> tuple[list[str], list[str]]:
     """扫描文件中的历史版本注释模式。
 
-    当前仓库中仍存在少量历史残留（style.css、sessions-list.css 等），
+    当前仓库中仍存在少量历史残留（sessions-list.css 等），
     因此采用 WARN 策略，不 BLOCK。如果未来清零，可升级为 BLOCK。
     """
     errors: list[str] = []

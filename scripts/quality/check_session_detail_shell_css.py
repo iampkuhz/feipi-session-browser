@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Static CSS firewall check for session detail Phase 1 shell layout.
 
-Verifies that style.css contains rules sufficient to prevent the
+Verifies that shell.css contains rules sufficient to prevent the
 cascade conflict where body.hide-left .shell.no-inspector (specificity 0,3,0)
 overrides .shell.phase1-shell (specificity 0,2,0), causing .main to
 fall into a 0px grid column.
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-STYLE_CSS = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "style.css"
+SHELL_CSS = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
 
 FAILURES = []
 
@@ -82,12 +82,12 @@ def main():
     print("Session Detail Shell CSS Firewall Check")
     print("=" * 60)
 
-    if not STYLE_CSS.exists():
-        print(f"ERROR: style.css not found at {STYLE_CSS}")
+    if not SHELL_CSS.exists():
+        print(f"ERROR: shell.css not found at {SHELL_CSS}")
         sys.exit(2)
 
-    content = STYLE_CSS.read_text()
-    print(f"\nChecking {STYLE_CSS.relative_to(REPO_ROOT)}\n")
+    content = SHELL_CSS.read_text()
+    print(f"\nChecking {SHELL_CSS.relative_to(REPO_ROOT)}\n")
 
     check(content)
 

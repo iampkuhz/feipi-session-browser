@@ -31,7 +31,7 @@ def _run_checks(css, base, session):
     with tempfile.TemporaryDirectory() as td:
         p = Path(td)
         return _csd.run_checks(
-            p / "style.css",
+            p / "shell.css",
             p / "base.html",
             p / "session.html",
             None,  # shell_css not needed for temp fixture tests
@@ -45,7 +45,7 @@ def _write(p, text):
 def _run_checks_with_files(css, base, session):
     with tempfile.TemporaryDirectory() as td:
         p = Path(td)
-        css_p = p / "style.css"
+        css_p = p / "shell.css"
         base_p = p / "base.html"
         session_p = p / "session.html"
         _write(css_p, css)
@@ -135,7 +135,7 @@ class TestRealFiles:
     def test_real_repo_files(self):
         """Run against actual repo files to ensure they pass."""
         root = SCRIPT_PATH.parent.parent.parent
-        css = root / "src" / "session_browser" / "web" / "static" / "style.css"
+        css = root / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
         shell_css = root / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
         base = root / "src" / "session_browser" / "web" / "templates" / "base.html"
         session = root / "src" / "session_browser" / "web" / "templates" / "session.html"

@@ -34,6 +34,12 @@ CSS_LOAD_ORDER = [
     "css/legacy-aliases.css",
 ]
 
+# Page-specific CSS files keyed by page identifier used in routes.
+# These are appended after the shared CSS_LOAD_ORDER layers.
+PAGE_CSS = {
+    "session": "css/session-detail.css",
+}
+
 
 @lru_cache(maxsize=1)
 def get_css() -> str:
@@ -47,6 +53,17 @@ def get_css() -> str:
         else:
             parts.append(f"/* {rel} not found */\n")
     return "\n\n".join(parts)
+
+
+def get_page_css(page: str) -> str:
+    """Return inline CSS for a specific page, or empty string if none."""
+    rel = PAGE_CSS.get(page)
+    if not rel:
+        return ""
+    css_path = _STATIC_DIR / rel
+    if css_path.exists():
+        return f"/* === {rel} === */\n{css_path.read_text(encoding='utf-8')}"
+    return f"/* {rel} not found */\n"
 
 
 @lru_cache(maxsize=1)
@@ -63,12 +80,13 @@ def get_js() -> str:
     return "\n\n".join(parts)
 
 
-def get_context(export_mhtml: bool = True) -> dict:
+def get_context(page: str = "session", export_mhtml: bool = True) -> dict:
     """Return template context vars for MHTML rendering."""
     if not export_mhtml:
         return {}
     return {
         "export_mhtml": True,
         "mhtml_css": get_css(),
+        "mhtml_page_css": get_page_css(page),
         "mhtml_js": get_js(),
     }

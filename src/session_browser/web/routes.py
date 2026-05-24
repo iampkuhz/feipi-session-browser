@@ -1726,7 +1726,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         if export_mhtml:
             logger.info("MHTML export: agent=%s session_id=%s", agent, session_id)
             from session_browser.web.mhtml import get_context
-            mhtml_ctx = get_context(True)
+            mhtml_ctx = get_context(page="session", export_mhtml=True)
         else:
             mhtml_ctx = {}
 

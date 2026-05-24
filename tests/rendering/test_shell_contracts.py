@@ -247,7 +247,7 @@ class TestCssShellRules:
         assert re.search(r'\.topbar\s*\{', shell_text), \
             "shell.css lacks .topbar rule"
 
-    # Rules remaining in style.css
+    # Rules migrated to modular CSS (formerly in style.css)
     def test_breadcrumb_rule(self, ui_primitives_text):
         """.breadcrumb rule must exist in ui-primitives.css (migrated from style.css)."""
         assert re.search(r'\.breadcrumb\s*\{', ui_primitives_text), \

@@ -105,7 +105,7 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         "repoSlimming": [
             "src/session_browser/web/static/**/*.css",
             "src/session_browser/web/static/**/*.js",
-            "src/session_browser/web/static/style.css",
+            "src/session_browser/web/static/css/**/*.css",
             "harness/**",
             "openspec/**",
             "tests/**/*.py",

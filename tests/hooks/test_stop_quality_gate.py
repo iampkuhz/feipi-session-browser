@@ -56,7 +56,7 @@ class TestUiChanges:
     def test_missing_artifact_fails(self):
         _setup_env([{
             "ts": "2026-05-18T00:00:00Z", "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css", "requiresQualityGate": True,
         }])
         status, msgs = _sqg.run_check("test")
@@ -66,7 +66,7 @@ class TestUiChanges:
     def test_artifact_fail_fails(self):
         _setup_env([{
             "ts": "2026-05-18T00:00:00Z", "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css", "requiresQualityGate": True,
         }], artifact=_make_artifact("FAIL"))
         status, msgs = _sqg.run_check("test")
@@ -75,7 +75,7 @@ class TestUiChanges:
     def test_artifact_stale_fails(self):
         _setup_env([{
             "ts": "2026-05-18T00:02:00Z", "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css", "requiresQualityGate": True,
         }], artifact=_make_artifact("PASS", finished="2026-05-18T00:01:00Z"))
         status, msgs = _sqg.run_check("test")
@@ -84,7 +84,7 @@ class TestUiChanges:
     def test_artifact_fresh_passes(self):
         _setup_env([{
             "ts": "2026-05-18T00:00:00Z", "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css", "requiresQualityGate": True,
         }], artifact=_make_artifact("PASS", finished="2026-05-18T00:01:00Z"))
         status, msgs = _sqg.run_check("test")
@@ -113,7 +113,7 @@ class TestFreshArtifactAfterRunner:
         artifact = _make_artifact("PASS", finished="2026-05-24T10:00:30Z")
         _setup_env([{
             "ts": now_ts, "tool": "Edit",
-            "file": "src/session_browser/web/static/style.css",
+            "file": "src/session_browser/web/static/css/shell.css",
             "category": "ui-css", "requiresQualityGate": True,
         }], artifact=artifact)
         status, msgs = _sqg.run_check("test")

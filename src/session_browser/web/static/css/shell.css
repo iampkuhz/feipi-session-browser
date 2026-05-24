@@ -14,12 +14,12 @@
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
 }
 /* ─── Body class 切换规则（统一覆盖块） ───────────────────────
-* All body-level shell state rules are defined here in one block
-* to avoid specificity conflicts between .shell and .app-shell aliases.
-* .no-inspector variants use single-column;
-others use appropriate column count.
-* See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
-*/
+ * All body-level shell state rules are defined here in one block
+ * to avoid specificity conflicts between .shell and .app-shell aliases.
+ * .no-inspector variants use single-column;
+ * others use appropriate column count.
+ * See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
+ */
 /* hide-left: sidebar hidden, main + inspector visible */
 body.hide-left .shell                  {
   grid-template-columns: minmax(0, 1fr) var(--inspector);
@@ -238,20 +238,17 @@ above (lines 298-305) to avoid specificity conflicts. */
   font-size: var(--text-micro);
   color: var(--text-muted);
 }
-/* ─── Sidebar collapse toggle (DEPRECATED: task 02;
-marked T053) ─────────── */
+/* ─── Sidebar collapse toggle（DEPRECATED: task 02; marked T053） ─── */
 .sidebar-toggle {
   /* hide old collapse button — replaced by shell grid toggles */
   display: none;
 }
-/* Expand button (DEPRECATED: task 02;
-marked T053) */
+/* Expand button（DEPRECATED: task 02; marked T053） */
 .sidebar-toggle-expand {
   /* hide old expand button — replaced by shell grid toggles */
   display: none;
 }
-/* Collapsed state (DEPRECATED: task 02;
-marked T053) */
+/* Collapsed state（DEPRECATED: task 02; marked T053） */
 body.sidebar-collapsed .sidebar {
   /* replaced by body.hide-left in shell grid */
   transform: translateX(calc(-1 * var(--sidebar-w)));
@@ -267,8 +264,7 @@ body.sidebar-collapsed .sidebar-toggle-expand {
   opacity: 1;
   pointer-events: auto;
 }
-/* Transition (DEPRECATED: task 02;
-marked T053) */
+/* Transition（DEPRECATED: task 02; marked T053） */
 .sidebar {
   /* transform transition no longer needed — shell grid handles it */
   transition: none;

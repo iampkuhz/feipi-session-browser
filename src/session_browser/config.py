@@ -16,10 +16,11 @@ def _home() -> Path:
 
 # ─── Data source paths ──────────────────────────────────────────────────
 
-# Base directories for agent session data (fixed paths, not configurable).
-CLAUDE_DATA_DIR = _home() / ".claude"
-CODEX_DATA_DIR = _home() / ".codex"
-QODER_DATA_DIR = _home() / ".qoder"
+# Base directories for agent session data.
+# CLAUDE_DATA_DIR can be overridden via environment variable (used by tests).
+CLAUDE_DATA_DIR = Path(os.environ.get("CLAUDE_DATA_DIR", str(_home() / ".claude")))
+CODEX_DATA_DIR = Path(os.environ.get("CODEX_DATA_DIR", str(_home() / ".codex")))
+QODER_DATA_DIR = Path(os.environ.get("QODER_DATA_DIR", str(_home() / ".qoder")))
 
 
 # ─── Index storage ───────────────────────────────────────────────────────

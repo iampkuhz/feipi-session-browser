@@ -1074,35 +1074,6 @@ shift dot left to align with the container timeline line */
   font-size: 11px;
   color: var(--sd-muted);
 }
-/* @deprecated sd-payload-modal container overrides.
-Dialog container (position/size) now handled by .payload-modal primitive
-+ .payload-modal--sd modifier in ui-primitives.css.
-These rules only set backdrop and sd-modal-* child element styles. */
-.sd-payload-modal::backdrop {
-  background: rgba(15,23,42,.35);
-}
-.sd-modal-panel {
-  background: #fff;
-}
-.sd-modal-head {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--sd-line-soft);
-}
-.sd-modal-title {
-  font-weight: 850;
-}
-.sd-modal-close {
-  margin-left: auto;
-}
-.sd-modal-body {
-  padding: 12px;
-  max-height: 70vh;
-  overflow: auto;
-}
 /* ── Payload empty / diagnostic states inside modal ── */
 .sd-payload-empty-state {
   display: flex;

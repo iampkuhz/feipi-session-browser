@@ -31,7 +31,7 @@ class TestNoHistoricalVersionComments:
         assert warnings == []
 
     def test_hifi_version_warns(self, tmp_path):
-        f = tmp_path / "style.css"
+        f = tmp_path / "shell.css"
         f.write_text("/* HIFI v3: Table header */\n.header { display: flex; }")
         errors, warnings = check_no_historical_version_comments([f])
         assert errors == []
@@ -302,11 +302,11 @@ class TestActualRepoState:
         """Verify that existing historical version comments are detected as WARN."""
         static = ROOT / "src/session_browser/web/static"
         css_files = list(static.rglob("*.css"))
-        # style.css and sessions-list.css should trigger warnings
+        # Modular CSS files (sessions-list.css, glossary.css, etc.) should trigger warnings
         errors, warnings = check_no_historical_version_comments(css_files)
         # At least some warnings expected from current repo
-        warned_files = [w for w in warnings if "style.css" in w or "sessions-list.css" in w]
-        assert len(warned_files) >= 1, f"Expected warnings from style.css or sessions-list.css, got: {warnings}"
+        warned_files = [w for w in warnings if "sessions-list.css" in w or "glossary.css" in w or "shell.css" in w]
+        assert len(warned_files) >= 1, f"Expected warnings from modular CSS files, got: {warnings}"
 
     def test_repo_slimming_contract_passes_no_block(self):
         """Full check should not BLOCK on current repo state."""
