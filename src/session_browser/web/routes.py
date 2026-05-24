@@ -3387,6 +3387,8 @@ def _build_v11_view_model(
     if total_failed > 0:
         status_label = "Completed with issues"
 
+    total_llm_calls = sum(r.llm_call_count for r in rounds)
+
     return {
         "session_summary": {
             "agent_label": agent_name,
@@ -3407,6 +3409,7 @@ def _build_v11_view_model(
             "rounds": str(total_rounds),
             "tools": str(total_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",
+            "llm_calls": str(total_llm_calls),
         },
         "issue_links": issue_links,
         "trace_rows": trace_rows,
@@ -3434,6 +3437,7 @@ def _build_v9_view_model(
     total_rounds = len(rounds)
     total_tools = sum(len(r.tool_calls) for r in rounds)
     total_failed = session.failed_tool_count or 0
+    total_llm_calls = sum(r.llm_call_count for r in rounds)
 
     # ── Issue links ──
     issue_links = []
@@ -3890,6 +3894,7 @@ def _build_v9_view_model(
             "rounds": str(total_rounds),
             "tools": str(total_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",
+            "llm_calls": str(total_llm_calls),
         },
         "issue_links": issue_links,
         "trace_rows": trace_rows,
