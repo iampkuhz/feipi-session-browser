@@ -525,8 +525,11 @@
   border-top: 1px solid var(--sd-line-soft);
   padding: 10px 14px 12px 76px;
 }
+.sd-round > .sd-round-detail {
+  display: none;
+}
 .sd-round.is-open > .sd-round-detail { display: block; }
-.sd-round-detail[hidden] { display: none !important; }
+.sd-round-detail[hidden] { display: none; }
 
 .sd-timeline {
   position: relative;
@@ -1511,37 +1514,31 @@
   color: var(--sd-err);
 }
 
-/* 4) Payload modal: fixed centered modal, never full-page flow. */
-.session-detail-page #sd-payload-modal,
-.session-detail-page #payload-modal,
-.session-detail-page .sd-payload-modal,
-.session-detail-page .payload-modal,
-.sd-page #sd-payload-modal,
-.sd-page #payload-modal,
-.sd-page .sd-payload-modal,
-.sd-page .payload-modal,
-.sd-shell #sd-payload-modal,
-.sd-shell #payload-modal,
-.sd-shell .sd-payload-modal,
-.sd-shell .payload-modal {
-  position: fixed !important;
-  inset: auto !important;
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  width: min(70vw, 1120px) !important;
-  max-width: min(70vw, 1120px) !important;
+/* 4) Payload modal: fixed centered modal, never full-page flow.
+   <dialog> with showModal() is already position:fixed and centered by UA.
+   We only constrain size and appearance. */
+#sd-payload-modal,
+#payload-modal,
+.sd-payload-modal,
+.payload-modal {
+  position: fixed;
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(70vw, 1120px);
+  max-width: min(70vw, 1120px);
   min-width: min(720px, 92vw);
-  height: auto !important;
-  max-height: 82vh !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 1px solid var(--sd-line) !important;
-  border-radius: 18px !important;
-  background: #fff !important;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, .22) !important;
-  overflow: hidden !important;
-  z-index: 9999 !important;
+  height: auto;
+  max-height: 82vh;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--sd-line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .22);
+  overflow: hidden;
+  z-index: 9999;
 }
 
 .session-detail-page #sd-payload-modal::backdrop,
@@ -1971,22 +1968,14 @@
     padding-inline: 10px;
   }
 
-  .session-detail-page #sd-payload-modal,
-  .session-detail-page #payload-modal,
-  .session-detail-page .sd-payload-modal,
-  .session-detail-page .payload-modal,
-  .sd-page #sd-payload-modal,
-  .sd-page #payload-modal,
-  .sd-page .sd-payload-modal,
-  .sd-page .payload-modal,
-  .sd-shell #sd-payload-modal,
-  .sd-shell #payload-modal,
-  .sd-shell .sd-payload-modal,
-  .sd-shell .payload-modal {
-    width: 92vw !important;
-    max-width: 92vw !important;
-    min-width: 0 !important;
-    max-height: 86vh !important;
+  #sd-payload-modal,
+  #payload-modal,
+  .sd-payload-modal,
+  .payload-modal {
+    width: 92vw;
+    max-width: 92vw;
+    min-width: 0;
+    max-height: 86vh;
   }
 
   .session-detail-page .sd-payload-shell,

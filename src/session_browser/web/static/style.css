@@ -258,6 +258,12 @@
     /* Layout shortcuts — Hi-Fi */
     --sidebar:    226px;    /* Hi-Fi 侧边栏宽度 */
     --inspector:  410px;    /* Hi-Fi 面板宽度 */
+
+    /* Motion design tokens */
+    --motion-duration-fast: 120ms;
+    --motion-duration-normal: 200ms;
+    --motion-duration-slow: 320ms;
+    --motion-easing-standard: ease;
 }
 
 /* ─── Shell: CSS Grid 三栏布局 ─────────────────────────────── */
@@ -494,10 +500,15 @@ body {
 
 /* ─── Reduced motion ──────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+    :root {
+        --motion-duration-fast: 0.01ms;
+        --motion-duration-normal: 0.01ms;
+        --motion-duration-slow: 0.01ms;
+    }
     *, *::before, *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms;
+        animation-iteration-count: 1;
+        transition-duration: 0.01ms;
     }
 }
 
@@ -3114,8 +3125,7 @@ a.link-muted:hover { color: var(--accent); }
 
 /* ─── Round highlight animation (for jump-to-round) ─── */
 .round-header-row.row--highlighted {
-    animation: hotspot-highlight 2s ease-out;
-    background: var(--accent-bg) !important;
+    animation: hotspot-highlight 2s ease-out forwards;
 }
 @keyframes hotspot-highlight {
     0% { background: var(--accent); }
@@ -3419,6 +3429,24 @@ a.link-muted:hover { color: var(--accent); }
     outline-offset: -2px;
 }
 
+/* Row state overrides: must come after hover/zebra rules to win specificity */
+.data-table tbody tr.row--failed,
+.data-table tbody tr.row--failed:hover {
+    background: var(--status-error-bg);
+    border-left: 3px solid var(--status-error);
+}
+.data-table tbody tr.row--error,
+.data-table tbody tr.row--error:hover {
+    background: var(--status-error-bg);
+    border-left: 3px solid var(--status-error);
+}
+.data-table tbody tr.keyboard-focus,
+.data-table tbody tr.keyboard-focus:hover {
+    background: var(--accent-bg, #f0f4ff);
+    outline: 2px solid var(--accent, #3b82f6);
+    outline-offset: -2px;
+}
+
 /* ─── Data Table — status cell ─────────────────────────────── */
 .data-table .status-cell {
     display: flex;
@@ -3636,10 +3664,6 @@ a.link-muted:hover { color: var(--accent); }
 }
 
 /* ─── Highlighting ────────────────────────────────────────────── */
-.row--failed {
-    background: var(--status-error-bg) !important;
-    border-left: 3px solid var(--status-error);
-}
 /* Failed round marker: red dot before the chevron */
 .round-failed-dot {
     display: inline-block;
@@ -3650,7 +3674,6 @@ a.link-muted:hover { color: var(--accent); }
     margin-right: 4px;
     vertical-align: middle;
 }
-.row--error { background: var(--status-error-bg) !important; }
 .highlight-warn { color: var(--status-warning); font-weight: 600; }
 .highlight-error { color: var(--status-error); font-weight: 600; }
 
@@ -4458,8 +4481,8 @@ tr.row--anomaly {
     padding: 0 8px 8px 8px;
     background: var(--surface);
 }
-.round-detail-cell {
-    padding-left: 12px !important;
+.round-detail-row .round-detail-cell {
+    padding-left: 12px;
 }
 .round-detail-cell .round-content { display: block; }
 .round-detail-cell .msg { margin-bottom: 8px; }
@@ -4587,11 +4610,6 @@ tr.row--anomaly {
 }
 .llm-call-detail__no-tools {
     margin-top: 4px;
-}
-
-/* ─── Data table failed row: preserve bg on hover ─────────── */
-.data-table tbody tr.row--failed:hover {
-    background: var(--status-error-bg) !important;
 }
 .model-color-sonnet { color: #8b5cf6; }
 .model-color-haiku { color: #10b981; }
@@ -5218,7 +5236,7 @@ tr.row--anomaly {
     background: var(--status-error-bg);
 }
 .text-error {
-    color: var(--status-error) !important;
+    color: var(--status-error);
 }
 
 /* ─── Efficiency metrics grid overrides ──────────────── */
@@ -5983,7 +6001,7 @@ details.raw-session pre {
 }
 .viewer-fullscreen__body .viewer__raw-pre,
 .viewer-fullscreen__body .viewer__raw-pre[style] {
-    white-space: pre !important;
+    white-space: pre;
     max-width: none;
 }
 .viewer-fullscreen__body .viewer__json-block {
@@ -7279,7 +7297,7 @@ details.raw-session pre {
 
 /* ─── Keyboard focus highlight (keyboard.js) ─────────────── */
 tr.keyboard-focus {
-    background: var(--accent-bg, #f0f4ff) !important;
+    background: var(--accent-bg, #f0f4ff);
     outline: 2px solid var(--accent, #3b82f6);
     outline-offset: -2px;
 }
@@ -9297,47 +9315,35 @@ tr.keyboard-focus a {
     .sidebar-inner {
         display: none;
     }
-    .app-shell {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    .app-shell.no-inspector {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    body.hide-left .app-shell {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    body.hide-left .app-shell.no-inspector {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    body.hide-right .app-shell {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
+
+    /* All shell variants collapse to single column on small screens.
+       Use a combined selector list to match specificity of body.* rules. */
+    .app-shell,
+    .app-shell.no-inspector,
+    body.hide-left .app-shell,
+    body.hide-left .app-shell.no-inspector,
+    body.hide-right .app-shell,
     body.focus .app-shell {
-        grid-template-columns: minmax(0, 1fr) !important;
+        grid-template-columns: minmax(0, 1fr);
     }
+
+    /* .shell retains inspector column by default on tablet; body states collapse */
+    .shell {
+        grid-template-columns: minmax(0, 1fr) var(--inspector);
+    }
+    .shell.no-inspector,
+    body.hide-left .shell,
+    body.hide-left .shell.no-inspector,
+    body.hide-right .shell,
+    body.focus .shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .main {
         padding: var(--space-sm) var(--space-md);
     }
     .hero-main {
         padding: var(--space-sm) var(--space-md);
-    }
-    .shell {
-        grid-template-columns: minmax(0, 1fr) var(--inspector) !important;
-    }
-    .shell.no-inspector {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    body.hide-left .shell {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    body.hide-left .shell.no-inspector {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    body.hide-right .shell {
-        grid-template-columns: minmax(0, 1fr) !important;
-    }
-    body.focus .shell {
-        grid-template-columns: minmax(0, 1fr) !important;
     }
 }
 
