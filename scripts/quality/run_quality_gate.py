@@ -89,6 +89,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "scripts/quality/template_contract_check.py"]
     if gate == "staticCssContract":
         return ["python3", "scripts/quality/static_contract_check.py"]
+    if gate == "cssOwnership":
+        return ["python3", "scripts/quality/check_css_ownership.py"]
     if gate == "browserLayout":
         if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
             return ["npx", "playwright", "test", "session-detail-layout", "shell-states"]

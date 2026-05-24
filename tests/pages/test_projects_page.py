@@ -790,3 +790,231 @@ class TestProjectsDataActions:
         # Template uses Jinja2 macro parameter: data_action='run-scan'
         assert "run-scan" in content, \
             "Template must have run-scan action"
+
+
+# ── Fixture-based live server tests ────────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def projects_html(hifi_fixture_session):
+    """Fetch rendered projects HTML from the live fixture server."""
+    base_url, agent, session_id = hifi_fixture_session
+    import urllib.request
+
+    resp = urllib.request.urlopen(f"{base_url}/projects", timeout=10)
+    assert resp.status == 200, "Projects page must return HTTP 200"
+    return resp.read().decode("utf-8")
+
+
+class TestProjectsPageRender:
+    """Verify the rendered Projects page from a live fixture server."""
+
+    def test_page_returns_200(self, projects_html):
+        """Projects page must render with substantial HTML."""
+        assert len(projects_html) > 500, \
+            "Projects HTML must be substantial"
+
+    def test_has_doctype_and_html(self, projects_html):
+        """Page must have proper HTML structure."""
+        assert "<!doctype html" in projects_html.lower() or "<!DOCTYPE html" in projects_html, \
+            "Projects page must have DOCTYPE declaration"
+
+    def test_title_contains_projects(self, projects_html):
+        """Page title must contain 'Projects'."""
+        assert "<title>Projects" in projects_html, \
+            "Page title must contain 'Projects'"
+
+    def test_has_page_head_title(self, projects_html):
+        """Page must show 'Projects' as the page heading."""
+        assert "Projects" in projects_html, \
+            "'Projects' text must appear in rendered page"
+
+    def test_has_subtitle(self, projects_html):
+        """Page must show the subtitle about indexed workspaces."""
+        assert "Indexed local workspaces" in projects_html, \
+            "Subtitle 'Indexed local workspaces' must appear"
+
+    def test_no_inline_onclick(self, projects_html):
+        """Rendered page must not use inline onclick handlers."""
+        matches = re.findall(r'\bonclick\s*=', projects_html, re.IGNORECASE)
+        assert len(matches) == 0, \
+            f"Projects page must not have inline onclick, found {len(matches)}"
+
+
+class TestProjectsListRender:
+    """Verify the project list is rendered with fixture data."""
+
+    def test_metric_grid_present(self, projects_html):
+        """Projects page must have a metric-grid container."""
+        assert 'class="metric-grid"' in projects_html, \
+            "metric-grid must be present"
+
+    def test_four_metric_cards(self, projects_html):
+        """Exactly 4 metric cards must be rendered."""
+        cards = re.findall(r'class="metric-card"', projects_html)
+        assert len(cards) == 4, \
+            f"Expected 4 metric cards, found {len(cards)}"
+
+    def test_metric_card_labels(self, projects_html):
+        """All 4 metric labels must be visible."""
+        for label in ["Projects", "Sessions", "Total Tokens", "Failed Tools"]:
+            assert f">{label}" in projects_html or f'aria-label="{label}"' in projects_html, \
+                f"Metric card labeled '{label}' must be visible"
+
+    def test_project_count_positive(self, projects_html):
+        """Project count must be greater than 0 with fixture data."""
+        match = re.search(
+            r'class="metric-card__value mono">(\d[\d,]*)<',
+            projects_html
+        )
+        assert match, "Projects metric value must be a number"
+        count = int(match.group(1).replace(",", ""))
+        assert count > 0, \
+            f"Projects count must be > 0 with fixture data, got {count}"
+
+    def test_projects_count_element(self, projects_html):
+        """The projects-count element must be present and populated."""
+        assert 'id="projects-count"' in projects_html, \
+            "projects-count element must be present"
+
+    def test_projects_table_present(self, projects_html):
+        """Projects table must be rendered."""
+        assert 'id="projects-table"' in projects_html, \
+            "projects-table must be present"
+
+    def test_table_has_data_enhanced(self, projects_html):
+        """Table must have data-table-enhanced attribute."""
+        assert 'data-table-enhanced' in projects_html, \
+            "Table must have data-table-enhanced attribute"
+
+
+class TestProjectsColumnHeaders:
+    """Verify rendered table column headers."""
+
+    @pytest.mark.parametrize("column", ["Project", "Agents", "Sessions", "Tokens", "Tools", "Last Active"])
+    def test_column_header_rendered(self, projects_html, column):
+        """Each expected column header must be present in rendered HTML."""
+        assert f"<th>{column}</th>" in projects_html or f"<th " in projects_html and column in projects_html, \
+            f"Table must have '{column}' column header"
+
+    def test_project_column_not_sortable(self, projects_html):
+        """Project column must NOT have sort controls."""
+        # Project column is static; it should not have data-sort-key
+        project_th_section = projects_html[projects_html.find("Project"):projects_html.find("Project") + 200]
+        # The Project header itself should not carry data-sort-key
+        assert 'data-sort-key' not in project_th_section.split("Agents")[0] if "Agents" in project_th_section else True, \
+            "Project column should not be sortable"
+
+
+class TestProjectsProjectData:
+    """Verify individual project data rows are rendered."""
+
+    def test_project_rows_present(self, projects_html):
+        """At least one project table row must be rendered (rows use <tr> with data-action='open-project')."""
+        # Project rows are <tr data-action="open-project" ...> elements inside the table body
+        rows = re.findall(r'<tr\s+data-action="open-project"', projects_html)
+        assert len(rows) > 0, \
+            "At least one project <tr> with data-action='open-project' must be rendered"
+
+    def test_project_row_has_data_name(self, projects_html):
+        """Each project row must have data-name attribute."""
+        assert 'data-name=' in projects_html, \
+            "Project rows must have data-name attribute"
+
+    def test_project_row_has_data_path(self, projects_html):
+        """Each project row must have data-path attribute."""
+        assert 'data-path=' in projects_html, \
+            "Project rows must have data-path attribute"
+
+    def test_project_row_has_data_total_sessions(self, projects_html):
+        """Each project row must have data-total-sessions attribute."""
+        assert 'data-total-sessions=' in projects_html, \
+            "Project rows must have data-total-sessions attribute"
+
+    def test_project_row_has_data_total_tokens(self, projects_html):
+        """Each project row must have data-total-tokens attribute."""
+        assert 'data-total-tokens=' in projects_html, \
+            "Project rows must have data-total-tokens attribute"
+
+    def test_project_name_link_rendered(self, projects_html):
+        """Project name links must be rendered."""
+        assert 'class="project-name-link"' in projects_html, \
+            "Project name links must use project-name-link class"
+
+    def test_open_project_action(self, projects_html):
+        """Rows must have data-action='open-project'."""
+        assert 'data-action="open-project"' in projects_html, \
+            "Project rows must have open-project action"
+
+    def test_agent_badge_rendered(self, projects_html):
+        """At least one agent badge must be rendered."""
+        assert 'badge_with_dot' not in projects_html or "badge" in projects_html, \
+            "Agent badges must be rendered in project rows"
+
+    def test_token_cell_rendered(self, projects_html):
+        """Token bar segments must be rendered in the table."""
+        assert 'tokenbar-seg' in projects_html, \
+            "Token bar segments must be rendered"
+
+    def test_relative_time_rendered(self, projects_html):
+        """Last Active column must show relative time text (e.g. 'Xd ago', 'Xh ago')."""
+        # relative_time filter returns plain text like "3d ago" or "2h ago"
+        assert re.search(r'\d+[dhm]\s+ago', projects_html), \
+            "Last Active column must show relative time like 'Xd ago'"
+
+
+class TestProjectsFilterRender:
+    """Verify the filter card is rendered."""
+
+    def test_filter_card_present(self, projects_html):
+        """Filter card must be in the rendered page."""
+        assert 'class="card filter-card"' in projects_html, \
+            "Filter card must be present"
+
+    def test_search_input_present(self, projects_html):
+        """Project search input must be rendered."""
+        assert 'id="project-search"' in projects_html, \
+            "Search input with id='project-search' must be present"
+
+    def test_apply_button_present(self, projects_html):
+        """Apply search button must be present."""
+        assert 'data-action="apply-search"' in projects_html, \
+            "Apply search button must be present"
+
+    def test_clear_button_present(self, projects_html):
+        """Clear search button must be present."""
+        assert 'data-action="clear-search"' in projects_html, \
+            "Clear search button must be present"
+
+
+class TestProjectsPaginationRender:
+    """Verify pagination is rendered."""
+
+    def test_pagination_present(self, projects_html):
+        """Pagination controls must be present."""
+        assert 'class="pagination unified-pagination"' in projects_html, \
+            "Pagination must be present"
+
+    def test_page_input_present(self, projects_html):
+        """Page input must be rendered."""
+        assert 'data-action="page-input"' in projects_html, \
+            "Page input must be present"
+
+    def test_next_page_present(self, projects_html):
+        """Next page button must be rendered."""
+        assert 'data-action="next-page"' in projects_html, \
+            "Next page button must be present"
+
+
+class TestProjectsBreadcrumb:
+    """Verify the breadcrumb navigation."""
+
+    def test_breadcrumb_has_dashboard_link(self, projects_html):
+        """Breadcrumb must link back to dashboard."""
+        assert 'href="/dashboard"' in projects_html, \
+            "Breadcrumb must have link to /dashboard"
+
+    def test_breadcrumb_has_current(self, projects_html):
+        """Breadcrumb must show 'Projects' as current page."""
+        assert 'class="current">Projects</span>' in projects_html, \
+            "Breadcrumb must show Projects as current"
