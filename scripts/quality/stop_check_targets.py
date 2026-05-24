@@ -11,7 +11,6 @@
     1 — 存在 missing/FAIL/stale artifact
 """
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -65,10 +64,18 @@ def get_changed_files_for_session() -> list[str]:
 
 
 def resolve_change_id() -> str:
-    """从环境变量或 active-change 文件解析 change-id。"""
-    env = os.environ.get("ACTIVE_CHANGE_ID", "")
-    if env:
-        return env
+    """从 active_change.json 或 active-change 文件解析 change-id。"""
+    # 优先读取 tmp/active_change.json
+    active_change = REPO_ROOT / "tmp" / "active_change.json"
+    if active_change.exists():
+        try:
+            data = json.loads(active_change.read_text(encoding="utf-8"))
+            cid = data.get("change_id", "")
+            if cid:
+                return cid
+        except (json.JSONDecodeError, OSError):
+            pass
+    # 回退到 legacy active-change 文件
     active_file = REPO_ROOT / "tmp" / "active-change"
     if active_file.exists():
         return active_file.read_text().strip()

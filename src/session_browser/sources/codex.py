@@ -5,8 +5,6 @@ Data sources:
 - ~/.codex/sessions/{year}/{month}/{day}/rollout-*.jsonl: full session event stream
 - ~/.codex/state_5.sqlite.threads: thread metadata (title, cwd, branch, model, tokens)
 - ~/.codex/history.jsonl: user input history (optional)
-
-All paths configurable via CODEX_DATA_DIR env var.
 """
 
 from __future__ import annotations

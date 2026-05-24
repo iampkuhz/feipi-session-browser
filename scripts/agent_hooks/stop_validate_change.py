@@ -44,8 +44,10 @@ PROTECTED_ROOTS = [
     "src/",
 ]
 
-ACTIVE_CHANGE_FILE = Path("tmp/active_change.json")
-EVIDENCE_DIR = Path("tmp/task-evidence")
+ACTIVE_CHANGE_FILE = Path("tmp/agent_logs/current/active_change.json")
+EVIDENCE_DIR = Path("tmp/agent_logs/current/task-evidence")
+LEGACY_ACTIVE_CHANGE_FILE = Path("tmp/active_change.json")
+LEGACY_EVIDENCE_DIR = Path("tmp/task-evidence")
 
 # Required files inside openspec/changes/<change-id>/
 REQUIRED_CHANGE_FILES = ["proposal.md", "design.md", "tasks.md"]
@@ -81,10 +83,15 @@ def has_uncommitted_changes(roots: list[str] | None = None) -> bool:
 
 
 def load_active_change() -> dict | None:
-    """Parse tmp/active_change.json; return dict or None."""
-    p = _repo_root() / ACTIVE_CHANGE_FILE
+    """Parse active_change.json from new or legacy location."""
+    root = _repo_root()
+    # New location: tmp/agent_logs/current/active_change.json
+    p = root / ACTIVE_CHANGE_FILE
     if not p.is_file():
-        return None
+        # Legacy fallback: tmp/active_change.json
+        p = root / LEGACY_ACTIVE_CHANGE_FILE
+        if not p.is_file():
+            return None
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
@@ -112,7 +119,13 @@ def required_files_present(change_id: str) -> list[str]:
 
 
 def evidence_file(change_id: str) -> Path:
-    return _repo_root() / EVIDENCE_DIR / f"{change_id}.jsonl"
+    """Return evidence file path (new location with legacy fallback)."""
+    root = _repo_root()
+    new_ef = root / EVIDENCE_DIR / f"{change_id}.jsonl"
+    if new_ef.is_file():
+        return new_ef
+    # Legacy fallback
+    return root / LEGACY_EVIDENCE_DIR / f"{change_id}.jsonl"
 
 
 def has_evidence_entries(change_id: str) -> bool:
@@ -145,9 +158,9 @@ def repair_messages(change_id: str | None = None) -> list[str]:
     target = f" '{change_id}'" if change_id else ""
     return [
         "Continue instead of stopping: repair the OpenSpec state, then retry stop.",
-        f"  1. Ensure tmp/active_change.json points to the intended active change{target}.",
+        f"  1. Ensure active_change.json points to the intended active change{target}.",
         "  2. Ensure proposal.md, design.md, and tasks.md exist under that change.",
-        "  3. Record or preserve edit evidence in tmp/task-evidence/<change-id>.jsonl.",
+        "  3. Record or preserve edit evidence in tmp/agent_logs/current/task-evidence/<change-id>.jsonl.",
         "  4. Mark completed tasks in tasks.md before final stop.",
     ]
 
@@ -182,14 +195,14 @@ def validate() -> tuple[int, list[str]]:
     if active is None:
         messages.append(
             "BLOCK: protected files changed without active change "
-            "(tmp/active_change.json missing or invalid)."
+            "(active_change.json missing or invalid)."
         )
         messages.extend(repair_messages())
         return EXIT_BLOCK, messages
 
     cid = change_id_from_active(active)
     if not cid:
-        messages.append("BLOCK: tmp/active_change.json missing 'change_id'.")
+        messages.append("BLOCK: active_change.json missing 'change_id'.")
         messages.extend(repair_messages())
         return EXIT_BLOCK, messages
 
@@ -207,9 +220,10 @@ def validate() -> tuple[int, list[str]]:
         )
 
     # Check evidence
+    ef = evidence_file(cid)
     if not has_evidence_entries(cid):
         messages.append(
-            f"WARN/BLOCK: no evidence entries in {EVIDENCE_DIR}/{cid}.jsonl"
+            f"WARN/BLOCK: no evidence entries in {ef.relative_to(_repo_root())}"
         )
 
     # Check completed tasks (informational)
@@ -332,8 +346,8 @@ def _run_self_test() -> int:
         (cdir / "proposal.md").write_text("# Proposal\n", encoding="utf-8")
         (cdir / "design.md").write_text("# Design\n", encoding="utf-8")
         (cdir / "tasks.md").write_text("- [x] Task 1\n- [ ] Task 2\n", encoding="utf-8")
-        # Set up evidence
-        evdir = tmp / "tmp" / "task-evidence"
+        # Set up evidence (new location)
+        evdir = tmp / "tmp" / "agent_logs" / "current" / "task-evidence"
         evdir.mkdir(parents=True)
         (evdir / "test-change-003.jsonl").write_text(
             '{"ts":"2026-01-01T00:00:00Z","tool":"Edit","file_path":"CLAUDE.md","change_id":"test-change-003"}\n',

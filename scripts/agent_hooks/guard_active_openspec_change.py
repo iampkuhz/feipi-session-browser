@@ -3,7 +3,6 @@
 
 Usage:
     python3 scripts/agent_hooks/guard_active_openspec_change.py <target_file>
-    CC_TOOL_INPUT=<target_file> python3 scripts/agent_hooks/guard_active_openspec_change.py
     python3 scripts/agent_hooks/guard_active_openspec_change.py --self-test
 
 Exit codes:
@@ -143,15 +142,6 @@ def check_active_change(repo_root: Path) -> tuple[bool, str]:
         )
 
     return True, f"Active change '{change_id}' verified."
-
-
-def get_target_from_env() -> str | None:
-    """Try to read target file path from known env vars."""
-    for var in ("CC_TOOL_INPUT", "CLAUDE_TOOL_INPUT"):
-        val = os.environ.get(var, "").strip()
-        if val:
-            return val
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +287,7 @@ def main() -> int:
         "target",
         nargs="?",
         default=None,
-        help="Target file path to check (can also come from CC_TOOL_INPUT env var).",
+        help="Target file path to check.",
     )
     parser.add_argument(
         "--self-test",
@@ -309,12 +299,11 @@ def main() -> int:
     if args.self_test:
         return run_self_test()
 
-    target = args.target or get_target_from_env()
-    if not target:
-        # No target determinable; allow (hook may run without CC_TOOL_INPUT).
+    if not args.target:
+        # No target provided; allow (guard is not applicable without a target).
         return 0
 
-    ret = guard(target)
+    ret = guard(args.target)
     if ret != 0:
         return ret
     return 0

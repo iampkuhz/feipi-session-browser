@@ -32,7 +32,7 @@ def read_active_change(paths: RepoPaths) -> dict:
     legacy = _read_json(paths.legacy_active_change)
     if legacy:
         legacy = dict(legacy)
-        legacy["legacySource"] = ".agent/active_change.json"
+        legacy["legacySource"] = "tmp/active_change.json"
         return legacy
     return {"changeId": default_change_id(), "source": "default"}
 

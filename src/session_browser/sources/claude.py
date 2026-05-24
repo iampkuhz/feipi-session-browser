@@ -4,8 +4,6 @@ Data sources:
 - ~/.claude/history.jsonl: session index (sessionId, project, display, timestamp)
 - ~/.claude/projects/{project}/{sessionId}.jsonl: full conversation event stream
 - ~/.claude/sessions/{pid}.json: active session metadata (optional)
-
-All paths configurable via CLAUDE_DATA_DIR env var.
 """
 
 from __future__ import annotations

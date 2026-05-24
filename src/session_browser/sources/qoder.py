@@ -7,8 +7,6 @@ Claude Code's:
 
 Events share the same type/message/timestamp structure as Claude Code,
 with additional fields: agentId, isMeta, userType, version.
-
-All paths configurable via QODER_DATA_DIR env var.
 """
 
 from __future__ import annotations

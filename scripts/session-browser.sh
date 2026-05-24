@@ -59,15 +59,15 @@ host_port() {
 }
 
 local_test_port() {
-    printf '%s\n' "${SESSION_BROWSER_LOCAL_PORT:-${SESSION_BROWSER_DEV_PORT:-$DEFAULT_LOCAL_PORT}}"
+    printf '%s\n' "${SESSION_BROWSER_LOCAL_PORT:-$DEFAULT_LOCAL_PORT}"
 }
 
 local_test_index_dir() {
-    expand_path "${SESSION_BROWSER_LOCAL_DATA_DIR:-${SESSION_BROWSER_DEV_DATA_DIR:-$DEFAULT_LOCAL_DATA_DIR}}"
+    expand_path "${SESSION_BROWSER_LOCAL_DATA_DIR:-$DEFAULT_LOCAL_DATA_DIR}"
 }
 
 local_test_host() {
-    printf '%s\n' "${SESSION_BROWSER_LOCAL_HOST:-${SESSION_BROWSER_DEV_HOST:-127.0.0.1}}"
+    printf '%s\n' "${SESSION_BROWSER_LOCAL_HOST:-127.0.0.1}"
 }
 
 arg_has_option() {
@@ -256,9 +256,6 @@ run_local_serve() {
     export PYTHONUNBUFFERED=1
     export SESSION_BROWSER_LOG_LEVEL="${SESSION_BROWSER_LOG_LEVEL:-DEBUG}"
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
-    export SERVER_HOST="$host"
-    export SERVER_PORT="$port"
-    export INDEX_DIR="$index_dir"
 
     local -a serve_args=()
     serve_args+=("$@")
@@ -277,12 +274,12 @@ run_local_serve() {
     echo "  版本：$SESSION_BROWSER_VERSION"
     echo "  地址：http://$host:$port"
     echo "  日志级别：$SESSION_BROWSER_LOG_LEVEL"
-    echo "  本地测试索引：$INDEX_DIR"
+    echo "  本地测试索引：$index_dir"
     echo "  Podman 默认端口：$(host_port)"
     echo "  Podman 默认索引：$(expand_path "${SESSION_BROWSER_DATA_DIR:-$DEFAULT_PODMAN_DATA_DIR}")"
     echo "  运行方式：前台进程；Ctrl-C 后本地测试服务立即关闭"
     echo "  源码目录：$SRC_DIR"
-    exec "$(python_bin)" -m session_browser serve --allow-empty "${serve_args[@]}"
+    INDEX_DIR="$index_dir" exec "$(python_bin)" -m session_browser serve --allow-empty "${serve_args[@]}"
 }
 
 run_scan() {
@@ -291,9 +288,8 @@ run_scan() {
     mkdir -p "$index_dir"
 
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
-    export INDEX_DIR="$index_dir"
-    echo "使用本地测试索引目录：$INDEX_DIR"
-    exec "$(python_bin)" -m session_browser scan "$@"
+    echo "使用本地测试索引目录：$index_dir"
+    INDEX_DIR="$index_dir" exec "$(python_bin)" -m session_browser scan "$@"
 }
 
 run_serve() {
@@ -341,9 +337,6 @@ Podman 部署：
   SESSION_BROWSER_HOST_PORT        默认：8899
   SESSION_BROWSER_DATA_DIR         默认：~/.local/share/feipi/session-browser/index
   SESSION_BROWSER_LOG_LEVEL        默认：INFO；本地 serve 使用 DEBUG
-  CLAUDE_DATA_DIR                  默认：~/.claude
-  CODEX_DATA_DIR                   默认：~/.codex
-  QODER_DATA_DIR                   默认：~/.qoder
 
 示例：
   ./scripts/session-browser.sh serve

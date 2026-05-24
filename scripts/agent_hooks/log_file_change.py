@@ -9,7 +9,6 @@ Usage:
     python3 scripts/hooks/log_file_change.py --self-test
 """
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,10 +51,6 @@ def _extract_tool_name(payload: dict) -> str:
     for key in ("tool_name", "tool"):
         if key in payload and payload[key]:
             return str(payload[key])
-    for env_key in ("CC_TOOL_NAME", "CLAUDE_TOOL_NAME"):
-        val = os.environ.get(env_key)
-        if val:
-            return val
     return "unknown"
 
 
@@ -86,29 +81,7 @@ def _parse_file_path() -> str | None:
         if arg != "--self-test":
             return arg
 
-    # 2. direct env vars
-    for env_key in ("CC_FILE_PATH", "CLAUDE_FILE_PATH"):
-        val = os.environ.get(env_key)
-        if val:
-            return val
-
-    # 3. tool input env var (raw path or JSON)
-    for env_key in ("CC_TOOL_INPUT", "CLAUDE_TOOL_INPUT"):
-        val = os.environ.get(env_key)
-        if val:
-            val = val.strip()
-            if val.startswith("{"):
-                try:
-                    parsed = json.loads(val)
-                    fp = _extract_file_path(parsed)
-                    if fp:
-                        return fp
-                except json.JSONDecodeError:
-                    pass
-            if "/" in val and not val.startswith("{"):
-                return val
-
-    # 4. stdin JSON payload
+    # 2. stdin JSON payload
     if not sys.stdin.isatty():
         try:
             raw = sys.stdin.read().strip()
@@ -124,14 +97,7 @@ def _parse_file_path() -> str | None:
 
 
 def _parse_tool_name() -> str:
-    """Resolve the tool name from all possible input sources."""
-    # Check env first
-    for env_key in ("CC_TOOL_NAME", "CLAUDE_TOOL_NAME"):
-        val = os.environ.get(env_key)
-        if val:
-            return val
-
-    # Check stdin
+    """Resolve the tool name from stdin JSON payload."""
     if not sys.stdin.isatty():
         try:
             raw = sys.stdin.read().strip()
@@ -228,34 +194,7 @@ def _self_test():
             parsed = json.loads(lines[0])
             assert parsed["file"] == "src/session_browser/web/static/style.css"
 
-    def _t2_claude_tool_input_raw():
-        """CLAUDE_TOOL_INPUT raw path can be extracted."""
-        old = os.environ.get("CLAUDE_TOOL_INPUT")
-        try:
-            os.environ["CLAUDE_TOOL_INPUT"] = "src/session_browser/web/templates/session.html"
-            fp = _parse_file_path()
-            assert fp == "src/session_browser/web/templates/session.html", f"Got {fp}"
-        finally:
-            if old is None:
-                os.environ.pop("CLAUDE_TOOL_INPUT", None)
-            else:
-                os.environ["CLAUDE_TOOL_INPUT"] = old
-
-    def _t3_claude_tool_input_json():
-        """CLAUDE_TOOL_INPUT JSON can extract file_path."""
-        old = os.environ.get("CLAUDE_TOOL_INPUT")
-        try:
-            payload = json.dumps({"file_path": "src/session_browser/web/static/app.js"})
-            os.environ["CLAUDE_TOOL_INPUT"] = payload
-            fp = _parse_file_path()
-            assert fp == "src/session_browser/web/static/app.js", f"Got {fp}"
-        finally:
-            if old is None:
-                os.environ.pop("CLAUDE_TOOL_INPUT", None)
-            else:
-                os.environ["CLAUDE_TOOL_INPUT"] = old
-
-    def _t4_stdin_cc_style():
+    def _t2_stdin_cc_style():
         """stdin Claude Code style payload extracts tool_name and file_path."""
         payload = json.dumps({"tool_name": "Edit", "tool_input": {"file_path": "src/x.css"}})
         # We can't easily test stdin parsing without subprocess, so test the extraction function directly
@@ -263,7 +202,7 @@ def _self_test():
         assert _extract_tool_name(parsed) == "Edit"
         assert _extract_file_path(parsed) == "src/x.css"
 
-    def _t5_multiedit_single_evidence():
+    def _t3_multiedit_single_evidence():
         """MultiEdit payload only records one evidence (first file)."""
         payload = {
             "tool_name": "MultiEdit",
@@ -276,46 +215,44 @@ def _self_test():
         }
         assert _extract_file_path(payload) == "src/a.css"
 
-    def _t6_css_category():
+    def _t4_css_category():
         """UI CSS file classified as ui-css, requiresQualityGate=true."""
         cat, qg = _classify("src/session_browser/web/static/style.css")
         assert cat == "ui-css", f"Got {cat}"
         assert qg is True
 
-    def _t7_other_category():
+    def _t5_other_category():
         """Non-UI file classified as other, requiresQualityGate=false."""
         cat, qg = _classify("README.md")
         assert cat == "other", f"Got {cat}"
         assert qg is False
 
-    def _t8_template_category():
+    def _t6_template_category():
         """HTML template classified as ui-template."""
         cat, qg = _classify("src/session_browser/web/templates/session.html")
         assert cat == "ui-template", f"Got {cat}"
         assert qg is True
 
-    def _t9_quality_gate_category():
+    def _t7_quality_gate_category():
         """Quality gate script classified as quality-gate."""
         cat, qg = _classify("scripts/quality/run_quality_gate.py")
         assert cat == "quality-gate", f"Got {cat}"
         assert qg is True
 
-    def _t10_hook_category():
+    def _t8_hook_category():
         """Hook script classified as hook."""
         cat, qg = _classify(".claude/hooks/stop.sh")
         assert cat == "hook", f"Got {cat}"
         assert qg is True
 
     _run_test("argv path", _t1_argv_path)
-    _run_test("CLAUDE_TOOL_INPUT raw path", _t2_claude_tool_input_raw)
-    _run_test("CLAUDE_TOOL_INPUT JSON", _t3_claude_tool_input_json)
-    _run_test("stdin CC style payload extraction", _t4_stdin_cc_style)
-    _run_test("MultiEdit single evidence", _t5_multiedit_single_evidence)
-    _run_test("CSS category", _t6_css_category)
-    _run_test("Other category", _t7_other_category)
-    _run_test("Template category", _t8_template_category)
-    _run_test("Quality-gate category", _t9_quality_gate_category)
-    _run_test("Hook category", _t10_hook_category)
+    _run_test("stdin CC style payload extraction", _t2_stdin_cc_style)
+    _run_test("MultiEdit single evidence", _t3_multiedit_single_evidence)
+    _run_test("CSS category", _t4_css_category)
+    _run_test("Other category", _t5_other_category)
+    _run_test("Template category", _t6_template_category)
+    _run_test("Quality-gate category", _t7_quality_gate_category)
+    _run_test("Hook category", _t8_hook_category)
 
     if failures:
         print(f"\n{failures} test(s) failed")

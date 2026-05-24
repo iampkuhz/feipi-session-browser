@@ -8,11 +8,7 @@ Usage:
     python -m session_browser stop        # Stop web server
 
 Environment variables:
-    CLAUDE_DATA_DIR  - Claude Code data directory (default: ~/.claude)
-    CODEX_DATA_DIR   - Codex data directory (default: ~/.codex)
-    INDEX_DIR        - Index storage directory (default: ~/.local/share/feipi/session-browser/local-test-index)
-    SERVER_HOST      - Bind address (default: 127.0.0.1)
-    SERVER_PORT      - Server port (default: 18999)
+    INDEX_DIR  - Index storage directory (shell/container handoff only)
 """
 
 from __future__ import annotations

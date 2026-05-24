@@ -17,7 +17,6 @@ Exit codes:
 """
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,12 +30,20 @@ HOOK_QUALITY_CATEGORIES = {"hook", "quality-gate"}
 
 
 def resolve_change_id(explicit: str | None) -> str:
-    """Resolve change ID from args, env, or file fallback."""
+    """Resolve change ID from args, active change file, or fallback."""
     if explicit:
         return explicit
-    env = os.environ.get("ACTIVE_CHANGE_ID")
-    if env:
-        return env
+    # Read from tmp/active_change.json (written by agent during OpenSpec change)
+    active_change = REPO_ROOT / "tmp" / "active_change.json"
+    if active_change.exists():
+        try:
+            data = json.loads(active_change.read_text(encoding="utf-8"))
+            cid = data.get("change_id", "")
+            if cid:
+                return cid
+        except (json.JSONDecodeError, OSError):
+            pass
+    # Fallback to legacy active-change file
     active_file = REPO_ROOT / "tmp" / "active-change"
     if active_file.exists():
         return active_file.read_text().strip()

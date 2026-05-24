@@ -45,7 +45,7 @@ class RepoPaths:
 
     @property
     def legacy_active_change(self) -> Path:
-        return self.legacy_agent_dir / "active_change.json"
+        return self.repo_root / "tmp" / "active_change.json"
 
 
 # 02. 仓库根目录定位

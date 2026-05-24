@@ -1,7 +1,7 @@
 """Configuration for session-browser.
 
-All paths are configurable via environment variables for container compatibility.
-Defaults point to the current user's home directory on macOS/Linux.
+Fixed defaults for all paths. INDEX_DIR, SERVER_HOST, and SERVER_PORT
+can be overridden via environment variables for shell/container handoff.
 """
 
 from __future__ import annotations
@@ -16,10 +16,10 @@ def _home() -> Path:
 
 # ─── Data source paths ──────────────────────────────────────────────────
 
-# Base directories for agent session data
-CLAUDE_DATA_DIR = Path(os.environ.get("CLAUDE_DATA_DIR", str(_home() / ".claude")))
-CODEX_DATA_DIR = Path(os.environ.get("CODEX_DATA_DIR", str(_home() / ".codex")))
-QODER_DATA_DIR = Path(os.environ.get("QODER_DATA_DIR", str(_home() / ".qoder")))
+# Base directories for agent session data (fixed paths, not configurable).
+CLAUDE_DATA_DIR = _home() / ".claude"
+CODEX_DATA_DIR = _home() / ".codex"
+QODER_DATA_DIR = _home() / ".qoder"
 
 
 # ─── Index storage ───────────────────────────────────────────────────────
@@ -54,5 +54,5 @@ def _default_version() -> str:
         return "0.0.0-dev"
 
 
-SESSION_BROWSER_VERSION = os.environ.get("SESSION_BROWSER_VERSION", _default_version())
-SESSION_BROWSER_LOG_LEVEL = os.environ.get("SESSION_BROWSER_LOG_LEVEL", "INFO").upper()
+SESSION_BROWSER_VERSION = _default_version()
+SESSION_BROWSER_LOG_LEVEL = "INFO"
