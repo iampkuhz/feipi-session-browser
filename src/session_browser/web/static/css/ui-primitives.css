@@ -1361,13 +1361,6 @@ input[data-action="page-input"]:disabled {
   flex-direction: column;
 }
 
-@media (max-width: 768px) {
-  .modal {
-    width: 92vw;
-    max-width: 92vw;
-  }
-}
-
 .modal-head {
   display: flex;
   align-items: center;
@@ -1383,12 +1376,6 @@ input[data-action="page-input"]:disabled {
   gap: 12px;
   overflow: auto;
   padding: 14px;
-}
-
-@media (max-width: 1320px) {
-  .modal-body {
-    grid-template-columns: 1fr;
-  }
 }
 
 .modal-body .mono { font-family: var(--font-mono); }
@@ -1595,13 +1582,6 @@ input[data-action="page-input"]:disabled {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-@media (max-width: 768px) {
-  .payload-modal__panel {
-    width: 92vw;
-    max-width: 92vw;
-  }
 }
 
 /* Modal header bar */
@@ -1852,15 +1832,6 @@ input[data-action="page-input"]:disabled {
   overflow: auto;
   padding: 12px;
   background: #fff;
-}
-
-@media (max-width: 768px) {
-  .payload-modal--sd .payload-modal__panel {
-    width: 92vw;
-    max-width: 92vw;
-    min-width: 0;
-    max-height: 86vh;
-  }
 }
 
 /* === SectionCard ========================================================== */
@@ -2127,55 +2098,6 @@ input[data-action="page-input"]:disabled {
   background: #fff;border-radius: var(--ui-radius-pill);padding: 0 10px;font-size: 12px;color: var(--ui-text-2);box-shadow: var(--ui-shadow-sm);
 }
 .ui-stat-pill b { font-family: var(--ui-font-mono);font-size: 12px;color: var(--ui-text); }
-
-/* ======================================================================
- * Responsive rules for UI primitives
- * ====================================================================== */
-
-/* ── Mobile: <768px ─────────────────────────────────────────────── */
-@media (max-width: 767px) {
-    /* Metric cards: stack vertically on small screens */
-    .metric-grid {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-    .metric-card {
-        min-height: auto;
-        padding: 12px;
-    }
-    .metric-card__value {
-        font-size: 24px;
-    }
-
-    /* Data table: ensure horizontal scroll on mobile */
-    .data-table {
-        min-width: 600px;
-    }
-
-    /* Buttons: full-width on very small screens */
-    .btn {
-        font-size: 12px;
-    }
-
-    /* Popover: narrower on mobile */
-    .popover {
-        width: 92vw;
-        max-width: 92vw;
-    }
-
-    /* Filter chips: wrap and compact */
-    .filter-chip {
-        height: 24px;
-        font-size: 11px;
-    }
-}
-
-/* ── Tablet: 768px–1023px ──────────────────────────────────────── */
-@media (max-width: 1023px) and (min-width: 768px) {
-    .metric-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
 
 /* ── Viewer body (from viewer.html macro) ──────────────────────── */
 .viewer__body[data-scroll-max] {

@@ -1261,19 +1261,6 @@ a.link-muted:hover { color: var(--accent); }
 
 /* .sessions-filter-card moved to sessions-list.css */
 
-/* Responsive: stack filter bar on narrow screens */
-@media (max-width: 900px) {
-    .filter-bar {
-        grid-template-columns: 1fr 1fr;
-    }
-    .filter-bar__input--search {
-        grid-column: 1 / -1;
-    }
-    .filter-bar__btn {
-        justify-self: start;
-    }
-}
-
 /* Filter inputs focus state (consolidated) */
 .filter-bar__input:focus {
     border-color: var(--accent);
@@ -1484,7 +1471,7 @@ a.link-muted:hover { color: var(--accent); }
     margin-top: 3px;
 }
 
-/* ── Calls View: scroll wrapper for mobile ───────────────── */
+/* Calls View: scroll wrapper */
 .calls-scroll-wrapper {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -2030,16 +2017,6 @@ a.link-muted:hover { color: var(--accent); }
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-md);
-}
-@media (max-width: 900px) {
-    .hotspots-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-@media (max-width: 600px) {
-    .hotspots-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* ─── Top rounds list ─── */
@@ -4059,39 +4036,6 @@ tr.row--anomaly {
     color: var(--text-muted);
     margin-top: 4px;
     opacity: 0.7;
-}
-
-/* ─── Responsive: token charts ── */
-@media (max-width: 768px) {
-    .token-charts-card__body-grid {
-        grid-template-columns: 1fr;
-        gap: var(--space-lg);
-    }
-    .token-charts-card__body {
-        padding: var(--space-md) var(--space-md);
-    }
-    .token-donut__svg {
-        width: 120px;
-        height: 120px;
-    }
-    .token-donut__center-value {
-        font-size: var(--text-sm);
-    }
-    .token-donut__center-label {
-        font-size: var(--text-micro);
-    }
-}
-
-@media (max-width: 480px) {
-    .token-charts-card__body {
-        padding: var(--space-sm) var(--space-sm);
-    }
-    .token-mix__name {
-        min-width: 56px;
-    }
-    .round-chart__header {
-        font-size: var(--text-micro);
-    }
 }
 
 /* Remove old overview__grid and overview__token-mix styles */
@@ -7167,34 +7111,6 @@ tr.keyboard-focus a {
     overflow: hidden;
 }
 
-/* ── Calls View: responsive mobile ───────────────────────── */
-@media (max-width: 1024px) {
-    .calls-scroll-wrapper {
-        margin: 0 -10px;
-        padding: 0 10px;
-    }
-    .data-table > .table-head,
-    .data-table > .table-row {
-        grid-template-columns: 60px 70px 120px 90px 90px 90px 80px 110px minmax(180px, 1fr);
-        font-size: 11px;
-    }
-}
-@media (max-width: 768px) {
-    .data-table > .table-head,
-    .data-table > .table-row {
-        grid-template-columns: 50px 60px 100px 80px 80px 80px 70px 100px minmax(140px, 1fr);
-        padding: 4px 8px;
-        font-size: 10.5px;
-    }
-    .data-table > .table-head > div,
-    .data-table > .table-row > div {
-        padding: 1px 3px;
-    }
-    .calls-card-title {
-        font-size: 13px;
-    }
-}
-
 /* ───────────────────────────────────────────────────────────────
  * Session Detail Phase 1 — Scoped Layout Reset
  * All rules prefixed with .session-detail-phase1 to avoid
@@ -7570,44 +7486,6 @@ tr.keyboard-focus a {
 
 .session-detail-phase1 .sm .payload-btn {
     white-space: nowrap;
-}
-
-/* 7. Responsive rules */
-@media (max-width: 1180px) {
-    .session-detail-phase1 {
-        padding: 16px;
-    }
-
-    .session-detail-phase1 .kpis {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    }
-    /* Hide time column at medium width */
-    .session-detail-phase1 .issue-summary__cards {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 820px) {
-    .session-detail-phase1 {
-        padding: 12px;
-    }
-
-    .session-detail-phase1 .hero-main {
-        padding: 14px 12px;
-    }
-
-    .session-detail-phase1 .kpis {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    /* Hide diags column at narrow width */
-    .session-detail-phase1 .span {
-        grid-template-columns: minmax(50px, 70px) minmax(0, 1fr);
-    }
-
-    .session-detail-phase1 .span > .sm {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
-    }
 }
 
 /* ── Round detail (replaces span-list) ─────────────────────── */
@@ -8029,37 +7907,6 @@ tr.keyboard-focus a {
 
 /* Responsive layout breakpoints — shell section moved to css/shell.css (Task 05) */
 /* Non-shell responsive rules retained below: */
-
-/* ── Mobile: <768px — component-level rules ───────────────────── */
-@media (max-width: 767px) {
-    /* KPI / metric grids: single column on mobile */
-    .kpis {
-        grid-template-columns: 1fr 1fr;
-        gap: var(--space-sm);
-    }
-    .metric-grid {
-        grid-template-columns: 1fr;
-    }
-    /* Tables: horizontal scroll wrapper on mobile */
-    .table-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    .data-table {
-        min-width: 640px;
-    }
-    /* Filter bar: stack vertically */
-    .filter-bar {
-        grid-template-columns: 1fr;
-    }
-    .filter-bar__input--search {
-        grid-column: 1;
-    }
-    .section-head {
-        flex-wrap: wrap;
-        gap: var(--space-sm);
-    }
-}
 
 /* ── Desktop: >=1400px — component-level rules ─────────────────── */
 @media (min-width: 1400px) {

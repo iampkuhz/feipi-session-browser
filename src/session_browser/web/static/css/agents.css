@@ -509,13 +509,6 @@
   margin: 8px 0;
 }
 
-/* 12. Responsive */
-@media (max-width: 1260px) {
-  .metric-grid:has(.metric-card) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 /* 13. Table colgroup column widths (HIFI alignment) */
 
 /* Model Breakdown table column widths */

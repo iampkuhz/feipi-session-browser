@@ -1888,28 +1888,6 @@
   background: var(--sd-err-bg);
 }
 
-@media (max-width: 1180px) {
-  .session-detail-page .sd-round-summary,
-  .session-detail-page .sd-user-round .sd-round-summary,
-  .sd-page .sd-round-summary,
-  .sd-page .sd-user-round .sd-round-summary,
-  .sd-shell .sd-round-summary,
-  .sd-shell .sd-user-round .sd-round-summary {
-    grid-template-columns: 52px 78px minmax(0, 1fr) 76px 68px 88px;
-    column-gap: 8px;
-    padding-inline: 10px;
-  }
-
-  .session-detail-page .sd-payload-shell,
-  .session-detail-page .payload-shell,
-  .sd-page .sd-payload-shell,
-  .sd-page .payload-shell,
-  .sd-shell .sd-payload-shell,
-  .sd-shell .payload-shell {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* ── trace-row (moved from style.css) ────────────────────── */
 .trace-row.is-filtered-out {
     display: none;

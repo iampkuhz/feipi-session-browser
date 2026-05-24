@@ -299,22 +299,27 @@ class TestCssShellRules:
 
 
 class TestCssResponsiveBreakpoints:
-    """shell.css must contain responsive breakpoints for shell."""
+    """shell.css must contain responsive breakpoints for shell.
 
-    def test_has_mobile_768_breakpoint(self, shell_text):
-        """Must have @media (max-width: 768px) or similar."""
-        assert re.search(r'@media\s*\(max-width:\s*(768|767)', shell_text), \
-            "shell.css lacks mobile breakpoint (~768px)"
+    Project only supports MacBook Pro 13/14 inch built-in displays
+    and 2560x1440 external monitors. Mobile/tablet breakpoints
+    are not supported and should not be present.
+    """
 
-    def test_has_tablet_1024_breakpoint(self, shell_text):
-        """Must have @media (max-width: 1024px) or similar."""
-        assert re.search(r'@media\s*\(max-width:\s*(1024|1023)', shell_text), \
-            "shell.css lacks tablet breakpoint (~1024px)"
+    def test_no_mobile_breakpoint(self, shell_text):
+        """Must NOT have mobile @media max-width below 1024px."""
+        assert not re.search(r'@media\s*\(max-width:\s*(480|600|767|768|820|900)\b', shell_text), \
+            "shell.css should not have mobile breakpoint"
 
-    def test_has_large_1400_breakpoint(self, shell_text):
-        """Must have @media (min-width: 1400px) or (max-width: 1400px)."""
-        assert re.search(r'@media\s*\([^)]*(min-width|max-width):\s*1400', shell_text), \
-            "shell.css lacks large-screen breakpoint (~1400px)"
+    def test_no_tablet_breakpoint(self, shell_text):
+        """Must NOT have tablet @media max-width below 1400px."""
+        assert not re.search(r'@media\s*\(max-width:\s*(1023|1024|1180|1260|1320)\b', shell_text), \
+            "shell.css should not have tablet breakpoint"
+
+    def test_has_desktop_1400_breakpoint(self, shell_text):
+        """Must have @media (min-width: 1400px) for desktop."""
+        assert re.search(r'@media\s*\([^)]*min-width:\s*1400', shell_text), \
+            "shell.css lacks desktop min-width: 1400px breakpoint"
 
     def test_sidebar_collapse_rule(self, shell_text):
         """Must have body.hide-left .sidebar or similar collapse rule."""

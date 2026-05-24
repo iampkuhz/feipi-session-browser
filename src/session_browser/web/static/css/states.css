@@ -110,37 +110,3 @@
     line-height: 1.5;
     color: var(--text);
 }
-
-/* ======================================================================
- * Responsive rules for state pages
- * ====================================================================== */
-
-/* ── Mobile: <768px ─────────────────────────────────────────────── */
-@media (max-width: 767px) {
-    .state-panel {
-        margin: 16px 12px;
-        padding: 32px 16px;
-    }
-    .state-panel__icon {
-        font-size: 40px;
-    }
-    .state-panel__title {
-        font-size: 18px;
-    }
-    .state-panel__desc {
-        font-size: 13px;
-    }
-    .state-panel__links {
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
-    }
-}
-
-/* ── Tablet: 768px–1023px ──────────────────────────────────────── */
-@media (max-width: 1023px) and (min-width: 768px) {
-    .state-panel {
-        margin: 24px auto;
-        padding: 36px 20px;
-    }
-}
