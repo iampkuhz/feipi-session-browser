@@ -84,7 +84,15 @@ if [[ $QG_EXIT -ne 0 ]]; then
   BLOCK=1
 fi
 
-# 2c. 非 UI quality targets 检查（hook-runtime, harness, python-src）
+# 2c. 非 UI quality targets 自动运行（hook-runtime, harness, python-src）
+python3 "$ROOT/scripts/quality/run_required_quality_gates.py" >&2
+RG_EXIT=$?
+if [[ $RG_EXIT -ne 0 ]]; then
+  hook_log "BLOCK" "run_required_quality_gates.py 运行失败 (exit=$RG_EXIT)"
+  BLOCK=1
+fi
+
+# 2d. 非 UI quality targets artifact 校验（hook-runtime, harness, python-src）
 python3 "$ROOT/scripts/quality/stop_check_targets.py" >&2
 ST_EXIT=$?
 if [[ $ST_EXIT -ne 0 ]]; then
@@ -92,13 +100,13 @@ if [[ $ST_EXIT -ne 0 ]]; then
   BLOCK=1
 fi
 
-# 2d. task-ledger 检查
+# 2e. task-ledger 检查
 if [[ -f tmp/task-ledger.md ]] && ! grep -q '|.*ID.*任务.*状态' tmp/task-ledger.md 2>/dev/null; then
   hook_log "WARN" "tmp/task-ledger.md 表头格式不正确"
   WARN=1
 fi
 
-# 2e. 写入 write-session summary
+# 2f. 写入 write-session summary
 python3 -c "
 import json, os
 from pathlib import Path
