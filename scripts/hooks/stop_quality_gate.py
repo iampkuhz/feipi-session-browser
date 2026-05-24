@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stop hook quality gate enforcement.
 
-Reads tmp/changed-files.jsonl and tmp/quality/<change-id>/quality-gate-summary.json
+Reads tmp/agent_logs/current/changed-files.jsonl and tmp/quality/<change-id>/quality-gate-summary.json
 to determine if UI changes have passed required quality gates.
 
 This is a DETERMINISTIC check — it does NOT run browsers, LLMs, or subagents.
@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CHANGED_FILES = REPO_ROOT / "tmp" / "changed-files.jsonl"
+CHANGED_FILES = REPO_ROOT / "tmp" / "agent_logs" / "current" / "changed-files.jsonl"
 QUALITY_DIR = REPO_ROOT / "tmp" / "quality"
 
 UI_CATEGORIES = {"ui-css", "ui-template", "ui-js"}
@@ -44,7 +44,7 @@ def resolve_change_id(explicit: str | None) -> str:
 
 
 def read_changed_files() -> list[dict]:
-    """Read tmp/changed-files.jsonl entries."""
+    """Read tmp/agent_logs/current/changed-files.jsonl entries."""
     if not CHANGED_FILES.exists():
         return []
     entries = []

@@ -13,8 +13,8 @@ export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 STDIN_TMP="$(mktemp)"
 cat > "$STDIN_TMP" 2>/dev/null || true
 
-# 解析当前 session 的日志目录
-export FEIPI_AGENT_LOG_DIR="$(resolve_current_log_dir "$STDIN_TMP")"
+# 固定路径：确保 agent 日志目录存在
+mkdir -p "$ROOT/tmp/agent_logs/current"
 
 python3 -m scripts.claude_hooks.main post-write < "$STDIN_TMP"
 rm -f "$STDIN_TMP"

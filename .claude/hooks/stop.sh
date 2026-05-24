@@ -13,10 +13,12 @@ export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 STDIN_TMP="$(mktemp)"
 cat > "$STDIN_TMP" 2>/dev/null || true
 
-# 解析当前 session 的日志目录（per-session 隔离）
-export FEIPI_AGENT_LOG_DIR="$(resolve_current_log_dir "$STDIN_TMP")"
+# 固定路径：agent 日志与 quality artifact
+AGENT_LOG_DIR="$ROOT/tmp/agent_logs/current"
+QUALITY_DIR="$ROOT/tmp/quality"
+mkdir -p "$AGENT_LOG_DIR" "$QUALITY_DIR"
 
-STOP_SUMMARY="${FEIPI_AGENT_LOG_DIR}/stop-check-summary.json"
+STOP_SUMMARY="${AGENT_LOG_DIR}/stop-check-summary.json"
 WARN=0
 BLOCK=0
 
@@ -37,11 +39,11 @@ if [[ "$SESSION_CHECK" == "no_changes" ]]; then
   hook_log "INFO" "本次无文件修改（当前 session 无 Write/Edit 记录），跳过质量门禁校验"
 
   python3 -c "
-import json, os
+import json
 from pathlib import Path
 from datetime import datetime, timezone
-log_dir = os.environ.get('FEIPI_AGENT_LOG_DIR', 'tmp/agent_log')
-summary_path = Path(log_dir) / 'stop-check-summary.json'
+agent_log_dir = Path('${AGENT_LOG_DIR}')
+summary_path = agent_log_dir / 'stop-check-summary.json'
 d = {
     'schemaVersion': 1,
     'ts': datetime.now(timezone.utc).isoformat(),
@@ -101,8 +103,8 @@ python3 -c "
 import json, os
 from pathlib import Path
 from datetime import datetime, timezone
-log_dir = os.environ.get('FEIPI_AGENT_LOG_DIR', 'tmp/agent_log')
-summary_path = Path(log_dir) / 'stop-check-summary.json'
+agent_log_dir = Path('${AGENT_LOG_DIR}')
+summary_path = agent_log_dir / 'stop-check-summary.json'
 block = int(os.environ.get('STOP_BLOCK', '0'))
 d = {
     'schemaVersion': 1,

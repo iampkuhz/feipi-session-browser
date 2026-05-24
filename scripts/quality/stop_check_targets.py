@@ -18,11 +18,11 @@ from pathlib import Path
 from scripts.claude_hooks.classify import required_quality_targets
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-LOG_DIR = Path(os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_logs/adhoc"))
-CHANGED_FILES = LOG_DIR / "changed-files.jsonl"
-# 质量 artifact 统一写入 tmp/quality/<change-id>/，不随 FEIPI_AGENT_LOG_DIR 变化
+AGENT_LOG_DIR = REPO_ROOT / "tmp" / "agent_logs" / "current"
+CHANGED_FILES = AGENT_LOG_DIR / "changed-files.jsonl"
+# 质量 artifact 统一写入 tmp/quality/<change-id>/
 QUALITY_DIR = REPO_ROOT / "tmp" / "quality"
-SESSION_ID_FILE = LOG_DIR / "session-id.txt"
+SESSION_ID_FILE = AGENT_LOG_DIR / "session-id.txt"
 
 # session-detail 由 stop_quality_gate.py 单独检查，此处排除
 EXCLUDED_TARGETS = {"session-detail"}
@@ -106,7 +106,7 @@ def check_target_artifact(target: str, change_id: str) -> tuple[bool, str]:
             f"缺少 {target} quality artifact",
             f"  expected: {expected}",
             f"  change-id: {change_id}",
-            f"  agent-log-dir: {LOG_DIR}",
+            f"  agent-log-dir: {AGENT_LOG_DIR}",
             f"  required targets: {sorted(required_quality_targets(get_changed_files_for_session()))}",
             f"  actual found summaries: {', '.join(existing_rel)}",
         ]

@@ -66,11 +66,25 @@ def find_repo_root(start: str | Path | None = None) -> Path:
     return start_path
 
 
+# 02. 固定路径常量
+AGENT_LOG_DIR_NAME = "current"
+QUALITY_DIR_NAME = "quality"
+
+
+def agent_log_dir(repo_root: Path) -> Path:
+    """固定 agent 日志目录：tmp/agent_logs/current/"""
+    return repo_root / "tmp" / "agent_logs" / AGENT_LOG_DIR_NAME
+
+
+def quality_dir(repo_root: Path) -> Path:
+    """固定 quality artifact 目录：tmp/quality/"""
+    return repo_root / "tmp" / QUALITY_DIR_NAME
+
+
 # 03. 运行态路径构造
 def build_paths(repo_root: str | Path | None = None) -> RepoPaths:
     root = find_repo_root(repo_root)
-    log_rel = os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_logs/adhoc")
-    log_dir = (root / log_rel).resolve() if not Path(log_rel).is_absolute() else Path(log_rel).resolve()
+    log_dir = agent_log_dir(root)
     return RepoPaths(repo_root=root, agent_log_dir=log_dir, legacy_agent_dir=root / ".agent")
 
 

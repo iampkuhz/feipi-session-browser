@@ -10,14 +10,13 @@ stdout 输出:
   unknown     — 无法获取 session ID（保守处理，视为有变更）
 """
 import json
-import os
 import sys
 from pathlib import Path
 
 
 def main() -> None:
-    log_dir = os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_logs/adhoc")
-    changed_file = Path(log_dir) / "changed-files.jsonl"
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
+    changed_file = repo_root / "tmp" / "agent_logs" / "current" / "changed-files.jsonl"
 
     # 尝试从 stdin 读取 session ID（Claude hook 传入的 JSON）。
     session_id = _read_session_id_from_stdin()
