@@ -33,6 +33,10 @@ def _read_ui_primitives() -> str:
     return _read(_UI_PRIMITIVES_PATH)
 
 
+def _read_base_html() -> str:
+    return _read("src/session_browser/web/templates/base.html")
+
+
 # ── TestSessionsTemplate ─────────────────────────────────────────────
 
 class TestSessionsTemplate:
@@ -76,9 +80,15 @@ class TestSessionsImports:
             "Sessions must import sessions-list.css"
 
     def test_css_import_ui_primitives_css(self):
+        """ui-primitives.css is loaded by base.html, not duplicated by page templates.
+        Verify that base.html loads it (page templates inherit it)."""
+        base = _read_base_html()
+        assert 'href="/static/css/ui-primitives.css"' in base, \
+            "base.html must load ui-primitives.css"
+        # Page template must NOT duplicate it (checked by static_contract_check)
         content = _read_sessions()
-        assert 'href="/static/css/ui-primitives.css"' in content, \
-            "Sessions must import ui-primitives.css"
+        assert 'href="/static/css/ui-primitives.css"' not in content, \
+            "Sessions must not duplicate ui-primitives.css already loaded by base.html"
 
     def test_js_import_sessions_list_js(self):
         content = _read_sessions()
