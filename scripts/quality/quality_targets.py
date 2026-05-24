@@ -23,6 +23,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "pytest",
         "doctor",
         "repoStructure",
+        "repoSlimming",
     ],
     "harness": [
         "bashSyntax",
@@ -100,6 +101,17 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "CLAUDE.md",
             "README.md",
             "docs/**",
+        ],
+        "repoSlimming": [
+            "src/session_browser/web/static/**/*.css",
+            "src/session_browser/web/static/**/*.js",
+            "src/session_browser/web/static/style.css",
+            "harness/**",
+            "openspec/**",
+            "tests/**/*.py",
+            "src/session_browser/web/templates/**/*.html",
+            "scripts/quality/repo_slimming_contract_check.py",
+            "tests/quality/test_repo_slimming_contract.py",
         ],
     },
     "harness": {

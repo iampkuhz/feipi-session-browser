@@ -118,6 +118,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "scripts/harness/validate_harness_structure.py"]
     if gate == "openspecLayout":
         return ["python3", "scripts/harness/validate_openspec_layout.py"]
+    if gate == "repoSlimming":
+        return ["python3", "scripts/quality/repo_slimming_contract_check.py"]
     return []
 
 
