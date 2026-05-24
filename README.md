@@ -68,9 +68,10 @@ localhost/feipi/session-browser:latest
 scripts/claude_hooks/
 scripts/quality/
 tmp/agent_logs/     # per-session 运行态目录
+tmp/quality/        # quality gate 产物目录
 ```
 
-运行态文件统一写入 `tmp/agent_logs/MMDD_<session-id>/`（多 agent 隔离）。`.agent/` 仅保留 legacy 只读兼容。
+运行态文件：session 日志写入 `tmp/agent_logs/MMDD_<session-id>/`（多 agent 隔离），quality gate 产物写入 `tmp/quality/<change-id>/`。`.agent/` 仅保留 legacy 只读兼容。
 
 常用质量命令：
 

@@ -45,72 +45,39 @@ src/session_browser/web/static/js/states.js
 > Appended: 2026-05-21
 > Task: T011 — Install CSS/JS Ownership Contract
 > Source: `$HOME/Downloads/feipi-session-browser-ui-contract-taskpack/contracts/04-css-js-ownership.md`
-> Cross-reference: `docs/ui/contracts/current-imports.md` (T004)
 
 ### CSS：磁盘文件 vs 规范
 
-| # | File on disk | Status | Imported by |
-|---|---|---|---|
-| 1 | `style.css` (root, 243KB) | Canonical target — EXISTS, needs瘦身 | `base.html` |
-| 2 | `css/ui-primitives.css` | Canonical target — EXISTS | `sessions.html` |
-| 3 | `css/sessions-list.css` | Canonical target — EXISTS | `sessions.html` |
-| 4 | `css/dashboard.css` | Canonical target — MISSING | — |
-| 5 | `css/session-detail.css` | Canonical target — MISSING | — |
-| 6 | `css/projects.css` | Canonical target — EXISTS | `projects.html` |
-| 7 | `css/agents.css` | Canonical target — MISSING | — |
-| 8 | `css/glossary.css` | Canonical target — MISSING | — |
-| 9 | `css/states.css` | Canonical target — MISSING | — |
+所有规范 CSS 目标文件均已存在：
 
-**Versioned/legacy CSS（待迁移或删除）：**
-
-| File | Status | Notes |
+| # | File | Imported by |
 |---|---|---|
-| `dashboard-v16.css` | Imported by `dashboard.html` | Replace with `dashboard.css` |
-| `session-browser-v15.css` | Imported by `base.html` | Replace with canonical files |
-| `session-detail-timeline.css` | Imported by `session.html` | Migrate into `session-detail.css` |
+| 1 | `style.css` (root) | `base.html` |
+| 2 | `css/ui-primitives.css` | `sessions.html` |
+| 3 | `css/sessions-list.css` | `sessions.html` |
+| 4 | `css/dashboard.css` | `dashboard.html` |
+| 5 | `css/session-detail.css` | `session.html` |
+| 6 | `css/projects.css` | `projects.html` |
+| 7 | `css/agents.css` | `agents.html` |
+| 8 | `css/glossary.css` | `glossary.html` |
+| 9 | `css/states.css` | `states.html` |
 
 ### JS：磁盘文件 vs 规范
 
-| # | Canonical file | Status | Notes |
-|---|---|---|---|
-| 1 | `js/ui_primitives.js` | EXISTS | — |
-| 2 | `js/dashboard.js` | MISSING | Needs creation |
-| 3 | `js/sessions-list.js` | MISSING | Needs creation |
-| 4 | `js/session-detail.js` | MISSING | Needs creation |
-| 5 | `js/projects.js` | EXISTS | Projects page search, sort, filter persistence |
-| 6 | `js/agents.js` | MISSING | Needs creation |
-| 7 | `js/glossary.js` | MISSING | Needs creation |
-| 8 | `js/states.js` | EXISTS | 404/error pages — purely static, IIFE stub (T169) |
-
-**Existing non-canonical JS (currently imported, not in contract list — 7 files):**
-
-| File | Imported by | Notes |
+| # | Canonical file | Status |
 |---|---|---|
-| `app.js` | `base.html` | Global shell, not page-specific |
-| `data-table.js` | `base.html` | Shared utility |
-| `keyboard.js` | `base.html` | Shared utility |
-| `payload_viewer.js` | `base.html` | Shared utility |
-| `timeline.js` | `base.html` | Shared utility |
-| `view-state.js` | `base.html` | Shared utility |
-| `session_detail_timeline.js` | `session.html` | Page-specific, not in canonical list |
+| 1 | `js/ui_primitives.js` | EXISTS |
+| 2 | `js/dashboard.js` | EXISTS |
+| 3 | `js/sessions-list.js` | EXISTS |
+| 4 | `js/session-detail.js` | EXISTS |
+| 5 | `js/projects.js` | EXISTS |
+| 6 | `js/agents.js` | EXISTS |
+| 7 | `js/glossary.js` | EXISTS |
+| 8 | `js/states.js` | EXISTS |
 
-**Versioned/legacy JS（已清理）：**
-`session_browser_ui_v15.js`、`dashboard_v16.js`、`session_detail_response_blocks_v12.js`、`session_detail_timeline_v11.js`、`session_detail_timeline_v17_reference.js` 均已移除。
-
-### 汇总
-
-| Metric | Count |
-|---|---|
-| Canonical CSS targets already exist | 4/9 (`style.css`, `ui-primitives.css`, `sessions-list.css`, `projects.css`) |
-| Canonical CSS targets need creation | 5/9 |
-| Versioned/legacy CSS files for later cleanup | 3 |
-| Canonical JS targets already exist | 3/8 (`ui_primitives.js`, `projects.js`, `states.js`) |
-| Canonical JS targets need creation | 5/8 |
-| Non-canonical JS currently imported | 7 (may need reclassification) |
-| Versioned/legacy JS files cleaned up | 5 |
+共享工具 JS（非页面专属，由 base.html 加载）：
+`app.js`、`data-table.js`、`keyboard.js`、`payload_viewer.js`、`timeline.js`、`view-state.js`。
 
 ### 备注
 
-- `style.css` at 243KB is far too large for "tokens + shell only" — will need significant瘦身 during migration.
-- The contract's canonical JS list has no `app.js`/`data-table.js`/etc. These 7 shared utilities may either need to be absorbed into page-specific files or added to the canonical list as shared modules.
-- `session_detail_timeline.js` is imported by `session.html` but is not in the canonical list; its functionality should migrate to `session-detail.js`.
+- `style.css` 体积较大，历史规则需要持续迁移到页面 CSS 和 primitives。

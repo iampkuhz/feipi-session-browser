@@ -1,21 +1,20 @@
-# Session Detail v18 上下文
+# Session Detail 上下文
 
-当前参考：
+当前基线模板：
 
 ```text
-docs/ui/reference/session-detail-v18-current/
-  01-current-modal-metadata-and-llm-card.png
-  02-current-expanded-round-layout.png
-  current-session-detail-page.mhtml
+src/session_browser/web/templates/session.html
+src/session_browser/web/templates/components/session_detail_timeline.html
 ```
 
-观察结果：
-- 模态框已居中，但元数据侧栏仍是裸露文本，视觉上断裂。
-- 展开的用户消息 round 丢失了绿色/青色的视觉基调。
+样式文件：
+
+```text
+src/session_browser/web/static/css/session-detail.css     # session detail 页面专属样式
+src/session_browser/web/static/css/ui-primitives.css      # 共享原子组件
+src/session_browser/web/static/css/legacy-aliases.css     # 向后兼容别名
+```
+
+当前观察结果：
+- 模态框已居中，元数据侧栏使用裸露文本。
 - LLM 调用卡片内的 Response 按钮拉伸过宽。
-
-目标：~~docs/ui/hifi/session_detail_v18/index.html~~（已于 2026-05 删除；使用当前 `src/session_browser/web/templates/session.html` + `components/session_detail_timeline.html` 作为基线）
-
-相关仓库事实（来自公开 GitHub）：
-- `static/css` 包含多个 CSS 文件，包括规范的 `session-detail-timeline.css` 和旧版本 detail CSS。
-- `templates/components` 包含版本化的 session-detail 模板。不要重新引入旧的导入。

@@ -66,4 +66,7 @@ tmp/agent_logs/MMDD_<session-id>/
 ```
 
 每个 session 有独立目录，多个 agent 实例同时运行时互不干扰。
-`.agent/` 只作为 legacy 只读兼容路径。
+
+Quality gate 产物写入 `tmp/quality/<change-id>/`。
+
+`.agent/` 仅作为 legacy 只读兼容路径保留。

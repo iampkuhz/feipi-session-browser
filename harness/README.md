@@ -73,8 +73,8 @@ python3 scripts/quality/run_quality_gate.py --target harness --change-id <change
 输出：
 
 ```text
-tmp/agent_logs/<session>/quality/<change-id>/quality-gate-summary.<target>.json
-tmp/agent_logs/<session>/quality/<change-id>/gate-details.<target>.json
+tmp/quality/<change-id>/quality-gate-summary.<target>.json
+tmp/quality/<change-id>/gate-details.<target>.json
 ```
 
 Stop hook 只检查 artifact，不跑重型测试。
