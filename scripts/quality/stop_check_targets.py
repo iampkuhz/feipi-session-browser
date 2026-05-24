@@ -4,6 +4,8 @@
 不运行任何测试，只验证 artifact 是否存在且状态为 PASS。
 根据当前 session 的文件修改，确定需要检查的 targets。
 
+排除 "session-detail" target — 该 target 由 stop_quality_gate.py 单独处理。
+
 退出码:
     0 — 所有 required targets 已有 PASS artifact
     1 — 存在 missing/FAIL/stale artifact
@@ -18,8 +20,12 @@ from scripts.claude_hooks.classify import required_quality_targets
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 LOG_DIR = Path(os.environ.get("FEIPI_AGENT_LOG_DIR", "tmp/agent_logs/adhoc"))
 CHANGED_FILES = LOG_DIR / "changed-files.jsonl"
-QUALITY_DIR = LOG_DIR / "quality"
+# 质量 artifact 统一写入 tmp/quality/<change-id>/，不随 FEIPI_AGENT_LOG_DIR 变化
+QUALITY_DIR = REPO_ROOT / "tmp" / "quality"
 SESSION_ID_FILE = LOG_DIR / "session-id.txt"
+
+# session-detail 由 stop_quality_gate.py 单独检查，此处排除
+EXCLUDED_TARGETS = {"session-detail"}
 
 
 def get_session_id() -> str | None:
@@ -58,7 +64,30 @@ def get_changed_files_for_session() -> list[str]:
     return files
 
 
-def check_target_artifact(target: str) -> tuple[bool, str]:
+def resolve_change_id() -> str:
+    """从环境变量或 active-change 文件解析 change-id。"""
+    env = os.environ.get("ACTIVE_CHANGE_ID", "")
+    if env:
+        return env
+    active_file = REPO_ROOT / "tmp" / "active-change"
+    if active_file.exists():
+        return active_file.read_text().strip()
+    return "unknown"
+
+
+def find_existing_summaries() -> list[Path]:
+    """查找 QUALITY_DIR 下所有 quality-gate-summary.*.json 文件。"""
+    summaries: list[Path] = []
+    if QUALITY_DIR.exists():
+        for change_dir in sorted(QUALITY_DIR.iterdir()):
+            if change_dir.is_dir():
+                for f in sorted(change_dir.iterdir()):
+                    if f.name.startswith("quality-gate-summary.") and f.name.endswith(".json"):
+                        summaries.append(f)
+    return summaries
+
+
+def check_target_artifact(target: str, change_id: str) -> tuple[bool, str]:
     """检查 target 是否有 PASS quality artifact。返回 (passed, message)。"""
     candidates = []
     if QUALITY_DIR.exists():
@@ -69,15 +98,27 @@ def check_target_artifact(target: str) -> tuple[bool, str]:
                     candidates.append(summary)
 
     if not candidates:
-        return False, f"缺少 {target} quality artifact（未在 tmp/quality/*/quality-gate-summary.{target}.json 找到记录）"
+        expected = f"{QUALITY_DIR}/<change-id>/quality-gate-summary.{target}.json"
+        existing = find_existing_summaries()
+        existing_rel = [str(p.relative_to(REPO_ROOT)) for p in existing] if existing else ["无"]
+
+        msg_parts = [
+            f"缺少 {target} quality artifact",
+            f"  expected: {expected}",
+            f"  change-id: {change_id}",
+            f"  agent-log-dir: {LOG_DIR}",
+            f"  required targets: {sorted(required_quality_targets(get_changed_files_for_session()))}",
+            f"  actual found summaries: {', '.join(existing_rel)}",
+        ]
+        return False, "\n".join(msg_parts)
 
     latest = max(candidates, key=lambda p: p.stat().st_mtime)
     try:
         data = json.loads(latest.read_text(encoding="utf-8"))
         status = str(data.get("status", "")).upper()
         if status != "PASS":
-            return False, f"{target} quality artifact 状态为 {status}（文件：{latest.relative_to(LOG_DIR)})"
-        return True, f"{target} quality gate PASS（文件：{latest.relative_to(LOG_DIR)}）"
+            return False, f"{target} quality artifact 状态为 {status}（文件：{latest.relative_to(REPO_ROOT)})"
+        return True, f"{target} quality gate PASS（文件：{latest.relative_to(REPO_ROOT)}）"
     except (json.JSONDecodeError, OSError) as e:
         return False, f"{target} quality artifact 读取失败：{e}"
 
@@ -88,14 +129,18 @@ def main() -> int:
         print("[stop_check_targets] 无文件变更记录，跳过 quality target 检查", file=sys.stderr)
         return 0
 
-    targets = required_quality_targets(changed_files)
+    all_targets = required_quality_targets(changed_files)
+    # 排除已由 stop_quality_gate.py 处理的 target
+    targets = [t for t in all_targets if t not in EXCLUDED_TARGETS]
+
     if not targets:
-        print("[stop_check_targets] 无文件需要 quality gate，跳过", file=sys.stderr)
+        print(f"[stop_check_targets] 无文件需要 quality gate（排除 {', '.join(sorted(EXCLUDED_TARGETS))}），跳过", file=sys.stderr)
         return 0
 
+    change_id = resolve_change_id()
     blocked = False
     for target in sorted(targets):
-        passed, msg = check_target_artifact(target)
+        passed, msg = check_target_artifact(target, change_id)
         status_str = "PASS" if passed else "BLOCK"
         print(f"[stop_check_targets] [{status_str}] {target}: {msg}", file=sys.stderr)
         if not passed:

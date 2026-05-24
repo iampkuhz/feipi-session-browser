@@ -86,7 +86,19 @@ def get_latest_ui_edit_time(entries: list[dict]) -> str | None:
 
 
 def read_quality_artifact(change_id: str) -> dict | None:
-    """Read quality-gate-summary.json for the change."""
+    """Read quality-gate-summary.json for the change.
+
+    优先读取 target-specific 文件（quality-gate-summary.session-detail.json），
+    回退到兼容文件（quality-gate-summary.json）。
+    """
+    # 优先读取 target-specific 文件
+    target_specific = QUALITY_DIR / change_id / "quality-gate-summary.session-detail.json"
+    if target_specific.exists():
+        try:
+            return json.loads(target_specific.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    # 回退到兼容文件
     summary_path = QUALITY_DIR / change_id / "quality-gate-summary.json"
     if not summary_path.exists():
         return None

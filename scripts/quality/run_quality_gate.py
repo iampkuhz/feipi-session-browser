@@ -151,7 +151,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Deterministic quality gate runner")
     parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness"])
     parser.add_argument("--change-id", required=True)
-    parser.add_argument("--out", default="tmp/agent_logs/adhoc/quality")
+    parser.add_argument("--out", default=None,
+                        help="Quality artifact directory. Default: ${FEIPI_AGENT_LOG_DIR:-tmp}/quality")
     parser.add_argument("--changed-files", default=None,
                         help="JSON array of changed file paths, or 'auto' to read from changed-files.jsonl")
     args = parser.parse_args()
@@ -159,6 +160,14 @@ def main() -> int:
     repo_root = Path.cwd()
     validate_target(args.target)
     started_at = utc_now()
+
+    # 解析输出目录：优先 --out，其次 FEIPI_AGENT_LOG_DIR/quality，最后 tmp/quality
+    if args.out:
+        out_dir = Path(args.out)
+    else:
+        env_log = os.environ.get("FEIPI_AGENT_LOG_DIR", "")
+        base = Path(env_log) if env_log else Path("tmp")
+        out_dir = base / "quality"
 
     # 解析 changed files
     changed_files: list[str] | None = None
@@ -170,7 +179,7 @@ def main() -> int:
 
     details = run_target(repo_root, args.target, changed_files)
     summary = build_summary(args.target, args.change_id, started_at, details)
-    out = write_quality_summary(repo_root / args.out, summary, target_specific=True)
+    out = write_quality_summary(repo_root / out_dir, summary, target_specific=True)
     print(f"quality summary: {out}")
     print(f"status: {summary.status}")
     return 0 if summary.status == PASS else 1
