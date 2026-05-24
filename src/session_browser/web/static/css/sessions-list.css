@@ -246,3 +246,20 @@
 .sessions-page .sort-button:hover{text-decoration:none}
 .sessions-page .data-table th.sortable .sort-mark{color:var(--sessions-text-3)}
 .sessions-page .data-table th.sortable[data-sort-dir] .sort-mark{color:var(--sessions-brand)}
+
+/* ── Migrated from style.css (post-mega-css-cleanup sprint) ── */
+
+/* Originally at style.css line 2136 */
+.sessions-title-cell {
+    max-width: 280px;
+    min-width: 140px;
+}
+
+/* Originally at style.css line 2140 */
+.sessions-title-link {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
