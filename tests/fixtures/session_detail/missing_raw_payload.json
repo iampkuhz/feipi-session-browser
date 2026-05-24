@@ -1,0 +1,126 @@
+{
+  "description": "Fixture data for missing raw payload scenarios in session detail tests. Covers: all LLM calls with empty request_payload_raw and response_payload_raw, with meaningful missing_reason strings.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Analyze the session browser architecture",
+      "timestamp": "2026-05-24T10:00:00Z",
+      "llm_call_id": "msg-main-001"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll examine the project structure and provide an analysis.",
+      "timestamp": "2026-05-24T10:00:05Z",
+      "model": "claude-sonnet-4-20250514",
+      "llm_call_id": "msg-main-002",
+      "llm_status": "ok",
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {"id": "tool-bash-001", "name": "Bash", "type": "tool_use"}
+      ],
+      "usage": {
+        "input_tokens": 3000,
+        "output_tokens": 120,
+        "cache_read_input_tokens": 2000,
+        "cache_creation_input_tokens": 1000
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Here is the architecture summary based on the file listing.",
+      "timestamp": "2026-05-24T10:00:30Z",
+      "model": "claude-sonnet-4-20250514",
+      "llm_call_id": "msg-main-003",
+      "llm_status": "ok",
+      "stop_reason": "end_turn",
+      "tool_calls": [],
+      "usage": {
+        "input_tokens": 4000,
+        "output_tokens": 250,
+        "cache_read_input_tokens": 3000,
+        "cache_creation_input_tokens": 1500
+      }
+    },
+    {
+      "role": "user",
+      "content": "Now show me the domain models",
+      "timestamp": "2026-05-24T10:01:00Z",
+      "llm_call_id": "msg-main-004"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me read the models file.",
+      "timestamp": "2026-05-24T10:01:05Z",
+      "model": "claude-sonnet-4-20250514",
+      "llm_call_id": "msg-main-005",
+      "llm_status": "ok",
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {"id": "tool-read-001", "name": "Read", "type": "tool_use"}
+      ],
+      "usage": {
+        "input_tokens": 5000,
+        "output_tokens": 80,
+        "cache_read_input_tokens": 4000,
+        "cache_creation_input_tokens": 1500
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "The domain models define LlmCall with request_payload_raw and request_payload_missing_reason fields.",
+      "timestamp": "2026-05-24T10:01:20Z",
+      "model": "claude-sonnet-4-20250514",
+      "llm_call_id": "msg-main-006",
+      "llm_status": "ok",
+      "stop_reason": "end_turn",
+      "tool_calls": [],
+      "usage": {
+        "input_tokens": 6000,
+        "output_tokens": 180,
+        "cache_read_input_tokens": 4500,
+        "cache_creation_input_tokens": 2000
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "Bash",
+      "parameters": {"command": "find src/session_browser -type f -name '*.py' | head -20"},
+      "result": "src/session_browser/domain/models.py\nsrc/session_browser/domain/normalizer.py\nsrc/session_browser/web/routes.py",
+      "status": "completed",
+      "duration_ms": 300.0,
+      "timestamp": "2026-05-24T10:00:10Z",
+      "exit_code": 0,
+      "error_message": "",
+      "tool_use_id": "tool-bash-001",
+      "scope": "main",
+      "llm_call_count": 0,
+      "llm_error_count": 0
+    },
+    {
+      "name": "Read",
+      "parameters": {"file_path": "src/session_browser/domain/models.py"},
+      "result": "@dataclass\nclass LLMCall:\n    request_payload_raw: str = \"\"\n    request_payload_missing_reason: str = \"\"\n    response_payload_raw: str = \"\"\n    response_payload_missing_reason: str = \"\"",
+      "status": "completed",
+      "duration_ms": 50.0,
+      "timestamp": "2026-05-24T10:01:10Z",
+      "exit_code": null,
+      "error_message": "",
+      "tool_use_id": "tool-read-001",
+      "scope": "main",
+      "llm_call_count": 0,
+      "llm_error_count": 0
+    }
+  ],
+  "subagent_runs": [],
+  "session": {
+    "agent": "claude_code",
+    "session_id": "missing-payload-test-001",
+    "title": "Missing raw payload fixture test session",
+    "model": "claude-sonnet-4-20250514",
+    "input_tokens": 18000,
+    "output_tokens": 630,
+    "cached_input_tokens": 13500,
+    "cached_output_tokens": 6000
+  }
+}

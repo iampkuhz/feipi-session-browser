@@ -1,0 +1,81 @@
+{
+  "fixture_id": "hifi-viz-session-001",
+  "agent": "claude_code",
+  "session_id": "hifi-viz-session-001",
+  "project_key": "test-hifi-project",
+  "description": "Deterministic HIFI fixture session for session detail snapshot tests",
+  "summary": {
+    "title": "Implement a new feature that adds token usage visualization to the dashboard.",
+    "model": "claude-sonnet-4-20250514",
+    "input_tokens": 61600,
+    "output_tokens": 970,
+    "cached_input_tokens": 45950,
+    "cached_output_tokens": 22230,
+    "total_tokens": 130750,
+    "user_message_count": 2,
+    "assistant_message_count": 8,
+    "tool_call_count": 8,
+    "failed_tool_count": 2,
+    "duration_seconds": 185.0
+  },
+  "messages": {
+    "total_count": 10,
+    "assistant_count": 8,
+    "assistant_with_content": 7,
+    "assistant_with_llm_call_id": 8
+  },
+  "tool_calls": {
+    "total_count": 8,
+    "unique_tool_names": ["Agent", "Bash", "LS", "Read", "Write"],
+    "failed_count": 2,
+    "failed_tools": ["Agent", "Bash"],
+    "scope_main_count": 8,
+    "scope_subagent_count": 0
+  },
+  "subagent_runs": {
+    "count": 1,
+    "runs": [
+      {
+        "agent_id": "tool_agent_001",
+        "message_count": 5,
+        "assistant_turn_count": 3,
+        "assistant_turn_llm_call_ids": ["msg-subagent-001", "msg-subagent-002", "msg-subagent-003"],
+        "total_input_tokens": 1200,
+        "total_output_tokens": 95
+      }
+    ]
+  },
+  "rounds": {
+    "count": 8,
+    "rounds": [
+      {"index": 0, "tool_count": 2, "total_tokens": 1285, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 2, "signal_count": 0},
+      {"index": 1, "tool_count": 1, "total_tokens": 7120, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 0},
+      {"index": 2, "tool_count": 1, "total_tokens": 12150, "llm_call_count": 4, "llm_error_count": 0, "interaction_count": 2, "signal_count": 0},
+      {"index": 3, "tool_count": 1, "total_tokens": 14490, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 1},
+      {"index": 4, "tool_count": 2, "total_tokens": 24870, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 0},
+      {"index": 5, "tool_count": 1, "total_tokens": 30080, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 1},
+      {"index": 6, "tool_count": 0, "total_tokens": 35420, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 0},
+      {"index": 7, "tool_count": 0, "total_tokens": 0, "llm_call_count": 0, "llm_error_count": 0, "interaction_count": 0, "signal_count": 0}
+    ]
+  },
+  "llm_calls": {
+    "total_count": 11,
+    "main_count": 8,
+    "subagent_count": 3,
+    "aggregate_input_tokens": 61600,
+    "aggregate_output_tokens": 970,
+    "aggregate_cache_read_tokens": 45950,
+    "aggregate_cache_write_tokens": 22230
+  },
+  "anomalies": {
+    "session_anomaly_count": 1,
+    "session_anomaly_types": ["failed_run"]
+  },
+  "round_signals": {
+    "total_signal_count": 2,
+    "signals_by_round": {
+      "3": [{"key": "failed-tool", "severity": "warning"}],
+      "5": [{"key": "failed-tool", "severity": "warning"}]
+    }
+  }
+}

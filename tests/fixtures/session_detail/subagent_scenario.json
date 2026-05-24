@@ -1,0 +1,346 @@
+{
+  "description": "Fixture data for subagent scenarios in session detail presenter tests. Covers: successful subagent, failed subagent, and nested subagent hierarchy.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Implement a new feature for token visualization",
+      "timestamp": "2026-05-24T10:00:00Z",
+      "llm_call_id": "msg-main-001"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll use subagents to analyze the CSS patterns and run tests in parallel.",
+      "timestamp": "2026-05-24T10:00:05Z",
+      "model": "claude-sonnet-4-20250514",
+      "llm_call_id": "msg-main-002",
+      "llm_status": "ok",
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {"id": "tool-agent-001", "name": "Agent", "type": "tool_use"},
+        {"id": "tool-agent-002", "name": "Agent", "type": "tool_use"}
+      ],
+      "usage": {
+        "input_tokens": 5000,
+        "output_tokens": 200,
+        "cache_read_input_tokens": 3000,
+        "cache_creation_input_tokens": 2000
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "The CSS analysis subagent completed. The test runner subagent failed. I'll run tests manually.",
+      "timestamp": "2026-05-24T10:01:30Z",
+      "model": "claude-sonnet-4-20250514",
+      "llm_call_id": "msg-main-003",
+      "llm_status": "ok",
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {"id": "tool-bash-001", "name": "Bash", "type": "tool_use"}
+      ],
+      "usage": {
+        "input_tokens": 8000,
+        "output_tokens": 150,
+        "cache_read_input_tokens": 6000,
+        "cache_creation_input_tokens": 3000
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "All done. Feature implemented successfully.",
+      "timestamp": "2026-05-24T10:02:00Z",
+      "model": "claude-sonnet-4-20250514",
+      "llm_call_id": "msg-main-004",
+      "llm_status": "ok",
+      "stop_reason": "end_turn",
+      "tool_calls": [],
+      "usage": {
+        "input_tokens": 9000,
+        "output_tokens": 100,
+        "cache_read_input_tokens": 7000,
+        "cache_creation_input_tokens": 3500
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "Agent",
+      "parameters": {
+        "description": "Analyze CSS visualization patterns",
+        "prompt": "Find all CSS classes related to token bars and progress indicators.",
+        "subagent_type": "Explore"
+      },
+      "result": "Analysis complete: found .token-bar, .progress-bar, .sd-kpi patterns.",
+      "status": "completed",
+      "duration_ms": 15000.0,
+      "timestamp": "2026-05-24T10:00:10Z",
+      "exit_code": 0,
+      "error_message": "",
+      "tool_use_id": "tool-agent-001",
+      "scope": "main",
+      "llm_call_count": 3,
+      "llm_error_count": 0,
+      "subagent_summary": {
+        "agent_id": "explore-agent-001",
+        "status": "success",
+        "duration_ms": 15000.0
+      }
+    },
+    {
+      "name": "Agent",
+      "parameters": {
+        "description": "Run test suite",
+        "prompt": "Run pytest on tests/session_detail/ and report results.",
+        "subagent_type": "Code"
+      },
+      "result": "Error: API key not configured for subagent execution.",
+      "status": "error",
+      "duration_ms": 2000.0,
+      "timestamp": "2026-05-24T10:00:10Z",
+      "exit_code": 1,
+      "error_message": "Subagent execution failed: missing API configuration",
+      "tool_use_id": "tool-agent-002",
+      "scope": "main",
+      "llm_call_count": 1,
+      "llm_error_count": 1,
+      "subagent_summary": {
+        "agent_id": "code-agent-002",
+        "status": "failed",
+        "duration_ms": 2000.0
+      }
+    },
+    {
+      "name": "Bash",
+      "parameters": {"command": "python -m pytest tests/session_detail/ -v"},
+      "result": "42 passed in 3.5s",
+      "status": "completed",
+      "duration_ms": 4000.0,
+      "timestamp": "2026-05-24T10:01:35Z",
+      "exit_code": 0,
+      "error_message": "",
+      "tool_use_id": "tool-bash-001",
+      "scope": "main",
+      "llm_call_count": 0,
+      "llm_error_count": 0
+    }
+  ],
+  "subagent_runs": [
+    {
+      "summary": {
+        "agent_id": "explore-agent-001",
+        "status": "success",
+        "duration_ms": 15000.0
+      },
+      "messages": [
+        {
+          "role": "user",
+          "content": "Find all CSS classes related to token bars and progress indicators.",
+          "timestamp": "2026-05-24T10:00:11Z",
+          "llm_call_id": "msg-explore-001"
+        },
+        {
+          "role": "assistant",
+          "content": "I'll search the CSS files for relevant patterns.",
+          "timestamp": "2026-05-24T10:00:12Z",
+          "model": "claude-sonnet-4-20250514",
+          "llm_call_id": "msg-explore-002",
+          "llm_status": "ok",
+          "stop_reason": "tool_use",
+          "tool_calls": [
+            {"id": "tool-explore-grep-001", "name": "Bash", "type": "tool_use"}
+          ],
+          "usage": {
+            "input_tokens": 3000,
+            "output_tokens": 100,
+            "cache_read_input_tokens": 2000,
+            "cache_creation_input_tokens": 1000
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "Found several patterns. Now let me look at the nested subagent for deeper analysis.",
+          "timestamp": "2026-05-24T10:00:15Z",
+          "model": "claude-sonnet-4-20250514",
+          "llm_call_id": "msg-explore-003",
+          "llm_status": "ok",
+          "stop_reason": "tool_use",
+          "tool_calls": [
+            {"id": "tool-nested-agent-001", "name": "Agent", "type": "tool_use"}
+          ],
+          "usage": {
+            "input_tokens": 4000,
+            "output_tokens": 150,
+            "cache_read_input_tokens": 2500,
+            "cache_creation_input_tokens": 1500
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "Analysis complete: found .token-bar, .progress-bar, .sd-kpi patterns.",
+          "timestamp": "2026-05-24T10:00:25Z",
+          "model": "claude-sonnet-4-20250514",
+          "llm_call_id": "msg-explore-004",
+          "llm_status": "ok",
+          "stop_reason": "end_turn",
+          "tool_calls": [],
+          "usage": {
+            "input_tokens": 5000,
+            "output_tokens": 200,
+            "cache_read_input_tokens": 3500,
+            "cache_creation_input_tokens": 2000
+          }
+        }
+      ],
+      "tool_calls": [
+        {
+          "name": "Bash",
+          "parameters": {"command": "grep -rn 'token-bar\\|progress-bar' src/session_browser/web/static/"},
+          "result": "style.css:123:.token-bar { ... }\\nstyle.css:456:.progress-bar { ... }",
+          "status": "completed",
+          "duration_ms": 500.0,
+          "timestamp": "2026-05-24T10:00:13Z",
+          "exit_code": 0,
+          "error_message": "",
+          "tool_use_id": "tool-explore-grep-001",
+          "scope": "subagent",
+          "subagent_id": "explore-agent-001",
+          "llm_call_count": 0,
+          "llm_error_count": 0
+        },
+        {
+          "name": "Agent",
+          "parameters": {
+            "description": "Deep CSS pattern analysis",
+            "prompt": "Analyze the semantic meaning of .token-bar and .progress-bar CSS classes.",
+            "subagent_type": "Explore"
+          },
+          "result": "token-bar uses flex layout for segment widths; progress-bar uses CSS custom properties.",
+          "status": "completed",
+          "duration_ms": 8000.0,
+          "timestamp": "2026-05-24T10:00:16Z",
+          "exit_code": 0,
+          "error_message": "",
+          "tool_use_id": "tool-nested-agent-001",
+          "scope": "subagent",
+          "subagent_id": "explore-agent-001",
+          "llm_call_count": 2,
+          "llm_error_count": 0,
+          "subagent_summary": {
+            "agent_id": "nested-explore-001",
+            "status": "success",
+            "duration_ms": 8000.0
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "agent_id": "code-agent-002",
+        "status": "failed",
+        "duration_ms": 2000.0
+      },
+      "messages": [
+        {
+          "role": "user",
+          "content": "Run pytest on tests/session_detail/ and report results.",
+          "timestamp": "2026-05-24T10:00:11Z",
+          "llm_call_id": "msg-code-001"
+        },
+        {
+          "role": "assistant",
+          "content": "Attempting to run the test suite...",
+          "timestamp": "2026-05-24T10:00:12Z",
+          "model": "claude-sonnet-4-20250514",
+          "llm_call_id": "msg-code-002",
+          "llm_status": "ok",
+          "stop_reason": "tool_use",
+          "tool_calls": [
+            {"id": "tool-code-bash-001", "name": "Bash", "type": "tool_use"}
+          ],
+          "usage": {
+            "input_tokens": 2000,
+            "output_tokens": 50,
+            "cache_read_input_tokens": 1000,
+            "cache_creation_input_tokens": 1000
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "Error: API key not configured for subagent execution.",
+          "timestamp": "2026-05-24T10:00:13Z",
+          "model": "claude-sonnet-4-20250514",
+          "llm_call_id": "msg-code-003",
+          "llm_status": "ok",
+          "stop_reason": "end_turn",
+          "tool_calls": [],
+          "usage": {
+            "input_tokens": 2500,
+            "output_tokens": 30,
+            "cache_read_input_tokens": 1200,
+            "cache_creation_input_tokens": 1000
+          }
+        }
+      ],
+      "tool_calls": [
+        {
+          "name": "Bash",
+          "parameters": {"command": "python -m pytest tests/session_detail/ -v"},
+          "result": "Error: API key not configured for subagent execution.",
+          "status": "error",
+          "duration_ms": 1500.0,
+          "timestamp": "2026-05-24T10:00:12Z",
+          "exit_code": 1,
+          "error_message": "API key not configured",
+          "tool_use_id": "tool-code-bash-001",
+          "scope": "subagent",
+          "subagent_id": "code-agent-002",
+          "llm_call_count": 0,
+          "llm_error_count": 0
+        }
+      ]
+    }
+  ],
+  "nested_subagent_runs": [
+    {
+      "summary": {
+        "agent_id": "nested-explore-001",
+        "status": "success",
+        "duration_ms": 8000.0
+      },
+      "messages": [
+        {
+          "role": "user",
+          "content": "Analyze the semantic meaning of .token-bar and .progress-bar CSS classes.",
+          "timestamp": "2026-05-24T10:00:17Z",
+          "llm_call_id": "msg-nested-001"
+        },
+        {
+          "role": "assistant",
+          "content": "token-bar uses flex layout for segment widths; progress-bar uses CSS custom properties.",
+          "timestamp": "2026-05-24T10:00:24Z",
+          "model": "claude-sonnet-4-20250514",
+          "llm_call_id": "msg-nested-002",
+          "llm_status": "ok",
+          "stop_reason": "end_turn",
+          "tool_calls": [],
+          "usage": {
+            "input_tokens": 1500,
+            "output_tokens": 80,
+            "cache_read_input_tokens": 800,
+            "cache_creation_input_tokens": 700
+          }
+        }
+      ],
+      "tool_calls": []
+    }
+  ],
+  "session": {
+    "agent": "claude_code",
+    "session_id": "subagent-test-session-001",
+    "title": "Subagent fixture test session",
+    "model": "claude-sonnet-4-20250514",
+    "input_tokens": 22000,
+    "output_tokens": 450,
+    "cached_input_tokens": 16500,
+    "cached_output_tokens": 6500
+  }
+}
