@@ -321,6 +321,12 @@ body.focus .inspector                  { display: none; }
     max-width: 100%;
 }
 
+/* ─── Session detail shell containment (moved from session-detail.css) ── */
+.sd-shell {
+    min-width: 0;
+    max-width: 100%;
+}
+
 /* ─── Shell aliases (HIFI naming → production) ──────────────────
  * base.html uses both production (.shell/.main) and HIFI (.app-shell/.main-panel)
  * class names on the same element. These aliases ensure both names resolve correctly.

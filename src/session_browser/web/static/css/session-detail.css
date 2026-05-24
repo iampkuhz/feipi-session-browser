@@ -55,8 +55,8 @@
  * The root cause is typically grid children with min-width: max-content
  * or long unbroken text (paths, JSON, trace summaries).
  * These rules constrain containers and children without hiding content.
+ * Note: .sd-shell containment is in style.css (shell ownership contract).
  */
-.sd-shell,
 .session-detail-page {
   min-width: 0;
   max-width: 100%;
