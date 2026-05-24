@@ -34,11 +34,11 @@ def check_no_important(css_files: list[Path]) -> list[str]:
 def check_no_duplicate_base_css(html_files: list[Path]) -> list[str]:
     """检查页面模板是否重复加载 base 已加载的 CSS。BLOCK。
 
-    base.html 已经加载 style.css、ui-primitives.css、legacy-aliases.css，
+    base.html 已经加载 tokens.css、base.css、shell.css、ui-primitives.css、legacy-aliases.css，
     页面模板不得在 head_extra 或其他位置重复 link 这些文件。
     """
     errors: list[str] = []
-    base_names = {"style.css", "shell.css", "ui-primitives.css", "legacy-aliases.css"}
+    base_names = {"tokens.css", "base.css", "shell.css", "ui-primitives.css", "legacy-aliases.css"}
     for path in html_files:
         text = path.read_text(encoding="utf-8", errors="replace")
         # 排除 base.html 自身
@@ -62,15 +62,17 @@ def check_css_load_order(base_html_text: str) -> list[str]:
     """检查 base.html 中 CSS link 顺序是否符合 contract。BLOCK。
 
     期望顺序：
-    1. /static/style.css
-    2. /static/css/shell.css
-    3. /static/css/ui-primitives.css
-    4. /static/css/legacy-aliases.css
-    5. {% block head_extra %}
+    1. /static/css/tokens.css
+    2. /static/css/base.css
+    3. /static/css/shell.css
+    4. /static/css/ui-primitives.css
+    5. /static/css/legacy-aliases.css
+    6. {% block head_extra %}
     """
     errors: list[str] = []
     expected = [
-        "/static/style.css",
+        "/static/css/tokens.css",
+        "/static/css/base.css",
         "/static/css/shell.css",
         "/static/css/ui-primitives.css",
         "/static/css/legacy-aliases.css",
@@ -131,7 +133,8 @@ def check_payload_modal_ownership(css_files: list[Path]) -> list[str]:
     )
     for path in css_files:
         rel = path.relative_to(path.parent.parent.parent.parent).as_posix() if path.parent.name == "css" else path.name
-        if "ui-primitives.css" in rel:
+        # 权威来源和基础文件跳过检查
+        if "ui-primitives.css" in rel or "tokens.css" in rel or "base.css" in rel:
             continue  # 权威来源，不 warn
         text = path.read_text(encoding="utf-8", errors="replace")
         matches = bare_pattern.findall(text)
@@ -154,8 +157,8 @@ def check_shell_ownership(css_files: list[Path]) -> list[str]:
         ".app-shell", ".shell", ".phase1-shell",
         "body.hide-left", "body.hide-right", "body.focus",
     ]
-    # 豁免文件：style.css（历史 shell 残留）、shell.css（当前 shell 权威）、legacy-aliases.css（兼容层）
-    exempt = {"style.css", "shell.css", "legacy-aliases.css"}
+    # 豁免文件：style.css（历史组件残留）、shell.css（当前 shell 权威）、base.css（基础样式）、legacy-aliases.css（兼容层）
+    exempt = {"style.css", "shell.css", "base.css", "legacy-aliases.css", "tokens.css"}
     for path in css_files:
         name = path.name
         if name in exempt:

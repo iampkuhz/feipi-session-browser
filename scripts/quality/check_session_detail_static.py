@@ -26,6 +26,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 CSS_FILE = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "style.css"
+SHELL_CSS_FILE = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
 BASE_HTML = REPO_ROOT / "src" / "session_browser" / "web" / "templates" / "base.html"
 SESSION_HTML = REPO_ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
 
@@ -311,7 +312,8 @@ def check_base_shell_class_application(base_text: str, result: StaticCheckResult
         )
 
 
-def run_checks(css_path: Path, base_path: Path, session_path: Path) -> dict:
+def run_checks(css_path: Path, base_path: Path, session_path: Path,
+               shell_css_path: Path | None = None) -> dict:
     """Run all static checks and return result dict."""
     result = StaticCheckResult()
 
@@ -326,6 +328,9 @@ def run_checks(css_path: Path, base_path: Path, session_path: Path) -> dict:
         return result.to_dict()
 
     css = css_path.read_text()
+    # Also read shell.css if available (shell rules migrated there in Task 05)
+    if shell_css_path is not None and shell_css_path.exists():
+        css += "\n" + shell_css_path.read_text()
     base_text = base_path.read_text()
     session_text = session_path.read_text()
 
@@ -344,7 +349,7 @@ def main():
     if "--self-test" in sys.argv:
         return _self_test()
 
-    out = run_checks(CSS_FILE, BASE_HTML, SESSION_HTML)
+    out = run_checks(CSS_FILE, BASE_HTML, SESSION_HTML, SHELL_CSS_FILE)
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
     if out["status"] == "FAIL":

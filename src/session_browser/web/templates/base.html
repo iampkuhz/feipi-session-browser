@@ -10,8 +10,11 @@
          CSS Import Ownership Model
          详见 docs/ui/contracts/04-css-js-ownership.md
 
-         Layer 1 — Tokens + Shell (global):
-           /static/style.css              → 设计令牌
+         Layer 0 — Tokens + Base (global):
+           /static/css/tokens.css         → 设计令牌（CSS 变量）
+           /static/css/base.css           → reset、html、body、typography、focus
+
+         Layer 1 — Shell (global):
            /static/css/shell.css          → 布局骨架
 
          Layer 2 — Shared Primitives (global):
@@ -26,7 +29,8 @@
 
          禁止新增: 版本化或补丁 CSS 文件
          ============================================================ -->
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">

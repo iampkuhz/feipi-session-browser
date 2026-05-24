@@ -60,7 +60,8 @@ class TestCheckNoImportant:
 class TestCheckCssLoadOrder:
     def test_correct_order_passes(self):
         html = """
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">
@@ -71,7 +72,8 @@ class TestCheckCssLoadOrder:
     def test_wrong_order_blocks(self):
         """legacy-aliases before ui-primitives should BLOCK."""
         html = """
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
@@ -83,7 +85,7 @@ class TestCheckCssLoadOrder:
 
     def test_missing_item_blocks(self):
         html = """
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/tokens.css">
     {% block head_extra %}{% endblock %}
     """
         errors = check_css_load_order(html)
@@ -93,7 +95,8 @@ class TestCheckCssLoadOrder:
     def test_head_extra_before_legacy_blocks(self):
         """head_extra must come after legacy-aliases."""
         html = """
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
     {% block head_extra %}{% endblock %}
@@ -146,7 +149,7 @@ class TestCheckNoDuplicateBaseCss:
     def test_base_html_skipped(self, tmp_path):
         """base.html itself should be skipped."""
         base = tmp_path / "base.html"
-        base.write_text('<link rel="stylesheet" href="/static/style.css">')
+        base.write_text('<link rel="stylesheet" href="/static/css/tokens.css">')
         assert check_no_duplicate_base_css([base]) == []
 
     def test_page_without_base_css_passes(self, tmp_path):
@@ -155,24 +158,32 @@ class TestCheckNoDuplicateBaseCss:
         page.write_text('<link rel="stylesheet" href="/static/css/dashboard.css">')
         assert check_no_duplicate_base_css([page]) == []
 
-    def test_page_with_style_css_blocks(self, tmp_path):
-        """Page loading style.css should BLOCK."""
+    def test_page_with_tokens_css_blocks(self, tmp_path):
+        """Page loading tokens.css should BLOCK."""
         page = tmp_path / "dashboard.html"
-        page.write_text('<link rel="stylesheet" href="/static/style.css">')
+        page.write_text('<link rel="stylesheet" href="/static/css/tokens.css">')
         errors = check_no_duplicate_base_css([page])
         assert len(errors) == 1
-        assert "style.css" in errors[0]
+        assert "tokens.css" in errors[0]
+
+    def test_page_with_base_css_blocks(self, tmp_path):
+        """Page loading base.css should BLOCK."""
+        page = tmp_path / "dashboard.html"
+        page.write_text('<link rel="stylesheet" href="/static/css/base.css">')
+        errors = check_no_duplicate_base_css([page])
+        assert len(errors) == 1
+        assert "base.css" in errors[0]
 
     def test_page_with_multiple_base_css_blocks(self, tmp_path):
         """Page loading multiple base CSS should list all."""
         page = tmp_path / "page.html"
         page.write_text(
-            '<link rel="stylesheet" href="/static/style.css">\n'
+            '<link rel="stylesheet" href="/static/css/tokens.css">\n'
             '<link rel="stylesheet" href="/static/css/ui-primitives.css">'
         )
         errors = check_no_duplicate_base_css([page])
         assert len(errors) == 1
-        assert "style.css" in errors[0]
+        assert "tokens.css" in errors[0]
         assert "ui-primitives.css" in errors[0]
 
 
@@ -225,6 +236,20 @@ class TestCheckShellOwnership:
         """shell.css is the shell authority, should not warn."""
         css = tmp_path / "shell.css"
         css.write_text(".shell { display: grid; }")
+        warnings = check_shell_ownership([css])
+        assert warnings == []
+
+    def test_base_css_exempt(self, tmp_path):
+        """base.css is a base file, should not warn."""
+        css = tmp_path / "base.css"
+        css.write_text("body { font-family: sans-serif; }")
+        warnings = check_shell_ownership([css])
+        assert warnings == []
+
+    def test_tokens_css_exempt(self, tmp_path):
+        """tokens.css is a tokens file, should not warn."""
+        css = tmp_path / "tokens.css"
+        css.write_text(":root { --shell-w: 220px; }")
         warnings = check_shell_ownership([css])
         assert warnings == []
 

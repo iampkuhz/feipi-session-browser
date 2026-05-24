@@ -34,6 +34,7 @@ def _run_checks(css, base, session):
             p / "style.css",
             p / "base.html",
             p / "session.html",
+            None,  # shell_css not needed for temp fixture tests
         )
 
 
@@ -50,7 +51,7 @@ def _run_checks_with_files(css, base, session):
         _write(css_p, css)
         _write(base_p, base)
         _write(session_p, session)
-        return _csd.run_checks(css_p, base_p, session_p)
+        return _csd.run_checks(css_p, base_p, session_p, None)
 
 
 class TestPassingContract:
@@ -135,8 +136,9 @@ class TestRealFiles:
         """Run against actual repo files to ensure they pass."""
         root = SCRIPT_PATH.parent.parent.parent
         css = root / "src" / "session_browser" / "web" / "static" / "style.css"
+        shell_css = root / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
         base = root / "src" / "session_browser" / "web" / "templates" / "base.html"
         session = root / "src" / "session_browser" / "web" / "templates" / "session.html"
         if css.exists() and base.exists() and session.exists():
-            out = _csd.run_checks(css, base, session)
+            out = _csd.run_checks(css, base, session, shell_css)
             assert out["status"] == "PASS", f"Real files failed: {out['failures']}"

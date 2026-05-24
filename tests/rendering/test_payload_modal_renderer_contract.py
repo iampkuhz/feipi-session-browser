@@ -15,6 +15,7 @@ from pathlib import Path
 TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 STATIC_JS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "js"
 STATIC_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "style.css"
+UI_PRIMITIVES_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "ui-primitives.css"
 
 
 def _base_source():
@@ -26,7 +27,8 @@ def _timeline_js():
 
 
 def _css():
-    return STATIC_CSS.read_text(encoding="utf-8")
+    """Combined CSS: style.css + ui-primitives.css (payload-modal rules live there)."""
+    return STATIC_CSS.read_text(encoding="utf-8") + "\n" + UI_PRIMITIVES_CSS.read_text(encoding="utf-8")
 
 
 # ── Modal structure (base.html) ────────────────────────────────────

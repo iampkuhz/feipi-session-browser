@@ -1,6 +1,6 @@
 # CSS 加载顺序契约
 
-**版本**: P0 (2026-05-24)
+**版本**: P1 (2026-05-24)
 **状态**: 记录 + BLOCK gate
 
 ---
@@ -11,13 +11,17 @@
 
 所有页面通过继承 `base.html` 获得以下 CSS 加载顺序：
 
-1. `/static/style.css` — 设计令牌（tokens）
+0. `/static/css/tokens.css` — 设计令牌（CSS 变量）
+1. `/static/css/base.css` — reset、html、body、typography、focus、reduced motion
 2. `/static/css/shell.css` — shell 布局骨架（Grid 三栏、body 状态切换、响应式断点）
 3. `/static/css/ui-primitives.css` — 共享原子组件（按钮、徽章、卡片、Modal 等）
 4. `/static/css/legacy-aliases.css` — 迁移兼容层，不得新增引用
 5. `{% block head_extra %}` — 页面专用 CSS，通过模板继承注入
 
-详见 `src/session_browser/web/templates/base.html:28-40`。
+详见 `src/session_browser/web/templates/base.html:28-42`。
+
+> `style.css` 已于 Task 06 拆分为 `css/tokens.css` 和 `css/base.css`，不再作为 CSS 加载入口。
+> 文件保留以承载历史组件样式（breadcrumb、nav、card、badge、table 等），但通过其他方式加载。
 
 ### 页面专用 CSS（通过 head_extra）
 
@@ -35,11 +39,13 @@
 
 ## 规则
 
-1. **tokens 必须早于 shell/primitives**：`style.css` 包含 `--sidebar`、`--inspector` 等核心设计令牌，必须在所有其他 CSS 之前加载。
+1. **tokens 必须最先加载**：`css/tokens.css` 包含所有核心设计令牌（CSS 变量），必须在所有其他 CSS 之前加载。
 
-2. **shell 必须早于 primitives/page CSS**：`shell.css` 依赖 `style.css` 中的令牌，必须在 primitives 和页面 CSS 之前加载。
+2. **base 必须紧随 tokens 之后**：`css/base.css` 包含 reset、html、body、typography、focus 等基础样式，依赖 tokens 中的变量。
 
-3. **primitives 必须早于 page CSS**：`ui-primitives.css` 中的原子组件必须在页面专用 CSS 之前加载，以确保页面 CSS 可以覆写 primitive 样式。
+3. **shell 必须早于 primitives/page CSS**：`shell.css` 依赖 `tokens.css` 中的令牌，必须在 primitives 和页面 CSS 之前加载。
+
+4. **primitives 必须早于 page CSS**：`ui-primitives.css` 中的原子组件必须在页面专用 CSS 之前加载，以确保页面 CSS 可以覆写 primitive 样式。
 
 4. **legacy-aliases.css 只允许作为迁移兼容层**：不得新增对该文件的引用。后续迁移完成后应删除。
 
