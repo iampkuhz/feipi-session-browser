@@ -86,17 +86,17 @@
         if (infoPopover) {
             infoPopover.setAttribute('aria-hidden', 'true');
             infoPopover.classList.remove('is-visible');
-            infoPopover.style.display = 'none';
+            infoPopover.hidden = true;
         }
         if (menuPopover) {
             menuPopover.setAttribute('aria-hidden', 'true');
             menuPopover.classList.remove('is-visible');
-            menuPopover.style.display = 'none';
+            menuPopover.hidden = true;
         }
         if (chartTooltip) {
             chartTooltip.setAttribute('aria-hidden', 'true');
             chartTooltip.classList.remove('is-visible');
-            chartTooltip.style.display = 'none';
+            chartTooltip.hidden = true;
         }
     }
 
@@ -109,7 +109,7 @@
         var info = INFO_COPY[infoKey] || { title: 'Info', text: 'No description available.' };
 
         infoPopover.innerHTML = '<h4>' + info.title + '</h4><p>' + info.text + '</p>';
-        infoPopover.style.display = '';
+        infoPopover.hidden = false;
         infoPopover.setAttribute('aria-hidden', 'false');
         infoPopover.classList.add('is-visible');
 
@@ -122,7 +122,7 @@
 
     function openSettings() {
         if (!settingsDrawer) return;
-        settingsDrawer.style.display = '';
+        settingsDrawer.hidden = false;
         settingsDrawer.setAttribute('aria-hidden', 'false');
         if (typeof settingsDrawer.classList !== 'undefined') {
             settingsDrawer.classList.add('is-open');
@@ -136,7 +136,7 @@
         // Use setTimeout to allow transition to complete
         setTimeout(function () {
             if (!settingsDrawer.classList.contains('is-open')) {
-                settingsDrawer.style.display = 'none';
+                settingsDrawer.hidden = true;
             }
         }, 300);
     }

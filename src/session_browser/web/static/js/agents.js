@@ -483,11 +483,11 @@
             var rows = sessionTable.querySelectorAll('tbody tr');
             rows.forEach(function(row) {
                 if (!query) {
-                    row.style.display = '';
+                    row.hidden = true;
                     return;
                 }
                 var text = row.textContent.toLowerCase();
-                row.style.display = text.indexOf(query) === -1 ? 'none' : '';
+                row.hidden = text.indexOf(query) === -1;
             });
             // Re-apply pagination after search filter changes
             setTimeout(function() { applyPagination(); }, 10);
@@ -530,7 +530,7 @@
 
         // Show/hide rows
         visibleRows.forEach(function(row, i) {
-            row.style.display = (i >= (currentPage - 1) * PAGE_SIZE && i < currentPage * PAGE_SIZE) ? '' : 'none';
+            row.hidden = !(i >= (currentPage - 1) * PAGE_SIZE && i < currentPage * PAGE_SIZE);
         });
     }
 

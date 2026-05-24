@@ -29,7 +29,7 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
     window.switchView = function(name) {
         // Toggle view containers
         document.querySelectorAll('.wb-body > [data-view]').forEach(function(el) {
-            el.style.display = el.dataset.view === name ? '' : 'none';
+            el.hidden = el.dataset.view !== name;
         });
         // Toggle switch buttons
         document.querySelectorAll('.wb-head [data-switch]').forEach(function(btn) {

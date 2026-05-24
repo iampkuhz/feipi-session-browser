@@ -105,7 +105,7 @@
     var start = (page - 1) * pageSize;
     var end = start + pageSize;
     for (var i = 0; i < rows.length; i++) {
-      rows[i].style.display = (i >= start && i < end) ? '' : 'none';
+      rows[i].hidden = !(i >= start && i < end);
     }
   };
 
@@ -187,7 +187,7 @@
     for (var i = 0; i < rows.length; i++) {
       var text = rows[i].textContent.toLowerCase();
       var match = !q || text.indexOf(q) !== -1;
-      rows[i].style.display = match ? '' : 'none';
+      rows[i].hidden = !match;
       if (match) visibleCount++;
     }
     return visibleCount;

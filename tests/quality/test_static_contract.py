@@ -16,6 +16,7 @@ from static_contract_check import (
     check_no_duplicate_base_css,
     check_payload_modal_ownership,
     check_shell_ownership,
+    check_innerhtml_safety,
 )
 
 
@@ -275,6 +276,60 @@ class TestCheckShellOwnership:
         warnings = check_shell_ownership([css])
         assert len(warnings) == 1
         assert "body.hide-left" in warnings[0]
+
+
+# ── check_innerhtml_safety ────────────────────────────────────────────
+
+
+class TestCheckInnerhtmlSafety:
+    def test_no_innerhtml_passes(self, tmp_path):
+        """JS without innerHTML should not warn."""
+        js = tmp_path / "clean.js"
+        js.write_text("var x = 1;")
+        warnings = check_innerhtml_safety([js])
+        assert warnings == []
+
+    def test_innerhtml_with_escape_passes(self, tmp_path):
+        """innerHTML with escapeHtml helper should not warn."""
+        js = tmp_path / "safe.js"
+        js.write_text(
+            "function escapeHtml(s) { return s; }"
+            "el.innerHTML = escapeHtml(userInput);"
+        )
+        warnings = check_innerhtml_safety([js])
+        assert warnings == []
+
+    def test_innerhtml_with_sanitize_passes(self, tmp_path):
+        """innerHTML with sanitize should not warn."""
+        js = tmp_path / "safe.js"
+        js.write_text("el.innerHTML = DOMPurify.sanitize(html);")
+        warnings = check_innerhtml_safety([js])
+        assert warnings == []
+
+    def test_innerhtml_without_safety_warns(self, tmp_path):
+        """Raw innerHTML without escape helper should WARN."""
+        js = tmp_path / "unsafe.js"
+        js.write_text("el.innerHTML = '<div>' + userInput + '</div>';")
+        warnings = check_innerhtml_safety([js])
+        assert len(warnings) == 1
+        assert "innerHTML" in warnings[0]
+
+    def test_innerhtml_clearing_not_warned(self, tmp_path):
+        """Clearing innerHTML (el.innerHTML = '') should not warn."""
+        js = tmp_path / "clear.js"
+        js.write_text("container.innerHTML = '';")
+        warnings = check_innerhtml_safety([js])
+        assert warnings == []
+
+    def test_multiple_files_reports_per_file(self, tmp_path):
+        """Each file with unsafe innerHTML gets its own warning."""
+        safe = tmp_path / "safe.js"
+        unsafe = tmp_path / "unsafe.js"
+        safe.write_text("el.innerHTML = DOMPurify.sanitize(x);")
+        unsafe.write_text("el.innerHTML = userInput;")
+        warnings = check_innerhtml_safety([safe, unsafe])
+        assert len(warnings) == 1
+        assert "unsafe.js" in warnings[0]
 
 
 # ── Integration: actual repo files ────────────────────────────────────

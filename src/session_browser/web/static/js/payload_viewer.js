@@ -131,7 +131,7 @@
     var badge = containerEl.querySelector('.payload-unavailable');
     if (badge) {
       var hasData = partData.raw || partData.json || partData.rendered;
-      badge.style.display = hasData ? 'none' : '';
+      badge.hidden = hasData;
     }
 
     // Reset to current view
@@ -143,7 +143,7 @@
 
     var views = containerEl.querySelectorAll('[data-payload-view]');
     for (var i = 0; i < views.length; i++) {
-      views[i].style.display = views[i].getAttribute('data-payload-view') === viewName ? '' : 'none';
+      views[i].hidden = views[i].getAttribute('data-payload-view') !== viewName;
     }
 
     var btns = containerEl.querySelectorAll('.view-switch button[data-action="payload-switch"]');

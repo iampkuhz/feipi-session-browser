@@ -59,7 +59,7 @@
             var name = (row.dataset.name || '').toLowerCase();
             var path = (row.dataset.path || '').toLowerCase();
             var show = !q || name.indexOf(q) >= 0 || path.indexOf(q) >= 0;
-            row.style.display = show ? '' : 'none';
+            row.hidden = !show;
             if (show) visibleCount++;
         });
 
@@ -71,10 +71,10 @@
         if (empty) {
             if (visibleCount === 0 && rows.length > 0) {
                 empty.classList.remove('is-hidden');
-                empty.style.display = '';
+                empty.hidden = false;
             } else {
                 empty.classList.add('is-hidden');
-                empty.style.display = 'none';
+                empty.hidden = true;
             }
         }
 
@@ -243,7 +243,7 @@
                 rows.forEach(function(row) {
                     var title = (row.dataset.title || row.textContent || '').toLowerCase();
                     var show = !q || title.indexOf(q) >= 0;
-                    row.style.display = show ? '' : 'none';
+                    row.hidden = !show;
                     if (show) visibleCount++;
                 });
                 // Update count if element exists
