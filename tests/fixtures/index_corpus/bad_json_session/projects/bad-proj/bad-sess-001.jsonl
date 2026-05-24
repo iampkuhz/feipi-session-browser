@@ -1,0 +1,9 @@
+{"type": "user", "message": {"role": "user", "content": "Fix the bug in the parser"}, "timestamp": "2026-05-24T09:00:00.000Z", "cwd": "/home/user/bad-proj", "entrypoint": "cli", "gitBranch": "fix-parser"}
+{bad json: missing closing quote}
+{"type": "assistant", "message": {"type": "message", "model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "I will fix the parser bug."}], "usage": {"input_tokens": 150, "output_tokens": 80}}, "timestamp": "2026-05-24T09:00:05.000Z"}
+{"truncated": unquoted value here}
+{"type": "assistant", "message": {"type": "message", "model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "tool_use", "name": "Read", "input": {"file_path": "/home/user/bad-proj/parser.py"}, "id": "tool_read_001"}], "usage": {"input_tokens": 200, "cache_read_input_tokens": 50, "output_tokens": 60}, "stop_reason": "tool_use"}, "timestamp": "2026-05-24T09:00:10.000Z"}
+{"trailing": "comma",}
+{"type": "user", "message": {"role": "user", "content": [{"tool_use_id": "tool_read_001", "type": "tool_result", "content": [{"type": "text", "text": "Parser code read successfully"}]}]}, "timestamp": "2026-05-24T09:00:15.000Z"}
+{"type": "assistant", "message": {"type": "message", "model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "Bug fixed. The parser now handles edge cases."}], "usage": {"input_tokens": 180, "output_tokens": 70}}, "timestamp": "2026-05-24T09:00:20.000Z"}
+{"type": "assistant", "message": {"type": "message", "model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "All tests pass."}], "usage": {"input_tokens": 100, "output_tokens": 40}}, "timestamp": "2026-05-24T09:00:25.000Z"}
