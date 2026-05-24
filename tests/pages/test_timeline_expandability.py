@@ -413,9 +413,7 @@ class TestEventDelegationPresent:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         # v9: Uses data-action="collapse-all" (no separate expand-visible)
-        timeline_css_path = (Path(__file__).resolve().parents[2]
-                            / "src" / "session_browser" / "web" / "static" / "css" / "session-detail-timeline.css")
-        # Check timeline CSS/JS for collapse-all
+        # Check timeline JS for collapse-all
         js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():

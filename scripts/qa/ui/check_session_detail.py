@@ -27,7 +27,6 @@ SESSIONS_HTML = ROOT / "src/session_browser/web/templates/session.html"
 TIMELINE_CMP = ROOT / "src/session_browser/web/templates/components/session_detail_timeline.html"
 PRIMITIVES_CMP = ROOT / "src/session_browser/web/templates/components/session_detail_primitives.html"
 CSS_MAIN = ROOT / "src/session_browser/web/static/css/session-detail.css"
-CSS_TIMELINE = ROOT / "src/session_browser/web/static/css/session-detail-timeline.css"
 JS_MAIN = ROOT / "src/session_browser/web/static/js/session-detail.js"
 
 

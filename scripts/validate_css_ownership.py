@@ -85,7 +85,6 @@ KNOWN_CSS = {
     "css/dashboard.css",
     "css/sessions-list.css",
     "css/session-detail.css",
-    "css/session-detail-timeline.css",  # deprecated, flagged separately
     "css/projects.css",
     "css/agents.css",
     "css/glossary.css",
@@ -226,7 +225,7 @@ def check_forbidden_names(css_dir: Path) -> list[tuple[str, str]]:
             continue
         if str(f.relative_to(css_dir)) in KNOWN_CSS:
             # Check if deprecated files should be flagged
-            if str(f.relative_to(css_dir)) == "css/session-detail-timeline.css":
+            if str(f.relative_to(css_dir)) == "css/session-detail.css":
                 violations.append((rel, "deprecated — should be merged and removed"))
             continue
         for pat in FORBIDDEN_PATTERNS:
@@ -246,8 +245,6 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
         rel = str(f.relative_to(css_dir))
         if f.name == "style.css":
             continue  # Layer 1 is the authority
-        if rel == "css/session-detail-timeline.css":
-            continue  # Deprecated, already flagged by forbidden_filename
         sels = extract_selectors(f)
         for sel in sels:
             if sel not in selector_map:
