@@ -256,6 +256,7 @@ def parse_jsonl_events(
     depth = 0
 
     diagnostics = JsonlDiagnostics()
+    line_no = 0  # Initialize to handle empty files without UnboundLocalError
 
     for line_no, stripped in _iter_lines(path):
         diagnostics.non_empty_lines += 1

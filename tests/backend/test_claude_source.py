@@ -9,10 +9,10 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def test_parse_session_events():
     """Test that we can parse Claude session events."""
-    from session_browser.sources.claude import _parse_session_events
+    from session_browser.sources.jsonl_reader import parse_jsonl_events
 
     fixture = FIXTURES / "claude_session_sample.jsonl"
-    events = _parse_session_events(fixture)
+    events, _ = parse_jsonl_events(fixture)
     assert len(events) > 0
 
     types = {ev.get("type") for ev in events}
@@ -22,13 +22,11 @@ def test_parse_session_events():
 
 def test_build_summary_from_events():
     """Test summary building from events."""
-    from session_browser.sources.claude import (
-        _parse_session_events,
-        _build_summary_from_events,
-    )
+    from session_browser.sources.jsonl_reader import parse_jsonl_events
+    from session_browser.sources.claude import _build_summary_from_events
 
     fixture = FIXTURES / "claude_session_sample.jsonl"
-    events = _parse_session_events(fixture)
+    events, _ = parse_jsonl_events(fixture)
     summary = _build_summary_from_events(events, "test-session-id", "/test/project")
 
     assert summary.agent == "claude_code"
@@ -39,13 +37,11 @@ def test_build_summary_from_events():
 
 def test_extract_messages():
     """Test message extraction."""
-    from session_browser.sources.claude import (
-        _parse_session_events,
-        _extract_messages,
-    )
+    from session_browser.sources.jsonl_reader import parse_jsonl_events
+    from session_browser.sources.claude import _extract_messages
 
     fixture = FIXTURES / "claude_session_sample.jsonl"
-    events = _parse_session_events(fixture)
+    events, _ = parse_jsonl_events(fixture)
     messages = _extract_messages(events)
 
     user_msgs = [m for m in messages if m.role == "user"]
@@ -270,8 +266,8 @@ def test_parse_session_events_skips_non_dict_json_values():
     in _assistant_records when a real session JSONL contains a bare string
     or other non-object JSON value.
     """
+    from session_browser.sources.jsonl_reader import parse_jsonl_events
     from session_browser.sources.claude import (
-        _parse_session_events,
         _build_summary_from_events,
         _assistant_records,
     )
@@ -314,10 +310,10 @@ def test_parse_session_events_skips_non_dict_json_values():
         tmp_path = Path(f.name)
 
     try:
-        # _parse_session_events must only return dicts
-        events = _parse_session_events(tmp_path)
+        # parse_jsonl_events must only return dicts
+        events, _ = parse_jsonl_events(tmp_path)
         assert all(isinstance(ev, dict) for ev in events), \
-            f"_parse_session_events returned non-dict: {[type(e).__name__ for e in events if not isinstance(e, dict)]}"
+            f"parse_jsonl_events returned non-dict: {[type(e).__name__ for e in events if not isinstance(e, dict)]}"
 
         # Must have kept the valid events (2 valid_user/assistant + 1 empty dict)
         # The empty dict {} is also a dict, so it passes the isinstance check
@@ -361,7 +357,7 @@ def test_parse_pretty_printed_multiline_json():
     The parser must track brace depth (ignoring braces inside string values)
     and emit complete objects.
     """
-    from session_browser.sources.claude import _parse_session_events
+    from session_browser.sources.jsonl_reader import parse_jsonl_events
 
     # A pretty-printed session file with two events
     content = '''{
@@ -396,7 +392,7 @@ def test_parse_pretty_printed_multiline_json():
         tmp_path = Path(f.name)
 
     try:
-        events = _parse_session_events(tmp_path, verbose=False)
+        events, _ = parse_jsonl_events(tmp_path)
         assert len(events) == 3, f"Expected 3 events, got {len(events)}"
 
         types = [ev.get("type") for ev in events]
@@ -417,7 +413,7 @@ def test_parse_concatenated_json_transition_line():
     concatenated objects on a single line (``}{...}{...}``) must be parsed
     correctly.
     """
-    from session_browser.sources.claude import _parse_session_events
+    from session_browser.sources.jsonl_reader import parse_jsonl_events
 
     # Simulate a transition line with two concatenated objects
     content = '''{
@@ -435,7 +431,7 @@ def test_parse_concatenated_json_transition_line():
         tmp_path = Path(f.name)
 
     try:
-        events = _parse_session_events(tmp_path, verbose=False)
+        events, _ = parse_jsonl_events(tmp_path)
         assert len(events) == 3, f"Expected 3 events, got {len(events)}"
 
         types = [ev.get("type") for ev in events]
@@ -449,7 +445,7 @@ def test_brace_inside_string_values_not_counted():
     tracking.  E.g. ``{"key": "{value}"}`` should have depth 1 at the
     opening brace, not 2.
     """
-    from session_browser.sources.claude import _brace_chars_outside_strings
+    from session_browser.sources.jsonl_reader import _brace_chars_outside_strings
 
     # Braces inside strings should be ignored
     text = '{"key": "{nested}", "arr": [1, "{value}"]}'
