@@ -149,15 +149,36 @@ def main() -> int:
         return 0
 
     change_id = resolve_change_id()
-    blocked = False
+    results: list[tuple[str, bool, str]] = []
     for target in sorted(targets):
         passed, msg = check_target_artifact(target, change_id)
-        status_str = "PASS" if passed else "BLOCK"
-        print(f"[stop_check_targets] [{status_str}] {target}: {msg}", file=sys.stderr)
-        if not passed:
-            blocked = True
+        results.append((target, passed, msg))
 
-    return 1 if blocked else 0
+    # 输出简洁摘要
+    pass_count = sum(1 for _, p, _ in results if p)
+    fail_count = sum(1 for _, p, _ in results if not p)
+
+    if fail_count == 0:
+        print(f"[stop_check_targets] PASS — {len(targets)} target(s) 全部通过", file=sys.stderr)
+        for target, _, msg in results:
+            print(f"  [PASS] {target}", file=sys.stderr)
+        return 0
+
+    # 有失败：输出摘要 + 精确 rerun 命令
+    print(f"[stop_check_targets] BLOCK — {fail_count}/{len(targets)} target(s) 未通过", file=sys.stderr)
+    print(file=sys.stderr)
+    for target, passed, msg in results:
+        status_str = "PASS" if passed else "BLOCK"
+        short_msg = msg.split("\n")[0] if "\n" in msg else msg
+        print(f"  [{status_str}] {target}: {short_msg}", file=sys.stderr)
+
+    print(file=sys.stderr)
+    print("--- 精确 rerun 命令 ---", file=sys.stderr)
+    for target, passed, _ in results:
+        if not passed:
+            print(f"  python3 scripts/quality/run_quality_gate.py --target {target} --change-id {change_id}", file=sys.stderr)
+    print(file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

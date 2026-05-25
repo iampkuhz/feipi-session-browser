@@ -403,8 +403,19 @@ def main():
 
     status, messages = run_check(args.change_id)
 
-    for msg in messages:
-        print(msg, file=sys.stderr if status == "FAIL" else sys.stdout)
+    # 输出简洁摘要
+    if status == "PASS":
+        print("[stop_quality_gate] PASS", file=sys.stdout)
+        for msg in messages:
+            print(msg, file=sys.stdout)
+    else:
+        print("[stop_quality_gate] BLOCK", file=sys.stderr)
+        print(file=sys.stderr)
+        for msg in messages:
+            print(msg, file=sys.stderr)
+        print(file=sys.stderr)
+        print("--- 精确 rerun 命令 ---", file=sys.stderr)
+        print(f"  python3 scripts/quality/run_quality_gate.py --target session-detail --change-id {resolve_change_id(args.change_id)}", file=sys.stderr)
 
     if status == "FAIL":
         sys.exit(1)
