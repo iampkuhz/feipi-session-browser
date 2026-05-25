@@ -281,3 +281,11 @@ body.sidebar-collapsed .sidebar-toggle-expand {
     padding: var(--space-lg) var(--space-xl);
   }
 }
+
+/* ── Global utility: hide element ──────────────────────────────
+ * Used by JS for class-based show/hide instead of inline style.display.
+ * Must stay at end of shell.css to avoid being overridden by page CSS.
+ */
+.is-hidden {
+  display: none;
+}

@@ -41,8 +41,8 @@
     function expandRoundDetail(headerRow) {
         var detailRow = headerRow.nextElementSibling;
         if (!detailRow || !detailRow.classList.contains('round-detail-row')) return;
-        if (detailRow.style.display === 'none' || detailRow.style.display === '') {
-            detailRow.style.display = 'table-row';
+        if (detailRow.hidden) {
+            detailRow.hidden = false;
             var chevron = headerRow.querySelector('.round-chevron-inline');
             if (chevron) chevron.style.transform = 'rotate(90deg)';
         }
@@ -51,8 +51,8 @@
     function collapseRoundDetail(headerRow) {
         var detailRow = headerRow.nextElementSibling;
         if (!detailRow || !detailRow.classList.contains('round-detail-row')) return;
-        if (detailRow.style.display !== 'none' && detailRow.style.display !== '') {
-            detailRow.style.display = 'none';
+        if (!detailRow.hidden) {
+            detailRow.hidden = true;
             var chevron = headerRow.querySelector('.round-chevron-inline');
             if (chevron) chevron.style.transform = '';
         }
@@ -151,11 +151,11 @@
                 var text = preview ? preview.textContent.toLowerCase() : '';
                 visible = _matchesFilter(text, type);
             }
-            row.style.display = visible ? '' : 'none';
+            row.hidden = !visible;
             // Hide corresponding detail row too
             var detailRow = row.nextElementSibling;
             if (detailRow && detailRow.classList.contains('round-detail-row')) {
-                detailRow.style.display = visible ? '' : 'none';
+                detailRow.hidden = !visible;
             }
         });
 
@@ -172,7 +172,7 @@
             } else {
                 visible = _nodeMatchesType(cls, type);
             }
-            node.style.display = visible ? '' : 'none';
+            node.hidden = !visible;
         });
     }
 
@@ -215,14 +215,14 @@
 
     function _showAllNodes() {
         document.querySelectorAll('.round-header-row').forEach(function (row) {
-            row.style.display = '';
+            row.hidden = false;
             var detailRow = row.nextElementSibling;
             if (detailRow && detailRow.classList.contains('round-detail-row')) {
-                detailRow.style.display = '';
+                detailRow.hidden = false;
             }
         });
         document.querySelectorAll('.timeline-node').forEach(function (node) {
-            node.style.display = '';
+            node.hidden = false;
         });
     }
 
@@ -295,7 +295,7 @@
     function _ensureVisible(el) {
         // If inside a collapsed round detail, expand it
         var detailRow = el.closest('.round-detail-row');
-        if (detailRow && detailRow.style.display === 'none') {
+        if (detailRow && detailRow.hidden) {
             var headerRow = detailRow.previousElementSibling;
             if (headerRow && headerRow.classList.contains('round-header-row')) {
                 if (window.toggleRoundDetail) {

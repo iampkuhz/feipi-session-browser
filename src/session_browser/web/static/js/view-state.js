@@ -155,7 +155,7 @@
         var wbBody = document.querySelector('.wb-body');
         if (!wbBody) return;
         wbBody.querySelectorAll('[data-view]').forEach(function(el) {
-            el.style.display = el.dataset.view === name ? '' : 'none';
+            el.hidden = el.dataset.view !== name;
         });
     }
 
@@ -388,8 +388,7 @@
             var row = document.querySelector('.trace-row[data-round-idx="' + roundId + '"]');
             if (row && typeof window.toggleRoundDetail === 'function') {
                 var detail = row.nextElementSibling;
-                if (detail && detail.classList.contains('trace-detail') &&
-                    (detail.style.display === 'none' || detail.style.display === '')) {
+                if (detail && detail.classList.contains('trace-detail') && detail.hidden) {
                     window.toggleRoundDetail(row);
                 }
             }

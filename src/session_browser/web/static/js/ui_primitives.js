@@ -495,7 +495,7 @@
       var kindEl = backdrop.querySelector('[data-modal-kind]');
       if (kindEl) {
         kindEl.textContent = kind;
-        kindEl.style.display = '';
+        kindEl.hidden = false;
       }
     }
 
