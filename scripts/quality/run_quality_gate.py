@@ -127,6 +127,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "scripts/quality/repo_slimming_contract_check.py"]
     if gate == "indexIntegrity":
         return ["python3", "scripts/quality/check_index_integrity.py"]
+    if gate == "rawInnerhtml":
+        return ["python3", "scripts/quality/check_raw_innerhtml.py", "--check"]
+    if gate == "layoutInlineStyle":
+        return ["python3", "scripts/quality/check_layout_inline_style.py", "--check"]
     return []
 
 

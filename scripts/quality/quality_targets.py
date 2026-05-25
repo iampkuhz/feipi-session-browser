@@ -10,6 +10,8 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "cssOwnership",
         "browserLayout",
         "browserInteraction",
+        "rawInnerhtml",
+        "layoutInlineStyle",
         "pytest",
     ],
     "python-src": [
@@ -25,6 +27,8 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "doctor",
         "repoStructure",
         "repoSlimming",
+        "rawInnerhtml",
+        "layoutInlineStyle",
     ],
     "harness": [
         "bashSyntax",
@@ -59,6 +63,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "src/session_browser/web/static/**/*.css",
         ],
         "browserInteraction": [
+            "src/session_browser/web/static/**/*.js",
+        ],
+        "rawInnerhtml": [
+            "src/session_browser/web/static/**/*.js",
+        ],
+        "layoutInlineStyle": [
+            "src/session_browser/web/templates/**/*.html",
             "src/session_browser/web/static/**/*.js",
         ],
         "pythonCompile": [
@@ -119,6 +130,15 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "src/session_browser/web/templates/**/*.html",
             "scripts/quality/repo_slimming_contract_check.py",
             "tests/quality/test_repo_slimming_contract.py",
+        ],
+        "rawInnerhtml": [
+            "src/session_browser/web/static/**/*.js",
+            "scripts/quality/check_raw_innerhtml.py",
+        ],
+        "layoutInlineStyle": [
+            "src/session_browser/web/templates/**/*.html",
+            "src/session_browser/web/static/**/*.js",
+            "scripts/quality/check_layout_inline_style.py",
         ],
     },
     "harness": {
