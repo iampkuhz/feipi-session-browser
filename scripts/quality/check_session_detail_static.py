@@ -51,6 +51,7 @@ class StaticCheckResult:
     def to_dict(self) -> dict:
         status = "PASS" if not self.failures else "FAIL"
         return {
+            "schemaVersion": 1,
             "status": status,
             "gate": "session-detail-static-css",
             "failures": self.failures,

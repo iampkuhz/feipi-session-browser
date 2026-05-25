@@ -151,7 +151,7 @@ def build_summary(target: str, change_id: str, started_at: str, details: list[Ga
     required = {detail.name: detail.status for detail in details}
     status, failures = compute_overall(required)
     return QualitySummary(
-        schemaVersion=2,
+        schemaVersion=3,
         status=status,
         target=target,
         changeId=change_id,

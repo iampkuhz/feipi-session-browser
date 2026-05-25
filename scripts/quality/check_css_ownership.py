@@ -538,6 +538,9 @@ def main() -> int:
 
     # JSON artifact 供 quality gate 集成
     json_report = {
+        "schemaVersion": 1,
+        "gate": "css-ownership",
+        "status": "PASS" if not result.blocks else "FAIL",
         "filesScanned": result.files_scanned,
         "selectorsAnalyzed": result.selectors_analyzed,
         "blockCount": len(result.blocks),
@@ -550,7 +553,6 @@ def main() -> int:
             {"rule": v.rule, "file": v.file, "line": v.line, "detail": v.detail}
             for v in result.warnings
         ],
-        "status": "PASS" if not result.blocks else "FAIL",
     }
     json_path = out_dir / "css-ownership-gate.json"
     json_path.write_text(json.dumps(json_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

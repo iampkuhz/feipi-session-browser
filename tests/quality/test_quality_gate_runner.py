@@ -44,13 +44,13 @@ class TestComputeOverall:
 
 
 class TestBuildSummary:
-    def test_schema_version_2(self):
+    def test_schema_version_3(self):
         started = "2026-01-01T00:00:00Z"
         details = [
             GateDetail(name="pytest", status=PASS, command=["pytest", "-q"], exitCode=0),
         ]
         summary = build_summary("session-detail", "test", started, details)
-        assert summary.schemaVersion == 2
+        assert summary.schemaVersion == 3
         assert summary.target == "session-detail"
         assert summary.changeId == "test"
         assert summary.status == PASS
@@ -77,7 +77,7 @@ class TestWriteSummary:
             summary_path = out / "test" / "quality-gate-summary.session-detail.json"
             assert summary_path.exists()
             data = json.loads(summary_path.read_text())
-            assert data["schemaVersion"] == 2
+            assert data["schemaVersion"] == 3
             assert data["target"] == "session-detail"
 
 
