@@ -7,10 +7,16 @@ b. cache fixture (no model) does not fabricate a model.
 
 from __future__ import annotations
 
+import json
+import sqlite3
+
 from session_browser.sources.qoder import (
     _assistant_records,
+    _build_qoder_session_model_map,
     _build_summary_from_events,
     _extract_qoder_model,
+    _parse_cache_session,
+    _resolve_qoder_model_config_name,
 )
 
 
@@ -149,3 +155,121 @@ class TestQoderModelContract:
             "raw_model": "raw-model",
         }
         assert _extract_qoder_model(record) == "fallback-model"
+
+    def test_custom_model_config_resolves_to_alias(self):
+        """custom:model_x should resolve via aicoding.customModels alias."""
+        custom_names = {
+            "model_123": "Qwen-3.6-Plus",
+            "custom:model_123": "Qwen-3.6-Plus",
+        }
+
+        assert _resolve_qoder_model_config_name(
+            "custom:model_123",
+            custom_names=custom_names,
+            selector_names={},
+            auth_names={},
+        ) == "Qwen-3.6-Plus"
+
+    def test_builtin_model_config_resolves_to_dynamic_label(self):
+        """Built-in ids such as qmodel should resolve to selector labels."""
+        assert _resolve_qoder_model_config_name(
+            "qmodel",
+            custom_names={},
+            selector_names={"qmodel": "Qwen3.6-Plus"},
+            auth_names={},
+        ) == "Qwen3.6-Plus"
+
+    def test_session_model_map_from_agent_log_custom_model(self, tmp_path):
+        """Qoder agent.log session model config should map to custom model alias."""
+        app_support = tmp_path / "Qoder"
+        global_storage = app_support / "User" / "globalStorage"
+        global_storage.mkdir(parents=True)
+        conn = sqlite3.connect(global_storage / "state.vscdb")
+        conn.execute("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+        conn.execute(
+            "INSERT INTO ItemTable (key, value) VALUES (?, ?)",
+            (
+                "aicoding.customModels",
+                json.dumps([{
+                    "id": "model_123",
+                    "provider": "bailian",
+                    "model": "qwen3.6-plus-cp",
+                    "alias": "Qwen-3.6-Plus",
+                    "hasApiKey": True,
+                }]),
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        log_dir = app_support / "logs" / "20260512T221746" / "window1"
+        log_dir.mkdir(parents=True)
+        (log_dir / "agent.log").write_text(
+            "2026-05-12 22:17:51.528 [info] [ModelSelector] "
+            "activeModelConfig=custom:model_123, sessionType=assistant, "
+            "sessionId=session-abc\n",
+            encoding="utf-8",
+        )
+
+        assert (
+            _build_qoder_session_model_map(app_support)["session-abc"]
+            == "Qwen-3.6-Plus"
+        )
+
+    def test_summary_model_falls_back_to_agent_log(self, tmp_path, monkeypatch):
+        """SessionSummary.model should use Qoder GUI agent log when JSONL lacks model."""
+        app_support = tmp_path / "Qoder"
+        user_dir = app_support / "User"
+        user_dir.mkdir(parents=True)
+        (user_dir / "dynamic-text-cache.json").write_text(
+            json.dumps({"zh-cn": {"modelSelector.item.qmodel": "Qwen3.6-Plus"}}),
+            encoding="utf-8",
+        )
+        log_dir = app_support / "logs" / "20260512T221746" / "window1"
+        log_dir.mkdir(parents=True)
+        (log_dir / "agent.log").write_text(
+            "2026-05-12 22:17:51.528 [info] [ModelSelector] "
+            "activeModelConfig=qmodel, sessionType=assistant, sessionId=sess-1\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("QODER_APP_SUPPORT_DIR", str(app_support))
+
+        events = [
+            _user_event("hello"),
+            _assistant_event(model="", text="hi", msg_id="msg-1"),
+        ]
+
+        summary = _build_summary_from_events(events, "sess-1", "/tmp")
+        assert summary.model == "Qwen3.6-Plus"
+
+    def test_cache_session_model_falls_back_to_agent_log(self, tmp_path, monkeypatch):
+        """Cache-format sessions should also get model from Qoder agent logs."""
+        app_support = tmp_path / "Qoder"
+        user_dir = app_support / "User"
+        user_dir.mkdir(parents=True)
+        (user_dir / "dynamic-text-cache.json").write_text(
+            json.dumps({"zh-cn": {"modelSelector.item.lite": "Lite"}}),
+            encoding="utf-8",
+        )
+        log_dir = app_support / "logs" / "20260512T221746" / "window1"
+        log_dir.mkdir(parents=True)
+        (log_dir / "agent.log").write_text(
+            "2026-05-12 22:17:51.528 [info] [ModelConfigService] "
+            "getCurrentModelConfig: sessionId=cache-1, returning from memory: lite\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("QODER_APP_SUPPORT_DIR", str(app_support))
+
+        session_file = tmp_path / "cache-1.jsonl"
+        session_file.write_text(
+            json.dumps({"role": "user", "message": {"content": "hello"}}) + "\n"
+            + json.dumps({
+                "role": "assistant",
+                "message": {"content": [{"type": "text", "text": "hi"}]},
+            })
+            + "\n",
+            encoding="utf-8",
+        )
+
+        summary = _parse_cache_session("project", "cache-1", session_file)
+        assert summary.model == "Lite"
