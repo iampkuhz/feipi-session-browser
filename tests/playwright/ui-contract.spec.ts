@@ -2,6 +2,7 @@
  * ui-contract.spec.ts — 页面视觉契约测试（截图 + 可见性）
  *
  * 覆盖所有主要页面的多视口截图和核心结构验证。
+ * 视口：1440x900, 1280x800, 1180x800, 2560x1440
  */
 import { test, expect } from '@playwright/test';
 
@@ -23,13 +24,14 @@ for (const [url, name] of pages) {
   });
 }
 
-// ─── 仪表板视口契约测试（06-validation-contract） ────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
+// ─── 视口配置 ────────────────────────────────────────────────────────
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
 
 const viewports = [
   { width: 1440, height: 900, label: '1440x900' },
   { width: 1280, height: 800, label: '1280x800' },
   { width: 1180, height: 800, label: '1180x800' },
+  { width: 2560, height: 1440, label: '2560x1440' },
 ] as const;
 
 for (const vp of viewports) {
@@ -54,28 +56,18 @@ for (const vp of viewports) {
 }
 
 // ─── 会话详情视口契约测试（T096） ────────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
-// 需要运行服务并包含索引数据。设置 PW_SESSION_URL 指向有效会话 URL，否则跳过。
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
+// 使用 fixture session URL，不再依赖 PW_SESSION_URL 环境变量。
 
-function resolveSessionUrl(): string | null {
-  const direct = process.env.PW_SESSION_URL;
-  if (direct) return direct;
-  return null;
-}
+const FIXTURE_SESSION_URL = '/sessions/claude_code/hifi-viz-session-001';
 
 for (const vp of viewports) {
   test(`会话详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
-    const sessionUrl = resolveSessionUrl();
-    if (!sessionUrl) {
-      console.log('未设置 PW_SESSION_URL；跳过会话详情视口测试。');
-      return;
-    }
-
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto(sessionUrl);
+    await page.goto(FIXTURE_SESSION_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     // 核心结构可见：hero、标签页、trace 表格
-    await expect(page.locator('.sd-hero').first()).toBeVisible();
+    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.sd-tabs')).toBeVisible();
     await expect(page.locator('[data-trace-panel]')).toBeVisible();
 
@@ -88,7 +80,7 @@ for (const vp of viewports) {
 }
 
 // ─── 项目页视口契约测试（T110） ──────────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
 
 for (const vp of viewports) {
   test(`项目页 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
@@ -109,25 +101,15 @@ for (const vp of viewports) {
 }
 
 // ─── 项目详情页视口契约测试（T124） ──────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
-// 设置 PW_PROJECT_URL 指向有效项目 URL，否则跳过。
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
+// 使用 fixture project URL，不再依赖 PW_PROJECT_URL 环境变量。
 
-function resolveProjectUrl(): string | null {
-  const direct = process.env.PW_PROJECT_URL;
-  if (direct) return direct;
-  return null;
-}
+const FIXTURE_PROJECT_URL = '/projects/test-hifi-project';
 
 for (const vp of viewports) {
   test(`项目详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
-    const projectUrl = resolveProjectUrl();
-    if (!projectUrl) {
-      console.log('未设置 PW_PROJECT_URL；跳过项目详情视口测试。');
-      return;
-    }
-
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto(projectUrl);
+    await page.goto(FIXTURE_PROJECT_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     // 核心结构可见
     await expect(page.locator('.page-head')).toBeVisible();
@@ -143,7 +125,7 @@ for (const vp of viewports) {
 }
 
 // ─── Agent 列表页视口契约测试（T138） ────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
 
 for (const vp of viewports) {
   test(`Agent 列表 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
@@ -164,7 +146,7 @@ for (const vp of viewports) {
 }
 
 // ─── 术语表视口契约测试（T166） ──────────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
 
 for (const vp of viewports) {
   test(`术语表 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
@@ -187,25 +169,15 @@ for (const vp of viewports) {
 }
 
 // ─── Agent 详情页视口契约测试（T152） ─────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
-// 设置 PW_AGENT_URL 指向有效 Agent URL（如 /agents/claude_code），否则跳过。
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
+// 使用 fixture agent URL，不再依赖 PW_AGENT_URL 环境变量。
 
-function resolveAgentUrl(): string | null {
-  const direct = process.env.PW_AGENT_URL;
-  if (direct) return direct;
-  return null;
-}
+const FIXTURE_AGENT_URL = '/agents/claude_code';
 
 for (const vp of viewports) {
   test(`Agent 详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
-    const agentUrl = resolveAgentUrl();
-    if (!agentUrl) {
-      console.log('未设置 PW_AGENT_URL；跳过 Agent 详情视口测试。');
-      return;
-    }
-
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto(agentUrl);
+    await page.goto(FIXTURE_AGENT_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     // 核心结构可见
     await expect(page.locator('.header')).toBeVisible();
@@ -221,7 +193,7 @@ for (const vp of viewports) {
 }
 
 // ─── 状态页视口契约测试（T180） ──────────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800
+// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
 // 404 页可通过任意未映射 URL 触发。
 // error.html 是服务端 500 模板，无法通过普通 URL 触发（会引发真实服务错误），
 // 因此排除在 Playwright 截图检查之外。404 页已覆盖共享的 states.css 样式。

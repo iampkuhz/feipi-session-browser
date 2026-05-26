@@ -34,11 +34,13 @@ DISPLAY_2K_UA = (
 )
 
 # Pages to smoke test: (name, path, expected HTML fragment, min HTML length)
+# Note: 404 page is tested separately by TestDisplay2K404Page (expects HTTP 404).
 PAGES = [
     ("Dashboard", "/dashboard", ">Dashboard<", 500),
     ("Sessions List", "/sessions", ">Sessions<", 500),
     ("Agents", "/agents", ">Agents<", 500),
     ("Projects", "/projects", ">Projects<", 500),
+    ("Glossary", "/glossary", "Token Glossary", 500),
 ]
 
 
@@ -327,3 +329,129 @@ class TestDisplay2KCSSSupport:
         has_layout = "grid" in content or "flex" in content or "display" in content
         assert has_layout, \
             "dashboard.css must contain layout rules"
+
+
+# ─── Tests: Session Detail at 2560x1440 ─────────────────────────────
+
+
+class TestDisplay2KSessionDetailPage:
+    """Session Detail page structural checks at 2560x1440 using fixture session."""
+
+    def test_session_detail_page_loads(self, display_2k_smoke_server):
+        """Session Detail page must return HTTP 200."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/sessions/claude_code/hifi-viz-session-001")
+        assert status == 200, f"Session Detail returned HTTP {status}"
+        assert len(html) >= 500, "Session Detail HTML too short"
+
+    def test_session_detail_has_hero(self, display_2k_smoke_server):
+        """Session Detail must have a hero/header section."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/sessions/claude_code/hifi-viz-session-001")
+        assert status == 200
+        assert "sd-hero" in html or "session-detail" in html.lower(), \
+            "Session Detail must have hero or session-detail section"
+
+    def test_session_detail_has_tabs(self, display_2k_smoke_server):
+        """Session Detail must have tab navigation."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/sessions/claude_code/hifi-viz-session-001")
+        assert status == 200
+        assert "sd-tabs" in html or "tab" in html.lower(), \
+            "Session Detail must have tab navigation"
+
+    def test_session_detail_has_trace_panel(self, display_2k_smoke_server):
+        """Session Detail must have a trace panel."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/sessions/claude_code/hifi-viz-session-001")
+        assert status == 200
+        assert "trace" in html.lower() or "round" in html.lower(), \
+            "Session Detail must have trace/round content"
+
+
+# ─── Tests: Glossary at 2560x1440 ───────────────────────────────────
+
+
+class TestDisplay2KGlossary:
+    """Glossary page structural checks at 2560x1440."""
+
+    def test_glossary_page_loads(self, display_2k_smoke_server):
+        """Glossary page must return HTTP 200."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/glossary")
+        assert status == 200, f"Glossary returned HTTP {status}"
+        assert len(html) >= 500, "Glossary page HTML too short"
+
+    def test_glossary_has_metric_grid(self, display_2k_smoke_server):
+        """Glossary must have a metric grid."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/glossary")
+        assert status == 200
+        assert 'class="metric-grid"' in html, \
+            "Glossary must have a metric-grid section"
+
+    def test_glossary_has_filter_card(self, display_2k_smoke_server):
+        """Glossary must have a filter/search card."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/glossary")
+        assert status == 200
+        assert "filter-card" in html or "search" in html.lower(), \
+            "Glossary must have a filter/search card"
+
+    def test_glossary_has_data_tables(self, display_2k_smoke_server):
+        """Glossary must have data tables."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/glossary")
+        assert status == 200
+        assert 'class="data-table' in html, \
+            "Glossary must have at least one data-table"
+
+    def test_glossary_has_token_terms(self, display_2k_smoke_server):
+        """Glossary must contain token-related terminology."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/glossary")
+        assert status == 200
+        assert "Token" in html or "token" in html, \
+            "Glossary must contain token terminology"
+
+
+# ─── Tests: 404 Error Page at 2560x1440 ─────────────────────────────
+
+
+class TestDisplay2K404Page:
+    """404 error page structural checks at 2560x1440."""
+
+    def test_404_page_returns_404_status(self, display_2k_smoke_server):
+        """404 page must return HTTP 404 status."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/__test-404-not-found__")
+        assert status == 404, f"Expected HTTP 404, got {status}"
+
+    def test_404_page_renders_meaningful_html(self, display_2k_smoke_server):
+        """404 page must contain meaningful HTML content."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/__test-404-not-found__")
+        assert len(html) > 200, "404 HTML must be substantial"
+
+    def test_404_page_has_not_found_text(self, display_2k_smoke_server):
+        """404 page must show 'Not Found' text."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/__test-404-not-found__")
+        assert "Not Found" in html or "not found" in html, \
+            "404 page must contain 'Not Found' text"
+
+    def test_404_page_has_state_panel(self, display_2k_smoke_server):
+        """404 page must use shared state-panel component."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/__test-404-not-found__")
+        assert status == 404
+        assert 'class="state-panel"' in html, \
+            "404 page must have state-panel container"
+
+    def test_404_page_has_dashboard_link(self, display_2k_smoke_server):
+        """404 page must link back to dashboard."""
+        base_url = display_2k_smoke_server
+        status, html = fetch_page(base_url, "/__test-404-not-found__")
+        assert status == 404
+        assert "/dashboard" in html, \
+            "404 page must link to /dashboard"

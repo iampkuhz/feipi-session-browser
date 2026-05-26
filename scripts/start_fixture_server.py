@@ -24,6 +24,8 @@ FIXTURE_ROOT = os.path.join(SB_ROOT, "tests", "fixtures", "session_hifi_fixture"
 LONG_FIXTURE_ROOT = os.path.join(SB_ROOT, "tests", "fixtures", "session_hifi_long_fixture")
 PORT = 18999
 VENV_PYTHON = os.path.join(SB_ROOT, ".venv", "bin", "python")
+if not os.path.exists(VENV_PYTHON):
+    VENV_PYTHON = sys.executable
 
 
 def populate_index(claude_data_dir, sqlite_path):
