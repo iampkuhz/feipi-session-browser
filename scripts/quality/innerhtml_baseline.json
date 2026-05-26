@@ -123,19 +123,19 @@
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 185,
+      "line": 190,
       "isClear": false,
       "snippet": "modal.innerHTML = ["
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 217,
+      "line": 222,
       "isClear": false,
       "snippet": "body.innerHTML = (source.tagName && source.tagName.toLowerCase() === \"template\")"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 221,
+      "line": 226,
       "isClear": false,
       "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title, kind);"
     },

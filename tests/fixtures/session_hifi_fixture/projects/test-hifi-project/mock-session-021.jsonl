@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": "Implement anomaly detection"}, "timestamp": "2026-04-24T10:20:00.000Z"}
+{"type": "assistant", "message": {"model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "Working on task 21..."}], "usage": {"input_tokens": 9000, "output_tokens": 1800, "cache_read_input_tokens": 60000, "cache_creation_input_tokens": 30000}, "stop_reason": "end_turn"}, "timestamp": "2026-04-24T10:20:05.000Z"}

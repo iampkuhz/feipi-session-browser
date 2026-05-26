@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": "Fix trace panel overflow"}, "timestamp": "2026-04-24T10:26:00.000Z"}
+{"type": "assistant", "message": {"model": "gpt-4o", "role": "assistant", "content": [{"type": "text", "text": "Working on task 27..."}], "usage": {"input_tokens": 10200, "output_tokens": 2100, "cache_read_input_tokens": 78000, "cache_creation_input_tokens": 39000}, "stop_reason": "end_turn"}, "timestamp": "2026-04-24T10:26:05.000Z"}

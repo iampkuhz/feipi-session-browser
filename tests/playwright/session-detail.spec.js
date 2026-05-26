@@ -344,51 +344,54 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(correspondingDetail).toBeVisible({ timeout: 3000 });
   });
 
+  /**
+   * 共享 setup：导航到 session 页面、展开所有轮次、查找 payload 按钮。
+   * 返回 { payloadBtn, modal } 或 null（无可测 payload 按钮时）。
+   */
+  async function preparePayloadModal(page, viewportSize) {
+    if (viewportSize) {
+      await page.setViewportSize(viewportSize);
+    }
+    await page.goto(sessionUrl, { waitUntil: 'load', timeout: 30000 });
+    await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+
+    const expandBtn = page.locator('[data-action="expand-all"], [data-action="toggle-all"], [data-action="collapse-all"]');
+    if (await expandBtn.count() > 0) {
+      await expandBtn.first().click();
+      // 等待至少一个轮次详情渲染，替代盲等固定时间
+      await page.locator('[data-trace-detail]').first().waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
+    }
+
+    const payloadBtn = page.locator('button[data-action="open-payload"]').first();
+    if (await payloadBtn.count() === 0) {
+      console.log('本会话无 payload 按钮；跳过 payload 弹窗测试。');
+      return null;
+    }
+
+    const modal = page.locator('dialog.payload-modal');
+    return { payloadBtn, modal };
+  }
+
   test('payload 弹窗正常打开和关闭', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 payload 弹窗测试。');
       test.skip();
     }
 
-    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    const setup = await preparePayloadModal(page);
+    if (!setup) return;
 
-    // 展开所有轮次以查找 payload 按钮
-    const expandBtn = page.locator('[data-action="expand-all"], [data-action="toggle-all"], [data-action="collapse-all"]');
-    const hasExpandBtn = await expandBtn.count().then(c => c > 0);
-    if (hasExpandBtn) {
-      await expandBtn.first().click();
-      await page.waitForTimeout(200);
-    }
-
-    // 查找 open-payload 按钮
-    const payloadBtn = page.locator('button[data-action="open-payload"]').first();
-    const hasPayloadBtn = await payloadBtn.count().then(c => c > 0);
-
-    if (!hasPayloadBtn) {
-      console.log('本会话无 payload 按钮；跳过 payload 弹窗测试。');
-      return;
-    }
-
-    // 使用 dialog.payload-modal 选择器（打开后 JS 会将 id 改为 sd-payload-modal）
-    const modal = page.locator('dialog.payload-modal');
+    const { payloadBtn, modal } = setup;
 
     // 初始弹窗应隐藏
     await expect(modal).toBeHidden({ timeout: 3000 });
 
-    // 点击打开
+    // 点击打开 → 断言弹窗打开（event-driven，不等固定时间）
     await payloadBtn.click();
-    await page.waitForTimeout(300);
-
-    // 弹窗应打开（open 属性存在）
     await expect(modal).toHaveAttribute('open', { timeout: 5000 });
 
-    // 点击关闭
-    const closeBtn = page.locator('[data-action="close-modal"], [data-action="close-payload"]');
-    await closeBtn.first().click();
-    await page.waitForTimeout(200);
-
-    // 弹窗应关闭
+    // 点击关闭 → 断言弹窗隐藏
+    await page.locator('[data-action="close-modal"], [data-action="close-payload"]').first().click();
     await expect(modal).toBeHidden({ timeout: 5000 });
   });
 
@@ -398,35 +401,16 @@ test.describe('会话详情 — Phase 1', () => {
       test.skip();
     }
 
-    await page.setViewportSize({ width: 1440, height: 1100 });
-    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    const setup = await preparePayloadModal(page, { width: 1440, height: 1100 });
+    if (!setup) return;
 
-    // 展开所有轮次以查找 payload 按钮
-    const expandBtn = page.locator('[data-action="expand-all"], [data-action="toggle-all"], [data-action="collapse-all"]');
-    const hasExpandBtn = await expandBtn.count().then(c => c > 0);
-    if (hasExpandBtn) {
-      await expandBtn.first().click();
-      await page.waitForTimeout(200);
-    }
+    const { payloadBtn, modal } = setup;
 
-    // 查找 open-payload 按钮
-    const payloadBtn = page.locator('button[data-action="open-payload"]').first();
-    const hasPayloadBtn = await payloadBtn.count().then(c => c > 0);
-
-    if (!hasPayloadBtn) {
-      console.log('本会话无 payload 按钮；跳过 payload 弹窗尺寸测试。');
-      return;
-    }
-
-    // 使用 dialog.payload-modal 选择器（打开后 JS 会将 id 改为 sd-payload-modal）
-    const modal = page.locator('dialog.payload-modal');
-
-    // 点击打开 payload 弹窗
+    // 打开弹窗（event-driven 等待）
     await payloadBtn.click();
     await expect(modal).toHaveAttribute('open', { timeout: 5000 });
 
-    // 读取 panel 的 boundingBox（使用 class 选择器，不依赖 id）
+    // 读取 panel 的 boundingBox
     const panelBox = await page.evaluate(() => {
       const panel = document.querySelector('dialog.payload-modal .payload-modal__panel');
       if (!panel) return null;
@@ -468,9 +452,8 @@ test.describe('会话详情 — Phase 1', () => {
     const bodyScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(bodyScrollWidth, `body 不应有水平滚动 (scrollWidth=${bodyScrollWidth}, viewport=${vw})`).toBeLessThanOrEqual(vw + 2);
 
-    // 关闭弹窗
-    const closeBtn = page.locator('[data-action="close-modal"], [data-action="close-payload"]');
-    await closeBtn.first().click();
+    // 关闭弹窗（event-driven）
+    await page.locator('[data-action="close-modal"], [data-action="close-payload"]').first().click();
     await expect(modal).toBeHidden({ timeout: 5000 });
   });
 

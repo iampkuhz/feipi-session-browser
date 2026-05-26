@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": "Implement session export wizard"}, "timestamp": "2026-04-24T10:40:00.000Z"}
+{"type": "assistant", "message": {"model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "Working on task 41..."}], "usage": {"input_tokens": 13000, "output_tokens": 2800, "cache_read_input_tokens": 120000, "cache_creation_input_tokens": 60000}, "stop_reason": "end_turn"}, "timestamp": "2026-04-24T10:40:05.000Z"}

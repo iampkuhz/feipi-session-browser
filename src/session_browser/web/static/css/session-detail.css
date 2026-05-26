@@ -1328,6 +1328,9 @@ shift dot left to align with the container timeline line */
   border-radius: 999px;
 }
 /* round-row base states */
+.round-row.is-filtered-out {
+  display: none;
+}
 .round-row.is-open {
   background: #f7f9ff;
   box-shadow: inset 3px 0 0 var(--sd-brand);

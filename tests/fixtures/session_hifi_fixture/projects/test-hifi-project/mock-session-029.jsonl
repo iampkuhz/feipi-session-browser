@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": "Improve payload viewer"}, "timestamp": "2026-04-24T10:28:00.000Z"}
+{"type": "assistant", "message": {"model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "Working on task 29..."}], "usage": {"input_tokens": 10600, "output_tokens": 2200, "cache_read_input_tokens": 84000, "cache_creation_input_tokens": 42000}, "stop_reason": "end_turn"}, "timestamp": "2026-04-24T10:28:05.000Z"}

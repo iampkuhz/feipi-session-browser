@@ -12,13 +12,17 @@
     return String(value || "").replace(/["\\]/g, "\\$&");
   }
 
+  function isRoundVisible(round) {
+    return !round.hidden && !round.classList.contains('is-filtered-out');
+  }
+
   function syncToggleAllButton(page) {
     var btn = qs(page, '[data-action="toggle-all"]');
     if (!btn) return;
     var rounds = qsa(page, '[data-trace-round-row]');
     var anyOpen = false;
     for (var i = 0; i < rounds.length; i++) {
-      if (!rounds[i].hidden && rounds[i].classList.contains('is-open')) {
+      if (isRoundVisible(rounds[i]) && rounds[i].classList.contains('is-open')) {
         anyOpen = true;
         break;
       }
@@ -71,7 +75,7 @@
     // Toggle round-row visibility
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
       var shouldShow = status === 'all' || (round.getAttribute('data-status') || '').toLowerCase() === status;
-      round.hidden = !shouldShow;
+      round.classList.toggle('is-filtered-out', !shouldShow);
     });
   }
 
@@ -83,7 +87,7 @@
 
   function expandAll(page) {
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
-      if (!round.hidden) setRoundOpen(round, true);
+      if (isRoundVisible(round)) setRoundOpen(round, true);
     });
   }
 
@@ -92,7 +96,7 @@
     var rounds = qsa(page, '[data-trace-round-row]');
     var anyOpen = false;
     for (var i = 0; i < rounds.length; i++) {
-      if (!rounds[i].hidden && rounds[i].classList.contains('is-open')) {
+      if (isRoundVisible(rounds[i]) && rounds[i].classList.contains('is-open')) {
         anyOpen = true;
         break;
       }
@@ -115,6 +119,7 @@
   function jumpRound(page, roundId) {
     var round = qs(page, '[data-trace-round-row][data-round="' + roundId + '"]');
     if (!round) return;
+    round.classList.remove('is-filtered-out');
     round.hidden = false;
     setRoundOpen(round, true);
     round.scrollIntoView({ block: 'center', behavior: 'smooth' });

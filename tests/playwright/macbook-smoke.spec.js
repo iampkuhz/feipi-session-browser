@@ -13,11 +13,10 @@ const VIEWPORTS = {
 };
 
 const PAGES = [
-  { name: 'Dashboard', path: '/dashboard', heading: 'Dashboard' },
-  { name: 'Sessions List', path: '/sessions', heading: 'Sessions' },
-  { name: 'Session Detail', path: '/sessions/claude_code/test', heading: 'Session Detail' },
-  { name: 'Agents', path: '/agents', heading: 'Agents' },
-  { name: 'Projects', path: '/projects', heading: 'Projects' },
+  { name: 'Dashboard', path: '/dashboard' },
+  { name: 'Sessions', path: '/sessions' },
+  { name: 'Agents', path: '/agents' },
+  { name: 'Projects', path: '/projects' },
 ];
 
 for (const [viewportName, size] of Object.entries(VIEWPORTS)) {

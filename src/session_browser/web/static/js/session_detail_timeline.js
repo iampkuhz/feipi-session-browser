@@ -28,13 +28,13 @@
   }
 
   function setFilter(page, status) {
-    qsa(page, '[data-action="filter-status"]').forEach(function (b) {
+    qsa(page, '.trace-panel__chip[data-status], .sd-seg-btn[data-action^="status-"]').forEach(function (b) {
       b.classList.toggle('is-active', (b.getAttribute('data-status') || '').toLowerCase() === status);
     });
 
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
       var shouldShow = status === 'all' || (round.getAttribute('data-status') || '').toLowerCase() === status;
-      round.hidden = !shouldShow;
+      round.classList.toggle('is-filtered-out', !shouldShow);
     });
   }
 
@@ -163,10 +163,10 @@
       event.preventDefault();
       event.stopPropagation();
       toggleRound(actionEl);
-    } else if (action === 'filter-status') {
+    } else if (action === 'status-all' || action === 'status-failed') {
       event.preventDefault();
       event.stopPropagation();
-      setFilter(page, (actionEl.getAttribute('data-status') || 'all').toLowerCase());
+      setFilter(page, action.replace('status-', '').toLowerCase());
     } else if (action === 'collapse-all') {
       event.preventDefault();
       event.stopPropagation();

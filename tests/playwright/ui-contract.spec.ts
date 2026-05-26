@@ -75,7 +75,7 @@ for (const vp of viewports) {
     await page.goto(sessionUrl);
 
     // 核心结构可见：hero、标签页、trace 表格
-    await expect(page.locator('.hero').first()).toBeVisible();
+    await expect(page.locator('.sd-hero').first()).toBeVisible();
     await expect(page.locator('.sd-tabs')).toBeVisible();
     await expect(page.locator('[data-trace-panel]')).toBeVisible();
 

@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": "Implement session diff view"}, "timestamp": "2026-04-24T10:24:00.000Z"}
+{"type": "assistant", "message": {"model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "Working on task 25..."}], "usage": {"input_tokens": 9800, "output_tokens": 2000, "cache_read_input_tokens": 72000, "cache_creation_input_tokens": 36000}, "stop_reason": "end_turn"}, "timestamp": "2026-04-24T10:24:05.000Z"}

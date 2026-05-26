@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": "Add token cost estimation"}, "timestamp": "2026-04-24T10:16:00.000Z"}
+{"type": "assistant", "message": {"model": "claude-sonnet-4-20250514", "role": "assistant", "content": [{"type": "text", "text": "Working on task 17..."}], "usage": {"input_tokens": 8200, "output_tokens": 1600, "cache_read_input_tokens": 48000, "cache_creation_input_tokens": 24000}, "stop_reason": "end_turn"}, "timestamp": "2026-04-24T10:16:05.000Z"}
