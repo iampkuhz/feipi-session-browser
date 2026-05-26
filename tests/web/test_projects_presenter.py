@@ -322,14 +322,16 @@ class TestBuildProjectDetailViewModel:
     def _make_mock_conn(self):
         return MagicMock()
 
+    @patch("session_browser.web.presenters.projects.count_sessions")
     @patch("session_browser.web.presenters.projects.get_project_stats")
     @patch("session_browser.web.presenters.projects.list_sessions")
     def test_detail_view_model_has_required_keys(
-        self, mock_list_sessions, mock_stats,
+        self, mock_list_sessions, mock_stats, mock_count,
     ):
         conn = self._make_mock_conn()
         mock_stats.return_value = MagicMock()
         mock_list_sessions.return_value = []
+        mock_count.return_value = 0
 
         result = build_project_detail_view_model(conn, "test-project")
 

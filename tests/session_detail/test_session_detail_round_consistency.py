@@ -344,3 +344,249 @@ class TestQoderFileNotFoundRoundConsistency:
                 )
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestDbCanonicalMergeStrategy:
+    """SD-14: DB summary is canonical. raw parse must NOT overwrite confirmed fields.
+
+    The session detail endpoint merges raw_summary (fresh parse) with the
+    DB session (indexed canonical data). The merge strategy must be:
+    - DB fields that are non-zero are authoritative -- do NOT overwrite.
+    - raw_summary only supplements fields that are empty/null/zero in DB.
+    - assistant_message_count (round count) must stay consistent between
+      list page and detail page.
+    """
+
+    def test_db_canonical_assistant_count_not_overwritten_by_zero(self):
+        """If DB has assistant_message_count=3, raw_summary=0 must NOT overwrite it."""
+        from session_browser.domain.models import SessionSummary
+        from session_browser.web.routes import _merge_raw_into_db_summary
+
+        db_summary = SessionSummary(
+            agent="qoder",
+            session_id="test-session-001",
+            title="Test Session",
+            project_key="test-project",
+            project_name="Test Project",
+            cwd="/tmp/test",
+            started_at="2026-05-02T14:00:00Z",
+            ended_at="2026-05-02T14:05:00Z",
+            duration_seconds=300.0,
+            model_execution_seconds=250.0,
+            tool_execution_seconds=50.0,
+            model="qwen3.6-plus",
+            git_branch="main",
+            source="",
+            user_message_count=2,
+            assistant_message_count=3,
+            tool_call_count=1,
+            input_tokens=350,
+            output_tokens=60,
+            cached_input_tokens=0,
+            cached_output_tokens=0,
+            failed_tool_count=0,
+            file_path="/tmp/test.jsonl",
+        )
+
+        raw_summary = SessionSummary(
+            agent="qoder",
+            session_id="test-session-001",
+            title="",
+            project_key="",
+            project_name="",
+            cwd="",
+            started_at="",
+            ended_at="",
+            duration_seconds=0,
+            model_execution_seconds=0,
+            tool_execution_seconds=0,
+            model="",
+            git_branch="",
+            source="",
+            user_message_count=0,
+            assistant_message_count=0,
+            tool_call_count=0,
+            input_tokens=0,
+            output_tokens=0,
+            cached_input_tokens=0,
+            cached_output_tokens=0,
+            failed_tool_count=0,
+            file_path="",
+        )
+
+        result = _merge_raw_into_db_summary(db_summary, raw_summary)
+
+        assert result.assistant_message_count == 3, (
+            f"DB canonical assistant_message_count=3 must NOT be overwritten by raw=0. "
+            f"Got {result.assistant_message_count}. This is the SD-14 bug."
+        )
+        assert result.user_message_count == 2, "DB user_message_count must be preserved"
+        assert result.tool_call_count == 1, "DB tool_call_count must be preserved"
+        assert result.input_tokens == 350, "DB input_tokens must be preserved"
+        assert result.output_tokens == 60, "DB output_tokens must be preserved"
+
+    def test_raw_supplements_empty_db_fields(self):
+        """raw_summary must fill in DB fields that are zero/empty."""
+        from session_browser.domain.models import SessionSummary
+        from session_browser.web.routes import _merge_raw_into_db_summary
+
+        db_summary = SessionSummary(
+            agent="qoder",
+            session_id="test-session-002",
+            title="",
+            project_key="",
+            project_name="",
+            cwd="",
+            started_at="",
+            ended_at="2026-05-02T14:05:00Z",
+            duration_seconds=0,
+            model_execution_seconds=0,
+            tool_execution_seconds=0,
+            model="",
+            git_branch="",
+            source="",
+            user_message_count=0,
+            assistant_message_count=0,
+            tool_call_count=0,
+            input_tokens=0,
+            output_tokens=0,
+            cached_input_tokens=0,
+            cached_output_tokens=0,
+            failed_tool_count=0,
+            file_path="",
+        )
+
+        raw_summary = SessionSummary(
+            agent="qoder",
+            session_id="test-session-002",
+            title="Parsed Title",
+            project_key="parsed-project",
+            project_name="Parsed Project",
+            cwd="/tmp/parsed",
+            started_at="2026-05-02T14:00:00Z",
+            ended_at="2026-05-02T14:05:00Z",
+            duration_seconds=300.0,
+            model_execution_seconds=250.0,
+            tool_execution_seconds=50.0,
+            model="qwen3.6-plus",
+            git_branch="main",
+            source="",
+            user_message_count=2,
+            assistant_message_count=3,
+            tool_call_count=1,
+            input_tokens=350,
+            output_tokens=60,
+            cached_input_tokens=100,
+            cached_output_tokens=20,
+            failed_tool_count=0,
+            file_path="/tmp/parsed.jsonl",
+        )
+
+        result = _merge_raw_into_db_summary(db_summary, raw_summary)
+
+        assert result.assistant_message_count == 3
+        assert result.user_message_count == 2
+        assert result.tool_call_count == 1
+        assert result.input_tokens == 350
+        assert result.output_tokens == 60
+        assert result.cached_input_tokens == 100
+        assert result.cached_output_tokens == 20
+        assert result.duration_seconds == 300.0
+
+    def test_raw_none_returns_db_unchanged(self):
+        """When raw_summary is None, DB summary must be returned as-is."""
+        from session_browser.domain.models import SessionSummary
+        from session_browser.web.routes import _merge_raw_into_db_summary
+
+        db_summary = SessionSummary(
+            agent="claude_code",
+            session_id="claude-session-001",
+            title="Claude Session",
+            project_key="claude-project",
+            project_name="Claude Project",
+            cwd="/tmp/claude",
+            started_at="2026-05-02T14:00:00Z",
+            ended_at="2026-05-02T14:05:00Z",
+            duration_seconds=300.0,
+            model_execution_seconds=250.0,
+            tool_execution_seconds=50.0,
+            model="claude-sonnet-4-20250514",
+            git_branch="main",
+            source="",
+            user_message_count=5,
+            assistant_message_count=8,
+            tool_call_count=10,
+            input_tokens=1000,
+            output_tokens=500,
+            cached_input_tokens=200,
+            cached_output_tokens=100,
+            failed_tool_count=1,
+            file_path="/tmp/claude.jsonl",
+        )
+
+        result = _merge_raw_into_db_summary(db_summary, None)
+
+        assert result is db_summary, "DB summary must be returned unchanged when raw is None"
+
+    def test_raw_duration_used_when_db_duration_is_zero(self):
+        """duration_seconds should use raw value when DB has zero."""
+        from session_browser.domain.models import SessionSummary
+        from session_browser.web.routes import _merge_raw_into_db_summary
+
+        db_summary = SessionSummary(
+            agent="codex",
+            session_id="codex-session-001",
+            title="",
+            project_key="",
+            project_name="",
+            cwd="",
+            started_at="",
+            ended_at="2026-05-02T14:05:00Z",
+            duration_seconds=0,
+            model_execution_seconds=0,
+            tool_execution_seconds=0,
+            model="",
+            git_branch="",
+            source="",
+            user_message_count=0,
+            assistant_message_count=0,
+            tool_call_count=0,
+            input_tokens=0,
+            output_tokens=0,
+            cached_input_tokens=0,
+            cached_output_tokens=0,
+            failed_tool_count=0,
+            file_path="",
+        )
+
+        raw_summary = SessionSummary(
+            agent="codex",
+            session_id="codex-session-001",
+            title="",
+            project_key="",
+            project_name="",
+            cwd="",
+            started_at="",
+            ended_at="2026-05-02T14:05:00Z",
+            duration_seconds=450.0,
+            model_execution_seconds=400.0,
+            tool_execution_seconds=50.0,
+            model="",
+            git_branch="",
+            source="",
+            user_message_count=0,
+            assistant_message_count=0,
+            tool_call_count=0,
+            input_tokens=0,
+            output_tokens=0,
+            cached_input_tokens=0,
+            cached_output_tokens=0,
+            failed_tool_count=0,
+            file_path="",
+        )
+
+        result = _merge_raw_into_db_summary(db_summary, raw_summary)
+
+        assert result.duration_seconds == 450.0, (
+            "raw duration should be used when DB duration is zero"
+        )

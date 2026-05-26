@@ -108,6 +108,37 @@ test.describe('会话列表页', () => {
     }
   });
 
+  test('next 一次到 page 2', async ({ page }) => {
+    // Regression test for S-09: duplicate JS listeners caused next click
+    // to jump from page 1 to page 3 instead of page 2.
+    await page.goto('/sessions?page=1');
+    await expect(page.locator('body')).toBeVisible();
+
+    const nextBtn = page.locator('.pagination [data-action="next-page"]');
+    await expect(nextBtn).toBeVisible();
+    await expect(nextBtn).not.toBeDisabled();
+
+    // Click next once
+    await nextBtn.click();
+
+    // Wait for URL to reflect page=2 (not page=3)
+    await page.waitForURL(/page=2/, { timeout: 10000 });
+
+    // Assert page=2 in URL
+    expect(page.url()).toMatch(/page=2/);
+
+    // Assert page input value is 2
+    await expect(page.locator('.page-input')).toHaveValue('2');
+
+    // Assert session rows are non-empty (data loaded)
+    const rows = page.locator('tr[data-action="row"], .sessions-row');
+    await expect(rows.first()).toBeVisible({ timeout: 10000 });
+
+    // Assert prev button is enabled (we are not on page 1)
+    const prevBtn = page.locator('.pagination [data-action="prev-page"]');
+    await expect(prevBtn).toBeEnabled();
+  });
+
   test('筛选表单提交并改变 URL', async ({ page }) => {
     await page.goto('/sessions');
     const searchInput = page.locator('#session-search');

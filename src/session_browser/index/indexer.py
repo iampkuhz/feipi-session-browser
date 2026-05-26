@@ -991,8 +991,20 @@ def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStat
     )
 
 
-def list_projects(conn: sqlite3.Connection, limit: int = 20) -> list[ProjectStats]:
-    """List projects sorted by most recent activity."""
+def count_projects(conn: sqlite3.Connection) -> int:
+    """Count total number of distinct projects."""
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT project_key) FROM sessions"
+    ).fetchone()
+    return row[0]
+
+
+def list_projects(
+    conn: sqlite3.Connection,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[ProjectStats]:
+    """List projects sorted by most recent activity with pagination."""
     rows = conn.execute(
         """
         SELECT
@@ -1015,9 +1027,9 @@ def list_projects(conn: sqlite3.Connection, limit: int = 20) -> list[ProjectStat
         FROM sessions
         GROUP BY project_key
         ORDER BY MAX(ended_at) DESC
-        LIMIT ?
+        LIMIT ? OFFSET ?
         """,
-        (limit,),
+        (limit, offset),
     ).fetchall()
 
     return [

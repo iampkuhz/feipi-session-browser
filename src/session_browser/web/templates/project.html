@@ -105,12 +105,21 @@
 <div class="page-section">
     {% if sessions %}
     {% set sessions_pagination %}
-    {% if current_page is not defined %}{% set current_page = 1 %}{% endif %}
-    {% if total_pages is not defined %}{% set total_pages = 1 %}{% endif %}
-    {{ ui.pagination(current_page, total_pages, total_items=sessions | length) }}
+    {{ ui.pagination(current_page | default(1), total_pages | default(1), total_items=total_count | default(sessions | length)) }}
     {% endset %}
     {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">&#9432;</button>', pagination_html=sessions_pagination) %}
-            <table id="project-sessions-table" class="data-table" data-table-enhanced>
+            <table id="project-sessions-table" class="data-table project-sessions-table" data-table-enhanced>
+            <colgroup>
+                <col class="col-title">
+                <col class="col-agent">
+                <col class="col-model">
+                <col class="col-tokens">
+                <col class="col-rounds">
+                <col class="col-tools">
+                <col class="col-failed">
+                <col class="col-duration">
+                <col class="col-updated">
+            </colgroup>
             <thead>
                 <tr>
                     <th>Title</th>
@@ -126,9 +135,9 @@
             </thead>
             <tbody>
                 {% for s in sessions %}
-                <tr data-action="open-session" data-href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
+                <tr data-action="open-session" data-href="/sessions/{{ s.agent }}/{{ s.session_id }}" data-title="{{ s.title }}" data-session-id="{{ s.session_id }}" class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
                     <td>
-                        <div class="title-main">{{ s.title[:70] or 'Untitled' }}</div>
+                        <div class="title-main"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="session-link">{{ s.title[:70] or 'Untitled' }}</a></div>
                         <div class="title-sub mono">
                             {{ s.session_id[-8:] if s.session_id else 'unknown' }}
                             <button class="btn small" data-action="copy" data-copy-text="{{ s.session_id }}" aria-label="Copy session ID" title="复制 Session ID">
@@ -185,7 +194,7 @@
                             out_pct_val=s_out_pct
                         ) }}
                     {% endif %}
-                    <td class="num mono">—</td>
+                    <td class="num mono">{{ s.assistant_message_count | format_number }}</td>
                     <td class="num mono">{{ s.tool_call_count | format_number }}</td>
                     <td class="{{ 'muted' if s.failed_tool_count == 0 else '' }}">
                         {% if s.failed_tool_count > 0 %}

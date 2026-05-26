@@ -36,26 +36,9 @@ overrides below. */
   margin-top: 12px;
 }
 /* ── Table toolbar (T103: migrated from .card-title.flex) ─── */
-.table-card {
-  overflow: hidden;
-}
-.table-toolbar {
-  height: 48px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
-}
-.table-title {
-  font-size: 16px;
-  font-weight: 850;
-}
-.table-note {
-  font-size: 12px;
-  color: var(--text-subtle);
-  font-weight: 650;
-}
+/* NOTE: .table-card overflow, .table-toolbar, .table-title,
+   and .table-note are defined in ui-primitives.css.
+   Do not redefine them here to avoid cascade conflicts. */
 /* ── Sortable th elements (T117: project detail table headers) ── */
 th.sortable,
 th.numeric.sortable {
@@ -295,6 +278,13 @@ th.sortable:hover {
 #projects-empty.is-hidden {
   display: none;
 }
+/* T090: Empty state inside .table-wrap must break out of
+   horizontal scroll context and get proper card spacing.
+   Uses .state-strip tokens from ui-primitives.css. */
+.table-wrap > #projects-empty {
+  overflow-x: visible;
+  margin: 12px 0 4px;
+}
 /* ── Emoji size classes (T106: icon size contract) ────────── */
 /* These classes document and enforce the icon sizing contract.
 * Actual rendered size may be governed by the parent container
@@ -393,11 +383,38 @@ th.sortable:hover {
   background: var(--red-soft);
 }
 /* ── Project detail: sessions table toolbar ─────────────────── */
-/* card-title standalone (project detail uses .card-title without .table-toolbar) */
-.page-section .card-title {
-  font-size: 16px;
-  font-weight: 860;
-  margin-bottom: 8px;
+/* T086: Removed .page-section .card-title override that added
+   margin-bottom and disrupted table-card toolbar layout.
+   .card-title sizing is governed by ui-primitives.css. */
+/* ── Project sessions table column widths (T086) ───────────── */
+/* Column min-widths via CSS classes, not inline styles,
+   to satisfy the layout-inline-style quality gate. */
+.project-sessions-table col.col-title {
+  min-width: 280px;
+}
+.project-sessions-table col.col-agent {
+  min-width: 0;
+}
+.project-sessions-table col.col-model {
+  min-width: 0;
+}
+.project-sessions-table col.col-tokens {
+  min-width: 170px;
+}
+.project-sessions-table col.col-rounds {
+  min-width: 70px;
+}
+.project-sessions-table col.col-tools {
+  min-width: 70px;
+}
+.project-sessions-table col.col-failed {
+  min-width: 80px;
+}
+.project-sessions-table col.col-duration {
+  min-width: 80px;
+}
+.project-sessions-table col.col-updated {
+  min-width: 0;
 }
 /* ── Agent dot alias for projects.css scope ─────────────────── */
 /* project.html uses .agent-dot (global style), align with .dot here */

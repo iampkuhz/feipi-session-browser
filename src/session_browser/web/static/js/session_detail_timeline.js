@@ -60,20 +60,33 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  function diagnosticPayloadHtml(payloadId, title) {
+  function diagnosticPayloadHtml(payloadId, title, kind) {
+    var kindLabel = kind || "unknown";
+    var idDisplay = payloadId || "(未提供)";
+    var reasonLines = [];
+    if (!payloadId) {
+      reasonLines.push("当前会话数据源未生成此 payload ID");
+    } else {
+      reasonLines.push("模板中未找到匹配的 data-payload-source=\"" + escapeHtml(payloadId) + "\"");
+    }
+    reasonLines.push("可能原因：");
+    reasonLines.push("  - 后端 payload_index 未为此 LLM 调用注册上下文/响应");
+    reasonLines.push("  - request_full / response_full 在数据源中为空");
+    reasonLines.push("  - 模板 payload_sources 循环遗漏了该条目");
     return [
       '<div class="sd-payload-warning payload-warning">',
-      '  未找到 payload 内容。按钮必须保留；当前显示诊断而不是空白。',
-      '  请检查 data-payload-id 与 template[data-payload-source] 映射，',
-      '  以及后端是否创建 diagnostic payload。',
+      '  未找到 payload 内容。当前显示诊断信息而不是空白。',
       '</div>',
       '<section class="sd-payload-section payload-section"><h3>Requested payload</h3>',
       '  <pre>', escapeHtml(title || "Payload"), '</pre>',
       '</section>',
       '<section class="sd-payload-section payload-section"><h3>Metadata</h3>',
-      '  <div class="sd-kv"><span>payload id</span><span title="' + escapeHtml(payloadId || "—") + '">' + escapeHtml(payloadId || "—") + '</span></div>',
-      '  <div class="sd-kv"><span>kind</span><span>diagnostic</span></div>',
+      '  <div class="sd-kv"><span>payload id</span><span title="' + escapeHtml(idDisplay) + '">' + escapeHtml(idDisplay) + '</span></div>',
+      '  <div class="sd-kv"><span>kind</span><span>' + escapeHtml(kindLabel) + '</span></div>',
       '  <div class="sd-kv"><span>status</span><span>missing source</span></div>',
+      '</section>',
+      '<section class="sd-payload-section payload-section"><h3>Possible reasons</h3>',
+      '  <pre>', reasonLines.join('\n'), '</pre>',
       '</section>'
     ].join("");
   }
@@ -104,6 +117,7 @@
     var modal = ensurePayloadModal();
     var payloadId = button.getAttribute("data-payload-id") || "";
     var title = button.getAttribute("data-payload-title") || button.textContent.trim() || "Payload";
+    var kind = button.getAttribute("data-payload-kind") || "";
     var source = payloadId
       ? qs(document, 'template[data-payload-source="' + cssEscape(payloadId) + '"], [data-payload-source="' + cssEscape(payloadId) + '"]')
       : null;
@@ -121,7 +135,7 @@
           ? source.innerHTML
           : source.innerHTML;
       } else {
-        body.innerHTML = diagnosticPayloadHtml(payloadId, title);
+        body.innerHTML = diagnosticPayloadHtml(payloadId, title, kind);
       }
     }
 

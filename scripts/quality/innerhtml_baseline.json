@@ -123,39 +123,39 @@
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 170,
+      "line": 185,
       "isClear": false,
       "snippet": "modal.innerHTML = ["
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 201,
+      "line": 217,
       "isClear": false,
       "snippet": "body.innerHTML = (source.tagName && source.tagName.toLowerCase() === \"template\")"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 205,
+      "line": 221,
       "isClear": false,
-      "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title);"
+      "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title, kind);"
     },
     {
       "file": "src/session_browser/web/static/js/session_detail_timeline.js",
-      "line": 89,
+      "line": 102,
       "isClear": false,
       "snippet": "modal.innerHTML = ["
     },
     {
       "file": "src/session_browser/web/static/js/session_detail_timeline.js",
-      "line": 120,
+      "line": 134,
       "isClear": false,
       "snippet": "body.innerHTML = (source.tagName && source.tagName.toLowerCase() === \"template\")"
     },
     {
       "file": "src/session_browser/web/static/js/session_detail_timeline.js",
-      "line": 124,
+      "line": 138,
       "isClear": false,
-      "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title);"
+      "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title, kind);"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",

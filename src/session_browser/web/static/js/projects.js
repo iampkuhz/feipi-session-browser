@@ -60,6 +60,11 @@
         if (countEl) countEl.textContent = visibleCount;
         var label = document.getElementById('projects-count-label');
         if (label) label.textContent = visibleCount + ' projects';
+
+        // Update filter footer match count
+        var matchEl = document.getElementById('projects-match-count');
+        if (matchEl) matchEl.textContent = visibleCount + ' matching projects';
+
         var empty = document.getElementById('projects-empty');
         if (empty) {
             if (visibleCount === 0 && rows.length > 0) {
@@ -126,12 +131,13 @@
     }
 
     function updateFilterChip(query) {
-        var chip = document.querySelector('.active-filters .filter-chip');
+        var chip = document.querySelector('#projects-active-filters .filter-chip');
         if (!chip) return;
         if (query) {
             chip.textContent = 'Search: ' + query;
+            chip.classList.remove('is-hidden');
         } else {
-            chip.textContent = 'Search: none';
+            chip.classList.add('is-hidden');
         }
     }
 
@@ -148,20 +154,24 @@
         currentSort = { key: null, ascending: false };
         updateSortIndicators();
         filterProjects();
-        arpStorage.remove('projects_search');
+        if (typeof arpStorage !== 'undefined') {
+            arpStorage.remove('projects_search');
+        }
         updateFilterChip('');
     };
 
     /* ── List page event binding ────────────────────────────── */
     var searchEl = document.getElementById('project-search');
 
-    var savedSearch = arpStorage.get('projects_search');
+    var savedSearch = (typeof arpStorage !== 'undefined') ? arpStorage.get('projects_search') : null;
     if (savedSearch && searchEl) { searchEl.value = savedSearch; }
 
     // Real-time search on input (preserved behavior)
     if (searchEl) {
         searchEl.addEventListener('input', function() {
-            arpStorage.set('projects_search', searchEl.value);
+            if (typeof arpStorage !== 'undefined') {
+                arpStorage.set('projects_search', searchEl.value);
+            }
             filterProjects();
         });
     }
@@ -224,9 +234,13 @@
 
     if (detailTable) {
         /* ── Detail: search in table toolbar ──────────────────── */
-        var detailSearch = document.querySelector('#project-sessions-table [data-action="search"]')
-            || document.querySelector('.table-toolbar [data-action="search"]')
-            || document.getElementById('project-session-search');
+        var detailSection = detailTable.closest('.page-section') || detailTable.closest('.card');
+        var detailSearch = detailSection
+            ? detailSection.querySelector('.table-toolbar [data-action="search"]')
+            : null;
+        if (!detailSearch) {
+            detailSearch = document.querySelector('.table-toolbar [data-action="search"]');
+        }
 
         if (detailSearch) {
             detailSearch.addEventListener('input', function() {
@@ -234,8 +248,9 @@
                 var rows = detailTable.querySelectorAll('tbody tr');
                 var visibleCount = 0;
                 rows.forEach(function(row) {
-                    var title = (row.dataset.title || row.textContent || '').toLowerCase();
-                    var show = !q || title.indexOf(q) >= 0;
+                    var title = (row.dataset.title || '').toLowerCase();
+                    var sessionId = (row.dataset.sessionId || '').toLowerCase();
+                    var show = !q || title.indexOf(q) >= 0 || sessionId.indexOf(q) >= 0;
                     row.hidden = !show;
                     if (show) visibleCount++;
                 });
@@ -377,29 +392,36 @@
             });
         }
 
-        /* ── Detail: pagination handlers ─────────────────────── */
-        // Listen for page-change events from ui_primitives.js delegation
-        document.addEventListener('page-change', function (event) {
-            var detail = event.detail || {};
-            if (detail.page) {
-                navigateToPage(detail.page);
-            }
-        });
+    } // end if (detailTable)
 
-        // Listen for page-size-change events
-        document.addEventListener('page-size-change', function (event) {
-            var detail = event.detail || {};
-            if (detail.pageSize) {
-                var params = new URLSearchParams(window.location.search);
-                params.set('page_size', String(detail.pageSize));
-                params.set('page', '1');
-                window.location.search = params.toString();
-            }
-        });
+    /* ── Server-side pagination (both list and detail pages) ── */
+    // Scoped to projects pages only — do NOT activate on sessions-list
+    // where sessions-list.js handles pagination via AJAX.
+    function _isProjectsPage() {
+        return !!(document.getElementById('projects-table')
+            || document.getElementById('project-sessions-table'));
     }
 
+    document.addEventListener('page-change', function (event) {
+        if (!_isProjectsPage()) return;
+        var detail = event.detail || {};
+        if (detail.page) {
+            navigateToPage(detail.page);
+        }
+    });
+
+    document.addEventListener('page-size-change', function (event) {
+        if (!_isProjectsPage()) return;
+        var detail = event.detail || {};
+        if (detail.pageSize) {
+            var params = new URLSearchParams(window.location.search);
+            params.set('page_size', String(detail.pageSize));
+            params.set('page', '1');
+            window.location.search = params.toString();
+        }
+    });
+
     function navigateToPage(pageNum) {
-        // Update the URL with the page parameter
         var params = new URLSearchParams(window.location.search);
         params.set('page', pageNum.toString());
         window.location.search = params.toString();

@@ -204,23 +204,40 @@ class TestProjectsRoutePresenter:
 
     def test_projects_list_returns_expected_keys(self):
         conn = MagicMock()
-        with patch("session_browser.web.presenters.projects.list_projects") as mock_projects:
+        with patch("session_browser.web.presenters.projects.count_projects") as mock_count, \
+             patch("session_browser.web.presenters.projects.list_projects") as mock_projects:
+            mock_count.return_value = 0
             mock_projects.return_value = []
-            result = build_projects_view_model(conn)
+            result = build_projects_view_model({}, conn)
 
-        expected_keys = {"projects", "active_page"}
+        expected_keys = {
+            "projects", "active_page", "page", "current_page", "page_size",
+            "total_pages", "total_count", "page_start", "page_end",
+            "has_prev", "has_next",
+        }
         assert set(result.keys()) == expected_keys
         assert result["active_page"] == "projects"
+        assert result["page"] == 1
+        assert result["current_page"] == 1
+        assert result["page_size"] == 20
+        assert result["total_pages"] == 1
+        assert result["total_count"] == 0
 
     def test_project_detail_returns_expected_keys(self):
         conn = MagicMock()
-        with patch("session_browser.web.presenters.projects.get_project_stats") as mock_stats, \
+        with patch("session_browser.web.presenters.projects.count_sessions") as mock_count, \
+             patch("session_browser.web.presenters.projects.get_project_stats") as mock_stats, \
              patch("session_browser.web.presenters.projects.list_sessions") as mock_sessions:
+            mock_count.return_value = 0
             mock_stats.return_value = {"project_key": "test-proj", "session_count": 5}
             mock_sessions.return_value = []
             result = build_project_view_model(conn, "test-proj")
 
-        expected_keys = {"project", "sessions", "project_key", "active_page"}
+        expected_keys = {
+            "project", "sessions", "project_key", "active_page",
+            "page", "current_page", "page_size", "total_pages",
+            "total_count", "page_start", "page_end", "has_prev", "has_next",
+        }
         assert set(result.keys()) == expected_keys
         assert result["project_key"] == "test-proj"
         assert result["active_page"] == "projects"

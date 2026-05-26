@@ -370,16 +370,17 @@ test.describe('会话详情 — Phase 1', () => {
       return;
     }
 
-    const modal = page.locator('#payload-modal');
+    // 使用 dialog.payload-modal 选择器（打开后 JS 会将 id 改为 sd-payload-modal）
+    const modal = page.locator('dialog.payload-modal');
 
     // 初始弹窗应隐藏
     await expect(modal).toBeHidden({ timeout: 3000 });
 
     // 点击打开
     await payloadBtn.click();
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
 
-    // 弹窗应打开
+    // 弹窗应打开（open 属性存在）
     await expect(modal).toHaveAttribute('open', { timeout: 5000 });
 
     // 点击关闭
@@ -389,6 +390,177 @@ test.describe('会话详情 — Phase 1', () => {
 
     // 弹窗应关闭
     await expect(modal).toBeHidden({ timeout: 5000 });
+  });
+
+  test('payload 弹窗是居中 panel，不是全屏覆盖层', async ({ page }) => {
+    if (!sessionUrl) {
+      console.log('无测试会话 URL；跳过 payload 弹窗尺寸测试。');
+      test.skip();
+    }
+
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+
+    // 展开所有轮次以查找 payload 按钮
+    const expandBtn = page.locator('[data-action="expand-all"], [data-action="toggle-all"], [data-action="collapse-all"]');
+    const hasExpandBtn = await expandBtn.count().then(c => c > 0);
+    if (hasExpandBtn) {
+      await expandBtn.first().click();
+      await page.waitForTimeout(200);
+    }
+
+    // 查找 open-payload 按钮
+    const payloadBtn = page.locator('button[data-action="open-payload"]').first();
+    const hasPayloadBtn = await payloadBtn.count().then(c => c > 0);
+
+    if (!hasPayloadBtn) {
+      console.log('本会话无 payload 按钮；跳过 payload 弹窗尺寸测试。');
+      return;
+    }
+
+    // 使用 dialog.payload-modal 选择器（打开后 JS 会将 id 改为 sd-payload-modal）
+    const modal = page.locator('dialog.payload-modal');
+
+    // 点击打开 payload 弹窗
+    await payloadBtn.click();
+    await expect(modal).toHaveAttribute('open', { timeout: 5000 });
+
+    // 读取 panel 的 boundingBox（使用 class 选择器，不依赖 id）
+    const panelBox = await page.evaluate(() => {
+      const panel = document.querySelector('dialog.payload-modal .payload-modal__panel');
+      if (!panel) return null;
+      const rect = panel.getBoundingClientRect();
+      return {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.x + rect.width / 2,
+        centerY: rect.y + rect.height / 2,
+      };
+    });
+
+    expect(panelBox, 'panel 元素必须存在').not.toBeNull();
+
+    const viewport = page.viewportSize();
+    const vw = viewport.width;
+    const vh = viewport.height;
+    const w = panelBox.width;
+    const h = panelBox.height;
+
+    // 宽度必须小于视口宽度的 95%
+    expect(w, `panel 宽度 ${w}px 不应超过视口宽度的 95% (${vw * 0.95}px)`).toBeLessThan(vw * 0.95);
+
+    // 高度必须小于视口高度的 90%
+    expect(h, `panel 高度 ${h}px 不应超过视口高度的 90% (${vh * 0.90}px)`).toBeLessThan(vh * 0.90);
+
+    // 宽度必须 >= 480px（桌面端最小合理宽度）
+    expect(w, `panel 宽度 ${w}px 不应小于 480px`).toBeGreaterThanOrEqual(480);
+
+    // 中心点必须在视口内
+    expect(panelBox.centerX, `panel 中心 X (${panelBox.centerX}) 必须在视口内`).toBeGreaterThanOrEqual(0);
+    expect(panelBox.centerX, `panel 中心 X (${panelBox.centerX}) 必须在视口内`).toBeLessThanOrEqual(vw);
+    expect(panelBox.centerY, `panel 中心 Y (${panelBox.centerY}) 必须在视口内`).toBeGreaterThanOrEqual(0);
+    expect(panelBox.centerY, `panel 中心 Y (${panelBox.centerY}) 必须在视口内`).toBeLessThanOrEqual(vh);
+
+    // 页面 body 无水平滚动
+    const bodyScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(bodyScrollWidth, `body 不应有水平滚动 (scrollWidth=${bodyScrollWidth}, viewport=${vw})`).toBeLessThanOrEqual(vw + 2);
+
+    // 关闭弹窗
+    const closeBtn = page.locator('[data-action="close-modal"], [data-action="close-payload"]');
+    await closeBtn.first().click();
+    await expect(modal).toBeHidden({ timeout: 5000 });
+  });
+
+  // ── Tab 切换测试（SD-19） ─────────────────────────────────────────
+
+  test('点击 metrics tab 后 metrics 面板可见、trace 面板隐藏', async ({ page }) => {
+    if (!sessionUrl) {
+      console.log('无测试会话 URL；跳过 metrics tab 测试。');
+      test.skip();
+    }
+
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
+
+    // 验证初始状态：trace 面板可见
+    const tracePanel = page.locator('[data-tab-panel="trace"]');
+    await expect(tracePanel).toBeVisible({ timeout: 5000 });
+
+    // 点击 metrics tab
+    const metricsTab = page.locator('[data-tab="metrics"]');
+    await expect(metricsTab).toBeVisible({ timeout: 5000 });
+    await metricsTab.click();
+    await page.waitForTimeout(200);
+
+    // metrics tab 应激活
+    await expect(metricsTab).toHaveClass(/is-active/);
+
+    // metrics 面板应可见
+    const metricsPanel = page.locator('[data-tab-panel="metrics"]');
+    await expect(metricsPanel).toBeVisible({ timeout: 5000 });
+
+    // trace 面板应隐藏
+    await expect(tracePanel).toBeHidden({ timeout: 5000 });
+  });
+
+  test('点击 payloads tab 后 payloads 面板可见', async ({ page }) => {
+    if (!sessionUrl) {
+      console.log('无测试会话 URL；跳过 payloads tab 测试。');
+      test.skip();
+    }
+
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
+
+    // 点击 payloads tab
+    const payloadsTab = page.locator('[data-tab="payloads"]');
+    await expect(payloadsTab).toBeVisible({ timeout: 5000 });
+    await payloadsTab.click();
+    await page.waitForTimeout(200);
+
+    // payloads tab 应激活
+    await expect(payloadsTab).toHaveClass(/is-active/);
+
+    // payloads 面板应可见
+    const payloadsPanel = page.locator('[data-tab-panel="payloads"]');
+    await expect(payloadsPanel).toBeVisible({ timeout: 5000 });
+
+    // trace 面板应隐藏
+    const tracePanel = page.locator('[data-tab-panel="trace"]');
+    await expect(tracePanel).toBeHidden({ timeout: 5000 });
+  });
+
+  test('点击 trace tab 后 trace 面板恢复可见', async ({ page }) => {
+    if (!sessionUrl) {
+      console.log('无测试会话 URL；跳过 trace tab 恢复测试。');
+      test.skip();
+    }
+
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
+
+    // 先切到 metrics
+    await page.locator('[data-tab="metrics"]').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('[data-tab-panel="metrics"]')).toBeVisible({ timeout: 5000 });
+
+    // 再切回 trace
+    const traceTab = page.locator('[data-tab="trace"]');
+    await traceTab.click();
+    await page.waitForTimeout(200);
+
+    // trace tab 应激活
+    await expect(traceTab).toHaveClass(/is-active/);
+
+    // trace 面板应恢复可见
+    const tracePanel = page.locator('[data-tab-panel="trace"]');
+    await expect(tracePanel).toBeVisible({ timeout: 5000 });
+
+    // metrics 面板应隐藏
+    await expect(page.locator('[data-tab-panel="metrics"]')).toBeHidden({ timeout: 5000 });
   });
 });
 

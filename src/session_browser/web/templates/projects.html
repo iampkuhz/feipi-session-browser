@@ -112,8 +112,10 @@
         {{ ui.button('Apply', 'primary', 'sm', data_action='apply-search') }}
     </div>
     <div class="filter-footer">
-        <span class="filter-row__push"></span>
-        <span class="active-filters__count">{{ projects | length }} matching projects</span>
+        <span class="active-filters" id="projects-active-filters">
+            <span class="filter-chip js-filter-chip is-hidden"></span>
+        </span>
+        <span class="active-filters__count" id="projects-match-count">{{ projects | length }} matching projects</span>
     </div>
 {% endcall %}
 
@@ -122,16 +124,16 @@
     {% if projects %}
     {% set projects_pagination %}
     <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
-        {%- if current_page is not defined %}{% set current_page = 1 %}{% endif -%}
-        {%- if total_pages is not defined %}{% set total_pages = 1 %}{% endif -%}
-        {% set is_single_page = total_pages <= 1 %}
-        {% set is_first_page = current_page <= 1 %}
-        {% set is_last_page = current_page >= total_pages %}
+        {%- set cp = current_page | default(1) -%}
+        {%- set tp = total_pages | default(1) -%}
+        {%- set is_single_page = tp <= 1 -%}
+        {%- set is_first_page = cp <= 1 -%}
+        {%- set is_last_page = cp >= tp -%}
         <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>
         <span class="page-status">Page</span>
         <input class="page-input mono" data-action="page-input" aria-label="Page number"
-               value="{{ current_page }}" title="输入页码后按 Enter，跳转到指定页"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ total_pages }}" />
-        <span class="page-status" id="page-status-text">of {{ total_pages }} · {{ projects | length }} projects</span>
+               value="{{ cp }}" title="输入页码后按 Enter，跳转到指定页"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ tp }}" />
+        <span class="page-status" id="page-status-text">of {{ tp }} · {{ total_count | default(projects | length) }} projects</span>
         <span class="spacer"></span>
         <button class="btn sm" data-action="next-page" aria-label="Next page"{% if is_last_page or is_single_page %} disabled{% endif %}>next ›</button>
     </nav>
@@ -186,13 +188,13 @@
                     {% endif %}
                     <tr data-action="open-project"
                         data-name="{{ p.project_name | lower }}"
-                        data-path="{{ p.project_key | lower }}"
+                        data-path="{{ p.display_path | lower }}"
                         data-last-seen="{{ p.last_seen }}"
                         data-total-sessions="{{ p.total_sessions }}"
                         data-total-tokens="{{ p_total_tokens }}"
                         data-total-tools="{{ p.total_tool_calls }}"
                         data-total-failed="{{ p.total_failed_tools }}">
-                        {{ ui.project_cell(p.project_name, p.project_key, '/projects/' ~ p.project_key | urlencode, name_data_action='open-project-link') }}
+                        {{ ui.project_cell(p.project_name, p.display_path, '/projects/' ~ p.project_key | urlencode, name_data_action='open-project-link') }}
                         <td class="agents-cell">
                             <span class="agents-cell__inner">
                             {% if p.claude_sessions > 0 %}{{ ui.badge_with_dot(p.claude_sessions, 'cc', 'claude', tooltip='Claude Code') }}{% endif %}

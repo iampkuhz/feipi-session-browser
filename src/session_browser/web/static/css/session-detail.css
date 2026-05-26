@@ -429,6 +429,10 @@
   font-size: 14px;
   line-height: 1;
 }
+/* ── Tab panel visibility ── */
+[data-tab-panel][hidden] {
+  display: none;
+}
 .sd-trace-panel {
   overflow: hidden;
 }

@@ -213,8 +213,20 @@
           {{ sdp.metric_cell('Output', call.usage.output|default('—')) }}
         </div>
         <div class="sd-llm-action-group">
-          {{ sdp.button('Request', 'open-payload', 'primary', 'sm', call.context_payload_id|default(''), attrs='data-payload-kind="context" data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Request')) ~ '"') }}
-          {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id|default(''), attrs='data-payload-kind="response" data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
+          {% if call.context_payload_id %}
+          {{ sdp.button('Request', 'open-payload', 'primary', 'sm', call.context_payload_id, attrs='data-payload-kind="context" data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Request')) ~ '"') }}
+          {% elif call.request_payload_missing_reason %}
+          <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-kind="context" data-payload-title="{{ call.title|default('') }} · Request" title="{{ call.request_payload_missing_reason }}">
+            Request <span aria-hidden="true">&#x26A0;</span>
+          </button>
+          {% endif %}
+          {% if call.response_payload_id %}
+          {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id, attrs='data-payload-kind="response" data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
+          {% elif call.response_payload_missing_reason %}
+          <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-kind="response" data-payload-title="{{ call.title|default('') }} · Response" title="{{ call.response_payload_missing_reason }}">
+            Response <span aria-hidden="true">&#x26A0;</span>
+          </button>
+          {% endif %}
         </div>
       </div>
     </section>
@@ -409,15 +421,27 @@
             <div class="sd-kv"><span>kind</span><span>{{ payload.kind|default('unknown') }}</span></div>
             <div class="sd-kv"><span>status</span><span>{{ payload.status|default('available') }}</span></div>
             <div class="sd-kv"><span>size</span><span>{{ payload.size|default('—') }}</span></div>
+            {% if payload.tool_name %}<div class="sd-kv"><span>tool</span><span>{{ payload.tool_name }}</span></div>{% endif %}
+            {% if payload.tool_status %}<div class="sd-kv"><span>tool status</span><span>{{ payload.tool_status }}</span></div>{% endif %}
           </aside>
           <main class="sd-payload-main payload-main">
             {% if payload.warning %}<div class="sd-payload-warning payload-warning">{{ payload.warning }}</div>{% endif %}
             {% if payload.html %}
               {{ payload.html|safe }}
-            {% elif payload.kind == 'tool.result' and payload.text %}
+            {% elif (payload.kind == 'tool.result' or payload.kind == 'subagent.tool.result') and payload.text %}
+              {% if payload.tool_command %}
               <section class="sd-content-block content-block">
                 <div class="sd-response-block-head block-head">
-                  <span class="sd-card-title">Tool Result</span>
+                  <span class="sd-card-title">Command</span>
+                </div>
+                <div class="sd-response-block-body block-body">
+                  <pre>{{ payload.tool_command }}</pre>
+                </div>
+              </section>
+              {% endif %}
+              <section class="sd-content-block content-block">
+                <div class="sd-response-block-head block-head">
+                  <span class="sd-card-title">Result</span>
                 </div>
                 <div class="sd-response-block-body block-body">
                   <pre>{{ payload.text }}</pre>

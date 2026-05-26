@@ -145,3 +145,67 @@ class TestPayloadNotEmpty:
         assert '"text"' in routes, (
             "add_payload must always include a text field"
         )
+
+
+class TestToolResultModalShowsCommandAndMetadata:
+    """Result payload modal must show Tool Metadata + Command + Result sections."""
+
+    def test_template_shows_tool_name_in_metadata(self):
+        """Fallback template must render payload.tool_name in metadata section."""
+        timeline = _read_timeline()
+        assert "payload.tool_name" in timeline, (
+            "Template must include payload.tool_name in tool.result metadata"
+        )
+
+    def test_template_shows_tool_status_in_metadata(self):
+        """Fallback template must render payload.tool_status in metadata section."""
+        timeline = _read_timeline()
+        assert "payload.tool_status" in timeline, (
+            "Template must include payload.tool_status in tool.result metadata"
+        )
+
+    def test_template_shows_command_section(self):
+        """tool.result fallback must render a Command section with payload.tool_command."""
+        timeline = _read_timeline()
+        assert "payload.tool_command" in timeline, (
+            "Template must render Command section using payload.tool_command"
+        )
+
+    def test_template_shows_result_section(self):
+        """tool.result fallback must render a Result section with payload.text."""
+        timeline = _read_timeline()
+        # The tool.result branch must have a Result heading and payload.text
+        assert "tool.result" in timeline, (
+            "Template must have tool.result branch"
+        )
+        assert '"Result"' in timeline or "'Result'" in timeline, (
+            "Template must label the Result section"
+        )
+
+    def test_routes_pass_tool_name_to_payload(self):
+        """add_payload/_add must pass tool_name for tool.result payloads."""
+        routes = _read_routes()
+        assert "tool_name=" in routes, (
+            "Payload construction must pass tool_name metadata"
+        )
+
+    def test_routes_pass_tool_command_to_payload(self):
+        """add_payload/_add must pass tool_command for tool.result payloads."""
+        routes = _read_routes()
+        assert "tool_command=" in routes, (
+            "Payload construction must pass tool_command metadata"
+        )
+
+    def test_routes_pass_tool_status_to_payload(self):
+        """add_payload/_add must pass tool_status for tool.result payloads."""
+        routes = _read_routes()
+        assert "tool_status=" in routes, (
+            "Payload construction must pass tool_status metadata"
+        )
+
+    def test_routes_pass_tool_parameters_to_payload(self):
+        """add_payload/_add must pass tool_parameters for tool.result payloads."""
+        routes = _read_routes()
+        assert "tool_parameters=" in routes, (
+            "Payload construction must pass tool_parameters metadata"
+        )

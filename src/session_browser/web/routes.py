@@ -84,6 +84,113 @@ from session_browser.web import template_env as _template_mod
 
 logger = logging.getLogger("session_browser.web")
 
+
+def _build_tool_command_summary(tool_name: str, params: dict) -> str:
+    """Build a short command/summary string for a tool call.
+
+    For Read/Write/Edit tools: show file path.
+    For Bash: show first 120 chars of the command.
+    For Grep: show pattern + path/glob.
+    For Glob: show pattern.
+    For LS: show path.
+    For MCP: show server/tool + key args.
+    For Agent: show agent_type/agent_id.
+    For unknown tools: show compact JSON key subset of parameters.
+
+    Returns an HTML-safe string (caller must still escape if rendering).
+    """
+    name = (tool_name or "").strip()
+    if params is None:
+        params = {}
+
+    # ── File tools: show file_path ──────────────────────────────
+    if name in ("Read", "Write", "Edit"):
+        return str(params.get("file_path", "") or params.get("path", ""))
+
+    # ── Bash: first 120 chars of command ────────────────────────
+    if name == "Bash":
+        cmd = params.get("command", "")
+        if cmd:
+            cmd = str(cmd).strip()
+            return cmd[:120] + ("..." if len(cmd) > 120 else "")
+        return name
+
+    # ── Grep: pattern + path/glob ───────────────────────────────
+    if name == "Grep":
+        parts = []
+        pattern = params.get("pattern", "")
+        if pattern:
+            parts.append(f'"{pattern}"')
+        path = params.get("paths", "")
+        if path:
+            if isinstance(path, list):
+                path = ", ".join(str(p) for p in path[:3])
+            parts.append(str(path))
+        glob_p = params.get("glob", "")
+        if glob_p:
+            parts.append(f"--glob {glob_p}")
+        return " ".join(parts) if parts else name
+
+    # ── Glob: show pattern ──────────────────────────────────────
+    if name == "Glob":
+        pattern = params.get("pattern", "")
+        if pattern:
+            return str(pattern)
+        return name
+
+    # ── LS: show path ───────────────────────────────────────────
+    if name == "LS":
+        path = params.get("path", "")
+        if path:
+            return str(path)
+        return name
+
+    # ── MCP: show server/tool + key args ────────────────────────
+    if name == "MCP" or name.lower().startswith("mcp"):
+        parts = []
+        server = params.get("server", "")
+        tool = params.get("tool", "")
+        if server:
+            parts.append(str(server))
+        if tool:
+            parts.append(str(tool))
+        # Add a few key args
+        for key in ("query", "input", "text", "url", "path"):
+            val = params.get(key, "")
+            if val:
+                val_str = str(val)
+                parts.append(val_str[:60])
+                break
+        return "/".join(parts) if parts else name
+
+    # ── Agent: show agent_type ──────────────────────────────────
+    if name == "Agent":
+        agent_type = params.get("agent_type", "")
+        if agent_type:
+            return str(agent_type)
+        return name
+
+    # ── Unknown: compact JSON key subset ────────────────────────
+    # Show up to 3 key=value pairs (values truncated to 40 chars)
+    if params:
+        parts = []
+        for key in list(params.keys())[:3]:
+            val = params[key]
+            if isinstance(val, (dict, list)):
+                try:
+                    val_str = json.dumps(val, ensure_ascii=False)[:40]
+                except Exception:
+                    val_str = str(val)[:40]
+            else:
+                val_str = str(val)[:40]
+            parts.append(f"{key}={val_str}")
+        summary = " ".join(parts)
+        if summary:
+            return summary
+
+    return name
+
+
 # ── Qoder short ID resolution ─────────────────────────────────────────────
 
 _UUID_PATTERN = re.compile(
@@ -413,6 +520,42 @@ def compute_round_signals(
     return signals
 
 
+def _merge_raw_into_db_summary(
+    db_summary: "SessionSummary",
+    raw_summary: Optional["SessionSummary"],
+) -> "SessionSummary":
+    """Merge raw parse summary into DB canonical summary.
+
+    DB summary is authoritative. Raw values are only used when the DB field
+    is empty/null/zero, so that list-page and detail-page counts stay
+    consistent (SD-14 fix).
+
+    Returns the (possibly mutated) db_summary object.
+    """
+    if raw_summary is None:
+        return db_summary
+
+    if not db_summary.user_message_count:
+        db_summary.user_message_count = raw_summary.user_message_count
+    if not db_summary.assistant_message_count:
+        db_summary.assistant_message_count = raw_summary.assistant_message_count
+    if not db_summary.tool_call_count:
+        db_summary.tool_call_count = raw_summary.tool_call_count
+    if not db_summary.failed_tool_count:
+        db_summary.failed_tool_count = raw_summary.failed_tool_count
+    if not db_summary.input_tokens:
+        db_summary.input_tokens = raw_summary.input_tokens
+    if not db_summary.output_tokens:
+        db_summary.output_tokens = raw_summary.output_tokens
+    if not db_summary.cached_input_tokens:
+        db_summary.cached_input_tokens = raw_summary.cached_input_tokens
+    if not db_summary.cached_output_tokens:
+        db_summary.cached_output_tokens = raw_summary.cached_output_tokens
+    db_summary.duration_seconds = raw_summary.duration_seconds or db_summary.duration_seconds
+
+    return db_summary
+
+
 class SessionBrowserHandler(BaseHTTPRequestHandler):
     """HTTP request handler for session-browser."""
 
@@ -524,16 +667,22 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._send_html(html)
 
     def _serve_projects(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        raw_params = urllib.parse.parse_qs(parsed.query)
+
         conn = _get_connection()
-        view_model = build_projects_view_model(conn)
+        view_model = build_projects_view_model(raw_params, conn)
         conn.close()
 
         html = self._render_template("projects.html", **view_model)
         self._send_html(html)
 
     def _serve_project(self, project_key: str) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        raw_params = urllib.parse.parse_qs(parsed.query)
+
         conn = _get_connection()
-        view_model = build_project_view_model(conn, project_key)
+        view_model = build_project_view_model(conn, project_key, raw_params)
         conn.close()
 
         html = self._render_template("project.html", **view_model)
@@ -580,18 +729,12 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             from session_browser.sources.codex import parse_session_detail
             raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
-        # Use freshly parsed detail counts on the session page so newly added
-        # diagnostics do not require a rescan before they become visible.
-        if raw_summary is not None:
-            session.user_message_count = raw_summary.user_message_count
-            session.assistant_message_count = raw_summary.assistant_message_count
-            session.tool_call_count = raw_summary.tool_call_count
-            session.failed_tool_count = raw_summary.failed_tool_count
-            session.input_tokens = raw_summary.input_tokens
-            session.output_tokens = raw_summary.output_tokens
-            session.cached_input_tokens = raw_summary.cached_input_tokens
-            session.cached_output_tokens = raw_summary.cached_output_tokens
-            session.duration_seconds = raw_summary.duration_seconds or session.duration_seconds
+        # DB summary is canonical. raw parse only supplements detail; it must
+        # NOT overwrite confirmed fields (session_id, project_key, model,
+        # assistant_message_count, etc.). Only use raw values when the DB field
+        # is empty/null/zero, so that list-page and detail-page round counts
+        # stay consistent (SD-14 fix).
+        session = _merge_raw_into_db_summary(session, raw_summary)
 
         # Build conversation rounds with token data and markdown rendering
         rounds = build_rounds(
@@ -983,6 +1126,10 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                     grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(_shorten_path(str(params["file_path"])))}</div>')
                 if params.get("command"):
                     grid_rows.append(f'<div class="key">command</div><div>{_html_escape(_shorten_path(str(params["command"]))[:200])}</div>')
+                # Unified command summary for all tool types
+                cmd_summary = _build_tool_command_summary(tool_name, params)
+                if cmd_summary and cmd_summary != tool_name:
+                    grid_rows.append(f'<div class="key">summary</div><div>{_html_escape(_shorten_path(str(cmd_summary))[:200])}</div>')
 
                 try:
                     raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
@@ -1034,6 +1181,10 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                     grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(_shorten_path(str(params["file_path"])))}</div>')
                 if params.get("command"):
                     grid_rows.append(f'<div class="key">command</div><div>{_html_escape(_shorten_path(str(params["command"]))[:200])}</div>')
+                # Unified command summary for all tool types
+                cmd_summary = _build_tool_command_summary(tool_name, params)
+                if cmd_summary and cmd_summary != tool_name:
+                    grid_rows.append(f'<div class="key">summary</div><div>{_html_escape(_shorten_path(str(cmd_summary))[:200])}</div>')
 
                 try:
                     raw_json = json.dumps(params, ensure_ascii=False, indent=2)[:500]
@@ -1188,10 +1339,12 @@ def _build_payload_lookup(
     payload_map = {}
 
     def _add(payload_id: str, kind: str, title: str, text: str = "",
-             status: str = "available", byte_limit: int = 5000):
+             status: str = "available", byte_limit: int = 5000,
+             tool_name: str = "", tool_command: str = "",
+             tool_parameters: dict = None, tool_status: str = ""):
         final_text = _truncate_payload(text, byte_limit) if truncate else (text or "")
         byte_count = len(final_text.encode("utf-8")) if final_text else 0
-        payload_map[payload_id] = {
+        entry = {
             "payload_id": payload_id,
             "kind": kind,
             "title": title,
@@ -1199,6 +1352,15 @@ def _build_payload_lookup(
             "size": _format_bytes(byte_count) if byte_count else "—",
             "text": final_text,
         }
+        if tool_name:
+            entry["tool_name"] = tool_name
+        if tool_command:
+            entry["tool_command"] = tool_command
+        if tool_parameters:
+            entry["tool_parameters"] = tool_parameters
+        if tool_status:
+            entry["tool_status"] = tool_status
+        payload_map[payload_id] = entry
 
     # -- Subagent payloads --
     for run in subagent_runs:
@@ -1264,6 +1426,10 @@ def _build_payload_lookup(
                         title=f"R{rid} · {tc.name} · Result",
                         text=tc.result,
                         byte_limit=5000,
+                        tool_name=tc.name,
+                        tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                        tool_parameters=tc.parameters,
+                        tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                     )
 
             # LLM context and output payloads
@@ -1295,6 +1461,10 @@ def _build_payload_lookup(
                     title=f"R{rid} · {tc.name} · Result",
                     text=tc.result,
                     byte_limit=5000,
+                    tool_name=tc.name,
+                    tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                    tool_parameters=tc.parameters,
+                    tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                 )
 
     return payload_map
@@ -1352,7 +1522,9 @@ def _build_v11_view_model(
                     size: str = "—", text: str = "", html: str = "", warning: str = "",
                     context_blocks: list = None, source_status: str = "",
                     response_blocks: list = None, response_diagnostics: str = "",
-                    user_input: str = "", preceding_tool_results: list = None):
+                    user_input: str = "", preceding_tool_results: list = None,
+                    tool_name: str = "", tool_command: str = "",
+                    tool_parameters: dict = None, tool_status: str = ""):
         entry = {
             "payload_id": payload_id,
             "kind": kind,
@@ -1381,17 +1553,21 @@ def _build_v11_view_model(
             entry["user_input"] = user_input
         if preceding_tool_results:
             entry["preceding_tool_results"] = preceding_tool_results
+        # Tool result metadata
+        if tool_name:
+            entry["tool_name"] = tool_name
+        if tool_command:
+            entry["tool_command"] = tool_command
+        if tool_parameters:
+            entry["tool_parameters"] = tool_parameters
+        if tool_status:
+            entry["tool_status"] = tool_status
         payload_sources.append(entry)
 
     def tool_vm(tc, tool_id: str, payload_id: str = "", payload_title: str = "") -> dict:
         params = getattr(tc, "parameters", {}) or {}
-        command = (
-            params.get("command", "")
-            or params.get("file_path", "")
-            or params.get("path", "")
-            or getattr(tc, "name", "tool")
-        )
-        command = _shorten_path(str(command))
+        raw_command = _build_tool_command_summary(getattr(tc, "name", "tool"), params)
+        command = _shorten_path(str(raw_command))
         result_text = (getattr(tc, "result", "") or "").strip()
         if result_text:
             result_summary = result_text[:60]
@@ -1600,6 +1776,10 @@ def _build_v11_view_model(
                                 kind="subagent.tool.result",
                                 title=t_payload_title,
                                 text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                                tool_name=tc.name,
+                                tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                                tool_parameters=tc.parameters,
+                                tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                             )
                         round_tool_rows.append(tool_vm(tc, f"sub-{sa_id}-T{t_idx}", t_payload_id, t_payload_title))
 
@@ -1668,6 +1848,10 @@ def _build_v11_view_model(
                         kind="subagent.tool.result",
                         title=u_payload_title,
                         text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                        tool_name=tc.name,
+                        tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                        tool_parameters=tc.parameters,
+                        tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                     )
                 unmatched_rows.append(tool_vm(tc, f"sub-{sa_id}-UT{u_idx}", u_payload_id, u_payload_title))
 
@@ -1726,7 +1910,7 @@ def _build_v11_view_model(
                     {
                         "type": "tool_step",
                         "kind": tc.name[:4].upper(),
-                        "text": _shorten_path(tc.parameters.get("command", tc.parameters.get("file_path", "")))[:80] or tc.name,
+                        "text": _shorten_path(_build_tool_command_summary(tc.name, tc.parameters))[:80] or tc.name,
                         "result": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                     }
                     for tc in display_tools[:10]
@@ -1890,6 +2074,10 @@ def _build_v11_view_model(
                             kind="tool.result",
                             title=f"R{rid} · {tc.name} · Result",
                             text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                            tool_name=tc.name,
+                            tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                            tool_parameters=tc.parameters,
+                            tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                         )
 
                     batch_tools.append(tool_vm(
@@ -2154,6 +2342,10 @@ def _build_v11_view_model(
                         kind="tool.result",
                         title=f"R{rid} · {tc.name} · Result",
                         text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                        tool_name=tc.name,
+                        tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                        tool_parameters=tc.parameters,
+                        tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                     )
                 batch_tools.append(tool_vm(
                     tc,
@@ -2468,7 +2660,7 @@ def _build_v9_view_model(
                 "steps": [
                     {
                         "kind": tc.name[:4].upper(),
-                        "text": _shorten_path(tc.parameters.get("command", tc.parameters.get("file_path", "")))[:80] or tc.name,
+                        "text": _shorten_path(_build_tool_command_summary(tc.name, tc.parameters))[:80] or tc.name,
                         "result": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                     }
                     for tc in sa_tools[:10]
@@ -2600,7 +2792,7 @@ def _build_v9_view_model(
                     batch_tools.append({
                         "tool_id": f"R{rid}-T{tc_global_idx}",
                         "kind": tc.name[:4].upper(),
-                        "command": _shorten_path(tc.parameters.get("command", "") or tc.parameters.get("file_path", "") or tc.name)[:100],
+                        "command": _shorten_path(_build_tool_command_summary(tc.name, tc.parameters))[:100],
                         "result_summary": (tc.result or "")[:60] or f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                         "exit_label": f"exit {tc.exit_code}" if tc.exit_code is not None else "ok",
                         "status_tone": "fail" if tc.is_failed else ("warn" if (tc.has_nonzero_exit and not tc.is_failed) else "ok"),
