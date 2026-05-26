@@ -17,6 +17,12 @@ from static_contract_check import (
     check_payload_modal_ownership,
     check_shell_ownership,
     check_innerhtml_safety,
+    check_css_ownership_gate,
+    check_no_global_component_override,
+    check_no_new_legacy_selector,
+    check_selector_depth_new_block,
+    check_no_raw_innerhtml_new_block,
+    check_no_layout_inline_style_new_block,
 )
 
 
@@ -364,3 +370,288 @@ class TestActualRepoState:
         """session-detail-timeline.css should be deleted."""
         path = ROOT / "src/session_browser/web/static/css/session-detail-timeline.css"
         assert not path.exists(), "session-detail-timeline.css should be deleted"
+
+
+# ── V9 NEW gates: bad-fixture tests ────────────────────────────────────
+
+
+# ── check_css_ownership_gate ──────────────────────────────────────────
+
+
+class TestCheckCssOwnershipGate:
+    def test_clean_page_css_passes(self, tmp_path):
+        css = tmp_path / "dashboard.css"
+        css.write_text(".dashboard-page .card { padding: 16px; }")
+        assert check_css_ownership_gate([css]) == []
+
+    def test_shell_selector_in_page_blocks(self, tmp_path):
+        """Page CSS defining .shell should BLOCK."""
+        css = tmp_path / "dashboard.css"
+        css.write_text(".shell { grid-template-columns: 200px 1fr; }")
+        errors = check_css_ownership_gate([css])
+        assert len(errors) == 1
+        assert ".shell" in errors[0]
+
+    def test_app_shell_in_page_blocks(self, tmp_path):
+        """Page CSS defining .app-shell should BLOCK."""
+        css = tmp_path / "sessions.css"
+        css.write_text(".app-shell { display: grid; }")
+        errors = check_css_ownership_gate([css])
+        assert len(errors) == 1
+        assert ".app-shell" in errors[0]
+
+    def test_body_state_in_page_blocks(self, tmp_path):
+        """Page CSS defining body.hide-left should BLOCK."""
+        css = tmp_path / "agents.css"
+        css.write_text("body.hide-left .sidebar { display: none; }")
+        errors = check_css_ownership_gate([css])
+        assert len(errors) == 1
+        assert "body" in errors[0]
+
+    def test_shell_css_exempt(self, tmp_path):
+        """shell.css defining .shell should not error."""
+        css = tmp_path / "shell.css"
+        css.write_text(".shell { grid-template-columns: var(--sidebar) 1fr; }")
+        assert check_css_ownership_gate([css]) == []
+
+    def test_tokens_with_selector_blocks(self, tmp_path):
+        """tokens.css with non-:root selector should BLOCK."""
+        css = tmp_path / "tokens.css"
+        css.write_text(".btn { color: red; }")
+        errors = check_css_ownership_gate([css])
+        assert len(errors) == 1
+
+    def test_page_grid_template_allowed(self, tmp_path):
+        """Page CSS with grid-template-columns for content grid is allowed."""
+        css = tmp_path / "dashboard.css"
+        css.write_text(".metric-grid { grid-template-columns: repeat(4, 1fr); }")
+        assert check_css_ownership_gate([css]) == []
+
+
+# ── check_no_global_component_override ────────────────────────────────
+
+
+class TestCheckNoGlobalComponentOverride:
+    def test_clean_page_css_passes(self, tmp_path):
+        css = tmp_path / "dashboard.css"
+        css.write_text(".dashboard-page .card { padding: 16px; }")
+        assert check_no_global_component_override([css]) == []
+
+    def test_bare_payload_modal_blocks(self, tmp_path):
+        """Page CSS with bare .payload-modal should BLOCK."""
+        css = tmp_path / "session-detail.css"
+        css.write_text(".payload-modal { display: flex; }")
+        errors = check_no_global_component_override([css])
+        assert len(errors) == 1
+        assert ".payload-modal" in errors[0]
+
+    def test_bare_data_table_blocks(self, tmp_path):
+        """Page CSS with bare .data-table should BLOCK."""
+        css = tmp_path / "sessions.css"
+        css.write_text(".data-table { width: 100%; }")
+        errors = check_no_global_component_override([css])
+        assert len(errors) == 1
+        assert ".data-table" in errors[0]
+
+    def test_bare_btn_blocks(self, tmp_path):
+        """Page CSS with bare .btn should BLOCK."""
+        css = tmp_path / "dashboard.css"
+        css.write_text(".btn { border-radius: 4px; }")
+        errors = check_no_global_component_override([css])
+        assert len(errors) == 1
+        assert ".btn" in errors[0]
+
+    def test_bare_modal_blocks(self, tmp_path):
+        """Page CSS with bare .modal should BLOCK."""
+        css = tmp_path / "agents.css"
+        css.write_text(".modal { z-index: 1000; }")
+        errors = check_no_global_component_override([css])
+        assert len(errors) == 1
+        assert ".modal" in errors[0]
+
+    def test_ui_primitives_exempt(self, tmp_path):
+        """ui-primitives.css defining primitives is allowed."""
+        css = tmp_path / "ui-primitives.css"
+        css.write_text(".payload-modal { display: flex; }\n.data-table { width: 100%; }")
+        assert check_no_global_component_override([css]) == []
+
+    def test_scoped_selector_allowed(self, tmp_path):
+        """Page-scoped descendant selector is allowed."""
+        css = tmp_path / "dashboard.css"
+        css.write_text(".dashboard-page .payload-modal { width: 80vw; }")
+        assert check_no_global_component_override([css]) == []
+
+
+# ── check_no_new_legacy_selector ──────────────────────────────────────
+
+
+class TestCheckNoNewLegacySelector:
+    def test_clean_page_css_passes(self, tmp_path):
+        css = tmp_path / "dashboard.css"
+        css.write_text(".dashboard-page .card { padding: 16px; }")
+        assert check_no_new_legacy_selector([css]) == []
+
+    def test_legacy_app_shell_blocks(self, tmp_path):
+        """New .app-shell reference in page CSS should BLOCK."""
+        css = tmp_path / "dashboard.css"
+        css.write_text(".app-shell { display: grid; }")
+        errors = check_no_new_legacy_selector([css])
+        assert len(errors) == 1
+        assert ".app-shell" in errors[0]
+
+    def test_shell_css_exempt(self, tmp_path):
+        """shell.css legacy references are allowed."""
+        css = tmp_path / "shell.css"
+        css.write_text(".app-shell { display: grid; }")
+        assert check_no_new_legacy_selector([css]) == []
+
+
+# ── check_selector_depth_new_block ────────────────────────────────────
+
+
+class TestCheckSelectorDepthNewBlock:
+    def test_shallow_selectors_pass(self, tmp_path):
+        css = tmp_path / "clean.css"
+        css.write_text(".foo { color: red; }\n.foo .bar { margin: 0; }")
+        assert check_selector_depth_new_block([css]) == []
+
+    def test_depth_3_passes(self, tmp_path):
+        """Depth exactly 3 should pass (BLOCK_THRESHOLD > 3)."""
+        css = tmp_path / "boundary.css"
+        css.write_text(".a .b .c { color: red; }")
+        assert check_selector_depth_new_block([css]) == []
+
+    def test_depth_4_blocks(self, tmp_path):
+        """Depth > 3 should BLOCK."""
+        css = tmp_path / "bad.css"
+        css.write_text(".a .b .c .d { color: red; }")
+        errors = check_selector_depth_new_block([css])
+        assert len(errors) == 1
+        assert "depth=4" in errors[0]
+
+    def test_child_combinator_counts(self, tmp_path):
+        """Child combinators count towards depth."""
+        css = tmp_path / "bad.css"
+        css.write_text(".a > .b + .c .d { color: red; }")
+        errors = check_selector_depth_new_block([css])
+        assert len(errors) == 1
+
+    def test_pseudo_class_not_extra(self, tmp_path):
+        """Pseudo classes don't add depth."""
+        css = tmp_path / "ok.css"
+        css.write_text(".a .b .c:hover { color: red; }")
+        assert check_selector_depth_new_block([css]) == []
+
+
+# ── check_no_raw_innerhtml_new_block ──────────────────────────────────
+
+
+class TestCheckNoRawInnerhtmlNewBlock:
+    def test_clean_js_passes(self, tmp_path):
+        js = tmp_path / "clean.js"
+        js.write_text("var x = 1;")
+        assert check_no_raw_innerhtml_new_block([js]) == []
+
+    def test_raw_innerhtml_blocks(self, tmp_path):
+        """Raw innerHTML = should BLOCK."""
+        js = tmp_path / "unsafe.js"
+        js.write_text("el.innerHTML = '<div>' + userInput + '</div>';")
+        errors = check_no_raw_innerhtml_new_block([js])
+        assert len(errors) == 1
+        assert "innerHTML" in errors[0]
+
+    def test_innerhtml_clear_allowed(self, tmp_path):
+        """Clearing innerHTML (innerHTML = '') should not BLOCK."""
+        js = tmp_path / "clear.js"
+        js.write_text("container.innerHTML = '';")
+        assert check_no_raw_innerhtml_new_block([js]) == []
+
+    def test_escapehtml_helper_passes(self, tmp_path):
+        """innerHTML with escapeHtml helper should PASS."""
+        js = tmp_path / "safe.js"
+        js.write_text("function escapeHtml(s) { return s; }\nel.innerHTML = escapeHtml(userInput);")
+        assert check_no_raw_innerhtml_new_block([js]) == []
+
+    def test_dompurify_passes(self, tmp_path):
+        """innerHTML with DOMPurify should PASS."""
+        js = tmp_path / "safe.js"
+        js.write_text("el.innerHTML = DOMPurify.sanitize(html);")
+        assert check_no_raw_innerhtml_new_block([js]) == []
+
+    def test_comment_line_skipped(self, tmp_path):
+        """innerHTML in comments should be skipped."""
+        js = tmp_path / "comment.js"
+        js.write_text("// el.innerHTML = 'test';")
+        assert check_no_raw_innerhtml_new_block([js]) == []
+
+
+# ── check_no_layout_inline_style_new_block ────────────────────────────
+
+
+class TestCheckNoLayoutInlineStyleNewBlock:
+    def test_clean_html_passes(self, tmp_path):
+        html = tmp_path / "clean.html"
+        html.write_text('<div class="foo">hello</div>')
+        assert check_no_layout_inline_style_new_block([html], []) == []
+
+    def test_layout_inline_style_blocks(self, tmp_path):
+        """HTML with layout inline style should BLOCK."""
+        html = tmp_path / "bad.html"
+        html.write_text('<div style="display: flex;">hello</div>')
+        errors = check_no_layout_inline_style_new_block([html], [])
+        assert len(errors) == 1
+        assert "layout inline style" in errors[0]
+
+    def test_custom_property_only_passes(self, tmp_path):
+        """Pure CSS custom property should not BLOCK."""
+        html = tmp_path / "custom.html"
+        html.write_text('<div style="--segment-width: 200px;">hello</div>')
+        assert check_no_layout_inline_style_new_block([html], []) == []
+
+    def test_mixed_custom_property_blocks(self, tmp_path):
+        """Custom property + layout property should BLOCK."""
+        html = tmp_path / "mixed.html"
+        html.write_text('<div style="--segment-width: 200px; display: flex;">hello</div>')
+        errors = check_no_layout_inline_style_new_block([html], [])
+        assert len(errors) == 1
+
+    def test_template_variable_skipped(self, tmp_path):
+        """Template variable injection should be skipped."""
+        html = tmp_path / "template.html"
+        html.write_text('<div style="{{ grid_style }}">hello</div>')
+        assert check_no_layout_inline_style_new_block([html], []) == []
+
+    def test_js_style_display_blocks(self, tmp_path):
+        """JS .style.display = should BLOCK."""
+        js = tmp_path / "bad.js"
+        js.write_text("el.style.display = 'none';")
+        errors = check_no_layout_inline_style_new_block([], [js])
+        assert len(errors) == 1
+        assert ".style" in errors[0]
+
+    def test_js_style_position_blocks(self, tmp_path):
+        """JS .style.position = should BLOCK."""
+        js = tmp_path / "bad.js"
+        js.write_text("el.style.position = 'absolute';")
+        errors = check_no_layout_inline_style_new_block([], [js])
+        assert len(errors) == 1
+
+    def test_js_style_width_blocks(self, tmp_path):
+        """JS .style.width = should BLOCK."""
+        js = tmp_path / "bad.js"
+        js.write_text("el.style.width = '100px';")
+        errors = check_no_layout_inline_style_new_block([], [js])
+        assert len(errors) == 1
+
+    def test_js_comment_skipped(self, tmp_path):
+        """JS .style in comments should be skipped."""
+        js = tmp_path / "comment.js"
+        js.write_text("// el.style.display = 'none';")
+        assert check_no_layout_inline_style_new_block([], [js]) == []
+
+    def test_new_important_blocks(self, tmp_path):
+        """New !important should still be caught by check_no_important."""
+        css = tmp_path / "bad.css"
+        css.write_text(".foo { color: red !important; }")
+        errors = check_no_important([css])
+        assert len(errors) == 1
