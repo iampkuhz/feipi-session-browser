@@ -216,6 +216,29 @@ class TestQoderModelContract:
             == "Qwen-3.6-Plus"
         )
 
+    def test_session_model_map_adds_unique_short_id_prefix(self, tmp_path):
+        """Cache JSONL short ids should resolve from full GUI session UUIDs."""
+        app_support = tmp_path / "Qoder"
+        user_dir = app_support / "User"
+        user_dir.mkdir(parents=True)
+        (user_dir / "dynamic-text-cache.json").write_text(
+            json.dumps({"zh-cn": {"modelSelector.item.qmodel": "Qwen3.6-Plus"}}),
+            encoding="utf-8",
+        )
+        log_dir = app_support / "logs" / "20260527T000152" / "window1"
+        log_dir.mkdir(parents=True)
+        (log_dir / "agent.log").write_text(
+            "2026-05-27 00:01:57.765 [info] [ModelConfigService] "
+            "getCurrentModelConfig: "
+            "sessionId=4df638fa-ab30-413d-b155-7fc550f19703, "
+            "returning from storage: qmodel\n",
+            encoding="utf-8",
+        )
+
+        model_map = _build_qoder_session_model_map(app_support)
+        assert model_map["4df638fa-ab30-413d-b155-7fc550f19703"] == "Qwen3.6-Plus"
+        assert model_map["4df638fa"] == "Qwen3.6-Plus"
+
     def test_summary_model_falls_back_to_agent_log(self, tmp_path, monkeypatch):
         """SessionSummary.model should use Qoder GUI agent log when JSONL lacks model."""
         app_support = tmp_path / "Qoder"

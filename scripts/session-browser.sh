@@ -190,7 +190,7 @@ podman_up() {
     validate_version "$version"
     require_podman
 
-    local repo name port index_dir claude_dir codex_dir qoder_dir
+    local repo name port index_dir claude_dir codex_dir qoder_dir qoder_app_support_dir
     repo="$(image_repo)"
     name="$(container_name)"
     port="$(host_port)"
@@ -198,6 +198,7 @@ podman_up() {
     claude_dir="$(expand_path "${CLAUDE_DATA_DIR:-$HOME/.claude}")"
     codex_dir="$(expand_path "${CODEX_DATA_DIR:-$HOME/.codex}")"
     qoder_dir="$(expand_path "${QODER_DATA_DIR:-$HOME/.qoder}")"
+    qoder_app_support_dir="$(expand_path "${QODER_APP_SUPPORT_DIR:-$HOME/Library/Application Support/Qoder}")"
 
     mkdir -p "$index_dir"
 
@@ -216,6 +217,9 @@ podman_up() {
     if [[ -d "$qoder_dir" ]]; then
         volume_args+=(-v "$qoder_dir:/data/qoder:ro")
     fi
+    if [[ -d "$qoder_app_support_dir" ]]; then
+        volume_args+=(-v "$qoder_app_support_dir:/data/qoder-app-support:ro")
+    fi
 
     "${PODMAN_BIN:-podman}" rm -f "$name" >/dev/null 2>&1 || true
     "${PODMAN_BIN:-podman}" run -d \
@@ -225,6 +229,7 @@ podman_up() {
         -e "CLAUDE_DATA_DIR=/data/claude" \
         -e "CODEX_DATA_DIR=/data/codex" \
         -e "QODER_DATA_DIR=/data/qoder" \
+        -e "QODER_APP_SUPPORT_DIR=/data/qoder-app-support" \
         -e "INDEX_DIR=/data/index" \
         -e "SERVER_HOST=0.0.0.0" \
         -e "SERVER_PORT=8899" \
@@ -242,6 +247,7 @@ podman_up() {
     echo "  Claude: $claude_dir"
     echo "  Codex:  $codex_dir"
     echo "  Qoder:  $qoder_dir"
+    echo "  Qoder App Support: $qoder_app_support_dir"
 }
 
 run_local_serve() {
@@ -337,6 +343,10 @@ Podman 部署：
   SESSION_BROWSER_HOST_PORT        默认：8899
   SESSION_BROWSER_DATA_DIR         默认：~/.local/share/feipi/session-browser/index
   SESSION_BROWSER_LOG_LEVEL        默认：INFO；本地 serve 使用 DEBUG
+  CLAUDE_DATA_DIR                  默认：~/.claude
+  CODEX_DATA_DIR                   默认：~/.codex
+  QODER_DATA_DIR                   默认：~/.qoder
+  QODER_APP_SUPPORT_DIR            默认：~/Library/Application Support/Qoder
 
 示例：
   ./scripts/session-browser.sh serve

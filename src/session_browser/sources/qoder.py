@@ -717,6 +717,18 @@ def _build_qoder_session_model_map(app_support_dir: Path | None = None) -> dict[
                         session_models[session_id.removeprefix("blank_session_")] = model
                 break
 
+    prefix_models: dict[str, set[str]] = {}
+    uuid_pattern = re.compile(
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+        r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    )
+    for session_id, model in session_models.items():
+        if uuid_pattern.match(session_id):
+            prefix_models.setdefault(session_id[:8].lower(), set()).add(model)
+    for prefix, models in prefix_models.items():
+        if prefix not in session_models and len(models) == 1:
+            session_models[prefix] = next(iter(models))
+
     return session_models
 
 
