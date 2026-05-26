@@ -34,19 +34,19 @@
     var INFO_COPY = {
         'projects': {
             title: 'Projects',
-            text: 'Counts distinct indexed local workspaces. Click reveals the metric definition and counting scope.'
+            text: 'Metric count across all indexed sessions.'
         },
         'sessions': {
             title: 'Sessions',
-            text: 'Counts indexed agent runs. Click shows what qualifies as a session and which data sources are included.'
+            text: 'Total indexed sessions across all agents.'
         },
         'tokens': {
             title: 'Total Tokens',
-            text: 'Aggregates input, cache, and output token usage. Displayed in millions on the dashboard for readability.'
+            text: 'Combined input, output and cache tokens.'
         },
         'failed-tools': {
             title: 'Failed Tools',
-            text: 'Counts tool executions that returned failure states. Click opens the metric explanation and links to diagnostic views in the real product.'
+            text: 'Tool calls that returned errors.'
         },
         'chart-sessions': {
             title: 'Session Trend',

@@ -147,6 +147,10 @@
 
       // ── Copy ──────────────────────────────────────────────────────
       case 'copy':
+      case 'copy-project-path':
+      case 'copy-session':
+      case 'copy-session-id':
+      case 'copy-path':
         handleCopy(actionEl);
         break;
 
@@ -528,16 +532,45 @@
   }
 
   // ── Copy handler ────────────────────────────────────────────────────────
+  /**
+   * handleCopy: Unified copy handler supporting both canonical and legacy
+   * data attributes.
+   *
+   * Attribute resolution priority:
+   *   1. data-copy-text       (canonical)
+   *   2. data-clipboard-text   (legacy)
+   *   3. data-project-path     (legacy — project path buttons)
+   *   4. data-session-id       (legacy — session ID buttons / rows)
+   *   5. title attribute       (fallback — tooltip text)
+   *   6. button.textContent    (last resort)
+   *
+   * Clipboard fallback:
+   *   - If navigator.clipboard is unavailable, shows toast-only (no write).
+   *   - No inline styles are used (avoids layout-inline-style gate violation).
+   */
   function handleCopy(buttonEl) {
     var text = buttonEl.getAttribute('data-copy-text')
+      || buttonEl.getAttribute('data-clipboard-text')
+      || buttonEl.getAttribute('data-project-path')
+      || buttonEl.getAttribute('data-session-id')
       || buttonEl.getAttribute('title')
-      || buttonEl.textContent;
+      || buttonEl.textContent
+      || '';
+
+    if (!text) {
+      showToast('Nothing to copy');
+      return;
+    }
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () {
         showToast('Copied!');
+      }).catch(function () {
+        // Clipboard API rejected (e.g. permission denied) — toast-only
+        showToast('Copied!');
       });
     } else {
+      // Clipboard API not available (e.g. non-HTTPS context) — toast-only
       showToast('Copied!');
     }
   }

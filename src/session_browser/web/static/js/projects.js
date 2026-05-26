@@ -27,19 +27,12 @@
     }
     window.showToast = showToast;
 
-    /* ── Copy project path (works on both list & detail) ─────── */
-    var copyPathBtns = document.querySelectorAll('[data-action="copy-project-path"]');
-    copyPathBtns.forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var text = btn.dataset.clipboardText;
-            if (text && navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(function() {
-                    showToast('Path copied');
-                });
-            }
-        });
-    });
+    /* ── Copy project path — REMOVED (T044) ───────────────────
+     * Legacy click handler removed. Copy behavior now handled
+     * exclusively by the unified handler in ui_primitives.js,
+     * which supports both canonical data-copy-text and legacy
+     * fallback attributes.
+     * ─────────────────────────────────────────────────────────── */
 
     /* ===========================================================
      * LIST PAGE behaviors (scoped to #projects-table)
@@ -252,19 +245,10 @@
             });
         }
 
-        /* ── Detail: copy session ID ─────────────────────────── */
-        var copySessionBtns = detailTable.querySelectorAll('[data-action="copy-session"]');
-        copySessionBtns.forEach(function(btn) {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var text = btn.dataset.clipboardText || btn.getAttribute('data-clipboard-text');
-                if (text && navigator.clipboard) {
-                    navigator.clipboard.writeText(text).then(function() {
-                        showToast('Session ID copied');
-                    });
-                }
-            });
-        });
+        /* ── Detail: copy session ID — REMOVED (T044) ────────────
+         * Legacy click handler removed. Copy behavior now handled
+         * exclusively by the unified handler in ui_primitives.js.
+         * ─────────────────────────────────────────────────────────── */
 
         /* ── Detail: row click navigation ────────────────────── */
         var detailRows = detailTable.querySelectorAll('tbody tr[data-action="open-session"]');

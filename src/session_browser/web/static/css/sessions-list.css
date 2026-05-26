@@ -422,7 +422,7 @@
   border-radius: 999px;
   overflow: hidden;
   display: flex;
-  background: #f2f5fa;
+  /* background/color handled by ui-primitives .tokenbar */
   border: 1px solid var(--sessions-line-soft);
 }
 
@@ -431,17 +431,7 @@
   display: block;
 }
 
-.sessions-page .sessions-token-bar__fresh {
-  background: var(--token-input-fresh, #2563eb);
-}
-
-.sessions-page .sessions-token-bar__cache {
-  background: var(--token-cache-read, #f59e0b);
-}
-
-.sessions-page .sessions-token-bar__out {
-  background: var(--token-output-visible, #059669);
-}
+/* Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-* */
 
 .sessions-page .sessions-table-footer {
   height: 42px;
@@ -758,7 +748,7 @@ table-layout:fixed scales proportionally
   border-radius: 999px;
   overflow: hidden;
   display: flex;
-  background: #f2f5fa;
+  /* background/color handled by ui-primitives .tokenbar */
   border: 1px solid var(--sessions-line-soft);
 }
 
@@ -767,21 +757,7 @@ table-layout:fixed scales proportionally
   display: block;
 }
 
-.sessions-page .data-table .tokenbar-seg.fresh {
-  background: var(--token-input-fresh, #2563eb);
-}
-
-.sessions-page .data-table .tokenbar-seg.read {
-  background: var(--token-cache-read, #f59e0b);
-}
-
-.sessions-page .data-table .tokenbar-seg.write {
-  background: var(--token-cache-write, #f59e0b);
-}
-
-.sessions-page .data-table .tokenbar-seg.out {
-  background: var(--token-output-visible, #059669);
-}
+/* Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-* */
 
 .sessions-page .data-table td.muted {
   color: var(--sessions-text-3);
@@ -841,4 +817,38 @@ table-layout:fixed scales proportionally
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Apply Button Dirty State ─────────────────────────────────────
+* When the filter form has no unapplied changes (is-muted),
+* the Apply button appears visually subdued.
+* When the form is dirty (is-dirty), the button shows as active/primary.
+* This gives users clear visual feedback that their filter changes
+* are ready to be applied.
+*/
+.sessions-page .card.filter-card .btn[data-action="apply"] {
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+/* Muted state: form values match initial snapshot — no changes to apply */
+.sessions-page .card.filter-card .btn[data-action="apply"].is-muted {
+  opacity: 0.55;
+  filter: saturate(0.5);
+  cursor: default;
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].is-muted:hover {
+  filter: saturate(0.65);
+  opacity: 0.65;
+}
+
+/* Dirty state: form values differ from initial — changes ready to apply */
+.sessions-page .card.filter-card .btn[data-action="apply"].is-dirty {
+  opacity: 1;
+  filter: none;
+  cursor: pointer;
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].is-dirty:hover {
+  filter: brightness(0.98);
 }

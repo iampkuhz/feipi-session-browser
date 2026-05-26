@@ -299,26 +299,26 @@ class TestFilterButtons:
         return _read(TIMELINE_HTML)
 
     def test_filter_status_action(self, timeline):
-        """Filter buttons must have data-action=\"filter-status\"."""
-        assert 'data-action="filter-status"' in timeline, \
-            "Missing data-action=\"filter-status\""
+        """Filter buttons must use status-all and status-failed actions (no filter-status)."""
+        assert 'data-action="filter-status"' not in timeline, \
+            "Duplicate data-action='filter-status' must be removed; use status-all/status-failed instead"
+        assert 'data-action="status-all"' in timeline or 'data-action="status-failed"' in timeline, \
+            "Must have status-all or status-failed action"
 
     def test_status_all_button(self, timeline):
         """Must have status-all button."""
         assert 'data-action="status-all"' in timeline, \
             "Missing status-all button"
-        assert 'data-status="all"' in timeline, \
-            "Missing data-status=\"all\""
 
     def test_status_failed_button(self, timeline):
         """Must have status-failed button."""
         assert 'data-action="status-failed"' in timeline, \
             "Missing status-failed button"
-        assert 'data-status="failed"' in timeline, \
-            "Missing data-status=\"failed\""
 
     def test_collapse_all_button(self, timeline):
-        """Must have toggle-all button (expand/collapse)."""
+        """Must NOT have separate collapse-all button; toggle-all is the single control."""
+        assert 'data-action="collapse-all"' not in timeline, \
+            "collapse-all button must be removed; use toggle-all only"
         assert 'data-action="toggle-all"' in timeline, \
             "Missing toggle-all button"
 

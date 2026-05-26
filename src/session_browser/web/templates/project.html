@@ -50,7 +50,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Sessions</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="Sessions 计数方式说明" title="Total sessions in this project">ⓘ</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Sessions 计数方式说明" title="Total sessions in this project">&#9432;</button>
             </div>
             <div class="metric-card__value">{{ project.total_sessions }}</div>
             <div class="metric-card__sub">
@@ -65,7 +65,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Input-side Tokens</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="Input-side Token 公式说明" title="Total input-side tokens">ⓘ</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Input-side Token 公式说明" title="Total input-side tokens">&#9432;</button>
             </div>
             <div class="metric-card__value mono">{{ p_input_side | format_compact_token }}</div>
             <div class="metric-card__sub success">Cache R: {{ p_cache_reuse }}%</div>
@@ -76,7 +76,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Output Tokens</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="Output Token 定义说明" title="Total output-side tokens">ⓘ</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Output Token 定义说明" title="Total output-side tokens">&#9432;</button>
             </div>
             <div class="metric-card__value mono">{{ project.total_output_tokens | format_compact_token }}</div>
             <div class="metric-card__sub">{{ project.total_tool_calls | format_number }} tools</div>
@@ -87,7 +87,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Active Period</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="活跃周期来源说明" title="Active period of this project">ⓘ</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="活跃周期来源说明" title="Active period of this project">&#9432;</button>
             </div>
             <div class="metric-card__value mono">
                 {% if project.first_seen and project.last_seen %}
@@ -109,7 +109,7 @@
     {% if total_pages is not defined %}{% set total_pages = 1 %}{% endif %}
     {{ ui.pagination(current_page, total_pages, total_items=sessions | length) }}
     {% endset %}
-    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">ⓘ</button>', pagination_html=sessions_pagination) %}
+    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">&#9432;</button>', pagination_html=sessions_pagination) %}
             <table id="project-sessions-table" class="data-table" data-table-enhanced>
             <thead>
                 <tr>
@@ -131,7 +131,7 @@
                         <div class="title-main">{{ s.title[:70] or 'Untitled' }}</div>
                         <div class="title-sub mono">
                             {{ s.session_id[-8:] if s.session_id else 'unknown' }}
-                            <button class="btn small" data-action="copy-session" data-clipboard-text="{{ s.session_id }}" aria-label="Copy session ID" title="复制 Session ID">
+                            <button class="btn small" data-action="copy" data-copy-text="{{ s.session_id }}" aria-label="Copy session ID" title="复制 Session ID">
                                 <span class="emoji" aria-hidden="true">📋</span>
                             </button>
                         </div>
@@ -144,28 +144,47 @@
                         {{ 'Claude Code' if s.agent == 'claude_code' else 'Qoder' if s.agent == 'qoder' else 'Codex' }}
                     </td>
                     <td class="mono">{{ s.model or '—' }}</td>
-                    <td class="token-cell">
-                        {% set s_total = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-                        {% set s_fresh = s.input_tokens %}
-                        {% set s_read = s.cached_input_tokens %}
-                        {% set s_write = s.cached_output_tokens %}
-                        {% set s_out = s.output_tokens %}
-                        {% if s_total > 0 %}
-                            {% set s_fresh_pct = (s_fresh / s_total * 100) | round(1) %}
-                            {% set s_read_pct = (s_read / s_total * 100) | round(1) %}
-                            {% set s_write_pct = (s_write / s_total * 100) | round(1) %}
-                            {% set s_out_pct = (s_out / s_total * 100) | round(1) %}
-                        {% else %}
-                            {% set s_fresh_pct = 0 %}{% set s_read_pct = 0 %}{% set s_write_pct = 0 %}{% set s_out_pct = 0 %}
-                        {% endif %}
-                        <div class="token-total">{{ s_total | format_compact_token }}</div>
-                        <div class="tokenbar" title="Token breakdown: Fresh / Cached Read / Cached Write / Output">
-                            <span class="tokenbar-seg fresh" style="--segment-width:{{ s_fresh_pct }}%"></span>
-                            <span class="tokenbar-seg read" style="--segment-width:{{ s_read_pct }}%"></span>
-                            <span class="tokenbar-seg write" style="--segment-width:{{ s_write_pct }}%"></span>
-                            <span class="tokenbar-seg out" style="--segment-width:{{ s_out_pct }}%"></span>
-                        </div>
-                    </td>
+                    {% set s_total = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+                    {% if s.agent == 'qoder' %}
+                        {% set s_fresh_pct = (s.input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_out_pct = (s.output_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {{ ui.token_cell(
+                            total=s_total | format_compact_token,
+                            fresh_pct=s_fresh_pct,
+                            read_pct=0,
+                            write_pct=0,
+                            out_pct=s_out_pct,
+                            fresh_val=s.input_tokens | format_compact_token,
+                            read_val='0',
+                            write_val='0',
+                            out_val=s.output_tokens | format_compact_token,
+                            fresh_pct_val=s_fresh_pct,
+                            read_pct_val='0.0',
+                            write_pct_val='0.0',
+                            out_pct_val=s_out_pct,
+                            profile='qoder'
+                        ) }}
+                    {% else %}
+                        {% set s_fresh_pct = (s.input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_read_pct = (s.cached_input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_write_pct = (s.cached_output_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_out_pct = (s.output_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {{ ui.token_cell(
+                            total=s_total | format_compact_token,
+                            fresh_pct=s_fresh_pct,
+                            read_pct=s_read_pct,
+                            write_pct=s_write_pct,
+                            out_pct=s_out_pct,
+                            fresh_val=s.input_tokens | format_compact_token,
+                            read_val=s.cached_input_tokens | format_compact_token,
+                            write_val=s.cached_output_tokens | format_compact_token,
+                            out_val=s.output_tokens | format_compact_token,
+                            fresh_pct_val=s_fresh_pct,
+                            read_pct_val=s_read_pct,
+                            write_pct_val=s_write_pct,
+                            out_pct_val=s_out_pct
+                        ) }}
+                    {% endif %}
                     <td class="num mono">—</td>
                     <td class="num mono">{{ s.tool_call_count | format_number }}</td>
                     <td class="{{ 'muted' if s.failed_tool_count == 0 else '' }}">

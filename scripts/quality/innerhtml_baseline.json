@@ -123,19 +123,19 @@
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 157,
+      "line": 170,
       "isClear": false,
       "snippet": "modal.innerHTML = ["
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 188,
+      "line": 201,
       "isClear": false,
       "snippet": "body.innerHTML = (source.tagName && source.tagName.toLowerCase() === \"template\")"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 192,
+      "line": 205,
       "isClear": false,
       "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title);"
     },
@@ -159,25 +159,25 @@
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 245,
+      "line": 336,
       "isClear": false,
       "snippet": "tbody.innerHTML = '<tr><td colspan=\"9\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td><"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 262,
+      "line": 380,
       "isClear": false,
       "snippet": "tbody.innerHTML = newTbody.innerHTML;"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 270,
+      "line": 385,
       "isClear": false,
       "snippet": "oldPagination.innerHTML = newPagination.innerHTML;"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 277,
+      "line": 392,
       "isClear": false,
       "snippet": "paginationDiv.innerHTML = newPagination.innerHTML;"
     },

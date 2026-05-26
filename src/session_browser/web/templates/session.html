@@ -59,7 +59,7 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
     </a>
   </nav>
 
-  <section class="sd-trace-panel" data-trace-panel>
+  <section class="sd-trace-panel" data-trace-panel data-tab-panel="trace">
     {{ sdt.trace_header() }}
     {# ── Empty trace state: no rounds indexed ── #}
     {% if not trace_rows %}
@@ -95,6 +95,89 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
       </tbody>
     </table>
     {% endif %}
+  </section>
+
+  {# ── Metrics panel ── #}
+  <section class="sd-metrics-panel" data-metrics-panel data-tab-panel="metrics" hidden>
+    <div class="sd-metrics-panel__head">
+      <h2>Session Metrics</h2>
+    </div>
+    <div class="sd-metrics-panel__body">
+      <dl class="sd-metrics-grid">
+        <div class="sd-metric-item">
+          <dt class="sd-metric-item__label">Tokens</dt>
+          <dd class="sd-metric-item__value">{{ hero_metrics.tokens|default('—') }}</dd>
+        </div>
+        <div class="sd-metric-item">
+          <dt class="sd-metric-item__label">Rounds</dt>
+          <dd class="sd-metric-item__value">{{ hero_metrics.rounds|default('—') }}</dd>
+        </div>
+        <div class="sd-metric-item">
+          <dt class="sd-metric-item__label">Tools</dt>
+          <dd class="sd-metric-item__value">{{ hero_metrics.tools|default('—') }}</dd>
+        </div>
+        <div class="sd-metric-item">
+          <dt class="sd-metric-item__label">Failed</dt>
+          <dd class="sd-metric-item__value">{{ hero_metrics.failed|default('—') }}</dd>
+        </div>
+        <div class="sd-metric-item">
+          <dt class="sd-metric-item__label">LLM Calls</dt>
+          <dd class="sd-metric-item__value">{{ hero_metrics.llm_calls|default('—') }}</dd>
+        </div>
+      </dl>
+      {% if session_summary %}
+      <div class="sd-metrics-detail">
+        <h3>Session Summary</h3>
+        <div class="sd-metrics-kv">
+          <div class="sd-kv"><span>Agent</span><span>{{ session_summary.agent_label|default('—') }}</span></div>
+          <div class="sd-kv"><span>Model</span><span>{{ session_summary.model|default('—') }}</span></div>
+          <div class="sd-kv"><span>Date</span><span>{{ session_summary.date|default('—') }}</span></div>
+          {% if session_summary.project_name %}
+          <div class="sd-kv"><span>Project</span><span>{{ session_summary.project_name }}</span></div>
+          {% endif %}
+          <div class="sd-kv"><span>User input rounds</span><span>{{ session_summary.manual_input_count|default('0') }}</span></div>
+          <div class="sd-kv"><span>Subagents</span><span>{{ session_summary.subagent_count|default('0') }} runs</span></div>
+          {% if session_summary.agent_key != "qoder" %}
+          <div class="sd-kv"><span>Cache write</span><span>{{ session_summary.cache_write_pct|default('—') }}</span></div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── Payloads panel ── #}
+  <section class="sd-payloads-panel" data-payloads-panel data-tab-panel="payloads" hidden>
+    <div class="sd-payloads-panel__head">
+      <h2>Payloads</h2>
+    </div>
+    <div class="sd-payloads-panel__body">
+      {% if payload_sources and payload_sources|length > 0 %}
+      <p class="sd-payloads-panel__desc">Click Request / Response / Result buttons in the trace timeline to view individual payloads in the modal.</p>
+      <table class="sd-payload-index">
+        <thead>
+          <tr>
+            <th>Kind</th>
+            <th>Status</th>
+            <th>Size</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payload_sources %}
+          <tr>
+            <td>{{ p.kind|default('unknown') }}</td>
+            <td>{{ p.status|default('available') }}</td>
+            <td>{{ p.size|default('—') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="sd-empty-state">
+        <p>No payload sources collected for this session.</p>
+      </div>
+      {% endif %}
+    </div>
   </section>
 
   {{ sdt.payload_sources(payload_sources | default([])) }}

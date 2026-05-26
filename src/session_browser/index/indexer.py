@@ -385,21 +385,44 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
     """Find a Qoder session .jsonl file on disk.
 
     Searches both projects/ (CLI) and cache/projects/ (GUI) directories.
+
+    Search order (optimised for old-index scenarios where file_path is missing):
+    1. Resolve short ID alias -> full UUID via canonical map, then search projects/.
+    2. Search projects/ by session_id — direct match then recursive.
+    3. Fall back to cache/projects/ — recursive walk.
     """
+    import re
     from session_browser.config import QODER_DATA_DIR
 
-    # Try projects/ first
+    uuid_pattern = re.compile(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    )
+
+    # Step 1: resolve short ID alias -> full UUID, then try projects/ direct
+    if not uuid_pattern.match(session_id):
+        canonical_map = qoder_source._build_canonical_id_map()
+        resolved_id = canonical_map.get(session_id.lower(), session_id)
+        if resolved_id != session_id.lower():
+            projects_dir = QODER_DATA_DIR / "projects"
+            if projects_dir.exists():
+                candidate = projects_dir / project_key / f"{resolved_id}.jsonl"
+                if candidate.exists():
+                    return candidate
+                for root, _dirs, files in os.walk(projects_dir):
+                    if f"{resolved_id}.jsonl" in files:
+                        return Path(root) / f"{resolved_id}.jsonl"
+
+    # Step 2: search projects/ by original session_id
     projects_dir = QODER_DATA_DIR / "projects"
     if projects_dir.exists():
         candidate = projects_dir / project_key / f"{session_id}.jsonl"
         if candidate.exists():
             return candidate
-
         for root, _dirs, files in os.walk(projects_dir):
             if f"{session_id}.jsonl" in files:
                 return Path(root) / f"{session_id}.jsonl"
 
-    # Fall back to cache/projects/
+    # Step 3: fall back to cache/projects/
     cache_dir = QODER_DATA_DIR / "cache" / "projects"
     if cache_dir.exists():
         for root, _dirs, files in os.walk(cache_dir):
@@ -449,13 +472,13 @@ def incremental_scan(
         cutoff_dt = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
         cutoff_iso = cutoff_dt.isoformat()
 
-    # Load existing sessions from DB: session_key → {ended_at, file_mtime, file_path, agent, model_execution_seconds, tool_execution_seconds}
+    # Load existing sessions from DB: session_key → {ended_at, file_mtime, file_path, agent, model_execution_seconds, tool_execution_seconds, model}
     existing = {}
     columns = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
     has_model_exec = "model_execution_seconds" in columns
     has_tool_exec = "tool_execution_seconds" in columns
     for row in conn.execute(
-        "SELECT session_key, ended_at, file_mtime, file_path, agent"
+        "SELECT session_key, ended_at, file_mtime, file_path, agent, model"
         + (", model_execution_seconds" if has_model_exec else "")
         + (", tool_execution_seconds" if has_tool_exec else "")
         + " FROM sessions"
@@ -465,6 +488,7 @@ def incremental_scan(
             "file_mtime": row["file_mtime"],
             "file_path": row["file_path"],
             "agent": row["agent"],
+            "model": row["model"],
             "model_execution_seconds": row["model_execution_seconds"] if has_model_exec else 0,
             "tool_execution_seconds": row["tool_execution_seconds"] if has_tool_exec else 0,
         }
@@ -514,29 +538,37 @@ def incremental_scan(
                 # Check file mtime — skip if unchanged and already has execution times
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
+                stored_model = info.get("model", "")
                 stored_model_exec = info.get("model_execution_seconds", 0)
                 stored_tool_exec = info.get("tool_execution_seconds", 0)
                 has_timing_data = (stored_model_exec and stored_model_exec > 0 and
                                    stored_tool_exec and stored_tool_exec > 0)
-                if stored_path and has_timing_data:
+                # A record needs rebuild if it is missing file_path, model, or timing data.
+                # This ensures old records can get file_path/model 补全 without
+                # re-parsing all normal existing records on every scan.
+                needs_rebuild = (not stored_path or not stored_model or not has_timing_data)
+                path_relocated = False
+                if stored_path:
                     fpath = Path(stored_path)
                     if fpath.exists():
                         current_mtime = os.path.getmtime(fpath)
-                        if current_mtime <= stored_mtime:
+                        # Only skip when file unchanged AND record is complete
+                        if current_mtime <= stored_mtime and not needs_rebuild:
                             skipped_count += 1
                             continue
-                        # File changed — re-parse
                     else:
                         # File deleted, try to locate it again
                         fpath = _locate_claude_session_file(project, sid)
+                        if fpath and fpath.exists() and str(fpath) != stored_path:
+                            path_relocated = True
                 else:
                     # No stored path — try to locate
                     fpath = _locate_claude_session_file(project, sid)
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Always re-process if execution times are missing
-                    if has_timing_data and current_mtime <= stored_mtime:
+                    # Skip only if file unchanged AND record is complete AND path unchanged
+                    if current_mtime <= stored_mtime and not needs_rebuild and not path_relocated:
                         skipped_count += 1
                         continue
                 else:
@@ -588,15 +620,20 @@ def incremental_scan(
 
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
+                stored_model = info.get("model", "")
                 stored_model_exec = info.get("model_execution_seconds", 0)
                 stored_tool_exec = info.get("tool_execution_seconds", 0)
                 has_timing_data = (stored_model_exec and stored_model_exec > 0 and
                                    stored_tool_exec and stored_tool_exec > 0)
-                if stored_path and has_timing_data:
+                # A record needs rebuild if it is missing file_path, model, or timing data.
+                needs_rebuild = (not stored_path or not stored_model or not has_timing_data)
+                path_relocated = False
+                if stored_path:
                     fpath = Path(stored_path)
                     if fpath.exists():
                         current_mtime = os.path.getmtime(fpath)
-                        if current_mtime <= stored_mtime:
+                        # Only skip when file unchanged AND record is complete
+                        if current_mtime <= stored_mtime and not needs_rebuild:
                             skipped_count += 1
                             continue
                     else:
@@ -604,6 +641,8 @@ def incremental_scan(
                         thread_info = threads_db.get(sid, {})
                         rollout_path = thread_info.get("rollout_path", "")
                         fpath = _locate_codex_session_file(sid, rollout_path)
+                        if fpath and fpath.exists() and str(fpath) != stored_path:
+                            path_relocated = True
                 else:
                     thread_info = threads_db.get(sid, {})
                     rollout_path = thread_info.get("rollout_path", "")
@@ -611,8 +650,8 @@ def incremental_scan(
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Always re-process if execution times are missing
-                    if has_timing_data and current_mtime <= stored_mtime:
+                    # Skip only if file unchanged AND record is complete AND path unchanged
+                    if current_mtime <= stored_mtime and not needs_rebuild and not path_relocated:
                         skipped_count += 1
                         continue
                 else:
@@ -652,7 +691,19 @@ def incremental_scan(
     if scan_qoder:
         discovered = qoder_source._discover_sessions()
         cache_discovered = qoder_source._discover_cache_sessions()
-        all_discovered = discovered + cache_discovered
+        # Canonicalize short IDs to full UUIDs before processing
+        canonical_map = qoder_source._build_canonical_id_map()
+        # Collect all projects/ session IDs to detect full overlap
+        projects_ids = {sid.lower() for _pk, sid, _fp in discovered}
+        all_discovered = []
+        for project_key, sid, fpath in discovered:
+            all_discovered.append((project_key, sid, fpath))
+        for project_key, sid, fpath in cache_discovered:
+            canonical_id = canonical_map.get(sid.lower(), sid)
+            # Skip cache sessions that resolve to a projects/ session
+            if canonical_id != sid.lower() and canonical_id in projects_ids:
+                continue
+            all_discovered.append((project_key, canonical_id, fpath))
         if verbose:
             print(f"Incremental scan: {len(all_discovered)} Qoder sessions...")
 
@@ -668,26 +719,36 @@ def incremental_scan(
 
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
+                stored_model = info.get("model", "")
                 stored_model_exec = info.get("model_execution_seconds", 0)
                 stored_tool_exec = info.get("tool_execution_seconds", 0)
                 has_timing_data = (stored_model_exec and stored_model_exec > 0 and
                                    stored_tool_exec and stored_tool_exec > 0)
-                if stored_path and has_timing_data:
+                # A record needs rebuild if it is missing file_path, model, or timing data.
+                # This ensures old records can get file_path/model 补全 without
+                # re-parsing all normal existing records on every scan.
+                needs_rebuild = (not stored_path or not stored_model or not has_timing_data)
+                path_relocated = False
+                if stored_path:
                     p = Path(stored_path)
                     if p.exists():
                         current_mtime = os.path.getmtime(p)
-                        if current_mtime <= stored_mtime:
+                        # Only skip when file unchanged AND record is complete
+                        if current_mtime <= stored_mtime and not needs_rebuild:
                             skipped_count += 1
                             continue
                     else:
+                        # Stored path no longer valid — relocate
                         fpath = _locate_qoder_session_file(project_key, sid)
+                        if fpath and fpath.exists() and str(fpath) != stored_path:
+                            path_relocated = True
                 else:
                     fpath = _locate_qoder_session_file(project_key, sid)
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Always re-process if execution times are missing
-                    if has_timing_data and current_mtime <= stored_mtime:
+                    # Skip only if file unchanged AND record is complete AND path unchanged
+                    if current_mtime <= stored_mtime and not needs_rebuild and not path_relocated:
                         skipped_count += 1
                         continue
                 else:
@@ -773,8 +834,14 @@ def list_sessions(
         clauses.append("model = ?")
         params.append(model)
     if title_like:
-        clauses.append("title LIKE ?")
-        params.append(f"%{title_like}%")
+        # NOTE: title_like now searches both title and session_id,
+        # case-insensitively.
+        clauses.append(
+            "(LOWER(title) LIKE LOWER(?) OR LOWER(session_id) LIKE LOWER(?))"
+        )
+        pattern = f"%{title_like}%"
+        params.append(pattern)
+        params.append(pattern)
 
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     valid_orders = {
@@ -817,8 +884,14 @@ def count_sessions(
         clauses.append("model = ?")
         params.append(model)
     if title_like:
-        clauses.append("title LIKE ?")
-        params.append(f"%{title_like}%")
+        # NOTE: title_like now searches both title and session_id,
+        # case-insensitively.
+        clauses.append(
+            "(LOWER(title) LIKE LOWER(?) OR LOWER(session_id) LIKE LOWER(?))"
+        )
+        pattern = f"%{title_like}%"
+        params.append(pattern)
+        params.append(pattern)
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     row = conn.execute(f"SELECT COUNT(*) FROM sessions {where}", params).fetchone()
     return row[0]
@@ -844,8 +917,14 @@ def get_sessions_list_aggregate(
         clauses.append("model = ?")
         params.append(model)
     if title_like:
-        clauses.append("title LIKE ?")
-        params.append(f"%{title_like}%")
+        # NOTE: title_like now searches both title and session_id,
+        # case-insensitively.
+        clauses.append(
+            "(LOWER(title) LIKE LOWER(?) OR LOWER(session_id) LIKE LOWER(?))"
+        )
+        pattern = f"%{title_like}%"
+        params.append(pattern)
+        params.append(pattern)
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     row = conn.execute(
         f"SELECT COUNT(*) as session_count, "
@@ -1145,4 +1224,5 @@ def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSu
         cached_input_tokens=row["cached_input_tokens"],
         cached_output_tokens=row["cached_output_tokens"],
         failed_tool_count=row["failed_tool_count"],
+        file_path=row["file_path"],
     )

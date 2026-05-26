@@ -238,6 +238,55 @@ above (lines 298-305) to avoid specificity conflicts. */
   font-size: var(--text-micro);
   color: var(--text-muted);
 }
+/* ─── Brand card (sidebar header) ─────────────────────────────── */
+.brand-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  margin: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-mark {
+  font-size: var(--text-xl);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.brand-title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-780);
+  color: var(--text-primary);
+  line-height: var(--lh-tight);
+}
+
+.brand-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ─── Nav list ────────────────────────────────────────────────── */
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-sm);
+}
+
+/* ─── Nav item active state — HTML uses is-active, not active ─── */
+.nav-item.is-active {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+
 /* ─── Sidebar collapse toggle（DEPRECATED: task 02; marked T053） ─── */
 .sidebar-toggle {
   /* hide old collapse button — replaced by shell grid toggles */

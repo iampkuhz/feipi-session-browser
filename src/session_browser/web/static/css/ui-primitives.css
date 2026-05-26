@@ -708,29 +708,29 @@ a.btn:focus-visible {
 }
 /* Standalone segments */
 .tokenbar-seg.fresh {
-  background: var(--claude);
+  background: var(--token-input-fresh);
 }
 .tokenbar-seg.read {
-  background: var(--codex);
+  background: var(--token-cache-read);
 }
 .tokenbar-seg.write {
-  background: var(--qoder);
+  background: var(--token-cache-write);
 }
 .tokenbar-seg.out {
-  background: var(--output);
+  background: var(--token-output-visible);
 }
 /* DataTable-embedded segments (t- prefix) */
 .t-fresh {
-  background: var(--claude);
+  background: var(--token-input-fresh);
 }
 .t-read {
-  background: var(--codex);
+  background: var(--token-cache-read);
 }
 .t-write {
-  background: var(--qoder);
+  background: var(--token-cache-write);
 }
 .t-out {
-  background: var(--output);
+  background: var(--token-output-visible);
 }
 /* === TokenTotal ============================================================ */
 /* Canonical wrapper for token value + bar combination.
@@ -830,16 +830,16 @@ a.btn:focus-visible {
   line-height: 1;
 }
 .dot--fresh {
-  background: var(--claude, #6d5dfc);
+  background: var(--token-input-fresh, #6d5dfc);
 }
 .dot--read {
-  background: var(--codex, #10b981);
+  background: var(--token-cache-read, #10b981);
 }
 .dot--write {
-  background: var(--qoder, #f59e0b);
+  background: var(--token-cache-write, #f59e0b);
 }
 .dot--out {
-  background: var(--output, #98a2b3);
+  background: var(--token-output-visible, #98a2b3);
 }
 .token-tooltip__value {
   font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
@@ -1152,6 +1152,14 @@ a.btn:focus-visible {
 .data-table td {
   text-align: left;
 }
+/* Column min-width via CSS custom property (set inline as --col-min-width) */
+.data-table col {
+  min-width: var(--col-min-width, 0);
+}
+.data-table th,
+.data-table td {
+  min-width: var(--col-min-width, 0);
+}
 /* Numeric column: right alignment + mono font */
 .data-table th.col-num,
 .data-table td.col-num,
@@ -1306,16 +1314,16 @@ a.btn:focus-visible {
   border-radius: 0 999px 999px 0;
 }
 .tokenbar-in-cell .t-fresh {
-  background: var(--claude);
+  background: var(--token-input-fresh);
 }
 .tokenbar-in-cell .t-read {
-  background: var(--codex);
+  background: var(--token-cache-read);
 }
 .tokenbar-in-cell .t-write {
-  background: var(--qoder);
+  background: var(--token-cache-write);
 }
 .tokenbar-in-cell .t-out {
-  background: var(--output);
+  background: var(--token-output-visible);
 }
 /* Token cell minimum width */
 .token-cell, .token-col {
@@ -2046,7 +2054,7 @@ header treatment). Layout properties come from the base definition. */
 }
 /* === EmptyState / ErrorState ============================================== */
 .state-strip {
-  margin-top: 16px;
+  margin: 16px 0;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -2176,6 +2184,9 @@ header treatment). Layout properties come from the base definition. */
 .card-sub {
   font-size: 12px;
   color: var(--text-subtle);
+  line-height: 1.5;
+  margin-top: 4px;
+  margin-bottom: 6px;
 }
 .table-title {
   font-size: 16px;

@@ -234,17 +234,17 @@ class TestTracePanel:
 
     def test_has_all_failed_segmented_control(self):
         source = self._timeline()
-        assert 'data-action="filter-status"' in source, \
-            "Trace must have filter-status action"
-        assert 'data-status="all"' in source, \
-            "Trace must have 'all' filter chip"
-        assert 'data-status="failed"' in source, \
-            "Trace must have 'failed' filter chip"
+        assert 'data-action="status-all"' in source, \
+            "Trace must have status-all action"
+        assert 'data-action="status-failed"' in source, \
+            "Trace must have status-failed action"
 
     def test_has_collapse_all_button(self):
         source = self._timeline()
-        assert 'data-action="collapse-all"' in source, \
-            "Trace must have Collapse All button"
+        assert 'data-action="collapse-all"' not in source, \
+            "Trace must NOT have collapse-all button; use toggle-all only"
+        assert 'data-action="toggle-all"' in source, \
+            "Trace must have toggle-all button"
 
     def test_has_trace_round_row(self):
         source = self._timeline()

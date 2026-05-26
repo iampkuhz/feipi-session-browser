@@ -100,14 +100,84 @@
     window.location.reload();
   });
 
+  // ── Apply button dirty state ──────────────────────────────────────
+
+  /**
+   * Serialize form values into a comparable string snapshot.
+   * Captures all named inputs (search, selects, hidden fields) excluding submit buttons.
+   */
+  function serializeFormState(form) {
+    var pairs = [];
+    var inputs = form.querySelectorAll('input, select, textarea');
+    for (var i = 0; i < inputs.length; i++) {
+      var el = inputs[i];
+      var name = el.getAttribute('name');
+      if (!name || el.type === 'submit' || el.type === 'button') continue;
+      pairs.push(name + '=' + (el.value || ''));
+    }
+    return pairs.sort().join('&');
+  }
+
+  /**
+   * Update Apply button visual state based on form dirty status.
+   * When form values match initial snapshot: add is-dirty class removal (button looks muted).
+   * When form values differ: add is-dirty class (button looks active/primary).
+   */
+  function updateApplyButtonState() {
+    var form = document.getElementById('session-filter-form');
+    var applyBtn = document.querySelector('[data-action="apply"]');
+    if (!form || !applyBtn) return;
+
+    var currentState = serializeFormState(form);
+    var isDirty = (currentState !== _initialFormState);
+
+    if (isDirty) {
+      applyBtn.classList.add('is-dirty');
+      applyBtn.classList.remove('is-muted');
+    } else {
+      applyBtn.classList.remove('is-dirty');
+      applyBtn.classList.add('is-muted');
+    }
+  }
+
+  /**
+   * Bind input/change events on filter form to track dirty state.
+   * Whenever any filter value changes, update the Apply button appearance.
+   */
+  function bindApplyDirtyState() {
+    var form = document.getElementById('session-filter-form');
+    if (!form) return;
+
+    // Capture initial form state snapshot
+    _initialFormState = serializeFormState(form);
+
+    // Listen for input events (covers text input, search)
+    form.addEventListener('input', function () {
+      updateApplyButtonState();
+    });
+
+    // Listen for change events (covers select dropdowns)
+    form.addEventListener('change', function () {
+      updateApplyButtonState();
+    });
+
+    // Set initial state on load
+    updateApplyButtonState();
+  }
+
+  // Module-level variable to store initial form state snapshot
+  var _initialFormState = '';
+
   // ── Initialization: augment DOM for data-action delegation ──────────────
 
   function init() {
     augmentSortableHeaders();
     removeInlinePageSizeHandler();
+    syncPageSizeHidden();
     bindFormSubmit();
     bindFilterClear();
     bindPagination();
+    bindApplyDirtyState();
 
     // Expose public API
     window.SessionsList = {
@@ -148,6 +218,20 @@
     var sel = document.querySelector('.sessions-footer-page-size__select');
     if (sel && sel.getAttribute('onchange')) {
       sel.removeAttribute('onchange');
+    }
+  }
+
+  /**
+   * Sync hidden page_size input with visible select value.
+   * Ensures FormData(form) always includes the current page_size.
+   */
+  function syncPageSizeHidden() {
+    var sel = document.querySelector('[data-action="page-size"]');
+    var form = document.getElementById('session-filter-form');
+    if (!sel || !form) return;
+    var hidden = form.querySelector('input[name="page_size"]');
+    if (hidden) {
+      hidden.value = sel.value;
     }
   }
 
@@ -226,6 +310,9 @@
   /**
    * Fetch a page via AJAX and replace table body + pagination.
    * Uses X-Requested-With header to trigger partial response from server.
+   * pushState only happens AFTER successful response — never before.
+   * On failure, does full reload to target URL — never leaves a loading/empty table.
+   * After replacing pagination, re-augments sortable headers so new DOM has data-action.
    */
   function fetchPage(params) {
     var qs = new URLSearchParams();
@@ -236,53 +323,91 @@
     }
     var url = '/sessions' + (qs.toString() ? '?' + qs.toString() : '');
 
-    // Update URL with pushState (no reload)
-    window.history.pushState({ ajax: true }, '', url);
+    // Locate tbody using selector matching ui.table_card macro output:
+    // <section class="card table-card"> > .table-wrap > table.data-table > tbody
+    var tbody = document.querySelector('.table-card .data-table tbody');
+    if (!tbody) {
+      // Fallback: full navigation if target not found
+      window.location.href = url;
+      return;
+    }
 
     // Show loading state
-    var tbody = document.querySelector('.table-card .data-table tbody');
-    if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-subtle);">Loading...</td></tr>';
-    }
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-subtle);">Loading...</td></tr>';
 
     fetch(url, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
-    .then(function (response) { return response.text(); })
+    .then(function (response) {
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status);
+      }
+      return response.text();
+    })
     .then(function (html) {
       // Parse response: #sessions-ajax-response contains tbody + pagination
       var parser = new DOMParser();
       var doc = parser.parseFromString(html, 'text/html');
       var ajaxResponse = doc.getElementById('sessions-ajax-response');
-      if (!ajaxResponse) return;
-
-      // Replace table body
-      var newTbody = ajaxResponse.querySelector('tbody');
-      if (newTbody && tbody) {
-        tbody.innerHTML = newTbody.innerHTML;
+      if (!ajaxResponse) {
+        throw new Error('Missing #sessions-ajax-response in AJAX response');
       }
 
-      // Replace pagination
+      // Extract tbody content from AJAX response
+      var newTbody = ajaxResponse.querySelector('tbody');
+      if (!newTbody) {
+        console.error('AJAX pagination fallback: missing tbody in response');
+        window.location.href = url;
+        return;
+      }
+
+      // Validate: response must contain at least one data row
+      var rows = newTbody.querySelectorAll('tr');
+      if (rows.length === 0) {
+        console.error('AJAX pagination fallback: no rows in response tbody');
+        window.location.href = url;
+        return;
+      }
+
+      // Validate: response must contain pagination element
       var newPagination = ajaxResponse.querySelector('#ajax-pagination');
+      if (!newPagination) {
+        console.error('AJAX pagination fallback: missing #ajax-pagination in response');
+        window.location.href = url;
+        return;
+      }
+
+      tbody.innerHTML = newTbody.innerHTML;
+
+      // Replace pagination — page input value comes from server response
       var oldPagination = document.getElementById('ajax-pagination');
-      if (newPagination) {
-        if (oldPagination) {
-          oldPagination.innerHTML = newPagination.innerHTML;
-        } else if (tbody) {
-          // Create pagination container if it doesn't exist
-          var tableCard = tbody.closest('.table-card') || tbody.closest('.card');
-          if (tableCard) {
-            var paginationDiv = document.createElement('div');
-            paginationDiv.id = 'ajax-pagination';
-            paginationDiv.innerHTML = newPagination.innerHTML;
-            tableCard.appendChild(paginationDiv);
-          }
+      if (oldPagination) {
+        oldPagination.innerHTML = newPagination.innerHTML;
+      } else if (tbody) {
+        // Create pagination container if it doesn't exist
+        var tableCard = tbody.closest('.table-card') || tbody.closest('.card');
+        if (tableCard) {
+          var paginationDiv = document.createElement('div');
+          paginationDiv.id = 'ajax-pagination';
+          paginationDiv.innerHTML = newPagination.innerHTML;
+          tableCard.appendChild(paginationDiv);
         }
       }
+
+      // pushState ONLY after successful response and DOM update
+      window.history.pushState({ ajax: true }, '', url);
+
+      // Re-augment sortable headers on new DOM so data-action is present
+      augmentSortableHeaders();
+
+      // Sync hidden page_size with the new select from AJAX response
+      syncPageSizeHidden();
     })
     .catch(function (err) {
-      console.error('AJAX pagination error:', err);
-      // Fallback: full page reload
+      console.error('AJAX pagination fallback:', err.message || err);
+      // Safe fallback: direct full-page navigation without restore attempt.
+      // Restoring originalTbodyHTML can fail silently and leave the page
+      // stuck in "Loading..." state when the DOM is in an unexpected state.
       window.location.href = url;
     });
   }
@@ -306,6 +431,9 @@
           if (sortInput && sortInput.value) params.set('sort', sortInput.value);
           if (dirInput && dirInput.value) params.set('dir', dirInput.value);
         }
+        // Preserve page_size from pagination select
+        var pageSizeSel = document.querySelector('.sessions-footer-page-size__select, [data-action="page-size"]');
+        if (pageSizeSel && pageSizeSel.value) params.set('page_size', pageSizeSel.value);
         fetchPage(paramsToObject(params));
       } else if (detail.href) {
         // Legacy: direct URL navigation
@@ -320,6 +448,7 @@
         var params = getFilterParams();
         params.set('page_size', String(detail.pageSize));
         params.set('page', '1'); // reset to first page on size change
+        // Preserve hidden sort/dir fields
         var form = document.getElementById('session-filter-form');
         if (form) {
           var sortInput = form.querySelector('input[name="sort"]');

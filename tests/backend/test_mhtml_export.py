@@ -146,9 +146,10 @@ class TestPhase1SimplifiedStructure:
         assert 'id="payload-modal"' in html, "missing payload-modal in base.html"
 
     def test_has_expand_collapse_buttons(self):
-        # v9 has collapse-all in the component macro
+        # v19: single toggle-all button, no separate collapse-all
         component = self._read("components/session_detail_timeline.html")
-        assert 'data-action="collapse-all"' in component, "missing collapse-all"
+        assert 'data-action="toggle-all"' in component, "missing toggle-all"
+        assert 'data-action="collapse-all"' not in component, "collapse-all must be removed; use toggle-all only"
 
     def test_has_all_failed_segmented_control(self):
         # v18: filter controls use status-all/status-failed (HIFI table migration)

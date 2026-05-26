@@ -155,7 +155,7 @@
   width: 132px;
   height: 8px;
   margin-top: 5px;
-  background: #d9e1ec;
+  /* background handled by ui-primitives .tokenbar */
   border-radius: 999px;
   display: flex;
   overflow: visible;
@@ -171,19 +171,19 @@
   border-radius: 0 999px 999px 0;
 }
 .tokenbar .tokenbar-seg.fresh {
-  background: var(--fresh, #4a90d9);
+  background: var(--token-input-fresh);
   width: var(--segment-width, 25%);
 }
 .tokenbar .tokenbar-seg.read {
-  background: var(--read, #67b26f);
+  background: var(--token-cache-read);
   width: var(--segment-width, 25%);
 }
 .tokenbar .tokenbar-seg.write {
-  background: var(--write, #f5a623);
+  background: var(--token-cache-write);
   width: var(--segment-width, 25%);
 }
 .tokenbar .tokenbar-seg.out {
-  background: var(--out, #d0021b);
+  background: var(--token-output-visible);
   width: var(--segment-width, 25%);
 }
 /* ── Progress bar (tool calls) ─────────────────────────────── */
@@ -397,18 +397,18 @@ in ui-primitives.css). Page CSS should not redefine global primitives. */
   margin-top: auto;
   margin-bottom: auto;
 }
-/* 11. Tokenbar tooltip (HIFI uses .t-fresh etc., not .tokenbar-seg) */
+/* 11. Tokenbar tooltip colors using canonical token variables */
 .tokenbar .t-fresh {
-  background: var(--claude, #6d5dfc);
+  background: var(--token-input-fresh);
 }
 .tokenbar .t-read {
-  background: var(--codex, #12b981);
+  background: var(--token-cache-read);
 }
 .tokenbar .t-write {
-  background: var(--qoder, #f59e0b);
+  background: var(--token-cache-write);
 }
 .tokenbar .t-out {
-  background: var(--total, #98a2b3);
+  background: var(--token-output-visible);
 }
 /* Tokenbar-specific tooltip (scoped to avoid conflict with global .tooltip in ui-primitives.css) */
 .tokenbar .tooltip {

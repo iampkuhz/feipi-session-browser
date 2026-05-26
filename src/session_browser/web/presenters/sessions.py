@@ -23,7 +23,7 @@ from session_browser.index.anomalies import (
 
 # ── Query parameter defaults ─────────────────────────────────────────
 
-VALID_PAGE_SIZES = {20, 100, 500}
+VALID_PAGE_SIZES = {20, 50, 100, 500}
 
 SORT_KEY_MAP = {
     "ended-at": "ended_at",
@@ -126,7 +126,7 @@ def compute_pagination(
         page_end = min(offset + limit, total_count)
 
     has_prev = page > 1
-    has_next = page_start < total_count if page_size != "all" else False
+    has_next = page < total_pages if page_size != "all" else False
 
     return {
         "limit": limit,

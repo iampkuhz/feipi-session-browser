@@ -62,24 +62,6 @@
       "snippet": "<button type=\"button\" class=\"sd-btn sd-btn--secondary sd-btn--md sd-collapse-all-btn\" data-action=\"collapse-all\" style=\"min-width:100px\">Col"
     },
     {
-      "file": "src/session_browser/web/templates/components/ui_primitives.html",
-      "line": 475,
-      "source": "html",
-      "snippet": "<col{% if h.min_width %} style=\"min-width:{{ h.min_width }}\"{% endif %}>"
-    },
-    {
-      "file": "src/session_browser/web/templates/components/ui_primitives.html",
-      "line": 493,
-      "source": "html",
-      "snippet": "<th class=\"{{ col_classes | join(' ') }}\"{%- if h_sortable %} data-action=\"sort\" data-sort-key=\"{{ h.key }}\" role=\"columnheader\" aria-sort=\""
-    },
-    {
-      "file": "src/session_browser/web/templates/components/ui_primitives.html",
-      "line": 515,
-      "source": "html",
-      "snippet": "<td class=\"{{ td_classes | join(' ') }}\"{% if h.min_width %} style=\"min-width:{{ h.min_width }}\"{% endif %}><div class=\"cell-scroll\">{{ cell"
-    },
-    {
       "file": "src/session_browser/web/static/js/agents.js",
       "line": 268,
       "source": "js",
@@ -140,89 +122,11 @@
       "snippet": "infoPopover.style.top = (rect.bottom + 10) + 'px';"
     },
     {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 44,
-      "source": "js",
-      "snippet": "if (detailRow.style.display === 'none' || detailRow.style.display === '') {"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 45,
-      "source": "js",
-      "snippet": "detailRow.style.display = 'table-row';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 55,
-      "source": "js",
-      "snippet": "detailRow.style.display = 'none';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 154,
-      "source": "js",
-      "snippet": "row.style.display = visible ? '' : 'none';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 158,
-      "source": "js",
-      "snippet": "detailRow.style.display = visible ? '' : 'none';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 175,
-      "source": "js",
-      "snippet": "node.style.display = visible ? '' : 'none';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 218,
-      "source": "js",
-      "snippet": "row.style.display = '';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 221,
-      "source": "js",
-      "snippet": "detailRow.style.display = '';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 225,
-      "source": "js",
-      "snippet": "node.style.display = '';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/timeline.js",
-      "line": 298,
-      "source": "js",
-      "snippet": "if (detailRow && detailRow.style.display === 'none') {"
-    },
-    {
       "file": "src/session_browser/web/static/js/ui_primitives.js",
-      "line": 498,
-      "source": "js",
-      "snippet": "kindEl.style.display = '';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/ui_primitives.js",
-      "line": 621,
+      "line": 654,
       "source": "js",
       "snippet": "els[i].style.maxHeight = els[i].dataset.scrollMax;"
-    },
-    {
-      "file": "src/session_browser/web/static/js/view-state.js",
-      "line": 158,
-      "source": "js",
-      "snippet": "el.style.display = el.dataset.view === name ? '' : 'none';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/view-state.js",
-      "line": 392,
-      "source": "js",
-      "snippet": "(detail.style.display === 'none' || detail.style.display === '')) {"
     }
   ],
-  "count": 37
+  "count": 21
 }

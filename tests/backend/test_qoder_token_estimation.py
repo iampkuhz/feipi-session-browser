@@ -462,3 +462,75 @@ class TestToolExecutionTime:
         assert tool_calls[0].duration_ms == 10000, (
             f"Expected 10000ms but got {tool_calls[0].duration_ms}"
         )
+
+
+# ─── Test: Qoder cache values are never fabricated ───────────────────────
+
+
+class TestCacheNoFabrication:
+    """Qoder sessions only have fresh input and output tokens — no cache
+    read/write.  The parser must never fabricate cache values to satisfy
+    UI requirements.
+
+    See task T057.
+    """
+
+    def test_summary_cache_zero_when_estimated(self):
+        """Session summary cache_read/output must be 0 when tokens are estimated."""
+        events = [
+            _user_event("hello"),
+            _assistant_event(text="hi", msg_id="msg-1"),
+            _user_event("what is 2+2?"),
+            _assistant_event(text="it's 4", msg_id="msg-2"),
+        ]
+
+        summary = _build_summary_from_events(events, "sess-1", "/tmp")
+
+        assert summary.cached_input_tokens == 0, (
+            f"cached_input_tokens should be 0, got {summary.cached_input_tokens}"
+        )
+        assert summary.cached_output_tokens == 0, (
+            f"cached_output_tokens should be 0, got {summary.cached_output_tokens}"
+        )
+        # Tokens should still be estimated (non-zero)
+        assert summary.input_tokens > 0
+        assert summary.output_tokens > 0
+
+    def test_summary_cache_zero_when_real_usage_no_cache(self):
+        """Even with real usage, if source has no cache fields, summary cache stays 0."""
+        events = [
+            _user_event("hello"),
+            _assistant_event(
+                text="hi",
+                msg_id="msg-1",
+                usage={"input_tokens": 100, "output_tokens": 50},
+            ),
+        ]
+
+        summary = _build_summary_from_events(events, "sess-1", "/tmp")
+
+        assert summary.cached_input_tokens == 0
+        assert summary.cached_output_tokens == 0
+        assert summary.input_tokens == 100
+        assert summary.output_tokens == 50
+
+    def test_per_message_cache_zero_when_estimated(self):
+        """Per-message usage dicts injected by _extract_messages must have cache=0."""
+        events = [
+            _user_event("hello"),
+            _assistant_event(text="hi", msg_id="msg-1"),
+            _user_event("tell me more"),
+            _assistant_event(text="sure", msg_id="msg-2"),
+        ]
+
+        messages = _extract_messages(events)
+        assistant_msgs = [m for m in messages if m.role == "assistant"]
+
+        for msg in assistant_msgs:
+            assert msg.usage is not None
+            assert msg.usage.get("cache_read_input_tokens") == 0, (
+                f"cache_read should be 0 for estimated message {msg.llm_call_id}"
+            )
+            assert msg.usage.get("cache_creation_input_tokens") == 0, (
+                f"cache_write should be 0 for estimated message {msg.llm_call_id}"
+            )

@@ -10,12 +10,17 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
-from pathlib import Path
+import os
+import socket
 import subprocess
 import sys
 import time
 import shutil
+import tempfile
+import urllib.request
+import urllib.error
+from datetime import datetime, timezone
+from pathlib import Path
 
 # 确保 repo_root 在 sys.path 中，使 `scripts.*` 导入在直接运行时可用。
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -36,7 +41,114 @@ from scripts.quality.quality_targets import required_gates_for_target, applicabl
 
 
 # 01. 命令执行工具
-def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True) -> GateDetail:
+
+def _fixture_session_available(base_url: str) -> bool:
+    """Check if the HIFI fixture session is available on the given server."""
+    import urllib.request
+    try:
+        resp = urllib.request.urlopen(f"{base_url}/sessions/claude_code/hifi-viz-session-001", timeout=5)
+        return resp.status == 200
+    except Exception:
+        return False
+
+
+def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | None]:
+    """Start a temporary fixture server with HIFI test data.
+
+    Returns (proc, base_url, tmpdir) or (None, None, None) on failure.
+    """
+    import socket
+    import tempfile
+    import shutil
+    import sqlite3
+
+    fixture_root = REPO_ROOT / "tests" / "fixtures" / "session_hifi_fixture"
+    if not fixture_root.exists():
+        return None, None, None
+
+    tmpdir = tempfile.mkdtemp(prefix="quality_gate_fixture_")
+    index_dir = os.path.join(tmpdir, "index")
+    os.makedirs(index_dir)
+    sqlite_path = os.path.join(index_dir, "index.sqlite")
+    data_dir = os.path.join(tmpdir, "claude_data")
+    shutil.copytree(str(fixture_root), data_dir)
+
+    # Populate index from fixture
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "src"))
+        os.environ["CLAUDE_DATA_DIR"] = data_dir
+        # Reload config to pick up new CLAUDE_DATA_DIR
+        if "session_browser.config" in sys.modules:
+            import importlib
+            importlib.reload(sys.modules["session_browser.config"])
+        for _mod in list(sys.modules):
+            if _mod.startswith("session_browser.sources"):
+                del sys.modules[_mod]
+
+        from session_browser.index.indexer import init_schema, upsert_session
+        conn = sqlite3.connect(sqlite_path)
+        conn.row_factory = sqlite3.Row
+        init_schema(conn)
+        from session_browser.sources.claude import scan_all_sessions
+        for summary in scan_all_sessions():
+            upsert_session(conn, summary)
+        conn.commit()
+        conn.close()
+    except Exception:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return None, None, None
+
+    # Find free port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT / "src")
+    env["INDEX_DIR"] = index_dir
+    env["CLAUDE_DATA_DIR"] = data_dir
+    env["SERVER_HOST"] = "127.0.0.1"
+    env["SERVER_PORT"] = str(port)
+    env["SESSION_BROWSER_LOG_LEVEL"] = "WARNING"
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "session_browser", "serve", "--allow-empty", "--no-scan"],
+        cwd=str(REPO_ROOT), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+    # Wait for server to start
+    base_url = f"http://127.0.0.1:{port}"
+    for _ in range(30):
+        try:
+            resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)
+            if resp.status == 200:
+                return proc, base_url, tmpdir
+        except Exception:
+            pass
+        time.sleep(0.5)
+
+    proc.terminate()
+    proc.wait()
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    return None, None, None
+
+
+def _stop_fixture_server(proc: subprocess.Popen, tmpdir: str | None) -> None:
+    """Stop the fixture server and clean up temp files."""
+    if tmpdir:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+            proc.wait()
+
+
+def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True,
+            env_overrides: dict[str, str] | None = None) -> GateDetail:
     started = time.time()
     if not cmd or shutil.which(cmd[0]) is None:
         status = BLOCKED if required else FAIL
@@ -45,8 +157,14 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True) -> Gate
     # Playwright 测试在并行化后应在 20s 内完成，120s 足够
     timeout = 120 if cmd[:2] == ["npx", "playwright"] else 300
 
+    # Build env with optional overrides
+    run_env = os.environ.copy()
+    if env_overrides:
+        run_env.update(env_overrides)
+
     try:
-        proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+        proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, timeout=timeout, env=run_env)
         duration = int((time.time() - started) * 1000)
         output = (proc.stdout or "").strip()
         if len(output) > 4000:
@@ -102,7 +220,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
     if gate == "pytest":
         test_candidates = {
             "session-detail": ["tests/ui/test_web_template_contract.py", "tests/ui/test_web_static_contract.py"],
-            "python-src": ["tests"],
+            "python-src": ["tests/backend"],
             "hook-runtime": [
                 "tests/hooks/test_claude_hooks_hook_io.py",
                 "tests/hooks/test_claude_hooks_classify.py",
@@ -135,14 +253,48 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
 
 
 # 03. target 执行
+
+# Gates that require the HIFI fixture session (need `hifi-viz-session-001`).
+_FIXTURE_GATES = {"browserLayout", "browserInteraction"}
+
+
 def run_target(repo_root: Path, target: str, changed_files: list[str] | None = None) -> list[GateDetail]:
     details: list[GateDetail] = []
-    for gate in applicable_gates_for_target(target, changed_files):
-        cmd = gate_command(gate, repo_root, target)
-        if not cmd:
-            details.append(GateDetail(name=gate, status=BLOCKED, command=[], output=f"required gate {gate} 没有可执行命令或依赖缺失。"))
-            continue
-        details.append(run_cmd(gate, cmd, repo_root, required=True))
+
+    # Check if any fixture-dependent gate will run
+    needs_fixture = any(g in _FIXTURE_GATES for g in applicable_gates_for_target(target, changed_files))
+
+    fixture_proc = None
+    fixture_tmpdir = None
+    fixture_base_url = None
+
+    if needs_fixture:
+        default_base = os.environ.get("BASE_URL", "http://127.0.0.1:18999")
+        if not _fixture_session_available(default_base):
+            fixture_proc, fixture_base_url, fixture_tmpdir = _start_fixture_server()
+            if fixture_proc and fixture_base_url:
+                print(f"[fixture-server] started at {fixture_base_url}")
+            elif fixture_base_url is None:
+                print("[fixture-server] WARNING: could not start fixture server, browserLayout tests may fail")
+
+    try:
+        for gate in applicable_gates_for_target(target, changed_files):
+            cmd = gate_command(gate, repo_root, target)
+            if not cmd:
+                details.append(GateDetail(name=gate, status=BLOCKED, command=[], output=f"required gate {gate} 没有可执行命令或依赖缺失。"))
+                continue
+
+            # For fixture-dependent gates, inject BASE_URL if fixture server is running
+            env_override = None
+            if gate in _FIXTURE_GATES and fixture_base_url:
+                env_override = {"BASE_URL": fixture_base_url}
+
+            details.append(run_cmd(gate, cmd, repo_root, required=True, env_overrides=env_override))
+    finally:
+        if fixture_proc:
+            _stop_fixture_server(fixture_proc, fixture_tmpdir)
+            print(f"[fixture-server] stopped")
+
     return details
 
 

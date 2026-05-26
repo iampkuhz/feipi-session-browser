@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -82,6 +83,48 @@ from session_browser.web.renderers.markdown import render_markdown as _md_filter
 from session_browser.web import template_env as _template_mod
 
 logger = logging.getLogger("session_browser.web")
+
+# ── Qoder short ID resolution ─────────────────────────────────────────────
+
+_UUID_PATTERN = re.compile(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+)
+
+
+def _resolve_qoder_short_id(short_id: str) -> tuple[str | None, str | None]:
+    """Resolve a Qoder short ID to its canonical full UUID.
+
+    Returns (resolved_id, error_message):
+    - (full_uuid, None) when exactly one full UUID has short_id as prefix.
+    - (None, error_message) when multiple matches exist (ambiguous).
+    - (None, None) when no match found or short_id looks like a full UUID.
+    """
+    if not short_id or _UUID_PATTERN.match(short_id):
+        return None, None
+
+    from session_browser.sources.qoder import _build_canonical_id_map
+    canonical_map = _build_canonical_id_map()
+    resolved = canonical_map.get(short_id.lower())
+    if resolved:
+        return resolved, None
+
+    # Not in pre-built map — fall back to direct prefix scan
+    from session_browser.sources.qoder import _discover_sessions
+    uuid_pattern = _UUID_PATTERN
+    full_uuids: list[str] = []
+    for _pk, sid, _fp in _discover_sessions():
+        if uuid_pattern.match(sid) and sid.lower().startswith(short_id.lower()):
+            full_uuids.append(sid.lower())
+
+    if len(full_uuids) == 1:
+        return full_uuids[0], None
+    elif len(full_uuids) > 1:
+        return None, (
+            f"Short ID '{short_id}' matches {len(full_uuids)} sessions "
+            f"(ambiguous). Use the full UUID to disambiguate."
+        )
+    return None, None
+
 
 # ── Query state / URL builder for /sessions ────────────────────────
 
@@ -184,7 +227,7 @@ def _build_view_actions(
 
     # Page size URLs
     page_size_urls = {}
-    for ps in ("20", "100", "500", "all"):
+    for ps in ("20", "50", "100", "500", "all"):
         page_size_urls[ps] = build_sessions_url(
             current=current,
             updates={"page_size": ps},
@@ -503,8 +546,22 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         conn.close()
 
         if session is None:
-            self._send_404()
-            return
+            # For qoder, try resolving short ID -> canonical full UUID
+            if agent == "qoder":
+                resolved_id, err_msg = _resolve_qoder_short_id(session_id)
+                if resolved_id:
+                    session_key = f"{agent}:{resolved_id}"
+                    conn = _get_connection()
+                    session = get_session(conn, session_key)
+                    conn.close()
+                    if session is not None:
+                        session_id = resolved_id
+                if session is None and err_msg:
+                    self._send_json({"error": err_msg}, status=404)
+                    return
+            if session is None:
+                self._send_404()
+                return
 
         # Get raw conversation data from source
         if agent == "claude_code":
@@ -514,8 +571,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             )
         elif agent == "qoder":
             from session_browser.sources.qoder import parse_session_detail
+            # Prefer DB file_path; fallback to search if missing/invalid
+            qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
             raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
-                session.project_key, session_id
+                session.project_key, session_id, session_file=qoder_file
             )
         else:
             from session_browser.sources.codex import parse_session_detail
@@ -638,8 +697,22 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         conn.close()
 
         if session is None:
-            self._send_json({"error": "session not found"}, status=404)
-            return
+            # For qoder, try resolving short ID -> canonical full UUID
+            if agent == "qoder":
+                resolved_id, err_msg = _resolve_qoder_short_id(session_id)
+                if resolved_id:
+                    session_key = f"{agent}:{resolved_id}"
+                    conn = _get_connection()
+                    session = get_session(conn, session_key)
+                    conn.close()
+                    if session is not None:
+                        session_id = resolved_id
+                if session is None and err_msg:
+                    self._send_json({"error": err_msg}, status=404)
+                    return
+            if session is None:
+                self._send_json({"error": "session not found"}, status=404)
+                return
 
         # Parse session detail using the same agent-specific logic as _serve_session
         if agent == "claude_code":
@@ -649,8 +722,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             )
         elif agent == "qoder":
             from session_browser.sources.qoder import parse_session_detail
+            # Prefer DB file_path; fallback to search if missing/invalid
+            qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
             raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
-                session.project_key, session_id
+                session.project_key, session_id, session_file=qoder_file
             )
         else:
             from session_browser.sources.codex import parse_session_detail
@@ -2146,6 +2221,7 @@ def _build_v11_view_model(
     return {
         "session_summary": {
             "agent_label": agent_name,
+            "agent_key": session.agent,
             "title": session.title or "Untitled",
             "model": session.model or "unknown",
             "branch": session.git_branch or "branch main",
@@ -2640,6 +2716,7 @@ def _build_v9_view_model(
     return {
         "session_summary": {
             "agent_label": agent_name,
+            "agent_key": session.agent,
             "title": session.title or "Untitled",
             "model": session.model or "unknown",
             "branch": session.git_branch or "branch main",

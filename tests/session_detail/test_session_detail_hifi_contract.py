@@ -64,9 +64,11 @@ class TestFixtureDataAttributes:
                   soup.select_one('[data-action="status-failed"]') is not None
         has_legacy = soup.select_one('[data-action="filter-status"]') is not None
         assert has_new or has_legacy, 'missing filter status buttons (status-all/status-failed or legacy filter-status)'
-        # collapse-all must exist
-        btn = soup.select_one('[data-action="collapse-all"]')
-        assert btn is not None, 'missing button with data-action="collapse-all"'
+        # toggle-all must exist (single button, no separate collapse-all)
+        btn = soup.select_one('[data-action="toggle-all"]')
+        assert btn is not None, 'missing button with data-action="toggle-all"'
+        btn_collapse = soup.select_one('[data-action="collapse-all"]')
+        assert btn_collapse is None, 'collapse-all button must not exist (use toggle-all only)'
         # expand-visible was removed in v9
         btn = soup.select_one('[data-action="expand-visible"]')
         assert btn is None, "expand-visible button should not exist in v9"

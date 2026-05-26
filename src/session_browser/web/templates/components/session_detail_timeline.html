@@ -60,11 +60,13 @@
         <b>Subagents</b>
         <span>{{ summary.subagent_count|default('0') }} runs</span>
       </div>
+      {% if summary.agent_key != "qoder" %}
       <div class="sd-summary-item">
         <span class="sd-summary-icon" aria-hidden="true">&#x1F4BE;</span>
         <b>Cache write</b>
         <span>{{ summary.cache_write_pct|default('—') }}</span>
       </div>
+      {% endif %}
     </div>
   </section>
 {%- endmacro %}
@@ -72,16 +74,14 @@
 {% macro trace_header() -%}
   <div class="sd-trace-head">
     <div>
-      <div class="sd-trace-title">Trace</div>
       <div class="sd-trace-sub">Round 内按时间顺序纵向推进；并发 tool calls 作为一个 batch 分组显示。</div>
     </div>
     <div class="sd-trace-actions">
       <div class="sd-seg" role="group" aria-label="Trace status filter">
-        <button type="button" class="sd-seg-btn is-active" data-action="filter-status" data-status="all" data-action="status-all">All</button>
-        <button type="button" class="sd-seg-btn" data-action="filter-status" data-status="failed" data-action="status-failed">Failed</button>
+        <button type="button" class="sd-seg-btn is-active" data-action="status-all">All</button>
+        <button type="button" class="sd-seg-btn" data-action="status-failed">Failed</button>
       </div>
-      <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-toggle-all-btn" data-action="toggle-all" data-state="collapse" style="min-width:120px">Expand all</button>
-      <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-collapse-all-btn" data-action="collapse-all" style="min-width:100px">Collapse all</button>
+      <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-toggle-all-btn" data-action="toggle-all" data-state="collapse">Expand all</button>
     </div>
   </div>
 {%- endmacro %}
@@ -118,10 +118,10 @@
         <span class="metric-token">{{ row.token_total_raw|default(0)|format_compact_token }}</span>
         <span class="tokenbar-wrap" aria-hidden="true" tabindex="0">
           <span class="tokenbar">
-            <span class="fresh" style="--segment-width:{{ row.token_mix.fresh|default(0) }}%"></span>
-            <span class="read" style="--segment-width:{{ row.token_mix.read|default(0) }}%"></span>
-            <span class="write" style="--segment-width:{{ row.token_mix.write|default(0) }}%"></span>
-            <span class="out" style="--segment-width:{{ row.token_mix.out|default(0) }}%"></span>
+            <span class="tokenbar-seg fresh" style="--segment-width:{{ row.token_mix.fresh|default(0) }}%"></span>
+            <span class="tokenbar-seg read" style="--segment-width:{{ row.token_mix.read|default(0) }}%"></span>
+            <span class="tokenbar-seg write" style="--segment-width:{{ row.token_mix.write|default(0) }}%"></span>
+            <span class="tokenbar-seg out" style="--segment-width:{{ row.token_mix.out|default(0) }}%"></span>
           </span>
           <div class="token-tooltip" aria-hidden="true">
             <div class="token-tooltip__title">Token Breakdown</div>
@@ -444,7 +444,7 @@
 
 {% macro payload_modal() -%}
   <dialog class="sd-payload-modal payload-modal payload-modal--sd" id="payload-modal" aria-labelledby="payload-title">
-    <div class="sd-payload-modal__panel">
+    <div class="sd-payload-modal__panel payload-modal__panel">
       <div class="sd-modal-head">
         <div>
           <div class="sd-modal-title" id="payload-title" data-payload-title>Payload</div>

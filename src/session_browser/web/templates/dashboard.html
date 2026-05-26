@@ -69,7 +69,6 @@
                 <button class="icon-button icon-button--info" data-action="info-projects" data-info="projects" title="点击后显示当前指标或图表的解释浮层" aria-label="Projects 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.project_count }}</div>
-            <div class="metric-card__sub success">Metric count across all indexed sessions</div>
         </div>
     </article>
     <article class="metric-card" aria-label="Sessions">
@@ -80,7 +79,6 @@
                 <button class="icon-button icon-button--info" data-action="info-sessions" data-info="sessions" title="点击后显示当前指标或图表的解释浮层" aria-label="Sessions 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.total_sessions | format_number }}</div>
-            <div class="metric-card__sub success">Total indexed sessions across all agents</div>
         </div>
     </article>
     <article class="metric-card" aria-label="Total Tokens">
@@ -91,7 +89,6 @@
                 <button class="icon-button icon-button--info" data-action="info-tokens" data-info="tokens" title="点击后显示当前指标或图表的解释浮层" aria-label="Total Tokens 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.total_tokens | default(0) | format_number }}</div>
-            <div class="metric-card__sub success">Combined input, output and cache tokens</div>
         </div>
     </article>
     <article class="metric-card" aria-label="Failed Tools">
@@ -102,7 +99,6 @@
                 <button class="icon-button icon-button--info" data-action="info-failed-tools" data-info="failed-tools" title="点击后显示当前指标或图表的解释浮层" aria-label="Failed Tools 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.total_failed_tools | format_number }}</div>
-            <div class="metric-card__sub danger">Tool calls that returned errors</div>
         </div>
     </article>
 </section>

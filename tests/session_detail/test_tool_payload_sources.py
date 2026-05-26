@@ -1,0 +1,147 @@
+"""Tests: tool row/result payload traceability (T024).
+
+Verify that:
+- tool.result payload VM entries include name/parameters/result fields.
+- Non Read/Write tool rows display command or parameter summary.
+- Payload fallback does not render empty/blank content.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+TEMPLATE_DIR = (
+    Path(__file__).parents[2]
+    / "src" / "session_browser" / "web" / "templates"
+)
+ROUTES = (
+    Path(__file__).parents[2]
+    / "src" / "session_browser" / "web" / "routes.py"
+)
+
+
+def _read_routes() -> str:
+    return ROUTES.read_text(encoding="utf-8")
+
+
+def _read_timeline() -> str:
+    return (
+        TEMPLATE_DIR / "components" / "session_detail_timeline.html"
+    ).read_text(encoding="utf-8")
+
+
+class TestToolResultPayloadFields:
+    """tool.result payload must include name/parameters/result traceability."""
+
+    def test_payload_kind_tool_result_in_routes(self):
+        """View model must register tool.result payloads."""
+        routes = _read_routes()
+        assert '"tool.result"' in routes or "'tool.result'" in routes, (
+            "View model must use kind='tool.result' for tool result payloads"
+        )
+
+    def test_payload_title_includes_tool_name(self):
+        """Payload title must include tc.name for traceability."""
+        routes = _read_routes()
+        # Title pattern: f"R{rid} . {tc.name} . Result"
+        assert "tc.name" in routes, (
+            "tool.result payload title must reference tc.name"
+        )
+
+    def test_payload_text_uses_tc_result(self):
+        """Payload text must come from tc.result."""
+        routes = _read_routes()
+        assert "tc.result" in routes, (
+            "tool.result payload text must use tc.result"
+        )
+
+    def test_tool_vm_extracts_parameters(self):
+        """tool_vm must read parameters from tool call."""
+        routes = _read_routes()
+        assert "parameters" in routes, (
+            "tool_vm must access tc.parameters for command extraction"
+        )
+
+    def test_tool_vm_uses_tool_name(self):
+        """tool_vm kind field must derive from tc.name."""
+        routes = _read_routes()
+        # tool_vm uses getattr(tc, "name", "tool")
+        assert 'getattr(tc, "name"' in routes or "getattr(tc, 'name'" in routes, (
+            "tool_vm must use tc.name for kind label"
+        )
+
+
+class TestToolRowDisplaysCommand:
+    """Non Read/Write tool rows must show command or parameter summary."""
+
+    def test_timeline_tool_row_has_command(self):
+        """tool_batch macro must render tool.command in row."""
+        timeline = _read_timeline()
+        assert "tool.command" in timeline or "sd-tool-cmd" in timeline, (
+            "tool row must include a command element"
+        )
+
+    def test_timeline_tool_row_has_result_summary(self):
+        """tool_batch macro must render tool.result_summary."""
+        timeline = _read_timeline()
+        assert "tool.result_summary" in timeline or "sd-tool-result" in timeline, (
+            "tool row must include a result summary element"
+        )
+
+    def test_timeline_tool_row_has_kind(self):
+        """tool_batch macro must render tool.kind."""
+        timeline = _read_timeline()
+        assert "tool.kind" in timeline or "sd-tool-kind" in timeline, (
+            "tool row must include a kind label"
+        )
+
+    def test_tool_vm_builds_command_from_params(self):
+        """tool_vm must derive command from parameters (command/file_path/path)."""
+        routes = _read_routes()
+        assert 'params.get("command"' in routes or "params.get('command'" in routes, (
+            "tool_vm must extract command from params"
+        )
+        assert 'params.get("file_path"' in routes or "params.get('file_path'" in routes, (
+            "tool_vm must fall back to file_path for command"
+        )
+
+    def test_tool_vm_result_summary_from_tc_result(self):
+        """tool_vm result_summary must come from tc.result text."""
+        routes = _read_routes()
+        assert "result_summary" in routes, (
+            "tool_vm must produce result_summary field"
+        )
+
+
+class TestPayloadNotEmpty:
+    """Payload must not display empty/blank content when missing."""
+
+    def test_generic_payload_fallback_has_no_content_guard(self):
+        """Generic payload fallback must show 'No content' when empty."""
+        timeline = _read_timeline()
+        assert "No content" in timeline or "sd-payload-empty" in timeline, (
+            "Payload fallback must include a 'No content' empty state"
+        )
+
+    def test_tool_result_payload_checks_text(self):
+        """tool.result payload template must check payload.text before rendering."""
+        timeline = _read_timeline()
+        # The generic fallback checks: payload.kind == 'tool.result' and payload.text
+        assert "tool.result" in timeline, (
+            "Template must have tool.result payload handling branch"
+        )
+
+    def test_payload_empty_state_in_modal(self):
+        """Payload modal must have an empty state section."""
+        timeline = _read_timeline()
+        assert "sd-payload-empty-state" in timeline, (
+            "Payload modal must include empty state placeholder"
+        )
+
+    def test_add_payload_sets_empty_text(self):
+        """add_payload must always set text field (never None/missing)."""
+        routes = _read_routes()
+        # add_payload sets entry["text"] = "" when no text provided
+        assert '"text"' in routes, (
+            "add_payload must always include a text field"
+        )

@@ -55,7 +55,7 @@
                 <span class="metric-card__label">Projects</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="projects-count"
                         aria-label="Metric info: number of indexed projects"
-                        title="说明：当前索引中识别到的本地项目/工作区数量">ⓘ</button>
+                        title="说明：当前索引中识别到的本地项目/工作区数量">&#9432;</button>
             </div>
             <div class="metric-card__value mono">{{ projects | length }}</div>
             <div class="metric-card__sub">Indexed workspaces</div>
@@ -68,7 +68,7 @@
                 <span class="metric-card__label">Sessions</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-sessions"
                         aria-label="Metric info: total sessions across all projects"
-                        title="说明：所有项目下已索引的 session 总数">ⓘ</button>
+                        title="说明：所有项目下已索引的 session 总数">&#9432;</button>
             </div>
             <div class="metric-card__value mono">{{ m_total_sessions.value | format_number }}</div>
             <div class="metric-card__sub">Across all projects</div>
@@ -81,7 +81,7 @@
                 <span class="metric-card__label">Total Tokens</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-tokens"
                         aria-label="Metric info: total token consumption"
-                        title="说明：所有项目的 token 消耗合计，使用缩写并保留 1 位小数">ⓘ</button>
+                        title="说明：所有项目的 token 消耗合计，使用缩写并保留 1 位小数">&#9432;</button>
             </div>
             <div class="metric-card__value mono">{{ m_total_tokens.value | format_compact_token }}</div>
             <div class="metric-card__sub">Input + output combined</div>
@@ -94,7 +94,7 @@
                 <span class="metric-card__label">Failed Tools</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="failed-tools"
                         aria-label="Metric info: failed tool call count"
-                        title="说明：所有项目中 failed tool result 的数量，不包含 successful result">ⓘ</button>
+                        title="说明：所有项目中 failed tool result 的数量，不包含 successful result">&#9432;</button>
             </div>
             <div class="metric-card__value mono">{{ m_total_failed.value | format_number }}</div>
             <div class="metric-card__sub">Failed tool results</div>
@@ -194,12 +194,14 @@
                         data-total-failed="{{ p.total_failed_tools }}">
                         {{ ui.project_cell(p.project_name, p.project_key, '/projects/' ~ p.project_key | urlencode, name_data_action='open-project-link') }}
                         <td class="agents-cell">
+                            <span class="agents-cell__inner">
                             {% if p.claude_sessions > 0 %}{{ ui.badge_with_dot(p.claude_sessions, 'cc', 'claude', tooltip='Claude Code') }}{% endif %}
                             {% if p.codex_sessions > 0 %}{{ ui.badge_with_dot(p.codex_sessions, 'cx', 'codex', tooltip='Codex') }}{% endif %}
                             {% if p.qoder_sessions > 0 %}{{ ui.badge_with_dot(p.qoder_sessions, 'qd', 'qoder', tooltip='Qoder') }}{% endif %}
                             {% if p.claude_sessions == 0 and p.codex_sessions == 0 and p.qoder_sessions == 0 %}
                             <span class="muted-zero">—</span>
                             {% endif %}
+                            </span>
                         </td>
                         <td class="numeric mono"><strong>{{ p.total_sessions }}</strong></td>
                         {{ ui.token_cell(

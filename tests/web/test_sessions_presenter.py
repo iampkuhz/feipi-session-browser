@@ -158,8 +158,7 @@ class TestComputePagination:
         assert result["offset"] == 0
         assert result["page_start"] == 1
         assert result["page_end"] == 15
-        # Implementation uses page_start < total_count, which is True for 1 < 15
-        assert result["has_next"] is True
+        assert result["has_next"] is False
         assert result["has_prev"] is False
 
     def test_multi_page_first_page(self):
@@ -186,8 +185,7 @@ class TestComputePagination:
         assert result["offset"] == 80
         assert result["page_start"] == 81
         assert result["page_end"] == 100
-        # Implementation uses page_start < total_count: 81 < 100 -> True
-        assert result["has_next"] is True
+        assert result["has_next"] is False
         assert result["has_prev"] is True
 
     def test_page_beyond_total_clamped(self):

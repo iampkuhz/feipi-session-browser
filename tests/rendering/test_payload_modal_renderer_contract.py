@@ -1,122 +1,106 @@
-"""Tests for payload modal renderer contract (v9).
+"""Tests for payload modal renderer contract in session_detail_timeline.html.
 
-v9 uses a simplified payload modal:
-- Modal lives in base.html with .payload-modal__rendered and .payload-modal__raw panels.
-- session_detail_timeline.js handles open-payload actions via data delegation.
-- Payload data comes from [data-payload-source] hidden elements.
-- No inline renderPayload/renderRawFallback functions; rendering is innerHTML-based.
+Verifies that the sd-payload-modal panel includes the canonical `payload-modal__panel`
+CSS class and does not use fullscreen inline styles.
 
-Old inline renderers (renderPayload, renderRawFallback, renderLlmRequestJson, etc.)
-were removed in the v9 component migration.
+Related: SD-17 — sd-payload-modal 宽高变成整个页面
 """
 
 from pathlib import Path
+import re
 
 TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
-STATIC_JS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "js"
-STATIC_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "ui-primitives.css"
-LEGACY_ALIASES_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "legacy-aliases.css"
+
+TIMELINE_TEMPLATE = TEMPLATE_DIR / "components" / "session_detail_timeline.html"
 
 
-def _base_source():
-    return (TEMPLATE_DIR / "base.html").read_text(encoding="utf-8")
+def _timeline_html():
+    return TIMELINE_TEMPLATE.read_text(encoding="utf-8")
 
 
-def _timeline_js():
-    return (STATIC_JS / "session_detail_timeline.js").read_text(encoding="utf-8")
+def _has_canonical_panel_class(source: str) -> bool:
+    """Check whether any class attribute in the payload_modal macro
+    contains `payload-modal__panel` as a standalone CSS class token.
+
+    A standalone token means it is separated by whitespace within the
+    class attribute value, not merely a substring of a longer identifier
+    (e.g. 'sd-payload-modal__panel' does NOT count).
+    """
+    # Extract the payload_modal macro block
+    macro_match = re.search(
+        r'\{% macro payload_modal\(\) -%\}(.*?){%- endmacro %}',
+        source,
+        re.DOTALL,
+    )
+    if not macro_match:
+        return False
+    macro_body = macro_match.group(1)
+
+    # Find all class="..." attributes in the macro body
+    class_attrs = re.findall(r'class="([^"]*)"', macro_body)
+    for attr_value in class_attrs:
+        # Split by whitespace and check each token
+        tokens = attr_value.split()
+        if 'payload-modal__panel' in tokens:
+            return True
+    return False
 
 
-def _css():
-    """Combined CSS: ui-primitives.css + legacy-aliases.css (payload-modal rules live in ui-primitives.css)."""
-    return STATIC_CSS.read_text(encoding="utf-8") + "\n" + LEGACY_ALIASES_CSS.read_text(encoding="utf-8")
+def _panel_inline_style(source: str) -> str | None:
+    """Return the inline style string of the payload-modal__panel element,
+    or None if not found."""
+    macro_match = re.search(
+        r'\{% macro payload_modal\(\) -%\}(.*?){%- endmacro %}',
+        source,
+        re.DOTALL,
+    )
+    if not macro_match:
+        return None
+    macro_body = macro_match.group(1)
+
+    # Find elements that reference payload-modal__panel (either standalone or namespaced)
+    tags = re.findall(r'<[^>]*(?:payload-modal__panel)[^>]*>', macro_body)
+    for tag in tags:
+        style_match = re.search(r'style="([^"]*)"', tag)
+        if style_match:
+            return style_match.group(1)
+    return None
 
 
-# ── Modal structure (base.html) ────────────────────────────────────
+# ── Panel class contract ──────────────────────────────────────────
 
 
-def test_modal_has_rendered_element():
-    """Payload modal must have a .payload-modal__rendered element."""
-    source = _base_source()
-    assert 'class="payload-modal__rendered"' in source, (
-        "Modal must contain .payload-modal__rendered element"
+def test_payload_modal_panel_has_canonical_class():
+    """sd-payload-modal panel must include canonical `payload-modal__panel` class.
+
+    The panel inside the payload-modal dialog must carry the canonical BEM class
+    `payload-modal__panel` as a standalone CSS class token so that selectors in
+    ui-primitives.css (e.g. `.payload-modal--sd .payload-modal__panel`) apply.
+    A namespaced-only class like `sd-payload-modal__panel` does NOT satisfy this
+    contract because the canonical selector would miss it (SD-17).
+    """
+    source = _timeline_html()
+    assert _has_canonical_panel_class(source), (
+        "payload_modal panel must include 'payload-modal__panel' as a standalone "
+        "CSS class (not just as a substring of a longer name like "
+        "'sd-payload-modal__panel')"
     )
 
 
-def test_modal_has_raw_element():
-    """Payload modal must have a .payload-modal__raw element."""
-    source = _base_source()
-    assert 'class="payload-modal__raw"' in source, (
-        "Modal must contain .payload-modal__raw element"
+def test_payload_modal_panel_no_fullscreen_inline_style():
+    """Panel must not carry fullscreen inline styles like width:100% or height:100vh."""
+    source = _timeline_html()
+    style = _panel_inline_style(source)
+    if style is not None:
+        style_lower = style.lower()
+        assert '100%' not in style_lower and '100vh' not in style_lower and '100vw' not in style_lower, (
+            f"payload-modal__panel must not have fullscreen inline style: {style!r}"
+        )
+
+
+def test_payload_modal_dialog_has_sd_namespace():
+    """The payload modal dialog should carry sd-payload-modal class for scoped targeting."""
+    source = _timeline_html()
+    assert 'sd-payload-modal' in source, (
+        "payload modal dialog should include sd-payload-modal class"
     )
-
-
-def test_modal_has_tabs():
-    """Payload modal must have Rendered and Raw tabs."""
-    source = _base_source()
-    assert 'data-mode="rendered"' in source, "Modal must have a Rendered tab"
-    assert 'data-mode="raw"' in source, "Modal must have a Raw tab"
-
-
-def test_modal_has_close_button():
-    """Payload modal must have a close button."""
-    source = _base_source()
-    assert 'data-action="close-modal"' in source, "Modal must have close button"
-
-
-# ── JS interaction (session_detail_timeline.js) ────────────────────
-
-
-def test_js_has_open_payload_action():
-    """JS must handle data-action='open-payload'."""
-    js = _timeline_js()
-    assert "'open-payload'" in js or '"open-payload"' in js, (
-        "JS must handle open-payload action"
-    )
-
-
-def test_js_has_payload_modal_lookup():
-    """JS must look up the payload modal by ID."""
-    js = _timeline_js()
-    assert "payload-modal" in js or "sd-payload-modal" in js, (
-        "JS must reference payload modal element"
-    )
-
-
-def test_js_has_fallback_message():
-    """JS must show a fallback when payload data is missing."""
-    js = _timeline_js()
-    assert "payload unavailable" in js.lower() or "payload" in js.lower(), (
-        "JS must have fallback message for missing payload"
-    )
-
-
-# ── CSS styles ─────────────────────────────────────────────────────
-
-
-def test_has_rendered_section_css():
-    """CSS must have styles for rendered sections."""
-    css = _css()
-    assert ".payload-modal__rendered" in css, (
-        "CSS must have .payload-modal__rendered styles"
-    )
-
-
-def test_has_rendered_code_block_css():
-    """CSS must have styles for code blocks in rendered view."""
-    css = _css()
-    assert "rendered-code-block" in css or "payload-modal__raw pre" in css, (
-        "CSS must have code block styles in payload modal"
-    )
-
-
-# ── v9 no longer uses inline renderers ─────────────────────────────
-# The following old tests are superseded by the simplified v9 architecture:
-# - renderPayload / renderRawFallback / tryParseJson
-# - renderLlmRequestJson / renderLlmResponseJson / renderToolJson
-# - renderPrettyJson / renderPlainText / renderMissing
-# - render_payload_checks_raw_fallback / raw_non_empty_has_renderable_fallback
-# - no_old_fallback_pattern / open_payload_modal_uses_render_payload
-# - _escapeHtml / renderers_use_escape_html
-#
-# These functions were inline in the old session.html and have been replaced
-# by the data-driven approach in session_detail_timeline.js.

@@ -145,6 +145,24 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
     return merged
 
 
+def _extract_qoder_model(record: dict) -> str | None:
+    """Extract model from a Qoder assistant record with fallback strategy.
+
+    Priority order:
+    1. record["model"] — from message.model (primary, already working)
+    2. record["top_level_model"] — from event top-level "model" field
+    3. record["metadata_model"] — from event metadata.model
+    4. record["raw_model"] — from request/response explicit model field
+
+    Returns None if no model found in any source.
+    """
+    for key in ("model", "top_level_model", "metadata_model", "raw_model"):
+        value = record.get(key, "")
+        if value:
+            return value
+    return None
+
+
 def _assistant_records(events: list[dict]) -> list[dict]:
     """Merge assistant fragments by message id."""
     records: dict[str, dict] = {}
@@ -163,6 +181,9 @@ def _assistant_records(events: list[dict]) -> list[dict]:
                 "id": key,
                 "timestamp": ev.get("timestamp", ""),
                 "model": msg.get("model", ""),
+                "top_level_model": ev.get("model", ""),
+                "metadata_model": (ev.get("metadata") or {}).get("model", ""),
+                "raw_model": "",
                 "text_parts": [],
                 "tool_calls": [],
                 "usage_rows": [],
@@ -177,6 +198,11 @@ def _assistant_records(events: list[dict]) -> list[dict]:
             rec["timestamp"] = ev.get("timestamp", "")
         if msg.get("model"):
             rec["model"] = msg.get("model", "")
+        if ev.get("model"):
+            rec["top_level_model"] = ev.get("model", "")
+        metadata_model = (ev.get("metadata") or {}).get("model", "")
+        if metadata_model:
+            rec["metadata_model"] = metadata_model
         if msg.get("stop_reason"):
             rec["stop_reason"] = msg.get("stop_reason", "")
 
@@ -199,6 +225,9 @@ def _assistant_records(events: list[dict]) -> list[dict]:
                         "name": item.get("name", ""),
                         "parameters": item.get("input", {}),
                     })
+                # Priority 4: look for explicit model field in request/response content
+                if isinstance(item, dict) and item.get("model"):
+                    rec["raw_model"] = item.get("model", "")
 
     merged_records = []
     for key in order:
@@ -501,6 +530,8 @@ def _discover_sessions() -> list[tuple[str, str, Path]]:
 
     Returns list of (project_key, session_id, file_path).
     project_key is URL-decoded from the directory name.
+    If the decoded path is "." or empty, falls back to the actual
+    directory name to avoid meaningless project keys.
     """
     projects_dir = QODER_DATA_DIR / "projects"
     if not projects_dir.exists():
@@ -515,6 +546,10 @@ def _discover_sessions() -> list[tuple[str, str, Path]]:
                 # project_key is the URL-decoded relative path from projects/
                 raw_key = str(Path(root).relative_to(projects_dir))
                 project_key = _url_decode_path(raw_key)
+                # If decoded path is meaningless ("." or empty), use the
+                # actual filesystem directory name as fallback.
+                if not project_key or project_key == ".":
+                    project_key = root.name
                 results.append((project_key, session_id, fpath))
     return results
 
@@ -547,6 +582,44 @@ def _discover_cache_sessions() -> list[tuple[str, str, Path]]:
                 project_name = re.sub(r'-[0-9a-f]{6,}$', '', project_name)
                 results.append((project_name, session_id, fpath))
     return results
+
+
+def _build_canonical_id_map() -> dict[str, str]:
+    """Build a mapping from discovered session IDs to their canonical full UUIDs.
+
+    Strategy:
+    1. Collect all full UUID-format IDs from projects/ (the authoritative source).
+    2. For each short ID from cache/projects/, check if it is an exact prefix
+       of exactly one full UUID.
+    3. If a unique prefix match exists, map short_id -> full_uuid.
+    4. If ambiguous (multiple full UUIDs share the same prefix) or no match,
+       leave the short ID unmapped (no merge; separate record).
+
+    Returns dict mapping {short_id: full_uuid}. Only safe prefix matches are included.
+    """
+    # Full UUIDs from projects/ — use regex to validate UUID format
+    uuid_pattern = re.compile(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    )
+    full_uuids: list[str] = []
+    for _pk, sid, _fp in _discover_sessions():
+        if uuid_pattern.match(sid):
+            full_uuids.append(sid.lower())
+
+    short_ids: list[str] = []
+    for _pk, sid, _fp in _discover_cache_sessions():
+        if not uuid_pattern.match(sid):
+            short_ids.append(sid.lower())
+
+    # Build short_id -> full_uuid mapping (only unique prefix matches)
+    canonical_map: dict[str, str] = {}
+    for short_id in short_ids:
+        matches = [uuid for uuid in full_uuids if uuid.startswith(short_id)]
+        if len(matches) == 1:
+            canonical_map[short_id] = matches[0]
+        # If 0 or >1 matches, do NOT merge — fuse condition
+
+    return canonical_map
 
 
 def parse_session_detail(
@@ -588,9 +661,31 @@ def parse_session_detail(
             return s, [], [], []
 
     events, jsonl_diag = parse_jsonl_events(session_file, verbose=verbose)
-    summary = _build_summary_from_events(events, session_id, project_key)
-    messages = _extract_messages(events)
-    tool_calls = _extract_tool_calls(events, messages)
+
+    # Normalize cache-format events: cache uses "role" instead of "type".
+    # Convert so the rest of the pipeline can process them uniformly.
+    if events and "type" not in events[0] and "role" in events[0]:
+        for ev in events:
+            if "role" in ev and "type" not in ev:
+                ev["type"] = ev["role"]
+
+    # Detect cache format: no timestamps, no structured events. Use simpler pipeline.
+    is_cache_format = all(
+        not ev.get("timestamp") and not ev.get("cwd") and not ev.get("sessionId")
+        for ev in events
+    ) if events else False
+
+    if is_cache_format:
+        # Cache format: build summary via _parse_cache_session, then extract messages
+        summary = _parse_cache_session(project_key, session_id, session_file)
+        messages = _extract_messages(events)
+        tool_calls = []
+        subagent_runs = []
+    else:
+        summary = _build_summary_from_events(events, session_id, project_key)
+        messages = _extract_messages(events)
+        tool_calls = _extract_tool_calls(events, messages)
+        subagent_runs = []
 
     # Attach parse diagnostics from JSONL reader
     parse_diag = build_parse_diagnostics(
@@ -600,24 +695,60 @@ def parse_session_detail(
     )
     summary.parse_diagnostics = parse_diag.to_dict()
 
-    return summary, messages, tool_calls, []
+    return summary, messages, tool_calls, subagent_runs
 
 
 def _find_session_file(project_key: str, session_id: str) -> Path | None:
-    """Search for a session file under projects/."""
+    """Search for a Qoder session file under projects/ and cache/projects/.
+
+    Search order (optimised for old-index scenarios where file_path is missing):
+    1. Resolve short ID alias -> full UUID via canonical map, then search projects/.
+    2. Search projects/ (CLI sessions) by session_id — direct match then recursive.
+    3. Fall back to cache/projects/ (GUI sessions) — recursive walk.
+
+    Mirrors _locate_qoder_session_file in indexer.py.
+    """
+    uuid_pattern = re.compile(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    )
+
+    # Step 1: resolve short ID alias -> full UUID, then try projects/ direct
+    if not uuid_pattern.match(session_id):
+        canonical_map = _build_canonical_id_map()
+        resolved_id = canonical_map.get(session_id.lower(), session_id)
+        if resolved_id != session_id.lower():
+            # Short ID resolved to full UUID — try projects/ direct match
+            projects_dir = QODER_DATA_DIR / "projects"
+            if projects_dir.exists():
+                # Try with original project_key
+                candidate = projects_dir / project_key / f"{resolved_id}.jsonl"
+                if candidate.exists():
+                    return candidate
+                # Also search all project dirs (project_key may be stale)
+                for root, _dirs, files in os.walk(projects_dir):
+                    if f"{resolved_id}.jsonl" in files:
+                        return Path(root) / f"{resolved_id}.jsonl"
+
+    # Step 2: search projects/ by original session_id
     projects_dir = QODER_DATA_DIR / "projects"
-    if not projects_dir.exists():
-        return None
+    if projects_dir.exists():
+        # Try direct match
+        candidate = projects_dir / project_key / f"{session_id}.jsonl"
+        if candidate.exists():
+            return candidate
 
-    # Try direct match
-    candidate = projects_dir / project_key / f"{session_id}.jsonl"
-    if candidate.exists():
-        return candidate
+        # Search all project directories
+        for root, _dirs, files in os.walk(projects_dir):
+            if f"{session_id}.jsonl" in files:
+                return Path(root) / f"{session_id}.jsonl"
 
-    # Search all project directories
-    for root, _dirs, files in os.walk(projects_dir):
-        if f"{session_id}.jsonl" in files:
-            return Path(root) / f"{session_id}.jsonl"
+    # Step 3: fall back to cache/projects/
+    cache_dir = QODER_DATA_DIR / "cache" / "projects"
+    if cache_dir.exists():
+        for root, _dirs, files in os.walk(cache_dir):
+            if f"{session_id}.jsonl" in files:
+                return Path(root) / f"{session_id}.jsonl"
+
     return None
 
 
@@ -679,8 +810,9 @@ def _build_summary_from_events(
         for tc in rec.get("tool_calls", []):
             tool_id = tc.get("id") or f"{rec.get('id')}:{tc.get('name')}:{len(tool_ids)}"
             tool_ids.add(tool_id)
-        if not model and rec.get("model"):
-            model = rec.get("model", "")
+        extracted_model = _extract_qoder_model(rec)
+        if not model and extracted_model:
+            model = extracted_model
 
     # Fallback: Qoder may not report usage — estimate from event text.
     # Use per-message estimates to ensure session summary matches LLM Calls detail.
@@ -689,6 +821,7 @@ def _build_summary_from_events(
         input_tokens = est_input
         output_tokens = est_output
         # Qoder has no cache metrics; do not fabricate cache values.
+        cached_tokens = 0
         cache_write_tokens = 0
 
     # ─── Collect timestamps for interval calculation ───
@@ -775,7 +908,9 @@ def _build_summary_from_events(
 
     # Use cwd from events as the primary project_key — it holds the actual
     # filesystem path. Fall back to the directory-based project_key (URL-decoded).
-    actual_project = cwd if cwd else project_key
+    # Guard against cwd being "." or a relative path that would produce a
+    # meaningless project_key / project_name.
+    actual_project = cwd if (cwd and cwd != "." and not cwd.startswith("./")) else project_key
     project_name = PurePosixPath(actual_project).name if actual_project else "unknown"
 
     return SessionSummary(
@@ -1162,9 +1297,16 @@ def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
         )
         yield summary
 
-    # Scan cache (GUI) sessions
+    # Scan cache (GUI) sessions — canonicalize short IDs to full UUIDs
     cache_sessions = _discover_cache_sessions()
+    canonical_map = _build_canonical_id_map()
+    # Collect all projects/ session IDs to detect full overlap
+    projects_ids = {sid.lower() for _pk, sid, _fp in _discover_sessions()}
     for project_key, session_id, fpath in cache_sessions:
+        canonical_id = canonical_map.get(session_id.lower(), session_id)
+        # Skip cache sessions that resolve to a projects/ session already yielded
+        if canonical_id != session_id.lower() and canonical_id in projects_ids:
+            continue
         file_mtime = os.path.getmtime(fpath) if fpath.exists() else 0
-        summary = _parse_cache_session(project_key, session_id, fpath, file_mtime=file_mtime)
+        summary = _parse_cache_session(project_key, canonical_id, fpath, file_mtime=file_mtime)
         yield summary

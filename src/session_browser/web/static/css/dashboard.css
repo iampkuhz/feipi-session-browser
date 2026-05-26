@@ -431,16 +431,16 @@ no page override ── */
   min-height: 1px;
   display: block;
 }
-/* Chart container: contain tooltip overflow */
+/* Chart container: allow tooltip overflow */
 .chart-container {
-  overflow: hidden;
+  overflow: visible;
 }
 /* v16 tooltip (dark overlay on chart bars) */
 .dashboard-tooltip {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: calc(100% + 10px);
-  transform: translate(-50%, 4px);
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
   min-width: 218px;
   max-width: calc(100vw - 24px);
   padding: 9px 10px;
@@ -456,7 +456,6 @@ no page override ── */
 }
 .bar:hover .dashboard-tooltip {
   opacity: 1;
-  transform: translate(-50%, 0);
 }
 .tooltip-date {
   font-weight: 900;

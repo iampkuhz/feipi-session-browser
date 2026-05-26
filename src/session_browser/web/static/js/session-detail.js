@@ -120,6 +120,19 @@
     round.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
+  /* ── Tab switching ── */
+
+  function switchTab(page, tabName) {
+    // Update tab active state
+    qsa(page, '.sd-tabs [data-tab]').forEach(function(tab) {
+      tab.classList.toggle('is-active', tab.getAttribute('data-tab') === tabName);
+    });
+    // Show/hide panels
+    qsa(page, '[data-tab-panel]').forEach(function(panel) {
+      panel.hidden = panel.getAttribute('data-tab-panel') !== tabName;
+    });
+  }
+
   /* ── Payload modal: single shell ── */
 
   function escapeHtml(value) {
@@ -219,6 +232,12 @@
         event.stopPropagation();
         toggleRound(actionEl);
         return;
+      } else if (action.indexOf('tab-') === 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        var tabName = actionEl.getAttribute('data-tab');
+        if (tabName) switchTab(page, tabName);
+        return;
       } else if (action === 'filter-status') {
         event.preventDefault();
         event.stopPropagation();
@@ -235,10 +254,6 @@
         event.preventDefault();
         event.stopPropagation();
         toggleAll(page);
-      } else if (action === 'collapse-all') {
-        event.preventDefault();
-        event.stopPropagation();
-        collapseAll(page);
       } else if (action === 'copy-session-id') {
         event.preventDefault();
         event.stopPropagation();
@@ -279,6 +294,9 @@
   });
 
   document.addEventListener('DOMContentLoaded', function () {
+    // Initialize tab panels: trace visible, others hidden
+    var page = document.querySelector('[data-trace-page]') || document;
+    switchTab(page, 'trace');
     qsa(document, '[data-trace-round-row]').forEach(function (round) {
       var button = qs(round, '[data-action="toggle-round"]');
       var open = round.classList.contains('is-open') || (button && button.getAttribute('aria-expanded') === 'true');

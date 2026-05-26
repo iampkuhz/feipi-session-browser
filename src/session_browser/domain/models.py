@@ -111,6 +111,7 @@ class SessionSummary:
     token_breakdown: Optional[TokenBreakdown] = None
     failed_tool_count: int = 0
     parse_diagnostics: Optional[dict] = None  # domain ParseDiagnostics.to_dict() payload, attached by adapters
+    file_path: str = ""  # indexed source file path; used by detail parsers to avoid re-search
 
     @property
     def session_key(self) -> str:

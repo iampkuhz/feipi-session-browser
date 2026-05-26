@@ -436,36 +436,43 @@ class TestProjectDetailRowStructure:
             "Dot indicator must reference 'codex'"
 
     def test_token_cell_present(self):
-        """Row must have a token-cell element."""
+        """Row must produce a token-cell element via ui.token_cell macro."""
         content = _read_template()
-        assert 'class="token-cell"' in content, \
-            "Row must have a token-cell element"
+        assert "ui.token_cell" in content, \
+            "Token column must use ui.token_cell macro (which produces token-cell)"
 
     def test_token_total_present(self):
-        """Token-cell must have a token-total element."""
-        content = _read_template()
-        assert 'class="token-total"' in content, \
-            "Token-cell must have a token-total element"
+        """Token-cell must produce a token-total element (via ui.token_cell macro)."""
+        primitives = _read("src/session_browser/web/templates/components/ui_primitives.html")
+        assert 'class="token-total"' in primitives, \
+            "ui.token_cell macro must produce a token-total element"
 
-    def test_tokenbar_present(self):
-        """Token-cell must have a tokenbar element."""
+    def test_tokenbar_in_macro(self):
+        """Token bar segments are produced by ui.token_cell macro in ui_primitives."""
         content = _read_template()
-        assert 'class="tokenbar"' in content, \
-            "Token-cell must have a tokenbar element"
-
-    def test_tokenbar_has_four_segments(self):
-        """Tokenbar must have 4 segments (fresh/read/write/out)."""
-        content = _read_template()
-        segs = re.findall(r'class="tokenbar-seg (fresh|read|write|out)"', content)
+        assert "ui.token_cell" in content, \
+            "Token column must use ui.token_cell macro"
+        # Verify the macro in ui_primitives produces tokenbar segments
+        primitives = _read("src/session_browser/web/templates/components/ui_primitives.html")
+        assert 'class="tokenbar"' in primitives, \
+            "ui.token_cell macro must produce a tokenbar element"
+        segs = re.findall(r'class="tokenbar-seg (fresh|read|write|out)"', primitives)
         assert len(segs) >= 4, \
-            f"Tokenbar must have 4 segments (fresh/read/write/out), found {len(segs)}"
+            f"ui.token_cell macro must have 4 segment classes, found {len(segs)}"
 
-    def test_tokenbar_segment_classes(self):
-        """Each tokenbar segment must have the correct class."""
-        content = _read_template()
+    def test_tokenbar_has_four_segments_in_macro(self):
+        """ui.token_cell macro must define all 4 segment types."""
+        primitives = _read("src/session_browser/web/templates/components/ui_primitives.html")
+        segs = re.findall(r'class="tokenbar-seg (fresh|read|write|out)"', primitives)
+        assert len(segs) >= 4, \
+            f"ui.token_cell macro must have 4 segments (fresh/read/write/out), found {len(segs)}"
+
+    def test_tokenbar_segment_classes_in_macro(self):
+        """Each tokenbar segment class must be present in ui.token_cell macro."""
+        primitives = _read("src/session_browser/web/templates/components/ui_primitives.html")
         for seg_class in ["fresh", "read", "write", "out"]:
-            assert f'tokenbar-seg {seg_class}' in content, \
-                f"Tokenbar must have segment class '{seg_class}'"
+            assert f'tokenbar-seg {seg_class}' in primitives, \
+                f"ui.token_cell macro must have segment class '{seg_class}'"
 
     def test_failed_badge_present(self):
         """Row must have a failed badge when there are failed tools."""

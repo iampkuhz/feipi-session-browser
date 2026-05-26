@@ -127,19 +127,7 @@ th.sortable:hover {
   height: 100%;
   display: block;
 }
-/* Tokenbar segment colors for projects context (T117) */
-.token-cell .tokenbar .tokenbar-seg.fresh {
-  background: var(--token-input-fresh, #2563eb);
-}
-.token-cell .tokenbar .tokenbar-seg.read {
-  background: var(--token-cache-read, #f59e0b);
-}
-.token-cell .tokenbar .tokenbar-seg.write {
-  background: var(--token-cache-write, #f59e0b);
-}
-.token-cell .tokenbar .tokenbar-seg.out {
-  background: var(--token-output-visible, #059669);
-}
+/* Tokenbar segment colors now managed by ui-primitives.css (.tokenbar-seg.fresh/.read/.write/.out) */
 /* Tooltip inside tokenbar — uses .token-tooltip class from macro */
 .token-cell .token-tooltip {
   position: absolute;
@@ -204,18 +192,7 @@ th.sortable:hover {
 .token-tooltip__type-name {
   line-height: 1;
 }
-.token-tooltip__label .dot--fresh {
-  background: var(--token-input-fresh, #2563eb);
-}
-.token-tooltip__label .dot--read {
-  background: var(--token-cache-read, #f59e0b);
-}
-.token-tooltip__label .dot--write {
-  background: var(--token-cache-write, #fbbf24);
-}
-.token-tooltip__label .dot--out {
-  background: var(--token-output-visible, #10b981);
-}
+/* Tooltip dot colors now managed by ui-primitives.css (.dot--fresh/.read/.write/.out) */
 .token-tooltip__value {
   font-family: var(--font-mono);
   font-weight: 750;
@@ -237,7 +214,13 @@ th.sortable:hover {
   margin: 8px 0;
 }
 /* ── Agent badges (T103: dot + soft badge) ────────────────── */
+/* P-20/T026: .agents-cell must NOT define display:flex.
+   Flex on <td> breaks border-height alignment with adjacent cells.
+   Use .agents-cell__inner wrapper for layout isolation. */
 .agents-cell {
+  vertical-align: middle;
+}
+.agents-cell__inner {
   display: flex;
   gap: 5px;
   align-items: center;
