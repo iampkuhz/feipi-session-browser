@@ -1,146 +1,82 @@
-# Feipi Session Browser — 工程规则
+# Feipi Session Browser — Agent 工程规则
 
-本仓库是独立开发的本地会话浏览器，用于索引和分析 Claude Code、Codex、Qoder 等本地 agent 会话数据。
+本文件只在任务涉及非平凡开发、OpenSpec、harness、质量门、hooks 或仓库规则改造时读取。普通代码定位、单文件修改、简单文档修改不需要读取本文件。
 
-CLAUDE.md 是启动入口（薄），本文件是工程细则（厚）。两者不冲突：启动读 CLAUDE.md，深度工作读本文。
+## 非平凡变更
 
-## 受保护根目录
+以下任务属于非平凡变更：
 
-以下路径受保护，编辑需有活跃 OpenSpec 变更（由 `.claude/` 内 PreToolUse hooks 强制执行）：
+- 新增或改变产品行为；
+- 改动 OpenSpec、harness、质量门、hooks、agent 配置；
+- 调整目录职责、开发流程、验证流程；
+- 跨多个模块的结构性改造；
+- 会影响长期维护方式的文档或脚本变更。
 
-| 路径 | 说明 |
-|------|------|
-| `CLAUDE.md` | 启动入口 |
-| `AGENTS.md` | 本文件 |
-| `openspec/` | 规范与变更 |
-| `.claude/` | 项目级配置与 hooks |
-| `scripts/` | 构建/测试/harness 脚本 |
-| `harness/` | Agent 工作流与上下文包 |
+非平凡变更应先确认是否已有对应 `openspec/changes/<change-id>/`。如果没有，应先建立或补齐变更任务，再实现代码。
 
-## OpenSpec 本地工作策略
+## OpenSpec 规则
 
-- `openspec/specs/` 是项目长期真相（current behavior）。
-- `openspec/changes/**` 是本地变更提案，跟随分支走，不合并到主干即视为本地。
-- 所有功能工作默认从 `/change <需求路径>` 启动，在本地创建 `openspec/changes/<change-id>/`。
-- 变更按 `openspec/changes/<change-id>/tasks.md` 逐条实现。
-- 完成后将最终行为同步至 `openspec/specs/`，归档变更。
+- `openspec/specs/` 表示当前长期行为。
+- `openspec/changes/<change-id>/` 表示待实施或正在实施的变更。
+- 实现应按 `openspec/changes/<change-id>/tasks.md` 串行推进。
+- 完成后应同步长期行为到 `openspec/specs/`，再归档变更。
+- 不要绕过 OpenSpec 直接大改受保护路径。
 
-详细生命周期见 `harness/workflow/openspec-change-lifecycle.md`。
+## 受保护路径
 
-## 质量门
+修改以下路径时必须明确任务目标，并保持变更最小：
 
-完成前必须运行：
+| 路径 | 约束 |
+|---|---|
+| `.claude/` | 影响 Claude Code 运行、权限、hooks、agents |
+| `openspec/` | 影响规格真相和变更流程 |
+| `harness/` | 影响 agent 工作流和上下文包 |
+| `scripts/` | 影响本地验证、运行、质量门 |
+| `src/session_browser/` | 产品源码 |
+| `tests/` | 测试与回归约束 |
+| `CLAUDE.md` / `AGENTS.md` | agent 常驻或按需规则 |
+
+## 文件操作规则
+
+- 先搜索定位，再读取文件。
+- 只读取当前任务必需的文件和片段。
+- 修改已有文件时优先局部编辑，避免整文件覆写。
+- 不覆盖用户未提交改动。
+- 不提交缓存、运行数据、真实 session 数据、密钥、token 或个人配置。
+- 修改后检查 diff，确认没有引入无关文件。
+
+## 验证原则
+
+只运行与本次改动直接相关的最小验证。
+
+常用验证命令：
 
 ```bash
+bash scripts/harness/doctor.sh
 python3 scripts/harness/validate_harness_structure.py
 python3 scripts/harness/validate_openspec_layout.py
-```
-
-有产品测试时一并运行 `./scripts/session-browser.sh test`。
-
-### UI quality gates
-
-对 `src/session_browser/web/templates/`、`src/session_browser/web/static/*.css` 或 `src/session_browser/web/static/js/` 的修改，
-必须运行：
-
-```bash
+./scripts/session-browser.sh test
 python3 scripts/quality/run_quality_gate.py --target session-detail
 ```
 
-除非 `tmp/quality/<change-id>/quality-gate-summary.json` 报告 `status: PASS`，否则 UI 任务未完成。
+选择规则：
 
-详见 `harness/quality/quality-gate-matrix.md`、`harness/quality/ui-layout-contract.md`。
-
-## 生成物策略
-
-以下类别不提交：
-
-- 本地运行数据（logs、临时文件、SQLite index）
-- 报告/覆盖率/基准测试输出（`reports/` 下非基线文件）
-- 用户个人配置（`.claude/settings.local.json`、`.mcp.json`）
-- 缓存、密钥、真实 session 数据
-
-生成物仅在本地消费，不在主干中长期保留。
-
-## 文件操作协议
-
-1. **搜索优先**：用 `rg` 或 `rg --files` 定位目标，不盲目猜测路径。
-2. **最小读取**：只读必要的行和文件；大文件用分页或片段抽取。
-3. **Diff 先行**：编辑前用 `git diff --stat` 了解现状，再定位相关文件。
-4. **精准编辑**：用 `Edit` 工具做局部替换，避免整文件覆写。
-5. **测试闭环**：每次变更后运行相关测试，保留关键失败信息。
-
-## 目录职责
-
-| 目录 | 职责 |
-|------|------|
-| `src/session_browser/` | 应用源码 |
-| `tests/` | 单元测试、静态 DOM/HTML 结构测试 |
-| `scripts/` | 本地运行、测试、发布、harness 脚本 |
-| `harness/` | Agent/自动化工作流与上下文包 |
-| `.claude/` | Claude Code 项目级共享配置和 hooks |
-| `tmp/` | Agent 任务账本和执行记录 |
-| `docs/` | 开发规范和项目文档 |
-
-## 完成定义
-
-1. 改动与用户目标直接对应。
-2. 必要测试或质量门已运行，并在汇报中说明结果。
-3. 文档、脚本、harness 与代码保持同步。
-4. 没有提交个人配置、缓存、运行数据或生成物。
-5. `git status --short` 无意外文件被纳入。
+- 改 `harness/`、`openspec/`、`.claude/`、`scripts/`：优先运行 `bash scripts/harness/doctor.sh`。
+- 改产品代码或测试：运行 `./scripts/session-browser.sh test`。
+- 改 UI 模板、CSS、前端 JS：运行对应 UI 质量门。
+- 验证失败时必须保留失败信息，不得把失败或未运行描述为通过。
 
 ## 语言策略
 
-- **默认输出简体中文**。
-- 代码、命令、路径、API 名称保持英文原样。
-- 面向用户的 UI 文本使用中文。
+- 默认使用简体中文。
+- 规约、规格、提示词、模板、流程文档默认中文。
+- 代码标识符、命令、路径、API、外部工具名保持英文。
+- 面向用户的 UI 文案默认中文。
 
-## 规约文件语言策略
+## 完成标准
 
-- **所有规约/规格/提示词/模板/流程文档必须中文优先**，仅以下情况可保留英文：
-  - 技术术语（如 `OpenSpec`、`PreToolUse`、`grid-template-columns`、`getBoundingClientRect`）。
-  - 代码标识符（变量名、函数名、CSS 选择器、失败代码如 `MAIN_WIDTH_TOO_SMALL`）。
-  - 外部工具/服务的原生名称（如 `Claude Code`、`Playwright`、`pytest`、`Flask`）。
-- 新建任何 `.md` 规约文件时，默认使用中文编写。
-- 模板中的占位符说明（如 `<change-id>`、`<描述>`）使用中文。
-- 此策略适用于 `harness/`、`.claude/`、`openspec/`、`docs/`、`prompts/` 下的所有文档。
-
-## Claude Code 运行态约定
-
-### Hook Runtime
-
-- Claude Code hook 统一入口：`.claude/hooks/claude-hook.sh <event>`。
-- 业务逻辑统一在 `scripts/claude_hooks/`。
-- 不再把复杂逻辑散落在 `.claude/hooks/*.sh`、`scripts/hooks/*.py`、`scripts/agent_hooks/*.py`。
-- `settings.json` 保持宽权限：权限宽，质量强。
-
-### Agent Log
-
-- 运行态目录：`tmp/agent_logs/MMDD_<session-id>/`。
-- 每个 session 有独立目录，多个 agent 实例同时运行时互不干扰。
-- `.agent/` 只作为 legacy 只读兼容路径。
-- quality 输出：`tmp/agent_logs/<session>/quality/<change-id>/quality-gate-summary.<target>.json`。
-
-### Quality Gate
-
-- 禁止主观评分 gate。
-- required gate 不允许 SKIPPED 后 overall PASS。
-- Stop hook 只检查 artifact，不跑重型测试。
-
-## prompts/ 目录策略
-
-`prompts/` 目录是 **输入定义，非权威入口**。
-
-- **不直接读取或执行** `prompts/` 下的文件（不通过 `Read prompts/...` 启动工作流）。
-- 所有基于 prompt pack 的工作必须通过 `/change prompts/<path>` 启动，确保变更进入 OpenSpec 流程。
-- 不删除当前 prompt packs，除非已确认废弃。
-
-## Agent 规则
-
-1. 从 `openspec/specs/` 获取当前真相。
-2. 每个非平凡变更使用 `openspec/changes/<change-id>/`。
-3. 保持任务文件小巧、串行、可独立验证。
-4. 绝不覆盖用户本地设置。
-5. 除非变更明确要求，否则保留现有产品代码。
-6. 汇报完成前先验证质量门。
+- 改动与用户目标直接对应。
+- 没有扩大无关范围。
+- 已运行最小必要验证，或说明无法运行的原因。
+- 文档、脚本、OpenSpec、harness 与代码没有明显冲突。
+- 没有纳入个人配置、缓存、运行数据、真实 session 数据或密钥。
