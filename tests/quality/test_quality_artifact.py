@@ -1,16 +1,20 @@
+import pytest
 from scripts.quality.quality_artifact import compute_overall
 
 
+@pytest.mark.contract_case("HOOK-HARNESS-009")
 def test_pass_only_when_all_required_pass():
     assert compute_overall({"a": "PASS", "b": "PASS"}) == ("PASS", [])
 
 
+@pytest.mark.contract_case("HOOK-HARNESS-009")
 def test_skipped_is_failure():
     status, failures = compute_overall({"a": "PASS", "b": "SKIPPED"})
     assert status == "FAIL"
     assert failures
 
 
+@pytest.mark.contract_case("HOOK-HARNESS-009")
 def test_empty_required_is_blocked():
     status, failures = compute_overall({})
     assert status == "BLOCKED"
@@ -32,6 +36,7 @@ class TestSchemaConsistency:
             f"{source} status 值非法：{data.get('status')}"
         )
 
+    @pytest.mark.contract_case("HOOK-HARNESS-009")
     def test_session_detail_static_schema(self):
         """check_session_detail_static.py 输出必须有 schemaVersion + status。"""
         from scripts.quality.check_session_detail_static import run_checks
@@ -45,6 +50,7 @@ class TestSchemaConsistency:
         )
         self._require_fields(result, "check_session_detail_static")
 
+    @pytest.mark.contract_case("HOOK-HARNESS-009")
     def test_css_ownership_schema(self):
         """check_css_ownership.py JSON artifact 必须有 schemaVersion + status。"""
         from scripts.quality.check_css_ownership import check_css_ownership, format_report
@@ -63,6 +69,7 @@ class TestSchemaConsistency:
         }
         self._require_fields(json_report, "check_css_ownership")
 
+    @pytest.mark.contract_case("HOOK-HARNESS-009")
     def test_quality_summary_schema_version(self):
         """QualitySummary schemaVersion 应为最新值 3。"""
         from scripts.quality import run_quality_gate

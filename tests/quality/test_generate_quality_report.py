@@ -1,11 +1,10 @@
 """Tests for scripts/quality/generate_quality_report.py."""
 from __future__ import annotations
 
+import pytest
 import json
 import sys
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "quality"))
@@ -18,38 +17,49 @@ from generate_quality_report import (
 
 
 class TestStatusBadge:
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_pass(self):
         assert status_badge("PASS") == "PASS"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_fail(self):
         assert status_badge("FAIL") == "FAIL"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_blocked(self):
         assert status_badge("BLOCKED") == "BLOCKED"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_skipped(self):
         assert status_badge("SKIPPED") == "SKIPPED"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_case_insensitive(self):
         assert status_badge("pass") == "PASS"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_unknown(self):
         assert status_badge("UNKNOWN") == "UNKNOWN"
 
 
 class TestFormatDuration:
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_none(self):
         assert format_duration(None) == "N/A"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_milliseconds(self):
         assert format_duration(500) == "500ms"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_seconds(self):
         assert format_duration(1500) == "1.5s"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_exact_second(self):
         assert format_duration(1000) == "1.0s"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_large_duration(self):
         assert format_duration(123456) == "123.5s"
 
@@ -81,24 +91,28 @@ class TestGenerateReport:
         data.update(overrides)
         return data
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_basic_report(self):
         report = generate_report(self._sample())
         assert "# Quality Report: session-detail" in report
         assert "**PASS**" in report
         assert "`test-change`" in report
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_failed_status(self):
         report = generate_report(self._sample(status="FAIL", blockingFailures=["pytest failed"]))
         assert "**FAIL**" in report
         assert "## 阻断失败" in report
         assert "pytest failed" in report
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_gate_table(self):
         report = generate_report(self._sample())
         assert "| Gate | 状态 | 耗时 | 退出码 |" in report
         assert "pytest" in report
         assert "1.5s" in report
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_failed_gate_details(self):
         sample = self._sample(
             status="FAIL",
@@ -119,12 +133,14 @@ class TestGenerateReport:
         assert "### cssOwnership (FAIL)" in report
         assert "BLOCK: violation found" in report
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_warnings_section(self):
         sample = self._sample(warnings=["legacy alias found"])
         report = generate_report(sample)
         assert "## 警告" in report
         assert "legacy alias found" in report
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_blocked_gate(self):
         sample = self._sample(
             gateDetails=[
@@ -136,6 +152,7 @@ class TestGenerateReport:
         assert "BLOCKED" in report
         assert "browserLayout" in report
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_long_output_truncated(self):
         long_output = "x" * 5000
         sample = self._sample(
@@ -156,6 +173,7 @@ class TestGenerateReport:
         # Should not contain the full 5000 chars
         assert long_output not in report
 
+    @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_no_gate_details(self):
         sample = self._sample(gateDetails=[])
         report = generate_report(sample)

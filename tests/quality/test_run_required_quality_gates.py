@@ -1,12 +1,11 @@
 """Tests for scripts/quality/run_required_quality_gates.py."""
+import pytest
 import importlib.util
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
-
-import pytest
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "quality" / "run_required_quality_gates.py"
 _spec = importlib.util.spec_from_file_location("run_required_quality_gates", SCRIPT_PATH)
@@ -52,6 +51,7 @@ def _write_hook_quality_changes(cf_path: Path):
 
 
 class TestDryRun:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_dry_run_hook_runtime_detected(self):
         """Changed files include scripts/quality/*.py => hook-runtime in required targets, session-detail skipped."""
         td = _setup_env([{
@@ -73,6 +73,7 @@ class TestDryRun:
 
 
 class TestNoRequiredTargets:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_empty_changed_files(self):
         """No changed files => exit 0."""
         td = _setup_env([])
@@ -84,6 +85,7 @@ class TestNoRequiredTargets:
             sys.argv = old_argv
         assert rc == 0
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_docs_only(self):
         """Only docs changed => no quality targets => exit 0."""
         td = _setup_env([{
@@ -104,6 +106,7 @@ class TestNoRequiredTargets:
 
 
 class TestSessionDetailExcluded:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_session_detail_not_in_executed_targets(self):
         """UI files changed => session-detail in required but excluded from runner execution."""
         td = _setup_env([{
@@ -122,6 +125,7 @@ class TestSessionDetailExcluded:
 
 
 class TestChangedFilesReading:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_reads_from_jsonl(self):
         """Changed files should be read from changed-files.jsonl."""
         td = _setup_env([{
@@ -136,6 +140,7 @@ class TestChangedFilesReading:
         files = _runner.get_changed_files()
         assert "scripts/hooks/stop.sh" in files
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_filters_by_session_id(self):
         """Files with different sessionId should be filtered out."""
         td = _setup_env([{
@@ -152,9 +157,11 @@ class TestChangedFilesReading:
 
 
 class TestChangeIdResolution:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_explicit_change_id(self):
         assert _runner.resolve_change_id("my-change") == "my-change"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_env_fallback(self, monkeypatch):
         """When ACTIVE_CHANGE_ID env var is set, it should be returned."""
         tmp_dir = Path(tempfile.mkdtemp())
@@ -169,6 +176,7 @@ class TestChangeIdResolution:
             else:
                 os.environ["ACTIVE_CHANGE_ID"] = old
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_unknown_fallback(self, monkeypatch):
         """When no env var and no active-change file, return 'unknown'."""
         tmp_dir = Path(tempfile.mkdtemp())
@@ -184,6 +192,7 @@ class TestChangeIdResolution:
             if old is not None:
                 os.environ["ACTIVE_CHANGE_ID"] = old
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_active_change_file_exists(self, monkeypatch):
         """When active-change file exists and no env var, return file content."""
         tmp_dir = Path(tempfile.mkdtemp())
@@ -202,6 +211,7 @@ class TestChangeIdResolution:
 
 
 class TestNoFeipiAgentLogDir:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_no_env_variable_used(self):
         """Verify the script does not reference FEIPI_AGENT_LOG_DIR."""
         source = SCRIPT_PATH.read_text()
@@ -210,6 +220,7 @@ class TestNoFeipiAgentLogDir:
 
 
 class TestIncludeSessionDetail:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_default_excludes_session_detail_dry_run(self):
         """Default behavior: session-detail excluded from dry-run targets."""
         td = _setup_env([{
@@ -229,6 +240,7 @@ class TestIncludeSessionDetail:
             sys.argv = old_argv
         assert rc == 0
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_include_session_detail_dry_run(self):
         """--include-session-detail: session-detail appears in dry-run targets."""
         td = _setup_env([{
@@ -248,6 +260,7 @@ class TestIncludeSessionDetail:
             sys.argv = old_argv
         assert rc == 0
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_include_session_detail_computes_targets(self):
         """--include-session-detail: compute_required_targets includes session-detail."""
         td = _setup_env([{
@@ -271,6 +284,7 @@ class TestIncludeSessionDetail:
 
 
 class TestStopShOrdering:
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_run_required_before_stop_quality_gate(self):
         """stop.sh must call run_required_quality_gates.py before stop_quality_gate.py."""
         stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"
@@ -284,6 +298,7 @@ class TestStopShOrdering:
         assert run_required_pos < stop_quality_pos, \
             f"run_required_quality_gates.py (pos {run_required_pos}) must appear before stop_quality_gate.py (pos {stop_quality_pos})"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_stop_sh_includes_session_detail_flag(self):
         """stop.sh must pass --include-session-detail to run_required_quality_gates.py."""
         stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"

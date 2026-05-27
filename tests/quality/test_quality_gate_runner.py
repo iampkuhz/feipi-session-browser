@@ -1,4 +1,5 @@
 """Tests for scripts/quality/run_quality_gate.py."""
+import pytest
 import json
 import tempfile
 from datetime import datetime, timezone
@@ -18,25 +19,30 @@ from scripts.quality.quality_targets import required_gates_for_target, validate_
 
 
 class TestComputeOverall:
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_all_pass(self):
         status, failures = compute_overall({"a": "PASS", "b": "PASS"})
         assert status == "PASS"
         assert failures == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_single_fail(self):
         status, failures = compute_overall({"a": "PASS", "b": "FAIL"})
         assert status == "FAIL"
         assert any("b" in f for f in failures)
 
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_blocked(self):
         status, failures = compute_overall({"a": "BLOCKED"})
         assert status == "FAIL"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_skipped_is_failure(self):
         status, failures = compute_overall({"a": "SKIPPED"})
         assert status == "FAIL"
         assert any("SKIPPED" in f for f in failures)
 
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_empty_is_blocked(self):
         status, failures = compute_overall({})
         assert status == "BLOCKED"
@@ -44,6 +50,7 @@ class TestComputeOverall:
 
 
 class TestBuildSummary:
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_schema_version_3(self):
         started = "2026-01-01T00:00:00Z"
         details = [
@@ -56,6 +63,7 @@ class TestBuildSummary:
         assert summary.status == PASS
         assert "pytest" in summary.requiredGates
 
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_blocking_in_summary(self):
         started = "2026-01-01T00:00:00Z"
         details = [
@@ -67,6 +75,7 @@ class TestBuildSummary:
 
 
 class TestWriteSummary:
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_summary_written(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)
@@ -82,17 +91,20 @@ class TestWriteSummary:
 
 
 class TestQualityTargets:
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_hook_runtime_gates(self):
         gates = required_gates_for_target("hook-runtime")
         assert "settingsJson" in gates
         assert "bashSyntax" in gates
         assert "pythonCompile" in gates
 
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_session_detail_gates(self):
         gates = required_gates_for_target("session-detail")
         assert "pytest" in gates
         assert "pythonCompile" in gates
 
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_validate_unknown_target(self):
         import pytest
         with pytest.raises(ValueError):

@@ -1,10 +1,9 @@
 """Tests for scripts/quality/repo_slimming_contract_check.py pure functions."""
 from __future__ import annotations
 
+import pytest
 import sys
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "quality"))
@@ -23,6 +22,7 @@ from repo_slimming_contract_check import (
 
 
 class TestNoHistoricalVersionComments:
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_clean_file_passes(self, tmp_path):
         f = tmp_path / "clean.css"
         f.write_text(".foo { color: red; }")
@@ -30,6 +30,7 @@ class TestNoHistoricalVersionComments:
         assert errors == []
         assert warnings == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_hifi_version_warns(self, tmp_path):
         f = tmp_path / "shell.css"
         f.write_text("/* HIFI v3: Table header */\n.header { display: flex; }")
@@ -38,6 +39,7 @@ class TestNoHistoricalVersionComments:
         assert len(warnings) == 1
         assert "HIFI v3" in warnings[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_deprecated_task_warns(self, tmp_path):
         f = tmp_path / "code.py"
         f.write_text("# DEPRECATED T001 — migrated to new system\nx = 1")
@@ -45,6 +47,7 @@ class TestNoHistoricalVersionComments:
         assert errors == []
         assert len(warnings) == 1
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_migrated_task_warns(self, tmp_path):
         f = tmp_path / "notes.md"
         f.write_text("migrated Task 42 to the new module")
@@ -52,6 +55,7 @@ class TestNoHistoricalVersionComments:
         assert errors == []
         assert len(warnings) == 1
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_session_browser_hifi_v_warns(self, tmp_path):
         f = tmp_path / "config.yaml"
         f.write_text("# session_browser_hifi_v3 configuration")
@@ -59,6 +63,7 @@ class TestNoHistoricalVersionComments:
         assert errors == []
         assert len(warnings) == 1
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_session_detail_payload_v_warns(self, tmp_path):
         f = tmp_path / "design.md"
         f.write_text("session-detail-payload-v18 design")
@@ -66,6 +71,7 @@ class TestNoHistoricalVersionComments:
         assert errors == []
         assert len(warnings) == 1
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_multiple_files_reports_per_file(self, tmp_path):
         good = tmp_path / "good.css"
         bad = tmp_path / "bad.css"
@@ -75,6 +81,7 @@ class TestNoHistoricalVersionComments:
         assert len(warnings) == 1
         assert "bad.css" in warnings[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_no_false_positive_on_normal_version(self, tmp_path):
         f = tmp_path / "readme.md"
         f.write_text("## Version 2.0\n\nThis is the changelog.")
@@ -86,6 +93,7 @@ class TestNoHistoricalVersionComments:
 
 
 class TestHarnessCurrentStateOnly:
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_clean_harness_passes(self, tmp_path):
         f = tmp_path / "quality-gate-matrix.md"
         f.write_text("# Quality Gate Matrix\n\nCurrent gates are...")
@@ -93,6 +101,7 @@ class TestHarnessCurrentStateOnly:
         assert errors == []
         assert warnings == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_deleted_keyword_warns(self, tmp_path):
         f = tmp_path / "changelog.md"
         f.write_text("# Changes\n\n- deleted old module X")
@@ -101,6 +110,7 @@ class TestHarnessCurrentStateOnly:
         assert len(warnings) == 1
         assert "deleted" in warnings[0].lower()
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_changelog_keyword_warns(self, tmp_path):
         f = tmp_path / "history.md"
         f.write_text("# changelog for 2024")
@@ -109,6 +119,7 @@ class TestHarnessCurrentStateOnly:
         assert len(warnings) == 1
         assert "changelog" in warnings[0].lower()
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_agent_quality_warns(self, tmp_path):
         f = tmp_path / "config.md"
         f.write_text("Logs stored in .agent/quality/results/")
@@ -117,6 +128,7 @@ class TestHarnessCurrentStateOnly:
         assert len(warnings) == 1
         assert ".agent/quality" in warnings[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_mmdd_log_path_warns(self, tmp_path):
         f = tmp_path / "logging.md"
         f.write_text("Logs are at tmp/agent_logs/MMDD_<session-id>/")
@@ -125,6 +137,7 @@ class TestHarnessCurrentStateOnly:
         assert len(warnings) == 1
         assert "tmp/agent_logs/MMDD" in warnings[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_已删除_warns(self, tmp_path):
         f = tmp_path / "notes.md"
         f.write_text("已删除的模块需要重新评估")
@@ -133,6 +146,7 @@ class TestHarnessCurrentStateOnly:
         assert len(warnings) == 1
         assert "已删除" in warnings[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_empty_file_passes(self, tmp_path):
         f = tmp_path / "empty.md"
         f.write_text("")
@@ -145,6 +159,7 @@ class TestHarnessCurrentStateOnly:
 
 
 class TestSupportedViewportsOnly:
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_desktop_viewport_passes(self, tmp_path):
         css = tmp_path / "desktop.css"
         css.write_text("@media (min-width: 1440px) { .foo { display: flex; } }")
@@ -152,6 +167,7 @@ class TestSupportedViewportsOnly:
         assert errors == []
         assert warnings == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_767px_blocks(self, tmp_path):
         css = tmp_path / "mobile.css"
         css.write_text("@media (max-width: 767px) { .foo { display: flex; } }")
@@ -159,6 +175,7 @@ class TestSupportedViewportsOnly:
         assert len(errors) == 1
         assert "767px" in errors[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_768px_blocks(self, tmp_path):
         css = tmp_path / "tablet.css"
         css.write_text("@media (max-width: 768px) { .foo { display: flex; } }")
@@ -166,6 +183,7 @@ class TestSupportedViewportsOnly:
         assert len(errors) == 1
         assert "768px" in errors[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_820px_blocks(self, tmp_path):
         css = tmp_path / "ipad.css"
         css.write_text("@media (max-width: 820px) { .foo { display: flex; } }")
@@ -173,6 +191,7 @@ class TestSupportedViewportsOnly:
         assert len(errors) == 1
         assert "820px" in errors[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_mobile_media_query_blocks(self, tmp_path):
         css = tmp_path / "mobile.css"
         css.write_text("@media only screen and (max-width: 480px) and (orientation: portrait)")
@@ -181,6 +200,7 @@ class TestSupportedViewportsOnly:
         # The generic mobile keyword pattern catches this
         assert errors == []  # This specific line doesn't match any of our patterns
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_js_mobile_blocks(self, tmp_path):
         js = tmp_path / "responsive.js"
         js.write_text("// @media tablet breakpoint\nconst TABLET = 768;")
@@ -188,12 +208,14 @@ class TestSupportedViewportsOnly:
         errors, warnings = check_supported_viewports_only([], [js])
         assert errors == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_comment_lines_skipped(self, tmp_path):
         css = tmp_path / "notes.css"
         css.write_text("/* This is what mobile at 768px would look like */\n.foo { color: red; }")
         errors, warnings = check_supported_viewports_only([css], [])
         assert errors == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_allowed_desktop_widths_pass(self, tmp_path):
         css = tmp_path / "wide.css"
         css.write_text("@media (min-width: 1512px) { .foo { max-width: 1200px; } }")
@@ -205,40 +227,51 @@ class TestSupportedViewportsOnly:
 
 
 class TestCssHasOnlyCommentsOrEmpty:
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_only_comments(self):
         assert _css_has_only_comments_or_empty("/* comment */") is True
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_only_whitespace(self):
         assert _css_has_only_comments_or_empty("   \n\n  ") is True
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_empty(self):
         assert _css_has_only_comments_or_empty("") is True
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_with_rules(self):
         assert _css_has_only_comments_or_empty(".foo { color: red; }") is False
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_comment_with_rules(self):
         assert _css_has_only_comments_or_empty("/* Header */\n.header { display: flex; }") is False
 
 
 class TestJsIsOnlyCommentsOrEmpty:
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_only_line_comments(self):
         assert _js_is_only_comments_or_empty("// comment\n// another") is True
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_only_block_comments(self):
         assert _js_is_only_comments_or_empty("/* comment */") is True
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_with_code(self):
         assert _js_is_only_comments_or_empty("var x = 1;") is False
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_comment_with_code(self):
         assert _js_is_only_comments_or_empty("// init\nconst x = 1;") is False
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_empty(self):
         assert _js_is_only_comments_or_empty("") is True
 
 
 class TestNoDeadCompatShim:
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_only_comment_css_blocks(self, tmp_path):
         css = tmp_path / "dead.css"
         css.write_text("/* all gone */")
@@ -246,6 +279,7 @@ class TestNoDeadCompatShim:
         assert len(errors) == 1
         assert "死 CSS 文件" in errors[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_only_comment_js_blocks(self, tmp_path):
         js = tmp_path / "dead.js"
         js.write_text("// nothing here")
@@ -253,18 +287,21 @@ class TestNoDeadCompatShim:
         assert len(errors) == 1
         assert "死 JS 文件" in errors[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_valid_css_passes(self, tmp_path):
         css = tmp_path / "valid.css"
         css.write_text(".foo { color: red; }")
         errors, warnings = check_no_dead_compat_shim([css], [])
         assert errors == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_valid_js_passes(self, tmp_path):
         js = tmp_path / "valid.js"
         js.write_text("const x = 1;")
         errors, warnings = check_no_dead_compat_shim([], [js])
         assert errors == []
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_legacy_display_none_warns(self, tmp_path):
         css = tmp_path / "compat.css"
         css.write_text(".old-header {\n  display: none;\n}")
@@ -273,6 +310,7 @@ class TestNoDeadCompatShim:
         assert len(warnings) == 1
         assert "兼容垫片" in warnings[0]
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_normal_display_none_no_warn(self, tmp_path):
         css = tmp_path / "normal.css"
         css.write_text(".sr-only {\n  display: none;\n}")
@@ -284,6 +322,7 @@ class TestNoDeadCompatShim:
 
 
 class TestActualRepoState:
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_no_mobile_viewports_in_css(self):
         static = ROOT / "src/session_browser/web/static"
         css_files = list(static.rglob("*.css"))
@@ -291,6 +330,7 @@ class TestActualRepoState:
         errors, warnings = check_supported_viewports_only(css_files, js_files)
         assert errors == [], f"mobile viewport found: {errors}"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_no_dead_css_js_files(self):
         static = ROOT / "src/session_browser/web/static"
         css_files = list(static.rglob("*.css"))
@@ -298,8 +338,11 @@ class TestActualRepoState:
         errors, warnings = check_no_dead_compat_shim(css_files, js_files)
         assert errors == [], f"dead compat shim found: {errors}"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_historical_version_warnings_exist(self):
-        """Verify that existing historical version comments are detected as WARN."""
+        """
+
+Verify that existing historical version comments are detected as WARN."""
         static = ROOT / "src/session_browser/web/static"
         css_files = list(static.rglob("*.css"))
         # Modular CSS files (sessions-list.css, glossary.css, etc.) should trigger warnings
@@ -308,6 +351,7 @@ class TestActualRepoState:
         warned_files = [w for w in warnings if "sessions-list.css" in w or "glossary.css" in w or "shell.css" in w]
         assert len(warned_files) >= 1, f"Expected warnings from modular CSS files, got: {warnings}"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_repo_slimming_contract_passes_no_block(self):
         """Full check should not BLOCK on current repo state."""
         from repo_slimming_contract_check import check_repo_slimming
