@@ -1,32 +1,27 @@
 {
+  "agent": "qwen-main-default",
   "permissions": {
     "defaultMode": "bypassPermissions",
     "additionalDirectories": [
       "/Users/zhehan/Downloads/feipi_session_browser_harness_seed2",
       "/Users/zhehan/Documents/tools/llm/feipi-session-browser"
     ],
-    "allow": [
-      "Bash(*)",
-      "Read(*)",
-      "Write(*)",
-      "Edit(*)",
-      "MultiEdit(*)",
-      "Glob(*)",
-      "Grep(*)",
-      "LS(*)",
-      "Task(*)",
-      "TodoWrite(*)",
-      "WebFetch(*)",
-      "WebSearch(*)",
-      "NotebookRead(*)",
-      "NotebookEdit(*)",
-      "BashOutput(*)",
-      "KillBash(*)",
-      "ExitPlanMode(*)",
-      "TaskCreate(*)"
-    ],
+    "allow": [],
     "ask": [],
-    "deny": []
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(.mcp.json)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gh/hosts.yml)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fdx:*)",
+      "Bash(rm -rf /:*)",
+      "Bash(rm -rf ~:*)",
+      "Bash(chmod -R 777 /:*)",
+      "Bash(dd if=* of=/dev/*)"
+    ]
   },
   "hooks": {
     "SessionStart": [

@@ -1,23 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "_comment": "Personal local override. Copy to .claude/settings.local.json when you want Claude Code to run this repo with minimal prompts. This example is safe to commit; .claude/settings.local.json stays gitignored.",
+  "agent": "qwen-main-default",
   "permissions": {
-    "allow": [
-      "Bash",
-      "Read",
-      "Edit",
-      "Write",
-      "MultiEdit",
-      "Glob",
-      "Grep",
-      "LS",
-      "NotebookRead",
-      "NotebookEdit",
-      "WebFetch",
-      "WebSearch",
-      "TodoWrite",
-      "Task"
-    ],
+    "allow": [],
     "ask": [],
     "deny": [
       "Read(./.env)",
