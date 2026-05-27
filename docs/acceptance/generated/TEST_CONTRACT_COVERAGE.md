@@ -70,7 +70,7 @@
 | HOOK-HARNESS-002 | P0 | data | pytest | tests/hooks/test_claude_hooks_classify.py |
 | HOOK-HARNESS-003 | P0 | data | pytest | tests/hooks/test_claude_hooks_evidence.py |
 | HOOK-HARNESS-004 | P0 | data | pytest | tests/hooks/test_claude_hooks_file_policy.py |
-| HOOK-HARNESS-005 | P0 | data | pytest | tests/backend/test_log_file_change.py, tests/hooks/test_claude_hooks_hook_io.py |
+| HOOK-HARNESS-005 | P0 | data | pytest | tests/hooks/test_claude_hooks_hook_io.py |
 | HOOK-HARNESS-006 | P0 | data | pytest | tests/hooks/test_stop_quality_gate.py |
 | HOOK-HARNESS-007 | P0 | data | pytest | tests/quality/test_generate_quality_report.py |
 | HOOK-HARNESS-008 | P0 | data | pytest | tests/quality/test_new_quality_gates.py |

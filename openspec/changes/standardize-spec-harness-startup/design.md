@@ -9,7 +9,7 @@ The audit at `.agent/audit/00-01-startup-audit.md` identified the following gaps
 | Startup contract | Prose in CLAUDE.md only | Mechanical enforcement on session start | No SessionStart hook; no auto-prompt injection | 03-06 |
 | Pre-write guard | `guard_openspec_change.py` fires on Write/Edit | Must block all file modifications without change | Bypassable via Bash (sed -i, cp, python); no change association | 03-03 |
 | Change uniqueness | 3 active changes coexist | One active change at a time | No single-active-change enforcement | 03-02, 03-07 |
-| Post-write evidence | change-log.jsonl (ts + event only) | Must log file, change-id, action | No structured evidence; no change association | 03-04 |
+| Post-write evidence | `tmp/agent_logs/current/changed-files.jsonl` 与 `task-evidence/<change-id>.jsonl` | Must log file, change-id, action | 旧 `.claude/change-log.jsonl` 兼容日志已无校验价值 | 03-04 |
 | Session-end check | stop_check.sh warns about local files | Should verify change completion state | No active-change cleanup check | 03-05 |
 | Subagent context | Agent files minimal, no change refs | Subagents must know active change | No active_change injection in any agent | 04-01, 03-06 |
 | Dry-run mode | HOOK_DRY_RUN=1 default in common.sh | Production hooks should not be dry-run | post_tool_guard.sh and stop_check.sh downgrade blocks | 03-07 |

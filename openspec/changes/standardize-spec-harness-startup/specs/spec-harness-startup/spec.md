@@ -115,8 +115,9 @@ PostToolUse hooks SHALL log evidence and perform syntax/validation checks after 
 #### Scenario: PostToolUse evidence logging
 
 - **WHEN** a Write, Edit, or MultiEdit operation completes
-- **THEN** `scripts/agent_hooks/log_file_change.py` appends to `.claude/change-log.jsonl`
-- **AND** each entry includes: `event`, `ts`, `file_path`, `change_id`, `action`
+- **THEN** `scripts.claude_hooks.evidence` appends structured records to `tmp/agent_logs/current/changed-files.jsonl`
+- **AND** the active change receives task evidence under `tmp/agent_logs/current/task-evidence/<change-id>.jsonl`
+- **AND** each entry includes file, change-id, category, quality target, size, and sha256 metadata when available
 
 #### Scenario: PostToolUse syntax checks
 
@@ -152,13 +153,14 @@ All file modifications SHALL be tracked with structured evidence linked to the a
 #### Scenario: Evidence log entry structure
 
 - **WHEN** a file is modified
-- **THEN** `.claude/change-log.jsonl` receives a JSONL entry with:
-  - `event`: `"pre-edit"` or `"post-edit"`
+- **THEN** `tmp/agent_logs/current/changed-files.jsonl` receives a JSONL entry with:
+  - `event`: the hook event name
   - `ts`: ISO-8601 timestamp
-  - `file_path`: absolute or repo-relative path
-  - `change_id`: the active change-id from `.agent/active_change.json`
-  - `action`: `"create"`, `"update"`, or `"delete"`
-  - `diff_summary`: short summary of the change (first line of diff)
+  - `file`: repo-relative path
+  - `changeId`: the active change-id
+  - `category`: classified file category
+  - `qualityTarget`: required quality target when applicable
+  - `sha256After`: file hash after the write when available
 
 #### Scenario: Task ledger updates
 

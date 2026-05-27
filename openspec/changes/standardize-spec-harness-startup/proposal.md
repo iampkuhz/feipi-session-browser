@@ -8,7 +8,7 @@ Additionally:
 - Multiple active changes coexist (3 found), with no single-active-change enforcement.
 - Hooks exist but run in dry-run mode by default (`HOOK_DRY_RUN=1`).
 - No `.agent/active_change.json` sentinel tracks the current working change.
-- Evidence logging (`.claude/change-log.jsonl`) records timestamps but not file paths, change-ids, or diff summaries.
+- 旧版 evidence logging 曾写入 `.claude/change-log.jsonl`，但该兼容日志缺少足够校验价值；当前链路应使用 `tmp/agent_logs/current/changed-files.jsonl` 与 `task-evidence/<change-id>.jsonl`。
 - Subagent definitions contain no reference to the active change context.
 
 ## Scope
