@@ -1,5 +1,5 @@
 """Tests for Claude Code parser."""
-
+import pytest
 import json
 from pathlib import Path
 import tempfile
@@ -7,6 +7,8 @@ import tempfile
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
+@pytest.mark.contract_case("DATA-SOURCE-011", "DATA-SOURCE-014")
 def test_parse_session_events():
     """Test that we can parse Claude session events."""
     from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -20,6 +22,7 @@ def test_parse_session_events():
     assert "assistant" in types
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_build_summary_from_events():
     """Test summary building from events."""
     from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -35,6 +38,7 @@ def test_build_summary_from_events():
     assert summary.project_name == "project"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_extract_messages():
     """Test message extraction."""
     from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -49,6 +53,7 @@ def test_extract_messages():
     assert user_msgs[0].content != ""
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_history_empty_when_missing():
     """Test that parse_history returns empty list when no data dir."""
     from session_browser.sources import claude
@@ -64,6 +69,7 @@ def test_parse_history_empty_when_missing():
             claude.CLAUDE_DATA_DIR = original
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_session_detail_includes_subagent_diagnostics():
     """Subagent sidechains should be visible in parent session diagnostics."""
     from session_browser.sources import claude
@@ -258,6 +264,7 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert all(tc.scope == "subagent" for tc in tool_calls[1:])
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_session_events_skips_non_dict_json_values():
     """Non-dict JSON lines in session JSONL (strings, arrays, numbers, etc.)
     must be silently skipped, not crash downstream code.
@@ -341,6 +348,7 @@ def _is_valid_json_dict(line: str) -> bool:
         return False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_pretty_printed_multiline_json():
     """Pretty-printed session files (multi-line JSON objects) must be fully
     parsed, not silently skipped.
@@ -408,6 +416,7 @@ def test_parse_pretty_printed_multiline_json():
         tmp_path.unlink(missing_ok=True)
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_concatenated_json_transition_line():
     """Mixed-format files where pretty-printed transitions to JSONL with
     concatenated objects on a single line (``}{...}{...}``) must be parsed
@@ -440,6 +449,7 @@ def test_parse_concatenated_json_transition_line():
         tmp_path.unlink(missing_ok=True)
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_brace_inside_string_values_not_counted():
     """Braces/brackets inside JSON string values must not affect depth
     tracking.  E.g. ``{"key": "{value}"}`` should have depth 1 at the

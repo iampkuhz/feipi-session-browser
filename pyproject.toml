@@ -40,3 +40,6 @@ session_browser = [
 pythonpath = ["src", "."]
 testpaths = ["tests"]
 addopts = "-n auto"
+markers = [
+    "contract_case: Mark test with acceptance contract case ID(s)",
+]

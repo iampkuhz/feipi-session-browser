@@ -12,10 +12,9 @@ Tests run against static templates (no server required).
 """
 from __future__ import annotations
 
+import pytest
 import pathlib
 import re
-
-import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
@@ -41,24 +40,28 @@ class TestHeroArea:
     def timeline(self):
         return _read(TIMELINE_HTML)
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_hero_section_exists(self, timeline):
         """Hero section must use .sd-hero with data-session-overview-hero."""
         assert 'class="sd-hero"' in timeline, "Missing .sd-hero class"
         assert "data-session-overview-hero" in timeline, \
             "Hero missing data-session-overview-hero"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_agent_pill_exists(self, timeline):
         """Hero must render agent pill."""
         assert "sd-agent-pill" in timeline, "Missing sd-agent-pill in hero"
         assert "summary.agent_label" in timeline, \
             "Hero must render summary.agent_label"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_hero_title_exists(self, timeline):
         """Hero must have h1 title with summary.title."""
         assert "<h1" in timeline, "Missing h1 title in hero"
         assert "summary.title" in timeline, \
             "Hero title must use summary.title"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_hero_meta_chips(self, timeline):
         """Hero must show model, project, date chips (short-id moved to breadcrumb)."""
         assert "summary.model" in timeline, "Missing model chip in hero"
@@ -66,10 +69,12 @@ class TestHeroArea:
             "Missing project chip in hero"
         assert "summary.date" in timeline, "Missing date chip in hero"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_container_exists(self, timeline):
         """KPI container must use .sd-kpis."""
         assert 'class="sd-kpis"' in timeline, "Missing .sd-kpis container"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_tokens(self, timeline):
         """KPIs must include Tokens."""
         assert "sd-kpi" in timeline, "Missing .sd-kpi items"
@@ -78,24 +83,28 @@ class TestHeroArea:
         assert "metrics.tokens" in timeline, \
             "KPI must render metrics.tokens value"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_rounds(self, timeline):
         """KPIs must include Rounds."""
         assert "Rounds" in timeline, "Missing Rounds KPI label"
         assert "metrics.rounds" in timeline, \
             "KPI must render metrics.rounds value"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_tools(self, timeline):
         """KPIs must include Tools."""
         assert "Tools" in timeline, "Missing Tools KPI label"
         assert "metrics.tools" in timeline, \
             "KPI must render metrics.tools value"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_failed(self, timeline):
         """KPIs must include Failed."""
         assert "Failed" in timeline, "Missing Failed KPI label"
         assert "metrics.failed" in timeline, \
             "KPI must render metrics.failed value"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_summary_strip_exists(self, timeline):
         """Summary strip must exist with data-summary-strip."""
         assert "data-summary-strip" in timeline, \
@@ -103,6 +112,7 @@ class TestHeroArea:
         assert "sd-summary-strip" in timeline, \
             "Missing .sd-summary-strip"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_summary_strip_items(self, timeline):
         """Summary strip must have status, manual input, subagents, cache write."""
         assert "sd-summary-item" in timeline, "Missing .sd-summary-item"
@@ -114,6 +124,7 @@ class TestHeroArea:
         assert "cache_write_pct" in timeline, \
             "Missing cache write pct in summary strip"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_issue_strip_in_hero(self, timeline):
         """Issue strip must be within hero section."""
         assert "data-issue-strip" in timeline, \
@@ -121,6 +132,7 @@ class TestHeroArea:
         assert "sd-issue-strip" in timeline, \
             "Missing .sd-issue-strip"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_issue_strip_has_jump_action(self, timeline):
         """Issue links must use jump-round action."""
         assert 'data-action="jump-round"' in timeline, \
@@ -139,12 +151,14 @@ class TestTabNavigation:
     def session(self):
         return _read(SESSION_HTML)
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_tab_container_exists(self, session):
         """Tab nav must use .sd-tabs with data-session-tabs."""
         assert 'class="sd-tabs"' in session, "Missing .sd-tabs container"
         assert "data-session-tabs" in session, \
             "Missing data-session-tabs attribute"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_tab_exists(self, session):
         """Trace tab must exist with data-action=\"tab-trace\"."""
         assert 'data-action="tab-trace"' in session, \
@@ -152,6 +166,7 @@ class TestTabNavigation:
         assert 'data-tab="trace"' in session, \
             "Missing data-tab=\"trace\""
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_metrics_tab_exists(self, session):
         """Metrics tab must exist with data-action=\"tab-metrics\"."""
         assert 'data-action="tab-metrics"' in session, \
@@ -159,6 +174,7 @@ class TestTabNavigation:
         assert 'data-tab="metrics"' in session, \
             "Missing data-tab=\"metrics\""
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_payloads_tab_exists(self, session):
         """Payloads tab must exist with data-action=\"tab-payloads\"."""
         assert 'data-action="tab-payloads"' in session, \
@@ -166,6 +182,7 @@ class TestTabNavigation:
         assert 'data-tab="payloads"' in session, \
             "Missing data-tab=\"payloads\""
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_tab_is_active(self, session):
         """Trace tab should be the default active tab (is-active class)."""
         # The first tab (Trace) should have is-active
@@ -179,6 +196,7 @@ class TestTabNavigation:
         assert 'data-action="tab-trace"' in tabs_section.split("is-active")[0] + tabs_section.split("is-active")[1][:200], \
             "Trace tab should be active by default"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_tab_aria_label(self, session):
         """Tab nav must have accessible aria-label."""
         assert 'aria-label="Session view tabs"' in session, \
@@ -199,16 +217,19 @@ class TestTraceTableStructure:
     def session(self):
         return _read(SESSION_HTML)
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_table_element(self, session):
         """session.html must have <table class=\"trace-table\">."""
         assert 'class="trace-table"' in session, \
             "Missing <table class=\"trace-table\">"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_table_data_attr(self, session):
         """Trace table must have data-trace-list."""
         assert "data-trace-list" in session, \
             "Missing data-trace-list on table"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_colgroup_structure(self, session):
         """Table must have colgroup with expected columns."""
         assert "<colgroup>" in session, "Missing <colgroup>"
@@ -217,6 +238,7 @@ class TestTraceTableStructure:
         assert "col-metrics" in session, "Missing col-metrics"
         assert "col-status" in session, "Missing col-status"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_thead_structure(self, session):
         """Table must have <thead> with column headers."""
         assert "<thead>" in session, "Missing <thead>"
@@ -224,6 +246,7 @@ class TestTraceTableStructure:
         assert "metrics-col" in session, "Missing metrics column header"
         assert "status-col" in session, "Missing status column header"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_round_row_is_tr(self, timeline):
         """round_row macro must render <tr class=\"round-row\">."""
         pattern = re.compile(
@@ -232,6 +255,7 @@ class TestTraceTableStructure:
         assert pattern.search(timeline), \
             "round_row must render <tr class=\"round-row\">"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_round_row_data_attrs(self, timeline):
         """round-row must have data-trace-round-row, data-round, data-status."""
         assert "data-trace-round-row" in timeline, \
@@ -242,6 +266,7 @@ class TestTraceTableStructure:
         assert 'data-status="' in timeline, \
             "Missing data-status on round-row"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_expanded_row_is_tr(self, timeline):
         """expanded_row macro must render <tr class=\"expanded-row\">."""
         pattern = re.compile(
@@ -250,17 +275,20 @@ class TestTraceTableStructure:
         assert pattern.search(timeline), \
             "expanded_row must render <tr class=\"expanded-row\">"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_expanded_row_data_attr(self, timeline):
         """expanded-row must have data-trace-detail."""
         assert "data-trace-detail" in timeline, \
             "Missing data-trace-detail on expanded-row"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_expanded_row_id_pattern(self, timeline):
         """expanded-row id must match round-{id}-detail pattern."""
         pattern = re.compile(r'id="round-\{\{[^}]+\}\}-detail"')
         assert pattern.search(timeline), \
             "Missing round-{id}-detail id pattern"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_round_calls_both_macros(self, timeline):
         """trace_round macro must call round_row and expanded_row."""
         assert "{{ round_row(row) }}" in timeline, \
@@ -268,6 +296,7 @@ class TestTraceTableStructure:
         assert "{{ expanded_row(row) }}" in timeline, \
             "trace_round must call expanded_row"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_session_calls_trace_round(self, session):
         """session.html must call sdt.trace_round for each row."""
         assert "sdt.trace_round(row)" in session, \
@@ -275,11 +304,13 @@ class TestTraceTableStructure:
         assert "for row in trace_rows" in session, \
             "session.html must iterate over trace_rows"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_round_row_has_is_open_class(self, timeline):
         """round-row must support is-open class for expanded state."""
         assert "is-open" in timeline, \
             "Missing is-open class support in round-row"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_row_clickable_for_toggle(self, timeline):
         """Round rows must be clickable to toggle (cursor:pointer on round-row)."""
         assert "data-trace-round-row" in timeline, \
@@ -298,6 +329,7 @@ class TestFilterButtons:
     def timeline(self):
         return _read(TIMELINE_HTML)
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_filter_status_action(self, timeline):
         """Filter buttons must use status-all and status-failed actions (no filter-status)."""
         assert 'data-action="filter-status"' not in timeline, \
@@ -305,16 +337,19 @@ class TestFilterButtons:
         assert 'data-action="status-all"' in timeline or 'data-action="status-failed"' in timeline, \
             "Must have status-all or status-failed action"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_status_all_button(self, timeline):
         """Must have status-all button."""
         assert 'data-action="status-all"' in timeline, \
             "Missing status-all button"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_status_failed_button(self, timeline):
         """Must have status-failed button."""
         assert 'data-action="status-failed"' in timeline, \
             "Missing status-failed button"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_collapse_all_button(self, timeline):
         """Must NOT have separate collapse-all button; toggle-all is the single control."""
         assert 'data-action="collapse-all"' not in timeline, \
@@ -322,6 +357,7 @@ class TestFilterButtons:
         assert 'data-action="toggle-all"' in timeline, \
             "Missing toggle-all button"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_filter_buttons_in_seg_group(self, timeline):
         """Filter buttons must be in a segmented control group."""
         assert 'class="sd-seg"' in timeline, \
@@ -329,6 +365,7 @@ class TestFilterButtons:
         assert "sd-seg-btn" in timeline, \
             "Missing sd-seg-btn class for filter buttons"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_status_all_is_active_by_default(self, timeline):
         """status-all button should be active by default."""
         # Find the status-all button and check it has is-active
@@ -340,6 +377,7 @@ class TestFilterButtons:
         assert "is-active" in all_btn_match.group(0), \
             "status-all button should have is-active class"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_actions_container(self, timeline):
         """Filter buttons must be in sd-trace-actions container."""
         assert "sd-trace-actions" in timeline, \
@@ -360,16 +398,19 @@ class TestTokenBar:
     def primitives(self):
         return _read(PRIMITIVES_HTML)
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_tokenbar_in_row(self, timeline):
         """round-row must contain tokenbar element."""
         assert 'class="tokenbar"' in timeline, \
             "Missing .tokenbar in round-row"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_tokenbar_aria_hidden(self, timeline):
         """Tokenbar must be aria-hidden (decorative)."""
         assert 'aria-hidden="true"' in timeline, \
             "Tokenbar should be aria-hidden"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_fresh_segment(self, timeline):
         """Tokenbar must have fresh segment."""
         pattern = re.compile(r'class="fresh"')
@@ -378,24 +419,28 @@ class TestTokenBar:
         assert "--segment-width" in timeline, \
             "Missing --segment-width CSS variable"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_read_segment(self, timeline):
         """Tokenbar must have read segment."""
         pattern = re.compile(r'class="read"')
         assert pattern.search(timeline), \
             "Missing read segment in tokenbar"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_write_segment(self, timeline):
         """Tokenbar must have write segment."""
         pattern = re.compile(r'class="write"')
         assert pattern.search(timeline), \
             "Missing write segment in tokenbar"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_out_segment(self, timeline):
         """Tokenbar must have out segment."""
         pattern = re.compile(r'class="out"')
         assert pattern.search(timeline), \
             "Missing out segment in tokenbar"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_token_mix_data(self, timeline):
         """Tokenbar segments must be driven by row.token_mix."""
         assert "row.token_mix.fresh" in timeline, \
@@ -407,6 +452,7 @@ class TestTokenBar:
         assert "row.token_mix.out" in timeline, \
             "Missing token_mix.out data binding"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_primitives_token_bar_macro(self, primitives):
         """Primitives must define token_bar macro (3-segment variant)."""
         assert "{% macro token_bar" in primitives, \
@@ -435,6 +481,7 @@ class TestPayloadModal:
     def primitives(self):
         return _read(PRIMITIVES_HTML)
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_modal_element_exists(self, timeline):
         """Payload modal must use <dialog> element."""
         assert "<dialog" in timeline, "Missing <dialog> for payload modal"
@@ -443,6 +490,7 @@ class TestPayloadModal:
         assert "sd-payload-modal" in timeline, \
             "Missing .sd-payload-modal class"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_modal_title(self, timeline):
         """Modal must have title with data-payload-title."""
         assert "data-payload-title" in timeline, \
@@ -452,11 +500,13 @@ class TestPayloadModal:
         assert 'aria-labelledby="payload-title"' in timeline, \
             "Modal missing aria-labelledby"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_modal_subtitle(self, timeline):
         """Modal must have subtitle area."""
         assert "data-payload-subtitle" in timeline, \
             "Missing data-payload-subtitle"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_modal_close_button(self, timeline):
         """Modal must have close button with close-payload action."""
         assert 'data-action="close-payload"' in timeline, \
@@ -464,6 +514,7 @@ class TestPayloadModal:
         assert "sd-modal-close" in timeline, \
             "Missing sd-modal-close class"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_modal_metadata(self, timeline):
         """Modal body has data-payload-body; metadata lives in payload source templates."""
         # Modal shell: must have body container for content injection
@@ -475,11 +526,13 @@ class TestPayloadModal:
         # Metadata card inside each template
         assert "sd-payload-meta" in timeline, "Missing sd-payload-meta metadata card"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_modal_body(self, timeline):
         """Modal must have body container with data-payload-body."""
         assert "data-payload-body" in timeline, \
             "Missing data-payload-body"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_modal_empty_state(self, timeline):
         """Modal must have empty state when no payload selected."""
         assert "data-payload-empty" in timeline, \
@@ -487,6 +540,7 @@ class TestPayloadModal:
         assert "sd-payload-empty-state" in timeline, \
             "Missing .sd-payload-empty-state"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_payload_source_template(self, timeline):
         """Payload sources must use <template> with data attributes."""
         assert "<template" in timeline, \
@@ -500,6 +554,7 @@ class TestPayloadModal:
         assert "data-payload-size" in timeline, \
             "Missing data-payload-size"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_open_payload_buttons(self, timeline, primitives):
         """LLM call card and tool batch must have open-payload buttons."""
         # The sdp.button() macro in primitives renders data-action from the action param
@@ -510,18 +565,21 @@ class TestPayloadModal:
         assert 'data-payload-id=' in primitives, \
             "Primitives button macro must support data-payload-id"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_context_payload_button(self, timeline):
         """LLM call card must have Context button."""
         assert "Context" in timeline, "Missing Context button"
         assert 'data-payload-kind="context"' in timeline, \
             "Missing data-payload-kind=\"context\""
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_response_payload_button(self, timeline):
         """LLM call card must have Response button."""
         assert "Response" in timeline, "Missing Response button"
         assert 'data-payload-kind="response"' in timeline, \
             "Missing data-payload-kind=\"response\""
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_result_payload_button(self, timeline):
         """Tool batch must have Result button."""
         assert "Result" in timeline, "Missing Result button"
@@ -540,36 +598,43 @@ class TestSessionPageMarkers:
     def session(self):
         return _read(SESSION_HTML)
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_page_marker(self, session):
         """Session content must have data-trace-page."""
         assert "data-trace-page" in session, \
             "Missing data-trace-page marker"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_sd_shell_wrapper(self, session):
         """Session content must have sd-shell class."""
         assert "sd-shell" in session, \
             "Missing sd-shell class"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_session_id_meta(self, session):
         """Session must expose session-id via <meta>."""
         assert 'name="session-id"' in session, \
             "Missing <meta name=\"session-id\">"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_payload_api_base_meta(self, session):
         """Session must expose payload API base via <meta>."""
         assert 'name="payload-api-base"' in session, \
             "Missing <meta name=\"payload-api-base\">"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_session_detail_css(self, session):
         """Session must include session-detail.css."""
         assert "session-detail.css" in session, \
             "Missing session-detail.css link"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_session_detail_js(self, session):
         """Session must include session-detail.js."""
         assert "session-detail.js" in session, \
             "Missing session-detail.js script"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_panel_container(self, session):
         """Session must have data-trace-panel container."""
         assert "data-trace-panel" in session, \
@@ -577,21 +642,25 @@ class TestSessionPageMarkers:
         assert "sd-trace-panel" in session, \
             "Missing .sd-trace-panel"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_payload_sources_macro_call(self, session):
         """Session must call payload_sources macro."""
         assert "sdt.payload_sources" in session, \
             "Missing sdt.payload_sources macro call"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_payload_modal_macro_call(self, session):
         """Session must call payload_modal macro."""
         assert "sdt.payload_modal" in session, \
             "Missing sdt.payload_modal macro call"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_no_content_modal(self, session):
         """content-modal must NOT exist (removed in v9+)."""
         assert 'id="content-modal"' not in session, \
             "content-modal must be removed"
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_no_workbench_views(self, session):
         """Old workbench views must NOT exist."""
         assert 'data-workbench-view="calls"' not in session, \

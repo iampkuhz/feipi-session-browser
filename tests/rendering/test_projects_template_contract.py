@@ -6,10 +6,9 @@ Verifies that:
 
 Covers P-23 fix verification: active filter chip visibility in filter-footer.
 """
+import pytest
 from pathlib import Path
 import re
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
@@ -52,12 +51,14 @@ def projects_js():
 class TestProjectsFilterFooterStructure:
     """projects.html filter-footer must contain active filter chip container."""
 
+    @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_filter_footer_exists(self, projects_html):
         """filter-footer container must be present."""
         assert "filter-footer" in projects_html, (
             "projects.html lacks .filter-footer container"
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_active_filters_container_in_footer(self, projects_html):
         """filter-footer must contain an active-filters container or count element."""
         # Accept either .active-filters parent or .active-filters__count BEM class
@@ -68,6 +69,7 @@ class TestProjectsFilterFooterStructure:
             "projects.html filter-footer lacks .active-filters container/element"
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_active_filters_count_element(self, projects_html):
         """filter-footer must display active filter count text."""
         # The template should show a count like "X matching projects"
@@ -93,12 +95,14 @@ class TestProjectsJsUpdateFilterChipSelector:
             pytest.skip("updateFilterChip function not found in projects.js")
         return match.group(1)
 
+    @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_update_filter_chip_function_exists(self, projects_js):
         """updateFilterChip function must be defined."""
         assert "updateFilterChip" in projects_js, (
             "projects.js lacks updateFilterChip function"
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_update_filter_chip_has_selector(self, projects_js):
         """updateFilterChip must use querySelector with a CSS selector."""
         body = self._extract_update_filter_chip(projects_js)
@@ -106,6 +110,7 @@ class TestProjectsJsUpdateFilterChipSelector:
             "updateFilterChip lacks querySelector call"
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_update_filter_chip_selector_value(self, projects_js):
         """Extract and verify the selector targets an active-filters element."""
         body = self._extract_update_filter_chip(projects_js)
@@ -143,6 +148,7 @@ class TestTemplateJsContractMatch:
             return None
         return match.group(1)
 
+    @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_js_selector_compatible_with_template(self, projects_html, projects_js):
         """JS updateFilterChip selector must be compatible with template structure.
 

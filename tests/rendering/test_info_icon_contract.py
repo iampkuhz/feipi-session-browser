@@ -7,9 +7,8 @@ be rendered via a macro or component that uses a semantic/accessible pattern
 
 Covers P-25: 页面有乱码/特殊字符图标 ⓘ
 """
-from pathlib import Path
-
 import pytest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
@@ -38,12 +37,15 @@ def project_html():
 
 
 class TestInfoIconNotRawEmbedded:
-    """Templates must not directly embed ⓘ as raw text.
+    """
+
+import Templates must not directly embed ⓘ as raw text.
 
     The info icon should be produced via a macro/component, not pasted as
     a raw Unicode character into the template source.
     """
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_projects_no_raw_info_icon(self, projects_html):
         """projects.html must not contain the raw ⓘ character."""
         assert INFO_CHAR not in projects_html, (
@@ -51,6 +53,7 @@ class TestInfoIconNotRawEmbedded:
             "Use a macro/component or SVG icon instead."
         )
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_project_no_raw_info_icon(self, project_html):
         """project.html must not contain the raw ⓘ character."""
         assert INFO_CHAR not in project_html, (
@@ -58,6 +61,7 @@ class TestInfoIconNotRawEmbedded:
             "Use a macro/component or SVG icon instead."
         )
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_projects_uses_info_button_component(self, projects_html):
         """projects.html should use a semantic info button pattern.
 
@@ -73,6 +77,7 @@ class TestInfoIconNotRawEmbedded:
             "Expected icon-button--info class or icon_button macro usage."
         )
 
+    @pytest.mark.contract_case("UI-SD-001")
     def test_project_uses_info_button_component(self, project_html):
         """project.html should use a semantic info button pattern."""
         has_icon_button = "icon-button--info" in project_html or "icon_button" in project_html

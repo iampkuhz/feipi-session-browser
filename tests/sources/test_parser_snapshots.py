@@ -15,10 +15,9 @@ Coverage:
 
 from __future__ import annotations
 
+import pytest
 import json
 from pathlib import Path
-
-import pytest
 
 from session_browser.sources.jsonl_reader import (
     ParseIssue,
@@ -77,6 +76,7 @@ def _load_expected(name: str) -> dict:
 class TestParserSnapshots:
     """Snapshot-based tests comparing parser output to expected fixtures."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_events_match(self, fixture_name: str):
         """Parsed events must exactly match the expected snapshot."""
         jsonl_path = FIXTURES_DIR / f"{fixture_name}.jsonl"
@@ -89,6 +89,7 @@ class TestParserSnapshots:
             f"  expected count: {len(expected['events'])}"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_diagnostics_counters_match(self, fixture_name: str):
         """Diagnostic counters must match the expected snapshot."""
         jsonl_path = FIXTURES_DIR / f"{fixture_name}.jsonl"
@@ -108,6 +109,7 @@ class TestParserSnapshots:
                 f"actual={actual_diag[key]}, expected={expected_diag[key]}"
             )
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_diagnostics_issues_match(self, fixture_name: str):
         """Diagnostic issues list must match the expected snapshot."""
         jsonl_path = FIXTURES_DIR / f"{fixture_name}.jsonl"

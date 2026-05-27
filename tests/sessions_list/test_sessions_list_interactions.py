@@ -7,11 +7,10 @@ Validates that rendered HTML satisfies the DOM contract:
 - exactly one aria-sort
 - footer does not contain 'sorted by'
 """
+import pytest
 import html.parser
 import os
 import sys
-
-import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -79,6 +78,7 @@ class TestSortableHeaders:
         </div>
         """
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_sortable_header_has_clickable_control(self, html_sample):
         nodes = parse(html_sample)
         sortable = find_by_class(nodes, "sessions-th--sortable")
@@ -86,6 +86,7 @@ class TestSortableHeaders:
             clickable = [c for c in h["children"] if c["tag"] in ("a", "button")]
             assert clickable, f"sortable header has no clickable control: {html_sample}"
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_label_inside_clickable(self, html_sample):
         nodes = parse(html_sample)
         sortable = find_by_class(nodes, "sessions-th--sortable")
@@ -98,12 +99,14 @@ class TestSortableHeaders:
             assert control_text in header_text or header_text in control_text, \
                 f"sortable header label not inside clickable: got {control_text!r} vs {header_text!r}"
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_exactly_one_aria_sort(self, html_sample):
         nodes = parse(html_sample)
         sortable = find_by_class(nodes, "sessions-th--sortable")
         aria_sorted = [h for h in sortable if "aria-sort" in h["attrs"]]
         assert len(aria_sorted) == 1, f"expected exactly one aria-sort, got {len(aria_sorted)}"
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_sort_anchor_has_href(self, html_sample):
         nodes = parse(html_sample)
         anchors = [n for n in nodes if n["tag"] == "a" and "sort-btn" in n["attrs"].get("class", "")]
@@ -126,12 +129,14 @@ class TestPagination:
         </div>
         """
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_previous_and_next_present(self, footer_with_links):
         nodes = parse(footer_with_links)
         text = all_text_of(nodes[0])
         assert "Previous" in text
         assert "Next" in text
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_pagination_uses_real_page_numbers(self, footer_with_links):
         nodes = parse(footer_with_links)
         links = [n for n in nodes if n["tag"] == "a"]
@@ -141,11 +146,13 @@ class TestPagination:
                 assert "page=next" not in href, "pagination must use real page numbers, not page=next"
                 assert "page=prev" not in href, "pagination must use real page numbers, not page=prev"
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_footer_no_sorted_by(self, footer_with_links):
         nodes = parse(footer_with_links)
         text = all_text_of(nodes[0]).lower()
         assert "sorted by" not in text
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_pagination_preserves_filters(self, footer_with_links):
         nodes = parse(footer_with_links)
         links = [n for n in nodes if n["tag"] == "a" and ("Previous" in all_text_of(n) or "Next" in all_text_of(n))]
@@ -158,6 +165,7 @@ class TestPagination:
 class TestFilterChips:
     """Active filter chip contract tests."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_chip_remove_has_href(self):
         html = """
         <span class="ui-filter-chip">Agent: cc <a href="/sessions?sort=updated" aria-label="Remove agent filter">×</a></span>
@@ -173,6 +181,7 @@ class TestFilterChips:
 class TestClearAll:
     """Clear All contract tests."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_clear_all_is_anchor_with_href(self):
         html = """<a class="ui-btn ui-btn--secondary ui-btn--sm js-clear-all" href="/sessions?sort=updated">Clear All</a>"""
         nodes = parse(html)
@@ -184,6 +193,7 @@ class TestClearAll:
 class TestRefresh:
     """Refresh contract tests."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_refresh_is_anchor_with_href(self):
         html = """<a class="ui-btn ui-btn--secondary ui-btn--sm" href="/sessions?agent=cc&sort=updated" id="refresh-link">&#x21bb; Refresh</a>"""
         nodes = parse(html)

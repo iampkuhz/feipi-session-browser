@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
 import os
 import sqlite3
-import pytest
-
 from session_browser.index.indexer import (
     init_schema,
     upsert_session,
@@ -90,14 +89,17 @@ def populated_db(tmp_path):
 # ─── Pagination: limit / offset ──────────────────────────────────────────
 
 class TestListSessionsPagination:
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_default_limit_returns_50(self, populated_db):
         rows = list_sessions(populated_db)
         assert len(rows) == 50
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_limit_20_returns_20(self, populated_db):
         rows = list_sessions(populated_db, limit=20)
         assert len(rows) == 20
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_offset_skips_first_page(self, populated_db):
         first_page = list_sessions(populated_db, limit=20, offset=0)
         second_page = list_sessions(populated_db, limit=20, offset=20)
@@ -105,14 +107,17 @@ class TestListSessionsPagination:
         second_ids = {r.session_id for r in second_page}
         assert first_ids.isdisjoint(second_ids)
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_offset_20_returns_remaining(self, populated_db):
         rows = list_sessions(populated_db, limit=20, offset=20)
         assert len(rows) == 20
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_offset_50_returns_last_5(self, populated_db):
         rows = list_sessions(populated_db, limit=20, offset=50)
         assert len(rows) == 5
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_offset_beyond_data_returns_empty(self, populated_db):
         rows = list_sessions(populated_db, limit=20, offset=100)
         assert len(rows) == 0
@@ -121,26 +126,32 @@ class TestListSessionsPagination:
 # ─── Count with filters ──────────────────────────────────────────────────
 
 class TestCountSessionsFilters:
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_total_count(self, populated_db):
         assert count_sessions(populated_db) == 55
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_count_by_agent(self, populated_db):
         count = count_sessions(populated_db, agent="claude_code")
         assert count > 0
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_count_by_model(self, populated_db):
         count = count_sessions(populated_db, model="model-x")
         assert count > 0
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_count_by_title(self, populated_db):
         count = count_sessions(populated_db, title_like="Test Session 001")
         assert count == 1
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_count_by_title_wildcard(self, populated_db):
         # Sessions 001-009 all have "Session 00" in their title
         count = count_sessions(populated_db, title_like="Session 00")
         assert count == 9  # 001-009
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_count_combined_filters(self, populated_db):
         count = count_sessions(populated_db, agent="claude_code", model="model-x")
         assert count > 0
@@ -149,14 +160,17 @@ class TestCountSessionsFilters:
 # ─── Pagination with filters ─────────────────────────────────────────────
 
 class TestListSessionsWithFilters:
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_filter_by_agent(self, populated_db):
         rows = list_sessions(populated_db, agent="claude_code", limit=100)
         assert all(r.agent == "claude_code" for r in rows)
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_filter_by_model(self, populated_db):
         rows = list_sessions(populated_db, model="model-y", limit=100)
         assert all(r.model == "model-y" for r in rows)
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_filter_by_title_like(self, populated_db):
         rows = list_sessions(populated_db, title_like="Test Session 00", limit=100)
         assert all("Test Session 00" in r.title for r in rows)
@@ -167,58 +181,70 @@ class TestListSessionsWithFilters:
 class TestFooterTemplate:
     """Verify sessions.html contains contract-compliant pagination."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_pagination_nav(self):
         content = _read_sessions_templates()
         assert 'class="pagination unified-pagination"' in content
         assert 'role="navigation"' in content
         assert 'aria-label="Sessions pagination"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_prev_button(self):
         content = _read_sessions_templates()
         assert 'data-action="prev-page"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_next_button(self):
         content = _read_sessions_templates()
         assert 'data-action="next-page"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_page_input(self):
         content = _read_sessions_templates()
         assert 'data-action="page-input"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_page_status(self):
         content = _read_sessions_templates()
         assert 'class="page-status"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_sorted_by(self):
         """Footer must not contain 'sorted by' text."""
         content = _read_sessions_templates()
         assert "sorted by" not in content.lower()
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_page_size_select_in_footer(self):
         """HIFI v4 footer does not have page size select."""
         content = _read_sessions_templates()
         assert "sessions-footer-page-size__select" not in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_page_info_text(self):
         """No 'Page X of Y' static text — uses page-status + page-input instead."""
         content = _read_sessions_templates()
         assert 'Page {{ page }} of {{ total_pages }}' not in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_pagination_prev_conditional(self):
         """Prev button is conditionally rendered (hidden on page 1)."""
         content = _read_sessions_templates()
         assert "current_page > 1" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_pagination_next_conditional(self):
         """Next button is conditionally rendered (hidden on last page)."""
         content = _read_sessions_templates()
         assert "current_page < total_pages" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_button_based_pagination(self):
         """No button with name=page (old form-based pagination)."""
         content = _read_sessions_templates()
         assert 'name="page"' not in content or 'value="prev"' not in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()
         # Accept both single and double quote patterns (macros use single quotes)
@@ -228,6 +254,7 @@ class TestFooterTemplate:
         assert ("name='project'" in content or 'name="project"' in content)
         assert 'name="sort"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_filter_form_uses_preselected_values(self):
         content = _read_sessions_templates()
         assert "filter_agent" in content
@@ -235,16 +262,19 @@ class TestFooterTemplate:
         assert "filter_project" in content
         assert "filter_q" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_client_side_apply_filters(self):
         """Old client-side applyFilters should be removed."""
         content = _read_sessions_templates()
         assert "function applyFilters()" not in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_submit_filters_function(self):
         """submitFilters removed in favor of link-based navigation."""
         content = _read_sessions_templates()
         assert "submitFilters" not in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_actions_dict_passed(self):
         """Template must receive actions dict for URL building."""
         content = _read_sessions_templates()

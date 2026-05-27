@@ -10,12 +10,11 @@ Covers:
 """
 from __future__ import annotations
 
+import pytest
 import os
 import sqlite3
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from session_browser.web.presenters.dashboard import build_dashboard_view_model
 from session_browser.web.presenters.agents import (
@@ -109,6 +108,7 @@ def _default_dashboard_mocks(patchers):
 class TestDashboardRoutePresenter:
     """Verify /dashboard route calls presenter correctly."""
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_route_presenter_returns_expected_keys(self):
         conn = MagicMock()
         with _patch_dashboard_indexers() as stack:
@@ -123,6 +123,7 @@ class TestDashboardRoutePresenter:
         }
         assert set(result.keys()) == expected_keys
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_route_presenter_active_page(self):
         conn = MagicMock()
         with _patch_dashboard_indexers() as stack:
@@ -132,6 +133,7 @@ class TestDashboardRoutePresenter:
 
         assert result["active_page"] == "dashboard"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_route_presenter_is_pure_function(self):
         """Presenter only uses conn parameter, no HTTP globals."""
         import inspect
@@ -147,6 +149,8 @@ class TestDashboardRoutePresenter:
 class TestAgentsRoutePresenter:
     """Verify /agents and /agents/<agent> routes call presenters correctly."""
 
+    @pytest.mark.contract_case("ROUTE-API-011")
+    @pytest.mark.contract_case("ROUTE-API-008")
     def test_agents_list_returns_expected_keys(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.agents.list_agents") as mock_agents, \
@@ -160,6 +164,7 @@ class TestAgentsRoutePresenter:
         assert result["active_page"] == "agents"
         assert result["current_agent"] == "__all__"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_agent_detail_returns_expected_keys(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.agents.list_agents") as mock_agents, \
@@ -176,6 +181,7 @@ class TestAgentsRoutePresenter:
         assert result["current_agent"] == "claude_code"
         assert result["agent_info"]["agent"] == "claude_code"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_agent_detail_nonexistent_agent_returns_none_info(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.agents.list_agents") as mock_agents, \
@@ -187,6 +193,7 @@ class TestAgentsRoutePresenter:
         assert result["agent_info"] is None
         assert result["current_agent"] == "unknown_agent"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_presenters_are_pure_functions(self):
         import inspect
         for fn in (build_agents_view_model, build_agent_view_model):
@@ -202,6 +209,8 @@ class TestAgentsRoutePresenter:
 class TestProjectsRoutePresenter:
     """Verify /projects and /projects/<key> routes call presenters correctly."""
 
+    @pytest.mark.contract_case("ROUTE-API-011")
+    @pytest.mark.contract_case("ROUTE-API-007")
     def test_projects_list_returns_expected_keys(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.projects.count_projects") as mock_count, \
@@ -223,6 +232,7 @@ class TestProjectsRoutePresenter:
         assert result["total_pages"] == 1
         assert result["total_count"] == 0
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_project_detail_returns_expected_keys(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.projects.count_sessions") as mock_count, \
@@ -242,6 +252,7 @@ class TestProjectsRoutePresenter:
         assert result["project_key"] == "test-proj"
         assert result["active_page"] == "projects"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_presenters_are_pure_functions(self):
         import inspect
         for fn in (build_projects_view_model, build_project_view_model):
@@ -275,6 +286,8 @@ class TestSessionsRoutePresenter:
         conn.execute.side_effect = mock_execute
         return conn
 
+    @pytest.mark.contract_case("ROUTE-API-011")
+    @pytest.mark.contract_case("ROUTE-API-006")
     def test_sessions_context_returns_expected_keys(self):
         conn = self._make_mock_conn()
         with patch("session_browser.web.presenters.sessions.count_sessions") as mock_count, \
@@ -298,6 +311,7 @@ class TestSessionsRoutePresenter:
         }
         assert set(result.keys()) == expected_keys
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_sessions_parse_query_params_integration(self):
         """parse_sessions_query_params is the entry point for /sessions query."""
         raw = {"page": ["2"], "agent": ["claude_code"], "sort": ["tokens"], "dir": ["asc"]}
@@ -307,6 +321,7 @@ class TestSessionsRoutePresenter:
         assert result["sort_by"] == "total_tokens"
         assert result["sort_dir"] == "asc"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_pagination_integration(self):
         conn = self._make_mock_conn()
         with patch("session_browser.web.presenters.sessions.count_sessions") as mock_count, \
@@ -326,6 +341,7 @@ class TestSessionsRoutePresenter:
         assert result["has_prev"] is True
         assert result["has_next"] is True
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_fetch_sessions_view_model_returns_expected_keys(self):
         conn = MagicMock()
         mock_cursor_models = MagicMock()
@@ -373,6 +389,7 @@ class TestSessionsRoutePresenter:
         }
         assert set(result.keys()) == expected_keys
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_sessions_presenter_functions_are_pure(self):
         import inspect
         for fn in (
@@ -392,6 +409,7 @@ class TestSessionsRoutePresenter:
 class TestAllPresentersShareActivePage:
     """Every list presenter should set active_page for nav highlighting."""
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_dashboard_active_page(self):
         conn = MagicMock()
         with _patch_dashboard_indexers() as stack:
@@ -400,6 +418,7 @@ class TestAllPresentersShareActivePage:
             result = build_dashboard_view_model(conn)
         assert result["active_page"] == "dashboard"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_agents_active_page(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.agents.list_agents") as m_agents, \
@@ -409,6 +428,7 @@ class TestAllPresentersShareActivePage:
             result = build_agents_view_model(conn)
         assert result["active_page"] == "agents"
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_projects_active_page(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.projects.list_projects") as m_proj:
@@ -420,6 +440,7 @@ class TestAllPresentersShareActivePage:
 class TestPresenterReturnTypes:
     """All presenters must return dict (JSON-serializable view models)."""
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_dashboard_returns_dict(self):
         conn = MagicMock()
         with _patch_dashboard_indexers() as stack:
@@ -428,6 +449,7 @@ class TestPresenterReturnTypes:
             result = build_dashboard_view_model(conn)
         assert isinstance(result, dict)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_agents_returns_dict(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.agents.list_agents") as m_agents, \
@@ -437,6 +459,7 @@ class TestPresenterReturnTypes:
             result = build_agents_view_model(conn)
         assert isinstance(result, dict)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_agent_detail_returns_dict(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.agents.list_agents") as m_agents, \
@@ -446,6 +469,7 @@ class TestPresenterReturnTypes:
             result = build_agent_view_model(conn, "claude_code")
         assert isinstance(result, dict)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_projects_returns_dict(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.projects.list_projects") as m_proj:
@@ -453,6 +477,7 @@ class TestPresenterReturnTypes:
             result = build_projects_view_model(conn)
         assert isinstance(result, dict)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_project_detail_returns_dict(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.projects.get_project_stats") as m_stats, \
@@ -462,6 +487,7 @@ class TestPresenterReturnTypes:
             result = build_project_view_model(conn, "test-proj")
         assert isinstance(result, dict)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_sessions_context_returns_dict(self):
         conn = MagicMock()
         mock_models = MagicMock()
@@ -501,6 +527,7 @@ class TestPresenterOutputConsumableByTemplate:
             undefined=__import__("jinja2").Undefined,
         )
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_dashboard_vm_has_no_render_blocking_types(self):
         """Dashboard VM values should be JSON/Jinja friendly."""
         conn = MagicMock()
@@ -522,6 +549,7 @@ class TestPresenterOutputConsumableByTemplate:
                 f"Presenter key '{key}' holds a callable — template cannot render it"
             )
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_agents_vm_has_no_render_blocking_types(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.agents.list_agents") as m_agents, \
@@ -535,6 +563,7 @@ class TestPresenterOutputConsumableByTemplate:
                 f"Presenter key '{key}' holds a callable — template cannot render it"
             )
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_projects_vm_has_no_render_blocking_types(self):
         conn = MagicMock()
         with patch("session_browser.web.presenters.projects.list_projects") as m_proj:
@@ -563,31 +592,39 @@ class TestRouteHttp200:
         assert resp.status == 200
         return resp.read().decode("utf-8")
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_dashboard_route_200(self, local_test_server):
         base_url, agent, session_id = local_test_server
         html = self._fetch_html(f"{base_url}/dashboard")
         assert len(html) > 0
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_agents_route_200(self, local_test_server):
         base_url, agent, session_id = local_test_server
         html = self._fetch_html(f"{base_url}/agents")
         assert len(html) > 0
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_projects_route_200(self, local_test_server):
         base_url, agent, session_id = local_test_server
         html = self._fetch_html(f"{base_url}/projects")
         assert len(html) > 0
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_sessions_route_200(self, local_test_server):
         base_url, agent, session_id = local_test_server
         html = self._fetch_html(f"{base_url}/sessions")
         assert len(html) > 0
 
+    @pytest.mark.contract_case("ROUTE-API-011")
+    @pytest.mark.contract_case("ROUTE-API-009")
     def test_glossary_route_200(self, local_test_server):
         base_url, agent, session_id = local_test_server
         html = self._fetch_html(f"{base_url}/glossary")
         assert len(html) > 0
 
+    @pytest.mark.contract_case("ROUTE-API-011")
+    @pytest.mark.contract_case("ROUTE-API-010")
     def test_root_route_200(self, local_test_server):
         base_url, agent, session_id = local_test_server
         html = self._fetch_html(f"{base_url}/")
@@ -603,6 +640,7 @@ class TestRoutePresenterDispatchMapping:
     functions we test above.
     """
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_routes_imports_dashboard_presenter(self):
         from session_browser.web import routes
         # routes.py uses from-import so the function is available in its namespace
@@ -611,6 +649,7 @@ class TestRoutePresenterDispatchMapping:
         from session_browser.web.presenters.dashboard import build_dashboard_view_model as fn
         assert callable(fn)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_routes_imports_agents_presenters(self):
         from session_browser.web.presenters.agents import (
             build_agents_view_model,
@@ -619,6 +658,7 @@ class TestRoutePresenterDispatchMapping:
         assert callable(build_agents_view_model)
         assert callable(build_agent_view_model)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_routes_imports_projects_presenters(self):
         from session_browser.web.presenters.projects import (
             build_projects_view_model,
@@ -627,6 +667,7 @@ class TestRoutePresenterDispatchMapping:
         assert callable(build_projects_view_model)
         assert callable(build_project_view_model)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_routes_imports_sessions_presenters(self):
         from session_browser.web.presenters.sessions import (
             parse_sessions_query_params,
@@ -637,6 +678,7 @@ class TestRoutePresenterDispatchMapping:
         assert callable(compute_pagination)
         assert callable(fetch_sessions_view_model)
 
+    @pytest.mark.contract_case("ROUTE-API-011")
     def test_route_path_to_presenter_map(self):
         """Document and verify the expected route-to-presenter mapping."""
         mapping = {

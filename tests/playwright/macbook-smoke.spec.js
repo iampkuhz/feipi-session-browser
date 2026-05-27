@@ -34,25 +34,25 @@ for (const [viewportName, size] of Object.entries(VIEWPORTS)) {
       });
     }
 
-    test('Dashboard has metric cards', async ({ page }) => {
+    test('[UI-VISUAL-009] Dashboard has metric cards', async ({ page }) => {
       await page.goto('/dashboard');
       const cards = page.locator('.metric-card');
       await expect(cards).toHaveCount(4);
     });
 
-    test('Sessions List has data table', async ({ page }) => {
+    test('[UI-VISUAL-009] Sessions List has data table', async ({ page }) => {
       await page.goto('/sessions');
       const table = page.locator('table[aria-label="Sessions table"]');
       await expect(table).toBeVisible();
     });
 
-    test('Agents page renders agent list', async ({ page }) => {
+    test('[UI-VISUAL-009] Agents page renders agent list', async ({ page }) => {
       await page.goto('/agents');
       const agentList = page.locator('.agent-list, .data-table');
       await expect(agentList.first()).toBeVisible();
     });
 
-    test('Projects page renders project list', async ({ page }) => {
+    test('[UI-VISUAL-009] Projects page renders project list', async ({ page }) => {
       await page.goto('/projects');
       const projectList = page.locator('.project-list, .data-table');
       await expect(projectList.first()).toBeVisible();

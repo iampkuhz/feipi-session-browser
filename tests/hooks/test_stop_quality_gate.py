@@ -1,10 +1,9 @@
 """Tests for scripts/hooks/stop_quality_gate.py."""
+import pytest
 import importlib.util
 import json
 import tempfile
 from pathlib import Path
-
-import pytest
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "hooks" / "stop_quality_gate.py"
 _spec = importlib.util.spec_from_file_location("stop_quality_gate", SCRIPT_PATH)
@@ -46,6 +45,7 @@ def _setup_env(changed_files_content: list[dict], artifact: dict | None = None, 
 
 
 class TestNoChangedFiles:
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_no_files_pass(self):
         _setup_env([])
         status, msgs = _sqg.run_check("test")
@@ -53,6 +53,7 @@ class TestNoChangedFiles:
 
 
 class TestUiChanges:
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_missing_artifact_fails(self):
         _setup_env([{
             "ts": "2026-05-18T00:00:00Z", "tool": "Edit",
@@ -63,6 +64,7 @@ class TestUiChanges:
         assert status == "FAIL"
         assert any("missing" in m.lower() for m in msgs)
 
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_artifact_fail_fails(self):
         _setup_env([{
             "ts": "2026-05-18T00:00:00Z", "tool": "Edit",
@@ -72,6 +74,7 @@ class TestUiChanges:
         status, msgs = _sqg.run_check("test")
         assert status == "FAIL"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_artifact_stale_fails(self):
         _setup_env([{
             "ts": "2026-05-18T00:02:00Z", "tool": "Edit",
@@ -81,6 +84,7 @@ class TestUiChanges:
         status, msgs = _sqg.run_check("test")
         assert status == "FAIL"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_artifact_fresh_passes(self):
         _setup_env([{
             "ts": "2026-05-18T00:00:00Z", "tool": "Edit",
@@ -92,6 +96,7 @@ class TestUiChanges:
 
 
 class TestDocsOnly:
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_non_ui_passes(self):
         _setup_env([{
             "ts": "2026-05-18T00:00:00Z", "tool": "Edit",
@@ -106,6 +111,7 @@ class TestFreshArtifactAfterRunner:
     """Scenario: run_required_quality_gates.py just ran and created a fresh artifact.
     stop_quality_gate.py should PASS because the artifact is fresh."""
 
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_fresh_artifact_from_runner_passes(self):
         """UI changed, runner just created PASS artifact => stop_quality_gate should PASS."""
         now_ts = "2026-05-24T10:00:00Z"
@@ -121,12 +127,14 @@ class TestFreshArtifactAfterRunner:
 
 
 class TestNoFeipiAgentLogDir:
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_stop_quality_gate_no_feipi_agent_log_dir(self):
         """stop_quality_gate.py must not reference FEIPI_AGENT_LOG_DIR."""
         source = SCRIPT_PATH.read_text()
         assert "FEIPI_AGENT_LOG_DIR" not in source, \
             "stop_quality_gate.py must not reference FEIPI_AGENT_LOG_DIR"
 
+    @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_stop_check_targets_no_feipi_agent_log_dir(self):
         """stop_check_targets.py must not reference FEIPI_AGENT_LOG_DIR."""
         script = Path(__file__).resolve().parents[2] / "scripts" / "quality" / "stop_check_targets.py"

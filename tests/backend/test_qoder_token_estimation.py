@@ -10,10 +10,9 @@ e. Long tool_result/text does not crash; estimation stays fast.
 
 from __future__ import annotations
 
+import pytest
 import json
 import time
-
-import pytest
 
 from session_browser.sources.qoder import (
     _count_tokens,
@@ -60,34 +59,41 @@ def _user_event(text: str = "", content_override=None, **extra) -> dict:
 
 
 class TestTextCap:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_short_text_not_truncated(self):
         s = "hello world"
         assert _cap_text(s) == s
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_text_is_capped(self):
         # Create text that exceeds 128KB
         s = "a" * (_ESTIMATE_TEXT_CAP + 1000)
         capped = _cap_text(s)
         assert len(capped.encode("utf-8")) <= _ESTIMATE_TEXT_CAP
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_empty_string(self):
         assert _cap_text("") == ""
         assert _cap_text(None) == ""
 
 
 class TestCountTokens:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_basic_english(self):
         tok = _count_tokens("hello world")
         assert tok > 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_chinese_text(self):
         tok = _count_tokens("你好世界")
         assert tok > 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_empty_text(self):
         tok = _count_tokens("")
         assert tok == 1  # max(1, ...) via byte heuristic
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_text_is_fast(self):
         """Counting a very long string should not hang."""
         s = "x" * 1_000_000
@@ -102,6 +108,7 @@ class TestCountTokens:
 
 
 class TestEstimatedUsage:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_no_usage_generates_estimates(self):
         """When no assistant event has real usage, per-message estimates are generated."""
         events = [
@@ -127,6 +134,7 @@ class TestEstimatedUsage:
         assert est_input["msg-2"] >= 0
         assert est_output["msg-2"] > 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_context_accumulation(self):
         """Second turn input_tokens should be >= first turn input + first output."""
         events = [
@@ -147,6 +155,7 @@ class TestEstimatedUsage:
             f"msg-2 input ({second_input}) should be >= msg-1 total ({first_total})"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_session_summary_matches_per_message_sum(self):
         """Session-level estimated tokens should equal sum of per-message estimates."""
         events = [
@@ -181,6 +190,7 @@ class TestEstimatedUsage:
 
 
 class TestRealUsagePreserved:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_real_usage_skips_estimation(self):
         """When an assistant event has real usage, estimation is skipped."""
         events = [
@@ -197,6 +207,7 @@ class TestRealUsagePreserved:
         assert est_input == 0
         assert est_output == 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_extract_messages_uses_real_usage(self):
         """_extract_messages should use real usage, not estimates, when present."""
         events = [
@@ -223,6 +234,7 @@ class TestRealUsagePreserved:
 
 
 class TestLongTextHandling:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_tool_result_no_crash(self):
         """A very long tool_result should not crash estimation."""
         long_text = "x" * 500_000
@@ -240,6 +252,7 @@ class TestLongTextHandling:
         est_input, est_output, has_estimated = _estimate_tokens_from_events(events)
         assert has_estimated
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_assistant_text_no_crash(self):
         """A very long assistant text should not crash estimation."""
         long_text = "x" * 500_000
@@ -253,6 +266,7 @@ class TestLongTextHandling:
         # Output should be capped, not the full 500K characters worth of tokens
         assert est_output < _count_tokens(long_text) + 10  # Should be close to capped count
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_estimation_is_fast_on_large_text(self):
         """Estimation should complete in well under 1 second for large events."""
         long_text = "x" * 1_000_000
@@ -275,6 +289,7 @@ class TestLongTextHandling:
 
 
 class TestMultiFragmentMessages:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_fragments_merged_output(self):
         """Multiple assistant fragments with same msg_id should accumulate output tokens."""
         events = [
@@ -297,6 +312,7 @@ class TestMultiFragmentMessages:
         expected_output = _count_tokens(combined)
         assert est_output["msg-1"] == _count_tokens("part one") + _count_tokens(" part two")
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_different_message_ids(self):
         """Different msg_ids should get separate estimates."""
         events = [
@@ -322,6 +338,7 @@ class TestMultiFragmentMessages:
 
 
 class TestExtractMessagesEstimatedUsage:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_estimated_usage_injected(self):
         """When no real usage, _extract_messages should inject estimated usage dicts."""
         events = [
@@ -342,6 +359,7 @@ class TestExtractMessagesEstimatedUsage:
         assert msg.usage.get("cache_read_input_tokens") == 0
         assert msg.usage.get("cache_creation_input_tokens") == 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_multi_turn_estimated_usage(self):
         """Multiple turns should all have estimated usage with increasing input tokens."""
         events = [
@@ -371,6 +389,7 @@ class TestExtractMessagesEstimatedUsage:
 
 
 class TestToolExecutionTime:
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_non_overlapping_tools(self):
         """Two sequential tool calls: tool_execution_seconds should be sum of durations."""
         events = [
@@ -399,6 +418,7 @@ class TestToolExecutionTime:
             f"Expected 20s but got {summary.tool_execution_seconds}"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_overlapping_tools_merged(self):
         """Two overlapping tool calls: tool_execution_seconds should be merged wall-clock time."""
         events = [
@@ -428,6 +448,7 @@ class TestToolExecutionTime:
             f"Expected 10s (merged) but got {summary.tool_execution_seconds}"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_no_tool_results_gives_zero(self):
         """Assistant with tool_use but no tool_result should not fabricate intervals."""
         events = [
@@ -442,6 +463,7 @@ class TestToolExecutionTime:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         assert summary.tool_execution_seconds == 0.0
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_tool_call_duration_ms(self):
         """ToolCall.duration_ms should be computed from tool_use/tool_result timestamps."""
         events = [
@@ -475,6 +497,7 @@ class TestCacheNoFabrication:
     See task T057.
     """
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_summary_cache_zero_when_estimated(self):
         """Session summary cache_read/output must be 0 when tokens are estimated."""
         events = [
@@ -496,6 +519,7 @@ class TestCacheNoFabrication:
         assert summary.input_tokens > 0
         assert summary.output_tokens > 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_summary_cache_zero_when_real_usage_no_cache(self):
         """Even with real usage, if source has no cache fields, summary cache stays 0."""
         events = [
@@ -514,6 +538,7 @@ class TestCacheNoFabrication:
         assert summary.input_tokens == 100
         assert summary.output_tokens == 50
 
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_per_message_cache_zero_when_estimated(self):
         """Per-message usage dicts injected by _extract_messages must have cache=0."""
         events = [

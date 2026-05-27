@@ -1,11 +1,12 @@
 """Tests for payload modal and trace structure (v9).
-
 v9 architecture:
 - Component-based Jinja2 macros (sdp, sdt) replace inline HTML.
 - Tool calls rendered via sdt.tool_batch macro in session_detail_timeline.html.
 - Payload modal in base.html handles all payload viewing.
 - Click delegation via _arpClosest helper in view-switching.js (extracted from base.html).
 """
+
+import pytest
 
 from pathlib import Path
 
@@ -32,18 +33,21 @@ def _timeline_component():
 # ── Tool rendering (v9 component macros) ──────────────────
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_has_tool_batch_macro():
     """Timeline component must define tool_batch macro."""
     source = _timeline_component()
     assert "macro tool_batch" in source, "tool_batch macro must exist"
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_tool_rows_have_data_attrs():
     """Tool rows must have data attributes for identification."""
     source = _timeline_component()
     assert "data-tool-call-id" in source, "Tool rows must have data-tool-call-id"
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_tool_rows_show_status():
     """Tool rows must render status information."""
     source = _timeline_component()
@@ -55,6 +59,7 @@ def test_tool_rows_show_status():
 # ── Payload modal (base.html) ────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_payload_modal_in_base():
     """Payload modal must be defined in base.html."""
     source = _base_source()
@@ -64,6 +69,7 @@ def test_payload_modal_in_base():
 # ── Event handling (base.html) ────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_capture_phase_click_listener():
     """view-switching.js must have a capture-phase click listener for [data-content-modal]."""
     source = _view_switching_source()
@@ -75,6 +81,7 @@ def test_capture_phase_click_listener():
     )
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_closest_polyfill():
     """view-switching.js must define a closest helper for older WebView compatibility."""
     source = _view_switching_source()
@@ -86,6 +93,7 @@ def test_closest_polyfill():
     )
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_capture_handler_sets_handled_flag():
     """The capture-phase handler must set e.__contentModalHandled."""
     source = _view_switching_source()
@@ -97,6 +105,7 @@ def test_capture_handler_sets_handled_flag():
 # ── v9 component usage ────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_session_uses_sdt_macros():
     """session.html must use sdt macros."""
     source = _session_source()
@@ -105,6 +114,7 @@ def test_session_uses_sdt_macros():
     assert "sdt.trace_round" in source, "Should use sdt.trace_round macro"
 
 
+@pytest.mark.contract_case("UI-INTERACTION-006")
 def test_session_uses_sdp_import():
     """session.html must import sdp primitives."""
     source = _session_source()

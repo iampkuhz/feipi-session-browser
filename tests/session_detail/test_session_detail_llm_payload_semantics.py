@@ -9,9 +9,8 @@ v9 architecture:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
+from pathlib import Path
 
 TEMPLATE_DIR = (
     Path(__file__).parents[2]
@@ -30,6 +29,7 @@ def _read_routes() -> str:
 class TestLLMCallCardActionsRenamed:
     """LLM call card buttons use payload IDs from view model."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_context_payload_id_generated(self):
         """View model must generate context_payload_id for LLM calls."""
         routes = _read_routes()
@@ -37,6 +37,7 @@ class TestLLMCallCardActionsRenamed:
             "View model must generate context_payload_id"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_response_payload_id_generated(self):
         """View model must generate response_payload_id for LLM calls."""
         routes = _read_routes()
@@ -44,11 +45,13 @@ class TestLLMCallCardActionsRenamed:
             "View model must generate response_payload_id"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_request_button_in_macro(self):
         """LLM call card macro must have Request button (renamed from Context)."""
         timeline = (TEMPLATE_DIR / "components" / "session_detail_timeline.html").read_text(encoding="utf-8")
         assert "sdp.button('Request'" in timeline, "Template must have Request button"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_response_button_in_macro(self):
         """LLM call card macro must have Response button."""
         timeline = (TEMPLATE_DIR / "components" / "session_detail_timeline.html").read_text(encoding="utf-8")
@@ -58,11 +61,13 @@ class TestLLMCallCardActionsRenamed:
 class TestProviderUsageTooltip:
     """Input token metric must have provider usage explanation."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_input_metric_present(self):
         """Template must include Input metric label."""
         timeline = (TEMPLATE_DIR / "components" / "session_detail_timeline.html").read_text(encoding="utf-8")
         assert "Input" in timeline, "Template must include Input metric label"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_input_tokens_in_routes(self):
         """View model must reference input_tokens."""
         routes = _read_routes()
@@ -74,6 +79,7 @@ class TestProviderUsageTooltip:
 class TestPartialCaptureWarning:
     """Warning must appear when input tokens are high but captured context is small."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_warning_condition_in_routes(self):
         """View model must handle partial context capture."""
         routes = _read_routes()
@@ -82,6 +88,7 @@ class TestPartialCaptureWarning:
             "View model must reference request_full for partial capture"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_missing_reason_in_routes(self):
         """View model must handle request_payload_missing_reason."""
         routes = _read_routes()
@@ -93,6 +100,7 @@ class TestPartialCaptureWarning:
 class TestPayloadMapUpdated:
     """Payload map in view model must use proper types."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_pmap_has_context_type(self):
         """View model payload map must register context type."""
         routes = _read_routes()
@@ -100,6 +108,7 @@ class TestPayloadMapUpdated:
             "View model must register context payload type"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_pmap_has_response_type(self):
         """View model payload map must register response type."""
         routes = _read_routes()
@@ -111,6 +120,7 @@ class TestPayloadMapUpdated:
 class TestPayloadUnavailableMessage:
     """When no payload is available, show a clear message."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     def test_unavailable_message_in_js(self):
         """JS must show message when payload is unavailable."""
         js = (Path(__file__).resolve().parents[2]

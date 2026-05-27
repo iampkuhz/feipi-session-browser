@@ -9,9 +9,8 @@ Ensures:
 
 from __future__ import annotations
 
-import re
 import pytest
-
+import re
 from session_browser.domain.models import (
     ConversationRound,
     ChatMessage,
@@ -48,6 +47,7 @@ def _llm_call(
 class TestToolCountNoDuplication:
     """Tool counts must appear exactly once per round."""
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_main_agent_single_tool_count(self):
         """Round with 2 Read + 1 Bash should show each tool name×count once."""
         r = ConversationRound(
@@ -76,6 +76,7 @@ class TestToolCountNoDuplication:
         assert "×2" not in r.preview_text
         assert "×1" not in r.preview_text
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_subagent_single_tool_count(self):
         """Subagent round should not duplicate tools across interactions."""
         r = ConversationRound(
@@ -105,6 +106,7 @@ class TestToolCountNoDuplication:
         # preview_text should NOT have tool badges
         assert "preview-tool" not in r.preview_text
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_no_tools_in_preview_text(self):
         """preview_text should contain user/assistant text, not tool counts."""
         r = ConversationRound(
@@ -125,6 +127,7 @@ class TestToolCountNoDuplication:
         assert "Read" not in r.preview_text
         assert "×1" not in r.preview_text
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_empty_tools(self):
         """Round with no tools should have empty tool_summary_html."""
         r = ConversationRound(
@@ -140,6 +143,7 @@ class TestToolCountNoDuplication:
         assert r.tool_summary_html == ""
         assert "Hi there!" in r.preview_text
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_user_only_no_tools(self):
         """Round with only user message (no assistant response) should show user text."""
         r = ConversationRound(
@@ -155,6 +159,7 @@ class TestToolCountNoDuplication:
         assert "explain this code" in r.preview_text
         assert r.tool_summary_html == ""
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_legacy_format_preserved(self):
         """preview_text_legacy should preserve old HTML-embedded format."""
         r = ConversationRound(
@@ -175,6 +180,7 @@ class TestToolCountNoDuplication:
 class TestPreviewDoesNotRepeatText:
     """preview_text and secondary content should not repeat each other."""
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_preview_no_html_badges(self):
         """preview_text must be plain text, no HTML tool badges."""
         r = ConversationRound(
@@ -190,6 +196,7 @@ class TestPreviewDoesNotRepeatText:
         assert "<span" not in r.preview_text
         assert "preview-tool" not in r.preview_text
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_tool_summary_is_valid_html(self):
         """tool_summary_html should contain preview-tool spans."""
         r = ConversationRound(
@@ -210,6 +217,7 @@ class TestPreviewDoesNotRepeatText:
 class TestTraceRowDOMContract:
     """Verify v9 template uses component macros for trace rows."""
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_template_uses_component_macros(self):
         """session.html must use sdt.trace_round macro for trace rows."""
         template_path = (
@@ -232,6 +240,7 @@ class TestTraceRowDOMContract:
             "Template must call sdt.trace_round(row) for each row"
         )
 
+    @pytest.mark.contract_case("UI-SD-019")
     def test_normalized_trace_row_text_no_dup(self):
         """Simulated: if preview_text + tool_summary_html were concatenated,
         no tool name×count should appear more than once."""

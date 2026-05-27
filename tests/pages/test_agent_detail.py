@@ -9,10 +9,9 @@ T150 -- Agent Detail: Add page-specific pytest.
 
 from __future__ import annotations
 
+import pytest
 import os
 import re
-
-import pytest
 
 _AGENT_PATH = "src/session_browser/web/templates/agent.html"
 
@@ -31,29 +30,34 @@ def _read_template() -> str:
 class TestAgentDetailTemplate:
     """Verify the agent Jinja2 template renders structurally."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_template_file_exists(self):
         """agent.html must exist on disk."""
         assert os.path.isfile(_AGENT_PATH), \
             f"{_AGENT_PATH} must exist"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_extends_base(self):
         """Agent must extend base.html."""
         content = _read_template()
         assert '{% extends "base.html" %}' in content, \
             "Agent must extend base.html"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_active_page_set(self):
         """Agent must set active_page = 'agents'."""
         content = _read_template()
         assert "active_page = 'agents'" in content, \
             "Agent must set active_page = 'agents'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_ui_primitives_imported(self):
         """Agent must import ui_primitives.html."""
         content = _read_template()
         assert 'import "components/ui_primitives.html"' in content, \
             "Agent must import ui_primitives.html"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_inline_onclick(self):
         """Agent must not use inline onclick handlers."""
         content = _read_template()
@@ -71,18 +75,21 @@ class TestAgentDetailImports:
     have its own page-specific CSS/JS files.
     """
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_relies_on_base_for_css_js(self):
         """Agent must extend base.html which provides shared CSS/JS."""
         content = _read_template()
         assert '{% extends "base.html" %}' in content, \
             "Agent must extend base.html for shared CSS/JS"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_page_specific_css_import(self):
         """Agent must not import page-specific CSS (uses base shared CSS)."""
         content = _read_template()
         assert 'href="/static/css/agent.css"' not in content, \
             "Agent should not import page-specific CSS"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_page_specific_js_import(self):
         """Agent must not import page-specific JS (uses base shared JS)."""
         content = _read_template()
@@ -95,12 +102,14 @@ class TestAgentDetailImports:
 class TestAgentDetailHeader:
     """Verify header structure."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_header_section_present(self):
         """Agent must have a header section."""
         content = _read_template()
         assert 'class="header"' in content, \
             "Agent must have a header section"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_back_button_present(self):
         """Header must use ui.back_button macro with data-action='back'."""
         content = _read_template()
@@ -111,18 +120,21 @@ class TestAgentDetailHeader:
         assert "'/agents'" in content, \
             "Back button must link to /agents"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_agent_title_present(self):
         """Header must contain agent-title."""
         content = _read_template()
         assert 'class="agent-title"' in content, \
             "Header must have an agent-title"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_agent_subtitle_present(self):
         """Header must contain agent-subtitle."""
         content = _read_template()
         assert 'class="agent-subtitle"' in content, \
             "Header must have an agent-subtitle"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_breadcrumb_present(self):
         """Breadcrumb must link to Dashboard and Agents."""
         content = _read_template()
@@ -131,6 +143,7 @@ class TestAgentDetailHeader:
         assert 'href="/agents"' in content, \
             "Breadcrumb must link to /agents"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_emoji_aria_hidden_in_title(self):
         """Agent title emoji must have aria-hidden='true'."""
         content = _read_template()
@@ -152,18 +165,21 @@ class TestAgentDetailMetricCards:
         "Failed Tools",
     ]
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_grid_present(self):
         """Agent must have a metric-grid section."""
         content = _read_template()
         assert 'class="metric-grid"' in content, \
             "Agent must have a metric-grid section"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_grid_aria_label(self):
         """Metric grid must have an aria-label."""
         content = _read_template()
         assert 'aria-label="Agent detail metrics"' in content, \
             "Metric grid must have aria-label='Agent detail metrics'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_six_metric_cards(self):
         """Agent must have exactly 6 metric cards."""
         content = _read_template()
@@ -172,12 +188,14 @@ class TestAgentDetailMetricCards:
             f"Agent must have exactly 6 metric cards, found {len(cards)}"
 
     @pytest.mark.parametrize("label", _EXPECTED_LABELS)
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_card_labels(self, label):
         """Each metric card must have the expected label text."""
         content = _read_template()
         assert f">{label}" in content or f">{label} " in content, \
             f"Agent must have a metric card labeled '{label}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_cards_have_icons(self):
         """Each metric card must have a metric-icon element."""
         content = _read_template()
@@ -185,6 +203,7 @@ class TestAgentDetailMetricCards:
         assert len(icons) >= 6, \
             f"Agent must have at least 6 metric-icon elements, found {len(icons)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_icons_have_emoji_aria_hidden(self):
         """Each metric-icon must have aria-hidden attribute."""
         content = _read_template()
@@ -194,6 +213,7 @@ class TestAgentDetailMetricCards:
         assert len(icons) >= 6, \
             f"Agent must have at least 6 metric-icon elements with aria-hidden, found {len(icons)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_cards_have_label_class(self):
         """Each metric card must have a metric-card__label element."""
         content = _read_template()
@@ -201,6 +221,7 @@ class TestAgentDetailMetricCards:
         assert len(labels) >= 6, \
             f"Agent must have at least 6 metric-card__label elements, found {len(labels)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_cards_have_value_class(self):
         """Each metric card must have a metric-card__value element."""
         content = _read_template()
@@ -208,6 +229,7 @@ class TestAgentDetailMetricCards:
         assert len(values) >= 6, \
             f"Agent must have at least 6 metric-card__value elements, found {len(values)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_six_info_buttons_on_metrics(self):
         """Each metric card must have an info button with data-action='info'."""
         content = _read_template()
@@ -216,12 +238,14 @@ class TestAgentDetailMetricCards:
         assert len(buttons) >= 8, \
             f"Agent must have at least 8 info buttons, found {len(buttons)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_info_buttons_use_info_icon_class(self):
         """Info buttons must use icon-button--info class."""
         content = _read_template()
         assert 'icon-button--info' in content, \
             "Info buttons must use icon-button--info class"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_info_buttons_have_aria_label(self):
         """Each info button must have an aria-label (title attribute)."""
         content = _read_template()
@@ -242,12 +266,14 @@ class TestAgentDetailModelBreakdown:
         "Tools", "Failed", "Avg Duration",
     ]
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_section_head_present(self):
         """Model breakdown must use ui.table_card macro which renders table-toolbar."""
         content = _read_template()
         assert "ui.table_card(" in content, \
             "Model breakdown must use ui.table_card macro"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_section_title_present(self):
         """Model breakdown must have a card-title via table_card."""
         content = _read_template()
@@ -256,6 +282,7 @@ class TestAgentDetailModelBreakdown:
         assert "Model Breakdown" in content, \
             "Section title must include 'Model Breakdown'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_section_sub_present(self):
         """Model breakdown must have a card-sub via table_card subtitle param."""
         content = _read_template()
@@ -264,24 +291,28 @@ class TestAgentDetailModelBreakdown:
         assert "Avg Duration" in content, \
             "Model breakdown subtitle must mention Avg Duration"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_model_breakdown_conditional(self):
         """Model breakdown must be conditionally rendered when models > 1."""
         content = _read_template()
         assert "{% if models | length > 1 %}" in content, \
             "Model breakdown must be conditionally rendered"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_card_section_class(self):
         """Model breakdown must use ui.table_card which renders card table-card class."""
         content = _read_template()
         assert "ui.table_card(" in content, \
             "Model breakdown must use ui.table_card macro which renders 'card table-card'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_data_table_class(self):
         """Model breakdown table must use data-table class."""
         content = _read_template()
         assert 'class="data-table"' in content, \
             "Model breakdown table must use data-table class"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_table_wrap_present(self):
         """Model breakdown table must be inside ui.table_card which renders table-wrap."""
         content = _read_template()
@@ -289,12 +320,14 @@ class TestAgentDetailModelBreakdown:
             "Model breakdown must use ui.table_card macro which renders table-wrap"
 
     @pytest.mark.parametrize("column", _EXPECTED_COLUMNS)
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_column_headers_present(self, column):
         """Model breakdown table must have all expected column headers."""
         content = _read_template()
         assert column in content, \
             f"Model breakdown table must have '{column}' column header"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_seven_column_headers_in_model_table(self):
         """Model breakdown table must have exactly 7 column headers."""
         content = _read_template()
@@ -311,12 +344,14 @@ class TestAgentDetailModelBreakdown:
         assert len(ths) == 7, \
             f"Model breakdown table must have 7 column headers, found {len(ths)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_tokenbar_in_model_table(self):
         """Model breakdown tokens column must have a tokenbar."""
         content = _read_template()
         assert 'class="tokenbar"' in content, \
             "Model breakdown must have a tokenbar"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_tokenbar_has_four_segments(self):
         """Tokenbar must have 4 segments (fresh/read/write/out)."""
         content = _read_template()
@@ -326,6 +361,7 @@ class TestAgentDetailModelBreakdown:
         assert len(segs) >= 4, \
             f"Tokenbar must have 4 segment types, found {len(segs)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sortable_columns_in_model_table(self):
         """Model breakdown table must have sortable columns."""
         content = _read_template()
@@ -333,6 +369,7 @@ class TestAgentDetailModelBreakdown:
         assert len(sorts) >= 7, \
             f"Model breakdown must have at least 7 sortable columns, found {len(sorts)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sort_keys_in_model_table(self):
         """Model breakdown sortable columns must have data-sort-key."""
         content = _read_template()
@@ -353,6 +390,7 @@ class TestAgentDetailSessionsSection:
         "Rounds", "Tools", "Failed", "Duration", "Updated",
     ]
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_section_head_present(self):
         """Sessions must use ui.table_card macro which renders table-toolbar."""
         content = _read_template()
@@ -361,12 +399,14 @@ class TestAgentDetailSessionsSection:
         assert count >= 2, \
             f"Agent must have at least 2 ui.table_card calls, found {count}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_section_title(self):
         """Sessions section must have 'Sessions' in title."""
         content = _read_template()
         assert ">Sessions" in content, \
             "Sessions section must have 'Sessions' title"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_search_input_present(self):
         """Sessions section must have a search input via table_card search_placeholder."""
         content = _read_template()
@@ -377,12 +417,14 @@ class TestAgentDetailSessionsSection:
         assert 'id="session-search"' not in content, \
             "HIFI contract: search input must NOT have id='session-search'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_search_input_no_data_search(self):
         """HIFI contract: search input must NOT have data-search attribute."""
         content = _read_template()
         assert 'data-search=' not in content, \
             "HIFI contract: search input must NOT have data-search attribute"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_search_input_has_placeholder(self):
         """Search input must have a placeholder."""
         content = _read_template()
@@ -391,18 +433,21 @@ class TestAgentDetailSessionsSection:
         assert "Search" in content, \
             "Search placeholder must mention Search"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_search_input_aria_label(self):
         """Search input must have aria-label via table_card macro."""
         content = _read_template()
         assert "search_placeholder=" in content, \
             "Sessions must pass search_placeholder to table_card"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_table_has_id(self):
         """Sessions table must have id='agent-sessions-table'."""
         content = _read_template()
         assert 'id="agent-sessions-table"' in content, \
             "Sessions table must have id='agent-sessions-table'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_card_section_for_sessions(self):
         """Sessions section must use ui.table_card which renders card table-card class."""
         content = _read_template()
@@ -410,12 +455,14 @@ class TestAgentDetailSessionsSection:
             "Sessions section must use ui.table_card macro which renders 'card table-card'"
 
     @pytest.mark.parametrize("column", _EXPECTED_COLUMNS)
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_column_headers_present(self, column):
         """Sessions table must have all expected column headers."""
         content = _read_template()
         assert column in content, \
             f"Sessions table must have '{column}' column header"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_nine_column_headers(self):
         """Sessions table must have exactly 9 column headers."""
         content = _read_template()
@@ -424,6 +471,7 @@ class TestAgentDetailSessionsSection:
         assert len(ths) == 16, \
             f"Agent must have 16 total th elements (7 model + 9 sessions), found {len(ths)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sortable_columns_in_sessions_table(self):
         """Sessions table must have sortable columns (7 sortable out of 9)."""
         content = _read_template()
@@ -432,60 +480,70 @@ class TestAgentDetailSessionsSection:
             assert f'data-sort-key="{sort_key}"' in content, \
                 f"Sessions table must have data-sort-key='{sort_key}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_row_has_open_session_action(self):
         """Session rows must have data-action='open-session'."""
         content = _read_template()
         assert 'data-action="open-session"' in content, \
             "Session rows must have data-action='open-session'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_row_has_data_href(self):
         """Session rows must have data-href attribute."""
         content = _read_template()
         assert 'data-href="/sessions/' in content, \
             "Session rows must have data-href attribute"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_title_main_present(self):
         """Session row must have a title-main element."""
         content = _read_template()
         assert 'class="title-main"' in content, \
             "Session row must have a title-main element"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_title_sub_present(self):
         """Session row must have a title-sub element."""
         content = _read_template()
         assert 'class="title-sub mono"' in content, \
             "Session row must have a title-sub mono element"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_project_link_present(self):
         """Session row must link to project."""
         content = _read_template()
         assert 'href="/projects/' in content, \
             "Session row must link to project"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_failed_badge_err_class(self):
         """Failed tools must use badge err class."""
         content = _read_template()
         assert 'class="badge err"' in content, \
             "Failed tools must use badge err class"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_row_failed_conditional_class(self):
         """Row must have row--failed conditional class."""
         content = _read_template()
         assert "row--failed" in content, \
             "Row must have row--failed conditional class"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_relative_time_filter_used(self):
         """Updated column must use relative_time filter."""
         content = _read_template()
         assert "relative_time" in content, \
             "Table must use relative_time filter"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_token_cell_in_sessions(self):
         """Session rows must have token-cell."""
         content = _read_template()
         assert 'class="token-col token-cell"' in content or 'class="token-cell"' in content, \
             "Session rows must have token-cell"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_token_total_in_sessions(self):
         """Token-cell must have token-total."""
         content = _read_template()
@@ -498,6 +556,7 @@ class TestAgentDetailSessionsSection:
 class TestAgentDetailPagination:
     """Verify pagination uses ui.pagination macro."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_unified_pagination_present(self):
         """Agent must use ui.pagination macro."""
         content = _read_template()
@@ -510,30 +569,35 @@ class TestAgentDetailPagination:
 class TestAgentDetailEmptyState:
     """Verify empty state rendering."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_empty_state_condition(self):
         """Template must check for sessions being falsy."""
         content = _read_template()
         assert "{% else %}" in content, \
             "Template must have an else branch for empty state"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_empty_state_macro_used(self):
         """Empty state must use ui.empty_state macro."""
         content = _read_template()
         assert "ui.empty_state" in content, \
             "Empty state must use ui.empty_state macro"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_empty_state_message(self):
         """Empty state must display '暂无该 Agent 的 Session 数据'."""
         content = _read_template()
         assert "暂无该 Agent 的 Session 数据" in content, \
             "Empty state must say '暂无该 Agent 的 Session 数据'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_empty_state_has_back_action(self):
         """Empty state must have back action."""
         content = _read_template()
         assert "data_action='back'" in content or 'data_action="back"' in content, \
             "Empty state must have back action (via ui.button macro)"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_empty_state_has_icon(self):
         """Empty state must have a robot icon."""
         content = _read_template()
@@ -546,30 +610,35 @@ class TestAgentDetailEmptyState:
 class TestAgentDetailErrorState:
     """Verify error state rendering."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_error_state_condition(self):
         """Template must check for error variable."""
         content = _read_template()
         assert "{% if error %}" in content, \
             "Template must check for error variable"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_error_state_uses_ui_macro(self):
         """Error state must use ui.error_state macro."""
         content = _read_template()
         assert "ui.error_state" in content, \
             "Error state must use ui.error_state macro"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_error_state_has_refresh_action(self):
         """Error state must have refresh action."""
         content = _read_template()
         assert "data_action='refresh'" in content or 'data_action="refresh"' in content, \
             "Error state must have refresh action (via ui.button macro)"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_error_state_has_warning_icon(self):
         """Error state must have a warning icon."""
         content = _read_template()
         assert "'⚠️'" in content or "⚠️" in content, \
             "Error state must have a warning icon"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_error_state_has_detail_param(self):
         """Error state must pass detail parameter."""
         content = _read_template()
@@ -582,6 +651,7 @@ class TestAgentDetailErrorState:
 class TestAgentDetailNoStalePatterns:
     """Verify stale patterns are NOT present."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_inline_onclick(self):
         """Agent must not have inline onclick."""
         content = _read_template()
@@ -589,6 +659,7 @@ class TestAgentDetailNoStalePatterns:
         assert len(matches) == 0, \
             f"Agent must not have inline onclick, found {len(matches)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_inline_script(self):
         """Template must not have inline script blocks."""
         content = _read_template()
@@ -596,6 +667,7 @@ class TestAgentDetailNoStalePatterns:
         assert len(script_tags) == 0, \
             f"Agent must not have inline script tags, found {len(script_tags)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_inline_style_blocks(self):
         """Template must not have inline style blocks."""
         content = _read_template()
@@ -603,24 +675,28 @@ class TestAgentDetailNoStalePatterns:
         assert len(style_blocks) == 0, \
             f"Agent must not have inline style blocks, found {len(style_blocks)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_page_header_bem_class(self):
         """Agent must not use page-header BEM class (uses header)."""
         content = _read_template()
         assert 'class="page-header"' not in content, \
             "Agent must not have page-header BEM class"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_page_head_class(self):
         """Agent must not use page-head class (uses header)."""
         content = _read_template()
         assert 'class="page-head"' not in content, \
             "Agent must not have page-head class"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_hero_section(self):
         """Agent must not have hero section."""
         content = _read_template()
         assert 'class="hero"' not in content, \
             "Agent must not have hero section"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_no_select_elements(self):
         """No <select> elements."""
         content = _read_template()
@@ -641,6 +717,7 @@ class TestAgentDetailDataActions:
     ]
 
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_data_action_present(self, action):
         """Template must have the expected data-action attribute."""
         content = _read_template()
@@ -652,12 +729,14 @@ class TestAgentDetailDataActions:
         assert html_form in content or macro_form_single in content or macro_form_double in content, \
             f"Template must have data-action='{action}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_data_action_back_in_empty_state(self):
         """Empty state uses Jinja2 macro parameter data_action='back'."""
         content = _read_template()
         assert "data_action='back'" in content or 'data_action="back"' in content, \
             "Template must have back action (via ui.button macro)"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_data_action_refresh_in_error_state(self):
         """Error state uses Jinja2 macro parameter data_action='refresh'."""
         content = _read_template()
@@ -670,6 +749,7 @@ class TestAgentDetailDataActions:
 class TestAgentDetailAccessibility:
     """Verify accessibility attributes."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_emoji_spans_aria_hidden(self):
         """All emoji spans must have aria-hidden='true'."""
         content = _read_template()
@@ -678,6 +758,7 @@ class TestAgentDetailAccessibility:
             assert 'aria-hidden="true"' in span, \
                 f"Emoji span must have aria-hidden='true': {span}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sort_mark_aria_hidden(self):
         """Sort carets must have aria-hidden='true'."""
         content = _read_template()
@@ -685,12 +766,14 @@ class TestAgentDetailAccessibility:
         assert 'class="sort-mark"' in content, \
             "Sortable headers must have sort-mark elements"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_search_input_aria_label(self):
         """Search input must have aria-label via table_card macro."""
         content = _read_template()
         assert "search_placeholder=" in content, \
             "Sessions must pass search_placeholder to table_card"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_page_input_aria_label(self):
         """Pagination component must have aria-label on page input."""
         # ui.pagination macro in ui_primitives.html provides the aria-label
@@ -702,24 +785,28 @@ class TestAgentDetailAccessibility:
         assert 'aria-label="Page number"' in primitives, \
             "Pagination macro must have aria-label on page input"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_pagination_aria_label(self):
         """Pagination must have aria-label."""
         content = _read_template()
         assert 'aria-label="Agent sessions pagination"' in content, \
             "Pagination must have aria-label='Agent sessions pagination'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_metric_grid_aria_label(self):
         """Metric grid must have aria-label."""
         content = _read_template()
         assert 'aria-label="Agent detail metrics"' in content, \
             "Metric grid must have aria-label='Agent detail metrics'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_tokenbar_aria_label(self):
         """Tokenbar must have aria-label."""
         content = _read_template()
         assert 'aria-label="Token breakdown tooltip"' in content, \
             "Tokenbar must have aria-label='Token breakdown tooltip'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_info_icon_has_title(self):
         """Info icons must have title attribute for tooltip."""
         content = _read_template()
@@ -735,6 +822,7 @@ class TestAgentDetailAccessibility:
 class TestAgentDetailTokenFormatting:
     """Verify token formatting structure in both model and session tables."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_tokenbar_width_style_pattern(self):
         """Tokenbar segments must use width style with Jinja percentage."""
         content = _read_template()
@@ -744,18 +832,21 @@ class TestAgentDetailTokenFormatting:
         assert len(matches) >= 8, \
             f"Tokenbar must have at least 8 width-style segments, found {len(matches)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_format_compact_token_filter_used(self):
         """Template must use format_compact_token for token display."""
         content = _read_template()
         assert "format_compact_token" in content, \
             "Template must use format_compact_token filter"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_token_total_display(self):
         """Token-cell must display total token count."""
         content = _read_template()
         assert 'class="token-total"' in content, \
             "Token-cell must have token-total element"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_tokenbar_four_segment_types(self):
         """Tokenbar must have exactly 4 CSS segment types."""
         content = _read_template()
@@ -763,6 +854,7 @@ class TestAgentDetailTokenFormatting:
             assert f'class="{seg}"' in content, \
                 f"Tokenbar must have {seg} segment"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_token_tooltip_tip_rows(self):
         """Token tooltip must have tip-row elements for breakdown."""
         content = _read_template()
@@ -770,18 +862,21 @@ class TestAgentDetailTokenFormatting:
         assert len(tip_rows) >= 4, \
             f"Token tooltip must have at least 4 tip-rows, found {len(tip_rows)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_format_number_filter_used(self):
         """Template must use format_number for counts."""
         content = _read_template()
         assert "format_number" in content, \
             "Template must use format_number filter"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_format_duration_filter_used(self):
         """Template must use format_duration for durations."""
         content = _read_template()
         assert "format_duration" in content, \
             "Template must use format_duration filter"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_format_1d_filter_used(self):
         """Template must use format_1d for one-decimal percentages."""
         content = _read_template()
@@ -794,6 +889,7 @@ class TestAgentDetailTokenFormatting:
 class TestAgentDetailTableStructure:
     """Verify table colgroup and column structure."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_model_table_colgroup(self):
         """Model breakdown table must use colgroup with named columns."""
         content = _read_template()
@@ -807,6 +903,7 @@ class TestAgentDetailTableStructure:
             assert f'class="{cls}"' in content, \
                 f"Model table must have col with class '{cls}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_table_colgroup(self):
         """Sessions table must use colgroup with named columns."""
         content = _read_template()
@@ -819,12 +916,14 @@ class TestAgentDetailTableStructure:
             assert f'class="{cls}"' in content, \
                 f"Sessions table must have col with class '{cls}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_mono_class_on_numeric_cells(self):
         """Numeric cells must use mono class for monospace font."""
         content = _read_template()
         assert 'class="col-num mono"' in content or 'class="mono"' in content, \
             "Numeric cells must use mono class"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_col_num_class_on_number_columns(self):
         """Table must use col-num class for number columns."""
         content = _read_template()
@@ -837,18 +936,21 @@ class TestAgentDetailTableStructure:
 class TestAgentDetailModelBreakdownInsight:
     """Verify model breakdown insight line."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_insight_span_present(self):
         """Model breakdown must pass insight param to table_card."""
         content = _read_template()
         assert "insight=" in content, \
             "Model breakdown must pass insight param to table_card"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_most_active_model_text(self):
         """Model breakdown must show 'Most active model' text."""
         content = _read_template()
         assert "Most active model" in content, \
             "Model breakdown must show 'Most active model' text"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_section_sub_mentions_duration(self):
         """Model breakdown section-sub must mention Avg Duration."""
         content = _read_template()
@@ -861,12 +963,14 @@ class TestAgentDetailModelBreakdownInsight:
 class TestAgentDetailSessionsEmptyState:
     """Verify sessions-specific empty state (agent_info exists but no sessions)."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_conditional_render(self):
         """Sessions section must use {% if sessions %} conditional."""
         content = _read_template()
         assert "{% if sessions %}" in content, \
             "Sessions must be conditionally rendered"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_else_empty_state(self):
         """Sessions {% else %} branch must use ui.empty_state macro."""
         content = _read_template()
@@ -884,12 +988,14 @@ class TestAgentDetailSessionsEmptyState:
         assert "ui.empty_state" in sessions_else, \
             "Sessions empty state must use ui.empty_state macro"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_empty_says_no_session_data(self):
         """Sessions empty state must say '暂无该 Agent 的 Session 数据'."""
         content = _read_template()
         assert "暂无该 Agent 的 Session 数据" in content, \
             "Sessions empty state must mention no session data"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_sessions_empty_back_to_agents(self):
         """Sessions empty state must link back to /agents."""
         content = _read_template()
@@ -903,18 +1009,21 @@ class TestAgentDetailSessionsEmptyState:
 class TestAgentDetailAgentInfoEmptyState:
     """Verify agent_info empty state (agent not found / no data at all)."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_agent_info_not_found_condition(self):
         """Template must check {% elif not agent_info %}."""
         content = _read_template()
         assert "{% elif not agent_info %}" in content, \
             "Template must check for missing agent_info"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_agent_info_empty_message(self):
         """Agent info empty state must say '未找到该 Agent 的数据'."""
         content = _read_template()
         assert "未找到该 Agent 的数据" in content, \
             "Agent info empty state must say '未找到该 Agent 的数据'"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_agent_info_empty_has_back_button(self):
         """Agent info empty state must have back to agents link."""
         content = _read_template()
@@ -927,18 +1036,21 @@ class TestAgentDetailAgentInfoEmptyState:
 class TestAgentDetailFailedBadge:
     """Verify failed tool count badge rendering."""
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_failed_badge_conditional(self):
         """Failed badge must be conditional on failed_tool_count > 0."""
         content = _read_template()
         assert "failed_tool_count > 0" in content, \
             "Failed badge must be conditional on failed_tool_count > 0"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_failed_zero_shows_mono_zero(self):
         """When no failures, must show <span class='mono'>0</span>."""
         content = _read_template()
         assert '<span class="mono">0</span>' in content, \
             "Zero failures must show mono 0"
 
+    @pytest.mark.contract_case("UI-AGENTS-002")
     def test_row_failed_class_conditional(self):
         """Row must have row--failed class conditionally."""
         content = _read_template()

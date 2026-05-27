@@ -9,7 +9,6 @@ Covers:
 - Backward compatibility: from_text wraps plain strings as markdown
 - Empty/None handling
 """
-
 import pytest
 from session_browser.domain.content_part import (
     ContentPart,
@@ -25,22 +24,27 @@ from session_browser.domain.content_part import (
 # ─── is_json ──────────────────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_json_object():
     assert is_json('{"key": "value"}') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_json_array():
     assert is_json('[1, 2, 3]') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_json_nested():
     assert is_json('{"a": {"b": [1, 2]}}') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_json_with_leading_whitespace():
     assert is_json('  {"key": "value"}') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_json_invalid():
     assert is_json('{"key": }') is False
     assert is_json('[1, 2,]') is False
@@ -48,10 +52,12 @@ def test_is_json_invalid():
     assert is_json('') is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_json_markdown_not_json():
     assert is_json('# Hello\n\nThis is text.') is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_json_ordered_list_not_json():
     assert is_json('1. First\n2. Second') is False
 
@@ -59,34 +65,42 @@ def test_is_json_ordered_list_not_json():
 # ─── is_image_url ─────────────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_url_png():
     assert is_image_url('https://example.com/diagram.png') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_url_jpg():
     assert is_image_url('https://example.com/photo.jpg') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_url_gif():
     assert is_image_url('https://example.com/anim.gif') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_url_webp():
     assert is_image_url('https://example.com/image.webp') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_url_with_query_params():
     assert is_image_url('https://example.com/img.png?token=abc') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_data_uri():
     assert is_image_url('data:image/png;base64,iVBORw0KGgo') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_markdown_syntax():
     assert is_image_url('![alt text](https://example.com/img.png)') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_image_url_negative():
     assert is_image_url('https://example.com/page.html') is False
     assert is_image_url('https://example.com/data.json') is False
@@ -97,31 +111,38 @@ def test_is_image_url_negative():
 # ─── is_html ──────────────────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_full_document():
     assert is_html('<!DOCTYPE html>\n<html><body>Hello</body></html>') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_table():
     assert is_html('<table><tr><td>Cell</td></tr></table>') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_comment():
     assert is_html('<!-- This is a comment -->\n<div>Content</div>') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_with_whitespace():
     assert is_html('  \n<div class="container">Hello</div>') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_inline_tag_in_prose_not_detected():
     """Short text with single inline tag should NOT be HTML."""
     assert is_html('Use <code> for inline code.') is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_empty():
     assert is_html('') is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_plain_text():
     assert is_html('# Heading\n\nSome markdown text.') is False
 
@@ -129,46 +150,57 @@ def test_is_html_plain_text():
 # ─── is_code_block ────────────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_fenced():
     assert is_code_block('```python\ndef hello():\n    pass\n```') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_python_def():
     assert is_code_block('def hello():\n    print("world")') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_python_class():
     assert is_code_block('class MyClass:\n    pass') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_python_import():
     assert is_code_block('from os import path') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_typescript():
     assert is_code_block('const x = 1;\nexport default x;') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_go():
     assert is_code_block('package main\n\nfunc main() {}') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_rust():
     assert is_code_block('pub fn main() {\n    println!("hello");\n}') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_with_filename():
     assert is_code_block('x = 1\nprint(x)', filename_hint='script.py') is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_markdown_file_not_code():
     assert is_code_block('# README\n\nSome docs.', filename_hint='README.md') is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_prose_not_code():
     assert is_code_block('Hello world, this is a normal paragraph.') is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_code_empty():
     assert is_code_block('') is False
 
@@ -176,41 +208,49 @@ def test_is_code_empty():
 # ─── detect_content_type ──────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_empty():
     assert detect_content_type('') == ContentPartType.TEXT
     assert detect_content_type('   \n\n  ') == ContentPartType.TEXT
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_markdown():
     result = detect_content_type('# Hello\n\nThis is **bold** text.')
     assert result == ContentPartType.MARKDOWN
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_json():
     result = detect_content_type('{"status": "ok", "count": 5}')
     assert result == ContentPartType.JSON
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_image():
     result = detect_content_type('https://example.com/diagram.png')
     assert result == ContentPartType.IMAGE
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_code():
     result = detect_content_type('def hello():\n    print("world")')
     assert result == ContentPartType.CODE
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_code_with_filename():
     result = detect_content_type('x = 1', filename_hint='main.py')
     assert result == ContentPartType.CODE
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_html():
     result = detect_content_type('<table><tr><td>Cell</td></tr></table>')
     assert result == ContentPartType.HTML
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_ordered_list_not_code():
     """Ordered list should NOT be detected as code."""
     result = detect_content_type('1. First step\n2. Second step\n3. Third step')
@@ -220,23 +260,27 @@ def test_detect_ordered_list_not_code():
 # ─── ContentPart model ────────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_from_text_empty():
     part = ContentPart.from_text('')
     assert part.part_type == ContentPartType.TEXT
     assert part.content == ''
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_from_text_whitespace_only():
     part = ContentPart.from_text('   \n\n  ')
     assert part.part_type == ContentPartType.TEXT
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_from_text_normal():
     part = ContentPart.from_text('# Hello\n\n**World**')
     assert part.part_type == ContentPartType.MARKDOWN
     assert '# Hello' in part.content
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_from_text_json_becomes_markdown():
     """from_text should always produce markdown for non-empty text.
 
@@ -248,6 +292,7 @@ def test_from_text_json_becomes_markdown():
     assert part.part_type == ContentPartType.MARKDOWN
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_properties():
     part = ContentPart(part_type=ContentPartType.CODE, content='x=1', language='python')
     assert part.is_code is True
@@ -258,6 +303,7 @@ def test_content_part_properties():
     assert part.is_html is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_serialization():
     part = ContentPart(
         part_type=ContentPartType.CODE,
@@ -279,6 +325,7 @@ def test_content_part_serialization():
     assert restored.filename == part.filename
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_type_constants():
     assert ContentPartType.TEXT == 'text'
     assert ContentPartType.MARKDOWN == 'markdown'
@@ -291,6 +338,7 @@ def test_content_part_type_constants():
 # ─── I-08 ContextPartType constants ────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_context_part_type_constants():
     from session_browser.domain.content_part import ContextPartType
     assert ContextPartType.SYSTEM_PROMPT == 'system_prompt'
@@ -307,6 +355,7 @@ def test_context_part_type_constants():
 # ─── I-08 New ContentPart fields ───────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_new_fields_defaults():
     """New multipart fields should default to sensible values."""
     part = ContentPart(part_type="text", content="hello")
@@ -317,6 +366,7 @@ def test_content_part_new_fields_defaults():
     assert part.token_hint == 0
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_new_fields_set():
     part = ContentPart(
         part_type="markdown",
@@ -328,6 +378,7 @@ def test_content_part_new_fields_set():
     assert part.title == "User Message #1"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_context_type_properties():
     from session_browser.domain.content_part import ContextPartType
     part = ContentPart(part_type="markdown", content="test", context_type=ContextPartType.SYSTEM_PROMPT)
@@ -343,6 +394,7 @@ def test_content_part_context_type_properties():
     assert part3.is_tool_result is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_compute_metadata():
     part = ContentPart(part_type="markdown", content="Hello world, this is a test.")
     assert part.content_bytes == 0  # Not yet computed
@@ -355,6 +407,7 @@ def test_content_part_compute_metadata():
     assert part.token_hint == max(1, 31 // 4)
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_compute_metadata_preserves_existing():
     """If bytes/token are already set, compute_metadata should not overwrite."""
     part = ContentPart(
@@ -368,6 +421,7 @@ def test_content_part_compute_metadata_preserves_existing():
     assert part.token_hint == 25
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_compute_all():
     parts = [
         ContentPart(part_type="text", content="a"),
@@ -379,6 +433,7 @@ def test_content_part_compute_all():
         assert p.token_hint >= 0
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_serialization_includes_new_fields():
     part = ContentPart(
         part_type="markdown",

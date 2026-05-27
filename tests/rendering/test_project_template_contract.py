@@ -9,10 +9,9 @@ T033 covers P-27: Project detail TOKENS tokenbar 没有 breakdown 弹框
 - Verifies that TOKENS column in project.html calls ui.token_cell or
   contains token-tooltip, not just a title attribute.
 """
+import pytest
 from pathlib import Path
 import re
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
@@ -41,7 +40,9 @@ def ui_primitives_html():
 
 
 class TestProjectDetailSearchFields:
-    """project.html session rows must carry data-title and data-session-id
+    """
+
+import project.html session rows must carry data-title and data-session-id
     attributes for client-side search to function.
 
     Contract: every <tr> that represents a session row inside the
@@ -64,6 +65,7 @@ class TestProjectDetailSearchFields:
         tbody = tbody_match.group(1)
         return re.findall(r'<tr[^>]*>', tbody)
 
+    @pytest.mark.contract_case("UI-PROJECTS-007")
     def test_session_rows_have_data_session_id(self, project_html):
         """Session rows must include data-session-id attribute."""
         rows = self._extract_tbody_rows(project_html)
@@ -74,6 +76,7 @@ class TestProjectDetailSearchFields:
                 f"Session row lacks data-session-id attribute: {row[:120]}..."
             )
 
+    @pytest.mark.contract_case("UI-PROJECTS-007")
     def test_session_rows_have_data_title(self, project_html):
         """Session rows must include data-title attribute for search."""
         rows = self._extract_tbody_rows(project_html)
@@ -84,6 +87,7 @@ class TestProjectDetailSearchFields:
                 f"Session row lacks data-title attribute: {row[:120]}..."
             )
 
+    @pytest.mark.contract_case("UI-PROJECTS-007")
     def test_search_input_has_expected_id(self, project_html):
         """The search input in the table toolbar should have a recognizable
         ID or class that JS can target."""
@@ -121,6 +125,7 @@ class TestProjectDetailTokenCellReuse:
         )
         return match.group(1) if match else ""
 
+    @pytest.mark.contract_case("UI-PROJECTS-007")
     def test_token_cell_uses_macro_or_has_tooltip(self, project_html):
         """TOKENS column must use ui.token_cell or contain token-tooltip."""
         # Check if the template calls ui.token_cell macro
@@ -147,6 +152,7 @@ class TestProjectDetailTokenCellReuse:
             "A bare title attribute on tokenbar is insufficient."
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-007")
     def test_token_cell_not_title_only(self, project_html):
         """TOKENS column must not rely solely on a title attribute for
         the token breakdown."""

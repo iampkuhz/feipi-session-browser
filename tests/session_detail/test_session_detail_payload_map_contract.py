@@ -1,5 +1,4 @@
 """Tests for the payload map contract in session detail (v9).
-
 v9 architecture:
 - Payload map built as Python dict in routes.py view model
 - Payload buttons use data-payload-id (from sdp.button macro)
@@ -7,6 +6,8 @@ v9 architecture:
 - No window.__SESSION_PAYLOADS__ or window.__SESSION_PAYLOAD_MAP__
 - Raw JSON in <script type="application/json" id="raw-json"> for copy action
 """
+
+import pytest
 
 import re
 from pathlib import Path
@@ -41,6 +42,7 @@ def _timeline_component():
 # ── Payload map in view model ─────────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_map_in_routes():
     """View model must build payload index/map."""
     routes = _read_routes()
@@ -49,6 +51,7 @@ def test_payload_map_in_routes():
     )
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_map_script_has_required_fields():
     """Payload entries must contain type, title, rendered, raw, missing_reason."""
     routes = _read_routes()
@@ -58,6 +61,7 @@ def test_payload_map_script_has_required_fields():
         )
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_map_uses_safe_json():
     """View model must use safe JSON serialization."""
     source = _all_source()
@@ -69,6 +73,7 @@ def test_payload_map_uses_safe_json():
 # ── Payload buttons in component ─────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_buttons_in_timeline():
     """Timeline must have open-payload button macro calls."""
     timeline = _timeline_component()
@@ -76,12 +81,14 @@ def test_payload_buttons_in_timeline():
     assert "open-payload" in timeline, "Timeline must reference open-payload action"
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_buttons_have_id():
     """Open-payload buttons must have data-payload-id."""
     prim = (COMPONENTS / "session_detail_primitives.html").read_text(encoding="utf-8")
     assert "data-payload-id" in prim, "Button macro must define data-payload-id"
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_button_titles():
     """Buttons must have descriptive labels: Request (renamed from Context), Response, Result."""
     timeline = _timeline_component()
@@ -93,6 +100,7 @@ def test_payload_button_titles():
 # ── Generic "Payload" button count ──────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_no_massive_payload_buttons():
     """Template must not have 400+ generic 'Payload' buttons."""
     source = _session_source()
@@ -109,6 +117,7 @@ def test_no_massive_payload_buttons():
 # ── CSS for payload buttons ─────────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_css_has_sd_btn_styles():
     """session-detail.css must define button styles."""
     css_path = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"

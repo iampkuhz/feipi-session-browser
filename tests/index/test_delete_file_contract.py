@@ -13,6 +13,7 @@
 - 只有通过手动删除数据库记录或从 history.jsonl 中移除条目才能清理。
 """
 
+import pytest
 import json
 import os
 import shutil
@@ -20,8 +21,6 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -97,6 +96,7 @@ class TestDeleteFileContract:
       仍然索引已删除的会话（设计意图：只要 history.jsonl 有记录就保留索引）。
     """
 
+    @pytest.mark.contract_case("DATA-INDEX-007")
     def test_incremental_scan_does_not_clean_deleted_files_known_limitation(
         self, tmp_path
     ):
@@ -152,6 +152,7 @@ class TestDeleteFileContract:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-007")
     def test_full_scan_also_keeps_deleted_sessions_via_history_fallback(self, tmp_path):
         """D01-B: full_scan 也保留已删除的会话（通过 history.jsonl 回退）。
 
@@ -211,6 +212,7 @@ class TestDeleteFileContract:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-007")
     def test_incremental_scan_skipped_count_includes_deleted(self, tmp_path):
         """D01-C: incremental_scan reports deleted files in skipped count.
 
@@ -239,6 +241,7 @@ class TestDeleteFileContract:
             f"Expected 0 re-indexed sessions (file deleted), got {result['claude_count']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-007")
     def test_incremental_scan_all_files_deleted(self, tmp_path):
         """D01-D: All session files deleted — incremental_scan skips all.
 
@@ -276,6 +279,7 @@ class TestDeleteFileContract:
         )
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-007")
     def test_full_scan_after_incremental_also_keeps_deleted(self, tmp_path):
         """D01-E: full_scan 也不清理 incremental_scan 留下的陈旧条目。
 

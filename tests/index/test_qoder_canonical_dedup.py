@@ -12,13 +12,12 @@ Tests the S-08 scenario: Qoder short ID vs full UUID dedup.
 
 from __future__ import annotations
 
+import pytest
 import json
 import os
 import sqlite3
 import sys
 from pathlib import Path
-
-import pytest
 
 # ─── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -144,6 +143,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 class TestQoderCanonicalDedup:
     """T012: Qoder short ID vs full UUID dedup — projects/cache overlap."""
 
+    @pytest.mark.contract_case("DATA-INDEX-008")
     def test_no_duplicate_session_records(self, tmp_path):
         """When the same session exists in both projects/ and cache/,
         the sessions table should have only ONE record, not two.
@@ -165,6 +165,7 @@ class TestQoderCanonicalDedup:
             f"same Qoder session and should not produce duplicate list entries."
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-008")
     def test_canonical_key_is_full_uuid(self, tmp_path):
         """The surviving session should be keyed by the full UUID, not the short ID alias."""
         data_dir = _create_fixture(tmp_path)
@@ -202,6 +203,7 @@ class TestQoderCanonicalDedup:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-008")
     def test_total_count_matches_canonical(self, tmp_path):
         """full_scan total count should be 1, not 2."""
         data_dir = _create_fixture(tmp_path)
@@ -215,6 +217,7 @@ class TestQoderCanonicalDedup:
             f"Expected total=1 after dedup, got {result['total']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-008")
     def test_fixture_data_isolated(self, tmp_path):
         """Scan should not touch real ~/.qoder/ when using fixture."""
         data_dir = _create_fixture(tmp_path)

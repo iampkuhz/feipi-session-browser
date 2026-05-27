@@ -20,9 +20,8 @@ Usage:
 
 from __future__ import annotations
 
-import re
-
 import pytest
+import re
 
 # ─── Constants ──────────────────────────────────────────────────────────
 
@@ -49,7 +48,9 @@ PAGES = [
 
 @pytest.fixture(scope="module")
 def display_2k_smoke_server(hifi_fixture_session):
-    """Use the hifi fixture session server for smoke testing.
+    """
+
+import Use the hifi fixture session server for smoke testing.
 
     Yields base_url from the deterministic fixture server.
     """
@@ -85,6 +86,7 @@ class TestDisplay2KSmoke:
     """Smoke test all major pages at 2560x1440 viewport."""
 
     @pytest.mark.parametrize("name,path,expected_fragment,min_length", PAGES)
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_page_loads(self, display_2k_smoke_server, name, path, expected_fragment, min_length):
         """Each page must return HTTP 200 with expected content at 2560x1440 viewport."""
         base_url = display_2k_smoke_server
@@ -106,6 +108,7 @@ class TestDisplay2KSmoke:
 class TestDisplay2KDashboard:
     """Dashboard structural checks at 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_metric_cards_present(self, display_2k_smoke_server):
         """Dashboard must have 4 metric cards."""
         base_url = display_2k_smoke_server
@@ -114,6 +117,7 @@ class TestDisplay2KDashboard:
         cards = re.findall(r'class="metric-card"', html)
         assert len(cards) == 4, f"Expected 4 metric cards, found {len(cards)}"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_chart_containers_present(self, display_2k_smoke_server):
         """Dashboard must have chart containers."""
         base_url = display_2k_smoke_server
@@ -123,6 +127,7 @@ class TestDisplay2KDashboard:
         assert len(containers) >= 2, \
             f"Expected at least 2 chart containers, found {len(containers)}"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_metric_grid_layout(self, display_2k_smoke_server):
         """Dashboard metric-grid must be present for wide layout."""
         base_url = display_2k_smoke_server
@@ -131,6 +136,7 @@ class TestDisplay2KDashboard:
         assert 'class="metric-grid"' in html, \
             "metric-grid must be present for 2560x1440 layout"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_scope_switch_ui(self, display_2k_smoke_server):
         """Dashboard must have scope switch UI."""
         base_url = display_2k_smoke_server
@@ -144,6 +150,7 @@ class TestDisplay2KDashboard:
 class TestDisplay2KSessionsList:
     """Sessions List structural checks at 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_sessions_table_present(self, display_2k_smoke_server):
         """Sessions List must have a sessions table."""
         base_url = display_2k_smoke_server
@@ -152,6 +159,7 @@ class TestDisplay2KSessionsList:
         assert 'aria-label="Sessions table"' in html, \
             "Sessions table must be present"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_sessions_has_data_rows(self, display_2k_smoke_server):
         """Sessions List must have data rows."""
         base_url = display_2k_smoke_server
@@ -161,6 +169,7 @@ class TestDisplay2KSessionsList:
         assert len(rows) > 0, \
             "Sessions List must have at least one session row"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_links_exist(self, display_2k_smoke_server):
         """Sessions List must have clickable session links."""
         base_url = display_2k_smoke_server
@@ -173,6 +182,7 @@ class TestDisplay2KSessionsList:
 class TestDisplay2KSessionDetail:
     """Session Detail structural checks at 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_accessible(self, display_2k_smoke_server):
         """Session Detail page must be accessible and render."""
         base_url = display_2k_smoke_server
@@ -188,6 +198,7 @@ class TestDisplay2KSessionDetail:
         assert status == 200, f"Session detail at {session_url} returned HTTP {status}"
         assert len(detail_html) >= 500, "Session detail HTML too short"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_has_timeline(self, display_2k_smoke_server):
         """Session Detail must have a timeline section."""
         base_url = display_2k_smoke_server
@@ -202,6 +213,7 @@ class TestDisplay2KSessionDetail:
         has_timeline = "timeline" in detail_html.lower() or "round" in detail_html.lower()
         assert has_timeline, "Session detail must have timeline or round content"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_has_header(self, display_2k_smoke_server):
         """Session Detail must have a page header with session title."""
         base_url = display_2k_smoke_server
@@ -220,6 +232,7 @@ class TestDisplay2KSessionDetail:
 class TestDisplay2KAgents:
     """Agents page structural checks at 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_agents_page_loads(self, display_2k_smoke_server):
         """Agents page must return HTTP 200."""
         base_url = display_2k_smoke_server
@@ -227,6 +240,7 @@ class TestDisplay2KAgents:
         assert status == 200
         assert len(html) >= 500, "Agents page HTML too short"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_agents_has_table_or_list(self, display_2k_smoke_server):
         """Agents page must have a data table or agent list."""
         base_url = display_2k_smoke_server
@@ -235,6 +249,7 @@ class TestDisplay2KAgents:
         has_table = 'class="data-table"' in html or 'class="agent-list"' in html
         assert has_table, "Agents page must have a table or agent list"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_agents_has_entries(self, display_2k_smoke_server):
         """Agents page must list at least one agent."""
         base_url = display_2k_smoke_server
@@ -247,6 +262,7 @@ class TestDisplay2KAgents:
 class TestDisplay2KProjects:
     """Projects page structural checks at 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_projects_page_loads(self, display_2k_smoke_server):
         """Projects page must return HTTP 200."""
         base_url = display_2k_smoke_server
@@ -254,6 +270,7 @@ class TestDisplay2KProjects:
         assert status == 200
         assert len(html) >= 500, "Projects page HTML too short"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_projects_has_table_or_list(self, display_2k_smoke_server):
         """Projects page must have a data table or project list."""
         base_url = display_2k_smoke_server
@@ -262,6 +279,7 @@ class TestDisplay2KProjects:
         has_table = 'class="data-table"' in html or 'class="project-list"' in html
         assert has_table, "Projects page must have a table or project list"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_projects_has_entries(self, display_2k_smoke_server):
         """Projects page must list at least one project."""
         base_url = display_2k_smoke_server
@@ -283,6 +301,7 @@ class TestDisplay2KProjects:
 class TestDisplay2KCSSSupport:
     """Verify CSS files contain responsive media queries suitable for 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_style_css_has_wide_media_query(self):
         """shell.css should contain media queries for wide viewports."""
         css_path = "src/session_browser/web/static/css/shell.css"
@@ -310,6 +329,7 @@ class TestDisplay2KCSSSupport:
         assert has_wide_query, \
             "shell.css must contain responsive media queries"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_dashboard_css_responsive(self):
         """Dashboard CSS must be responsive-aware."""
         css_path = "src/session_browser/web/static/css/dashboard.css"
@@ -337,6 +357,7 @@ class TestDisplay2KCSSSupport:
 class TestDisplay2KSessionDetailPage:
     """Session Detail page structural checks at 2560x1440 using fixture session."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_page_loads(self, display_2k_smoke_server):
         """Session Detail page must return HTTP 200."""
         base_url = display_2k_smoke_server
@@ -344,6 +365,7 @@ class TestDisplay2KSessionDetailPage:
         assert status == 200, f"Session Detail returned HTTP {status}"
         assert len(html) >= 500, "Session Detail HTML too short"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_has_hero(self, display_2k_smoke_server):
         """Session Detail must have a hero/header section."""
         base_url = display_2k_smoke_server
@@ -352,6 +374,7 @@ class TestDisplay2KSessionDetailPage:
         assert "sd-hero" in html or "session-detail" in html.lower(), \
             "Session Detail must have hero or session-detail section"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_has_tabs(self, display_2k_smoke_server):
         """Session Detail must have tab navigation."""
         base_url = display_2k_smoke_server
@@ -360,6 +383,7 @@ class TestDisplay2KSessionDetailPage:
         assert "sd-tabs" in html or "tab" in html.lower(), \
             "Session Detail must have tab navigation"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_has_trace_panel(self, display_2k_smoke_server):
         """Session Detail must have a trace panel."""
         base_url = display_2k_smoke_server
@@ -375,6 +399,7 @@ class TestDisplay2KSessionDetailPage:
 class TestDisplay2KGlossary:
     """Glossary page structural checks at 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_glossary_page_loads(self, display_2k_smoke_server):
         """Glossary page must return HTTP 200."""
         base_url = display_2k_smoke_server
@@ -382,6 +407,7 @@ class TestDisplay2KGlossary:
         assert status == 200, f"Glossary returned HTTP {status}"
         assert len(html) >= 500, "Glossary page HTML too short"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_glossary_has_metric_grid(self, display_2k_smoke_server):
         """Glossary must have a metric grid."""
         base_url = display_2k_smoke_server
@@ -390,6 +416,7 @@ class TestDisplay2KGlossary:
         assert 'class="metric-grid"' in html, \
             "Glossary must have a metric-grid section"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_glossary_has_filter_card(self, display_2k_smoke_server):
         """Glossary must have a filter/search card."""
         base_url = display_2k_smoke_server
@@ -398,6 +425,7 @@ class TestDisplay2KGlossary:
         assert "filter-card" in html or "search" in html.lower(), \
             "Glossary must have a filter/search card"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_glossary_has_data_tables(self, display_2k_smoke_server):
         """Glossary must have data tables."""
         base_url = display_2k_smoke_server
@@ -406,6 +434,7 @@ class TestDisplay2KGlossary:
         assert 'class="data-table' in html, \
             "Glossary must have at least one data-table"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_glossary_has_token_terms(self, display_2k_smoke_server):
         """Glossary must contain token-related terminology."""
         base_url = display_2k_smoke_server
@@ -421,18 +450,21 @@ class TestDisplay2KGlossary:
 class TestDisplay2K404Page:
     """404 error page structural checks at 2560x1440."""
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_404_page_returns_404_status(self, display_2k_smoke_server):
         """404 page must return HTTP 404 status."""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/__test-404-not-found__")
         assert status == 404, f"Expected HTTP 404, got {status}"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_404_page_renders_meaningful_html(self, display_2k_smoke_server):
         """404 page must contain meaningful HTML content."""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/__test-404-not-found__")
         assert len(html) > 200, "404 HTML must be substantial"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_404_page_has_not_found_text(self, display_2k_smoke_server):
         """404 page must show 'Not Found' text."""
         base_url = display_2k_smoke_server
@@ -440,6 +472,7 @@ class TestDisplay2K404Page:
         assert "Not Found" in html or "not found" in html, \
             "404 page must contain 'Not Found' text"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_404_page_has_state_panel(self, display_2k_smoke_server):
         """404 page must use shared state-panel component."""
         base_url = display_2k_smoke_server
@@ -448,6 +481,7 @@ class TestDisplay2K404Page:
         assert 'class="state-panel"' in html, \
             "404 page must have state-panel container"
 
+    @pytest.mark.contract_case("UI-VISUAL-008")
     def test_404_page_has_dashboard_link(self, display_2k_smoke_server):
         """404 page must link back to dashboard."""
         base_url = display_2k_smoke_server

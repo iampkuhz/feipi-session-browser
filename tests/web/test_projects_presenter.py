@@ -7,9 +7,8 @@ Covers:
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
+from unittest.mock import MagicMock, patch
 
 from session_browser.web.presenters.projects import (
     VALID_PAGE_SIZES,
@@ -24,48 +23,59 @@ from session_browser.web.presenters.projects import (
 
 class TestParseProjectsQueryParams:
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_defaults_empty_params(self):
         result = parse_projects_query_params({})
         assert result["page"] == 1
         assert result["page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_valid(self):
         result = parse_projects_query_params({"page": ["5"]})
         assert result["page"] == 5
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_zero_clamps_to_one(self):
         result = parse_projects_query_params({"page": ["0"]})
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_negative_clamps_to_one(self):
         result = parse_projects_query_params({"page": ["-3"]})
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_invalid_string(self):
         result = parse_projects_query_params({"page": ["abc"]})
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_valid(self):
         for size in VALID_PAGE_SIZES:
             result = parse_projects_query_params({"page_size": [str(size)]})
             assert result["page_size"] == size
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_all(self):
         result = parse_projects_query_params({"page_size": ["all"]})
         assert result["page_size"] == "all"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_ALL_uppercase(self):
         result = parse_projects_query_params({"page_size": ["ALL"]})
         assert result["page_size"] == "all"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_invalid_defaults_to_20(self):
         result = parse_projects_query_params({"page_size": ["99"]})
         assert result["page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_non_numeric_defaults_to_20(self):
         result = parse_projects_query_params({"page_size": ["xyz"]})
         assert result["page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_combined_params(self):
         result = parse_projects_query_params({
             "page": ["3"],
@@ -79,6 +89,7 @@ class TestParseProjectsQueryParams:
 
 class TestComputeProjectsPagination:
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_empty_list(self):
         result = compute_projects_pagination(0, 1, 20)
         assert result["limit"] == 20
@@ -90,6 +101,7 @@ class TestComputeProjectsPagination:
         assert result["has_next"] is False
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_single_page(self):
         result = compute_projects_pagination(5, 1, 20)
         assert result["total_pages"] == 1
@@ -100,6 +112,7 @@ class TestComputeProjectsPagination:
         assert result["has_prev"] is False
         assert result["has_next"] is False
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_multi_page_first_page(self):
         result = compute_projects_pagination(100, 1, 20)
         assert result["total_pages"] == 5
@@ -110,6 +123,7 @@ class TestComputeProjectsPagination:
         assert result["has_prev"] is False
         assert result["has_next"] is True
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_multi_page_middle_page(self):
         result = compute_projects_pagination(100, 3, 20)
         assert result["page"] == 3
@@ -119,6 +133,7 @@ class TestComputeProjectsPagination:
         assert result["has_prev"] is True
         assert result["has_next"] is True
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_multi_page_last_page(self):
         result = compute_projects_pagination(100, 5, 20)
         assert result["offset"] == 80
@@ -127,18 +142,21 @@ class TestComputeProjectsPagination:
         assert result["has_prev"] is True
         assert result["has_next"] is False
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_beyond_total_clamped(self):
         result = compute_projects_pagination(50, 10, 20)
         # total_pages = 3, page 10 -> clamped to 3
         assert result["page"] == 3
         assert result["offset"] == 40
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_exactly_total_not_clamped(self):
         result = compute_projects_pagination(40, 2, 20)
         assert result["total_pages"] == 2
         assert result["page"] == 2
         assert result["offset"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_all(self):
         result = compute_projects_pagination(75, 1, "all")
         assert result["limit"] == 75
@@ -150,6 +168,7 @@ class TestComputeProjectsPagination:
         assert result["has_next"] is False
         assert result["has_prev"] is False
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_all_empty(self):
         result = compute_projects_pagination(0, 1, "all")
         assert result["limit"] == 2000
@@ -157,15 +176,18 @@ class TestComputeProjectsPagination:
         assert result["total_pages"] == 1
         assert result["effective_page_size"] == 0
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_effective_page_size_numeric(self):
         result = compute_projects_pagination(50, 1, 20)
         assert result["effective_page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_offset_calculation(self):
         for pg, ps, expected_offset in [(1, 20, 0), (2, 20, 20), (5, 50, 200)]:
             result = compute_projects_pagination(1000, pg, ps)
             assert result["offset"] == expected_offset, f"page={pg}, size={ps}"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_end_capped_at_total(self):
         # Last partial page
         result = compute_projects_pagination(55, 3, 20)
@@ -178,11 +200,14 @@ class TestComputeProjectsPagination:
 class TestBuildProjectsViewModel:
 
     def _make_mock_conn(self):
-        """Create a mock sqlite3.Connection."""
+        """
+
+Create a mock sqlite3.Connection."""
         return MagicMock()
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_view_model_has_pagination_keys(
         self, mock_list, mock_count,
     ):
@@ -207,6 +232,7 @@ class TestBuildProjectsViewModel:
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_view_model_values_defaults(
         self, mock_list, mock_count,
     ):
@@ -229,6 +255,7 @@ class TestBuildProjectsViewModel:
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_view_model_with_pagination(
         self, mock_list, mock_count,
     ):
@@ -251,6 +278,7 @@ class TestBuildProjectsViewModel:
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_view_model_passes_pagination_to_list_projects(
         self, mock_list, mock_count,
     ):
@@ -268,6 +296,7 @@ class TestBuildProjectsViewModel:
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_input_affects_result_set(
         self, mock_list, mock_count,
     ):
@@ -288,6 +317,7 @@ class TestBuildProjectsViewModel:
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_view_model_page_size_all(
         self, mock_list, mock_count,
     ):
@@ -304,6 +334,7 @@ class TestBuildProjectsViewModel:
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_view_model_active_page_is_projects(
         self, mock_list, mock_count,
     ):
@@ -325,6 +356,7 @@ class TestBuildProjectDetailViewModel:
     @patch("session_browser.web.presenters.projects.count_sessions")
     @patch("session_browser.web.presenters.projects.get_project_stats")
     @patch("session_browser.web.presenters.projects.list_sessions")
+    @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_detail_view_model_has_required_keys(
         self, mock_list_sessions, mock_stats, mock_count,
     ):

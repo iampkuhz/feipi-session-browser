@@ -67,7 +67,7 @@ test.describe('Shell states — Session Detail', () => {
   }
 
   // ── Shell state matrix: normal ────────────────────────────────
-  test('normal state — sidebar + main + inspector visible', async ({ page }) => {
+  test('[UI-SD-014] normal state — sidebar + main + inspector visible', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await gotoSessionDetail(page);
     const result = await setShellStateAndMeasure(page, 'normal');
@@ -78,7 +78,7 @@ test.describe('Shell states — Session Detail', () => {
   });
 
   // ── Shell state matrix: hide-left ─────────────────────────────
-  test('hide-left state — sidebar collapsed, main visible (no-inspector page)', async ({ page }) => {
+  test('[UI-SD-014] hide-left state — sidebar collapsed, main visible (no-inspector page)', async ({ page }) => {
     // Previously fixme: body.hide-left caused .main width → 0px; fixed by
     // adding explicit .no-inspector body state variants in shell.css.
     // Note: session detail pages use no-inspector class, so there is no inspector element.
@@ -92,7 +92,7 @@ test.describe('Shell states — Session Detail', () => {
   });
 
   // ── Shell state matrix: hide-right ────────────────────────────
-  test('hide-right state — sidebar + main visible, inspector collapsed', async ({ page }) => {
+  test('[UI-SD-014] hide-right state — sidebar + main visible, inspector collapsed', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await gotoSessionDetail(page);
     const result = await setShellStateAndMeasure(page, 'hide-right');
@@ -104,7 +104,7 @@ test.describe('Shell states — Session Detail', () => {
   });
 
   // ── Shell state matrix: focus ─────────────────────────────────
-  test('focus state — only main visible, sidebar + inspector collapsed', async ({ page }) => {
+  test('[UI-SD-014] focus state — only main visible, sidebar + inspector collapsed', async ({ page }) => {
     // Previously fixme: body.focus caused .main width → 0px; fixed by
     // adding explicit .no-inspector body state variants in shell.css.
     await page.setViewportSize({ width: 1440, height: 1100 });
@@ -120,7 +120,7 @@ test.describe('Shell states — Session Detail', () => {
   // ── Screenshot baselines for stable shell states ──────────────
   for (const vp of viewports) {
     for (const state of ['normal', 'hide-right']) {
-      test(`shell @ ${state} ${vp.label} — screenshot`, async ({ page }) => {
+      test(`[UI-VISUAL-004] shell @ ${state} ${vp.label} — screenshot`, async ({ page }) => {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         await gotoSessionDetail(page);
         await setShellStateAndMeasure(page, state);
@@ -141,7 +141,7 @@ test.describe('Shell states — Session Detail', () => {
   // ── Screenshot baselines for hide-left and focus states ──
   for (const vp of viewports) {
     for (const state of ['hide-left', 'focus']) {
-      test(`shell @ ${state} ${vp.label} — screenshot`, async ({ page }) => {
+      test(`[UI-VISUAL-005] shell @ ${state} ${vp.label} — screenshot`, async ({ page }) => {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         await gotoSessionDetail(page);
         await setShellStateAndMeasure(page, state);
@@ -160,7 +160,7 @@ test.describe('Shell states — Session Detail', () => {
 });
 
 test.describe('Shell states — Dashboard (no-inspector)', () => {
-  test('normal state — dashboard sidebar + main visible', async ({ page }) => {
+  test('[UI-VISUAL-006] normal state — dashboard sidebar + main visible', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 10000 });
     await expect(page.locator('.page-head').first()).toBeVisible({ timeout: 5000 });
@@ -185,7 +185,7 @@ test.describe('Shell states — Dashboard (no-inspector)', () => {
     expect(result.sidebarWidth, 'dashboard normal: .sidebar 宽度必须 > 0').toBeGreaterThan(0);
   });
 
-  test('hide-left state — dashboard sidebar collapsed', async ({ page }) => {
+  test('[UI-VISUAL-006] hide-left state — dashboard sidebar collapsed', async ({ page }) => {
     // Previously fixme: same shell grid bug; fixed by adding explicit
     // .no-inspector body state variants in shell.css.
     await page.setViewportSize({ width: 1440, height: 900 });

@@ -8,9 +8,8 @@ T007 — Dashboard tooltip positioning static gate.
 
 from __future__ import annotations
 
-import re
-
 import pytest
+import re
 
 _CSS_PATH = "src/session_browser/web/static/css/dashboard.css"
 
@@ -41,6 +40,7 @@ class TestDashboardTooltipContract:
         assert match, "CSS must contain a .bar rule"
         return match.group(1)
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_tooltip_not_fixed(self):
         """.dashboard-tooltip must NOT contain position: fixed."""
         block = self._get_tooltip_block()
@@ -53,6 +53,7 @@ class TestDashboardTooltipContract:
             f"Tooltip must be positioned relative to .bar, not viewport."
         )
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_bar_is_relative(self):
         """.bar must contain position: relative to anchor the tooltip."""
         block = self._get_bar_block()

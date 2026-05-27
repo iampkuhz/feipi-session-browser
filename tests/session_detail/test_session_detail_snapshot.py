@@ -17,12 +17,11 @@ Run with: pytest tests/session_detail/test_session_detail_snapshot.py -v
 
 from __future__ import annotations
 
+import pytest
 import json
 import os
 import sys
 from pathlib import Path
-
-import pytest
 
 SB_ROOT = Path(__file__).resolve().parent.parent.parent
 FIXTURES_DIR = SB_ROOT / "tests" / "fixtures" / "session_detail"
@@ -254,6 +253,7 @@ class TestSessionDetailSnapshot:
 
     # ── Summary ───────────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_summary_identity(self, snapshot):
         """Agent, session_id, project_key must match expected."""
         expected = _load_expected()
@@ -261,6 +261,7 @@ class TestSessionDetailSnapshot:
         assert snapshot["session_id"] == expected["session_id"]
         assert snapshot["project_key"] == expected["project_key"]
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_summary_title_and_model(self, snapshot):
         """Title and model must match expected."""
         expected = _load_expected()
@@ -269,6 +270,7 @@ class TestSessionDetailSnapshot:
 
     # ── Token totals ──────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_token_totals(self, snapshot):
         """All token category totals must match expected."""
         expected = _load_expected()
@@ -279,6 +281,7 @@ class TestSessionDetailSnapshot:
             assert snapshot["summary"][key] == expected["summary"][key], \
                 f"Token '{key}' mismatch: {snapshot['summary'][key]} != {expected['summary'][key]}"
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_llm_call_token_aggregates(self, snapshot):
         """Aggregate token counts across all LLM calls must match expected."""
         expected = _load_expected()
@@ -291,6 +294,7 @@ class TestSessionDetailSnapshot:
 
     # ── Message counts ────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_message_counts(self, snapshot):
         """Message counts must match expected."""
         expected = _load_expected()
@@ -300,12 +304,14 @@ class TestSessionDetailSnapshot:
 
     # ── Round count and structure ─────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_round_count(self, snapshot):
         """Round count must match expected."""
         expected = _load_expected()
         assert snapshot["rounds"]["count"] == expected["rounds"]["count"], \
             f"Expected {expected['rounds']['count']} rounds, got {snapshot['rounds']['count']}"
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_round_details(self, snapshot):
         """Each round's tool count, token count, interaction count must match."""
         expected = _load_expected()
@@ -319,11 +325,13 @@ class TestSessionDetailSnapshot:
 
     # ── Tool calls ────────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_tool_call_count(self, snapshot):
         """Total tool call count must match expected."""
         expected = _load_expected()
         assert snapshot["tool_calls"]["total_count"] == expected["tool_calls"]["total_count"]
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_tool_name_diversity(self, snapshot):
         """Tool name set must match expected (verifies fixture diversity)."""
         expected = _load_expected()
@@ -331,6 +339,7 @@ class TestSessionDetailSnapshot:
             expected["tool_calls"]["unique_tool_names"]
         ), f"Tool names mismatch: {snapshot['tool_calls']['unique_tool_names']}"
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_failed_tool_count(self, snapshot):
         """Failed tool count and names must match expected."""
         expected = _load_expected()
@@ -341,6 +350,7 @@ class TestSessionDetailSnapshot:
 
     # ── LLM calls ─────────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_llm_call_counts(self, snapshot):
         """Main and subagent LLM call counts must match expected."""
         expected = _load_expected()
@@ -350,11 +360,13 @@ class TestSessionDetailSnapshot:
 
     # ── Subagent runs ─────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_subagent_run_count(self, snapshot):
         """Subagent run count must match expected."""
         expected = _load_expected()
         assert snapshot["subagent_runs"]["count"] == expected["subagent_runs"]["count"]
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_subagent_run_details(self, snapshot):
         """Subagent run agent_id and turn count must match expected."""
         expected = _load_expected()
@@ -368,11 +380,13 @@ class TestSessionDetailSnapshot:
 
     # ── Anomalies ─────────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_session_anomaly_count(self, snapshot):
         """Session anomaly count must match expected."""
         expected = _load_expected()
         assert snapshot["anomalies"]["session_anomaly_count"] == expected["anomalies"]["session_anomaly_count"]
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_session_anomaly_types(self, snapshot):
         """Session anomaly types must match expected."""
         expected = _load_expected()
@@ -382,11 +396,13 @@ class TestSessionDetailSnapshot:
 
     # ── Round signals ─────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_round_signal_count(self, snapshot):
         """Total round signal count must match expected."""
         expected = _load_expected()
         assert snapshot["round_signals"]["total_signal_count"] == expected["round_signals"]["total_signal_count"]
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_round_signals_by_round(self, snapshot):
         """Per-round signal keys and severities must match expected."""
         expected = _load_expected()
@@ -405,6 +421,7 @@ class TestSessionDetailSnapshot:
 
     # ── Duration ──────────────────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_duration(self, snapshot):
         """Session duration must match expected."""
         expected = _load_expected()
@@ -412,6 +429,7 @@ class TestSessionDetailSnapshot:
 
     # ── Message count summary ─────────────────────────────────────
 
+    @pytest.mark.contract_case("UI-SD-015")
     def test_summary_message_counts(self, snapshot):
         """Summary message/tool counts must match expected."""
         expected = _load_expected()

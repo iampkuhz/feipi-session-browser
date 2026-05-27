@@ -10,14 +10,13 @@ Tests use monkeypatched tmp QODER_DATA_DIR -- no real user data.
 
 from __future__ import annotations
 
+import pytest
 import json
 import os
 import sqlite3
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -148,6 +147,7 @@ def _create_qoder_project(data_dir: Path, project_name: str, session_id: str,
 class TestQoderIncrementalFilepathUpdate:
     """Validate that incremental scan updates file_path for old records."""
 
+    @pytest.mark.contract_case("DATA-INDEX-009")
     def test_empty_file_path_gets_populated_without_mtime_change(self, tmp_path):
         """Old record with timing data but empty file_path should be updated.
 
@@ -206,6 +206,7 @@ class TestQoderIncrementalFilepathUpdate:
         )
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-009")
     def test_empty_model_gets_reparsed_without_mtime_change(self, tmp_path):
         """Old record with timing data but empty model should be re-parsed.
 
@@ -263,6 +264,7 @@ class TestQoderIncrementalFilepathUpdate:
         )
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-009")
     def test_complete_record_still_skipped_on_unchanged_mtime(self, tmp_path):
         """Complete record (file_path + model + timing) should still be skipped.
 
@@ -302,6 +304,7 @@ class TestQoderIncrementalFilepathUpdate:
             f"Expected at least 1 skipped session, got skipped={result.get('skipped', 0)}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-009")
     def test_deleted_file_path_gets_relocated(self, tmp_path):
         """Record with file_path pointing to deleted file should relocate.
 
@@ -350,6 +353,7 @@ class TestQoderIncrementalFilepathUpdate:
         )
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-009")
     def test_both_empty_filepath_and_model_reparsed(self, tmp_path):
         """Record with both empty file_path and model should be re-parsed."""
         data_dir = tmp_path / "qoder_data"

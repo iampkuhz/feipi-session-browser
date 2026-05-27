@@ -9,11 +9,10 @@ T066 — Dashboard page-specific pytest.
 
 from __future__ import annotations
 
+import pytest
 import os
 import pathlib
 import re
-
-import pytest
 
 _DASHBOARD_PATH = "src/session_browser/web/templates/dashboard.html"
 _DASHBOARD_CSS_PATH = "src/session_browser/web/static/css/dashboard.css"
@@ -34,25 +33,30 @@ def _read_dashboard() -> str:
 class TestDashboardTemplate:
     """Verify the dashboard Jinja2 template renders structurally."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_template_file_exists(self):
         assert os.path.isfile(_DASHBOARD_PATH), \
             f"{_DASHBOARD_PATH} must exist"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_extends_base(self):
         content = _read_dashboard()
         assert '{% extends "base.html" %}' in content, \
             "Dashboard must extend base.html"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_active_page_set(self):
         content = _read_dashboard()
         assert "active_page = 'dashboard'" in content, \
             "Dashboard must set active_page = 'dashboard'"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_ui_primitives_imported(self):
         content = _read_dashboard()
         assert 'import "components/ui_primitives.html"' in content, \
             "Dashboard must import ui_primitives.html"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_inline_onclick(self):
         """Dashboard must not use inline onclick handlers."""
         content = _read_dashboard()
@@ -67,20 +71,24 @@ class TestDashboardTemplate:
 class TestDashboardImports:
     """Verify CSS and JS import statements."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_css_import_dashboard_css(self):
         content = _read_dashboard()
         assert 'href="/static/css/dashboard.css"' in content, \
             "Dashboard must import dashboard.css"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_js_import_dashboard_js(self):
         content = _read_dashboard()
         assert 'src="/static/js/dashboard.js"' in content, \
             "Dashboard must import dashboard.js"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_css_file_exists_on_disk(self):
         assert os.path.isfile(_DASHBOARD_CSS_PATH), \
             "dashboard.css must exist on disk"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_js_file_exists_on_disk(self):
         assert os.path.isfile(_DASHBOARD_JS_PATH), \
             "dashboard.js must exist on disk"
@@ -91,16 +99,19 @@ class TestDashboardImports:
 class TestDashboardPageHead:
     """Verify page-head structure (uses ui.page_head macro, T15)."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_macro_used(self):
         content = _read_dashboard()
         assert 'ui.page_head(' in content, \
             "Dashboard must use ui.page_head() macro"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_has_h1(self):
         content = _read_dashboard()
         assert "'Dashboard'" in content, \
             "page_head() must have 'Dashboard' as title"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_has_subtitle(self):
         content = _read_dashboard()
         assert "Local agent session overview" in content, \
@@ -114,11 +125,13 @@ class TestDashboardMetricCards:
 
     _EXPECTED_LABELS = ["Projects", "Sessions", "Total Tokens", "Failed Tools"]
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_grid_present(self):
         content = _read_dashboard()
         assert 'class="metric-grid"' in content, \
             "Dashboard must have a metric-grid section"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_four_metric_cards(self):
         content = _read_dashboard()
         cards = re.findall(r'class="metric-card"', content)
@@ -126,11 +139,13 @@ class TestDashboardMetricCards:
             f"Dashboard must have exactly 4 metric cards, found {len(cards)}"
 
     @pytest.mark.parametrize("label", ["Projects", "Sessions", "Total Tokens", "Failed Tools"])
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_card_labels(self, label):
         content = _read_dashboard()
         assert f'"{label}"' in content or f">{label}<" in content, \
             f"Dashboard must have a metric card labeled '{label}'"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_card_aria_labels(self):
         """Each metric card must have an aria-label."""
         content = _read_dashboard()
@@ -144,6 +159,7 @@ class TestDashboardMetricCards:
 class TestDashboardChartCards:
     """Verify chart cards (via chart_card macro: Session Trend + Token Trend)."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_cards_present(self):
         content = _read_dashboard()
         # Verify chart_card macro definition exists
@@ -154,6 +170,7 @@ class TestDashboardChartCards:
         assert len(calls) >= 2, \
             f"Dashboard must have at least 2 chart_card calls, found {len(calls)}"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_session_trend_chart(self):
         content = _read_dashboard()
         assert "Session Trend" in content, \
@@ -162,6 +179,7 @@ class TestDashboardChartCards:
         assert 'chart_type="sessions"' in content, \
             "Session Trend chart must use chart_card with chart_type='sessions'"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_token_trend_chart(self):
         content = _read_dashboard()
         assert "Token Trend" in content, \
@@ -170,6 +188,7 @@ class TestDashboardChartCards:
         assert 'chart_type="tokens"' in content, \
             "Token Trend chart must use chart_card with chart_type='tokens'"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_has_legend(self):
         """Charts must show legend with agent names."""
         content = _read_dashboard()
@@ -190,29 +209,34 @@ class TestDashboardChartCards:
 class TestDashboardScopeSwitch:
     """Verify scope-switch is invoked via ui_primitives macro."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_macro_invoked(self):
         content = _read_dashboard()
         assert 'ui.scope_switch(' in content, \
             "Dashboard must invoke ui.scope_switch macro"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_day_button(self):
         """The scope_switch macro must render a Day button with data-scope='day'."""
         rendered = _render_scope_switch()
         assert 'data-scope="day"' in rendered
         assert ">Day<" in rendered
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_week_button(self):
         """The scope_switch macro must render a Week button with data-scope='week'."""
         rendered = _render_scope_switch()
         assert 'data-scope="week"' in rendered
         assert ">Week<" in rendered
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_month_button(self):
         """The scope_switch macro must render a Month button with data-scope='month'."""
         rendered = _render_scope_switch()
         assert 'data-scope="month"' in rendered
         assert ">Month<" in rendered
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_default_active(self):
         """Day button must be is-active by default."""
         rendered = _render_scope_switch()
@@ -239,6 +263,7 @@ def _render_scope_switch() -> str:
 class TestDashboardInfoButtons:
     """Verify info (ℹ️) buttons on each metric and chart."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_info_buttons(self):
         """Each metric card must have an info button."""
         content = _read_dashboard()
@@ -246,6 +271,7 @@ class TestDashboardInfoButtons:
             assert f'data-info="{info_key}"' in content, \
                 f"Dashboard must have info button for '{info_key}'"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_info_buttons(self):
         """Each chart card must have an info button."""
         content = _read_dashboard()
@@ -258,6 +284,7 @@ class TestDashboardInfoButtons:
         assert 'chart_type="tokens"' in content, \
             "Must have tokens chart card"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_info_button_uses_icon_button_class(self):
         """Info buttons must use icon-button--info class."""
         content = _read_dashboard()
@@ -270,16 +297,19 @@ class TestDashboardInfoButtons:
 class TestDashboardEmptyState:
     """Verify empty state renders when stats.total_sessions == 0."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_empty_state_condition(self):
         content = _read_dashboard()
         assert "stats.total_sessions == 0" in content, \
             "Dashboard must check stats.total_sessions == 0 for empty state"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_empty_state_uses_ui_macro(self):
         content = _read_dashboard()
         assert "ui.empty_state" in content, \
             "Empty state must use ui.empty_state macro"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_empty_state_has_action_button(self):
         content = _read_dashboard()
         assert "Run Scan" in content, \
@@ -291,16 +321,19 @@ class TestDashboardEmptyState:
 class TestDashboardErrorState:
     """Verify error state renders when error variable is set."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_error_state_condition(self):
         content = _read_dashboard()
         assert "{% if error %}" in content, \
             "Dashboard must check for error variable"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_error_state_uses_ui_macro(self):
         content = _read_dashboard()
         assert "ui.error_state" in content, \
             "Error state must use ui.error_state macro"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_error_state_has_dashboard_link(self):
         content = _read_dashboard()
         assert "/dashboard" in content, \
@@ -312,16 +345,19 @@ class TestDashboardErrorState:
 class TestDashboardFloatingOverlays:
     """Verify floating overlay elements (tooltip, popover, drawer, toast)."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_tooltip_element(self):
         content = _read_dashboard()
         assert 'id="chartTooltip"' in content, \
             "Dashboard must have chartTooltip element"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_info_popover(self):
         content = _read_dashboard()
         assert 'id="infoPopover"' in content, \
             "Dashboard must have infoPopover element"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_toast_element(self):
         content = _read_dashboard()
         assert 'id="toast"' in content, \
@@ -333,26 +369,31 @@ class TestDashboardFloatingOverlays:
 class TestDashboardNoHeroV16:
     """Verify old v16 hero section is NOT present."""
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_section(self):
         content = _read_dashboard()
         assert 'class="hero"' not in content, \
             "Dashboard must not have v16 hero section"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_title(self):
         content = _read_dashboard()
         assert 'class="hero-title"' not in content, \
             "Dashboard must not have v16 hero-title"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_kpis(self):
         content = _read_dashboard()
         assert 'class="hero-kpis"' not in content, \
             "Dashboard must not have v16 hero-kpis"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_chips(self):
         content = _read_dashboard()
         assert 'class="hero-chips"' not in content, \
             "Dashboard must not have v16 hero-chips"
 
+    @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_range_tabs(self):
         content = _read_dashboard()
         assert 'class="range-tabs"' not in content, \

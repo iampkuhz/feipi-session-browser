@@ -1,11 +1,11 @@
 """Tests for CLI process handling."""
 
+import pytest
 import subprocess
 import sys
 
-import pytest
 
-
+@pytest.mark.contract_case("ACCEPTANCE-001")
 def test_run_command_success():
     """Short commands return stdout and return code."""
     from session_browser.cli import _run_command
@@ -19,6 +19,7 @@ def test_run_command_success():
     assert result.stdout.strip() == "ok"
 
 
+@pytest.mark.contract_case("ACCEPTANCE-001")
 def test_run_command_timeout_cleans_process_group():
     """Timeouts are surfaced after terminating the spawned process group."""
     from session_browser.cli import _run_command

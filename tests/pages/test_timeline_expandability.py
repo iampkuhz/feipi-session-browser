@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
 import re
 import textwrap
-
-import pytest
 
 # Import the check functions from the script
 import sys
@@ -21,7 +20,9 @@ import check_timeline_expandability as chk  # noqa: E402
 # Helper: create minimal file-like content for testing
 # ---------------------------------------------------------------------------
 
-GOOD_TIMELINE_HTML = textwrap.dedent("""\
+GOOD_TIMELINE_HTML = textwrap.dedent("""
+
+import pytest\
     {% macro timeline_node(node) %}
     {% set depth = node.depth | default(0) %}
     <div class="timeline-node {{ 'has-children' if node.children else '' }}
@@ -177,12 +178,14 @@ BAD_CSS_NO_CHILDREN_HIDE = textwrap.dedent("""\
 # ---------------------------------------------------------------------------
 
 class TestToggleForHasChildren:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_good_template_has_toggle(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_toggle_for_has_children(GOOD_TIMELINE_HTML)
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_bad_template_missing_toggle(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -195,12 +198,14 @@ class TestToggleForHasChildren:
 # ---------------------------------------------------------------------------
 
 class TestTimelineId:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_good_template_has_id(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_timeline_id(GOOD_TIMELINE_HTML, "")
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_bad_template_missing_id(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -213,18 +218,21 @@ class TestTimelineId:
 # ---------------------------------------------------------------------------
 
 class TestExpandCollapseCoverage:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_good_js(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_expand_collapse_coverage(GOOD_JS)
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_bad_js_no_expand_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_expand_collapse_coverage(BAD_JS_NO_EXPAND_ALL)
         assert chk._FAIL_COUNT > 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_analyse_expand_collapse_selectors(self):
         info = chk._analyse_expand_collapse(GOOD_JS)
         assert info["expandAll_exists"] is True
@@ -239,12 +247,14 @@ class TestExpandCollapseCoverage:
 # ---------------------------------------------------------------------------
 
 class TestToggleAriaSync:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_good_template_syncs(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_toggle_aria_sync(GOOD_TIMELINE_HTML)
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_bad_template_no_aria(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -260,12 +270,14 @@ class TestToggleAriaSync:
 # ---------------------------------------------------------------------------
 
 class TestFilterPreserveState:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_good_js_preserves_state(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_filter_preserves_state(GOOD_JS)
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_bad_js_removes_is_expanded(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -279,12 +291,14 @@ class TestFilterPreserveState:
 # ---------------------------------------------------------------------------
 
 class TestTabSwitchExpand:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_good_css(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_tab_switch_expand('id="timeline"', GOOD_CSS)
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_bad_css_visibility_hidden(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -298,6 +312,7 @@ class TestTabSwitchExpand:
 # ---------------------------------------------------------------------------
 
 class TestRoundExpandStructure:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_has_round_structure(self):
         html = '<tr class="round-header-row">' + \
                '<tr class="round-detail-row">'
@@ -307,6 +322,7 @@ class TestRoundExpandStructure:
         chk.check_round_expand_structure(html, js)
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_missing_round_detail(self):
         html = '<tr class="round-header-row">'
         js = ''
@@ -321,12 +337,14 @@ class TestRoundExpandStructure:
 # ---------------------------------------------------------------------------
 
 class TestChildrenVisibilityCss:
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_good_css(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_children_visibility_css(GOOD_CSS)
         assert chk._FAIL_COUNT == 0
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_bad_css_no_hide(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -346,6 +364,7 @@ SESSION_HTML = (Path(__file__).resolve().parents[2]
 class TestNoInlineOnclickOnTraceRows:
     """Regression: trace rows must NOT have inline onclick; event delegation handles them."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_trace_row_no_inline_onclick(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -364,6 +383,7 @@ class TestNoInlineOnclickOnTraceRows:
 class TestExpandCollapseUsesDataAction:
     """Regression: expand-all/collapse-all buttons use data-action, not inline onclick."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_expand_all_no_inline_onclick(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -377,6 +397,7 @@ class TestExpandCollapseUsesDataAction:
             "Use event delegation via [data-action=expand-all]."
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_collapse_all_no_inline_onclick(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -394,6 +415,7 @@ class TestExpandCollapseUsesDataAction:
 class TestEventDelegationPresent:
     """Verify event delegation handler covers v9 trace rows and expand/collapse buttons."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_trace_row(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -409,6 +431,7 @@ class TestEventDelegationPresent:
         else:
             pytest.skip("session_detail_timeline.js not found")
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_expand_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -425,6 +448,7 @@ class TestEventDelegationPresent:
         else:
             pytest.skip("session_detail_timeline.js not found")
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_collapse_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -439,6 +463,7 @@ class TestEventDelegationPresent:
         else:
             pytest.skip("session_detail_timeline.js not found")
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_filter_status(self):
         """Phase 1: filter-status action must exist for All/Failed filtering."""
         chk._FAIL_COUNT = 0
@@ -463,6 +488,7 @@ class TestEventDelegationPresent:
 class TestAccordionBehavior:
     """Verify accordion logic in v9 session_detail_timeline.js."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_collapse_others_function_exists(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
@@ -478,6 +504,7 @@ class TestAccordionBehavior:
         else:
             pytest.skip("session_detail_timeline.js not found")
 
+    @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_toggle_round_detail_calls_collapse_others(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0

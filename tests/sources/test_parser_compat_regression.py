@@ -16,13 +16,12 @@ Coverage:
 
 from __future__ import annotations
 
+import pytest
 import inspect
 import json
 import tempfile
 from pathlib import Path
 from typing import Callable
-
-import pytest
 
 # ─── Shared types ────────────────────────────────────────────────────────
 
@@ -51,12 +50,14 @@ def _write_jsonl(content: str) -> Path:
 class TestPublicSignatures:
     """Verify that each adapter's public API is importable and callable."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_parse_history_callable(self):
         from session_browser.sources import claude
         assert callable(claude.parse_history)
         sig = inspect.signature(claude.parse_history)
         assert isinstance(sig, inspect.Signature)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_parse_session_detail_callable(self):
         from session_browser.sources import claude
         assert callable(claude.parse_session_detail)
@@ -65,18 +66,21 @@ class TestPublicSignatures:
         assert "project_key" in params
         assert "session_id" in params
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_index_callable(self):
         from session_browser.sources import codex
         assert callable(codex.parse_session_index)
         sig = inspect.signature(codex.parse_session_index)
         assert isinstance(sig, inspect.Signature)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_read_threads_db_callable(self):
         from session_browser.sources import codex
         assert callable(codex.read_threads_db)
         sig = inspect.signature(codex.read_threads_db)
         assert isinstance(sig, inspect.Signature)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_detail_callable(self):
         from session_browser.sources import codex
         assert callable(codex.parse_session_detail)
@@ -84,6 +88,7 @@ class TestPublicSignatures:
         params = list(sig.parameters.keys())
         assert "session_id" in params
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_qoder_parse_session_detail_callable(self):
         from session_browser.sources import qoder
         assert callable(qoder.parse_session_detail)
@@ -92,12 +97,14 @@ class TestPublicSignatures:
         assert "project_key" in params
         assert "session_id" in params
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_qoder_normalize_timestamp_callable(self):
         from session_browser.sources import qoder
         assert callable(qoder.normalize_timestamp)
         sig = inspect.signature(qoder.normalize_timestamp)
         assert isinstance(sig, inspect.Signature)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_jsonl_reader_parse_jsonl_events_callable(self):
         assert callable(parse_jsonl_events)
         sig = inspect.signature(parse_jsonl_events)
@@ -112,6 +119,7 @@ class TestPublicSignatures:
 class TestFixtureCorpusCompatibility:
     """Each adapter must handle its fixture corpus without errors."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_fixture_parses(self):
         """Claude-style JSONL fixture must parse into events + diagnostics."""
         jsonl_path = FIXTURES_DIR / "claude_valid.jsonl"
@@ -128,6 +136,7 @@ class TestFixtureCorpusCompatibility:
         assert "user" in types
         assert "assistant" in types
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_fixture_parses(self):
         """Codex-style JSONL fixture must parse into events + diagnostics."""
         jsonl_path = FIXTURES_DIR / "codex_valid.jsonl"
@@ -145,6 +154,7 @@ class TestFixtureCorpusCompatibility:
         assert "tool_call" in types
         assert "tool_result" in types
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_qoder_fixture_parses(self):
         """Qoder-style JSONL fixture must parse into events + diagnostics."""
         jsonl_path = FIXTURES_DIR / "qoder_valid.jsonl"
@@ -168,6 +178,7 @@ class TestFixtureCorpusCompatibility:
 class TestReturnValueContracts:
     """Verify that return types and structures match the expected contracts."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_parse_jsonl_events_returns_list_of_dict(self):
         """parse_jsonl_events must return (list[dict], JsonlDiagnostics)."""
         p = _write_jsonl(
@@ -182,6 +193,7 @@ class TestReturnValueContracts:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_jsonl_diagnostics_has_required_fields(self):
         """JsonlDiagnostics must expose the expected fields."""
         p = _write_jsonl(
@@ -204,6 +216,7 @@ class TestReturnValueContracts:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_parse_session_detail_returns_correct_types(self):
         """parse_session_detail must return (SessionSummary, list[ChatMessage],
         list[ToolCall], list[dict]) for claude adapter."""
@@ -246,6 +259,7 @@ class TestReturnValueContracts:
             finally:
                 claude.CLAUDE_DATA_DIR = original
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_detail_returns_correct_types(self):
         """parse_session_detail must return (SessionSummary, list[ChatMessage],
         list[ToolCall], list[dict]) for codex adapter."""
@@ -267,6 +281,7 @@ class TestReturnValueContracts:
             finally:
                 codex.CODEX_DATA_DIR = original
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_qoder_parse_session_detail_returns_correct_types(self):
         """parse_session_detail must return (SessionSummary, list[ChatMessage],
         list[ToolCall], list[dict]) for qoder adapter."""
@@ -295,6 +310,7 @@ class TestReturnValueContracts:
 class TestBadJsonTolerance:
     """Bad JSON must not raise uncaught exceptions."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_completely_unparseable_lines(self):
         """Lines that are not valid JSON at all must be silently skipped."""
         p = _write_jsonl(
@@ -311,6 +327,7 @@ class TestBadJsonTolerance:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_malformed_json_with_partial_structure(self):
         """JSON with missing braces must not crash.
 
@@ -332,6 +349,7 @@ class TestBadJsonTolerance:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_non_dict_json_values(self):
         """Valid JSON that is not a dict (strings, numbers, arrays) must be
         silently skipped, not crash downstream."""
@@ -351,6 +369,7 @@ class TestBadJsonTolerance:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_unicode_garbage_in_jsonl(self):
         """Unicode garbage mixed with valid JSON must not crash."""
         p = _write_jsonl(
@@ -364,6 +383,7 @@ class TestBadJsonTolerance:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_very_long_bad_line(self):
         """A very long unparseable line must not cause memory issues."""
         garbage = "x" * 100_000
@@ -379,6 +399,7 @@ class TestBadJsonTolerance:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_adapter_with_bad_json_does_not_crash(self):
         """Claude adapter must not raise uncaught exceptions on bad JSON."""
         from session_browser.sources import claude
@@ -422,6 +443,7 @@ class TestBadJsonTolerance:
 class TestEmptyFileTolerance:
     """Empty and near-empty files must not raise uncaught exceptions."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_completely_empty_file(self):
         """A zero-byte file must return empty results, not crash."""
         p = _write_jsonl("")
@@ -434,6 +456,7 @@ class TestEmptyFileTolerance:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_whitespace_only_file(self):
         """A file with only whitespace must return empty results."""
         p = _write_jsonl("\n\n  \t\n")
@@ -444,6 +467,7 @@ class TestEmptyFileTolerance:
         finally:
             p.unlink(missing_ok=True)
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_adapter_with_missing_session_file(self):
         """Claude adapter must gracefully handle missing session file."""
         from session_browser.sources import claude
@@ -463,6 +487,7 @@ class TestEmptyFileTolerance:
             finally:
                 claude.CLAUDE_DATA_DIR = original
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_adapter_with_missing_session_file(self):
         """Codex adapter must gracefully handle missing session file."""
         from session_browser.sources import codex
@@ -482,6 +507,7 @@ class TestEmptyFileTolerance:
             finally:
                 codex.CODEX_DATA_DIR = original
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_qoder_adapter_with_missing_session_file(self):
         """Qoder adapter must gracefully handle missing session file."""
         from session_browser.sources import qoder
@@ -501,6 +527,7 @@ class TestEmptyFileTolerance:
             finally:
                 qoder.QODER_DATA_DIR = original
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_parse_history_with_no_data_dir(self):
         """parse_history must return empty list when data dir is empty."""
         from session_browser.sources import claude
@@ -514,6 +541,7 @@ class TestEmptyFileTolerance:
             finally:
                 claude.CLAUDE_DATA_DIR = original
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_index_with_no_data_dir(self):
         """parse_session_index must return empty list when data dir is empty."""
         from session_browser.sources import codex
@@ -527,6 +555,7 @@ class TestEmptyFileTolerance:
             finally:
                 codex.CODEX_DATA_DIR = original
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_read_threads_db_with_no_data_dir(self):
         """read_threads_db must return empty dict when data dir is empty."""
         from session_browser.sources import codex

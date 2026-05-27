@@ -1,5 +1,6 @@
 """MHTML export regression tests."""
 import os
+import pytest
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -37,10 +38,12 @@ class TestMhtmlTemplateContracts:
 
     # ── Trace panel structure (Phase 1 simplified) ──
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_trace_panel_exists(self):
         html = self._read("session.html")
         assert 'data-trace-panel' in html, 'missing trace-panel'
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_trace_row_structure(self):
         # v9 uses component macros; trace_round is defined in session_detail_timeline.html
         html = self._read("session.html")
@@ -49,6 +52,7 @@ class TestMhtmlTemplateContracts:
         assert 'data-trace-round-row' in component, 'missing trace-round-row'
         assert 'data-trace-detail' in component, 'missing trace-detail'
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_toggle_round_detail_function_exists(self):
         # v9 uses toggleRound in session_detail_timeline.js
         js = (STATIC_JS / "session_detail_timeline.js").read_text(encoding="utf-8")
@@ -56,11 +60,13 @@ class TestMhtmlTemplateContracts:
 
     # ── Layout modes ──
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_layout_mode_classes(self):
         js = self._read_js("view-switching.js")
         # hide-left migration code lives in view-switching.js
         assert "hide-left" in js, 'missing hide-left toggle support'
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_css_has_shell_grid(self):
         css = self._read_css()
         assert ".shell" in css, "missing .shell grid"
@@ -70,12 +76,14 @@ class TestMhtmlTemplateContracts:
 
     # ── MHTML export infrastructure ──
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_base_html_has_export_mhtml_branch(self):
         html = self._read("base.html")
         assert "export_mhtml" in html, "missing export_mhtml in base.html"
         assert "mhtml_css" in html, "missing mhtml_css in base.html"
         assert "mhtml_js" in html, "missing mhtml_js in base.html"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_mhtml_py_exists(self):
         mhtml_path = ROOT / "src" / "session_browser" / "web" / "mhtml.py"
         assert mhtml_path.exists(), "mhtml.py not found"
@@ -83,6 +91,7 @@ class TestMhtmlTemplateContracts:
         assert "get_css" in mhtml, "mhtml.py missing get_css"
         assert "get_js" in mhtml, "mhtml.py missing get_js"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_routes_has_export_mhtml_support(self):
         routes = (ROOT / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
         assert "export_mhtml" in routes, "routes.py missing export_mhtml"
@@ -97,6 +106,7 @@ class TestMhtmlSelfContained:
     def _read_js(self, name: str) -> str:
         return (STATIC_JS / name).read_text(encoding="utf-8")
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_external_resources_in_export(self):
         """Check that MHTML export has no external CSS/JS/font references."""
         html = self._read("base.html")
@@ -106,12 +116,14 @@ class TestMhtmlSelfContained:
         assert "mhtml_css" in html
         assert "mhtml_js" in html
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_key_functions_present_in_template(self):
         """Verify key JS functions are referenced for MHTML inclusion."""
         # v9 uses toggleRound in session_detail_timeline.js
         js = self._read_js("session_detail_timeline.js")
         assert "toggleRound" in js, "toggleRound missing from session_detail_timeline.js"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_google_fonts_reference(self):
         """No Google Fonts references in either mode."""
         base = self._read("base.html")
@@ -131,26 +143,31 @@ class TestPhase1SimplifiedStructure:
     def _read(self, rel_path: str) -> str:
         return (TEMPLATES / rel_path).read_text(encoding="utf-8")
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_trace_panel(self):
         html = self._read("session.html")
         assert 'class="trace-panel"' in html or 'data-trace-panel' in html, \
             "missing trace-panel"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_issue_summary(self):
         # v9 uses data-issue-strip in the component macro
         component = self._read("components/session_detail_timeline.html")
         assert 'data-issue-strip' in component, "missing issue-strip section"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_payload_modal(self):
         html = self._read("base.html")
         assert 'id="payload-modal"' in html, "missing payload-modal in base.html"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_expand_collapse_buttons(self):
         # v19: single toggle-all button, no separate collapse-all
         component = self._read("components/session_detail_timeline.html")
         assert 'data-action="toggle-all"' in component, "missing toggle-all"
         assert 'data-action="collapse-all"' not in component, "collapse-all must be removed; use toggle-all only"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_all_failed_segmented_control(self):
         # v18: filter controls use status-all/status-failed (HIFI table migration)
         component = self._read("components/session_detail_timeline.html")
@@ -158,12 +175,14 @@ class TestPhase1SimplifiedStructure:
         has_legacy = 'data-action="filter-status"' in component
         assert has_new or has_legacy, "missing filter status buttons (status-all/status-failed or legacy filter-status)"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_old_workbench_views(self):
         """Calls and Hotspots workbench views should be removed."""
         html = self._read("session.html")
         assert 'data-workbench-view="calls"' not in html, "calls view should be removed"
         assert 'data-workbench-view="hotspots"' not in html, "hotspots view should be removed"
 
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_token_charts_card(self):
         """Token charts card should be removed in Phase 1."""
         html = self._read("session.html")

@@ -64,7 +64,7 @@ test.describe('会话详情 — Phase 1', () => {
     sessionUrl = resolveSessionUrl();
   });
 
-  test('页面加载包含摘要和 trace 面板 — 无控制台错误', async ({ page }) => {
+  test('[UI-SD-001] 页面加载包含摘要和 trace 面板 — 无控制台错误', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过会话详情测试。');
       test.skip();
@@ -94,7 +94,7 @@ test.describe('会话详情 — Phase 1', () => {
     });
   });
 
-  test('无可见的禁用占位按钮', async ({ page }) => {
+  test('[UI-SD-002] 无可见的禁用占位按钮', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过禁用占位测试。');
       test.skip();
@@ -112,7 +112,7 @@ test.describe('会话详情 — Phase 1', () => {
     expect(await stubButtons.count()).toBe(0);
   });
 
-  test('所有可见按钮都有支持的 data-action', async ({ page }) => {
+  test('[UI-SD-003] 所有可见按钮都有支持的 data-action', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 data-action 测试。');
       test.skip();
@@ -160,7 +160,7 @@ test.describe('会话详情 — Phase 1', () => {
     }
   });
 
-  test('全部/失败筛选功能正常', async ({ page }) => {
+  test('[UI-SD-004] 全部/失败筛选功能正常', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过筛选测试。');
       test.skip();
@@ -206,7 +206,7 @@ test.describe('会话详情 — Phase 1', () => {
     }
   });
 
-  test('展开全部 / 折叠全部功能正常', async ({ page }) => {
+  test('[UI-SD-005] 展开全部 / 折叠全部功能正常', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过展开/折叠测试。');
       test.skip();
@@ -259,7 +259,7 @@ test.describe('会话详情 — Phase 1', () => {
     expect(visibleCountAfterExpand).toBeGreaterThanOrEqual(0);
   });
 
-  test('轮次切换改变 aria-expanded', async ({ page }) => {
+  test('[UI-SD-006] 轮次切换改变 aria-expanded', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过轮次切换测试。');
       test.skip();
@@ -305,7 +305,7 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(firstDetail).toBeHidden({ timeout: 3000 });
   });
 
-  test('首个失败轮次默认展开', async ({ page }) => {
+  test('[UI-SD-007] 首个失败轮次默认展开', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过首个失败轮次测试。');
       test.skip();
@@ -372,7 +372,7 @@ test.describe('会话详情 — Phase 1', () => {
     return { payloadBtn, modal };
   }
 
-  test('payload 弹窗正常打开和关闭', async ({ page }) => {
+  test('[UI-SD-008] payload 弹窗正常打开和关闭', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 payload 弹窗测试。');
       test.skip();
@@ -395,7 +395,7 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(modal).toBeHidden({ timeout: 5000 });
   });
 
-  test('payload 弹窗是居中 panel，不是全屏覆盖层', async ({ page }) => {
+  test('[UI-SD-009] payload 弹窗是居中 panel，不是全屏覆盖层', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 payload 弹窗尺寸测试。');
       test.skip();
@@ -459,7 +459,7 @@ test.describe('会话详情 — Phase 1', () => {
 
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────
 
-  test('点击 metrics tab 后 metrics 面板可见、trace 面板隐藏', async ({ page }) => {
+  test('[UI-SD-010] 点击 metrics tab 后 metrics 面板可见、trace 面板隐藏', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 metrics tab 测试。');
       test.skip();
@@ -489,7 +489,7 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(tracePanel).toBeHidden({ timeout: 5000 });
   });
 
-  test('点击 payloads tab 后 payloads 面板可见', async ({ page }) => {
+  test('[UI-SD-011] 点击 payloads tab 后 payloads 面板可见', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 payloads tab 测试。');
       test.skip();
@@ -516,7 +516,7 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(tracePanel).toBeHidden({ timeout: 5000 });
   });
 
-  test('点击 trace tab 后 trace 面板恢复可见', async ({ page }) => {
+  test('[UI-SD-012] 点击 trace tab 后 trace 面板恢复可见', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 trace tab 恢复测试。');
       test.skip();
@@ -559,7 +559,7 @@ test.describe('长会话 — 100 轮性能', () => {
     return null;
   }
 
-  test('trace 视图在 100 轮下无超时渲染', async ({ page }) => {
+  test('[UI-SD-027] trace 视图在 100 轮下无超时渲染', async ({ page }) => {
     const longUrl = resolveLongSessionUrl();
     if (!longUrl) {
       console.log('无长会话 URL；跳过长会话测试。');
@@ -593,7 +593,7 @@ test.describe('长会话 — 100 轮性能', () => {
     });
   });
 
-  test('100 轮下 DOM 节点数保持合理', async ({ page }) => {
+  test('[UI-SD-028] 100 轮下 DOM 节点数保持合理', async ({ page }) => {
     const longUrl = resolveLongSessionUrl();
     if (!longUrl) {
       console.log('无长会话 URL；跳过 DOM 节点测试。');
@@ -626,7 +626,7 @@ test.describe('长会话 — 100 轮性能', () => {
     }
   });
 
-  test('100 轮下展开全部行为正常', async ({ page }) => {
+  test('[UI-SD-005] 100 轮下展开全部行为正常', async ({ page }) => {
     const longUrl = resolveLongSessionUrl();
     if (!longUrl) {
       console.log('无长会话 URL；跳过展开全部测试。');

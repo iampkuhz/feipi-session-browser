@@ -1,11 +1,12 @@
 """Web static contract: agents-cell layout discipline (P-20 / T026).
-
 Ensures that:
 1. `.agents-cell` in projects.css does NOT define `display: flex`
    (flex on <td> breaks consistent border-height with adjacent cells).
 2. The agents-cell in the HTML template contains a wrapper element
    (e.g. `agents-cell__inner`) for layout isolation.
 """
+
+import pytest
 
 from pathlib import Path
 
@@ -21,6 +22,7 @@ def _read(path: Path) -> str:
 # ── Contract 1: .agents-cell must NOT define display:flex ─────────
 
 
+@pytest.mark.contract_case("UI-VISUAL-001")
 def test_agents_cell_no_display_flex_in_css():
     """.agents-cell 规则块内不得包含 display: flex / display:flex。"""
     css = _read(PROJECTS_CSS)
@@ -41,6 +43,7 @@ def test_agents_cell_no_display_flex_in_css():
 # ── Contract 2: agents-cell must have an inner wrapper ────────────
 
 
+@pytest.mark.contract_case("UI-VISUAL-001")
 def test_agents_cell_has_inner_wrapper_in_html():
     """agents-cell 内部必须包含 wrapper 元素（如 agents-cell__inner）。"""
     html = _read(PROJECTS_HTML)
@@ -62,6 +65,7 @@ def test_agents_cell_has_inner_wrapper_in_html():
     )
 
 
+@pytest.mark.contract_case("UI-VISUAL-001")
 def test_agents_cell_inner_class_named_consistently():
     """agents-cell 的 wrapper 类名应遵循 BEM 约定（agents-cell__inner 或类似）。"""
     html = _read(PROJECTS_HTML)

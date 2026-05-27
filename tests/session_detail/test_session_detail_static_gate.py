@@ -1,9 +1,8 @@
 """Tests for scripts/quality/check_session_detail_static.py."""
 import importlib.util
+import pytest
 import tempfile
 from pathlib import Path
-
-import pytest
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "quality" / "check_session_detail_static.py"
 _spec = importlib.util.spec_from_file_location("check_session_detail_static", SCRIPT_PATH)
@@ -12,6 +11,8 @@ _spec.loader.exec_module(_csd)
 
 
 GOOD_CSS = """
+
+import pytest
 body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
 .shell.phase1-shell .main { grid-column: 1 / -1; width: 100%; min-width: 0; }
 .session-detail-phase1 { width: min(100%, 1360px); margin: 0 auto; }
@@ -55,6 +56,7 @@ def _run_checks_with_files(css, base, session):
 
 
 class TestPassingContract:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_full_contract_passes(self):
         out = _run_checks_with_files(GOOD_CSS, GOOD_BASE, GOOD_SESSION)
         assert out["status"] == "PASS"
@@ -62,6 +64,7 @@ class TestPassingContract:
 
 
 class TestPhase1HideLeftOverride:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_missing_fails(self):
         css = ".shell.phase1-shell .main { grid-column: 1 / -1; }"
         out = _run_checks_with_files(css, GOOD_BASE, GOOD_SESSION)
@@ -71,6 +74,7 @@ class TestPhase1HideLeftOverride:
 
 
 class TestPhase1MainGridColumn:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_missing_grid_column_fails(self):
         css = "body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }"
         out = _run_checks_with_files(css, GOOD_BASE, GOOD_SESSION)
@@ -80,6 +84,7 @@ class TestPhase1MainGridColumn:
 
 
 class TestHeroMainSingleColumn:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_two_column_fails(self):
         css = GOOD_CSS.replace(
             ".hero-main { grid-template-columns: 1fr; }",
@@ -92,6 +97,7 @@ class TestHeroMainSingleColumn:
 
 
 class TestHeroTitleWrapping:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_anywhere_wrap_fails(self):
         css = GOOD_CSS.replace(
             ".hero-title { overflow-wrap: break-word; word-break: normal; }",
@@ -102,6 +108,7 @@ class TestHeroTitleWrapping:
         codes = [f["code"] for f in out["failures"]]
         assert "HERO_TITLE_UNSAFE_ANYWHERE_WRAP" in codes
 
+    @pytest.mark.contract_case("UI-SD-016")
     def test_break_all_fails(self):
         css = GOOD_CSS.replace(
             ".hero-title { overflow-wrap: break-word; word-break: normal; }",
@@ -114,6 +121,7 @@ class TestHeroTitleWrapping:
 
 
 class TestSessionShellClassHook:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_missing_shell_class_fails(self):
         session = '{% extends "base.html" %}\n'
         out = _run_checks_with_files(GOOD_CSS, GOOD_BASE, session)
@@ -123,6 +131,7 @@ class TestSessionShellClassHook:
 
 
 class TestBaseShellClassApplication:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_missing_application_fails(self):
         base = '<div class="shell" data-session-detail-shell>'
         out = _run_checks_with_files(GOOD_CSS, base, GOOD_SESSION)
@@ -132,6 +141,7 @@ class TestBaseShellClassApplication:
 
 
 class TestRealFiles:
+    @pytest.mark.contract_case("UI-SD-016")
     def test_real_repo_files(self):
         """Run against actual repo files to ensure they pass."""
         root = SCRIPT_PATH.parent.parent.parent

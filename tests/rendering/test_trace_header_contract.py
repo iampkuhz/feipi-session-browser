@@ -8,9 +8,8 @@ Verifies that the session detail trace_header macro:
 This contract ensures the trace header only needs a toggle-all button
 without a separate sd-trace-title or collapse-all element.
 """
-from pathlib import Path
-
 import pytest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TIMELINE_HTML = ROOT / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html"
@@ -38,24 +37,28 @@ class TestTraceHeaderContract:
     and MUST contain toggle-all.
     """
 
+    @pytest.mark.contract_case("UI-SD-022")
     def test_no_sd_trace_title(self, trace_header_source):
         """trace_header must not contain sd-trace-title class."""
         assert "sd-trace-title" not in trace_header_source, (
             "trace_header must NOT contain sd-trace-title class"
         )
 
+    @pytest.mark.contract_case("UI-SD-022")
     def test_no_collapse_all_action(self, trace_header_source):
         """trace_header must not contain data-action=\"collapse-all\"."""
         assert 'data-action="collapse-all"' not in trace_header_source, (
             "trace_header must NOT contain data-action=\"collapse-all\""
         )
 
+    @pytest.mark.contract_case("UI-SD-022")
     def test_no_collapse_all_class(self, trace_header_source):
         """trace_header must not contain sd-collapse-all-btn class."""
         assert "sd-collapse-all-btn" not in trace_header_source, (
             "trace_header must NOT contain sd-collapse-all-btn class"
         )
 
+    @pytest.mark.contract_case("UI-SD-022")
     def test_has_toggle_all(self, trace_header_source):
         """trace_header must contain data-action=\"toggle-all\" or toggle-all class."""
         has_action = 'data-action="toggle-all"' in trace_header_source

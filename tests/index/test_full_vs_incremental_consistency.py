@@ -5,6 +5,7 @@ when applied after targeted file modifications. This ensures the incremental
 path does not diverge from the canonical full re-index.
 """
 
+import pytest
 import json
 import os
 import shutil
@@ -12,8 +13,6 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -107,6 +106,7 @@ class TestFullVsIncrementalConsistency:
               -> full_scan (re-baseline) -> assert equality.
     """
 
+    @pytest.mark.contract_case("DATA-INDEX-003")
     def test_single_file_modified_consistency(self, tmp_path):
         """After touching one file, incremental + full re-scan must match.
 
@@ -177,6 +177,7 @@ class TestFullVsIncrementalConsistency:
                 f"project_key mismatch for {key}"
             )
 
+    @pytest.mark.contract_case("DATA-INDEX-003")
     def test_all_files_modified_consistency(self, tmp_path):
         """After touching all files, incremental must match full re-scan.
 
@@ -231,6 +232,7 @@ class TestFullVsIncrementalConsistency:
                 f"ended_at mismatch for {key}"
             )
 
+    @pytest.mark.contract_case("DATA-INDEX-003")
     def test_new_session_discovered_consistency(self, tmp_path):
         """After adding a new session, incremental + full must yield same set.
 
@@ -329,6 +331,7 @@ class TestFullVsIncrementalConsistency:
                 f"assistant_message_count mismatch for {key}"
             )
 
+    @pytest.mark.contract_case("DATA-INDEX-003")
     def test_no_changes_consistency(self, tmp_path):
         """With zero file changes, incremental should not alter DB state.
 
@@ -374,6 +377,7 @@ class TestFullVsIncrementalConsistency:
             assert incr_row["output_tokens"] == full_row["output_tokens"]
             assert incr_row["title"] == full_row["title"]
 
+    @pytest.mark.contract_case("DATA-INDEX-003")
     def test_scan_log_mode_full_then_incremental(self, tmp_path):
         """Verify scan_log records full then incremental correctly.
 

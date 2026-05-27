@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 import json
 
 import html as html_mod
 
 import jinja2
-import pytest
-
 from session_browser.web.safe_render import (
     safe_html_block,
     safe_json_display,
@@ -20,30 +19,39 @@ from session_browser.web.safe_render import (
 # ─── safe_json_display ────────────────────────────────────────────────
 
 class TestSafeJsonDisplay:
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_none_returns_null(self):
         assert safe_json_display(None) == "null"
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_empty_dict_returns_null(self):
         assert safe_json_display({}) == "null"
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_empty_list_returns_null(self):
         assert safe_json_display([]) == "null"
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_empty_string_returns_null(self):
         assert safe_json_display("") == "null"
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_simple_dict(self):
         result = safe_json_display({"key": "value"})
         # Must unescape first — the output is HTML-escaped for safe embedding
         assert json.loads(html_mod.unescape(result)) == {"key": "value"}
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_script_tag(self):
-        """HTML entities in JSON values must be escaped."""
+        """
+
+HTML entities in JSON values must be escaped."""
         payload = {"html": "<script>alert(1)</script>"}
         result = safe_json_display(payload)
         assert "<script>" not in result
         assert "&lt;script&gt;" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_pre_close(self):
         """</pre> breakout must be prevented."""
         payload = {"code": "</pre><script>alert(1)</script>"}
@@ -51,21 +59,25 @@ class TestSafeJsonDisplay:
         assert "</pre>" not in result
         assert "&lt;/pre&gt;" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_ampersand(self):
         result = safe_json_display({"msg": "a & b"})
         assert "&amp;" in result
         assert json.loads(html_mod.unescape(result)) == {"msg": "a & b"}
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_indent_supported(self):
         result = safe_json_display({"a": 1, "b": 2}, indent=2)
         # Should contain newlines when indented
         assert "\n" in result
         assert json.loads(html_mod.unescape(result)) == {"a": 1, "b": 2}
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_unicode_preserved(self):
         result = safe_json_display({"text": "中文"})
         assert "中文" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_safe_inside_pre(self):
         """Simulate the actual template context: inside <pre> tags."""
         payload = {"x": "</pre><img onerror=alert(1)>"}
@@ -83,15 +95,18 @@ class TestSafeJsonDisplay:
 # ─── tojson_safe_html ────────────────────────────────────────────────
 
 class TestTojsonSafeHtml:
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_none_returns_null(self):
         assert tojson_safe_html(None) == "null"
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_dangerous_html(self):
         value = {"note": "<b>bold</b>"}
         result = tojson_safe_html(value)
         assert "<b>" not in result
         assert "&lt;b&gt;" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_roundtrip_json(self):
         value = {"key": "value with <tags>"}
         result = tojson_safe_html(value)
@@ -100,10 +115,12 @@ class TestTojsonSafeHtml:
         parsed = json.loads(html.unescape(result))
         assert parsed == value
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_indent_parameter(self):
         result = tojson_safe_html({"a": 1}, indent=2)
         assert "\n" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_list_value(self):
         value = [1, 2, {"x": "<script>"}]
         result = tojson_safe_html(value)
@@ -113,14 +130,17 @@ class TestTojsonSafeHtml:
 # ─── safe_html_block ─────────────────────────────────────────────────
 
 class TestSafeHtmlBlock:
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_wraps_content(self):
         result = safe_html_block("<p>hello</p>")
         assert result == '<div class="safe-html-block"><p>hello</p></div>'
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_custom_class(self):
         result = safe_html_block("<span>x</span>", class_name="my-class")
         assert 'class="my-class"' in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_class_name(self):
         """Malicious class names must be escaped."""
         result = safe_html_block("x", class_name='"><script>alert(1)</script><"')
@@ -136,24 +156,28 @@ class TestJinjaFilterIntegration:
         register_filters(env)
         return env
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_safe_json_display_filter(self, env):
         tpl = env.from_string("{{ data | safe_json_display }}")
         result = tpl.render(data={"key": "<script>alert(1)</script>"})
         assert "<script>" not in result
         assert "&lt;script&gt;" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_safe_html_block_filter(self, env):
         tpl = env.from_string("{{ html | safe_html_block }}")
         result = tpl.render(html="<p>test</p>")
         assert 'class="safe-html-block"' in result
         assert "<p>test</p>" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_tojson_safe_html_filter(self, env):
         tpl = env.from_string("{{ data | tojson_safe_html }}")
         result = tpl.render(data={"x": "</script>"})
         assert "</script>" not in result
         assert "&lt;/script&gt;" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_filter_chain_with_e(self, env):
         """safe_json_display followed by |e should not double-escape issues."""
         tpl = env.from_string("{{ data | safe_json_display }}")
@@ -161,6 +185,7 @@ class TestJinjaFilterIntegration:
         # The output should contain &amp; (escaped once by safe_json_display)
         assert "&amp;" in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_filter_in_pre_context(self, env):
         """Template: <pre>{{ data | safe_json_display }}</pre>"""
         tpl = env.from_string("<pre>{{ data | safe_json_display }}</pre>")
@@ -182,16 +207,19 @@ class TestBackwardCompat:
         from session_browser.web.template_env import env as _env
         return _env
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_tojson_safe_is_now_safe(self, env):
         tpl = env.from_string("{{ data | tojson_safe }}")
         result = tpl.render(data={"x": "<script>alert(1)</script>"})
         assert "<script>" not in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_tojson_repo_is_now_safe(self, env):
         tpl = env.from_string("{{ data | tojson_repo }}")
         result = tpl.render(data={"path": "/foo", "note": "</pre>"})
         assert "</pre>" not in result
 
+    @pytest.mark.contract_case("ROUTE-API-003")
     def test_tojson_repo_with_indent(self, env):
         tpl = env.from_string("{{ data | tojson_repo(indent=2) }}")
         result = tpl.render(data={"a": 1, "b": "</pre>"})

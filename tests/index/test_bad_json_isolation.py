@@ -10,13 +10,12 @@ Validates that:
 Corresponds to V9 长跑 task 054.
 """
 
+import pytest
 import os
 import shutil
 import sqlite3
 import sys
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -73,6 +72,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 class TestJsonlReaderBadJsonIsolation:
     """Validate that parse_jsonl_events isolates bad JSON lines."""
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_bad_lines_do_not_crash_parser(self, tmp_path):
         """Parsing a file with bad JSON lines must not raise an exception."""
         from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -87,6 +87,7 @@ class TestJsonlReaderBadJsonIsolation:
         assert events is not None
         assert diagnostics is not None
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_good_lines_still_parsed(self, tmp_path):
         """Valid JSON lines should still produce events."""
         from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -99,6 +100,7 @@ class TestJsonlReaderBadJsonIsolation:
             f"Expected {GOOD_LINE_COUNT} parsed events, got {diagnostics.events_parsed}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_diagnostics_record_bad_lines(self, tmp_path):
         """Diagnostics should record the bad/unparseable lines."""
         from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -117,6 +119,7 @@ class TestJsonlReaderBadJsonIsolation:
             f"Expected bad lines at {BAD_LINE_NUMBERS}, got {bad_line_nos}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_bad_json_issues_have_correct_severity(self, tmp_path):
         """Each bad JSON issue should be marked as ERROR severity."""
         from session_browser.sources.jsonl_reader import (
@@ -130,6 +133,7 @@ class TestJsonlReaderBadJsonIsolation:
             assert issue.issue == ParseIssue.BAD_JSON
             assert issue.severity == ParseSeverity.ERROR
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_bad_json_issues_have_preview(self, tmp_path):
         """Each issue should carry a preview of the offending line."""
         from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -141,6 +145,7 @@ class TestJsonlReaderBadJsonIsolation:
             assert issue.preview != "", f"Issue at line {issue.line_no} has empty preview"
             assert len(issue.preview) > 0
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_no_uncaught_exception(self, tmp_path):
         """Parser must never raise uncaught exceptions on bad JSON."""
         from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -153,6 +158,7 @@ class TestJsonlReaderBadJsonIsolation:
         # Verify we got at least some events
         assert len(events) > 0, "Expected at least some events to be parsed"
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_event_types_are_correct(self, tmp_path):
         """Parsed events should have correct 'type' field."""
         from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -170,6 +176,7 @@ class TestJsonlReaderBadJsonIsolation:
 class TestBadJsonSessionIndexing:
     """Validate that a session with bad JSON lines is still indexed."""
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_session_indexed_despite_bad_json(self, tmp_path):
         """full_scan() should index the session even with bad JSON lines."""
         data_dir = tmp_path / "claude_data"
@@ -184,6 +191,7 @@ class TestBadJsonSessionIndexing:
             f"Expected 1 Claude session, got {result['claude_count']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_session_key_present_in_db(self, tmp_path):
         """The bad-JSON session should appear in the sessions table."""
         data_dir = tmp_path / "claude_data"
@@ -201,6 +209,7 @@ class TestBadJsonSessionIndexing:
 
         assert row is not None, "Session key claude_code:bad-sess-001 not found in index"
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_session_has_valid_title(self, tmp_path):
         """Indexed session should have a title derived from user message."""
         data_dir = tmp_path / "claude_data"
@@ -222,6 +231,7 @@ class TestBadJsonSessionIndexing:
             f"Expected title to contain 'bug', got '{row['title']}'"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_session_has_correct_message_counts(self, tmp_path):
         """Message counts should reflect only good (parsed) lines."""
         data_dir = tmp_path / "claude_data"
@@ -251,6 +261,7 @@ class TestBadJsonSessionIndexing:
             f"Expected 4 assistant messages, got {row['assistant_message_count']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_session_has_token_data_from_good_lines(self, tmp_path):
         """Token counts should be derived from good lines only."""
         data_dir = tmp_path / "claude_data"
@@ -277,6 +288,7 @@ class TestBadJsonSessionIndexing:
             f"Expected 250 output tokens, got {row['output_tokens']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_scan_log_records_success(self, tmp_path):
         """scan_log should show successful scan even with bad JSON."""
         data_dir = tmp_path / "claude_data"
@@ -296,6 +308,7 @@ class TestBadJsonSessionIndexing:
         assert log["status"] == "done", f"Expected status 'done', got '{log['status']}'"
         assert log["claude_count"] == 1
 
+    @pytest.mark.contract_case("DATA-INDEX-006")
     def test_no_other_sessions_indexed(self, tmp_path):
         """Only the fixture session should be indexed — no leakage."""
         data_dir = tmp_path / "claude_data"

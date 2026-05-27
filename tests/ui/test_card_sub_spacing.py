@@ -5,9 +5,8 @@ parent gap) so subtitle text does not collide with the content below it.
 
 Covers P-24 / S-12: card-sub 没有 margin-bottom
 """
-from pathlib import Path
-
 import pytest
+from pathlib import Path
 import re
 
 CSS_PATH = Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "ui-primitives.css"
@@ -21,7 +20,9 @@ def css_text():
 
 
 def _extract_canonical_card_sub_block(css_text: str) -> str:
-    """Extract the canonical .card-sub block (not legacy/migrated ones).
+    """
+
+import Extract the canonical .card-sub block (not legacy/migrated ones).
 
     The canonical definition is the one in the TableToolbar section,
     which does NOT have a comment prefix like 'Originally at style.css'.
@@ -47,6 +48,7 @@ def _extract_canonical_card_sub_block(css_text: str) -> str:
 class TestCardSubSpacing:
     """Canonical .card-sub must have bottom spacing."""
 
+    @pytest.mark.contract_case("UI-VISUAL-014")
     def test_card_sub_has_margin_bottom_or_parent_gap(self, css_text):
         """The canonical .card-sub block must define margin-bottom,
         or be inside a container with gap (e.g. .table-toolbar with flex gap).
@@ -97,6 +99,7 @@ class TestCardSubSpacing:
             f"parent-gap (.table-toolbar): {has_parent_gap}"
         )
 
+    @pytest.mark.contract_case("UI-VISUAL-014")
     def test_card_sub_no_zero_margin_bottom(self, css_text):
         """Canonical .card-sub must not explicitly set margin-bottom: 0."""
         block = _extract_canonical_card_sub_block(css_text)

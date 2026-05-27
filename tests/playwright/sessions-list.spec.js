@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('会话列表页', () => {
-  test('核心页面加载与结构', async ({ page }) => {
+  test('[UI-SESSIONS-001] 核心页面加载与结构', async ({ page }) => {
     await page.goto('/sessions');
     await expect(page.locator('body')).toBeVisible();
 
@@ -28,7 +28,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('1440x900 截图', async ({ page }) => {
+  test('[UI-SESSIONS-015] 1440x900 截图', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/sessions');
     await expect(page.locator('body')).toBeVisible();
@@ -38,7 +38,7 @@ test.describe('会话列表页', () => {
     });
   });
 
-  test('数据表格包含全部列头', async ({ page }) => {
+  test('[UI-SESSIONS-002] 数据表格包含全部列头', async ({ page }) => {
     await page.goto('/sessions');
     const headers = page.locator('.data-table th');
     const count = await headers.count();
@@ -57,7 +57,7 @@ test.describe('会话列表页', () => {
     expect(combined).toContain('updated');
   });
 
-  test('排序按钮可点击且生效', async ({ page }) => {
+  test('[UI-SESSIONS-005] 排序按钮可点击且生效', async ({ page }) => {
     await page.goto('/sessions');
     const sortButtons = page.locator('.sort-button[data-action="sort"]');
     const count = await sortButtons.count();
@@ -73,7 +73,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('会话行包含 data 属性', async ({ page }) => {
+  test('[UI-SESSIONS-008] 会话行包含 data 属性', async ({ page }) => {
     await page.goto('/sessions');
     const rows = page.locator('tr[data-action="row"]');
     const count = await rows.count();
@@ -85,7 +85,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('agent 徽章渲染正确', async ({ page }) => {
+  test('[UI-SESSIONS-004] agent 徽章渲染正确', async ({ page }) => {
     await page.goto('/sessions');
     const badges = page.locator('.data-table .badge');
     const count = await badges.count();
@@ -97,7 +97,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('token 条包含四段', async ({ page }) => {
+  test('[UI-SESSIONS-003] token 条包含四段', async ({ page }) => {
     await page.goto('/sessions');
     const tokenbars = page.locator('.tokenbar');
     const count = await tokenbars.count();
@@ -108,7 +108,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('next 一次到 page 2', async ({ page }) => {
+  test('[UI-SESSIONS-007] next 一次到 page 2', async ({ page }) => {
     // Regression test for S-09: duplicate JS listeners caused next click
     // to jump from page 1 to page 3 instead of page 2.
     await page.goto('/sessions?page=1');
@@ -145,7 +145,7 @@ test.describe('会话列表页', () => {
     await expect(prevBtn).toBeEnabled();
   });
 
-  test('筛选表单提交并改变 URL', async ({ page }) => {
+  test('[UI-SESSIONS-006] 筛选表单提交并改变 URL', async ({ page }) => {
     await page.goto('/sessions');
     const searchInput = page.locator('#session-search');
     if (await searchInput.isVisible()) {

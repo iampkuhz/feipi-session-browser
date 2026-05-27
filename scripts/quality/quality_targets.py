@@ -41,6 +41,9 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     "index": [
         "indexIntegrity",
     ],
+    "testContractMapping": [
+        "testContractMapping",
+    ],
 }
 
 
@@ -168,6 +171,16 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "src/session_browser/index/**/*.py",
             "src/session_browser/config.py",
             "scripts/quality/check_index_integrity.py",
+        ],
+    },
+    "testContractMapping": {
+        "testContractMapping": [
+            "docs/acceptance/**/*.md",
+            "tests/**/*.py",
+            "tests/**/*.js",
+            "tests/**/*.ts",
+            "src/session_browser/**/*.py",
+            "scripts/quality/validate_test_contract_mapping.py",
         ],
     },
 }

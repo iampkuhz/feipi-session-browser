@@ -1,5 +1,4 @@
 """Tests for Apply button dirty-state static contract.
-
 Verifies that the Apply button in the Sessions List filter form has:
 1. An identifiable selector (data-action or id) for targeting from JS.
 2. The filter form (#session-filter-form) exists as an event-binding anchor.
@@ -9,8 +8,10 @@ Verifies that the Apply button in the Sessions List filter form has:
 This is a static contract test — it reads template and JS source files,
 no browser or live server required.
 """
+
 from __future__ import annotations
 
+import pytest
 import os
 import re
 
@@ -41,6 +42,7 @@ def _read_sessions_js() -> str:
 class TestApplyButtonSelector:
     """Apply 按钮必须有可被 JS 识别的 selector（data-action 或 id）。"""
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_apply_button_has_data_action(self):
         """模板中的 Apply 按钮应包含 data-action="apply"。"""
         html = _read_sessions_html()
@@ -48,6 +50,7 @@ class TestApplyButtonSelector:
         assert 'data_action=' in html and "'apply'" in html, \
             "Apply button must have data_action='apply' in the template macro call"
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_apply_button_in_filter_form(self):
         """Apply 按钮必须位于筛选表单内部。"""
         html = _read_sessions_html()
@@ -62,12 +65,14 @@ class TestApplyButtonSelector:
 class TestFilterFormId:
     """筛选表单必须有可被 JS 绑定的 ID。"""
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_form_has_session_filter_form_id(self):
         """表单应声明 id='session-filter-form'。"""
         html = _read_sessions_html()
         assert "session-filter-form" in html, \
             "Filter form must have id='session-filter-form'"
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_form_is_used_as_event_target_in_js(self):
         """JS 中应通过 getElementById('session-filter-form') 获取表单。"""
         js = _read_sessions_js()
@@ -80,6 +85,7 @@ class TestFilterFormId:
 class TestDirtyStateContract:
     """JS 中必须存在 Apply 按钮 dirty-state 管理逻辑。"""
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_js_has_apply_button_selector(self):
         """JS 中应有选择 Apply 按钮的代码（通过 data-action、class 或 id）。"""
         js = _read_sessions_js()
@@ -98,6 +104,7 @@ class TestDirtyStateContract:
             "(e.g. [data-action='apply'], #apply-btn, .btn-apply)"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_js_listens_for_form_input_or_change(self):
         """JS 中应监听表单的 input 或 change 事件以检测 dirty 状态。"""
         js = _read_sessions_js()
@@ -114,6 +121,7 @@ class TestDirtyStateContract:
             "to track dirty state"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_js_toggles_disabled_or_is_dirty(self):
         """JS 中应有设置 Apply 按钮 disabled 属性或 is-dirty 类的代码。"""
         js = _read_sessions_js()
@@ -142,6 +150,7 @@ class TestDirtyStateContract:
             "is-dirty class to reflect form dirty state"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-009")
     def test_dirty_logic_is_coherent(self):
         """dirty-state 逻辑应包含初始快照 + 变更检测的基本模式。"""
         js = _read_sessions_js()

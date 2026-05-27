@@ -1,10 +1,11 @@
 """Tests for payload modal renderer contract in session_detail_timeline.html.
-
 Verifies that the sd-payload-modal panel includes the canonical `payload-modal__panel`
 CSS class and does not use fullscreen inline styles.
 
 Related: SD-17 — sd-payload-modal 宽高变成整个页面
 """
+
+import pytest
 
 from pathlib import Path
 import re
@@ -70,6 +71,7 @@ def _panel_inline_style(source: str) -> str | None:
 # ── Panel class contract ──────────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-020")
 def test_payload_modal_panel_has_canonical_class():
     """sd-payload-modal panel must include canonical `payload-modal__panel` class.
 
@@ -87,6 +89,7 @@ def test_payload_modal_panel_has_canonical_class():
     )
 
 
+@pytest.mark.contract_case("UI-SD-020")
 def test_payload_modal_panel_no_fullscreen_inline_style():
     """Panel must not carry fullscreen inline styles like width:100% or height:100vh."""
     source = _timeline_html()
@@ -98,6 +101,7 @@ def test_payload_modal_panel_no_fullscreen_inline_style():
         )
 
 
+@pytest.mark.contract_case("UI-SD-020")
 def test_payload_modal_dialog_has_sd_namespace():
     """The payload modal dialog should carry sd-payload-modal class for scoped targeting."""
     source = _timeline_html()

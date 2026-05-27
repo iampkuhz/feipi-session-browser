@@ -12,6 +12,7 @@ Usage:
 
 from __future__ import annotations
 
+import pytest
 import os
 import re
 import socket
@@ -19,8 +20,6 @@ import subprocess
 import sys
 import time
 import urllib.request
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────
 
@@ -88,7 +87,9 @@ def _wait_for_server(port: int, timeout: float = 15.0) -> str:
 
 @pytest.fixture(scope="module")
 def macbook_smoke_server():
-    """Start a session-browser server with the local test index.
+    """
+
+import Start a session-browser server with the local test index.
 
     Yields base_url or skips if no index is found.
     """
@@ -140,6 +141,7 @@ class TestMacbookSmoke:
 
     @pytest.mark.parametrize("viewport", ["macbook-13", "macbook-14"])
     @pytest.mark.parametrize("name,path,expected_fragment,min_length", PAGES)
+    @pytest.mark.contract_case("UI-VISUAL-009")
     def test_page_loads(
         self, macbook_smoke_server, viewport, name, path, expected_fragment, min_length
     ):
@@ -160,6 +162,7 @@ class TestMacbookSmoke:
 class TestMacbookViewportSpecific:
     """Viewport-specific structural checks."""
 
+    @pytest.mark.contract_case("UI-VISUAL-009")
     def test_dashboard_metric_cards(self, macbook_smoke_server):
         """Dashboard must have 4 metric cards."""
         base_url = macbook_smoke_server
@@ -168,6 +171,7 @@ class TestMacbookViewportSpecific:
         cards = re.findall(r'class="metric-card"', html)
         assert len(cards) == 4, f"Expected 4 metric cards, found {len(cards)}"
 
+    @pytest.mark.contract_case("UI-VISUAL-009")
     def test_sessions_list_has_table(self, macbook_smoke_server):
         """Sessions List must have a sessions table."""
         base_url = macbook_smoke_server
@@ -176,6 +180,7 @@ class TestMacbookViewportSpecific:
         assert 'aria-label="Sessions table"' in html, \
             "Sessions table must be present"
 
+    @pytest.mark.contract_case("UI-VISUAL-009")
     def test_agents_page_has_agent_entries(self, macbook_smoke_server):
         """Agents page must list at least one agent."""
         base_url = macbook_smoke_server
@@ -185,6 +190,7 @@ class TestMacbookViewportSpecific:
         has_table = 'class="data-table"' in html or 'class="agent-list"' in html
         assert has_table, "Agents page must have a table or agent list"
 
+    @pytest.mark.contract_case("UI-VISUAL-009")
     def test_projects_page_has_project_entries(self, macbook_smoke_server):
         """Projects page must list at least one project."""
         base_url = macbook_smoke_server
@@ -194,6 +200,7 @@ class TestMacbookViewportSpecific:
         has_table = 'class="data-table"' in html or 'class="project-list"' in html
         assert has_table, "Projects page must have a table or project list"
 
+    @pytest.mark.contract_case("UI-VISUAL-009")
     def test_session_detail_page_exists(self, macbook_smoke_server):
         """Session Detail page must exist for at least one session."""
         base_url = macbook_smoke_server

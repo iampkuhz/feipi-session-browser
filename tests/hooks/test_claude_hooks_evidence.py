@@ -1,8 +1,10 @@
+import pytest
 from scripts.claude_hooks.evidence import record_changed_file, read_changed_files
 from scripts.claude_hooks.hook_io import read_stdin_json
 from scripts.claude_hooks.paths import RepoPaths
 
 
+@pytest.mark.contract_case("HOOK-HARNESS-003")
 def test_record_changed_file(tmp_path):
     repo = tmp_path
     target = repo / "src/session_browser/a.py"

@@ -9,9 +9,8 @@ See S-09: session list next jumps from page 1 to page 3 with empty page.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, PropertyMock
-
 import pytest
+from unittest.mock import MagicMock, PropertyMock
 from bs4 import BeautifulSoup
 
 from session_browser.web.template_env import env as _template_env
@@ -99,30 +98,35 @@ class TestSessionsAjaxPartialStructure:
         ctx = _make_ajax_context(**overrides)
         return _template_env.get_template("partials/sessions_ajax_page.html").render(**ctx)
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_outer_wrapper_exists(self):
         html = self._render_ajax()
         soup = BeautifulSoup(html, "html.parser")
         wrapper = soup.find(id="sessions-ajax-response")
         assert wrapper is not None, "Missing #sessions-ajax-response wrapper"
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_tbody_exists(self):
         html = self._render_ajax()
         soup = BeautifulSoup(html, "html.parser")
         tbody = soup.find("tbody")
         assert tbody is not None, "Missing <tbody> in AJAX partial"
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_pagination_exists(self):
         html = self._render_ajax()
         soup = BeautifulSoup(html, "html.parser")
         pagination = soup.find(id="ajax-pagination")
         assert pagination is not None, "Missing #ajax-pagination in AJAX partial"
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_tbody_has_rows(self):
         html = self._render_ajax()
         soup = BeautifulSoup(html, "html.parser")
         rows = soup.find("tbody").find_all("tr")
         assert len(rows) >= 1, "Expected at least 1 row in tbody"
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_page_input_value_matches_requested_page(self):
         """Page 2 AJAX response: page input should show 2."""
         html = self._render_ajax(page=2, total_count=60, total_pages=3)
@@ -144,6 +148,7 @@ class TestSessionsAjaxPartialStructure:
             f"Page input value should be 2, found values: {[i.get('value') for i in page_inputs]}"
         )
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_page_input_value_page_3(self):
         """Page 3 AJAX response: page input should show 3."""
         html = self._render_ajax(page=3, total_count=100, total_pages=5)
@@ -161,6 +166,7 @@ class TestSessionsAjaxPartialStructure:
 class TestSessionsAjaxPartialEmptyState:
     """AJAX partial when no sessions exist."""
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_empty_tbody_shows_message(self):
         html = _template_env.get_template("partials/sessions_ajax_page.html").render(
             **_make_ajax_context(sessions=[], total_count=0, total_pages=1)
@@ -174,6 +180,7 @@ class TestSessionsAjaxPartialEmptyState:
             f"Empty tbody should show 'no sessions' message, got: {text[:200]}"
         )
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_empty_has_no_pagination_div(self):
         """When total_count=0, no #ajax-pagination div should render."""
         html = _template_env.get_template("partials/sessions_ajax_page.html").render(
@@ -189,6 +196,7 @@ class TestSessionsAjaxPartialEmptyState:
 class TestSessionsAjaxPartialMultiPage:
     """AJAX partial with multiple pages of sessions."""
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_page_2_has_20_rows(self):
         sessions = [_make_mock_session(i) for i in range(21, 41)]
         html = _template_env.get_template("partials/sessions_ajax_page.html").render(
@@ -198,6 +206,7 @@ class TestSessionsAjaxPartialMultiPage:
         rows = soup.find("tbody").find_all("tr")
         assert len(rows) == 20
 
+    @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_session_rows_have_data_attributes(self):
         sessions = [_make_mock_session(1)]
         html = _template_env.get_template("partials/sessions_ajax_page.html").render(

@@ -4,6 +4,7 @@ Validates that incremental_scan() correctly discovers and indexes
 new session JSONL files that appear after the initial full scan.
 """
 
+import pytest
 import json
 import os
 import shutil
@@ -11,8 +12,6 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -110,6 +109,7 @@ def _create_valid_session_file(path: Path):
 class TestNewFileScenario:
     """N01: incremental_scan discovers and indexes new session files."""
 
+    @pytest.mark.contract_case("DATA-INDEX-004")
     def test_new_session_file_discovered_and_indexed(self, tmp_path):
         """Adding a new session JSONL file after initial scan should be discovered and indexed.
 
@@ -176,6 +176,7 @@ class TestNewFileScenario:
             f"got {count_after}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-004")
     def test_new_session_queryable_in_db(self, tmp_path):
         """A newly indexed session should be queryable from the sessions table.
 
@@ -228,6 +229,7 @@ class TestNewFileScenario:
             f"Expected project_key='proj-gamma', got '{row['project_key']}'"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-004")
     def test_multiple_new_sessions_discovered(self, tmp_path):
         """Adding multiple new session files should all be discovered by incremental scan.
 

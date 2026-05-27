@@ -11,12 +11,11 @@ Tests use monkeypatched tmp QODER_DATA_DIR — no real user data.
 
 from __future__ import annotations
 
+import pytest
 import json
 import os
 import sys
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -145,6 +144,7 @@ def cache_only_full_uuid(tmp_path: Path) -> Path:
 class TestFindSessionFile:
     """Tests for qoder._find_session_file."""
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_full_uuid_direct_match_in_projects(self, full_uuid_in_projects):
         """Full UUID session in projects/ should be found via direct match."""
         data_dir = full_uuid_in_projects
@@ -160,6 +160,7 @@ class TestFindSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_short_id_resolved_to_full_uuid(self, both_full_and_short):
         """Short ID should resolve to full UUID and find the projects/ file."""
         data_dir = both_full_and_short
@@ -176,6 +177,7 @@ class TestFindSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_cache_only_short_id_found(self, short_id_in_cache_only):
         """Session only in cache/ with short ID should still be locatable."""
         data_dir = short_id_in_cache_only
@@ -191,6 +193,7 @@ class TestFindSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_empty_project_key_still_finds_session(self, full_uuid_in_projects):
         """When project_key is empty (old index), recursive search should find session."""
         data_dir = full_uuid_in_projects
@@ -205,6 +208,7 @@ class TestFindSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_cache_only_full_uuid_found(self, cache_only_full_uuid):
         """Full UUID session only in cache/ should be found via recursive walk."""
         data_dir = cache_only_full_uuid
@@ -220,6 +224,7 @@ class TestFindSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_no_session_returns_none(self, tmp_path):
         """Non-existent session should return None, not raise."""
         data_dir = tmp_path / "qoder_empty"
@@ -240,6 +245,7 @@ class TestFindSessionFile:
 class TestLocateQoderSessionFile:
     """Tests for indexer._locate_qoder_session_file."""
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_full_uuid_in_projects(self, full_uuid_in_projects):
         """Locator should find full UUID session in projects/."""
         data_dir = full_uuid_in_projects
@@ -254,6 +260,7 @@ class TestLocateQoderSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_short_id_resolved_in_indexer(self, both_full_and_short):
         """Indexer locator should also resolve short ID -> full UUID."""
         data_dir = both_full_and_short
@@ -268,6 +275,7 @@ class TestLocateQoderSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_cache_fallback_in_indexer(self, short_id_in_cache_only):
         """Indexer locator should fall back to cache/ for cache-only sessions."""
         data_dir = short_id_in_cache_only
@@ -282,6 +290,7 @@ class TestLocateQoderSessionFile:
         finally:
             _restore_qoder_env(old)
 
+    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_empty_project_key_in_indexer(self, full_uuid_in_projects):
         """Indexer locator should find session even with empty project_key."""
         data_dir = full_uuid_in_projects

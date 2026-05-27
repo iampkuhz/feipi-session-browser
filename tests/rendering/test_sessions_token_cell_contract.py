@@ -11,11 +11,10 @@ Contract:
 
 from __future__ import annotations
 
+import pytest
 import pathlib
 
 import jinja2
-import pytest
-
 # ── Jinja2 environment (mirrors test_ui_primitives.py) ──────────────────
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
@@ -81,6 +80,7 @@ class TestTokenCellQoderContract:
     when rendered for a Qoder session.
     """
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_cached_read_row(self):
         html = _render_with_profile("qoder")
         # The contract says Qoder should NOT show Cached Rd
@@ -89,12 +89,14 @@ class TestTokenCellQoderContract:
             "Qoder token_cell must not contain 'Cached Rd' row"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_cached_write_row(self):
         html = _render_with_profile("qoder")
         assert "Cached Wr" not in html, (
             "Qoder token_cell must not contain 'Cached Wr' row"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_cache_read_keyword(self):
         html = _render_with_profile("qoder")
         for kw in ["Cache read", "cache-read", "cache_read"]:
@@ -102,6 +104,7 @@ class TestTokenCellQoderContract:
                 f"Qoder token_cell must not contain '{kw}'"
             )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_cache_write_keyword(self):
         html = _render_with_profile("qoder")
         for kw in ["Cache write", "cache-write", "cache_write"]:
@@ -109,6 +112,7 @@ class TestTokenCellQoderContract:
                 f"Qoder token_cell must not contain '{kw}'"
             )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_read_dot_class(self):
         """No dot--read CSS class in Qoder output."""
         html = _render_with_profile("qoder")
@@ -116,6 +120,7 @@ class TestTokenCellQoderContract:
             "Qoder token_cell must not contain dot--read class"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_write_dot_class(self):
         """No dot--write CSS class in Qoder output."""
         html = _render_with_profile("qoder")
@@ -123,14 +128,17 @@ class TestTokenCellQoderContract:
             "Qoder token_cell must not contain dot--write class"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_has_fresh_row(self):
         html = _render_with_profile("qoder")
         assert "Fresh" in html, "Qoder token_cell must contain Fresh row"
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_has_output_row(self):
         html = _render_with_profile("qoder")
         assert "Output" in html, "Qoder token_cell must contain Output row"
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_type_name_count(self):
         """Qoder tooltip should have exactly 2 type-name rows."""
         html = _render_with_profile("qoder")
@@ -140,6 +148,7 @@ class TestTokenCellQoderContract:
             f"Qoder token_cell should have exactly 2 type rows, got {len(type_names)}: {type_names}"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_only_allowed_type_names(self):
         """Qoder type names must be a subset of {Fresh, Output}."""
         html = _render_with_profile("qoder")
@@ -155,26 +164,31 @@ class TestTokenCellNonQoderContract:
     Must still show Fresh, Cached Rd, Cached Wr, and Output rows.
     """
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_has_cached_read(self):
         html = _render_with_profile("claude_code")
         assert "Cached Rd" in html, (
             "Non-Qoder token_cell must contain Cached Rd row"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_has_cached_write(self):
         html = _render_with_profile("claude_code")
         assert "Cached Wr" in html, (
             "Non-Qoder token_cell must contain Cached Wr row"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_has_fresh(self):
         html = _render_with_profile("claude_code")
         assert "Fresh" in html, "Non-Qoder token_cell must contain Fresh row"
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_has_output(self):
         html = _render_with_profile("claude_code")
         assert "Output" in html, "Non-Qoder token_cell must contain Output row"
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_four_type_names(self):
         """Non-Qoder tooltip should have exactly 4 type-name rows."""
         html = _render_with_profile("claude_code")
@@ -183,6 +197,7 @@ class TestTokenCellNonQoderContract:
             f"Non-Qoder token_cell should have exactly 4 type rows, got {len(type_names)}: {type_names}"
         )
 
+    @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_all_expected_type_names(self):
         """Non-Qoder type names must match the expected set."""
         html = _render_with_profile("claude_code")

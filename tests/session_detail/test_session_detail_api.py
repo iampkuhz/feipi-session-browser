@@ -7,11 +7,10 @@ Validates /api/sessions/{agent}/{session_id}/payload/{payload_id}:
 - 404 for invalid session or payload_id
 """
 
+import pytest
 import json
 import urllib.error
 import urllib.request
-
-import pytest
 
 try:
     from bs4 import BeautifulSoup
@@ -41,6 +40,7 @@ def api_payload_ids(local_test_server):
 class TestPayloadApiEndpoint:
     """Test that the /api/sessions/{agent}/{session_id}/payload/{payload_id} endpoint exists."""
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_payload_api_returns_json(self, api_payload_ids):
         """API endpoint must return 200 with JSON content type."""
         base_url, agent, session_id, payload_ids = api_payload_ids
@@ -52,6 +52,7 @@ class TestPayloadApiEndpoint:
         data = get_json(url)
         assert isinstance(data, dict)
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_payload_api_has_required_fields(self, api_payload_ids):
         """Response must contain payload_id, kind, title, status, text fields."""
         base_url, agent, session_id, payload_ids = api_payload_ids
@@ -65,6 +66,7 @@ class TestPayloadApiEndpoint:
         for field in ("payload_id", "kind", "title", "status", "text"):
             assert field in data, f"Missing required field: {field}"
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_payload_api_returns_payload_id_match(self, api_payload_ids):
         """Response payload_id must match the requested id."""
         base_url, agent, session_id, payload_ids = api_payload_ids
@@ -80,6 +82,7 @@ class TestPayloadApiEndpoint:
 class TestPayloadApiNoTruncation:
     """Test that the API returns full, untruncated content."""
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_text_not_truncated(self, api_payload_ids):
         """The text field must NOT be truncated (no 5000/10000 char limit)."""
         base_url, agent, session_id, payload_ids = api_payload_ids
@@ -95,6 +98,7 @@ class TestPayloadApiNoTruncation:
             assert len(text) > 0, "Available payload must have non-empty text"
             assert not text.endswith("..."), "API should not return truncated text with '...' suffix"
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_long_payload_returns_full_content(self, api_payload_ids):
         """For a known-long payload, verify the API returns content beyond truncation limits."""
         base_url, agent, session_id, payload_ids = api_payload_ids
@@ -120,6 +124,7 @@ class TestPayloadApiNoTruncation:
 class TestPayloadApi404:
     """Test 404 responses for invalid requests."""
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_invalid_session_returns_404(self, api_payload_ids):
         """Request for non-existent session must return 404."""
         base_url, agent, session_id, _ = api_payload_ids
@@ -131,6 +136,7 @@ class TestPayloadApi404:
         except urllib.error.HTTPError as e:
             assert e.code == 404, f"Expected 404, got {e.code}"
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_invalid_payload_id_returns_404(self, api_payload_ids):
         """Request for non-existent payload_id must return 404."""
         base_url, agent, session_id, _ = api_payload_ids
@@ -142,6 +148,7 @@ class TestPayloadApi404:
         except urllib.error.HTTPError as e:
             assert e.code == 404, f"Expected 404, got {e.code}"
 
+    @pytest.mark.contract_case("ROUTE-API-002")
     def test_invalid_agent_returns_404(self, api_payload_ids):
         """Request with invalid agent must return 404."""
         base_url, agent, session_id, _ = api_payload_ids

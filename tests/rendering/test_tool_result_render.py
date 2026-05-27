@@ -1,11 +1,12 @@
 """Regression tests for tool result rendering in v9 session detail.
-
 v9 architecture:
 - Tool results rendered via timeline component macros (tool_batch)
 - Tool result buttons use sdp.button('Result', 'open-payload', ...)
 - Payload modal shows result content
 - No inline [:500] truncation on tool results in template
 """
+
+import pytest
 
 import re
 from pathlib import Path
@@ -14,6 +15,7 @@ TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "
 TIMELINE = TEMPLATE_DIR / "components" / "session_detail_timeline.html"
 
 
+@pytest.mark.contract_case("UI-SD-021")
 def test_tool_batch_renders_full_result():
     """The tool_batch macro renders tool result buttons, not truncated text."""
     source = TIMELINE.read_text(encoding="utf-8")
@@ -34,6 +36,7 @@ def test_tool_batch_renders_full_result():
         "tool_batch must have Result button via sdp.button"
 
 
+@pytest.mark.contract_case("UI-SD-021")
 def test_all_tool_result_calls_use_macro():
     """Tool results are rendered via component macros, not inline truncation."""
     source = TIMELINE.read_text(encoding="utf-8")
@@ -54,6 +57,7 @@ def test_all_tool_result_calls_use_macro():
             )
 
 
+@pytest.mark.contract_case("UI-SD-021")
 def test_template_has_tool_result_button():
     """The tool_batch macro should have a Result button for each tool."""
     source = TIMELINE.read_text(encoding="utf-8")

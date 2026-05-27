@@ -1,5 +1,5 @@
 """Tests for token normalizer."""
-
+import pytest
 from session_browser.domain.token_normalizer import (
     normalize_tokens,
     format_tokens,
@@ -12,6 +12,7 @@ from session_browser.domain.token_normalizer import (
 class TestAnthropicNormalization:
     """Test Anthropic usage normalization."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_basic_anthropic_usage(self):
         usage = {
             "input_tokens": 1000,
@@ -29,6 +30,7 @@ class TestAnthropicNormalization:
         assert result.precision == TokenPrecision.PROVIDER_REPORTED
         assert result.provider == TokenProvider.ANTHROPIC
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_anthropic_with_cache_read(self):
         usage = {
             "input_tokens": 1000,
@@ -45,6 +47,7 @@ class TestAnthropicNormalization:
         assert result.total_input == 3500  # 1000 + 2000 + 500
         assert result.total_output == 300
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_anthropic_cache_read_not_double_counted(self):
         """Cache read must not be added to inputFresh."""
         usage = {
@@ -58,6 +61,7 @@ class TestAnthropicNormalization:
         assert result.input_cache_read == 5000
         assert result.total_input == 6000  # 1000 + 5000, NOT 1000 + 5000 + 1000
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qwen_anthropic_compatible(self):
         usage = {
             "input_tokens": 25728,
@@ -77,6 +81,7 @@ class TestAnthropicNormalization:
 class TestOpenAINormalization:
     """Test OpenAI usage normalization."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_basic_openai_usage(self):
         usage = {
             "prompt_tokens": 1000,
@@ -89,6 +94,7 @@ class TestOpenAINormalization:
         assert result.input_cache_read is None
         assert result.output_reasoning is None
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_with_cached_tokens(self):
         usage = {
             "prompt_tokens": 5000,
@@ -101,6 +107,7 @@ class TestOpenAINormalization:
         assert result.input_fresh == 2000  # 5000 - 3000
         assert result.total_input == 5000  # 2000 + 3000
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_with_reasoning_tokens(self):
         usage = {
             "prompt_tokens": 1000,
@@ -113,6 +120,7 @@ class TestOpenAINormalization:
         assert result.output_visible == 500  # 800 - 300
         assert result.total_output == 800  # 500 + 300
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_new_format(self):
         """Test newer OpenAI format with input_tokens/output_tokens."""
         usage = {
@@ -134,6 +142,7 @@ class TestOpenAINormalization:
 class TestCodexNormalization:
     """Test Codex usage normalization."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_total_only(self):
         usage = {"tokens_used": 10000}
         result = normalize_tokens(usage, provider=TokenProvider.CODEX)
@@ -142,6 +151,7 @@ class TestCodexNormalization:
         assert result.precision == TokenPrecision.PROVIDER_REPORTED  # tokens_used is directly from provider
         assert result.provider == TokenProvider.CODEX
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_missing(self):
         usage = {}
         result = normalize_tokens(usage, provider=TokenProvider.CODEX)
@@ -156,6 +166,7 @@ class TestQoderNormalization:
     Qoder tokens are always ESTIMATED; cache fields are preserved as-is (usually 0).
     """
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qoder_estimated_usage(self):
         usage = {
             "input_tokens": 500,
@@ -176,6 +187,7 @@ class TestQoderNormalization:
         assert result.precision == TokenPrecision.ESTIMATED
         assert result.provider == TokenProvider.QODER
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qoder_missing_usage(self):
         usage = {}
         result = normalize_tokens(usage, provider=TokenProvider.QODER)
@@ -185,6 +197,7 @@ class TestQoderNormalization:
         assert result.precision == TokenPrecision.ESTIMATED
         assert result.provider == TokenProvider.QODER
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qoder_estimated_flag_in_usage(self):
         """Estimated flag from qoder.py should be preserved in raw_fields."""
         usage = {
@@ -204,14 +217,17 @@ class TestQoderNormalization:
 class TestMissingAndUnknownFields:
     """Test handling of missing and unknown fields."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_empty_usage(self):
         result = normalize_tokens({})
         assert result.precision == TokenPrecision.UNKNOWN
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_none_usage(self):
         result = normalize_tokens(None)
         assert result.precision == TokenPrecision.UNKNOWN
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_missing_fields_are_none_not_zero(self):
         usage = {"input_tokens": 1000}
         result = normalize_tokens(usage, provider=TokenProvider.ANTHROPIC)
@@ -221,6 +237,7 @@ class TestMissingAndUnknownFields:
         assert result.input_cache_write is None  # Not 0
         assert result.output_visible is None  # Not 0
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_unknown_provider_fallback(self):
         usage = {"some_custom_field": 42}
         result = normalize_tokens(usage, provider="unknown-provider")
@@ -231,24 +248,28 @@ class TestMissingAndUnknownFields:
 class TestProviderInference:
     """Test provider inference from model string."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qwen_model_inferred(self):
         usage = {"input_tokens": 100, "output_tokens": 50}
         result = normalize_tokens(usage, model="qwen3.6-plus")
 
         assert result.provider == TokenProvider.QWEN_ANTHROPIC_COMPATIBLE
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_claude_model_inferred(self):
         usage = {"input_tokens": 100, "output_tokens": 50}
         result = normalize_tokens(usage, model="claude-sonnet-4-20250514")
 
         assert result.provider == TokenProvider.ANTHROPIC
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_gpt_model_inferred(self):
         usage = {"prompt_tokens": 100, "completion_tokens": 50}
         result = normalize_tokens(usage, model="gpt-4o")
 
         assert result.provider == TokenProvider.OPENAI
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_unknown_model(self):
         usage = {"input_tokens": 100}
         result = normalize_tokens(usage, model="some-unknown-model")
@@ -259,18 +280,23 @@ class TestProviderInference:
 class TestFormatHelpers:
     """Test formatting helper functions."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_format_tokens_none(self):
         assert format_tokens(None) == "—"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_format_tokens_small(self):
         assert format_tokens(500) == "500"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_format_tokens_k(self):
         assert format_tokens(1500) == "1.5K"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_format_tokens_m(self):
         assert format_tokens(1500000) == "1.5M"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_precision_label(self):
         assert precision_label(TokenPrecision.EXACT) == "exact"
         assert precision_label(TokenPrecision.PROVIDER_REPORTED) == "provider-reported"

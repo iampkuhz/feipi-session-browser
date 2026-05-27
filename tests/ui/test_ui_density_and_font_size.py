@@ -10,9 +10,8 @@ Usage:
 
 from __future__ import annotations
 
+
 import pytest
-
-
 def _run(css: str):
     """Run the check on a synthetic CSS string and return (all_pass, lines)."""
     from scripts.check_ui_density_and_font_size import run_checks
@@ -39,6 +38,7 @@ def _report_text(lines: list[str]) -> str:
 class TestTokenParsing:
     """Verify CSS token extraction from :root block."""
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_parses_all_text_tokens(self):
         css = """
         :root {
@@ -57,6 +57,7 @@ class TestTokenParsing:
         assert tokens["--text-base"]["value_px"] == 14.0
         assert tokens["--text-xs"]["value_px"] == 11.0
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_missing_tokens_reported_unresolved(self):
         css = ":root { --text-base: 14px; }"
         from scripts.check_ui_density_and_font_size import parse_css_tokens
@@ -72,12 +73,14 @@ class TestTokenParsing:
 class TestParsePx:
     """Verify parse_px helper."""
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_valid_px(self):
         from scripts.check_ui_density_and_font_size import parse_px
         assert parse_px("14px") == 14.0
         assert parse_px("10px") == 10.0
         assert parse_px("13.5px") == 13.5
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_invalid_px(self):
         from scripts.check_ui_density_and_font_size import parse_px
         assert parse_px("1em") is None
@@ -92,18 +95,21 @@ class TestParsePx:
 class TestTokenResolution:
     """Verify var() resolution."""
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_direct_var(self):
         from scripts.check_ui_density_and_font_size import resolve_token_ref
         tokens = {"--text-base": {"value_px": 14.0}}
         px, desc = resolve_token_ref("var(--text-base)", tokens)
         assert px == 14.0
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_fallback_chain(self):
         from scripts.check_ui_density_and_font_size import resolve_token_ref
         tokens = {"--text-xs": {"value_px": 11.0}}
         px, desc = resolve_token_ref("var(--density-font-size, var(--text-xs))", tokens)
         assert px == 11.0
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_literal_px(self):
         from scripts.check_ui_density_and_font_size import resolve_token_ref
         px, desc = resolve_token_ref("16px", {})
@@ -117,6 +123,7 @@ class TestTokenResolution:
 class TestThresholdsPass:
     """Cases that should pass all checks."""
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_all_tokens_meet_minimum(self):
         css = """
         :root {
@@ -142,6 +149,7 @@ class TestThresholdsPass:
         all_pass, lines = _run(css)
         assert all_pass, _report_text(lines)
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_literal_px_values_pass(self):
         css = """
         :root {
@@ -174,6 +182,7 @@ class TestThresholdsPass:
 class TestThresholdsFail:
     """Cases that should fail specific checks."""
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_text_base_too_small(self):
         css = """
         :root {
@@ -201,6 +210,7 @@ class TestThresholdsFail:
         assert "--text-base" in report
         assert "FAIL" in report
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_data_table_too_small(self):
         css = """
         :root {
@@ -228,6 +238,7 @@ class TestThresholdsFail:
         assert ".data-table" in report
         assert "FAIL" in report
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_button_too_small(self):
         css = """
         :root {
@@ -255,6 +266,7 @@ class TestThresholdsFail:
         assert ".btn" in report
         assert "FAIL" in report
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_metrics_strip_label_too_small(self):
         css = """
         :root {
@@ -290,6 +302,7 @@ class TestThresholdsFail:
 class TestReportFormat:
     """Verify report contains expected sections and markers."""
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_report_has_token_section(self):
         css = """
         :root {
@@ -311,6 +324,7 @@ class TestReportFormat:
         assert "CSS Token Values" in report
         assert "Threshold Checks" in report
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_report_has_ok_fail_markers(self):
         css = """
         :root {
@@ -332,6 +346,7 @@ class TestReportFormat:
         assert "[OK]" in report
         assert "[FAIL]" in report
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
     def test_report_shows_tiny_declarations(self):
         css = """
         :root {
@@ -361,6 +376,8 @@ class TestReportFormat:
 class TestEdgeCases:
     """Edge case handling."""
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
+    @pytest.mark.contract_case("UI-VISUAL-003")
     def test_missing_css_file(self):
         from pathlib import Path
         from scripts.check_ui_density_and_font_size import run_checks
@@ -368,11 +385,15 @@ class TestEdgeCases:
         assert not all_pass
         assert "FAIL" in _report_text(lines)
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
+    @pytest.mark.contract_case("UI-VISUAL-004")
     def test_empty_css(self):
         css = ""
         all_pass, lines = _run(css)
         assert not all_pass
 
+    @pytest.mark.contract_case("UI-VISUAL-011")
+    @pytest.mark.contract_case("UI-VISUAL-005")
     def test_no_root_block(self):
         css = ".data-table { font-size: 14px; }"
         all_pass, lines = _run(css)

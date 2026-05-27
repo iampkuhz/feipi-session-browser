@@ -6,6 +6,7 @@ and that the recalculated metrics (tokens, message counts, etc.) reflect
 the new content.
 """
 
+import pytest
 import json
 import os
 import shutil
@@ -13,8 +14,6 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -97,6 +96,7 @@ def _get_session_row(db_path: str, session_key: str) -> dict | None:
 class TestModifiedFileScenario:
     """M01: incremental_scan re-indexes modified session files with updated metrics."""
 
+    @pytest.mark.contract_case("DATA-INDEX-005")
     def test_append_events_recalculates_tokens(self, tmp_path):
         """Appending new assistant events to a session file should increase token counts after incremental scan.
 
@@ -198,6 +198,7 @@ class TestModifiedFileScenario:
         assert row_sess002["input_tokens"] > 0, "sess-002 should still have input_tokens"
         assert row_sess002["output_tokens"] > 0, "sess-002 should still have output_tokens"
 
+    @pytest.mark.contract_case("DATA-INDEX-005")
     def test_append_events_updates_file_mtime(self, tmp_path):
         """After re-indexing a modified file, the stored file_mtime should be updated.
 
@@ -254,6 +255,7 @@ class TestModifiedFileScenario:
             f"claude_count={result2['claude_count']}, skipped={result2['skipped']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-005")
     def test_append_tool_call_events_updates_tool_count(self, tmp_path):
         """Appending tool_use events should increase tool_call_count and failed_tool_count.
 
@@ -334,6 +336,7 @@ class TestModifiedFileScenario:
             f"failed_tool_count should increase: {failed_tools_before} -> {row_after['failed_tool_count']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-005")
     def test_modify_then_full_scan_consistency(self, tmp_path):
         """After modifying a file and running incremental, a full re-scan must match.
 

@@ -6,11 +6,10 @@
 - round 级 token 聚合正确
 - session 级 token 总计正确
 """
+import pytest
 import json
 import os
 import sys
-
-import pytest
 
 # Ensure src is importable
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -62,6 +61,7 @@ def fixture_messages(token_breakdown_fixture):
 class TestTokenBreakdownStructure:
     """验证 token breakdown 数据结构正确."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_full_breakdown_all_fields_present(self, token_breakdown_fixture):
         """full_breakdown 场景: 所有 breakdown 字段都应存在."""
         scenario = token_breakdown_fixture["token_breakdown_scenarios"][0]
@@ -83,6 +83,7 @@ class TestTokenBreakdownStructure:
         assert data["precision"] is not None
         assert data["provider"] is not None
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_minimal_breakdown_nullable_fields(self, token_breakdown_fixture):
         """minimal_breakdown 场景: 可选字段应为 None."""
         scenario = token_breakdown_fixture["token_breakdown_scenarios"][1]
@@ -99,6 +100,7 @@ class TestTokenBreakdownStructure:
         assert data["tool_call_output"] is None
         assert data["tool_result_input"] is None
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_token_breakdown_dataclass_instantiation(self):
         """TokenBreakdown dataclass 可以正确实例化."""
         tb = TokenBreakdown(
@@ -120,6 +122,7 @@ class TestTokenBreakdownStructure:
         assert tb.precision == TokenPrecision.PROVIDER_REPORTED
         assert tb.provider == TokenProvider.ANTHROPIC
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_token_breakdown_default_values(self):
         """TokenBreakdown 默认值应为 None/UNKNOWN."""
         tb = TokenBreakdown()
@@ -143,6 +146,7 @@ class TestTokenBreakdownStructure:
 class TestTokenCategoryClassification:
     """验证 input/output/cache token 分类."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_input_side_categories(self, token_breakdown_fixture):
         """Input 侧应包含 fresh、cache_read、cache_write 三个子分类."""
         scenario = token_breakdown_fixture["token_breakdown_scenarios"][0]
@@ -155,6 +159,7 @@ class TestTokenCategoryClassification:
         # input_cache_write 是缓存写入
         assert data["input_cache_write"] == 3000
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_output_side_categories(self, token_breakdown_fixture):
         """Output 侧应包含 visible、reasoning、thinking 三个子分类."""
         scenario = token_breakdown_fixture["token_breakdown_scenarios"][0]
@@ -167,6 +172,7 @@ class TestTokenCategoryClassification:
         # output_thinking 是 thinking 输出
         assert data["output_thinking"] == 50
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_tool_related_categories(self, token_breakdown_fixture):
         """Tool 相关应包含 definition_input、call_output、result_input."""
         scenario = token_breakdown_fixture["token_breakdown_scenarios"][0]
@@ -176,6 +182,7 @@ class TestTokenCategoryClassification:
         assert data["tool_call_output"] == 500
         assert data["tool_result_input"] == 1500
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_precision_values(self, token_breakdown_fixture):
         """不同场景应使用正确的 precision 值."""
         scenarios = token_breakdown_fixture["token_breakdown_scenarios"]
@@ -189,6 +196,7 @@ class TestTokenCategoryClassification:
         codex = scenarios[2]
         assert codex["data"]["precision"] == TokenPrecision.EXACT
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_provider_values(self, token_breakdown_fixture):
         """不同场景应使用正确的 provider 值."""
         scenarios = token_breakdown_fixture["token_breakdown_scenarios"]
@@ -199,6 +207,7 @@ class TestTokenCategoryClassification:
         codex = scenarios[2]
         assert codex["data"]["provider"] == TokenProvider.OPENAI
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_chat_message_usage_fields_map_to_categories(self, fixture_messages):
         """ChatMessage.usage 字段应映射到正确的 token 分类."""
         # Round 1 assistant (msg-main-002)
@@ -223,6 +232,7 @@ class TestTokenCategoryClassification:
 class TestRoundLevelTokenAggregation:
     """验证 round 级 token 聚合正确."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_round1_token_counts(self, fixture_messages):
         """Round 1 (msg-main-002) 的 token 计数正确."""
         assistant = fixture_messages[1]
@@ -241,6 +251,7 @@ class TestRoundLevelTokenAggregation:
         # Round 总 tokens
         assert input_tokens + output_tokens + cache_read + cache_write == 13100
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_round2_token_counts(self, fixture_messages):
         """Round 2 (msg-main-004) 的 token 计数正确."""
         assistant = fixture_messages[3]
@@ -258,6 +269,7 @@ class TestRoundLevelTokenAggregation:
         assert cache_write == 3000
         assert input_tokens + output_tokens + cache_read + cache_write == 25800
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_round3_token_counts(self, fixture_messages):
         """Round 3 (msg-main-006) 的 token 计数正确."""
         assistant = fixture_messages[5]
@@ -275,6 +287,7 @@ class TestRoundLevelTokenAggregation:
         assert cache_write == 4000
         assert input_tokens + output_tokens + cache_read + cache_write == 49100
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_token_breakdown_compute_totals(self):
         """TokenBreakdown.compute_totals() 应正确计算总计."""
         tb = TokenBreakdown(
@@ -290,6 +303,7 @@ class TestRoundLevelTokenAggregation:
         assert tb.total_input == 18000  # 5000 + 10000 + 3000
         assert tb.total_output == 1050   # 800 + 200 + 50
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_token_breakdown_compute_totals_with_none(self):
         """TokenBreakdown.compute_totals() 应正确处理 None 值."""
         tb = TokenBreakdown(
@@ -305,6 +319,7 @@ class TestRoundLevelTokenAggregation:
         assert tb.total_input == 3000  # 只有 input_fresh
         assert tb.total_output == 500   # 只有 output_visible
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_token_breakdown_compute_totals_all_none(self):
         """TokenBreakdown.compute_totals() 全 None 时不设置总计."""
         tb = TokenBreakdown()
@@ -319,6 +334,7 @@ class TestRoundLevelTokenAggregation:
 class TestSessionLevelTokenTotals:
     """验证 session 级 token 总计正确."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_session_summary_token_fields(self, token_breakdown_fixture):
         """session 级摘要应包含所有 token 字段."""
         session = token_breakdown_fixture["session"]
@@ -328,6 +344,7 @@ class TestSessionLevelTokenTotals:
         assert session["cached_input_tokens"] == 28000
         assert session["cached_output_tokens"] == 12000
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_session_token_breakdown(self, token_breakdown_fixture):
         """session 级 token breakdown 应包含完整分类."""
         tb = token_breakdown_fixture["session"]["token_breakdown"]
@@ -343,6 +360,7 @@ class TestSessionLevelTokenTotals:
         assert tb["precision"] == "provider-reported"
         assert tb["provider"] == "anthropic"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_session_total_rounds_aggregation(self, fixture_messages):
         """所有 round 的 token 聚合应等于 session 总计 (按 fixture 数据)."""
         # 获取所有 assistant messages
@@ -363,6 +381,7 @@ class TestSessionLevelTokenTotals:
         grand_total = total_input + total_output + total_cache_read + total_cache_write
         assert grand_total == 88000
 
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_session_token_breakdown_from_fixture_dataclass(self, token_breakdown_fixture):
         """从 fixture 数据构建 TokenBreakdown dataclass 后计算 totals."""
         tb_data = token_breakdown_fixture["session"]["token_breakdown"]

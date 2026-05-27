@@ -11,10 +11,9 @@ Covers:
 
 from __future__ import annotations
 
+import pytest
 import tempfile
 from pathlib import Path
-
-import pytest
 
 from session_browser.sources.jsonl_reader import (
     JsonlDiagnostics,
@@ -46,6 +45,7 @@ def _write(content: str) -> Path:
 class TestStandardJsonl:
     """One JSON object per line, all parseable."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_single_object(self):
         p = _write('{"type": "message", "id": 1}\n')
         events, diag = parse_jsonl_events(p)
@@ -56,6 +56,7 @@ class TestStandardJsonl:
         assert diag.error_count == 0
         assert diag.warning_count == 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_multiple_objects(self):
         lines = [
             '{"type": "start", "seq": 1}',
@@ -69,17 +70,20 @@ class TestStandardJsonl:
         assert diag.events_parsed == 3
         assert diag.events_skipped == 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_trailing_newline_ignored(self):
         p = _write('{"a": 1}\n\n{"b": 2}\n')
         events, diag = parse_jsonl_events(p)
         assert len(events) == 2
         assert diag.non_empty_lines == 2
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_no_trailing_newline(self):
         p = _write('{"a": 1}\n{"b": 2}')
         events, diag = parse_jsonl_events(p)
         assert len(events) == 2
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_string_path_accepted(self):
         p = _write('{"x": true}\n')
         events, diag = parse_jsonl_events(str(p))
@@ -92,6 +96,7 @@ class TestStandardJsonl:
 class TestBadLines:
     """JSONL containing unparseable lines or non-dict JSON values."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_bad_json_line_skipped(self):
         p = _write('{"good": true}\n{bad json}\n{"also_good": 1}\n')
         events, diag = parse_jsonl_events(p)
@@ -102,6 +107,7 @@ class TestBadLines:
         assert diag.issues[0].issue == ParseIssue.BAD_JSON
         assert diag.issues[0].severity == ParseSeverity.ERROR
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_non_object_skipped(self):
         lines = [
             '{"keep": "this"}',
@@ -120,6 +126,7 @@ class TestBadLines:
                           if i.issue == ParseIssue.NON_OBJECT_SKIPPED]
         assert len(skipped_issues) == 3
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_mixed_bad_and_non_object(self):
         p = _write(
             '{"ok": 1}\n'
@@ -140,6 +147,7 @@ class TestBadLines:
 class TestMultiLineJson:
     """Pretty-printed JSON spanning multiple lines."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_single_pretty_object(self):
         pretty = (
             '{\n'
@@ -158,6 +166,7 @@ class TestMultiLineJson:
         assert diag.events_parsed == 1
         assert diag.events_skipped == 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_two_pretty_objects(self):
         obj1 = '{\n  "id": 1\n}'
         obj2 = '{\n  "id": 2,\n  "extra": [\n    "a",\n    "b"\n  ]\n}'
@@ -167,6 +176,7 @@ class TestMultiLineJson:
         assert events[0]["id"] == 1
         assert events[1]["id"] == 2
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_pretty_with_string_containing_braces(self):
         """Braces inside JSON strings must not affect depth tracking."""
         pretty = (
@@ -194,6 +204,7 @@ class TestConcatenatedObjects:
     starts new ones (e.g. ``}{"b": 2}`` while depth > 0).
     """
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_pretty_then_concatenated_transition(self):
         """Multi-line object closed on same line as concatenated new object.
 
@@ -211,6 +222,7 @@ class TestConcatenatedObjects:
         assert events[0]["a"] == 1
         assert events[1]["b"] == 2
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_pretty_then_two_concatenated(self):
         """Multi-line object followed by two concatenated objects on close line."""
         content = (
@@ -225,6 +237,7 @@ class TestConcatenatedObjects:
         assert events[1]["b"] == 2
         assert events[2]["c"] == 3
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_concatenated_followed_by_standard_jsonl(self):
         """Transition line followed by independent standard JSONL lines."""
         content = (
@@ -240,6 +253,7 @@ class TestConcatenatedObjects:
         assert events[1]["b"] == 2
         assert events[2]["c"] == 3
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_concatenated_non_object_in_split(self):
         """A concatenated line containing non-objects is recorded as BAD_JSON.
 
@@ -270,6 +284,7 @@ class TestConcatenatedObjects:
 class TestEmptyFile:
     """Empty and whitespace-only files should return empty results, not crash."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_completely_empty_returns_empty(self):
         p = _write("")
         events, diagnostics = parse_jsonl_events(p)
@@ -277,6 +292,7 @@ class TestEmptyFile:
         assert diagnostics.events_parsed == 0
         assert diagnostics.error_count == 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_whitespace_only_returns_empty(self):
         p = _write("\n\n  \t\n")
         events, diagnostics = parse_jsonl_events(p)
@@ -291,6 +307,7 @@ class TestEmptyFile:
 class TestDiagnosticsCompleteness:
     """Verify that diagnostics carry all required fields."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_issue_has_line_no_detail_preview(self):
         content = (
             '{"good": true}\n'
@@ -311,6 +328,7 @@ class TestDiagnosticsCompleteness:
         assert non_obj.line_no == 3
         assert "list" in non_obj.detail.lower()
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_total_lines_reflects_file(self):
         """total_lines should equal the last line number seen."""
         content = "a\nb\nc\n"
@@ -318,12 +336,14 @@ class TestDiagnosticsCompleteness:
         _, diag = parse_jsonl_events(p)
         assert diag.total_lines == 3
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_non_empty_lines_count(self):
         content = '{"a": 1}\n\n{"b": 2}\n\n'
         p = _write(content)
         _, diag = parse_jsonl_events(p)
         assert diag.non_empty_lines == 2
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_verbose_mode_prints(self, capsys):
         content = '{"ok": 1}\n[1, 2]\n'
         p = _write(content)
@@ -331,6 +351,7 @@ class TestDiagnosticsCompleteness:
         captured = capsys.readouterr()
         assert "skipped" in captured.out.lower()
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_warning_error_counts(self):
         content = (
             '{"ok": 1}\n'
@@ -351,18 +372,22 @@ class TestDiagnosticsCompleteness:
 class TestBraceCharsOutsideStrings:
     """Verify _brace_chars_outside_strings correctly ignores braces in strings."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_simple_object(self):
         assert _brace_chars_outside_strings('{"a": 1}') == "{}"
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_braces_in_string_ignored(self):
         # {"key": "{value}"} should yield only {}
         result = _brace_chars_outside_strings('{"key": "{value}"}')
         assert result == "{}"
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_nested_braces(self):
         result = _brace_chars_outside_strings('{"a": {"b": [1, 2]}}')
         assert result == "{{[]}}"
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_escaped_quote(self):
         result = _brace_chars_outside_strings('{"key": "say \\"hi\\""}')
         # Escaped quotes should not toggle in_string state
@@ -372,25 +397,30 @@ class TestBraceCharsOutsideStrings:
 class TestSplitAtDepth0:
     """Verify _split_at_depth0 splits concatenated objects."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_no_split_needed(self):
         assert _split_at_depth0('{"a": 1}') == ['{"a": 1}']
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_two_concatenated(self):
         parts = _split_at_depth0('{"a": 1}{"b": 2}')
         assert len(parts) == 2
         assert parts[0] == '{"a": 1}'
         assert parts[1] == '{"b": 2}'
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_three_concatenated(self):
         parts = _split_at_depth0('{"a": 1}{"b": 2}{"c": 3}')
         assert len(parts) == 3
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_concatenated_with_nested(self):
         parts = _split_at_depth0('{"a": {"x": 1}}{"b": 2}')
         assert len(parts) == 2
         assert parts[0] == '{"a": {"x": 1}}'
         assert parts[1] == '{"b": 2}'
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_string_with_brace_not_split(self):
         # }{"k": "}{"}  -- the }{ inside string should not be a split point
         parts = _split_at_depth0('{"k": "}{"}')
@@ -400,6 +430,7 @@ class TestSplitAtDepth0:
 class TestTryParseJson:
     """Verify _try_parse_json routes events vs skipped correctly."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_valid_dict(self):
         events: list = []
         skipped: list = []
@@ -407,6 +438,7 @@ class TestTryParseJson:
         assert len(events) == 1
         assert len(skipped) == 0
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_valid_list_skipped(self):
         events: list = []
         skipped: list = []
@@ -416,6 +448,7 @@ class TestTryParseJson:
         assert skipped[0][0] == 5
         assert skipped[0][1] == "list"
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_bad_json_recorded(self):
         events: list = []
         skipped: list = []
@@ -429,6 +462,7 @@ class TestTryParseJson:
 class TestBuildDiagnostics:
     """Verify _build_diagnostics maps skipped tuples to ParseIssueItems."""
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_bad_json_mapped(self):
         diag = JsonlDiagnostics()
         events: list = []
@@ -440,6 +474,7 @@ class TestBuildDiagnostics:
         assert item.issue == ParseIssue.BAD_JSON
         assert item.severity == ParseSeverity.ERROR
 
+    @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_non_object_mapped(self):
         diag = JsonlDiagnostics()
         events: list = []

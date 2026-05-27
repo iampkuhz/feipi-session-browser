@@ -17,9 +17,8 @@ T095 — Agents fixed fixture.
 
 from __future__ import annotations
 
-import re
-
 import pytest
+import re
 
 
 # ── Agents page fixture ────────────────────────────────────────────────
@@ -42,27 +41,34 @@ def agents_html(hifi_fixture_session):
 class TestAgentsPageRender:
     """Verify the rendered Agents page structure."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
+    @pytest.mark.contract_case("UI-AGENTS-003")
     def test_page_returns_200(self, agents_html):
         """Agents page must render successfully."""
         assert len(agents_html) > 500, \
             "Agents HTML must be substantial"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_has_doctype_and_html(self, agents_html):
         """Page must have proper HTML structure."""
         lower = agents_html.lower()
         assert "<!doctype html" in lower or "<!DOCTYPE html" in agents_html, \
             "Agents must have DOCTYPE declaration"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
+    @pytest.mark.contract_case("UI-AGENTS-003")
     def test_title_contains_agents(self, agents_html):
         """Page title must contain 'Agents'."""
         assert "<title>Agents" in agents_html, \
             "Page title must contain 'Agents'"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_has_h1_agents(self, agents_html):
         """Page must have a visible 'Agents' heading."""
         assert ">Agents<" in agents_html, \
             "'Agents' heading must be visible"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_has_subtitle(self, agents_html):
         """Page must show the subtitle with agent count."""
         assert "个 Agent" in agents_html, \
@@ -77,11 +83,14 @@ class TestAgentsMetrics:
 
     _EXPECTED_LABELS = ["Active Agents", "Sessions", "Projects", "Total Tokens"]
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
+    @pytest.mark.contract_case("UI-AGENTS-005")
     def test_metric_grid_present(self, agents_html):
         """Agents must have a metric-grid container."""
         assert 'class="metric-grid"' in agents_html, \
             "metric-grid must be present"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_four_metric_cards(self, agents_html):
         """Exactly 4 metric cards must be rendered."""
         cards = re.findall(r'class="metric-card"', agents_html)
@@ -89,11 +98,13 @@ class TestAgentsMetrics:
             f"Expected 4 metric cards, found {len(cards)}"
 
     @pytest.mark.parametrize("label", _EXPECTED_LABELS)
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_metric_label_present(self, agents_html, label):
         """Each metric card must show its label."""
         assert f">{label}<" in agents_html or f'aria-label="{label}"' in agents_html, \
             f"Metric card labeled '{label}' must be visible"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_metric_values_nonzero(self, agents_html):
         """Metric cards must have populated values when fixture has data."""
         # Active Agents must be > 0
@@ -109,6 +120,7 @@ class TestAgentsMetrics:
         assert active_val.isdigit() and int(active_val) > 0, \
             f"Active Agents count must be > 0, got '{active_val}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_metric_aria_labels(self, agents_html):
         """Each metric card info button must have aria-label."""
         aria_labels = re.findall(
@@ -118,6 +130,7 @@ class TestAgentsMetrics:
         assert len(aria_labels) >= 4, \
             f"Expected at least 4 aria-labels on metric info buttons, found {len(aria_labels)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_metric_icons_present(self, agents_html):
         """Metric cards must have icon elements."""
         icons = re.findall(r'class="metric-icon', agents_html)
@@ -131,58 +144,70 @@ class TestAgentsMetrics:
 class TestAgentsListDisplay:
     """Verify agent list rows are rendered with correct data."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_agents_table_present(self, agents_html):
         """Agents table must have id='agents-table'."""
         assert 'id="agents-table"' in agents_html, \
             "Agents table must have id='agents-table'"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
+    @pytest.mark.contract_case("UI-AGENTS-004")
     def test_has_agent_rows(self, agents_html):
         """At least one agent row must be rendered."""
         rows = re.findall(r'data-action="open-agent"', agents_html)
         assert len(rows) > 0, \
             "At least one agent row must be rendered"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_row_has_data_href(self, agents_html):
         """Agent rows must have data-href to detail page."""
         assert 'data-href="/agents/' in agents_html, \
             "Agent row must have data-href attribute"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_row_has_data_agent_name(self, agents_html):
         """Agent rows must have data-agent-name attribute."""
         assert 'data-agent-name=' in agents_html, \
             "Agent row must have data-agent-name"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_row_has_data_session_count(self, agents_html):
         """Agent rows must have data-session-count attribute."""
         assert 'data-session-count=' in agents_html, \
             "Agent row must have data-session-count"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_row_has_data_project_count(self, agents_html):
         """Agent rows must have data-project-count attribute."""
         assert 'data-project-count=' in agents_html, \
             "Agent row must have data-project-count"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_row_has_data_total_tokens(self, agents_html):
         """Agent rows must have data-total-tokens attribute."""
         assert 'data-total-tokens=' in agents_html, \
             "Agent row must have data-total-tokens"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_row_has_data_total_tool_calls(self, agents_html):
         """Agent rows must have data-total-tool-calls attribute."""
         assert 'data-total-tool-calls=' in agents_html, \
             "Agent row must have data-total-tool-calls"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_row_has_data_last_active(self, agents_html):
         """Agent rows must have data-last-active attribute."""
         assert 'data-last-active=' in agents_html, \
             "Agent row must have data-last-active"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_agent_detail_links_present(self, agents_html):
         """Each agent row must link to its detail page."""
         links = re.findall(r'href="/agents/[^"]+"', agents_html)
         assert len(links) > 0, \
             "Agent detail links must be present"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_agent_clickable_rows(self, agents_html):
         """Agent rows must have open-agent data-action."""
         assert 'data-action="open-agent"' in agents_html, \
@@ -195,16 +220,19 @@ class TestAgentsListDisplay:
 class TestAgentsProviders:
     """Verify provider column shows correct badges."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_provider_anthropic_badge(self, agents_html):
         """Claude Code agent must show Anthropic provider badge."""
         assert ">Anthropic<" in agents_html, \
             "Anthropic provider badge must be visible"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_badge_cc_class(self, agents_html):
         """CC badge class must be present for Claude Code."""
         assert 'class="badge cc"' in agents_html or "badge cc" in agents_html, \
             "CC badge class must be present"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_badge_dot_indicators(self, agents_html):
         """Badge dot indicators must be present."""
         assert 'class="dot claude"' in agents_html or 'class="dot codex"' in agents_html, \
@@ -217,12 +245,14 @@ class TestAgentsProviders:
 class TestAgentsSortableHeaders:
     """Verify sortable header behavior on the agents table."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_sortable_columns_have_data_action_sort(self, agents_html):
         """Sortable columns must have data-action='sort'."""
         sorts = re.findall(r'data-action="sort"', agents_html)
         assert len(sorts) >= 8, \
             f"Expected at least 8 sortable columns, found {len(sorts)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_sort_keys_present(self, agents_html):
         """Agents table must have correct data-sort-key values."""
         for sort_key in ["name", "provider", "sessions", "projects",
@@ -230,6 +260,7 @@ class TestAgentsSortableHeaders:
             assert f'data-sort-key="{sort_key}"' in agents_html, \
                 f"Agents table must have data-sort-key='{sort_key}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_sortable_header_buttons(self, agents_html):
         """Sortable headers must use sortable-header class."""
         buttons = re.findall(r'class="sortable-header"', agents_html)
@@ -249,6 +280,7 @@ class TestAgentsColumnHeaders:
     ]
 
     @pytest.mark.parametrize("column", _EXPECTED_COLUMNS)
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_column_header_present(self, agents_html, column):
         """Table must have the expected column header."""
         assert column in agents_html, \
@@ -261,27 +293,32 @@ class TestAgentsColumnHeaders:
 class TestAgentsTokenBar:
     """Verify token bar segments in agent rows."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_token_cell_present(self, agents_html):
         """Agent rows must have a token-cell element."""
         assert 'class="token-cell"' in agents_html, \
             "Agent row must have a token-cell element"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_token_total_present(self, agents_html):
         """Token-cell must have a token-total element."""
         assert 'class="token-total"' in agents_html, \
             "Token-cell must have a token-total element"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_tokenbar_present(self, agents_html):
         """Token-cell must have a tokenbar element."""
         assert 'class="tokenbar"' in agents_html, \
             "Token-cell must have a tokenbar element"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_tokenbar_four_segments(self, agents_html):
         """Tokenbar must have 4 segment types (fresh/read/write/out)."""
         for seg_class in ["fresh", "read", "write", "out"]:
             assert f'tokenbar-seg {seg_class}' in agents_html, \
                 f"Tokenbar must have segment class '{seg_class}'"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_tokenbar_has_title(self, agents_html):
         """Tokenbar must have a title tooltip."""
         assert "Token breakdown" in agents_html, \
@@ -294,6 +331,7 @@ class TestAgentsTokenBar:
 class TestAgentsEfficiencyTable:
     """Verify efficiency table is rendered when fixture has multiple models."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_efficiency_table_conditional(self, agents_html):
         """Efficiency table appears when fixture has model diversity."""
         # The rendered page either shows the table or doesn't — both are valid.
@@ -302,12 +340,14 @@ class TestAgentsEfficiencyTable:
             assert 'id="efficiency-table"' in agents_html, \
                 "Efficiency table must have id='efficiency-table'"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_efficiency_title_when_present(self, agents_html):
         """When efficiency table renders, it must have title."""
         if "Agent/Model Efficiency" in agents_html:
             assert "Agent/Model Efficiency" in agents_html, \
                 "Efficiency section must have title"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_efficiency_columns_when_present(self, agents_html):
         """When efficiency table renders, it must have expected columns."""
         if "efficiency-table" in agents_html:
@@ -322,6 +362,7 @@ class TestAgentsEfficiencyTable:
 class TestAgentsEmptyState:
     """Verify empty state is NOT shown when fixture has data."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_no_empty_state_when_data_present(self, agents_html):
         """When agents data exists, empty state must not be shown."""
         # The template shows empty state in {% else %} branch
@@ -338,12 +379,14 @@ class TestAgentsEmptyState:
 class TestAgentsAccessibility:
     """Accessibility gates on the rendered Agents page."""
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_no_inline_onclick(self, agents_html):
         """Agents must not use inline onclick handlers."""
         matches = re.findall(r'\bonclick\s*=', agents_html, re.IGNORECASE)
         assert len(matches) == 0, \
             f"Agents must not have inline onclick, found {len(matches)} occurrences"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_sort_carets_aria_hidden(self, agents_html):
         """Sort carets must have aria-hidden='true'."""
         carets = re.findall(
@@ -353,11 +396,13 @@ class TestAgentsAccessibility:
         assert len(carets) >= 8, \
             f"Expected at least 8 sort carets with aria-hidden, found {len(carets)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_metric_grid_aria_label(self, agents_html):
         """Metric grid must have aria-label."""
         assert 'aria-label="Agent summary metrics"' in agents_html, \
             "Metric grid must have aria-label='Agent summary metrics'"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_info_buttons_have_aria_label(self, agents_html):
         """Each info button must have an aria-label."""
         pattern = r'data-action="info"[^>]*aria-label="[^"]*"'
@@ -365,6 +410,7 @@ class TestAgentsAccessibility:
         assert len(matches) >= 4, \
             f"Expected at least 4 info buttons with aria-label, found {len(matches)}"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_emoji_spans_aria_hidden(self, agents_html):
         """All emoji spans must have aria-hidden='true'."""
         emoji_spans = re.findall(r'class="emoji"[^>]*>', agents_html)
@@ -372,6 +418,7 @@ class TestAgentsAccessibility:
             assert 'aria-hidden="true"' in span, \
                 f"Emoji span must have aria-hidden='true': {span}"
 
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_breadcrumb_links(self, agents_html):
         """Breadcrumb must link to Dashboard."""
         assert 'href="/dashboard"' in agents_html, \
@@ -389,6 +436,7 @@ class TestAgentsDataActions:
     _EXPECTED_ACTIONS = ["open-agent", "info", "sort"]
 
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)
+    @pytest.mark.contract_case("UI-AGENTS-006")
     def test_data_action_present(self, agents_html, action):
         """Page must have the expected data-action attribute."""
         assert f'data-action="{action}"' in agents_html, \

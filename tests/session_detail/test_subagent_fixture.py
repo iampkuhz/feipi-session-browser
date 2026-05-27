@@ -7,11 +7,10 @@
 - 嵌套 subagent 层次结构被正确处理
 - assign_interactions_to_rounds 正确将 subagent 分配到对应 round
 """
+import pytest
 import json
 import os
 import sys
-
-import pytest
 
 # Ensure src is importable
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -191,12 +190,14 @@ def final_rounds(built_rounds, built_llm_calls, fixture_tool_calls, fixture_suba
 class TestSubagentPresence:
     """验证 subagent 在 session detail 中正确显示。"""
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_fixture_contains_two_subagent_runs(self, fixture_subagent_runs):
         """Fixture 必须包含至少 2 个 subagent run。"""
         assert len(fixture_subagent_runs) >= 2, (
             f"Fixture 应包含至少 2 个 subagent run，实际 {len(fixture_subagent_runs)}"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_llm_calls_include_subagent_scope(self, built_llm_calls):
         """build_llm_calls 必须生成 scope='subagent' 的 LLMCall。"""
         sub_calls = [c for c in built_llm_calls if c.scope == "subagent"]
@@ -204,6 +205,7 @@ class TestSubagentPresence:
             "LLM calls 中必须包含至少一个 scope='subagent' 的调用"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_main_and_subagent_calls_separated(self, built_llm_calls):
         """Main 和 subagent 的 LLMCall 必须通过 scope 字段区分。"""
         main_calls = [c for c in built_llm_calls if c.scope == "main"]
@@ -216,6 +218,7 @@ class TestSubagentPresence:
         sub_ids = {c.id for c in sub_calls}
         assert not (main_ids & sub_ids), "main 和 subagent 调用 ID 不应重叠"
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_calls_have_agent_id(self, built_llm_calls):
         """Subagent LLMCall 的 subagent_id 必须非空且与 agent_id 匹配。"""
         sub_calls = [c for c in built_llm_calls if c.scope == "subagent"]
@@ -229,6 +232,7 @@ class TestSubagentPresence:
                 f"subagent_id '{sc.subagent_id}' 不在预期 ID 集合中: {valid_ids}"
             )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_has_parent_tool_name(self, built_llm_calls):
         """Subagent LLMCall 应有 parent_tool_name='Agent'。"""
         sub_calls = [c for c in built_llm_calls if c.scope == "subagent"]
@@ -244,6 +248,7 @@ class TestSubagentPresence:
 class TestSubagentStatus:
     """验证 subagent 状态（成功/失败）正确反映。"""
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_successful_subagent_in_fixture(self, fixture_subagent_runs):
         """Fixture 必须包含至少一个成功的 subagent。"""
         successful = [
@@ -252,6 +257,7 @@ class TestSubagentStatus:
         ]
         assert len(successful) >= 1, "Fixture 必须包含至少一个 status='success' 的 subagent"
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_failed_subagent_in_fixture(self, fixture_subagent_runs):
         """Fixture 必须包含至少一个失败的 subagent。"""
         failed = [
@@ -260,6 +266,7 @@ class TestSubagentStatus:
         ]
         assert len(failed) >= 1, "Fixture 必须包含至少一个 status='failed' 的 subagent"
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_failed_subagent_tool_call_has_error(self, fixture_tool_calls):
         """失败的 subagent 对应的 Agent tool call 应有 error_message。"""
         agent_tools = [
@@ -276,6 +283,7 @@ class TestSubagentStatus:
                 f"失败 subagent 的 Agent tool call error_message 为空"
             )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_successful_subagent_tool_call_completed(self, fixture_tool_calls):
         """成功的 subagent 对应的 Agent tool call 应为 completed。"""
         agent_tools = [
@@ -292,6 +300,7 @@ class TestSubagentStatus:
                 f"成功 subagent 的 Agent tool call status 应为 'completed'，实际 '{sa.status}'"
             )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_interactions_built_for_successful_run(
         self, fixture_tool_calls, built_llm_calls, fixture_subagent_runs
     ):
@@ -309,6 +318,7 @@ class TestSubagentStatus:
 class TestSubagentTokenAndTiming:
     """验证 subagent 的 token 和执行时间。"""
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_llm_calls_have_tokens(self, built_llm_calls):
         """Subagent LLMCall 必须有非零的 token 计数。"""
         sub_calls = [c for c in built_llm_calls if c.scope == "subagent"]
@@ -318,6 +328,7 @@ class TestSubagentTokenAndTiming:
                 f"Subagent LLMCall {sc.id} 的 token 总数为 0"
             )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_successful_subagent_token_aggregation(
         self, built_llm_calls, fixture_subagent_runs
     ):
@@ -333,6 +344,7 @@ class TestSubagentTokenAndTiming:
         # 聚合后的 cache_read_tokens 也应为正数（fixture 中有缓存数据）
         assert agg.cache_read_tokens > 0, "聚合后的 cache_read_tokens 应为正数"
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_has_cache_write_tokens(self, built_llm_calls):
         """Subagent LLMCall 应有 cache_write_tokens（cache_creation_input_tokens）。"""
         sub_calls = [c for c in built_llm_calls if c.scope == "subagent"]
@@ -341,6 +353,7 @@ class TestSubagentTokenAndTiming:
             "至少一个 subagent LLMCall 应有 cache_write_tokens > 0"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_failed_subagent_still_has_tokens(self, built_llm_calls):
         """即使失败的 subagent 也应有 token 记录（已发生的 LLM 调用）。"""
         sub_calls = [c for c in built_llm_calls if c.scope == "subagent"]
@@ -358,12 +371,14 @@ class TestSubagentTokenAndTiming:
 class TestNestedSubagentHierarchy:
     """验证嵌套 subagent 层次结构。"""
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_fixture_has_nested_subagent_runs(self, fixture_nested_subagent_runs):
         """Fixture 必须包含嵌套 subagent runs。"""
         assert len(fixture_nested_subagent_runs) >= 1, (
             "Fixture 必须包含至少一个嵌套 subagent run"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_nested_subagent_has_parent_in_explore(self, fixture_subagent_runs):
         """嵌套 subagent 的父级应该是 explore-agent-001 的 tool_calls 中引用的。"""
         # explore-agent-001 应该有一个 Agent 类型的 tool call 引用 nested-explore-001
@@ -382,6 +397,7 @@ class TestNestedSubagentHierarchy:
             "explore-agent-001 必须引用至少一个嵌套 subagent"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_nested_subagent_tool_has_subagent_scope(self, fixture_tool_calls):
         """嵌套 subagent 的 tool call 应有 scope='subagent'。"""
         nested_tools = [
@@ -397,6 +413,7 @@ class TestNestedSubagentHierarchy:
                 "嵌套 Agent tool call 的 subagent_summary.agent_id 应为 'nested-explore-001'"
             )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_three_level_hierarchy(self, fixture_tool_calls):
         """验证 main -> explore-agent-001 -> nested-explore-001 三层结构。"""
         # Main agent 的 Agent tool call -> explore-agent-001
@@ -416,6 +433,7 @@ class TestNestedSubagentHierarchy:
         ]
         assert len(explore_to_nested) >= 1, "Explore agent 必须引用 nested-explore-001"
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_nested_subagent_in_rounds(self, final_rounds, fixture_tool_calls):
         """嵌套 subagent 的 tool call 必须出现在 rounds 的 subagent interactions 中。"""
         # Subagent tool calls are attached to subagent LLMCall interactions,
@@ -441,6 +459,7 @@ class TestNestedSubagentHierarchy:
 class TestSubagentRoundAssignment:
     """验证 subagent 被正确分配到对应的 round。"""
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_interactions_in_rounds(self, final_rounds):
         """Subagent interactions 必须出现在 round 的 interactions 中。"""
         rounds_with_subagent = [
@@ -451,6 +470,7 @@ class TestSubagentRoundAssignment:
             "至少一个 round 必须包含 subagent interaction"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_interactions_after_main_in_round(self, final_rounds):
         """在同一 round 中，subagent interactions 应在 main calls 之后。"""
         for r in final_rounds:
@@ -464,6 +484,7 @@ class TestSubagentRoundAssignment:
                     f"Round {r.round_index}: subagent interactions 应在 main calls 之后"
                 )
 
+    @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_agent_interaction_count(self, final_rounds):
         """Subagent aggregated interactions 的数量应与 fixture 中的 subagent_runs 匹配。"""
         total_subagent_ix = sum(

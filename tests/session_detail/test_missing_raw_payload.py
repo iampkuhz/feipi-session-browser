@@ -7,11 +7,10 @@
 - 使用 fallback payload 时（response_payload_raw 非空），missing_reason 被清空
 - UI 不会因缺失 raw payload 而崩溃或显示空白
 """
+import pytest
 import json
 import os
 import sys
-
-import pytest
 
 # Ensure src is importable
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -138,6 +137,7 @@ def final_rounds(built_rounds, built_llm_calls, fixture_tool_calls):
 class TestLLMCallMissingPayloadFields:
     """验证 LLMCall 模型在 raw payload 缺失时的字段行为。"""
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_llm_call_has_missing_reason_default(self):
         """新建 LLMCall 必须有非空的 request_payload_missing_reason 默认值。"""
         call = LLMCall(
@@ -155,6 +155,7 @@ class TestLLMCallMissingPayloadFields:
         assert call.request_payload_missing_reason == ""
         # Default is empty string; the presenter/routes set the actual reason
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_llm_call_missing_reason_can_be_set(self):
         """LLMCall 的 missing_reason 可以被设置为有意义的字符串。"""
         reason = "current session data source does not persist raw HTTP request payload"
@@ -173,6 +174,7 @@ class TestLLMCallMissingPayloadFields:
         assert call.request_payload_missing_reason == reason
         assert len(call.request_payload_missing_reason.strip()) > 0
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_llm_call_both_raw_and_missing_reason_set(self):
         """当 raw 为空且 missing_reason 有值时，语义正确。"""
         call = LLMCall(
@@ -199,6 +201,7 @@ class TestLLMCallMissingPayloadFields:
 class TestPresenterMissingPayloadPropagation:
     """验证 presenter 正确传播 missing_reason 到 LLMCall。"""
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_presenter_sets_request_missing_reason(self, built_llm_calls):
         """Presenter 构建的 LLMCall 必须有 request_payload_missing_reason。"""
         assert len(built_llm_calls) >= 1, "Fixture 必须产生至少一个 LLMCall"
@@ -208,6 +211,7 @@ class TestPresenterMissingPayloadPropagation:
                 f"LLMCall {call.id} request_payload_missing_reason 不应为 None"
             )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_presenter_sets_response_missing_reason(self, built_llm_calls):
         """Presenter 构建的 LLMCall 必须有 response_payload_missing_reason。"""
         for call in built_llm_calls:
@@ -215,6 +219,7 @@ class TestPresenterMissingPayloadPropagation:
                 f"LLMCall {call.id} response_payload_missing_reason 不应为 None"
             )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_presenter_raw_payload_empty(self, built_llm_calls):
         """Presenter 构建的 LLMCall 的 request_payload_raw 为空（当前数据源不支持）。"""
         for call in built_llm_calls:
@@ -222,6 +227,7 @@ class TestPresenterMissingPayloadPropagation:
                 f"LLMCall {call.id} request_payload_raw 应为空"
             )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_presenter_response_payload_empty(self, built_llm_calls):
         """Presenter 构建的 LLMCall 的 response_payload_raw 为空。"""
         for call in built_llm_calls:
@@ -229,6 +235,7 @@ class TestPresenterMissingPayloadPropagation:
                 f"LLMCall {call.id} response_payload_raw 应为空"
             )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_all_llm_calls_from_fixture_have_missing_reason(self, built_llm_calls):
         """所有 fixture 产生的 LLMCall 都必须有 missing_reason。"""
         calls_with_reason = [
@@ -243,6 +250,7 @@ class TestPresenterMissingPayloadPropagation:
 class TestRoutesFallbackBehavior:
     """验证 routes.py 中 raw payload 缺失时的 fallback 行为。"""
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_missing_reason_default_value_in_source(self):
         """routes.py 必须有 fallback default missing reason。"""
         routes_path = os.path.join(
@@ -254,6 +262,7 @@ class TestRoutesFallbackBehavior:
             "routes.py 必须包含 raw payload 缺失时的默认提示信息"
         )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_missing_reason_logic_in_source(self):
         """routes.py 必须有 request_payload_missing_reason 处理逻辑。"""
         routes_path = os.path.join(
@@ -265,6 +274,7 @@ class TestRoutesFallbackBehavior:
             "routes.py 必须处理 request_payload_missing_reason"
         )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_payload_index_has_missing_reason_key(self):
         """routes.py 的 payload_index 必须有 missing_reason 键。"""
         routes_path = os.path.join(
@@ -276,6 +286,7 @@ class TestRoutesFallbackBehavior:
             "routes.py 的 payload_index 必须有 missing_reason 键"
         )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_fallback_to_response_payload_raw(self):
         """routes.py 在 request_payload_raw 为空时应检查 response_payload_raw。"""
         routes_path = os.path.join(
@@ -292,6 +303,7 @@ class TestRoutesFallbackBehavior:
 class TestUINoCrashOnMissingPayload:
     """验证 UI 不会因缺失 raw payload 而崩溃。"""
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_fixture_has_valid_messages(self, fixture_messages):
         """Fixture 必须有有效的消息以确保 UI 不崩溃。"""
         assert len(fixture_messages) >= 2, (
@@ -302,6 +314,7 @@ class TestUINoCrashOnMissingPayload:
                 f"消息 role '{msg.role}' 无效"
             )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_fixture_has_valid_rounds(self, final_rounds):
         """Fixture 必须产生有效的 rounds。"""
         assert len(final_rounds) >= 1, "Fixture 必须产生至少一个 round"
@@ -309,6 +322,7 @@ class TestUINoCrashOnMissingPayload:
             assert r.user_msg is not None, "Round 必须有 user 消息"
             assert r.assistant_msg is not None, "Round 必须有 assistant 消息"
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_interactions_present_for_payload_buttons(self, final_rounds):
         """Rounds 必须有 interactions 以支持 payload 按钮。"""
         rounds_with_interactions = [
@@ -319,6 +333,7 @@ class TestUINoCrashOnMissingPayload:
             "至少一个 round 必须有 interactions 以渲染 payload 按钮"
         )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_interactions_have_missing_reason(self, final_rounds):
         """Interactions 的 LLMCall 必须有 non-null missing_reason。"""
         for r in final_rounds:
@@ -331,6 +346,7 @@ class TestUINoCrashOnMissingPayload:
                     "request_payload_missing_reason 不应为 None"
                 )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_llm_calls_have_response_content(self, built_llm_calls, fixture_messages):
         """LLMCall 必须有 response_full（用于 fallback 显示）。"""
         for call in built_llm_calls:
@@ -342,6 +358,7 @@ class TestUINoCrashOnMissingPayload:
                 f"LLMCall {call.id} response_full 应为字符串"
             )
 
+    @pytest.mark.contract_case("UI-SD-026")
     def test_fixture_session_metadata_complete(self, fixture_session):
         """Fixture session 元数据必须完整（UI 渲染需要）。"""
         required_keys = ["agent", "session_id", "title", "model"]

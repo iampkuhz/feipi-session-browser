@@ -4,13 +4,12 @@ Validates that full_scan() correctly indexes fixture data, produces
 expected session counts, and populates all index columns.
 """
 
+import pytest
 import os
 import shutil
 import sqlite3
 import sys
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -75,6 +74,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 class TestFullScanClaudeBasic:
     """C01: full_scan_basic — basic index construction from fixture data."""
 
+    @pytest.mark.contract_case("DATA-INDEX-001")
     def test_full_scan_indexes_all_sessions(self, tmp_path):
         """full_scan() should index both fixture sessions."""
         data_dir = tmp_path / "claude_data"
@@ -88,6 +88,7 @@ class TestFullScanClaudeBasic:
         assert result["qoder_count"] == 0
         assert result["total"] == 2
 
+    @pytest.mark.contract_case("DATA-INDEX-001")
     def test_session_keys_present(self, tmp_path):
         """Indexed sessions should have correct session_key format."""
         data_dir = tmp_path / "claude_data"
@@ -109,6 +110,7 @@ class TestFullScanClaudeBasic:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-001")
     def test_session_count_matches(self, tmp_path):
         """Total row count in sessions table should match fixture session count."""
         data_dir = tmp_path / "claude_data"
@@ -123,6 +125,7 @@ class TestFullScanClaudeBasic:
 
         assert count == 2, f"Expected 2 rows in sessions table, got {count}"
 
+    @pytest.mark.contract_case("DATA-INDEX-001")
     def test_all_columns_populated(self, tmp_path):
         """Every indexed session should have non-empty values for all 26 columns."""
         data_dir = tmp_path / "claude_data"
@@ -167,6 +170,7 @@ class TestFullScanClaudeBasic:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-001")
     def test_scan_log_recorded(self, tmp_path):
         """full_scan() should write a scan_log entry with correct counts."""
         data_dir = tmp_path / "claude_data"
@@ -189,6 +193,7 @@ class TestFullScanClaudeBasic:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-001")
     def test_fixture_data_isolated(self, tmp_path):
         """Full scan should not touch real CLAUDE_DATA_DIR when using fixture."""
         data_dir = tmp_path / "claude_data"

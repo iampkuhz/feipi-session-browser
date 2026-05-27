@@ -1,9 +1,10 @@
 """Tests for Codex parser."""
-
+import pytest
 import json
 from pathlib import Path
 
 
+@pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_parse_session_index_empty_when_missing():
     """Test that parse_session_index returns empty when no data dir."""
     from session_browser.sources import codex
@@ -19,6 +20,7 @@ def test_parse_session_index_empty_when_missing():
             codex.CODEX_DATA_DIR = original
 
 
+@pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_read_threads_db_empty_when_missing():
     """Test that read_threads_db returns empty when no DB."""
     from session_browser.sources import codex
@@ -34,6 +36,7 @@ def test_read_threads_db_empty_when_missing():
             codex.CODEX_DATA_DIR = original
 
 
+@pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_session_file_search():
     """Test that _find_session_file walks the hierarchy."""
     from session_browser.sources import codex

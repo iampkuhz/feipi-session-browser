@@ -9,11 +9,10 @@ Covers:
 """
 from __future__ import annotations
 
+import pytest
 import sqlite3
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from session_browser.web.presenters.dashboard import build_dashboard_view_model
 
@@ -80,6 +79,7 @@ def _patch_all_indexers():
 class TestBuildDashboardViewModelStructure:
     """Verify the returned dict contains all expected top-level keys."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_all_keys_present(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -116,6 +116,7 @@ class TestBuildDashboardViewModelStructure:
         }
         assert set(result.keys()) == expected_keys
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_active_page_is_dashboard(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -147,6 +148,7 @@ class TestBuildDashboardViewModelStructure:
 class TestStatisticsDataFlow:
     """Verify that mocked index data flows through to the view model."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_stats_passed_through(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -183,6 +185,7 @@ class TestStatisticsDataFlow:
         assert result["stats"] == stats_data
         assert result["stats"]["total_sessions"] == 42
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_projects_passed_through(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -211,6 +214,7 @@ class TestStatisticsDataFlow:
 
         assert result["projects"] is projects
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_trend_and_prompt_activity_passed_through(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -241,6 +245,7 @@ class TestStatisticsDataFlow:
         assert result["trend"] is trend
         assert result["prompt_activity"] is prompt
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_model_distribution_unwrapped(self):
         """model_dist in result should be the .distribution dict, not the object."""
         conn = MagicMock()
@@ -274,6 +279,7 @@ class TestStatisticsDataFlow:
 class TestEmptyDataScenario:
     """Verify behavior when all indexers return empty/zero data."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_empty_data_returns_valid_structure(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -310,6 +316,7 @@ class TestEmptyDataScenario:
 class TestDataTruncation:
     """Verify session list limit and needs_attention cap."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_list_sessions_called_with_limit_2000(self):
         """Presenter should request up to 2000 sessions."""
         conn = MagicMock()
@@ -340,6 +347,7 @@ class TestDataTruncation:
                 conn, limit=2000, order_by="ended_at"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_get_needs_attention_called_with_limit_8(self):
         """Presenter should cap needs_attention to 8 items."""
         conn = MagicMock()
@@ -370,6 +378,7 @@ class TestDataTruncation:
             call_kwargs = patchers["get_needs_attention"].call_args.kwargs
             assert call_kwargs.get("limit") == 8
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_needs_attention_capped_at_8(self):
         """Even if anomalies have many items, needs_attention returns max 8."""
         conn = MagicMock()
@@ -401,6 +410,7 @@ class TestDataTruncation:
 
         assert len(result["needs_attention"]) == 8
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_sessions_derived_metrics_applied(self):
         """compute_derived_metrics should be called for each raw session."""
         conn = MagicMock()
@@ -435,6 +445,7 @@ class TestDataTruncation:
 class TestTrendDataParameters:
     """Verify trend functions are called with correct parameters."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_trend_data_called_with_365_days(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -463,6 +474,7 @@ class TestTrendDataParameters:
             patchers["get_trend_data"].assert_called_once_with(conn, days=365)
             patchers["get_prompt_activity_trend"].assert_called_once_with(conn, days=365)
 
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_list_projects_called_with_limit_10(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:

@@ -4,6 +4,7 @@ Validates that incremental_scan() correctly detects file mtime changes,
 re-indexes only modified sessions, and skips unchanged ones.
 """
 
+import pytest
 import importlib
 import os
 import shutil
@@ -11,8 +12,6 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -87,6 +86,7 @@ def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
 class TestIncrementalScanMtime:
     """I01: incremental_scan detects mtime changes and re-indexes only modified files."""
 
+    @pytest.mark.contract_case("DATA-INDEX-002")
     def test_no_changes_all_skipped(self, tmp_path):
         """incremental_scan() with no file changes should skip all sessions."""
         data_dir = tmp_path / "claude_data"
@@ -105,6 +105,7 @@ class TestIncrementalScanMtime:
             f"Expected 2 skipped sessions, got {result['skipped']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-002")
     def test_one_file_changed_reindexed_only(self, tmp_path):
         """Modifying one file's mtime should cause only that session to be re-indexed."""
         data_dir = tmp_path / "claude_data"
@@ -156,6 +157,7 @@ class TestIncrementalScanMtime:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-002")
     def test_all_files_changed_all_reindexed(self, tmp_path):
         """Touching all files should cause all sessions to be re-indexed."""
         data_dir = tmp_path / "claude_data"
@@ -182,6 +184,7 @@ class TestIncrementalScanMtime:
             f"Expected 0 skipped sessions, got {result['skipped']}"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-002")
     def test_new_session_discovered(self, tmp_path):
         """Adding a new session file after initial scan should be discovered."""
         data_dir = tmp_path / "claude_data"
@@ -245,6 +248,7 @@ class TestIncrementalScanMtime:
 
         assert count == 3, f"Expected 3 sessions in DB after adding new one, got {count}"
 
+    @pytest.mark.contract_case("DATA-INDEX-002")
     def test_scan_log_incr_mode(self, tmp_path):
         """incremental_scan should record scan_log with mode='incremental'."""
         data_dir = tmp_path / "claude_data"
@@ -274,6 +278,7 @@ class TestIncrementalScanMtime:
 
         conn.close()
 
+    @pytest.mark.contract_case("DATA-INDEX-002")
     def test_index_count_unchanged_after_incr_skip(self, tmp_path):
         """Incremental scan with no changes should not alter total row count."""
         data_dir = tmp_path / "claude_data"

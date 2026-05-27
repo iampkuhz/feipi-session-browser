@@ -1,11 +1,12 @@
 """Tests for session detail message payload coverage (v9).
-
 v9 architecture:
 - User/assistant messages handled in the view model (routes.py)
 - Payload map built as Python dict in routes.py, not Jinja2
 - Round detail rendered via sdt macros, not inline message cards
 - Payload buttons use data-payload-id, not data-payload-key
 """
+
+import pytest
 
 import re
 from pathlib import Path
@@ -21,6 +22,7 @@ def _read_routes():
 # ── Message payload in view model ──────────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_user_msg_content_in_viewmodel():
     """View model must process user_msg.content for payload."""
     routes = _read_routes()
@@ -29,6 +31,7 @@ def test_user_msg_content_in_viewmodel():
     )
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_assistant_msg_content_in_viewmodel():
     """View model must process assistant message content for payload."""
     routes = _read_routes()
@@ -37,6 +40,7 @@ def test_assistant_msg_content_in_viewmodel():
     )
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_map_in_routes():
     """Payload map must be built in routes.py view model."""
     routes = _read_routes()
@@ -45,6 +49,7 @@ def test_payload_map_in_routes():
     )
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_entries_have_required_fields():
     """Payload entries must have type, title, rendered, raw, missing_reason."""
     routes = _read_routes()
@@ -66,6 +71,7 @@ def test_payload_entries_have_required_fields():
 # ── Content availability ──────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_user_content_available_not_truncated_only():
     """User message must have full-content payload, not just truncated preview."""
     routes = _read_routes()
@@ -75,6 +81,7 @@ def test_user_content_available_not_truncated_only():
     )
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_assistant_content_available_not_truncated_only():
     """Assistant message must have full-content payload."""
     routes = _read_routes()
@@ -86,12 +93,14 @@ def test_assistant_content_available_not_truncated_only():
 # ── Payload modal integration ─────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_payload_modal_in_base():
     """Payload modal must be defined in base.html."""
     base = (TEMPLATE_DIR / "base.html").read_text(encoding="utf-8")
     assert "payload-modal" in base, "base.html must have payload modal"
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_js_handles_payload_unavailable():
     """JS must handle missing payload gracefully."""
     js = (Path(__file__).resolve().parents[2]

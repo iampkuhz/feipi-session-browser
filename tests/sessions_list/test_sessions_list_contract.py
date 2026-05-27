@@ -12,11 +12,10 @@ Covers the 8 verification items:
 """
 from __future__ import annotations
 
+import pytest
 import os
 import re
 import sqlite3
-
-import pytest
 
 from session_browser.index.indexer import (
     init_schema,
@@ -125,6 +124,7 @@ def populated_db(tmp_path):
 class TestTemplateRenders:
     """Verify the sessions template can render with expected context."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_sessions_template_contains_expected_blocks(self):
         content = _read_all_templates()
         # Core page structure
@@ -134,6 +134,7 @@ class TestTemplateRenders:
                 or 'ui.filter_card(' in content)
         assert "data-table" in content, "Sessions must use canonical data-table component"
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_template_receives_sessions_aggregate(self):
         """Template must reference sessions_aggregate for tokens."""
         content = _read_all_templates()
@@ -145,10 +146,12 @@ class TestTemplateRenders:
 class TestHeaderTokensAggregate:
     """Verify get_sessions_list_aggregate returns non-zero total_tokens."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_aggregate_total_tokens_nonzero(self, populated_db):
         agg = get_sessions_list_aggregate(populated_db)
         assert agg["total_tokens"] > 0, "aggregate total_tokens should be > 0"
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_aggregate_token_formula(self, populated_db):
         """Verify formula: input + cached_input + cached_output + output."""
         agg = get_sessions_list_aggregate(populated_db)
@@ -157,6 +160,7 @@ class TestHeaderTokensAggregate:
         # = sum of 180*i for i=1..30 = 180 * 30*31/2 = 180 * 465 = 83700
         assert agg["total_tokens"] == 83700
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_aggregate_project_count(self, populated_db):
         agg = get_sessions_list_aggregate(populated_db)
         assert agg["project_count"] >= 3
@@ -167,6 +171,7 @@ class TestHeaderTokensAggregate:
 class TestRoundsSortDesc:
     """Verify sort=rounds&dir=desc returns non-increasing rounds."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_desc_first_rows_non_increasing(self, populated_db):
         rows = list_sessions(
             populated_db,
@@ -179,6 +184,7 @@ class TestRoundsSortDesc:
             assert counts[i] <= counts[i - 1], \
                 f"desc order broken at index {i}: {counts[i-1]} -> {counts[i]}"
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_desc_first_value_is_max(self, populated_db):
         rows = list_sessions(
             populated_db,
@@ -194,6 +200,7 @@ class TestRoundsSortDesc:
 class TestRoundsSortAsc:
     """Verify sort=rounds&dir=asc returns non-decreasing rounds."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_asc_first_rows_non_decreasing(self, populated_db):
         rows = list_sessions(
             populated_db,
@@ -206,6 +213,7 @@ class TestRoundsSortAsc:
             assert counts[i] >= counts[i - 1], \
                 f"asc order broken at index {i}: {counts[i-1]} -> {counts[i]}"
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_asc_first_value_is_min(self, populated_db):
         rows = list_sessions(
             populated_db,
@@ -221,6 +229,7 @@ class TestRoundsSortAsc:
 class TestPaginationContract:
     """Verify pagination follows the contract: prev/input/next only, no page-size selector."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_footer_macro_has_page_input(self):
         """Footer component must have page number input."""
         with open(_COMPONENTS_PATH) as f:
@@ -228,18 +237,21 @@ class TestPaginationContract:
         assert 'data-action="page-input"' in content
         assert 'class="page-input' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_footer_macro_has_prev_button(self):
         """Footer component must have prev button."""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
         assert 'data-action="prev-page"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_footer_macro_has_next_button(self):
         """Footer component must have next button."""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
         assert 'data-action="next-page"' in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_no_page_size_select_in_footer(self):
         """Footer component must NOT have page-size selector (contract: no page-size)."""
         with open(_COMPONENTS_PATH) as f:
@@ -247,6 +259,7 @@ class TestPaginationContract:
         assert "sessions-footer-page-size__select" not in content
         assert "page_size_urls" not in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_prev_hidden_on_first_page(self):
         """Prev button should be conditionally hidden on page 1."""
         with open(_COMPONENTS_PATH) as f:
@@ -254,6 +267,7 @@ class TestPaginationContract:
         # Jinja2 conditional: current_page > 1
         assert "current_page > 1" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_next_hidden_on_last_page(self):
         """Next button should be conditionally hidden on last page."""
         with open(_COMPONENTS_PATH) as f:
@@ -261,14 +275,17 @@ class TestPaginationContract:
         # Jinja2 conditional: current_page < total_pages
         assert "current_page < total_pages" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_page_size_20_returns_20(self, populated_db):
         rows = list_sessions(populated_db, limit=20)
         assert len(rows) == 20
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_page_size_100_returns_all(self, populated_db):
         rows = list_sessions(populated_db, limit=100)
         assert len(rows) == 30  # only 30 sessions exist
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_page_size_all_returns_all(self, populated_db):
         rows = list_sessions(populated_db, limit=1000)
         assert len(rows) == 30
@@ -279,17 +296,20 @@ class TestPaginationContract:
 class TestRefreshRemoval:
     """Verify refresh button/link is removed from templates."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_no_refresh_in_sessions_html(self):
         with open(_TEMPLATE_PATH) as f:
             content = f.read()
         assert "Refresh" not in content
         assert "refresh-link" not in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_no_refresh_in_grid_partial(self):
         with open(_PARTIAL_PATH) as f:
             content = f.read()
         assert "refresh" not in content.lower()
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_no_refresh_in_components(self):
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
@@ -301,10 +321,12 @@ class TestRefreshRemoval:
 class TestAgentBadgeClasses:
     """Verify agent badge has distinct classes for claude/codex/qoder."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_badge_base_class(self):
         content = _read_all_templates()
         assert "sessions-agent-badge" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_claude_code_modifier(self):
         """CSS must define claude_code badge style."""
         css = _read_css()
@@ -313,6 +335,7 @@ class TestAgentBadgeClasses:
         content = _read_all_templates()
         assert "sessions-agent-badge--" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_codex_modifier(self):
         """CSS must define codex badge style."""
         css = _read_css()
@@ -320,6 +343,7 @@ class TestAgentBadgeClasses:
         content = _read_all_templates()
         assert "sessions-agent-badge--" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_qoder_modifier(self):
         """CSS must define qoder badge style."""
         css = _read_css()
@@ -327,6 +351,7 @@ class TestAgentBadgeClasses:
         content = _read_all_templates()
         assert "sessions-agent-badge--" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_badge_uses_agent_variable(self):
         """Template should use {{ s.agent }} for dynamic badge class."""
         content = _read_all_templates()
@@ -338,26 +363,31 @@ class TestAgentBadgeClasses:
 class TestRoundsColumn:
     """Verify ROUNDS column has dedicated width and is not clipped."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_header_in_template(self):
         content = _read_all_templates()
         assert "Rounds" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_th_sort_call(self):
         """Rounds must be a sortable column."""
         content = _read_all_templates()
         assert "th_sort('Rounds'" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_css_column_width(self):
         """CSS should define grid column width for rounds."""
         css = _read_css()
         # The grid uses grid-template-columns with minmax
         assert "minmax" in css or "px" in css
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_data_attribute(self):
         """Row should have data-rounds attribute."""
         content = _read_all_templates()
         assert "data-rounds=" in content
 
+    @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_cell_renders_assistant_message_count(self):
         """Rounds cell should render s.assistant_message_count."""
         content = _read_all_templates()

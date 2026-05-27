@@ -1,10 +1,11 @@
 """Tests for LLM call card contract in session detail trace (v9).
-
 v9 renders LLM calls via sdt.llm_call_card macro in session_detail_timeline.html:
 - LLM call cards: .sd-llm-card
 - Tool batches: .sd-tool-group
 - Payload buttons: data-action="open-payload" with data-payload-id
 """
+
+import pytest
 
 from pathlib import Path
 
@@ -27,6 +28,7 @@ def _primitives_component():
 # ── LLM call card structure (v9 component) ──────────────────────────
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_has_llm_call_card():
     """Timeline component must define llm_call_card macro."""
     source = _timeline_component()
@@ -35,6 +37,7 @@ def test_has_llm_call_card():
     )
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_llm_call_card_has_header():
     """LLM call card must have header with title, model, status."""
     source = _timeline_component()
@@ -43,12 +46,14 @@ def test_llm_call_card_has_header():
     assert "sd-llm-card" in source, "Must have llm card class"
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_llm_call_card_has_metrics():
     """LLM call card must have a metrics section."""
     source = _timeline_component()
     assert "sd-metrics" in source, "Card must have metrics section"
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_llm_call_card_has_payload_buttons():
     """LLM call card must have payload buttons."""
     source = _timeline_component()
@@ -61,12 +66,14 @@ def test_llm_call_card_has_payload_buttons():
 # ── Tool calls in LLM call context ──────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_tool_batch_macro_exists():
     """Timeline must have tool_batch macro."""
     source = _timeline_component()
     assert "macro tool_batch" in source, "Timeline must define tool_batch macro"
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_tool_batch_has_data_attrs():
     """Tool batch must have data attributes for identification."""
     source = _timeline_component()
@@ -74,6 +81,7 @@ def test_tool_batch_has_data_attrs():
     assert "data-tool-call-id" in source, "Tool rows must have data-tool-call-id"
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_tool_batch_has_result_buttons():
     """Tool rows must have payload result buttons."""
     source = _timeline_component()
@@ -83,6 +91,7 @@ def test_tool_batch_has_result_buttons():
 # ── Session uses component macros ───────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_session_uses_trace_round_macro():
     """session.html must use sdt.trace_round for rendering rounds."""
     source = _session_source()
@@ -92,6 +101,7 @@ def test_session_uses_trace_round_macro():
 # ── Payload keys in view model ──────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_payload_keys_in_routes():
     """routes.py view model must generate payload IDs for LLM calls."""
     routes = (Path(__file__).parents[2] / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
@@ -108,6 +118,7 @@ def _read_timeline_css():
     return _TIMELINE_CSS.read_text(encoding="utf-8")
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_css_has_sd_llm_card_styles():
     """session-detail.css must contain card styles for LLM calls."""
     css = _read_timeline_css()
@@ -119,6 +130,7 @@ def test_css_has_sd_llm_card_styles():
     assert ".sd-metrics" in css, "CSS must define .sd-metrics styles"
 
 
+@pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_css_has_tool_group_styles():
     """session-detail.css must contain .sd-tool-group styles."""
     css = _read_timeline_css()

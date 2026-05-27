@@ -11,7 +11,6 @@ Covers:
 - Empty / None input
 - render_llm_blocks_html produces non-empty HTML
 """
-
 import pytest
 from session_browser.web.template_env import (
     normalize_llm_content,
@@ -26,6 +25,7 @@ from session_browser.web.template_env import (
 # ── Single plain markdown string ────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_single_markdown_string():
     """A single markdown string without tool result boundaries becomes one block."""
     text = "# Hello\n\nThis is **bold** text.\n\n- Item 1\n- Item 2"
@@ -36,6 +36,7 @@ def test_single_markdown_string():
     assert blocks[0]["raw"] == text
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_single_markdown_with_table():
     """Markdown with table stays as one block."""
     text = "# Table Test\n\n| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |"
@@ -48,6 +49,7 @@ def test_single_markdown_with_table():
 # ── Tool result + markdown file content ─────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_tool_result_with_markdown_file():
     """'Tool result for toolu_xxx:' followed by markdown file content."""
     text = (
@@ -69,6 +71,7 @@ def test_tool_result_with_markdown_file():
     assert has_filename, f"AGENTS.md not found in blocks: {[b.get('title') for b in blocks]}"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_multiple_tool_results():
     """Multiple tool results should be split into separate blocks."""
     text = (
@@ -85,6 +88,7 @@ def test_multiple_tool_results():
 # ── File detection ──────────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_file_marker_detection():
     """Content starting with '# filename.ext' should detect the file."""
     text = "# AGENTS.md\n\nSome content here."
@@ -92,12 +96,14 @@ def test_file_marker_detection():
     assert filename == "AGENTS.md"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_file_marker_not_found():
     """Text without a file-like heading should return None."""
     text = "# Some heading\n\nRegular text."
     assert _detect_file_marker(text) is None
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_yaml_file_detection():
     """YAML files should be detected and tagged."""
     text = "# config.yaml\n\nkey: value\nlist:\n  - item1\n  - item2"
@@ -108,6 +114,7 @@ def test_yaml_file_detection():
     assert len(yaml_blocks) >= 1
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_json_file_detection():
     """JSON files should be detected and tagged."""
     text = "# config.json\n\n{\"key\": \"value\", \"list\": [1, 2, 3]}"
@@ -116,6 +123,7 @@ def test_json_file_detection():
     assert len(json_blocks) >= 1
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_python_file_detection():
     """Python files should be detected and tagged."""
     text = "# main.py\n\ndef hello():\n    print('world')"
@@ -127,6 +135,7 @@ def test_python_file_detection():
 # ── Language inference ──────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_infer_language_from_filename():
     """Language should be inferred from file extension."""
     assert _infer_code_language("main.py") == "python"
@@ -139,6 +148,7 @@ def test_infer_language_from_filename():
     assert _infer_code_language("Cargo.toml") == "toml"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_infer_language_from_content():
     """Language should be inferred from content patterns when no filename."""
     assert _infer_code_language(content="def hello():\n    pass") == "python"
@@ -146,6 +156,7 @@ def test_infer_language_from_content():
     assert _infer_code_language(content="import { useState } from 'react';") == "typescript"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_markdown_returns_none_language():
     """Markdown files should NOT return a code language."""
     assert _infer_code_language("README.md") is None
@@ -155,18 +166,21 @@ def test_markdown_returns_none_language():
 # ── Line number gutter ──────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_line_number_gutter_positive():
     """Text with tab-separated line numbers should be detected."""
     text = "1\t# Hello\n2\t\n3\tWorld\n4\t\n5\tEnd"
     assert _detect_line_number_gutter(text) is True
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_line_number_gutter_negative():
     """Text without line numbers should NOT be detected."""
     text = "# Hello\n\nWorld\n\nEnd"
     assert _detect_line_number_gutter(text) is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_line_number_gutter_ordered_list():
     """Ordered list should NOT be detected as line number gutter (fewer lines match)."""
     text = "1. First item\n2. Second item\n3. Third item"
@@ -174,6 +188,7 @@ def test_detect_line_number_gutter_ordered_list():
     assert _detect_line_number_gutter(text) is False
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_strip_line_number_gutter():
     """Line number gutter should be stripped from each line."""
     text = "1\t# Hello\n2\t\n3\tWorld"
@@ -181,6 +196,7 @@ def test_strip_line_number_gutter():
     assert result == "# Hello\n\nWorld"
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_strip_line_number_gutter_preserves_non_gutter():
     """Text without consistent gutter should NOT be modified."""
     text = "1. First\n2. Second\n3. Third"
@@ -192,12 +208,14 @@ def test_strip_line_number_gutter_preserves_non_gutter():
 # ── Empty / edge cases ──────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_empty_input():
     """Empty string should return empty list."""
     assert normalize_llm_content("") == []
     assert normalize_llm_content(None) == []  # type: ignore
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_whitespace_only():
     """Whitespace-only input should return empty list or single block with no meaningful content."""
     blocks = normalize_llm_content("   \n\n  ")
@@ -209,12 +227,14 @@ def test_whitespace_only():
 # ── render_llm_blocks_html ──────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_render_empty():
     """Empty blocks should produce a fallback message."""
     html = render_llm_blocks_html([])
     assert "No content available" in html
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_render_single_markdown_block():
     """A markdown block should render with header and rendered content."""
     blocks = [{
@@ -232,6 +252,7 @@ def test_render_single_markdown_block():
     assert "<h1" in html or "<strong>" in html
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_render_code_block():
     """A code block should render with <pre><code> and language class."""
     blocks = [{
@@ -249,6 +270,7 @@ def test_render_code_block():
     assert "<code" in html
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_render_multiple_blocks():
     """Multiple blocks should render as separate cards."""
     blocks = [
@@ -275,6 +297,7 @@ def test_render_multiple_blocks():
     assert "File: config.yaml" in html
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_render_escapes_html():
     """Block content should be HTML-escaped to prevent XSS."""
     blocks = [{
@@ -293,6 +316,7 @@ def test_render_escapes_html():
 # ── Content preservation ────────────────────────────────────────────────
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_ordered_list_in_content_preserved():
     """Content with ordered lists should preserve the list numbers."""
     text = (
@@ -310,6 +334,7 @@ def test_ordered_list_in_content_preserved():
     assert "3. Third step" in all_content
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_raw_field_preserved():
     """The raw field should always contain the original content."""
     text = "1\tline1\n2\tline2\n3\tline3"
@@ -318,6 +343,7 @@ def test_raw_field_preserved():
         assert "raw" in block
 
 
+@pytest.mark.contract_case("DATA-SOURCE-001")
 def test_no_content_lost():
     """All original text should be present across all blocks."""
     text = (

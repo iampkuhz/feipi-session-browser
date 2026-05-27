@@ -16,10 +16,9 @@ Task T008 — 新增 tokenbar segment/dot 变量同源门禁
 
 from __future__ import annotations
 
+import pytest
 import pathlib
 import re
-
-import pytest
 
 # ── Paths to CSS files ──────────────────────────────────────────────────
 
@@ -96,6 +95,7 @@ class TestTokensCssDefinesVariables:
         self.variables = _extract_css_variables(self.css)
 
     @pytest.mark.parametrize("var_name", CANONICAL_TOKEN_VARS)
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_variable_defined(self, var_name):
         assert var_name in self.variables, (
             f"tokens.css must define {var_name}"
@@ -125,6 +125,7 @@ class TestUIPrimitivesTokenbarSegments:
             [".t-fresh", ".t-read", ".t-write", ".t-out"],
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_fresh_segment_uses_token_var(self):
         """Fresh segment must use --token-input-fresh, not --claude."""
         rules = self._get_segment_rules()
@@ -137,6 +138,7 @@ class TestUIPrimitivesTokenbarSegments:
                 f"should use --token-input-fresh"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_read_segment_uses_token_var(self):
         """Read segment must use --token-cache-read, not --codex."""
         rules = self._get_segment_rules()
@@ -149,6 +151,7 @@ class TestUIPrimitivesTokenbarSegments:
                 f"should use --token-cache-read"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_write_segment_uses_token_var(self):
         """Write segment must use --token-cache-write, not --qoder."""
         rules = self._get_segment_rules()
@@ -161,6 +164,7 @@ class TestUIPrimitivesTokenbarSegments:
                 f"should use --token-cache-write"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_out_segment_uses_token_var(self):
         """Out segment must use --token-output-visible, not --output."""
         rules = self._get_segment_rules()
@@ -190,6 +194,7 @@ class TestUIPrimitivesDotClasses:
             [".dot--fresh", ".dot--read", ".dot--write", ".dot--out"],
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_dot_fresh_uses_token_var(self):
         """.dot--fresh must use --token-input-fresh, not --claude."""
         rules = self._get_dot_rules()
@@ -202,6 +207,7 @@ class TestUIPrimitivesDotClasses:
                 f"should use --token-input-fresh"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_dot_read_uses_token_var(self):
         """.dot--read must use --token-cache-read, not --codex."""
         rules = self._get_dot_rules()
@@ -214,6 +220,7 @@ class TestUIPrimitivesDotClasses:
                 f"should use --token-cache-read"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_dot_write_uses_token_var(self):
         """.dot--write must use --token-cache-write, not --qoder."""
         rules = self._get_dot_rules()
@@ -226,6 +233,7 @@ class TestUIPrimitivesDotClasses:
                 f"should use --token-cache-write"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_dot_out_uses_token_var(self):
         """.dot--out must use --token-output-visible, not --output."""
         rules = self._get_dot_rules()
@@ -250,6 +258,7 @@ class TestSessionsListDotNoLegacy:
     def load_css(self):
         self.css = _read_css(SESSIONS_LIST_CSS)
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_no_legacy_vars_in_dot_classes(self):
         dot_rules = _extract_rules_for_selectors(
             self.css,
@@ -273,6 +282,7 @@ class TestSessionDetailDotNoLegacy:
     def load_css(self):
         self.css = _read_css(SESSION_DETAIL_CSS)
 
+    @pytest.mark.contract_case("DATA-PRESENTER-013")
     def test_no_legacy_vars_in_dot_classes(self):
         dot_rules = _extract_rules_for_selectors(
             self.css,

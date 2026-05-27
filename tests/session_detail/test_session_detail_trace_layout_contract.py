@@ -6,10 +6,9 @@ Tests verify CSS rules exist in css/session-detail.css.
 
 from __future__ import annotations
 
+import pytest
 import re
 from pathlib import Path
-
-import pytest
 
 CSS_PATH = (
     Path(__file__).parents[2]
@@ -36,11 +35,13 @@ def _extract_rule(css: str, selector: str) -> list[str]:
 class TestRoundRowLayout:
     """v18: .round-row must have proper layout."""
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_round_row_has_layout(self):
         css = _read_css()
         blocks = _extract_rule(css, '.round-row')
         assert len(blocks) > 0, "Missing .round-row rule in CSS"
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_expanded_row_hidden(self):
         css = _read_css()
         blocks = _extract_rule(css, '.expanded-row')
@@ -49,6 +50,7 @@ class TestRoundRowLayout:
             ".expanded-row must have display: none by default"
         )
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_round_row_is_open_shows_expanded(self):
         css = _read_css()
         # Check for selector that shows expanded row when round is open
@@ -60,6 +62,7 @@ class TestRoundRowLayout:
 class TestTraceTable:
     """v18 trace table must have proper structure."""
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_trace_table_has_layout(self):
         css = _read_css()
         blocks = _extract_rule(css, '.trace-table')
@@ -72,11 +75,13 @@ class TestTraceTable:
 class TestMixAndTimeCells:
     """v18: token bar and metrics must have stable styles."""
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_tokenbar_has_min_width(self):
         css = _read_css()
         blocks = _extract_rule(css, '.tokenbar')
         assert len(blocks) > 0, "Missing .tokenbar rule"
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_sd_round_metric_style(self):
         css = _read_css()
         blocks = _extract_rule(css, '.sd-round-metric')
@@ -86,6 +91,7 @@ class TestMixAndTimeCells:
 class TestTemplateStructure:
     """Verify session.html has the expected v18 trace structure via component macros."""
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_trace_row_has_trace_round(self):
         template_path = (
             Path(__file__).parents[2]
@@ -97,6 +103,7 @@ class TestTemplateStructure:
             "session.html must call sdt.trace_round macro"
         )
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_trace_table_structure(self):
         template_path = (
             Path(__file__).parents[2]
@@ -108,6 +115,7 @@ class TestTemplateStructure:
             "session.html must have <table class=\"trace-table\">"
         )
 
+    @pytest.mark.contract_case("UI-SD-018")
     def test_trace_row_has_token_mix(self):
         css = _read_css()
         # v18 uses tokenbar in metric-cell

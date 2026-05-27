@@ -10,10 +10,9 @@ Locks the project.html session table structure to three contracts:
 Expected: Tests 1 and 2 FAIL on current code (title plain text, rounds hardcoded).
 Test 3 should PASS (table_card is already used on line 112 of project.html).
 """
+import pytest
 from pathlib import Path
 import re
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
@@ -42,7 +41,9 @@ def ui_primitives_html():
 
 
 class TestProjectDetailTitleLink:
-    """Title cell in project.html session rows must contain an <a href>
+    """
+
+import Title cell in project.html session rows must contain an <a href>
     linking to the session detail page.
 
     Contract: inside the tbody of #project-sessions-table, the first <td>
@@ -68,6 +69,7 @@ class TestProjectDetailTitleLink:
         td_match = re.search(r'<td>\s*<div class="title-main">(.*?)</div>', tbody, re.DOTALL)
         return td_match.group(1) if td_match else ""
 
+    @pytest.mark.contract_case("UI-PROJECTS-003")
     def test_title_cell_contains_link(self, project_html):
         """Title cell must contain an <a href> to session detail page."""
         title_content = self._extract_title_td_content(project_html)
@@ -80,6 +82,7 @@ class TestProjectDetailTitleLink:
             "Must include <a href=\"/sessions/{{ s.agent }}/{{ s.session_id }}\"> or equivalent."
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-003")
     def test_title_link_follows_session_url_pattern(self, project_html):
         """If a link exists, it should follow the canonical session URL pattern."""
         title_content = self._extract_title_td_content(project_html)
@@ -142,6 +145,7 @@ class TestProjectDetailRoundsColumn:
             return num_mono_tds[0]  # Rounds is the first numeric column after token-cell
         return ""
 
+    @pytest.mark.contract_case("UI-PROJECTS-003")
     def test_rounds_not_hardcoded_em_dash(self, project_html):
         """Rounds column must NOT be a hardcoded em dash."""
         rounds_td = self._extract_rounds_td(project_html)
@@ -159,6 +163,7 @@ class TestProjectDetailRoundsColumn:
             "Must use s.assistant_message_count or an explicit round_count variable."
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-003")
     def test_rounds_uses_session_data(self, project_html):
         """Rounds column should reference session data like assistant_message_count."""
         rounds_td = self._extract_rounds_td(project_html)
@@ -189,6 +194,7 @@ class TestProjectDetailTableCardWrapper:
     - Produce HTML with class="table-card" on the table wrapper section
     """
 
+    @pytest.mark.contract_case("UI-PROJECTS-003")
     def test_uses_table_card_macro(self, project_html):
         """project.html must call ui.table_card macro."""
         uses_macro = "ui.table_card" in project_html
@@ -197,6 +203,7 @@ class TestProjectDetailTableCardWrapper:
             "The session table must be wrapped in the table_card composite."
         )
 
+    @pytest.mark.contract_case("UI-PROJECTS-003")
     def test_table_card_produces_correct_class(self, ui_primitives_html):
         """The table_card macro in ui_primitives must produce .table-card class."""
         # Find the table_card macro definition and check it produces card table-card

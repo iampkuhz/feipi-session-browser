@@ -35,7 +35,7 @@ const viewports = [
 ] as const;
 
 for (const vp of viewports) {
-  test(`仪表板 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
+  test(`[UI-VISUAL-009] 仪表板 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/dashboard');
 
@@ -62,7 +62,7 @@ for (const vp of viewports) {
 const FIXTURE_SESSION_URL = '/sessions/claude_code/hifi-viz-session-001';
 
 for (const vp of viewports) {
-  test(`会话详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
+  test(`[UI-SD-015] 会话详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto(FIXTURE_SESSION_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
@@ -199,7 +199,7 @@ for (const vp of viewports) {
 // 因此排除在 Playwright 截图检查之外。404 页已覆盖共享的 states.css 样式。
 
 for (const vp of viewports) {
-  test(`404 页 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
+  test(`[UI-VISUAL-007] 404 页 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     // 导航到未映射 URL 触发 404
     await page.goto('/__test-404-not-found__');

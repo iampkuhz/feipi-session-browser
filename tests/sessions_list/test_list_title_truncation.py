@@ -8,11 +8,10 @@ Covers:
 
 from __future__ import annotations
 
+import pytest
 import os
 import sqlite3
 import textwrap
-
-import pytest
 
 from session_browser.domain.normalizer import sanitize_list_title
 from session_browser.index.indexer import (
@@ -31,38 +30,47 @@ from session_browser.domain.models import SessionSummary
 class TestSanitizeListTitle:
     """Unit tests for the title sanitization helper."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_empty_string(self):
         assert sanitize_list_title("") == ""
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_none_returns_empty(self):
         assert sanitize_list_title(None) == ""  # type: ignore[arg-type]
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_short_title_unchanged(self):
         assert sanitize_list_title("Fix login bug") == "Fix login bug"
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_newline_replaced_by_space(self):
         title = "Line one\nLine two\nLine three"
         result = sanitize_list_title(title)
         assert "\n" not in result
         assert result == "Line one Line two Line three"
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_whitespace_collapsed(self):
         title = "hello   world\t\ttest"
         assert sanitize_list_title(title) == "hello world test"
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_leading_trailing_stripped(self):
         title = "  hello world  "
         assert sanitize_list_title(title) == "hello world"
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_only_whitespace_returns_empty(self):
         assert sanitize_list_title("   \n\n\t  ") == ""
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_long_title_truncated(self):
         title = "x" * 200
         result = sanitize_list_title(title)
         assert len(result) == 121  # 120 chars + "…"
         assert result.endswith("…")
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_truncated_title_does_not_cut_mid_char_at_boundary(self):
         # Boundary: 120 chars — trailing whitespace strip ensures we don't
         # have a dangling space before the ellipsis.
@@ -72,23 +80,27 @@ class TestSanitizeListTitle:
         assert result.startswith("a" * 120)
         assert result.endswith("…")
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_exact_max_len_no_ellipsis(self):
         title = "a" * 120
         result = sanitize_list_title(title)
         assert result == title  # exactly max_len → no truncation
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_one_over_max_len_gets_ellipsis(self):
         title = "a" * 121
         result = sanitize_list_title(title)
         assert len(result) == 121  # 120 chars + "…"
         assert result.endswith("…")
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_custom_max_len(self):
         title = "a" * 50
         result = sanitize_list_title(title, max_len=30)
         assert len(result) == 31  # 30 + "…"
         assert result.endswith("…")
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_multiline_long_text(self):
         """Realistic case: a multi-sentence user message spanning lines."""
         title = textwrap.dedent("""\
@@ -104,6 +116,7 @@ class TestSanitizeListTitle:
         # Should start with the first part
         assert result.startswith("Create a comprehensive API")
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_mixed_whitespace_types(self):
         """Mix of spaces, tabs, newlines, non-breaking spaces."""
         title = "hello\t\tworld\n\nfoo\rbar"
@@ -157,6 +170,7 @@ def tmp_db(tmp_path):
 class TestListSessionsTruncatesTitle:
     """Integration tests: list_sessions should return sanitized titles."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_short_title_unchanged(self, tmp_db):
         conn = sqlite3.connect(str(tmp_db))
         conn.row_factory = sqlite3.Row
@@ -165,6 +179,7 @@ class TestListSessionsTruncatesTitle:
         short = next(s for s in sessions if s.session_id == "sess-1")
         assert short.title == "Short title"
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_long_title_truncated(self, tmp_db):
         conn = sqlite3.connect(str(tmp_db))
         conn.row_factory = sqlite3.Row
@@ -174,6 +189,7 @@ class TestListSessionsTruncatesTitle:
         assert len(long_sess.title) <= 121  # 120 + "…"
         assert long_sess.title.endswith("…")
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_empty_title_stays_empty(self, tmp_db):
         conn = sqlite3.connect(str(tmp_db))
         conn.row_factory = sqlite3.Row
@@ -182,6 +198,7 @@ class TestListSessionsTruncatesTitle:
         empty = next(s for s in sessions if s.session_id == "sess-3")
         assert empty.title == ""
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_newlines_collapsed(self, tmp_db):
         conn = sqlite3.connect(str(tmp_db))
         conn.row_factory = sqlite3.Row
@@ -196,6 +213,7 @@ class TestListSessionsTruncatesTitle:
 class TestGetSessionFullTitle:
     """get_session should return the original full title."""
 
+    @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_long_title_not_truncated(self, tmp_db):
         conn = sqlite3.connect(str(tmp_db))
         conn.row_factory = sqlite3.Row

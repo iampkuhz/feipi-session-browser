@@ -1,12 +1,15 @@
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
+@pytest.mark.contract_case("UI-VISUAL-001")
 def test_no_inline_onclick_in_templates():
     for path in (ROOT / 'src/session_browser/web/templates').rglob('*.html'):
         text = path.read_text(encoding='utf-8', errors='ignore')
         assert 'onclick=' not in text, path
 
+@pytest.mark.contract_case("UI-VISUAL-001")
 def test_no_versioned_css_imports():
     bad = ['session-browser-v', 'dashboard-v', '-patch.css', '-fix.css', '-overlay.css']
     for path in (ROOT / 'src/session_browser/web/templates').rglob('*.html'):

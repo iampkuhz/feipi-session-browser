@@ -7,9 +7,8 @@ Covers:
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
+from unittest.mock import MagicMock, patch
 
 from session_browser.web.presenters.sessions import (
     VALID_PAGE_SIZES,
@@ -24,6 +23,7 @@ from session_browser.web.presenters.sessions import (
 
 class TestParseSessionsQueryParams:
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_defaults_empty_params(self):
         result = parse_sessions_query_params({})
         assert result["page"] == 1
@@ -36,43 +36,53 @@ class TestParseSessionsQueryParams:
         assert result["raw_sort"] == ""
         assert result["sort_dir"] == "desc"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_valid(self):
         result = parse_sessions_query_params({"page": ["5"]})
         assert result["page"] == 5
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_zero_clamps_to_one(self):
         result = parse_sessions_query_params({"page": ["0"]})
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_negative_clamps_to_one(self):
         result = parse_sessions_query_params({"page": ["-3"]})
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_invalid_string(self):
         result = parse_sessions_query_params({"page": ["abc"]})
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_valid(self):
         for size in VALID_PAGE_SIZES:
             result = parse_sessions_query_params({"page_size": [str(size)]})
             assert result["page_size"] == size
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_all(self):
         result = parse_sessions_query_params({"page_size": ["all"]})
         assert result["page_size"] == "all"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_ALL_uppercase(self):
         result = parse_sessions_query_params({"page_size": ["ALL"]})
         assert result["page_size"] == "all"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_invalid_defaults_to_20(self):
         result = parse_sessions_query_params({"page_size": ["99"]})
         assert result["page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_non_numeric_defaults_to_20(self):
         result = parse_sessions_query_params({"page_size": ["xyz"]})
         assert result["page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_filters_parsed(self):
         params = parse_sessions_query_params({
             "agent": ["claude-code"],
@@ -85,6 +95,7 @@ class TestParseSessionsQueryParams:
         assert params["filter_project"] == "my-project"
         assert params["filter_q"] == "search term"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_filters_whitespace_empty_become_none(self):
         params = parse_sessions_query_params({
             "agent": ["  "],
@@ -93,34 +104,41 @@ class TestParseSessionsQueryParams:
         assert params["filter_agent"] is None
         assert params["filter_model"] is None
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_sort_by_valid(self):
         for key, db_col in SORT_KEY_MAP.items():
             result = parse_sessions_query_params({"sort": [key]})
             assert result["sort_by"] == db_col
             assert result["raw_sort"] == key
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_sort_invalid_defaults_to_ended_at(self):
         result = parse_sessions_query_params({"sort": ["unknown"]})
         assert result["sort_by"] == "ended_at"
         assert result["raw_sort"] == "unknown"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_sort_dir_asc(self):
         result = parse_sessions_query_params({"dir": ["asc"]})
         assert result["sort_dir"] == "asc"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_sort_dir_desc(self):
         result = parse_sessions_query_params({"dir": ["desc"]})
         assert result["sort_dir"] == "desc"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_sort_dir_invalid_defaults_to_desc(self):
         result = parse_sessions_query_params({"dir": ["random"]})
         assert result["sort_dir"] == "desc"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_sort_case_insensitive(self):
         result = parse_sessions_query_params({"sort": ["DURATION"], "dir": ["ASC"]})
         assert result["sort_by"] == "duration_seconds"
         assert result["sort_dir"] == "asc"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_combined_params(self):
         result = parse_sessions_query_params({
             "page": ["3"],
@@ -140,6 +158,8 @@ class TestParseSessionsQueryParams:
 
 class TestComputePagination:
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
+    @pytest.mark.contract_case("DATA-PRESENTER-012")
     def test_empty_list(self):
         result = compute_pagination(0, 1, 20)
         assert result["limit"] == 20
@@ -151,6 +171,7 @@ class TestComputePagination:
         assert result["has_next"] is False
         assert result["page"] == 1
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_single_page(self):
         result = compute_pagination(15, 1, 20)
         assert result["total_pages"] == 1
@@ -161,6 +182,7 @@ class TestComputePagination:
         assert result["has_next"] is False
         assert result["has_prev"] is False
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_multi_page_first_page(self):
         result = compute_pagination(100, 1, 20)
         assert result["total_pages"] == 5
@@ -171,6 +193,7 @@ class TestComputePagination:
         assert result["has_prev"] is False
         assert result["has_next"] is True
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_multi_page_middle_page(self):
         result = compute_pagination(100, 3, 20)
         assert result["page"] == 3
@@ -180,6 +203,7 @@ class TestComputePagination:
         assert result["has_prev"] is True
         assert result["has_next"] is True
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_multi_page_last_page(self):
         result = compute_pagination(100, 5, 20)
         assert result["offset"] == 80
@@ -188,18 +212,21 @@ class TestComputePagination:
         assert result["has_next"] is False
         assert result["has_prev"] is True
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_beyond_total_clamped(self):
         result = compute_pagination(50, 10, 20)
         # total_pages = 3, page 10 -> clamped to 3
         assert result["page"] == 3
         assert result["offset"] == 40
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_exactly_total_not_clamped(self):
         result = compute_pagination(40, 2, 20)
         assert result["total_pages"] == 2
         assert result["page"] == 2
         assert result["offset"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_all(self):
         result = compute_pagination(75, 1, "all")
         assert result["limit"] == 75
@@ -211,6 +238,7 @@ class TestComputePagination:
         assert result["has_next"] is False
         assert result["has_prev"] is False
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_all_empty(self):
         result = compute_pagination(0, 1, "all")
         assert result["limit"] == 2000
@@ -218,19 +246,23 @@ class TestComputePagination:
         assert result["total_pages"] == 1
         assert result["effective_page_size"] == 0
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_all_has_next_false(self):
         result = compute_pagination(500, 1, "all")
         assert result["has_next"] is False
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_effective_page_size_numeric(self):
         result = compute_pagination(50, 1, 20)
         assert result["effective_page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_offset_calculation(self):
         for pg, ps, expected_offset in [(1, 20, 0), (2, 20, 20), (5, 100, 400)]:
             result = compute_pagination(1000, pg, ps)
             assert result["offset"] == expected_offset, f"page={pg}, size={ps}"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_end_capped_at_total(self):
         # Last partial page
         result = compute_pagination(55, 3, 20)
@@ -244,7 +276,9 @@ class TestBuildSessionsContext:
 
     @staticmethod
     def _make_mock_conn():
-        """Create a mock sqlite3.Connection with row factories."""
+        """
+
+Create a mock sqlite3.Connection with row factories."""
         conn = MagicMock()
 
         # Mock count_sessions to return 0 (will be overridden)
@@ -266,6 +300,7 @@ class TestBuildSessionsContext:
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_context_structure_empty(
         self, mock_fetch_vm, mock_count,
     ):
@@ -303,6 +338,7 @@ class TestBuildSessionsContext:
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_context_values_defaults(
         self, mock_fetch_vm, mock_count,
     ):
@@ -336,6 +372,7 @@ class TestBuildSessionsContext:
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_context_with_pagination(
         self, mock_fetch_vm, mock_count,
     ):
@@ -363,6 +400,7 @@ class TestBuildSessionsContext:
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_context_with_filters(
         self, mock_fetch_vm, mock_count,
     ):
@@ -388,6 +426,7 @@ class TestBuildSessionsContext:
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_context_sort_mapping(
         self, mock_fetch_vm, mock_count,
     ):
@@ -412,6 +451,7 @@ class TestBuildSessionsContext:
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_context_passes_pagination_to_fetch_vm(
         self, mock_fetch_vm, mock_count,
     ):
@@ -434,6 +474,7 @@ class TestBuildSessionsContext:
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
+    @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_context_page_size_all(
         self, mock_fetch_vm, mock_count,
     ):

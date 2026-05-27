@@ -15,12 +15,11 @@ T098 -- Error page fixture.
 
 from __future__ import annotations
 
+import pytest
 import os
 import re
 import urllib.request
 import urllib.error
-
-import pytest
 
 # ── Paths ─────────────────────────────────────────────────────────────
 
@@ -76,48 +75,57 @@ def _render_404_template() -> str:
 class Test404Page:
     """Verify the 404 Not Found page renders and has correct structure."""
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_returns_404_status(self, error_404_response):
         """Request to an unknown path must return HTTP 404."""
         status, html = error_404_response
         assert status == 404, f"Expected HTTP 404, got {status}"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_page_renders_substantial_html(self, error_404_response):
         """404 page must contain meaningful HTML content."""
         _, html = error_404_response
         assert len(html) > 200, "404 HTML must be substantial"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_doctype(self, error_404_response):
         """404 page must have proper DOCTYPE declaration."""
         _, html = error_404_response
         assert "<!doctype html" in html.lower(), "404 page must have DOCTYPE"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_title_contains_not_found(self, error_404_response):
         """Page title must indicate 'Not Found'."""
         _, html = error_404_response
         assert "Not Found" in html, "404 title must contain 'Not Found'"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_404_icon(self, error_404_response):
         """Page must display the 404 icon."""
         _, html = error_404_response
         assert ">404<" in html or "404" in html, "404 icon must be visible"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_page_not_found_text(self, error_404_response):
         """Page must show 'Page Not Found' heading."""
         _, html = error_404_response
         assert "Page Not Found" in html, "404 page must show 'Page Not Found'"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_description(self, error_404_response):
         """Page must show a description of the error."""
         _, html = error_404_response
         assert "doesn't exist" in html or "has been removed" in html, \
             "404 page must describe the error"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_state_panel_structure(self, error_404_response):
         """404 page must use the shared state-panel component."""
         _, html = error_404_response
         assert 'class="state-panel"' in html, "404 page must have state-panel container"
         assert 'role="status"' in html, "404 page must have role=status"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_states_css_reference(self, error_404_response):
         """404 page must reference the states.css stylesheet."""
         _, html = error_404_response
@@ -130,17 +138,20 @@ class Test404Page:
 class Test404Template:
     """Verify the 404 template directly (no server needed)."""
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_template_renders(self):
         """404.html must render without errors."""
         html = _render_404_template()
         assert len(html) > 100, "404 template must produce HTML"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_dashboard_link(self):
         """404 page must contain a link back to Dashboard."""
         html = _render_404_template()
         assert '/dashboard' in html, "404 page must link to /dashboard"
         assert "Dashboard" in html, "404 page must show 'Dashboard' link text"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_navigation_links(self):
         """404 page must offer multiple navigation options."""
         html = _render_404_template()
@@ -148,12 +159,14 @@ class Test404Template:
         for link in nav_links:
             assert link in html, f"404 page must link to {link}"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_state_panel_links(self):
         """404 page navigation links must use state-panel__link class."""
         html = _render_404_template()
         assert 'class="state-panel__link"' in html, \
             "404 page must use state-panel__link for nav links"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_breadcrumb(self):
         """404 page must render a breadcrumb."""
         html = _render_404_template()
@@ -167,33 +180,39 @@ class Test404Template:
 class Test500ErrorPage:
     """Verify the 500 error page template renders correctly."""
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_template_renders_without_error(self):
         """Error page must render even without an error message."""
         html = _render_error_template(error=None)
         assert len(html) > 100, "Error template must produce HTML"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_template_renders_with_error(self):
         """Error page must render with an error message."""
         html = _render_error_template(error="Test error message")
         assert len(html) > 100, "Error template must produce HTML with error"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_title_contains_error(self):
         """Page title must indicate an error."""
         html = _render_error_template()
         assert "Error" in html, "Error page title must contain 'Error'"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_something_went_wrong_text(self):
         """Page must show 'Something Went Wrong' heading."""
         html = _render_error_template()
         assert "Something Went Wrong" in html, \
             "Error page must show 'Something Went Wrong'"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_description(self):
         """Error page must show a description of the issue."""
         html = _render_error_template()
         assert "unexpected error" in html.lower() or "An unexpected error" in html, \
             "Error page must describe the issue"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_state_panel_structure(self):
         """Error page must use the shared state-panel component."""
         html = _render_error_template()
@@ -201,12 +220,14 @@ class Test500ErrorPage:
         assert 'role="alert"' in html, "Error page must have role=alert"
         assert 'aria-live="assertive"' in html, "Error page must have aria-live=assertive"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_error_icon(self):
         """Error page must display an error icon."""
         html = _render_error_template()
         assert 'state-panel__icon--error' in html, \
             "Error page must have error icon modifier class"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_states_css_reference(self):
         """Error page must reference the states.css stylesheet."""
         html = _render_error_template()
@@ -219,6 +240,7 @@ class Test500ErrorPage:
 class TestErrorMessageDisplay:
     """Verify error messages are displayed correctly."""
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_error_message_shown_in_details(self):
         """Error message must appear in a details/summary block."""
         html = _render_error_template(error="Database connection failed")
@@ -228,6 +250,7 @@ class TestErrorMessageDisplay:
         assert "<summary>" in html, "Error details must have a <summary> label"
         assert "Error details" in html, "Summary must say 'Error details'"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_error_in_pre_tag(self):
         """Error message must be wrapped in a <pre> tag for readability."""
         html = _render_error_template(error="Traceback: line 42")
@@ -235,6 +258,7 @@ class TestErrorMessageDisplay:
         assert "Traceback: line 42" in html, \
             "Error message text must appear verbatim"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_no_error_details_when_none(self):
         """Error details block must be hidden when no error is provided."""
         html = _render_error_template(error=None)
@@ -244,6 +268,7 @@ class TestErrorMessageDisplay:
         # Note: <pre> and <script> come from the base template (payload modal, JS),
         # so we only check for the error-specific <details> element.
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_html_escaped_in_error(self):
         """Error message containing HTML should be escaped in the output."""
         html = _render_error_template(error="<script>alert('xss')</script>")
@@ -264,6 +289,7 @@ class TestErrorMessageDisplay:
 class TestReturnToDashboard:
     """Verify both error pages provide a link back to the dashboard."""
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_404_has_dashboard_link(self):
         """404 page must have a link back to Dashboard."""
         html = _render_404_template()
@@ -272,6 +298,7 @@ class TestReturnToDashboard:
         assert 'class="state-panel__link"' in html, \
             "404 dashboard link must use state-panel__link class"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_500_has_dashboard_link(self):
         """500 error page must have a link back to Dashboard."""
         html = _render_error_template()
@@ -280,6 +307,7 @@ class TestReturnToDashboard:
             "Error dashboard link must use state-panel__link class"
         assert "Dashboard" in html, "Error page must show 'Dashboard' link text"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_404_has_back_arrow(self):
         """404 page dashboard link should have a back arrow indicator."""
         html = _render_404_template()
@@ -287,6 +315,7 @@ class TestReturnToDashboard:
         assert "&larr;" in html or "←" in html, \
             "404 page should have a back arrow on the Dashboard link"
 
+    @pytest.mark.contract_case("UI-VISUAL-007")
     def test_500_has_back_arrow(self):
         """500 error page dashboard link should have a back arrow indicator."""
         html = _render_error_template()

@@ -5,7 +5,6 @@ and asserts the page renders successfully (HTTP 200, key DOM elements present).
 """
 
 import pytest
-
 try:
     from bs4 import BeautifulSoup
 except ImportError:
@@ -15,6 +14,7 @@ except ImportError:
 class TestSessionDetailRoute:
     """Smoke test for the session detail HTTP route."""
 
+    @pytest.mark.contract_case("ROUTE-API-001")
     def test_session_detail_returns_200(self, local_test_server):
         """Session detail page must return HTTP 200, not 5xx."""
         base_url, agent, session_id = local_test_server
@@ -23,6 +23,7 @@ class TestSessionDetailRoute:
         html = get_html(url)
         assert len(html) > 100
 
+    @pytest.mark.contract_case("ROUTE-API-001")
     def test_session_detail_contains_trace_panel(self, local_test_server):
         """Session detail page must contain the trace panel."""
         base_url, agent, session_id = local_test_server
@@ -36,6 +37,7 @@ class TestSessionDetailRoute:
         assert has_trace_list, \
             "Session detail must contain trace list container"
 
+    @pytest.mark.contract_case("ROUTE-API-001")
     def test_session_detail_contains_metrics(self, local_test_server):
         """Session detail page must contain the metrics strip."""
         base_url, agent, session_id = local_test_server
@@ -45,6 +47,7 @@ class TestSessionDetailRoute:
         assert 'sd-kpi' in html or 'sd-kpis' in html, \
             "Session detail must contain KPI metrics"
 
+    @pytest.mark.contract_case("ROUTE-API-001")
     def test_session_detail_no_server_error(self, local_test_server):
         """Session detail page must not render the error.html template."""
         base_url, agent, session_id = local_test_server

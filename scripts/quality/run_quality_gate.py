@@ -249,6 +249,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "scripts/quality/check_raw_innerhtml.py", "--check"]
     if gate == "layoutInlineStyle":
         return ["python3", "scripts/quality/check_layout_inline_style.py", "--check"]
+    if gate == "testContractMapping":
+        return ["python3", "scripts/quality/validate_test_contract_mapping.py"]
     return []
 
 
@@ -320,7 +322,7 @@ def build_summary(target: str, change_id: str, started_at: str, details: list[Ga
 # 05. CLI
 def main() -> int:
     parser = argparse.ArgumentParser(description="Deterministic quality gate runner")
-    parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness", "index"])
+    parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness", "index", "testContractMapping"])
     parser.add_argument("--change-id", required=True)
     parser.add_argument("--out", default="tmp/quality",
                         help="Quality artifact directory. Default: tmp/quality")

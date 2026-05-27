@@ -12,13 +12,12 @@ Covers:
 
 from __future__ import annotations
 
+import pytest
 import pathlib
 import re
 import urllib.parse
 
 import jinja2
-import pytest
-
 # ── Jinja2 environment setup ─────────────────────────────────────────────
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
@@ -85,23 +84,28 @@ def _render_macro(macro_name: str, _context=None, **kwargs) -> str:
 class TestMacroMinimalRender:
     """All macros render without errors when called with minimal arguments."""
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_renders(self):
         html = _render_macro("button", label="Test")
         assert "Test" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_icon_button_renders(self):
         html = _render_macro("icon_button", icon="✎")
         assert "✎" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_badge_renders(self):
         html = _render_macro("badge", label="info")
         assert "info" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_metric_card_renders(self):
         html = _render_macro("metric_card", label="Sessions", value="42")
         assert "Sessions" in html
         assert "42" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_metric_grid_renders(self):
         cards = ['<div class="metric-card">A</div>', '<div class="metric-card">B</div>']
         html = _render_macro("metric_grid", cards=cards)
@@ -109,11 +113,13 @@ class TestMacroMinimalRender:
         assert "A" in html
         assert "B" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_renders(self):
         html = _render_macro("pagination", current_page=1, total_pages=5)
         assert "pagination" in html
         assert "Page" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_single_page(self):
         """Single page: prev/next buttons are disabled."""
         html = _render_macro("pagination", current_page=1, total_pages=1)
@@ -121,6 +127,7 @@ class TestMacroMinimalRender:
         assert 'data-action="prev-page"' in html
         assert 'data-action="next-page"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_token_bar_renders(self):
         segments = [
             {"kind": "fresh", "value": 100},
@@ -129,20 +136,24 @@ class TestMacroMinimalRender:
         html = _render_macro("token_bar", segments=segments)
         assert "tokenbar" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_tooltip_renders(self):
         content = [{"label": "Total", "value": "150"}]
         html = _render_macro("tooltip", content=content, trigger_text="hover me")
         assert "hover me" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_popover_renders(self):
         html = _render_macro("popover", content={"title": "Menu", "body": "Items"}, trigger_element="...")
         assert "Menu" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_section_card_renders(self):
         html = _render_macro("section_card", title="Section", content="<p>body</p>")
         assert "Section" in html
         assert "body" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_data_table_renders(self):
         headers = [{"label": "Name", "key": "name", "sortable": True}]
         rows = [{"name": "Alice"}]
@@ -151,6 +162,7 @@ class TestMacroMinimalRender:
         assert "Name" in html
         assert "Alice" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_filter_bar_renders(self):
         filters = [
             {"label": "Search", "name": "q", "type": "search", "placeholder": "Search..."},
@@ -159,43 +171,53 @@ class TestMacroMinimalRender:
         assert "filter-card" in html
         assert "Apply" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_payload_modal_renders(self):
         html = _render_macro("payload_modal", payload_id="test-1", title="Payload", kind="RESPONSE")
         assert "modal-backdrop" in html
         assert "Payload" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_empty_state_renders(self):
         html = _render_macro("empty_state", message="No results")
         assert "No results" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_error_state_renders(self):
         html = _render_macro("error_state", message="Error occurred")
         assert "Error occurred" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_legacy_btn_renders(self):
         html = _render_macro("btn", label="Legacy")
         assert "Legacy" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_select_control_renders(self):
         html = _render_macro("select_control", label="Model", name="model", options=["gpt4", "claude"])
         assert "model" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_stat_pill_renders(self):
         html = _render_macro("stat_pill", value="42", label="sessions")
         assert "42" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_th_static_renders(self):
         html = _render_macro("th_static", label="Column")
         assert "Column" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_th_sort_renders(self):
         html = _render_macro("th_sort", label="Date", key="date")
         assert "Date" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_token_total_renders(self):
         html = _render_macro("token_total", total="1.5K")
         assert "1.5K" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_session_row_renders(self):
         session = _make_session_stub()
         html = _render_macro("session_row", _context={"session": session})
@@ -205,12 +227,14 @@ class TestMacroMinimalRender:
         assert 'badge cc' in html
         assert "CC" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_session_row_hides_columns(self):
         session = _make_session_stub()
         html = _render_macro("session_row", _context={"session": session}, show_project=False, show_agent=False)
         assert "project-cell" not in html
         assert "badge" not in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_session_row_extra_classes(self):
         session = _make_session_stub()
         html = _render_macro("session_row", _context={"session": session}, extra_classes="custom-class")
@@ -241,50 +265,61 @@ def _make_session_stub():
 class TestAriaAttributes:
     """Macros include the expected aria attributes."""
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_has_aria_label(self):
         # aria-label is only added when aria_label param differs from label
         html = _render_macro("button", label="X", data_action="delete-item", aria_label="Delete item")
         assert 'aria-label="Delete item"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_icon_button_has_aria_label(self):
         html = _render_macro("icon_button", icon="✎", aria_label="Edit")
         assert 'aria-label="Edit"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_icon_button_has_title(self):
         html = _render_macro("icon_button", icon="✎", aria_label="Edit")
         assert 'title="Edit"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_badge_has_role(self):
         html = _render_macro("badge", label="ok", variant="ok")
         assert 'role="status"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_metric_card_has_aria_label(self):
         html = _render_macro("metric_card", label="Sessions", value="42")
         assert 'aria-label="Sessions"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_metric_grid_has_role_list(self):
         cards = ['<div>A</div>']
         html = _render_macro("metric_grid", cards=cards)
         assert 'role="list"' in html
         assert 'role="listitem"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_has_aria_label(self):
         html = _render_macro("pagination", current_page=2, total_pages=5)
         assert 'role="navigation"' in html
         assert 'aria-label="Pagination"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_prev_has_aria_label(self):
         html = _render_macro("pagination", current_page=2, total_pages=5)
         assert 'aria-label="Previous page"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_next_has_aria_label(self):
         html = _render_macro("pagination", current_page=2, total_pages=5)
         assert 'aria-label="Next page"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_page_input_has_aria_label(self):
         html = _render_macro("pagination", current_page=3, total_pages=10)
         assert 'aria-label="Page number"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_token_bar_has_aria(self):
         segments = [{"kind": "fresh", "value": 100}]
         html = _render_macro("token_bar", segments=segments)
@@ -292,6 +327,7 @@ class TestAriaAttributes:
         assert 'aria-valuemin="0"' in html
         assert 'aria-label="Token usage"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_tooltip_has_aria(self):
         content = [{"label": "X", "value": "1"}]
         html = _render_macro("tooltip", content=content, trigger_text="info")
@@ -299,6 +335,7 @@ class TestAriaAttributes:
         assert 'aria-hidden="true"' in html
         assert 'aria-haspopup="true"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_popover_has_aria(self):
         html = _render_macro("popover", content={"title": "M", "body": "B"}, trigger_element="...")
         assert 'aria-expanded="false"' in html
@@ -306,41 +343,49 @@ class TestAriaAttributes:
         assert 'aria-controls=' in html
         assert 'role="dialog"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_section_card_has_aria(self):
         html = _render_macro("section_card", title="Title", content="C")
         assert 'aria-label="Title"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_data_table_sortable_has_aria_sort(self):
         headers = [{"label": "Name", "key": "name", "sortable": True}]
         html = _render_macro("data_table", headers=headers, rows=[])
         assert 'aria-sort="none"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_data_table_th_has_scope(self):
         headers = [{"label": "Name", "key": "name", "sortable": True}]
         html = _render_macro("data_table", headers=headers, rows=[])
         assert 'scope="col"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_filter_bar_has_aria(self):
         filters = [{"label": "Q", "name": "q", "type": "search"}]
         html = _render_macro("filter_bar", filters=filters)
         assert 'role="search"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_payload_modal_has_aria(self):
         html = _render_macro("payload_modal", payload_id="p1", title="P")
         assert 'aria-modal="true"' in html
         assert 'role="dialog"' in html
         assert 'aria-hidden="true"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_empty_state_has_aria(self):
         html = _render_macro("empty_state", message="Empty")
         assert 'role="status"' in html
         assert 'aria-live="polite"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_error_state_has_aria(self):
         html = _render_macro("error_state", message="Err")
         assert 'role="alert"' in html
         assert 'aria-live="assertive"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_icon_has_aria_hidden(self):
         html = _render_macro("button", label="Go", icon="→")
         assert 'aria-hidden="true"' in html
@@ -352,50 +397,61 @@ class TestAriaAttributes:
 class TestDataActionAttributes:
     """Macros include the expected data-action attributes."""
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_data_action(self):
         html = _render_macro("button", label="Save", data_action="save-item")
         assert 'data-action="save-item"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_href_data_action(self):
         html = _render_macro("button", label="View", data_action="view-item", href="/view")
         assert 'data-action="view-item"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_icon_button_data_action(self):
         html = _render_macro("icon_button", icon="✎", data_action="edit-row")
         assert 'data-action="edit-row"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_prev_data_action(self):
         html = _render_macro("pagination", current_page=2, total_pages=5)
         assert 'data-action="prev-page"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_next_data_action(self):
         html = _render_macro("pagination", current_page=2, total_pages=5)
         assert 'data-action="next-page"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_input_data_action(self):
         html = _render_macro("pagination", current_page=3, total_pages=10)
         assert 'data-action="page-input"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_data_table_sort_data_action(self):
         headers = [{"label": "Name", "key": "name", "sortable": True}]
         html = _render_macro("data_table", headers=headers, rows=[])
         assert 'data-action="sort"' in html
         assert 'data-sort-key="name"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_filter_bar_apply_data_action(self):
         filters = [{"label": "Q", "name": "q", "type": "search"}]
         html = _render_macro("filter_bar", filters=filters)
         assert 'data-action="filter"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_filter_bar_clear_data_action(self):
         filters = [{"label": "Q", "name": "q", "type": "search"}]
         html = _render_macro("filter_bar", filters=filters)
         assert 'data-action="clear"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_payload_modal_close_data_action(self):
         html = _render_macro("payload_modal", payload_id="p1")
         assert 'data-action="close-modal"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_popover_toggle_data_action(self):
         html = _render_macro("popover", content={"title": "M", "body": "B"}, trigger_element="...")
         assert 'data-action="toggle-popover"' in html
@@ -411,31 +467,39 @@ class TestFormatCompactToken:
         from session_browser.web.template_env import _format_compact_token
         return _format_compact_token(n)
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_none(self):
         assert self._fmt(None) == "0"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_zero(self):
         assert self._fmt(0) == "0"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_sub_k(self):
         assert self._fmt(500) == "500"
         assert self._fmt(999) == "999"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_exactly_k(self):
         assert self._fmt(1000) == "1.0K"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_k_values(self):
         assert self._fmt(1500) == "1.5K"
         assert self._fmt(9999) == "10.0K"
         assert self._fmt(999999) == "1000.0K"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_exactly_m(self):
         assert self._fmt(1_000_000) == "1.0M"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_m_values(self):
         assert self._fmt(2_300_000) == "2.3M"
         assert self._fmt(1_234_567) == "1.2M"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_float_input(self):
         assert self._fmt(1234.5) == "1.2K"
 
@@ -446,28 +510,34 @@ class TestFormatCompactToken:
 class TestPaginationStructure:
     """Pagination macro renders prev/next/input correctly."""
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_multi_page_has_prev(self):
         html = _render_macro("pagination", current_page=2, total_pages=5)
         assert "prev" in html.lower()
         assert "&lsaquo;" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_multi_page_has_next(self):
         html = _render_macro("pagination", current_page=2, total_pages=5)
         assert "next" in html.lower()
         assert "&rsaquo;" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_page_input_shows_current(self):
         html = _render_macro("pagination", current_page=7, total_pages=20)
         assert 'value="7"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_total_pages_displayed(self):
         html = _render_macro("pagination", current_page=1, total_pages=42)
         assert "42" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_total_items_displayed(self):
         html = _render_macro("pagination", current_page=1, total_pages=3, total_items=100)
         assert "of 100" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_single_page_no_prev_next(self):
         html = _render_macro("pagination", current_page=1, total_pages=1)
         # Both buttons present but disabled on single page
@@ -475,6 +545,7 @@ class TestPaginationStructure:
         assert "next-page" in html
         assert 'disabled' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_first_page_no_prev(self):
         html = _render_macro("pagination", current_page=1, total_pages=5)
         # prev button present but disabled on first page
@@ -484,6 +555,7 @@ class TestPaginationStructure:
         assert 'data-action="prev-page"' in html
         assert html.count('disabled') >= 1  # at least prev button disabled
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_last_page_no_next(self):
         html = _render_macro("pagination", current_page=5, total_pages=5)
         # next button present but disabled on last page
@@ -491,10 +563,12 @@ class TestPaginationStructure:
         assert "next-page" in html
         assert 'data-action="next-page"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_page_input_has_class(self):
         html = _render_macro("pagination", current_page=1, total_pages=3)
         assert 'class="page-input mono"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_nav_class(self):
         html = _render_macro("pagination", current_page=1, total_pages=3)
         assert 'class="pagination unified-pagination"' in html
@@ -506,56 +580,68 @@ class TestPaginationStructure:
 class TestButtonVariants:
     """Button macro renders correct variants."""
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_default_primary(self):
         html = _render_macro("button", label="Save")
         assert 'class="btn primary"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_secondary_variant(self):
         html = _render_macro("button", label="Cancel", variant="secondary")
         assert 'class="btn"' in html
         assert "primary" not in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_ghost_variant(self):
         html = _render_macro("button", label="More", variant="ghost")
         assert 'class="btn ghost"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_danger_variant(self):
         html = _render_macro("button", label="Delete", variant="danger")
         assert 'class="btn danger"' in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_sm_size(self):
         html = _render_macro("button", label="X", size="sm")
         assert "sm" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_md_default_size(self):
         html = _render_macro("button", label="X", size="md")
         assert "sm" not in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_disabled_button(self):
         html = _render_macro("button", label="Save", disabled=True)
         assert "disabled" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_with_icon(self):
         html = _render_macro("button", label="Go", icon="→")
         assert 'class="ui-icon"' in html
         assert "→" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_href_renders_anchor(self):
         html = _render_macro("button", label="View", href="/session/123")
         assert "<a " in html
         assert 'href="/session/123"' in html
         assert "<button" not in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_no_href_renders_button(self):
         html = _render_macro("button", label="Click")
         assert "<button" in html
         assert "type=\"button\"" in html
         assert "<a " not in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_extra_classes(self):
         html = _render_macro("button", label="X", extra_classes="custom-class")
         assert "custom-class" in html
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_disabled_href_has_aria_disabled(self):
         html = _render_macro("button", label="X", href="/y", disabled=True)
         assert 'aria-disabled="true"' in html
@@ -569,9 +655,11 @@ class TestUIPrimitivesJS:
 
     JS_PATH = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "static" / "js" / "ui_primitives.js"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_file_exists(self):
         assert self.JS_PATH.exists(), f"ui_primitives.js not found at {self.JS_PATH}"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_valid_syntax(self, capsys):
         """Run node --check on the JS file."""
         import subprocess
@@ -581,17 +669,20 @@ class TestUIPrimitivesJS:
         )
         assert result.returncode == 0, f"JS syntax error: {result.stderr}"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_data_action_delegation_present(self):
         """The data-action delegation pattern is present."""
         js = self.JS_PATH.read_text()
         assert "data-action" in js, "missing data-action pattern"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_document_level_click_listener(self):
         """Uses document-level click listener for delegation."""
         js = self.JS_PATH.read_text()
         assert "document" in js
         assert "addEventListener" in js
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_registered_actions_exist(self):
         """JS file defines action handlers."""
         js = self.JS_PATH.read_text()
@@ -599,12 +690,14 @@ class TestUIPrimitivesJS:
         for action in ("sort", "clear", "prev-page", "next-page", "close-modal", "toggle-popover"):
             assert action in js, f"missing handler for {action}"
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_no_inline_onclick_in_js(self):
         """JS file does not contain inline onclick assignments."""
         js = self.JS_PATH.read_text()
         # Should not assign .onclick directly
         assert ".onclick =" not in js
 
+    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_global_api_exposed(self):
         """Global API (UiPrimitives) is exposed."""
         js = self.JS_PATH.read_text()

@@ -7,6 +7,7 @@ b. cache fixture (no model) does not fabricate a model.
 
 from __future__ import annotations
 
+import pytest
 import json
 import sqlite3
 
@@ -44,6 +45,8 @@ def _user_event(text: str = "") -> dict:
 
 
 class TestQoderModelContract:
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
+    @pytest.mark.contract_case("DATA-SOURCE-012")
     def test_model_from_assistant_message(self):
         """assistant message.model should flow into SessionSummary.model."""
         events = [
@@ -56,6 +59,7 @@ class TestQoderModelContract:
             f"Expected model 'qwen3.6-plus' but got {summary.model!r}"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_model_from_first_assistant_with_model(self):
         """When multiple assistant messages, model comes from the first one that has it."""
         events = [
@@ -67,6 +71,7 @@ class TestQoderModelContract:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         assert summary.model == "qwen3.6-plus"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_cache_fixture_no_model(self):
         """Cache fixture (no model in assistant messages) should not fabricate a model."""
         events = [
@@ -79,6 +84,7 @@ class TestQoderModelContract:
             f"Expected empty model but got {summary.model!r}"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_assistant_records_preserve_model(self):
         """_assistant_records should preserve model from message."""
         events = [
@@ -89,6 +95,7 @@ class TestQoderModelContract:
         assert len(records) == 1
         assert records[0]["model"] == "qwen3.6-plus"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_model_fallback_top_level(self):
         """Priority 2: top-level event.model should be used when message.model is empty."""
         events = [
@@ -101,6 +108,7 @@ class TestQoderModelContract:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         assert summary.model == "claude-sonnet-4-20250514"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_model_fallback_metadata(self):
         """Priority 3: metadata.model should be used when message.model and top-level are empty."""
         events = [
@@ -113,6 +121,7 @@ class TestQoderModelContract:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         assert summary.model == "claude-opus-4-20250514"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_model_fallback_content_item(self):
         """Priority 4: model in content item should be used as last resort."""
         events = [
@@ -125,6 +134,7 @@ class TestQoderModelContract:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         assert summary.model == "gpt-4.1"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_model_priority_message_wins_over_top_level(self):
         """message.model (Priority 1) should win over top-level model (Priority 2)."""
         events = [
@@ -136,6 +146,7 @@ class TestQoderModelContract:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         assert summary.model == "qwen3.6-plus"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_extract_qoder_model_returns_none(self):
         """_extract_qoder_model returns None when all fields are empty."""
         record = {
@@ -146,6 +157,7 @@ class TestQoderModelContract:
         }
         assert _extract_qoder_model(record) is None
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_extract_qoder_model_first_non_empty_wins(self):
         """_extract_qoder_model returns the first non-empty field."""
         record = {
@@ -156,6 +168,7 @@ class TestQoderModelContract:
         }
         assert _extract_qoder_model(record) == "fallback-model"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_custom_model_config_resolves_to_alias(self):
         """custom:model_x should resolve via aicoding.customModels alias."""
         custom_names = {
@@ -170,6 +183,7 @@ class TestQoderModelContract:
             auth_names={},
         ) == "Qwen-3.6-Plus"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_builtin_model_config_resolves_to_dynamic_label(self):
         """Built-in ids such as qmodel should resolve to selector labels."""
         assert _resolve_qoder_model_config_name(
@@ -179,6 +193,7 @@ class TestQoderModelContract:
             auth_names={},
         ) == "Qwen3.6-Plus"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_session_model_map_from_agent_log_custom_model(self, tmp_path):
         """Qoder agent.log session model config should map to custom model alias."""
         app_support = tmp_path / "Qoder"
@@ -216,6 +231,7 @@ class TestQoderModelContract:
             == "Qwen-3.6-Plus"
         )
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_session_model_map_adds_unique_short_id_prefix(self, tmp_path):
         """Cache JSONL short ids should resolve from full GUI session UUIDs."""
         app_support = tmp_path / "Qoder"
@@ -239,6 +255,7 @@ class TestQoderModelContract:
         assert model_map["4df638fa-ab30-413d-b155-7fc550f19703"] == "Qwen3.6-Plus"
         assert model_map["4df638fa"] == "Qwen3.6-Plus"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_summary_model_falls_back_to_agent_log(self, tmp_path, monkeypatch):
         """SessionSummary.model should use Qoder GUI agent log when JSONL lacks model."""
         app_support = tmp_path / "Qoder"
@@ -265,6 +282,7 @@ class TestQoderModelContract:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         assert summary.model == "Qwen3.6-Plus"
 
+    @pytest.mark.contract_case("DATA-SOURCE-008", "DATA-SOURCE-009")
     def test_cache_session_model_falls_back_to_agent_log(self, tmp_path, monkeypatch):
         """Cache-format sessions should also get model from Qoder agent logs."""
         app_support = tmp_path / "Qoder"

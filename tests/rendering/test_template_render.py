@@ -11,19 +11,20 @@ TemplateAssertionError.
 
 from __future__ import annotations
 
+import pytest
 import pathlib
 import urllib.parse
 
 import jinja2
-import pytest
-
 # ── Mirror routes.py template environment ──────────────────────────────
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
 
 
 def _make_page_env() -> jinja2.Environment:
-    """Create a Jinja2 Environment with the SAME filters as routes.py.
+    """
+
+import Create a Jinja2 Environment with the SAME filters as routes.py.
 
     If a filter registered in routes.py is missing here, the test will
     fail — that's the safety net we want.
@@ -138,6 +139,7 @@ def _assert_page_content_ok(html: str, page_title: str) -> None:
 class TestDashboardRender:
     """dashboard.html must render without filter/template errors."""
 
+    @pytest.mark.contract_case("ROUTE-API-004")
     def test_dashboard_renders(self):
         html = _render_page("dashboard.html", {
             "stats": {
@@ -162,6 +164,7 @@ class TestDashboardRender:
 class TestSessionsRender:
     """sessions.html must render without filter/template errors."""
 
+    @pytest.mark.contract_case("ROUTE-API-004")
     def test_sessions_renders(self):
         # Minimal stub for sessions_aggregate object
         agg = type("A", (), {
@@ -200,6 +203,7 @@ class TestSessionsRender:
 class TestSessionDetailRender:
     """session.html must render without filter/template errors."""
 
+    @pytest.mark.contract_case("ROUTE-API-004")
     def test_session_detail_renders(self):
         html = _render_page("session.html", {
             "session": type("S", (), {
@@ -232,6 +236,7 @@ class TestSessionDetailRender:
 class TestProjectRender:
     """project.html must render without filter/template errors."""
 
+    @pytest.mark.contract_case("ROUTE-API-004")
     def test_project_renders(self):
         html = _render_page("project.html", {
             "project": type("P", (), {
@@ -262,6 +267,7 @@ class TestProjectRender:
 class TestProjectsRender:
     """projects.html must render without filter/template errors."""
 
+    @pytest.mark.contract_case("ROUTE-API-004")
     def test_projects_renders(self):
         html = _render_page("projects.html", {
             "projects": [],
@@ -273,6 +279,7 @@ class TestProjectsRender:
 class TestAgentDetailRender:
     """agent.html must render without filter/template errors."""
 
+    @pytest.mark.contract_case("ROUTE-API-004")
     def test_agent_detail_renders(self):
         html = _render_page("agent.html", {
             "agent_summary": {
@@ -298,6 +305,7 @@ class TestAgentDetailRender:
 class TestAgentsRender:
     """agents.html must render without filter/template errors."""
 
+    @pytest.mark.contract_case("ROUTE-API-004")
     def test_agents_renders(self):
         html = _render_page("agents.html", {
             "agents": [],

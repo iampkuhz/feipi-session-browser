@@ -15,18 +15,19 @@ c. File-not-found scenario: when a session is indexed but the source file
 
 from __future__ import annotations
 
+import pytest
 import os
 import shutil
 import sqlite3
 import tempfile
 
-import pytest
-
 
 # ─── Helpers ──────────────────────────────────────────────────────────────
 
 def _make_qoder_project_fixture(tmpdir: str, session_id: str, jsonl_content: str) -> str:
-    """Create a Qoder project/ layout with a JSONL session file.
+    """
+
+import Create a Qoder project/ layout with a JSONL session file.
 
     Returns the CLAUDE_DATA_DIR path.
     Layout:
@@ -181,6 +182,7 @@ def _parse_and_build_rounds(data_dir: str, session_id: str, project_key: str) ->
 class TestQoderProjectSessionRoundConsistency:
     """Qoder project (CLI) sessions: detail rounds must match indexed counts."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_index_has_assistant_message_count(self):
         """After indexing a Qoder project session, assistant_message_count > 0."""
         tmpdir = tempfile.mkdtemp(prefix="qoder_project_round_")
@@ -197,6 +199,7 @@ class TestQoderProjectSessionRoundConsistency:
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_detail_rounds_match_indexed_count(self):
         """Detail rounds must equal indexed assistant_message_count."""
         tmpdir = tempfile.mkdtemp(prefix="qoder_project_round_")
@@ -225,6 +228,7 @@ class TestQoderProjectSessionRoundConsistency:
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_detail_rounds_not_zero_when_assistant_count_positive(self):
         """If assistant_message_count > 0 in index, detail must NOT return 0 rounds."""
         tmpdir = tempfile.mkdtemp(prefix="qoder_project_round_")
@@ -250,6 +254,7 @@ class TestQoderProjectSessionRoundConsistency:
 class TestQoderCacheSessionRoundConsistency:
     """Qoder cache (GUI) sessions: detail rounds must match indexed counts."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_cache_session_indexed_with_positive_count(self):
         """Cache sessions must be indexed with assistant_message_count > 0."""
         tmpdir = tempfile.mkdtemp(prefix="qoder_cache_round_")
@@ -266,6 +271,7 @@ class TestQoderCacheSessionRoundConsistency:
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_cache_session_detail_rounds_match_index(self):
         """Cache session detail must return rounds matching the index.
 
@@ -308,6 +314,7 @@ class TestQoderCacheSessionRoundConsistency:
 class TestQoderFileNotFoundRoundConsistency:
     """File-not-found scenario: indexed session with missing source file."""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_index_without_source_file_returns_zero_rounds_with_diagnostic(self):
         """When a session is indexed but the source file is missing,
         parse_session_detail returns 0 rounds but MUST attach parse_diagnostics."""
@@ -357,6 +364,7 @@ class TestDbCanonicalMergeStrategy:
       list page and detail page.
     """
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_db_canonical_assistant_count_not_overwritten_by_zero(self):
         """If DB has assistant_message_count=3, raw_summary=0 must NOT overwrite it."""
         from session_browser.domain.models import SessionSummary
@@ -425,6 +433,7 @@ class TestDbCanonicalMergeStrategy:
         assert result.input_tokens == 350, "DB input_tokens must be preserved"
         assert result.output_tokens == 60, "DB output_tokens must be preserved"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_supplements_empty_db_fields(self):
         """raw_summary must fill in DB fields that are zero/empty."""
         from session_browser.domain.models import SessionSummary
@@ -493,6 +502,7 @@ class TestDbCanonicalMergeStrategy:
         assert result.cached_output_tokens == 20
         assert result.duration_seconds == 300.0
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_none_returns_db_unchanged(self):
         """When raw_summary is None, DB summary must be returned as-is."""
         from session_browser.domain.models import SessionSummary
@@ -528,6 +538,7 @@ class TestDbCanonicalMergeStrategy:
 
         assert result is db_summary, "DB summary must be returned unchanged when raw is None"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_duration_used_when_db_duration_is_zero(self):
         """duration_seconds should use raw value when DB has zero."""
         from session_browser.domain.models import SessionSummary

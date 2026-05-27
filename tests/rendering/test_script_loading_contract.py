@@ -6,10 +6,9 @@ and that sessions.html does not duplicate-load it.
 This prevents duplicate document-level event listeners that cause
 next-button pagination to skip two pages at once.
 """
+import pytest
 from pathlib import Path
 import re
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
@@ -56,12 +55,14 @@ def _count_script_src(text: str, script_path: str) -> int:
 class TestScriptLoadingOwnership:
     """base.html is the sole owner of ui_primitives.js loading."""
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_base_html_loads_ui_primitives_js(self, base_text):
         """base.html must load ui_primitives.js (it is the canonical source)."""
         count = _count_script_src(base_text, UI_PRIMITIVES_JS)
         assert count >= 1, \
             f"base.html must load {UI_PRIMITIVES_JS} via <script> tag"
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_base_html_load_count_exactly_one(self, base_text):
         """base.html must load ui_primitives.js exactly once (via <script> tag)."""
         count = _count_script_src(base_text, UI_PRIMITIVES_JS)
@@ -72,6 +73,7 @@ class TestScriptLoadingOwnership:
 class TestSessionsNoDuplicatePrimitives:
     """sessions.html must NOT load ui_primitives.js (inherits from base.html)."""
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_sessions_does_not_load_ui_primitives_js(self, sessions_text):
         """sessions.html must not contain a <script> tag for ui_primitives.js."""
         # Look for script src containing ui_primitives.js
@@ -82,6 +84,7 @@ class TestSessionsNoDuplicatePrimitives:
              f"(found {len(matches)} <script> tag(s); "
              "ui_primitives.js is already loaded by base.html)")
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_sessions_does_not_reference_ui_primitives_js_at_all(self, sessions_text):
         """sessions.html should not have a <script> tag for ui_primitives.js anywhere."""
         # Strip Jinja and HTML comments, then check for script tags only
@@ -97,6 +100,7 @@ class TestSessionsNoDuplicatePrimitives:
 class TestSessionsAllowedScripts:
     """sessions.html is allowed to load its own page-specific scripts."""
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_sessions_loads_sessions_list_js(self, sessions_text):
         """sessions.html may (and should) load sessions-list.js."""
         pattern = r'<script[^>]+src=["\']' + re.escape(SESSIONS_LIST_JS) + r'["\'][^>]*>'
@@ -108,16 +112,19 @@ class TestSessionsAllowedScripts:
 class TestBaseHtmlGlobalScripts:
     """base.html must load the expected global JS bundle (ownership reference)."""
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_base_loads_arp_storage(self, base_text):
         """base.html must load arp-storage.js."""
         assert "/static/js/arp-storage.js" in base_text, \
             "base.html must load arp-storage.js"
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_base_loads_view_state(self, base_text):
         """base.html must load view-state.js."""
         assert "/static/js/view-state.js" in base_text, \
             "base.html must load view-state.js"
 
+    @pytest.mark.contract_case("UI-VISUAL-001")
     def test_base_loads_app_js(self, base_text):
         """base.html must load app.js."""
         assert "/static/js/app.js" in base_text, \

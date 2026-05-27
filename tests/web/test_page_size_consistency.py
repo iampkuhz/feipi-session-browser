@@ -10,10 +10,9 @@
 """
 from __future__ import annotations
 
+import pytest
 import pathlib
 import re
-
-import pytest
 
 from session_browser.web.presenters.sessions import (
     VALID_PAGE_SIZES,
@@ -32,45 +31,55 @@ _ROUTES = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser
 class TestBackendPageSizeAcceptance:
     """后端 parse_sessions_query_params 必须接受指定集合。"""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_all_valid_sizes(self):
         """VALID_PAGE_SIZES 中每个值都应被正确解析。"""
         for size in VALID_PAGE_SIZES:
             result = parse_sessions_query_params({"page_size": [str(size)]})
             assert result["page_size"] == size, f"page_size={size} was rejected"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_page_size_50(self):
         """page_size=50 必须被接受（S-10 修复核心）。"""
         result = parse_sessions_query_params({"page_size": ["50"]})
         assert result["page_size"] == 50
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_page_size_20(self):
         result = parse_sessions_query_params({"page_size": ["20"]})
         assert result["page_size"] == 20
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_page_size_100(self):
         result = parse_sessions_query_params({"page_size": ["100"]})
         assert result["page_size"] == 100
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_page_size_500(self):
         result = parse_sessions_query_params({"page_size": ["500"]})
         assert result["page_size"] == 500
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_page_size_all(self):
         result = parse_sessions_query_params({"page_size": ["all"]})
         assert result["page_size"] == "all"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_page_size_ALL_uppercase(self):
         result = parse_sessions_query_params({"page_size": ["ALL"]})
         assert result["page_size"] == "all"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_accepts_page_size_All_mixed(self):
         result = parse_sessions_query_params({"page_size": ["All"]})
         assert result["page_size"] == "all"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_valid_set_contains_50(self):
         """VALID_PAGE_SIZES 必须包含 50。"""
         assert 50 in VALID_PAGE_SIZES, "VALID_PAGE_SIZES must contain 50"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_valid_set_contains_20_100_500(self):
         """VALID_PAGE_SIZES 必须包含 20, 100, 500。"""
         for s in (20, 100, 500):
@@ -82,17 +91,20 @@ class TestBackendPageSizeAcceptance:
 class TestInvalidPageSizeFallback:
     """非法 page_size 必须 fallback 到 20，不导致空结果。"""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_non_member_size_fallbacks_to_20(self):
         """不在 VALID_PAGE_SIZES 中的值应 fallback 到 20。"""
         for size in (10, 30, 99, 200, 1000):
             result = parse_sessions_query_params({"page_size": [str(size)]})
             assert result["page_size"] == 20, f"page_size={size} should fallback to 20"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_non_numeric_fallbacks_to_20(self):
         for val in ("abc", "xyz", "", "  "):
             result = parse_sessions_query_params({"page_size": [val]})
             assert result["page_size"] == 20, f"page_size='{val}' should fallback to 20"
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_fallback_20_does_not_cause_empty_results(self):
         """fallback 到 20 后，compute_pagination 返回合理的分页结果。"""
         pag = compute_pagination(total_count=55, page=1, page_size=20)
@@ -100,6 +112,7 @@ class TestInvalidPageSizeFallback:
         assert pag["limit"] == 20
         assert pag["offset"] == 0
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_fallback_20_with_data_produces_pages(self):
         """有数据时 fallback 到 20 不导致总页数为 0。"""
         pag = compute_pagination(total_count=100, page=1, page_size=20)
@@ -133,6 +146,7 @@ class TestUIPageSizeOptionsConsistency:
             pytest.skip("无法在 routes.py 中找到 page_size_urls 循环")
         return [x.strip().strip('"\'') for x in match.group(1).split(",")]
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_ui_options_are_subset_of_valid_page_sizes(self):
         """UI options 的每个值必须在 VALID_PAGE_SIZES 中。
 
@@ -146,6 +160,7 @@ class TestUIPageSizeOptionsConsistency:
             f"UI options = {ui_options}"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_ui_options_contains_50(self):
         """UI options 必须包含 50（S-10 修复核心）。"""
         ui_options = self._extract_ui_primitives_options()
@@ -153,6 +168,7 @@ class TestUIPageSizeOptionsConsistency:
             f"UI page_size_options 必须包含 50，当前为 {ui_options}"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_routes_page_size_urls_matches_backend(self):
         """routes.py 中 page_size_urls 的数字部分必须在 VALID_PAGE_SIZES 中。"""
         ps_keys = self._extract_routes_page_size_urls()
@@ -162,6 +178,7 @@ class TestUIPageSizeOptionsConsistency:
             f"routes.py page_size_urls 包含 VALID_PAGE_SIZES 之外的值: {invalid}"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_routes_page_size_urls_contains_50(self):
         """routes.py page_size_urls 必须包含 50。"""
         ps_keys = self._extract_routes_page_size_urls()
@@ -169,6 +186,7 @@ class TestUIPageSizeOptionsConsistency:
             f"routes.py page_size_urls 必须包含 '50'，当前为 {ps_keys}"
         )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_ui_and_routes_options_consistent(self):
         """UI options 与 routes page_size_urls 数字部分应一致。"""
         ui_options = self._extract_ui_primitives_options()
@@ -184,6 +202,7 @@ class TestUIPageSizeOptionsConsistency:
 class TestPageSizePaginationIntegrity:
     """不同 page_size 下分页必须覆盖全部数据，不丢失。"""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_all_page_sizes_cover_same_total(self):
         """page_size=20/50/100/500/all 的总条目数应一致。"""
         total = 237
@@ -198,6 +217,7 @@ class TestPageSizePaginationIntegrity:
                 f"page_size={size}: expected {expected_pages} pages, got {pag['total_pages']}"
             )
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_page_size_50_produces_valid_pagination(self):
         """page_size=50 是 S-10 修复核心，必须正常工作。"""
         pag = compute_pagination(total_count=123, page=1, page_size=50)
@@ -213,6 +233,7 @@ class TestPageSizePaginationIntegrity:
         assert pag3["offset"] == 100
         assert pag3["page_end"] == 123
 
+    @pytest.mark.contract_case("DATA-PRESENTER-014")
     def test_page_size_all_single_page(self):
         """page_size=all 必须是单页。"""
         pag = compute_pagination(total_count=999, page=1, page_size="all")

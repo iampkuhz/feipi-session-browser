@@ -1,5 +1,4 @@
 """Gate test T035: Unified copy action contract.
-
 Verifies that all copy buttons in the codebase follow the canonical contract:
 
   data-action="copy" + data-copy-text="<text-to-copy>"
@@ -14,8 +13,10 @@ This is a gate/regression test.  Current bugs are expected to FAIL until
 the source templates and JS are migrated.
 """
 
+
 from __future__ import annotations
 
+import pytest
 import pathlib
 import re
 
@@ -79,6 +80,7 @@ def _find_copy_buttons(html: str):
 class TestCopyActionContractTemplates:
     """Static scan: every copy button must use data-action="copy" + data-copy-text."""
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_all_copy_buttons_use_canonical_data_action(self):
         """All copy buttons must use data-action="copy", not custom actions like
         copy-session, copy-project-path, copy-path, copy-session-id."""
@@ -96,6 +98,7 @@ class TestCopyActionContractTemplates:
             + "\n".join(violations)
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_all_copy_buttons_use_data_copy_text(self):
         """All copy buttons must carry data-copy-text, not the legacy data-clipboard-text."""
         violations = []
@@ -112,6 +115,7 @@ class TestCopyActionContractTemplates:
             + "\n".join(violations)
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_legacy_data_clipboard_text(self):
         """No copy button should use the legacy data-clipboard-text attribute."""
         violations = []
@@ -128,6 +132,7 @@ class TestCopyActionContractTemplates:
             + "\n".join(violations)
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_data_session_id_as_copy_fallback(self):
         """Buttons should not rely on data-session-id as a copy fallback;
         the text to copy should be in data-copy-text."""
@@ -156,6 +161,7 @@ class TestUiPrimitivesCopyHandler:
 
     _js_file = JS_DIR / "ui_primitives.js"
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_exists(self):
         """The handleCopy function must be defined."""
         text = self._js_file.read_text(encoding="utf-8")
@@ -163,6 +169,7 @@ class TestUiPrimitivesCopyHandler:
             f"{self._js_file}: handleCopy function not found"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_reads_data_copy_text(self):
         """handleCopy must read data-copy-text as the primary source."""
         text = self._js_file.read_text(encoding="utf-8")
@@ -178,6 +185,7 @@ class TestUiPrimitivesCopyHandler:
             f"{self._js_file}: handleCopy does not read data-copy-text"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_data_copy_text_is_primary(self):
         """data-copy-text must be the FIRST attribute checked (primary), not a fallback."""
         text = self._js_file.read_text(encoding="utf-8")
@@ -199,6 +207,7 @@ class TestUiPrimitivesCopyHandler:
             f"expected 'data-copy-text' as primary"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_supports_backward_compat(self):
         """handleCopy should optionally fall back to data-clipboard-text or title for
         backward compatibility with legacy buttons."""
@@ -221,6 +230,7 @@ class TestUiPrimitivesCopyHandler:
             f"(expected data-clipboard-text or title/textContent)"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_copy_registered_in_switch(self):
         """The click delegation switch must have a 'copy' case that calls handleCopy."""
         text = self._js_file.read_text(encoding="utf-8")
@@ -250,6 +260,7 @@ class TestProjectsJsCopyHandlers:
 
     _js_file = JS_DIR / "projects.js"
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_private_copy_project_path_handler(self):
         """projects.js must not register a private click handler on
         [data-action="copy-project-path"] that bypasses the unified handler."""
@@ -264,6 +275,7 @@ class TestProjectsJsCopyHandlers:
             f"that bypasses the unified ui_primitives.js copy handler"
         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_private_copy_session_handler(self):
         """projects.js must not register a private click handler on
         [data-action="copy-session"] that bypasses the unified handler."""
@@ -291,6 +303,7 @@ class TestProjectsJsCopyHandlers:
                             f"that bypasses the unified ui_primitives.js copy handler"
                         )
 
+    @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_projects_js_copy_handlers_use_canonical_attribute(self):
         """If any copy handler remains in projects.js, it must read data-copy-text
         (canonical) in addition to data-clipboard-text (legacy)."""

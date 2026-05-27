@@ -10,13 +10,12 @@ a full project path when cwd is missing.
 
 from __future__ import annotations
 
+import pytest
 import json
 import os
 import sqlite3
 import sys
 from pathlib import Path, PurePosixPath
-
-import pytest
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -189,6 +188,7 @@ class TestQoderProjectPathContract:
     不应把 '.' 当作完整路径展示。
     """
 
+    @pytest.mark.contract_case("DATA-INDEX-011")
     def test_cli_session_with_cwd_uses_cwd_as_project_key(self, cli_cwd_fixture, tmp_path):
         """When cwd exists in events, project_key should be derived from cwd,
         not from the directory-based project_key."""
@@ -211,6 +211,7 @@ class TestQoderProjectPathContract:
             f"got '{session['project_name']}'"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-011")
     def test_no_cwd_session_uses_directory_name(self, no_cwd_cli_fixture, tmp_path):
         """When cwd is missing, project_key should use the directory-based
         project_key (URL-decoded path from projects/), and should NOT be '.'."""
@@ -239,6 +240,7 @@ class TestQoderProjectPathContract:
             f"got '{session['project_name']}'"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-011")
     def test_cache_session_no_cwd_project_key_not_dot(self, cache_fixture, tmp_path):
         """Cache-format sessions have no cwd; project_key must not be '.'."""
         data_dir, expected_project_name = cache_fixture
@@ -260,6 +262,7 @@ class TestQoderProjectPathContract:
             f"got '{session['project_key']}'"
         )
 
+    @pytest.mark.contract_case("DATA-INDEX-011")
     def test_project_name_is_meaningful_folder_name(self, tmp_path):
         """project_name should always be the last meaningful path segment,
         not '.' or empty."""

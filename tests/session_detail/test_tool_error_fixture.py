@@ -5,11 +5,10 @@
 - 错误消息 (error_message) 不为空
 - 失败的工具调用在 presenter 输出中被正确统计
 """
+import pytest
 import json
 import os
 import sys
-
-import pytest
 
 # Ensure src is importable
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -135,6 +134,7 @@ def final_rounds(built_rounds, built_llm_calls, fixture_tool_calls):
 class TestToolCallErrorModel:
     """验证 ToolCall 模型的错误语义。"""
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_error_tool_has_is_failed_true(self, fixture_tool_calls):
         """status='error' 的 tool call 必须 is_failed=True。"""
         error_tools = [tc for tc in fixture_tool_calls if tc.status == "error"]
@@ -142,6 +142,7 @@ class TestToolCallErrorModel:
         for tc in error_tools:
             assert tc.is_failed is True, f"{tc.name} status='error' 但 is_failed=False"
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_completed_tool_has_is_failed_false(self, fixture_tool_calls):
         """status='completed' 的 tool call 必须 is_failed=False。"""
         ok_tools = [tc for tc in fixture_tool_calls if tc.status == "completed"]
@@ -149,6 +150,7 @@ class TestToolCallErrorModel:
         for tc in ok_tools:
             assert tc.is_failed is False, f"{tc.name} status='completed' 但 is_failed=True"
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_error_tool_has_nonempty_error_message(self, fixture_tool_calls):
         """失败的 tool call 必须有非空的 error_message。"""
         error_tools = [tc for tc in fixture_tool_calls if tc.status == "error"]
@@ -157,6 +159,7 @@ class TestToolCallErrorModel:
                 f"{tc.name} error_message 为空，但 status='error'"
             )
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_error_tool_result_not_empty(self, fixture_tool_calls):
         """失败的 tool call result 不为空（包含错误输出）。"""
         error_tools = [tc for tc in fixture_tool_calls if tc.status == "error"]
@@ -169,6 +172,7 @@ class TestToolCallErrorModel:
 class TestPresenterToolErrorAggregation:
     """验证 presenter 正确聚合 tool error 数据。"""
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_round_has_failed_tools_when_error_tools_present(self, final_rounds):
         """包含失败 tool 的 round 中必须有 is_failed=True 的工具。"""
         rounds_with_failed_tools = [
@@ -185,6 +189,7 @@ class TestPresenterToolErrorAggregation:
                 assert tc.status == "error"
                 assert tc.error_message and len(tc.error_message.strip()) > 0
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_llm_call_failed_tool_count(self, built_llm_calls, fixture_tool_calls):
         """LLMCall.failed_tool_count 必须与 tool_calls 中失败的匹配。"""
         total_failed = sum(1 for tc in fixture_tool_calls if tc.is_failed)
@@ -194,6 +199,7 @@ class TestPresenterToolErrorAggregation:
             f"不等于 fixture 中 failed 工具数 ({total_failed})"
         )
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_all_tool_calls_indexed_in_rounds(self, final_rounds, fixture_tool_calls):
         """所有 fixture 中的 tool_calls 必须出现在 rounds 中。"""
         round_tool_ids = {
@@ -207,6 +213,7 @@ class TestPresenterToolErrorAggregation:
             f"以下 tool_calls 未出现在 rounds 中: {missing}"
         )
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_error_tools_visible_in_rounds(self, final_rounds):
         """失败的 tool call 必须在 rounds 中可识别。"""
         error_tools_in_rounds = [
@@ -228,6 +235,7 @@ class TestPresenterToolErrorAggregation:
 class TestToolErrorEdgeCases:
     """验证 tool error 边界情况。"""
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_nonzero_exit_not_failed(self):
         """非零 exit_code 但 status='completed' 不应被视为失败。"""
         tc = ToolCall(
@@ -240,6 +248,7 @@ class TestToolErrorEdgeCases:
         assert tc.is_failed is False
         assert tc.has_nonzero_exit is True
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_error_without_exit_code(self):
         """status='error' 但 exit_code=None 仍应被视为失败。"""
         tc = ToolCall(
@@ -251,6 +260,7 @@ class TestToolErrorEdgeCases:
         assert tc.is_failed is True
         assert tc.has_nonzero_exit is False
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_error_with_empty_result(self):
         """status='error' 但 result 为空的 tool 仍应 is_failed=True。"""
         tc = ToolCall(
@@ -262,6 +272,7 @@ class TestToolErrorEdgeCases:
         assert tc.is_failed is True
         assert tc.error_message and len(tc.error_message.strip()) > 0
 
+    @pytest.mark.contract_case("UI-SD-025")
     def test_round_with_no_errors(self, final_rounds):
         """必须存在没有错误的 round（正常交互）。"""
         rounds_without_errors = [

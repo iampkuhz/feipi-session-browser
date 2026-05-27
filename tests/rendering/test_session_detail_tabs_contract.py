@@ -10,10 +10,9 @@ static tabs-to-panels contract:
 
 This is a pure-static (textual) audit; no rendering or runtime execution.
 """
+import pytest
 from pathlib import Path
 import re
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SESSION_HTML = ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
@@ -52,21 +51,25 @@ def _find_data_panels(source):
 class TestTabsPanelsContract:
     """Every required tab must have a matching panel."""
 
+    @pytest.mark.contract_case("UI-SD-023")
     def test_tabs_contain_trace(self, session_source):
         """Tabs must include 'trace'."""
         tabs = _find_data_tabs(session_source)
         assert "trace" in tabs, f"Missing data-tab=\"trace\" in session.html. Found tabs: {tabs}"
 
+    @pytest.mark.contract_case("UI-SD-023")
     def test_tabs_contain_metrics(self, session_source):
         """Tabs must include 'metrics'."""
         tabs = _find_data_tabs(session_source)
         assert "metrics" in tabs, f"Missing data-tab=\"metrics\" in session.html. Found tabs: {tabs}"
 
+    @pytest.mark.contract_case("UI-SD-023")
     def test_tabs_contain_payloads(self, session_source):
         """Tabs must include 'payloads'."""
         tabs = _find_data_tabs(session_source)
         assert "payloads" in tabs, f"Missing data-tab=\"payloads\" in session.html. Found tabs: {tabs}"
 
+    @pytest.mark.contract_case("UI-SD-023")
     def test_panels_contain_trace(self, session_source):
         """Panels must include 'trace'."""
         panels = _find_data_panels(session_source)
@@ -75,6 +78,7 @@ class TestTabsPanelsContract:
             f"Found panels: {panels}"
         )
 
+    @pytest.mark.contract_case("UI-SD-023")
     def test_panels_contain_metrics(self, session_source):
         """Panels must include 'metrics'."""
         panels = _find_data_panels(session_source)
@@ -83,6 +87,7 @@ class TestTabsPanelsContract:
             f"Found panels: {panels}"
         )
 
+    @pytest.mark.contract_case("UI-SD-023")
     def test_panels_contain_payloads(self, session_source):
         """Panels must include 'payloads'."""
         panels = _find_data_panels(session_source)
@@ -91,6 +96,7 @@ class TestTabsPanelsContract:
             f"Found panels: {panels}"
         )
 
+    @pytest.mark.contract_case("UI-SD-023")
     def test_tab_panel_one_to_one(self, session_source):
         """Every required tab must have a matching panel (bijection check)."""
         tabs = _find_data_tabs(session_source)

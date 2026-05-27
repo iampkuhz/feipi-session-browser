@@ -1,5 +1,5 @@
 """Tests for check_payload_visibility.py diagnostic script."""
-
+import pytest
 import json
 import subprocess
 import sys
@@ -20,6 +20,7 @@ def _run_script(fixture: Path) -> subprocess.CompletedProcess:
 # ── Fixture 1: payload and context both present ──────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_complete_payload_visibility():
     """All fields populated — should report OK for each call."""
     result = _run_script(FIXTURE_DIR / "payload-visibility-complete.json")
@@ -33,6 +34,7 @@ def test_complete_payload_visibility():
 # ── Fixture 2: input_tokens > 0 but rendered context is empty ────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_empty_context_visibility():
     """input_tokens > 0, request_full empty — should warn about context."""
     result = _run_script(FIXTURE_DIR / "payload-visibility-empty-context.json")
@@ -47,6 +49,7 @@ def test_empty_context_visibility():
 # ── Fixture 3: input_tokens > 0 but raw request payload missing ──────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_missing_request_payload_visibility():
     """No request_full field at all — should warn about missing payload."""
     result = _run_script(FIXTURE_DIR / "payload-visibility-missing-request.json")
@@ -60,6 +63,7 @@ def test_missing_request_payload_visibility():
 # ── Unit tests for compute_fields and check_call ─────────────────────
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_compute_fields_empty_request():
     """When request_full is missing, all derived fields should reflect that."""
     from scripts.check_payload_visibility import compute_fields
@@ -72,6 +76,7 @@ def test_compute_fields_empty_request():
     assert f["rendered_response_length"] == 5
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_compute_fields_full_request():
     """When request_full is present, derived fields should be populated."""
     from scripts.check_payload_visibility import compute_fields
@@ -88,6 +93,7 @@ def test_compute_fields_full_request():
     assert f["request_payload_message_count"] == 1
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_check_call_triggers_warning():
     """A call with input_tokens but empty request_full should produce warnings."""
     from scripts.check_payload_visibility import check_call
@@ -100,6 +106,7 @@ def test_check_call_triggers_warning():
     assert "input_tokens=" in warnings[0]
 
 
+@pytest.mark.contract_case("UI-SD-008")
 def test_check_call_no_warning():
     """A call with both input_tokens and request_full should produce no warnings."""
     from scripts.check_payload_visibility import check_call
