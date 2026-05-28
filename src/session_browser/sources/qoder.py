@@ -669,6 +669,40 @@ def _resolve_qoder_model_config_name(
 
 
 @lru_cache(maxsize=4)
+def _load_qoder_current_assistant_model(app_support_dir: Path | None = None) -> str:
+    """Load Qoder's current assistant model selector from global state.
+
+    Some Qoder project sessions are created by the client without writing a
+    per-session model into JSONL or agent.log. The selector state records the
+    currently chosen assistant model without exposing BYOK secret values.
+    """
+    app_support_dir = app_support_dir or _qoder_app_support_dir()
+    db_path = app_support_dir / "User" / "globalStorage" / "state.vscdb"
+    if not db_path.exists():
+        return ""
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        row = conn.execute(
+            "SELECT value FROM ItemTable WHERE key = ?",
+            ("chat.modelConfig.assistant",),
+        ).fetchone()
+        conn.close()
+    except sqlite3.Error:
+        return ""
+
+    if not row or not row[0]:
+        return ""
+
+    return _resolve_qoder_model_config_name(
+        str(row[0]),
+        custom_names=_load_qoder_custom_model_names(app_support_dir),
+        selector_names=_load_qoder_model_selector_names(app_support_dir),
+        auth_names=_load_qoder_auth_model_names(),
+    )
+
+
+@lru_cache(maxsize=4)
 def _build_qoder_session_model_map(app_support_dir: Path | None = None) -> dict[str, str]:
     """Build session_id -> model label from Qoder GUI agent logs."""
     app_support_dir = app_support_dir or _qoder_app_support_dir()
@@ -736,7 +770,17 @@ def _infer_qoder_model_for_session(session_id: str) -> str:
     """Infer a Qoder model from persisted GUI logs/config for one session."""
     if not session_id:
         return ""
-    return _build_qoder_session_model_map(_qoder_app_support_dir()).get(session_id, "")
+    app_support_dir = _qoder_app_support_dir()
+    session_model = _build_qoder_session_model_map(app_support_dir).get(session_id, "")
+    if session_model:
+        return session_model
+    if not re.match(
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+        r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        session_id,
+    ):
+        return ""
+    return _load_qoder_current_assistant_model(app_support_dir)
 
 
 def _url_decode_path(path: str) -> str:
