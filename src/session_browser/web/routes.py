@@ -419,6 +419,9 @@ def compute_round_signals(
     round_input_total = rb["input"] + rb["cache_read"] + rb["cache_write"]
     round_tools = round.tool_calls
     failed_tools = [tc for tc in round_tools if tc.is_failed]
+    # The caller should pass session input-side total:
+    # fresh + cache read + cache write. Older callers may pass Fresh only;
+    # in that case the relative guard remains conservative for tests.
     total_session_input = session_input_tokens
 
     # ── Critical signals ────────────────────────────────────────────
@@ -781,7 +784,11 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         round_signals = []
         for i, r in enumerate(rounds):
             round_signals.append(
-                compute_round_signals(r, i + 1, session.input_tokens)
+                compute_round_signals(
+                    r,
+                    i + 1,
+                    session.input_tokens + session.cached_input_tokens + session.cached_output_tokens,
+                )
             )
 
         # Set repo root to session's project directory for relative path rendering

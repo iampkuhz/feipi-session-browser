@@ -147,6 +147,41 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
     return merged
 
 
+def _normalize_qoder_provider_usage(records: list[dict]) -> None:
+    """Normalize Qoder provider usage into canonical token buckets.
+
+    Qoder logs observed from GUI sessions report ``input_tokens`` as an
+    inclusive request input total. The rest of the app expects ``input_tokens``
+    to mean fresh input only, with cache read/write stored separately.
+    """
+    usages: list[dict] = []
+    for rec in records:
+        usage = rec.get("usage")
+        usages.append(usage if isinstance(usage, dict) else {})
+
+    for idx, usage in enumerate(usages):
+        if not usage or "input_tokens" not in usage:
+            continue
+
+        raw_input_total = int(usage.get("input_tokens", 0) or 0)
+        cache_read = int(usage.get("cache_read_input_tokens", 0) or 0)
+        raw_cache_write = int(usage.get("cache_creation_input_tokens", 0) or 0)
+        cache_write = raw_cache_write
+
+        if cache_write <= 0 and idx + 1 < len(usages):
+            next_cache_read = int(usages[idx + 1].get("cache_read_input_tokens", 0) or 0)
+            if next_cache_read > cache_read:
+                cache_write = next_cache_read - cache_read
+
+        fresh = max(raw_input_total - cache_read - cache_write, 0)
+
+        usage["qoder_input_tokens_total"] = raw_input_total
+        usage["qoder_cache_write_inferred"] = raw_cache_write <= 0 and cache_write > 0
+        usage["input_tokens"] = fresh
+        usage["cache_read_input_tokens"] = cache_read
+        usage["cache_creation_input_tokens"] = cache_write
+
+
 def _extract_qoder_model(record: dict) -> str | None:
     """Extract model from a Qoder assistant record with fallback strategy.
 
@@ -236,6 +271,7 @@ def _assistant_records(events: list[dict]) -> list[dict]:
         rec = records[key]
         rec["usage"] = _merge_usage_dicts(rec.pop("usage_rows"))
         merged_records.append(rec)
+    _normalize_qoder_provider_usage(merged_records)
     return merged_records
 
 
