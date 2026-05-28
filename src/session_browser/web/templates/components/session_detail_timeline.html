@@ -17,7 +17,7 @@
         {% if session_url %}
         <div class="sd-hero-url">
           <span class="sd-hero-url-text" title="{{ session_url }}">{{ summary.session_id|default('') }}</span>
-          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy-session-id" data-session-id="{{ summary.session_id|default('') }}" title="Copy session ID">
+          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy" data-copy-text="{{ summary.session_id|default('') }}" title="Copy session ID">
             <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
           </button>
         </div>
@@ -42,11 +42,19 @@
         {% endif %}
       </div>
       <div class="sd-kpis">
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div><div class="sd-kpi__label">Tokens</div></div>
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div><div class="sd-kpi__label">Rounds</div></div>
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div><div class="sd-kpi__label">Tools</div></div>
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.failed|default('—') }}</div><div class="sd-kpi__label">Failed</div></div>
-        <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.llm_calls|default('—') }}</div><div class="sd-kpi__label">LLM Calls</div></div>
+        <div class="sd-kpi-group sd-kpi-group--tokens" aria-label="Token analysis">
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div><div class="sd-kpi__label">Tokens</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.fresh|default('—') }}</div><div class="sd-kpi__label">Fresh</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.cache_read|default('—') }}</div><div class="sd-kpi__label">Cache R</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.cache_write|default('—') }}</div><div class="sd-kpi__label">Cache W</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.output|default('—') }}</div><div class="sd-kpi__label">Output</div></div>
+        </div>
+        <div class="sd-kpi-group sd-kpi-group--calls" aria-label="Call count analysis">
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div><div class="sd-kpi__label">Rounds</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div><div class="sd-kpi__label">Tools</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.failed|default('—') }}</div><div class="sd-kpi__label">Failed</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.llm_calls|default('—') }}</div><div class="sd-kpi__label">LLM Calls</div></div>
+        </div>
       </div>
     </div>
     <div class="sd-summary-strip" data-summary-strip>

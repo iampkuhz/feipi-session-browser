@@ -2428,6 +2428,10 @@ def _build_v11_view_model(
         },
         "hero_metrics": {
             "tokens": _format_compact_token(total_tokens),
+            "fresh": _format_compact_token(session.input_tokens),
+            "cache_read": _format_compact_token(session.cached_input_tokens),
+            "cache_write": _format_compact_token(session.cached_output_tokens),
+            "output": _format_compact_token(session.output_tokens),
             "rounds": str(total_rounds),
             "tools": str(total_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",
@@ -2917,6 +2921,10 @@ def _build_v9_view_model(
         },
         "hero_metrics": {
             "tokens": _format_compact_token(total_tokens),
+            "fresh": _format_compact_token(session.input_tokens),
+            "cache_read": _format_compact_token(session.cached_input_tokens),
+            "cache_write": _format_compact_token(session.cached_output_tokens),
+            "output": _format_compact_token(session.output_tokens),
             "rounds": str(total_rounds),
             "tools": str(total_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",

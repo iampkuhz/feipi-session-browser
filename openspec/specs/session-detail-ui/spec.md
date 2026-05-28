@@ -12,7 +12,9 @@ The page SHALL display:
 - Session title
 - Agent name and model
 - Start time and duration
-- Four core KPIs: Failures, Tokens, Scope (rounds/tools), Cache ratio
+- KPI metrics grouped into token analysis and call-count analysis
+- Token analysis metrics: Tokens, Fresh, Cache R, Cache W, Output
+- Call-count analysis metrics: Rounds, Tools, Failed, LLM Calls
 
 #### Scenario: Issue summary display
 
