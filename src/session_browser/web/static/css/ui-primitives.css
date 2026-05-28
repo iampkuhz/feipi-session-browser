@@ -829,15 +829,19 @@ a.btn:focus-visible {
 .token-tooltip__type-name {
   line-height: 1;
 }
+.token-tooltip__label .dot.dot--fresh,
 .dot--fresh {
   background: var(--token-input-fresh, #6d5dfc);
 }
+.token-tooltip__label .dot.dot--read,
 .dot--read {
   background: var(--token-cache-read, #10b981);
 }
+.token-tooltip__label .dot.dot--write,
 .dot--write {
   background: var(--token-cache-write, #f59e0b);
 }
+.token-tooltip__label .dot.dot--out,
 .dot--out {
   background: var(--token-output-visible, #98a2b3);
 }

@@ -987,6 +987,8 @@
   padding: 0 10px;
   border-bottom: 1px solid #bae6fd;
   background: #ecfeff;
+  border-radius: calc(var(--sd-radius-card) - 1px) calc(var(--sd-radius-card) - 1px) 0 0;
+  background-clip: padding-box;
 }
 .sd-subagent__title {
   font-weight: 850;
@@ -1021,7 +1023,7 @@
 .sd-sub-round__summary {
   height: 32px;
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) auto 52px;
+  grid-template-columns: 60px minmax(0, 1fr) auto 84px;
   gap: 8px;
   align-items: center;
   padding: 0 9px;
@@ -1058,6 +1060,10 @@
   justify-content: flex-end;
   width: 100%;
   z-index: 2;
+  --token-tooltip-left: auto;
+  --token-tooltip-right: 0;
+  --token-tooltip-translate: 0;
+  --token-tooltip-arrow-left: calc(100% - 40px);
 }
 .tokenbar-sub {
   display: flex;
@@ -1086,7 +1092,9 @@
 .sd-sub-tokenbar .token-tooltip {
   position: absolute;
   top: calc(100% + 8px);
-  right: -8px;
+  left: var(--token-tooltip-left, 50%);
+  right: var(--token-tooltip-right, auto);
+  transform: translateX(var(--token-tooltip-translate, -50%));
   display: none;
   z-index: 100;
   background: #fff;
@@ -1096,11 +1104,16 @@
   box-sizing: border-box;
   padding: 12px 14px;
   width: 272px;
+  max-width: calc(100vw - 24px);
   color: var(--sd-text, #0f172a);
   font-size: 11px;
   line-height: 1.6;
   white-space: normal;
   background-clip: padding-box;
+}
+.sd-sub-tokenbar .token-tooltip::before {
+  left: var(--token-tooltip-arrow-left, 50%);
+  transform: translateX(-50%) rotate(45deg);
 }
 .sd-sub-tokenbar:hover,
 .sd-sub-tokenbar:focus-within {
@@ -1420,6 +1433,9 @@ shift dot left to align with the container timeline line */
   position: relative;
   display: inline-flex;
   width: 54px;
+  --token-tooltip-left: 50%;
+  --token-tooltip-translate: -50%;
+  --token-tooltip-arrow-left: 50%;
 }
 .tokenbar {
   position: relative;
@@ -1446,14 +1462,16 @@ shift dot left to align with the container timeline line */
 /* token breakdown tooltip */
 .tokenbar-wrap .token-tooltip {
   position: absolute;
-  left: 0;
+  left: var(--token-tooltip-left, 50%);
   top: 14px;
+  transform: translateX(var(--token-tooltip-translate, -50%));
   background: #fff;
   border: 1px solid var(--sd-line);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
   border-radius: 12px;
   padding: 12px;
   width: 240px;
+  max-width: calc(100vw - 24px);
   z-index: 10;
   display: none;
   pointer-events: none;
@@ -1462,13 +1480,13 @@ shift dot left to align with the container timeline line */
   content: '';
   position: absolute;
   top: -7px;
-  left: 36px;
+  left: var(--token-tooltip-arrow-left, 50%);
   width: 12px;
   height: 12px;
   background: #fff;
   border-left: 1px solid var(--sd-line);
   border-top: 1px solid var(--sd-line);
-  transform: rotate(45deg);
+  transform: translateX(-50%) rotate(45deg);
 }
 .tokenbar-wrap:hover .token-tooltip,
 .tokenbar-wrap:focus-within .token-tooltip {

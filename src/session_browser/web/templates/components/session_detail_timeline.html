@@ -275,7 +275,7 @@
               <span class="sd-sub-id">SR{{ sr.sub_round_id }}</span>
               <span class="sd-sub-title">{{ sr.title }}</span>
               <span class="sd-sub-time">{{ sr.start_time|default('—') }}</span>
-              <span class="sd-sub-tokenbar">
+              <span class="sd-sub-tokenbar" tabindex="0">
                 <span class="tokenbar-sub" aria-hidden="true">
                   <span class="fresh" style="--segment-width:{{ sr.token_mix.fresh|default(0) }}%"></span>
                   <span class="read" style="--segment-width:{{ sr.token_mix.read|default(0) }}%"></span>
