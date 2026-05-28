@@ -1,12 +1,12 @@
-"""Regression tests for tool call success/failure判定.
+"""工具调用成功/失败判定的回归测试。
 
-Ensures that:
-- Nonzero exit codes do NOT make a tool call failed.
-- Result text containing error keywords (failed, error:, exit code) does NOT
-  make a tool call failed unless it's a genuine tool runtime error.
-- Genuine tool runtime errors (is_error: true, user rejected, API error,
-  command not found, file not found) still make a tool call failed.
-- Both Claude and Qoder parsers follow the same conservative判定.
+确保：
+- 非零退出码不会使工具调用判定为失败。
+- 结果文本中包含错误关键词（failed、error:、exit code）不会
+  使工具调用判定为失败，除非是真正的工具运行时错误。
+- 真正的工具运行时错误（is_error: true、用户拒绝、API 错误、
+  命令未找到、文件未找到）仍会使工具调用判定为失败。
+- Claude 和 Qoder 解析器遵循相同的保守判定策略。
 """
 
 from __future__ import annotations
@@ -17,160 +17,160 @@ import tempfile
 from pathlib import Path
 
 
-# ── Claude parser tests ───────────────────────────────────────────────
+# ── Claude 解析器测试 ─────────────────────────────────────────────────
 
 
 class TestClaudeToolResultHeuristic:
-    """Test _tool_result_looks_failed for Claude parser."""
+    """测试 Claude 解析器的 _tool_result_looks_failed。"""
 
     def _looks_failed(self, text, tool_name=""):
         from session_browser.sources.claude import _tool_result_looks_failed
         return _tool_result_looks_failed(text, tool_name=tool_name)
 
-    # ── Should NOT be failed: command output with error keywords ──────
+    # ── 不应判定为失败：命令输出中含错误关键词 ──────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_exit_code_1_not_failed(self):
-        """Bash result with 'exit code 1' but no is_error should NOT be failed."""
+        """Bash 结果含 'exit code 1' 但无 is_error 不应判定为失败。"""
         text = "error: 'unusedVariable' is defined but never used\nerror: missing semicolon\nexit code 1"
         assert not self._looks_failed(text, tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_lint_error_output_not_failed(self):
-        """Lint error output is command output, not tool runtime error."""
+        """Lint 错误输出是命令输出，非工具运行时错误。"""
         text = "src/index.ts\n  1:5  error  'x' is defined but never used\n\n✖ 1 problem (1 error, 0 warnings)\nexit code 1"
         assert not self._looks_failed(text, tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_test_failure_output_not_failed(self):
-        """Test runner output with FAILED is command output."""
+        """测试运行器输出含 FAILED 是命令输出。"""
         text = "FAILED tests/test_x.py - AssertionError: expected 1 == 2\n\n1 failed, 9 passed in 2.34s"
         assert not self._looks_failed(text, tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_html_error_class_not_failed(self):
-        """HTML with error classes should not trigger heuristic."""
+        """含错误类名的 HTML 不应触发启发式判定。"""
         text = '<span class="badge badge-error">failed</span>'
         assert not self._looks_failed(text, tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_sql_schema_with_failed_keyword_not_failed(self):
-        """SQL schema containing 'failed' keyword should not trigger."""
+        """SQL schema 含 'failed' 关键词不应触发。"""
         text = "    failed_tool_count INTEGER NOT NULL DEFAULT 0,"
         assert not self._looks_failed(text, tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_source_code_with_error_keywords_not_failed(self):
-        """Source code referencing error strings should not trigger."""
+        """引用错误字符串的源代码不应触发。"""
         text = 'const error = new Error("text-error")\nclass BadgeError { status = "error:" }'
         assert not self._looks_failed(text, tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_grep_output_with_error_in_filename_not_failed(self):
-        """Grep output showing error: in a matched file."""
+        """Grep 输出显示匹配文件中的 error: 不应判定为失败。"""
         text = "src/config.py:    if status == 'error':\nsrc/handler.py:    return {'error': 'not found'}"
         assert not self._looks_failed(text, tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_diff_output_not_failed(self):
-        """Diff output with context lines containing error keywords."""
+        """Diff 输出含错误关键词的上下文行不应判定为失败。"""
         text = "--- a/src/app.py\n+++ b/src/app.py\n-    raise Exception('error: something failed')\n+    pass"
         assert not self._looks_failed(text, tool_name="Bash")
 
-    # ── Read/Write/etc. file tool false positives ─────────────────────
+    # ── Read/Write 等文件工具的误判 ─────────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_read_file_with_error_in_content_not_failed(self):
-        """Read tool returning file content that has 'error:' in it."""
+        """Read 工具返回含 'error:' 的文件内容不应判定为失败。"""
         text = "def handle_error():\n    print('error: something went wrong')\n    return {'failed': True}"
         assert not self._looks_failed(text, tool_name="Read")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_read_file_with_exit_code_in_content_not_failed(self):
-        """Read tool returning file content mentioning 'exit code'."""
+        """Read 工具返回含 'exit code' 的文件内容不应判定为失败。"""
         text = "# Exit code meanings:\n# 0 = success\n# 1 = general error"
         assert not self._looks_failed(text, tool_name="Read")
 
-    # ── Should BE failed: genuine tool runtime errors ─────────────────
+    # ── 应判定为失败：真实的工具运行时错误 ─────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_user_rejected_is_failed(self):
-        """User rejecting a tool use should be failed."""
+        """用户拒绝工具使用应判定为失败。"""
         assert self._looks_failed("User rejected tool use", tool_name="Bash")
         assert self._looks_failed("User rejected tool use", tool_name="Agent")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_api_error_is_failed(self):
-        """API error should be failed."""
+        """API 错误应判定为失败。"""
         assert self._looks_failed("API Error: 401 Unauthorized", tool_name="Bash")
         assert self._looks_failed("api error: rate limited", tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_tool_use_error_is_failed(self):
-        """tool_use_error should be failed."""
+        """tool_use_error 应判定为失败。"""
         assert self._looks_failed("tool_use_error: tool execution failed", tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_key_model_access_denied_is_failed(self):
-        """key_model_access_denied should be failed."""
+        """key_model_access_denied 应判定为失败。"""
         assert self._looks_failed("API Error: 403 key_model_access_denied", tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_rate_limit_exceeded_is_failed(self):
-        """Rate limit exceeded should be failed."""
+        """速率限制超限应判定为失败。"""
         assert self._looks_failed("Rate limit exceeded. Please try again later.", tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_request_cancelled_is_failed(self):
-        """Request cancelled should be failed."""
+        """请求被取消应判定为失败。"""
         assert self._looks_failed("Request cancelled by user", tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_command_not_found_is_failed(self):
-        """Command not found should be failed."""
+        """命令未找到应判定为失败。"""
         assert self._looks_failed("command not found", tool_name="Bash")
         assert self._looks_failed("bash: kubectl: command not found", tool_name="Bash")
         assert self._looks_failed("sh: xyz: command not found", tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_timeout_is_failed(self):
-        """Tool timeout should be failed."""
+        """工具超时应判定为失败。"""
         assert self._looks_failed("timeout", tool_name="Bash")
 
-    # ── File-level errors for Read/Write/etc. ─────────────────────────
+    # ── Read/Write 等的文件级错误 ─────────────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_read_file_does_not_exist_is_failed(self):
-        """Read tool reporting file doesn't exist should be failed."""
+        """Read 工具报告文件不存在应判定为失败。"""
         assert self._looks_failed("File does not exist: /tmp/missing.txt", tool_name="Read")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_read_permission_denied_is_failed(self):
-        """Read tool reporting permission denied should be failed."""
+        """Read 工具报告权限拒绝应判定为失败。"""
         assert self._looks_failed("Permission denied: /etc/shadow", tool_name="Read")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_read_no_such_file_is_failed(self):
-        """Read tool reporting no such file should be failed."""
+        """Read 工具报告文件不存在应判定为失败。"""
         assert self._looks_failed("No such file or directory", tool_name="Read")
 
-    # ── Bash-level runtime errors ─────────────────────────────────────
+    # ── Bash 运行时错误 ─────────────────────────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_bash_permission_denied_is_failed(self):
-        """Bash runtime error: permission denied should be failed."""
+        """Bash 运行时错误：权限拒绝应判定为失败。"""
         assert self._looks_failed("bash: ./deploy.sh: Permission denied", tool_name="Bash")
         assert self._looks_failed("Permission denied", tool_name="Bash")
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_git_fatal_error_is_failed(self):
-        """Git fatal error should be failed."""
+        """Git 致命错误应判定为失败。"""
         assert self._looks_failed("fatal: not a git repository (or any of the parent directories)", tool_name="Bash")
         assert self._looks_failed("fatal: ambiguous argument 'HEAD'", tool_name="Bash")
 
 
 class TestClaudeExtractToolCalls:
-    """Test _extract_tool_calls end-to-end for Claude parser."""
+    """端到端测试 Claude 解析器的 _extract_tool_calls。"""
 
     def _parse(self, events):
         from session_browser.sources.claude import (
@@ -182,7 +182,7 @@ class TestClaudeExtractToolCalls:
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_bash_exit_code_1_not_failed(self):
-        """Bash with exit code 1 but no is_error should NOT be failed."""
+        """Bash 含 exit code 1 但无 is_error 不应判定为失败。"""
         events = [
             {"type": "user", "message": {"role": "user", "content": "run lint"},
              "timestamp": "2026-01-01T00:00:00Z"},
@@ -209,7 +209,7 @@ class TestClaudeExtractToolCalls:
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_bash_exit_code_0_not_failed(self):
-        """Bash with exit code 0 should NOT be failed."""
+        """Bash 含 exit code 0 不应判定为失败。"""
         events = [
             {"type": "user", "message": {"role": "user", "content": "ls"},
              "timestamp": "2026-01-01T00:00:00Z"},
@@ -234,7 +234,7 @@ class TestClaudeExtractToolCalls:
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_bash_is_error_true_is_failed(self):
-        """Bash with is_error: true should be failed."""
+        """Bash 含 is_error: true 应判定为失败。"""
         events = [
             {"type": "user", "message": {"role": "user", "content": "run"},
              "timestamp": "2026-01-01T00:00:00Z"},
@@ -259,7 +259,7 @@ class TestClaudeExtractToolCalls:
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_user_rejected_tool_use_is_failed(self):
-        """User rejected tool use should be failed."""
+        """用户拒绝工具使用应判定为失败。"""
         events = [
             {"type": "user", "message": {"role": "user", "content": "run"},
              "timestamp": "2026-01-01T00:00:00Z"},
@@ -284,7 +284,7 @@ class TestClaudeExtractToolCalls:
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_api_error_in_result_is_failed(self):
-        """API error in result should be failed."""
+        """结果中的 API 错误应判定为失败。"""
         events = [
             {"type": "user", "message": {"role": "user", "content": "call api"},
              "timestamp": "2026-01-01T00:00:00Z"},
@@ -307,17 +307,17 @@ class TestClaudeExtractToolCalls:
         assert tc.status == "error"
 
 
-# ── Qoder parser tests ────────────────────────────────────────────────
+# ── Qoder 解析器测试 ────────────────────────────────────────────────
 
 
 class TestQoderToolResultHeuristic:
-    """Test _tool_result_looks_failed for Qoder parser."""
+    """测试 Qoder 解析器的 _tool_result_looks_failed。"""
 
     def _looks_failed(self, text, tool_name=""):
         from session_browser.sources.qoder import _tool_result_looks_failed
         return _tool_result_looks_failed(text, tool_name=tool_name)
 
-    # ── Should NOT be failed ──────────────────────────────────────────
+    # ── 不应判定为失败 ──────────────────────────────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_exit_code_1_not_failed(self):
@@ -344,7 +344,7 @@ class TestQoderToolResultHeuristic:
         text = "src/index.ts\n  1:5  error  'x' is not defined\n\n✖ 1 problem\nexit code 1"
         assert not self._looks_failed(text)
 
-    # ── Should BE failed ──────────────────────────────────────────────
+    # ── 应判定为失败 ──────────────────────────────────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_user_rejected_is_failed(self):
@@ -362,7 +362,7 @@ class TestQoderToolResultHeuristic:
     def test_command_not_found_is_failed(self):
         assert self._looks_failed("bash: kubectl: command not found")
 
-    # ── File-level errors (Qoder also supports these now) ─────────────
+    # ── 文件级错误（Qoder 也支持这些） ─────────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_qoder_read_file_does_not_exist_is_failed(self):
@@ -376,7 +376,7 @@ class TestQoderToolResultHeuristic:
     def test_qoder_read_no_such_file_is_failed(self):
         assert self._looks_failed("No such file or directory", tool_name="Read")
 
-    # ── Bash-level runtime errors ─────────────────────────────────────
+    # ── Bash 运行时错误 ─────────────────────────────────────
 
     @pytest.mark.contract_case("UI-SD-025")
     def test_qoder_bash_permission_denied_is_failed(self):
@@ -389,11 +389,11 @@ class TestQoderToolResultHeuristic:
         assert self._looks_failed("fatal: ambiguous argument 'HEAD'")
 
 
-# ── Model-level tests ─────────────────────────────────────────────────
+# ── 模型层测试 ────────────────────────────────────────────────────────
 
 
 class TestToolCallIsFailed:
-    """Test ToolCall.is_failed and has_nonzero_exit properties."""
+    """测试 ToolCall.is_failed 和 has_nonzero_exit 属性。"""
 
     def _tc(self, **kwargs):
         from session_browser.domain.models import ToolCall

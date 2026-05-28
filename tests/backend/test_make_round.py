@@ -1,7 +1,7 @@
-"""Tests for round construction and token extraction in routes.py.
+"""测试 routes.py 中的轮次构建和 token 提取。
 
-Verifies that _make_round correctly extracts token data for all agents
-that provide per-message usage info (claude_code, qoder).
+验证 _make_round 是否正确提取所有提供逐消息用量信息的
+agent（claude_code、qoder）的 token 数据。
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ USAGE_CLAUDE = {
 
 
 class TestMakeRoundTokenExtraction:
-    """Verify _make_round extracts token info for agents with per-message usage."""
+    """验证 _make_round 为带逐消息用量的 agent 提取 token 信息。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_claude_code_extracts_tokens(self):
@@ -42,33 +42,33 @@ class TestMakeRoundTokenExtraction:
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_qoder_extracts_tokens(self):
-        """Qoder sessions should have the same token extraction as Claude Code."""
+        """Qoder 的 token 提取方式应与 Claude Code 一致。"""
         r = _make_round(USER_MSG, _assistant_msg(usage=USAGE_CLAUDE), [], 1000, "qoder")
         assert r.total_tokens == 650  # 100 + 50 + 200 + 300
         assert r.token_ratio == pytest.approx(650 / 1000)
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_codex_has_zero_tokens(self):
-        """Codex doesn't provide per-message usage, so round tokens should be 0."""
+        """Codex 不提供逐消息用量，轮次 token 应为 0。"""
         r = _make_round(USER_MSG, _assistant_msg(usage=USAGE_CLAUDE), [], 1000, "codex")
         assert r.total_tokens == 0
         assert r.token_ratio == 0
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_qoder_no_usage_dict(self):
-        """Qoder with no usage dict should have zero tokens."""
+        """Qoder 无用量字典时 token 应为零。"""
         r = _make_round(USER_MSG, _assistant_msg(usage=None), [], 1000, "qoder")
         assert r.total_tokens == 0
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_qoder_empty_usage_dict(self):
-        """Qoder with empty usage dict should have zero tokens."""
+        """Qoder 空用量字典时 token 应为零。"""
         r = _make_round(USER_MSG, _assistant_msg(usage={}), [], 1000, "qoder")
         assert r.total_tokens == 0
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_qoder_estimated_usage(self):
-        """Qoder with estimated usage should extract tokens like Claude Code."""
+        """Qoder 带估算用量时，token 提取方式应与 Claude Code 一致。"""
         estimated_usage = {
             "input_tokens": 500,
             "output_tokens": 200,
@@ -80,7 +80,7 @@ class TestMakeRoundTokenExtraction:
         r = _make_round(USER_MSG, _assistant_msg(usage=estimated_usage), [], 1000, "qoder")
         assert r.total_tokens == 700  # 500 + 200 + 0 + 0
         assert r.token_ratio == pytest.approx(700 / 1000)
-        # Cache fields should be 0 for estimated usage
+        # 估算用量的 cache 字段应为 0
         assert r.input_tokens == 500
         assert r.output_tokens == 200
         assert r.cached_tokens == 0
@@ -88,14 +88,14 @@ class TestMakeRoundTokenExtraction:
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_claude_no_usage_dict(self):
-        """Claude with no usage dict should have zero tokens."""
+        """Claude 无用量字典时 token 应为零。"""
         r = _make_round(USER_MSG, _assistant_msg(usage=None), [], 1000, "claude_code")
         assert r.total_tokens == 0
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_token_breakdown_method_uses_usage_dict(self):
-        """ConversationRound.token_breakdown() reads from assistant_msg.usage directly,
-        so it should work for Qoder even if total_tokens is 0."""
+        """ConversationRound.token_breakdown() 直接从 assistant_msg.usage 读取，
+        因此即使 total_tokens 为 0，Qoder 也应正常工作。"""
         r = _make_round(USER_MSG, _assistant_msg(usage=USAGE_CLAUDE), [], 1000, "qoder")
         bd = r.token_breakdown()
         assert bd["input"] == 100

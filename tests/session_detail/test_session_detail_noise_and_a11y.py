@@ -31,7 +31,7 @@ def _timeline_component():
     return (COMPONENTS / "session_detail_timeline.html").read_text(encoding="utf-8")
 
 
-# ── Issue strip ──────────────────────────────────────────────────────
+# ── 问题条 ──────────────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-SD-029")
@@ -48,7 +48,7 @@ def test_issue_cards_capped():
     assert "[:4]" in timeline, "Issue cards must be capped"
 
 
-# ── Round toggle accessibility ──────────────────────────────────────
+# ── 轮次切换可访问性 ──────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-SD-029")

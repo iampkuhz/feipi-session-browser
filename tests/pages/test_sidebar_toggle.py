@@ -1,9 +1,9 @@
-"""Tests for sidebar collapse infrastructure in base.html.
-The sidebar collapse mechanism uses body.hide-left class to toggle visibility.
-Sidebar toggle buttons have been removed from the topbar; only CSS infrastructure remains.
+"""验证 base.html 中侧边栏折叠基础设施的测试。
+侧边栏折叠机制使用 body.hide-left 类来切换可见性。
+侧边栏切换按钮已从 topbar 移除；仅保留 CSS 基础设施。
 
-Note: Shell-related CSS rules (.sidebar, body.hide-left, .sidebar-toggle) are in
-css/shell.css since Task 05, not in style.css.
+注意：Shell 相关的 CSS 规则（.sidebar、body.hide-left、.sidebar-toggle）
+自 Task 05 以来位于 css/shell.css 中，而非 style.css 中。
 """
 
 
@@ -21,50 +21,50 @@ def _shell_css():
 
 
 class TestSidebarCollapsedCSS:
-    """Verify CSS supports hide-left class for sidebar hiding."""
+    """验证 CSS 支持 hide-left 类用于隐藏侧边栏。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-001")
     def test_hide_left_selector(self):
-        """CSS should have body.hide-left .sidebar rule."""
+        """CSS 应有 body.hide-left .sidebar 规则。"""
         content = _shell_css()
         assert "body.hide-left .sidebar" in content
 
     @pytest.mark.contract_case("UI-INTERACTION-001")
     def test_hide_left_hides_sidebar(self):
-        """CSS should hide sidebar when hide-left is active."""
+        """CSS 应在 hide-left 激活时隐藏侧边栏。"""
         content = _shell_css()
         assert "display: none" in content
 
     @pytest.mark.contract_case("UI-INTERACTION-001")
     def test_old_sidebar_toggle_hidden(self):
-        """Old .sidebar-toggle button should be hidden (deprecated)."""
+        """旧的 .sidebar-toggle 按钮应隐藏（已弃用）。"""
         content = _shell_css()
         assert ".sidebar-toggle" in content
-        # The old button is deprecated and hidden
+        # 该旧按钮已弃用并隐藏
         assert "display: none" in content
 
 
 class TestOldSidebarToggleDeprecated:
-    """Verify old sidebar toggle buttons are not rendered."""
+    """验证旧的侧边栏切换按钮未被渲染。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-001")
     def test_no_sidebar_toggle_button(self):
-        """Old class='sidebar-toggle' button should NOT be rendered."""
+        """旧的 class='sidebar-toggle' 按钮不应被渲染。"""
         with open("src/session_browser/web/templates/base.html") as f:
             content = f.read()
-        # The old button class should not appear as a rendered element
+        # 该旧按钮类不应作为渲染元素出现
         assert 'class="sidebar-toggle"' not in content
 
     @pytest.mark.contract_case("UI-INTERACTION-001")
     def test_no_sidebar_toggle_expand_button(self):
-        """Old class='sidebar-toggle-expand' button should NOT be rendered."""
+        """旧的 class='sidebar-toggle-expand' 按钮不应被渲染。"""
         with open("src/session_browser/web/templates/base.html") as f:
             content = f.read()
         assert 'class="sidebar-toggle-expand"' not in content
 
     @pytest.mark.contract_case("UI-INTERACTION-001")
     def test_old_buttons_hidden_in_css(self):
-        """CSS should explicitly hide old toggle buttons."""
+        """CSS 应显式隐藏旧的切换按钮。"""
         content = _shell_css()
         assert ".sidebar-toggle" in content
         assert "display: none" in content

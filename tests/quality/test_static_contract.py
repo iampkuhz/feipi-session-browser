@@ -1,4 +1,4 @@
-"""Tests for scripts/quality/static_contract_check.py pure functions."""
+"""scripts/quality/static_contract_check.py 纯函数测试。"""
 from __future__ import annotations
 
 import pytest
@@ -45,14 +45,12 @@ class TestCheckNoImportant:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_important_in_comment_still_matches(self, tmp_path):
-        """
-
-import Regex matches !important even in comments — gate is conservative."""
+        """import 正则匹配注释中的 !important — 门禁采取保守策略。"""
         css = tmp_path / "commented.css"
         css.write_text("/* color: red !important; */")
         errors = check_no_important([css])
-        # The regex still matches because we don't strip comments for this check
-        # (the actual CSS has no active !important, but the gate is conservative)
+        # 正则仍然匹配，因为我们不为此检查剥离注释
+        # （实际 CSS 中没有活跃的 !important，但门禁采取保守策略）
         assert len(errors) == 1
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
@@ -84,7 +82,7 @@ class TestCheckCssLoadOrder:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_wrong_order_blocks(self):
-        """legacy-aliases before ui-primitives should BLOCK."""
+        """legacy-aliases 在 ui-primitives 之前应拦截。"""
         html = """
     <link rel="stylesheet" href="/static/css/tokens.css">
     <link rel="stylesheet" href="/static/css/base.css">
@@ -109,7 +107,7 @@ class TestCheckCssLoadOrder:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_head_extra_before_legacy_blocks(self):
-        """head_extra must come after legacy-aliases."""
+        """head_extra 必须出现在 legacy-aliases 之后。"""
         html = """
     <link rel="stylesheet" href="/static/css/tokens.css">
     <link rel="stylesheet" href="/static/css/base.css">
@@ -169,21 +167,21 @@ class TestCheckNoDeadCss:
 class TestCheckNoDuplicateBaseCss:
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_base_html_skipped(self, tmp_path):
-        """base.html itself should be skipped."""
+        """base.html 本身应被跳过。"""
         base = tmp_path / "base.html"
         base.write_text('<link rel="stylesheet" href="/static/css/tokens.css">')
         assert check_no_duplicate_base_css([base]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_page_without_base_css_passes(self, tmp_path):
-        """Page template with only page-specific CSS should pass."""
+        """页面模板仅有页面级 CSS 应通过。"""
         page = tmp_path / "dashboard.html"
         page.write_text('<link rel="stylesheet" href="/static/css/dashboard.css">')
         assert check_no_duplicate_base_css([page]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_page_with_tokens_css_blocks(self, tmp_path):
-        """Page loading tokens.css should BLOCK."""
+        """页面加载 tokens.css 应拦截。"""
         page = tmp_path / "dashboard.html"
         page.write_text('<link rel="stylesheet" href="/static/css/tokens.css">')
         errors = check_no_duplicate_base_css([page])
@@ -192,7 +190,7 @@ class TestCheckNoDuplicateBaseCss:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_page_with_base_css_blocks(self, tmp_path):
-        """Page loading base.css should BLOCK."""
+        """页面加载 base.css 应拦截。"""
         page = tmp_path / "dashboard.html"
         page.write_text('<link rel="stylesheet" href="/static/css/base.css">')
         errors = check_no_duplicate_base_css([page])
@@ -201,7 +199,7 @@ class TestCheckNoDuplicateBaseCss:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_page_with_multiple_base_css_blocks(self, tmp_path):
-        """Page loading multiple base CSS should list all."""
+        """页面加载多个基础 CSS 应全部列出。"""
         page = tmp_path / "page.html"
         page.write_text(
             '<link rel="stylesheet" href="/static/css/tokens.css">\n'
@@ -219,7 +217,7 @@ class TestCheckNoDuplicateBaseCss:
 class TestCheckPayloadModalOwnership:
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_ui_primitives_exempt(self, tmp_path):
-        """ui-primitives.css is the authority, should not error or warn."""
+        """ui-primitives.css 是权威定义，不应报错或告警。"""
         css = tmp_path / "ui-primitives.css"
         css.write_text(".payload-modal { display: flex; }")
         errors, warnings = check_payload_modal_ownership([css])
@@ -228,7 +226,7 @@ class TestCheckPayloadModalOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_bare_payload_modal_blocks(self, tmp_path):
-        """Bare .payload-modal in non-primitive, non-legacy file should BLOCK."""
+        """非 primitives/legacy 文件中的裸 .payload-modal 应拦截。"""
         css = tmp_path / "session-detail.css"
         css.write_text(".payload-modal { display: flex; }")
         errors, warnings = check_payload_modal_ownership([css])
@@ -238,7 +236,7 @@ class TestCheckPayloadModalOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_page_scoped_not_warn(self, tmp_path):
-        """Page-scoped .session-detail-page .payload-modal should not BLOCK."""
+        """页面级 .session-detail-page .payload-modal 不应拦截。"""
         css = tmp_path / "session-detail.css"
         css.write_text(".session-detail-page .payload-modal { width: 80vw; }")
         errors, warnings = check_payload_modal_ownership([css])
@@ -247,7 +245,7 @@ class TestCheckPayloadModalOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_legacy_aliases_warn_not_block(self, tmp_path):
-        """legacy-aliases.css bare #payload-modal should WARN, not BLOCK."""
+        """legacy-aliases.css 中裸 #payload-modal 应告警 而非 拦截。"""
         css = tmp_path / "legacy-aliases.css"
         css.write_text("#payload-modal { display: flex; }")
         errors, warnings = check_payload_modal_ownership([css])
@@ -262,7 +260,7 @@ class TestCheckPayloadModalOwnership:
 class TestCheckShellOwnership:
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_legacy_aliases_exempt(self, tmp_path):
-        """legacy-aliases.css may contain shell references for backward compat."""
+        """legacy-aliases.css 可包含 shell 引用以保持向后兼容。"""
         css = tmp_path / "legacy-aliases.css"
         css.write_text(".shell { display: grid; }")
         warnings = check_shell_ownership([css])
@@ -270,7 +268,7 @@ class TestCheckShellOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_shell_css_exempt(self, tmp_path):
-        """shell.css is the shell authority, should not warn."""
+        """shell.css 是 shell 权威定义，不应告警。"""
         css = tmp_path / "shell.css"
         css.write_text(".shell { display: grid; }")
         warnings = check_shell_ownership([css])
@@ -278,7 +276,7 @@ class TestCheckShellOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_base_css_exempt(self, tmp_path):
-        """base.css is a base file, should not warn."""
+        """base.css 是基础文件，不应告警。"""
         css = tmp_path / "base.css"
         css.write_text("body { font-family: sans-serif; }")
         warnings = check_shell_ownership([css])
@@ -286,7 +284,7 @@ class TestCheckShellOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_tokens_css_exempt(self, tmp_path):
-        """tokens.css is a tokens file, should not warn."""
+        """tokens.css 是 tokens 文件，不应告警。"""
         css = tmp_path / "tokens.css"
         css.write_text(":root { --shell-w: 220px; }")
         warnings = check_shell_ownership([css])
@@ -294,7 +292,7 @@ class TestCheckShellOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_legacy_aliases_exempt(self, tmp_path):
-        """legacy-aliases.css is compat layer, should not warn."""
+        """legacy-aliases.css 是兼容层，不应告警。"""
         css = tmp_path / "legacy-aliases.css"
         css.write_text(".app-shell { display: grid; }")
         warnings = check_shell_ownership([css])
@@ -302,7 +300,7 @@ class TestCheckShellOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_page_css_warns(self, tmp_path):
-        """Page CSS with shell selectors should WARN."""
+        """页面 CSS 中含 shell 选择器应告警。"""
         css = tmp_path / "dashboard.css"
         css.write_text(".app-shell { display: grid; }")
         warnings = check_shell_ownership([css])
@@ -311,7 +309,7 @@ class TestCheckShellOwnership:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_body_hide_left_warns(self, tmp_path):
-        """body.hide-left in page CSS should WARN."""
+        """页面 CSS 中的 body.hide-left 应告警。"""
         css = tmp_path / "agents.css"
         css.write_text("body.hide-left .sidebar { display: none; }")
         warnings = check_shell_ownership([css])
@@ -325,7 +323,7 @@ class TestCheckShellOwnership:
 class TestCheckInnerhtmlSafety:
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_no_innerhtml_passes(self, tmp_path):
-        """JS without innerHTML should not warn."""
+        """不含 innerHTML 的 JS 不应告警。"""
         js = tmp_path / "clean.js"
         js.write_text("var x = 1;")
         warnings = check_innerhtml_safety([js])
@@ -333,7 +331,7 @@ class TestCheckInnerhtmlSafety:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_innerhtml_with_escape_passes(self, tmp_path):
-        """innerHTML with escapeHtml helper should not warn."""
+        """innerHTML 带 escapeHtml 辅助函数不应告警。"""
         js = tmp_path / "safe.js"
         js.write_text(
             "function escapeHtml(s) { return s; }"
@@ -344,7 +342,7 @@ class TestCheckInnerhtmlSafety:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_innerhtml_with_sanitize_passes(self, tmp_path):
-        """innerHTML with sanitize should not warn."""
+        """innerHTML 带 sanitize 不应告警。"""
         js = tmp_path / "safe.js"
         js.write_text("el.innerHTML = DOMPurify.sanitize(html);")
         warnings = check_innerhtml_safety([js])
@@ -352,7 +350,7 @@ class TestCheckInnerhtmlSafety:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_innerhtml_without_safety_warns(self, tmp_path):
-        """Raw innerHTML without escape helper should WARN."""
+        """裸 innerHTML 无安全防护应告警。"""
         js = tmp_path / "unsafe.js"
         js.write_text("el.innerHTML = '<div>' + userInput + '</div>';")
         warnings = check_innerhtml_safety([js])
@@ -361,7 +359,7 @@ class TestCheckInnerhtmlSafety:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_innerhtml_clearing_not_warned(self, tmp_path):
-        """Clearing innerHTML (el.innerHTML = '') should not warn."""
+        """清除 innerHTML (el.innerHTML = '') 不应告警。"""
         js = tmp_path / "clear.js"
         js.write_text("container.innerHTML = '';")
         warnings = check_innerhtml_safety([js])
@@ -369,7 +367,7 @@ class TestCheckInnerhtmlSafety:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_multiple_files_reports_per_file(self, tmp_path):
-        """Each file with unsafe innerHTML gets its own warning."""
+        """每个含不安全 innerHTML 的文件应各自产生一条告警。"""
         safe = tmp_path / "safe.js"
         unsafe = tmp_path / "unsafe.js"
         safe.write_text("el.innerHTML = DOMPurify.sanitize(x);")
@@ -379,7 +377,7 @@ class TestCheckInnerhtmlSafety:
         assert "unsafe.js" in warnings[0]
 
 
-# ── Integration: actual repo files ────────────────────────────────────
+# ── 集成：真实仓库文件 ──
 
 
 class TestActualRepoState:
@@ -399,7 +397,7 @@ class TestActualRepoState:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_no_dead_css_in_repo(self):
-        """After deleting session-detail-timeline.css, no dead CSS should remain."""
+        """删除 session-detail-timeline.css 后，不应有死 CSS。"""
         static = ROOT / "src/session_browser/web/static"
         css_files = list(static.rglob("*.css"))
         errors = check_no_dead_css(css_files)
@@ -407,12 +405,12 @@ class TestActualRepoState:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_timeline_css_deleted(self):
-        """session-detail-timeline.css should be deleted."""
+        """session-detail-timeline.css 应已被删除。"""
         path = ROOT / "src/session_browser/web/static/css/session-detail-timeline.css"
         assert not path.exists(), "session-detail-timeline.css should be deleted"
 
 
-# ── V9 NEW gates: bad-fixture tests ────────────────────────────────────
+# ── V9 新增门禁：bad-fixture 测试 ──
 
 
 # ── check_css_ownership_gate ──────────────────────────────────────────
@@ -427,7 +425,7 @@ class TestCheckCssOwnershipGate:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_shell_selector_in_page_blocks(self, tmp_path):
-        """Page CSS defining .shell should BLOCK."""
+        """页面 CSS 定义 .shell 应拦截。"""
         css = tmp_path / "dashboard.css"
         css.write_text(".shell { grid-template-columns: 200px 1fr; }")
         errors = check_css_ownership_gate([css])
@@ -436,7 +434,7 @@ class TestCheckCssOwnershipGate:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_app_shell_in_page_blocks(self, tmp_path):
-        """Page CSS defining .app-shell should BLOCK."""
+        """页面 CSS 定义 .app-shell 应拦截。"""
         css = tmp_path / "sessions.css"
         css.write_text(".app-shell { display: grid; }")
         errors = check_css_ownership_gate([css])
@@ -445,7 +443,7 @@ class TestCheckCssOwnershipGate:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_body_state_in_page_blocks(self, tmp_path):
-        """Page CSS defining body.hide-left should BLOCK."""
+        """页面 CSS 定义 body.hide-left 应拦截。"""
         css = tmp_path / "agents.css"
         css.write_text("body.hide-left .sidebar { display: none; }")
         errors = check_css_ownership_gate([css])
@@ -454,14 +452,14 @@ class TestCheckCssOwnershipGate:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_shell_css_exempt(self, tmp_path):
-        """shell.css defining .shell should not error."""
+        """shell.css 定义 .shell 不应报错。"""
         css = tmp_path / "shell.css"
         css.write_text(".shell { grid-template-columns: var(--sidebar) 1fr; }")
         assert check_css_ownership_gate([css]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_tokens_with_selector_blocks(self, tmp_path):
-        """tokens.css with non-:root selector should BLOCK."""
+        """tokens.css 使用非 :root 选择器应拦截。"""
         css = tmp_path / "tokens.css"
         css.write_text(".btn { color: red; }")
         errors = check_css_ownership_gate([css])
@@ -469,7 +467,7 @@ class TestCheckCssOwnershipGate:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_page_grid_template_allowed(self, tmp_path):
-        """Page CSS with grid-template-columns for content grid is allowed."""
+        """页面 CSS 为内容网格使用 grid-template-columns 是允许的。"""
         css = tmp_path / "dashboard.css"
         css.write_text(".metric-grid { grid-template-columns: repeat(4, 1fr); }")
         assert check_css_ownership_gate([css]) == []
@@ -487,7 +485,7 @@ class TestCheckNoGlobalComponentOverride:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_bare_payload_modal_blocks(self, tmp_path):
-        """Page CSS with bare .payload-modal should BLOCK."""
+        """页面 CSS 含裸 .payload-modal 应拦截。"""
         css = tmp_path / "session-detail.css"
         css.write_text(".payload-modal { display: flex; }")
         errors = check_no_global_component_override([css])
@@ -496,7 +494,7 @@ class TestCheckNoGlobalComponentOverride:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_bare_data_table_blocks(self, tmp_path):
-        """Page CSS with bare .data-table should BLOCK."""
+        """页面 CSS 含裸 .data-table 应拦截。"""
         css = tmp_path / "sessions.css"
         css.write_text(".data-table { width: 100%; }")
         errors = check_no_global_component_override([css])
@@ -505,7 +503,7 @@ class TestCheckNoGlobalComponentOverride:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_bare_btn_blocks(self, tmp_path):
-        """Page CSS with bare .btn should BLOCK."""
+        """页面 CSS 含裸 .btn 应拦截。"""
         css = tmp_path / "dashboard.css"
         css.write_text(".btn { border-radius: 4px; }")
         errors = check_no_global_component_override([css])
@@ -514,7 +512,7 @@ class TestCheckNoGlobalComponentOverride:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_bare_modal_blocks(self, tmp_path):
-        """Page CSS with bare .modal should BLOCK."""
+        """页面 CSS 含裸 .modal 应拦截。"""
         css = tmp_path / "agents.css"
         css.write_text(".modal { z-index: 1000; }")
         errors = check_no_global_component_override([css])
@@ -523,14 +521,14 @@ class TestCheckNoGlobalComponentOverride:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_ui_primitives_exempt(self, tmp_path):
-        """ui-primitives.css defining primitives is allowed."""
+        """ui-primitives.css 定义 primitives 是允许的。"""
         css = tmp_path / "ui-primitives.css"
         css.write_text(".payload-modal { display: flex; }\n.data-table { width: 100%; }")
         assert check_no_global_component_override([css]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_scoped_selector_allowed(self, tmp_path):
-        """Page-scoped descendant selector is allowed."""
+        """页面级后代选择器是允许的。"""
         css = tmp_path / "dashboard.css"
         css.write_text(".dashboard-page .payload-modal { width: 80vw; }")
         assert check_no_global_component_override([css]) == []
@@ -548,7 +546,7 @@ class TestCheckNoNewLegacySelector:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_legacy_app_shell_blocks(self, tmp_path):
-        """New .app-shell reference in page CSS should BLOCK."""
+        """页面 CSS 中新 .app-shell 引用应拦截。"""
         css = tmp_path / "dashboard.css"
         css.write_text(".app-shell { display: grid; }")
         errors = check_no_new_legacy_selector([css])
@@ -557,7 +555,7 @@ class TestCheckNoNewLegacySelector:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_shell_css_exempt(self, tmp_path):
-        """shell.css legacy references are allowed."""
+        """shell.css 中的遗留引用是允许的。"""
         css = tmp_path / "shell.css"
         css.write_text(".app-shell { display: grid; }")
         assert check_no_new_legacy_selector([css]) == []
@@ -575,14 +573,14 @@ class TestCheckSelectorDepthNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_depth_3_passes(self, tmp_path):
-        """Depth exactly 3 should pass (BLOCK_THRESHOLD > 3)."""
+        """深度 恰好为 3 应通过（BLOCK_THRESHOLD > 3）。"""
         css = tmp_path / "boundary.css"
         css.write_text(".a .b .c { color: red; }")
         assert check_selector_depth_new_block([css]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_depth_4_blocks(self, tmp_path):
-        """Depth > 3 should BLOCK."""
+        """深度 > 3 应拦截。"""
         css = tmp_path / "bad.css"
         css.write_text(".a .b .c .d { color: red; }")
         errors = check_selector_depth_new_block([css])
@@ -591,7 +589,7 @@ class TestCheckSelectorDepthNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_child_combinator_counts(self, tmp_path):
-        """Child combinators count towards depth."""
+        """子组合器计入深度。"""
         css = tmp_path / "bad.css"
         css.write_text(".a > .b + .c .d { color: red; }")
         errors = check_selector_depth_new_block([css])
@@ -599,7 +597,7 @@ class TestCheckSelectorDepthNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_pseudo_class_not_extra(self, tmp_path):
-        """Pseudo classes don't add depth."""
+        """伪类不增加深度。"""
         css = tmp_path / "ok.css"
         css.write_text(".a .b .c:hover { color: red; }")
         assert check_selector_depth_new_block([css]) == []
@@ -617,7 +615,7 @@ class TestCheckNoRawInnerhtmlNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_raw_innerhtml_blocks(self, tmp_path):
-        """Raw innerHTML = should BLOCK."""
+        """裸 innerHTML = 应拦截。"""
         js = tmp_path / "unsafe.js"
         js.write_text("el.innerHTML = '<div>' + userInput + '</div>';")
         errors = check_no_raw_innerhtml_new_block([js])
@@ -626,28 +624,28 @@ class TestCheckNoRawInnerhtmlNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_innerhtml_clear_allowed(self, tmp_path):
-        """Clearing innerHTML (innerHTML = '') should not BLOCK."""
+        """清除 innerHTML (innerHTML = '') 不应拦截。"""
         js = tmp_path / "clear.js"
         js.write_text("container.innerHTML = '';")
         assert check_no_raw_innerhtml_new_block([js]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_escapehtml_helper_passes(self, tmp_path):
-        """innerHTML with escapeHtml helper should PASS."""
+        """innerHTML 带 escapeHtml 辅助函数应通过。"""
         js = tmp_path / "safe.js"
         js.write_text("function escapeHtml(s) { return s; }\nel.innerHTML = escapeHtml(userInput);")
         assert check_no_raw_innerhtml_new_block([js]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_dompurify_passes(self, tmp_path):
-        """innerHTML with DOMPurify should PASS."""
+        """innerHTML 带 DOMPurify 应通过。"""
         js = tmp_path / "safe.js"
         js.write_text("el.innerHTML = DOMPurify.sanitize(html);")
         assert check_no_raw_innerhtml_new_block([js]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_comment_line_skipped(self, tmp_path):
-        """innerHTML in comments should be skipped."""
+        """注释中的 innerHTML 应被跳过。"""
         js = tmp_path / "comment.js"
         js.write_text("// el.innerHTML = 'test';")
         assert check_no_raw_innerhtml_new_block([js]) == []
@@ -665,7 +663,7 @@ class TestCheckNoLayoutInlineStyleNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_layout_inline_style_blocks(self, tmp_path):
-        """HTML with layout inline style should BLOCK."""
+        """HTML 含 layout 内联 style 应拦截。"""
         html = tmp_path / "bad.html"
         html.write_text('<div style="display: flex;">hello</div>')
         errors = check_no_layout_inline_style_new_block([html], [])
@@ -674,14 +672,14 @@ class TestCheckNoLayoutInlineStyleNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_custom_property_only_passes(self, tmp_path):
-        """Pure CSS custom property should not BLOCK."""
+        """纯 CSS 自定义属性不应拦截。"""
         html = tmp_path / "custom.html"
         html.write_text('<div style="--segment-width: 200px;">hello</div>')
         assert check_no_layout_inline_style_new_block([html], []) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_mixed_custom_property_blocks(self, tmp_path):
-        """Custom property + layout property should BLOCK."""
+        """自定义属性 + layout 属性应拦截。"""
         html = tmp_path / "mixed.html"
         html.write_text('<div style="--segment-width: 200px; display: flex;">hello</div>')
         errors = check_no_layout_inline_style_new_block([html], [])
@@ -689,14 +687,14 @@ class TestCheckNoLayoutInlineStyleNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_template_variable_skipped(self, tmp_path):
-        """Template variable injection should be skipped."""
+        """模板变量注入应被跳过。"""
         html = tmp_path / "template.html"
         html.write_text('<div style="{{ grid_style }}">hello</div>')
         assert check_no_layout_inline_style_new_block([html], []) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_js_style_display_blocks(self, tmp_path):
-        """JS .style.display = should BLOCK."""
+        """JS .style.display = 应拦截。"""
         js = tmp_path / "bad.js"
         js.write_text("el.style.display = 'none';")
         errors = check_no_layout_inline_style_new_block([], [js])
@@ -705,7 +703,7 @@ class TestCheckNoLayoutInlineStyleNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_js_style_position_blocks(self, tmp_path):
-        """JS .style.position = should BLOCK."""
+        """JS .style.position = 应拦截。"""
         js = tmp_path / "bad.js"
         js.write_text("el.style.position = 'absolute';")
         errors = check_no_layout_inline_style_new_block([], [js])
@@ -713,7 +711,7 @@ class TestCheckNoLayoutInlineStyleNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_js_style_width_blocks(self, tmp_path):
-        """JS .style.width = should BLOCK."""
+        """JS .style.width = 应拦截。"""
         js = tmp_path / "bad.js"
         js.write_text("el.style.width = '100px';")
         errors = check_no_layout_inline_style_new_block([], [js])
@@ -721,14 +719,14 @@ class TestCheckNoLayoutInlineStyleNewBlock:
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_js_comment_skipped(self, tmp_path):
-        """JS .style in comments should be skipped."""
+        """JS 注释中的 .style 应被跳过。"""
         js = tmp_path / "comment.js"
         js.write_text("// el.style.display = 'none';")
         assert check_no_layout_inline_style_new_block([], [js]) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_new_important_blocks(self, tmp_path):
-        """New !important should still be caught by check_no_important."""
+        """新增的 !important 仍应被 check_no_important 捕获。"""
         css = tmp_path / "bad.css"
         css.write_text(".foo { color: red !important; }")
         errors = check_no_important([css])

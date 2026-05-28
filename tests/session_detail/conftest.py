@@ -1,1 +1,1 @@
-# pytest fixtures for session detail tests — inherits all from root conftest.py
+# session detail 测试的 pytest fixtures — 继承根 conftest.py

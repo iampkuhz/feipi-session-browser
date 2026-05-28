@@ -1,4 +1,4 @@
-"""Tests for Claude Code parser."""
+"""Claude Code 解析器测试。"""
 import pytest
 import json
 from pathlib import Path
@@ -10,7 +10,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 @pytest.mark.contract_case("DATA-SOURCE-011", "DATA-SOURCE-014")
 def test_parse_session_events():
-    """Test that we can parse Claude session events."""
+    """测试能否解析 Claude 会话事件。"""
     from session_browser.sources.jsonl_reader import parse_jsonl_events
 
     fixture = FIXTURES / "claude_session_sample.jsonl"
@@ -24,7 +24,7 @@ def test_parse_session_events():
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_build_summary_from_events():
-    """Test summary building from events."""
+    """测试从事件构建摘要。"""
     from session_browser.sources.jsonl_reader import parse_jsonl_events
     from session_browser.sources.claude import _build_summary_from_events
 
@@ -40,7 +40,7 @@ def test_build_summary_from_events():
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_extract_messages():
-    """Test message extraction."""
+    """测试消息提取。"""
     from session_browser.sources.jsonl_reader import parse_jsonl_events
     from session_browser.sources.claude import _extract_messages
 
@@ -55,7 +55,7 @@ def test_extract_messages():
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_history_empty_when_missing():
-    """Test that parse_history returns empty list when no data dir."""
+    """测试无数据目录时 parse_history 返回空列表。"""
     from session_browser.sources import claude
     import tempfile
 
@@ -71,7 +71,7 @@ def test_parse_history_empty_when_missing():
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_session_detail_includes_subagent_diagnostics():
-    """Subagent sidechains should be visible in parent session diagnostics."""
+    """子 agent 侧链应在父会话诊断中可见。"""
     from session_browser.sources import claude
 
     session_id = "session-123"
@@ -246,7 +246,7 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert summary.assistant_message_count == 1
     assert summary.tool_call_count == 3
     assert summary.failed_tool_count == 1
-    assert summary.input_tokens == 306  # parent 100 + child max(200,5) + child 6
+    assert summary.input_tokens == 306  # 父 100 + 子 max(200,5) + 子 6
     assert summary.cached_input_tokens == 300
     assert summary.cached_output_tokens == 300
 
@@ -266,12 +266,10 @@ def test_parse_session_detail_includes_subagent_diagnostics():
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_session_events_skips_non_dict_json_values():
-    """Non-dict JSON lines in session JSONL (strings, arrays, numbers, etc.)
-    must be silently skipped, not crash downstream code.
+    """JSONL 中的非字典 JSON 行（字符串、数组、数字等）必须静默跳过，不能导致下游代码崩溃。
 
-    Regression for: AttributeError 'str' object has no attribute 'get'
-    in _assistant_records when a real session JSONL contains a bare string
-    or other non-object JSON value.
+    回归测试：当真实会话 JSONL 包含裸字符串或其他非对象 JSON 值时，
+    _assistant_records 中出现 AttributeError 'str' object has no attribute 'get'。
     """
     from session_browser.sources.jsonl_reader import parse_jsonl_events
     from session_browser.sources.claude import (
@@ -297,18 +295,18 @@ def test_parse_session_events_skips_non_dict_json_values():
         "timestamp": "2026-05-02T00:00:01.000Z",
     }
 
-    # JSONL with mixed valid dicts and non-dict JSON values
+    # 混合有效字典和非字典 JSON 值的 JSONL（裸字符串、数字、布尔值等）
     lines = [
         json.dumps(valid_user),
         json.dumps(valid_assistant),
-        '"a bare string"',           # valid JSON string, not a dict
-        "42",                         # valid JSON number
-        "true",                       # valid JSON boolean
-        "null",                       # valid JSON null
-        "[1, 2, 3]",                 # valid JSON array
-        "[]",                         # valid JSON empty array
-        "{}",                         # valid JSON empty object (dict, should be kept)
-        json.dumps(valid_assistant),  # second assistant (for merge test)
+        '"a bare string"',           # 有效 JSON 字符串，不是字典
+        "42",                         # 有效 JSON 数字
+        "true",                       # 有效 JSON 布尔值
+        "null",                       # 有效 JSON null
+        "[1, 2, 3]",                 # 有效 JSON 数组
+        "[]",                         # 有效 JSON 空数组
+        "{}",                         # 有效 JSON 空对象（字典，应保留）
+        json.dumps(valid_assistant),  # 第二个 assistant（用于合并测试）
     ]
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
@@ -317,21 +315,21 @@ def test_parse_session_events_skips_non_dict_json_values():
         tmp_path = Path(f.name)
 
     try:
-        # parse_jsonl_events must only return dicts
+        # parse_jsonl_events 必须只返回字典类型
         events, _ = parse_jsonl_events(tmp_path)
         assert all(isinstance(ev, dict) for ev in events), \
             f"parse_jsonl_events returned non-dict: {[type(e).__name__ for e in events if not isinstance(e, dict)]}"
 
-        # Must have kept the valid events (2 valid_user/assistant + 1 empty dict)
-        # The empty dict {} is also a dict, so it passes the isinstance check
+        # 必须保留有效事件（2 个 user/assistant + 1 个空字典）
+        # 空字典 {} 也是 dict，所以通过 isinstance 检查
         dict_count = sum(1 for line in lines if _is_valid_json_dict(line))
         assert len(events) == dict_count, f"Expected {dict_count} dict events, got {len(events)}"
 
-        # _assistant_records must not crash
+        # _assistant_records 不能崩溃
         records = _assistant_records(events)
         assert len(records) == 1, f"Expected 1 assistant record, got {len(records)}"
 
-        # _build_summary_from_events must not crash
+        # _build_summary_from_events 不能崩溃
         summary = _build_summary_from_events(events, "test-sid", "/test/proj")
         assert summary.agent == "claude_code"
         assert summary.user_message_count >= 1
@@ -341,7 +339,7 @@ def test_parse_session_events_skips_non_dict_json_values():
 
 
 def _is_valid_json_dict(line: str) -> bool:
-    """Check if a JSON line parses to a dict."""
+    """检查 JSON 行是否解析为字典。"""
     try:
         return isinstance(json.loads(line.strip()), dict)
     except json.JSONDecodeError:
@@ -350,24 +348,21 @@ def _is_valid_json_dict(line: str) -> bool:
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_pretty_printed_multiline_json():
-    """Pretty-printed session files (multi-line JSON objects) must be fully
-    parsed, not silently skipped.
+    """美化打印的会话文件（多行 JSON 对象）必须被完整解析，不能静默跳过。
 
-    Some Claude Code sessions write pretty-printed JSON with indentation
-    instead of single-line JSONL. Each top-level object spans multiple lines
-    like:
+    某些 Claude Code 会话会写入带缩进的美化打印 JSON，而非单行 JSONL。
+    每个顶层对象跨越多行，如：
 
         {
             "type": "user",
             "message": {"role": "user", "content": "hello"}
         }
 
-    The parser must track brace depth (ignoring braces inside string values)
-    and emit complete objects.
+    解析器必须跟踪大括号深度（忽略字符串值中的大括号）并输出完整对象。
     """
     from session_browser.sources.jsonl_reader import parse_jsonl_events
 
-    # A pretty-printed session file with two events
+    # 包含两个事件的美化打印会话文件
     content = '''{
     "type": "permission-mode",
     "permissionMode": "bypassPermissions",
@@ -418,13 +413,10 @@ def test_parse_pretty_printed_multiline_json():
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_parse_concatenated_json_transition_line():
-    """Mixed-format files where pretty-printed transitions to JSONL with
-    concatenated objects on a single line (``}{...}{...}``) must be parsed
-    correctly.
-    """
+    """混合格式文件：美化打印 JSON 在单行上过渡为串联 JSONL（``}{...}{...}``）时，必须正确解析。"""
     from session_browser.sources.jsonl_reader import parse_jsonl_events
 
-    # Simulate a transition line with two concatenated objects
+    # 模拟包含两个串联对象的过渡行
     content = '''{
     "type": "user",
     "message": {"role": "user", "content": "first"},
@@ -451,19 +443,16 @@ def test_parse_concatenated_json_transition_line():
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
 def test_brace_inside_string_values_not_counted():
-    """Braces/brackets inside JSON string values must not affect depth
-    tracking.  E.g. ``{"key": "{value}"}`` should have depth 1 at the
-    opening brace, not 2.
-    """
+    """JSON 字符串值中的大括号/方括号不能影响深度跟踪。例如 ``{"key": "{value}"}`` 在开大括号处深度应为 1，而非 2。"""
     from session_browser.sources.jsonl_reader import _brace_chars_outside_strings
 
-    # Braces inside strings should be ignored
+    # 字符串中的大括号应被忽略
     text = '{"key": "{nested}", "arr": [1, "{value}"]}'
     result = _brace_chars_outside_strings(text)
-    # Only top-level {} and [] are kept; {nested} and {value} are inside strings
+    # 只保留顶层 {} 和 []；{nested} 和 {value} 在字符串内部
     assert result == "{[]}", f"Expected '{{[]}}', got '{result}'"
 
-    # Real assistant message with string containing braces
+    # 包含大括号的真实 assistant 消息
     text2 = '{"content": "code: {x: 1}", "type": "text"}'
     result2 = _brace_chars_outside_strings(text2)
     assert result2 == "{}", f"Expected '{{}}', got '{result2}'"

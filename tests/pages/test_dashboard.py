@@ -1,10 +1,10 @@
-"""Page-specific dashboard tests for current dashboard.html.
+"""Dashboard 页面的特定模板测试。
 
-Verifies the Jinja2 template structure, CSS/JS imports, metric cards,
-chart cards, scope-switch, info buttons, chart-menu buttons, empty/error
-states, and absence of inline onclick.
+验证当前 dashboard.html 的 Jinja2 模板结构，包括 CSS/JS 导入、
+指标卡片、图表卡片、scope-switch、信息按钮、图表菜单按钮、
+空状态/错误状态，以及不含 inline onclick。
 
-T066 — Dashboard page-specific pytest.
+T066 — Dashboard 页面级 pytest。
 """
 
 from __future__ import annotations
@@ -31,97 +31,97 @@ def _read_dashboard() -> str:
 # ── TestDashboardTemplate ─────────────────────────────────────────────
 
 class TestDashboardTemplate:
-    """Verify the dashboard Jinja2 template renders structurally."""
+    """验证 dashboard 的 Jinja2 模板结构渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_template_file_exists(self):
         assert os.path.isfile(_DASHBOARD_PATH), \
-            f"{_DASHBOARD_PATH} must exist"
+            f"{_DASHBOARD_PATH} 必须存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_extends_base(self):
         content = _read_dashboard()
         assert '{% extends "base.html" %}' in content, \
-            "Dashboard must extend base.html"
+            "Dashboard 必须继承 base.html"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_active_page_set(self):
         content = _read_dashboard()
         assert "active_page = 'dashboard'" in content, \
-            "Dashboard must set active_page = 'dashboard'"
+            "Dashboard 必须设置 active_page = 'dashboard'"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_ui_primitives_imported(self):
         content = _read_dashboard()
         assert 'import "components/ui_primitives.html"' in content, \
-            "Dashboard must import ui_primitives.html"
+            "Dashboard 必须导入 ui_primitives.html"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_inline_onclick(self):
-        """Dashboard must not use inline onclick handlers."""
+        """Dashboard 不得使用 inline onclick 处理器。"""
         content = _read_dashboard()
-        # Find all onclick attributes in the template body
+        # 查找模板中所有的 onclick 属性
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
         assert len(matches) == 0, \
-            f"Dashboard must not have inline onclick, found {len(matches)} occurrences"
+            f"Dashboard 不得有 inline onclick，发现 {len(matches)} 处"
 
 
 # ── TestDashboardImports ──────────────────────────────────────────────
 
 class TestDashboardImports:
-    """Verify CSS and JS import statements."""
+    """验证 CSS 和 JS 导入声明。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_css_import_dashboard_css(self):
         content = _read_dashboard()
         assert 'href="/static/css/dashboard.css"' in content, \
-            "Dashboard must import dashboard.css"
+            "Dashboard 必须导入 dashboard.css"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_js_import_dashboard_js(self):
         content = _read_dashboard()
         assert 'src="/static/js/dashboard.js"' in content, \
-            "Dashboard must import dashboard.js"
+            "Dashboard 必须导入 dashboard.js"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_css_file_exists_on_disk(self):
         assert os.path.isfile(_DASHBOARD_CSS_PATH), \
-            "dashboard.css must exist on disk"
+            "dashboard.css 必须存在于磁盘上"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_js_file_exists_on_disk(self):
         assert os.path.isfile(_DASHBOARD_JS_PATH), \
-            "dashboard.js must exist on disk"
+            "dashboard.js 必须存在于磁盘上"
 
 
 # ── TestDashboardPageHead ────────────────────────────────────────────
 
 class TestDashboardPageHead:
-    """Verify page-head structure (uses ui.page_head macro, T15)."""
+    """验证页面头部结构（使用 ui.page_head 宏，T15）。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_macro_used(self):
         content = _read_dashboard()
         assert 'ui.page_head(' in content, \
-            "Dashboard must use ui.page_head() macro"
+            "Dashboard 必须使用 ui.page_head() 宏"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_has_h1(self):
         content = _read_dashboard()
         assert "'Dashboard'" in content, \
-            "page_head() must have 'Dashboard' as title"
+            "page_head() 必须以 'Dashboard' 作为标题"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_has_subtitle(self):
         content = _read_dashboard()
         assert "Local agent session overview" in content, \
-            "Page-head must have subtitle 'Local agent session overview'"
+            "页面头部必须有副标题 'Local agent session overview'"
 
 
 # ── TestDashboardMetricCards ─────────────────────────────────────────
 
 class TestDashboardMetricCards:
-    """Verify 4 metric cards with correct labels."""
+    """验证 4 个指标卡片及其正确标签。"""
 
     _EXPECTED_LABELS = ["Projects", "Sessions", "Total Tokens", "Failed Tools"]
 
@@ -129,125 +129,125 @@ class TestDashboardMetricCards:
     def test_metric_grid_present(self):
         content = _read_dashboard()
         assert 'class="metric-grid"' in content, \
-            "Dashboard must have a metric-grid section"
+            "Dashboard 必须有 metric-grid 区域"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_four_metric_cards(self):
         content = _read_dashboard()
         cards = re.findall(r'class="metric-card"', content)
         assert len(cards) == 4, \
-            f"Dashboard must have exactly 4 metric cards, found {len(cards)}"
+            f"Dashboard 必须恰好有 4 个指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.parametrize("label", ["Projects", "Sessions", "Total Tokens", "Failed Tools"])
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_card_labels(self, label):
         content = _read_dashboard()
         assert f'"{label}"' in content or f">{label}<" in content, \
-            f"Dashboard must have a metric card labeled '{label}'"
+            f"Dashboard 必须有标签为 '{label}' 的指标卡片"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_card_aria_labels(self):
-        """Each metric card must have an aria-label."""
+        """每个指标卡片必须有 aria-label。"""
         content = _read_dashboard()
         for label in self._EXPECTED_LABELS:
             assert f'aria-label="{label}"' in content, \
-                f"Metric card '{label}' must have aria-label"
+                f"指标卡片 '{label}' 必须有 aria-label"
 
 
 # ── TestDashboardChartCards ──────────────────────────────────────────
 
 class TestDashboardChartCards:
-    """Verify chart cards (via chart_card macro: Session Trend + Token Trend)."""
+    """验证图表卡片（通过 chart_card 宏：Session Trend + Token Trend）。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_cards_present(self):
         content = _read_dashboard()
-        # Verify chart_card macro definition exists
+        # 验证 chart_card 宏定义存在
         assert "{% macro chart_card(" in content, \
-            "Dashboard must define chart_card macro"
-        # Verify at least 2 chart_card invocations
+            "Dashboard 必须定义 chart_card 宏"
+        # 验证至少 2 次 chart_card 调用
         calls = re.findall(r'chart_card\(\s*chart_type=', content)
         assert len(calls) >= 2, \
-            f"Dashboard must have at least 2 chart_card calls, found {len(calls)}"
+            f"Dashboard 必须至少有 2 次 chart_card 调用，发现 {len(calls)} 次"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_session_trend_chart(self):
         content = _read_dashboard()
         assert "Session Trend" in content, \
-            "Dashboard must have Session Trend chart"
-        # Verify chart_card is invoked with sessions type
+            "Dashboard 必须有 Session Trend 图表"
+        # 验证 chart_card 以 sessions 类型调用
         assert 'chart_type="sessions"' in content, \
-            "Session Trend chart must use chart_card with chart_type='sessions'"
+            "Session Trend 图表必须使用 chart_card 并以 chart_type='sessions' 调用"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_token_trend_chart(self):
         content = _read_dashboard()
         assert "Token Trend" in content, \
-            "Dashboard must have Token Trend chart"
-        # Verify chart_card is invoked with tokens type
+            "Dashboard 必须有 Token Trend 图表"
+        # 验证 chart_card 以 tokens 类型调用
         assert 'chart_type="tokens"' in content, \
-            "Token Trend chart must use chart_card with chart_type='tokens'"
+            "Token Trend 图表必须使用 chart_card 并以 chart_type='tokens' 调用"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_has_legend(self):
-        """Charts must show legend with agent names."""
+        """图表必须显示包含 agent 名称的图例。"""
         content = _read_dashboard()
-        # Dashboard uses the chart_legend macro from ui_primitives
+        # Dashboard 使用 ui_primitives 中的 chart_legend 宏
         assert "ui.chart_legend()" in content or "chart_legend(" in content, \
-            "Dashboard must use chart_legend macro in chart_card"
-        # Verify the macro defines the default agent names
+            "Dashboard 必须在 chart_card 中使用 chart_legend 宏"
+        # 验证宏定义了默认的 agent 名称
         ui_path = "src/session_browser/web/templates/components/ui_primitives.html"
         with open(ui_path) as f:
             ui_content = f.read()
         for agent in ["Claude Code", "Codex", "Qoder"]:
             assert agent in ui_content, \
-                f"Chart legend macro must contain '{agent}' as default"
+                f"图例宏必须包含默认项 '{agent}'"
 
 
 # ── TestDashboardScopeSwitch ─────────────────────────────────────────
 
 class TestDashboardScopeSwitch:
-    """Verify scope-switch is invoked via ui_primitives macro."""
+    """验证通过 ui_primitives 宏调用了 scope-switch。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_macro_invoked(self):
         content = _read_dashboard()
         assert 'ui.scope_switch(' in content, \
-            "Dashboard must invoke ui.scope_switch macro"
+            "Dashboard 必须调用 ui.scope_switch 宏"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_day_button(self):
-        """The scope_switch macro must render a Day button with data-scope='day'."""
+        """scope_switch 宏必须渲染一个 data-scope='day' 的 Day 按钮。"""
         rendered = _render_scope_switch()
         assert 'data-scope="day"' in rendered
         assert ">Day<" in rendered
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_week_button(self):
-        """The scope_switch macro must render a Week button with data-scope='week'."""
+        """scope_switch 宏必须渲染一个 data-scope='week' 的 Week 按钮。"""
         rendered = _render_scope_switch()
         assert 'data-scope="week"' in rendered
         assert ">Week<" in rendered
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_month_button(self):
-        """The scope_switch macro must render a Month button with data-scope='month'."""
+        """scope_switch 宏必须渲染一个 data-scope='month' 的 Month 按钮。"""
         rendered = _render_scope_switch()
         assert 'data-scope="month"' in rendered
         assert ">Month<" in rendered
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_default_active(self):
-        """Day button must be is-active by default."""
+        """Day 按钮默认必须为 is-active。"""
         rendered = _render_scope_switch()
         assert 'data-scope="day"' in rendered and "is-active" in rendered, \
-            "Day scope button must be is-active by default"
-        # Only the day button should be active
+            "Day 范围按钮默认必须为 is-active"
+        # 只有 Day 按钮应该是激活状态
         assert rendered.count("is-active") == 1
 
 
 def _render_scope_switch() -> str:
-    """Render the scope_switch macro from ui_primitives.html."""
+    """渲染 ui_primitives.html 中的 scope_switch 宏。"""
     import jinja2
     _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)), autoescape=True)
@@ -261,140 +261,140 @@ def _render_scope_switch() -> str:
 # ── TestDashboardInfoButtons ────────────────────────────────────────
 
 class TestDashboardInfoButtons:
-    """Verify info (ℹ️) buttons on each metric and chart."""
+    """验证每个指标和图表上的信息按钮（ℹ️）。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_info_buttons(self):
-        """Each metric card must have an info button."""
+        """每个指标卡片必须有一个信息按钮。"""
         content = _read_dashboard()
         for info_key in ["projects", "sessions", "tokens", "failed-tools"]:
             assert f'data-info="{info_key}"' in content, \
-                f"Dashboard must have info button for '{info_key}'"
+                f"Dashboard 必须有 '{info_key}' 的信息按钮"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_info_buttons(self):
-        """Each chart card must have an info button."""
+        """每个图表卡片必须有一个信息按钮。"""
         content = _read_dashboard()
-        # Info button uses chart_card macro with chart-{{ chart_type }} pattern
+        # 信息按钮使用 chart_card 宏的 chart-{{ chart_type }} 模式
         assert 'data-info="chart-{{ chart_type }}"' in content, \
-            "Chart cards must use info button with chart-{{ chart_type }} pattern"
-        # Verify chart_card invocations cover sessions and tokens
+            "图表卡片必须使用 chart-{{ chart_type }} 模式的信息按钮"
+        # 验证 chart_card 调用覆盖了 sessions 和 tokens
         assert 'chart_type="sessions"' in content, \
-            "Must have sessions chart card"
+            "必须有 sessions 图表卡片"
         assert 'chart_type="tokens"' in content, \
-            "Must have tokens chart card"
+            "必须有 tokens 图表卡片"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_info_button_uses_icon_button_class(self):
-        """Info buttons must use icon-button--info class."""
+        """信息按钮必须使用 icon-button--info 类。"""
         content = _read_dashboard()
         assert "icon-button--info" in content, \
-            "Info buttons must use icon-button--info class"
+            "信息按钮必须使用 icon-button--info 类"
 
 
 # ── TestDashboardEmptyState ──────────────────────────────────────────
 
 class TestDashboardEmptyState:
-    """Verify empty state renders when stats.total_sessions == 0."""
+    """验证当 stats.total_sessions == 0 时渲染空状态。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_empty_state_condition(self):
         content = _read_dashboard()
         assert "stats.total_sessions == 0" in content, \
-            "Dashboard must check stats.total_sessions == 0 for empty state"
+            "Dashboard 必须检查 stats.total_sessions == 0 作为空状态条件"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_empty_state_uses_ui_macro(self):
         content = _read_dashboard()
         assert "ui.empty_state" in content, \
-            "Empty state must use ui.empty_state macro"
+            "空状态必须使用 ui.empty_state 宏"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_empty_state_has_action_button(self):
         content = _read_dashboard()
         assert "Run Scan" in content, \
-            "Empty state must have 'Run Scan' action button"
+            "空状态必须有 'Run Scan' 操作按钮"
 
 
 # ── TestDashboardErrorState ──────────────────────────────────────────
 
 class TestDashboardErrorState:
-    """Verify error state renders when error variable is set."""
+    """验证设置 error 变量时渲染错误状态。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_error_state_condition(self):
         content = _read_dashboard()
         assert "{% if error %}" in content, \
-            "Dashboard must check for error variable"
+            "Dashboard 必须检查 error 变量"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_error_state_uses_ui_macro(self):
         content = _read_dashboard()
         assert "ui.error_state" in content, \
-            "Error state must use ui.error_state macro"
+            "错误状态必须使用 ui.error_state 宏"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_error_state_has_dashboard_link(self):
         content = _read_dashboard()
         assert "/dashboard" in content, \
-            "Error state must link back to /dashboard"
+            "错误状态必须链接回 /dashboard"
 
 
 # ── TestDashboardFloatingOverlays ────────────────────────────────────
 
 class TestDashboardFloatingOverlays:
-    """Verify floating overlay elements (tooltip, popover, drawer, toast)."""
+    """验证浮动覆盖层元素（tooltip、popover、drawer、toast）。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_tooltip_element(self):
         content = _read_dashboard()
         assert 'id="chartTooltip"' in content, \
-            "Dashboard must have chartTooltip element"
+            "Dashboard 必须有 chartTooltip 元素"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_info_popover(self):
         content = _read_dashboard()
         assert 'id="infoPopover"' in content, \
-            "Dashboard must have infoPopover element"
+            "Dashboard 必须有 infoPopover 元素"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_toast_element(self):
         content = _read_dashboard()
         assert 'id="toast"' in content, \
-            "Dashboard must have toast element"
+            "Dashboard 必须有 toast 元素"
 
 
 # ── TestDashboardNoHeroV16 ───────────────────────────────────────────
 
 class TestDashboardNoHeroV16:
-    """Verify old v16 hero section is NOT present."""
+    """验证不包含旧的 v16 hero 区域。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_section(self):
         content = _read_dashboard()
         assert 'class="hero"' not in content, \
-            "Dashboard must not have v16 hero section"
+            "Dashboard 不得有 v16 hero 区域"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_title(self):
         content = _read_dashboard()
         assert 'class="hero-title"' not in content, \
-            "Dashboard must not have v16 hero-title"
+            "Dashboard 不得有 v16 hero-title"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_kpis(self):
         content = _read_dashboard()
         assert 'class="hero-kpis"' not in content, \
-            "Dashboard must not have v16 hero-kpis"
+            "Dashboard 不得有 v16 hero-kpis"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_chips(self):
         content = _read_dashboard()
         assert 'class="hero-chips"' not in content, \
-            "Dashboard must not have v16 hero-chips"
+            "Dashboard 不得有 v16 hero-chips"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_range_tabs(self):
         content = _read_dashboard()
         assert 'class="range-tabs"' not in content, \
-            "Dashboard must not have v16 range-tabs"
+            "Dashboard 不得有 v16 range-tabs"

@@ -1,1 +1,1 @@
-# pytest fixtures for hooks tests — inherits all from root conftest.py
+# 用于 hooks 测试的 pytest fixture — 继承自根 conftest.py

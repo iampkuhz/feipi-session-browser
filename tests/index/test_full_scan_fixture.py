@@ -1,7 +1,7 @@
-"""Full scan fixture tests for Claude Code indexer.
+"""Claude Code 索引器 full scan fixture 测试。
 
-Validates that full_scan() correctly indexes fixture data, produces
-expected session counts, and populates all index columns.
+验证 full_scan() 能正确索引 fixture 数据、产生预期的会话计数，
+并填充所有索引列。
 """
 
 import pytest
@@ -11,7 +11,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-# ─── Constants ──────────────────────────────────────────────────────────────
+# ─── 常量 ─────────────────────────────────────────────────────────────────────
 
 FIXTURE_ROOT = Path(__file__).parent.parent / "fixtures" / "index_corpus" / "full_scan_claude"
 
@@ -21,14 +21,14 @@ EXPECTED_SESSIONS = [
 ]
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────────
+# ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 def _setup_claude_env(data_dir: str):
-    """Set CLAUDE_DATA_DIR and reload dependent modules."""
+    """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("CLAUDE_DATA_DIR", None)
     os.environ["CLAUDE_DATA_DIR"] = data_dir
 
-    # Reload config + sources so they pick up the new env var
+    # 重新加载 config + sources 以获取新的环境变量
     if "session_browser.config" in sys.modules:
         importlib_reload = sys.modules.get("importlib")
         if importlib_reload is None:
@@ -47,7 +47,7 @@ def _setup_claude_env(data_dir: str):
 
 
 def _restore_claude_env(old: str | None):
-    """Restore original CLAUDE_DATA_DIR."""
+    """恢复原始的 CLAUDE_DATA_DIR。"""
     if old is not None:
         os.environ["CLAUDE_DATA_DIR"] = old
     else:
@@ -55,7 +55,7 @@ def _restore_claude_env(old: str | None):
 
 
 def _run_full_scan(data_dir: str, db_path: str) -> dict:
-    """Run full_scan() against data_dir, returning scan statistics."""
+    """对 data_dir 运行 full_scan()，返回扫描统计。"""
     old_env = _setup_claude_env(data_dir)
     try:
         from session_browser.index.indexer import full_scan
@@ -69,14 +69,14 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
         _restore_claude_env(old_env)
 
 
-# ─── Tests ──────────────────────────────────────────────────────────────────
+# ─── 测试 ──────────────────────────────────────────────────────────────────
 
 class TestFullScanClaudeBasic:
-    """C01: full_scan_basic — basic index construction from fixture data."""
+    """C01: full_scan_basic —— 从 fixture 数据构建基本索引。"""
 
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_full_scan_indexes_all_sessions(self, tmp_path):
-        """full_scan() should index both fixture sessions."""
+        """full_scan() 应索引所有 fixture 会话。"""
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
@@ -90,7 +90,7 @@ class TestFullScanClaudeBasic:
 
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_session_keys_present(self, tmp_path):
-        """Indexed sessions should have correct session_key format."""
+        """被索引的会话应具有正确的 session_key 格式。"""
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
@@ -112,7 +112,7 @@ class TestFullScanClaudeBasic:
 
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_session_count_matches(self, tmp_path):
-        """Total row count in sessions table should match fixture session count."""
+        """sessions 表的总行数应与 fixture 会话数匹配。"""
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
@@ -127,7 +127,7 @@ class TestFullScanClaudeBasic:
 
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_all_columns_populated(self, tmp_path):
-        """Every indexed session should have non-empty values for all 26 columns."""
+        """每个被索引的会话在所有 26 列中都应有非空值。"""
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
@@ -145,34 +145,34 @@ class TestFullScanClaudeBasic:
             ).fetchone()
             assert row is not None, f"Session {key} not found"
 
-            # Core identity fields must be non-empty
+            # 核心标识字段必须非空
             assert row["agent"] == "claude_code", f"agent mismatch for {key}"
             assert row["session_id"] == sess["session_id"], f"session_id mismatch for {key}"
             assert row["project_key"] == sess["project_key"], f"project_key mismatch for {key}"
 
-            # Title should be non-empty (derived from first user message)
+            # 标题应非空（从第一条用户消息派生）
             assert row["title"] != "", f"title is empty for {key}"
 
-            # Timestamps should be non-empty ISO8601 strings
+            # 时间戳应非空 ISO8601 字符串
             assert row["started_at"] != "", f"started_at is empty for {key}"
             assert row["ended_at"] != "", f"ended_at is empty for {key}"
 
-            # Token counts should be > 0 (our fixtures have usage data)
+            # Token 计数应 > 0（我们的 fixture 包含 usage 数据）
             assert row["input_tokens"] > 0, f"input_tokens is 0 for {key}"
             assert row["output_tokens"] > 0, f"output_tokens is 0 for {key}"
 
-            # Message counts should be > 0
+            # 消息计数应 > 0
             assert row["user_message_count"] > 0, f"user_message_count is 0 for {key}"
             assert row["assistant_message_count"] > 0, f"assistant_message_count is 0 for {key}"
 
-            # indexed_at should be set
+            # indexed_at 应已设置
             assert row["indexed_at"] > 0, f"indexed_at is 0 for {key}"
 
         conn.close()
 
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_scan_log_recorded(self, tmp_path):
-        """full_scan() should write a scan_log entry with correct counts."""
+        """full_scan() 应写入 scan_log 条目并包含正确的计数。"""
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
@@ -195,14 +195,14 @@ class TestFullScanClaudeBasic:
 
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_fixture_data_isolated(self, tmp_path):
-        """Full scan should not touch real CLAUDE_DATA_DIR when using fixture."""
+        """Full scan 在使用 fixture 时不应触碰真实的 CLAUDE_DATA_DIR。"""
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
         db_path = str(tmp_path / "index.sqlite")
         result = _run_full_scan(str(data_dir), db_path)
 
-        # Should only see our 2 fixture sessions, nothing from real ~/.claude/
+        # 应仅看到 2 个 fixture 会话，不包含真实 ~/.claude/ 的数据
         conn = sqlite3.connect(db_path)
         count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         conn.close()

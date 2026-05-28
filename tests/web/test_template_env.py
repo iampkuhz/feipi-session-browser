@@ -1,10 +1,10 @@
-"""Tests for session_browser.web.template_env module.
+"""session_browser.web.template_env 模块测试。
 
-Covers:
-- Jinja2 environment creation
-- Custom filter registration and availability
-- Filter behavior (formatting, time, path, markdown, etc.)
-- Template discovery
+覆盖：
+- Jinja2 环境创建
+- 自定义过滤器注册与可用性
+- 过滤器行为（格式化、时间、路径、markdown 等）
+- 模板发现
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ from session_browser.web.renderers.markdown import render_markdown as _md_filter
 from session_browser.domain.content_part import ContentPart
 
 
-# ─── Environment creation ─────────────────────────────────────────────
+# ─── 环境创建 ─────────────────────────────────────────────────────────────
 
 class TestEnvCreation:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -75,7 +75,7 @@ class TestEnvCreation:
         assert (_TEMPLATE_DIR / "session.html").is_file()
 
 
-# ─── Filter registration ──────────────────────────────────────────────
+# ─── 过滤器注册 ──────────────────────────────────────────────────────────────
 
 EXPECTED_FILTERS = [
     "format_number",
@@ -101,7 +101,7 @@ EXPECTED_FILTERS = [
     "parts_mode_from_raw",
     "tojson_repo",
     "display_path",
-    # from safe_render
+    # 来自 safe_render
     "safe_json_display",
     "safe_html_block",
     "tojson_safe_html",
@@ -119,7 +119,7 @@ class TestFilterRegistration:
         assert "max" in env.globals
 
 
-# ─── _format_bytes ────────────────────────────────────────────────────
+# ─── _format_bytes ──────────────────────────────────────────────────────
 
 class TestFormatBytes:
     @pytest.mark.parametrize(
@@ -142,7 +142,7 @@ class TestFormatBytes:
         assert _format_bytes(inp) == expected
 
 
-# ─── _format_compact_token ────────────────────────────────────────────
+# ─── _format_compact_token ────────────────────────────────────────────────
 
 class TestFormatCompactToken:
     @pytest.mark.parametrize(
@@ -165,7 +165,7 @@ class TestFormatCompactToken:
         assert _format_compact_token(inp) == expected
 
 
-# ─── _format_compact_num ──────────────────────────────────────────────
+# ─── _format_compact_num ──────────────────────────────────────────────────
 
 class TestFormatCompactNum:
     @pytest.mark.parametrize(
@@ -183,7 +183,7 @@ class TestFormatCompactNum:
         assert _format_compact_num(inp) == expected
 
 
-# ─── format_duration filter ──────────────────────────────────────────
+# ─── format_duration 过滤器 ─────────────────────────────────────────────
 
 class TestFormatDuration:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -202,7 +202,7 @@ class TestFormatDuration:
         assert f(3661) == "1h 1min"
 
 
-# ─── format_1d filter ────────────────────────────────────────────────
+# ─── format_1d 过滤器 ────────────────────────────────────────────────────
 
 class TestFormat1d:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -216,15 +216,15 @@ class TestFormat1d:
         assert f(None) == "0.0"
 
 
-# ─── _to_local_time ───────────────────────────────────────────────────
+# ─── _to_local_time ─────────────────────────────────────────────────────
 
 class TestToLocalTime:
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_utc_iso_to_local(self):
         result = _to_local_time("2026-05-12T06:20:29+00:00")
-        # Should be non-empty and contain the date
+        # 应非空且包含日期
         assert "2026-05-12" in result
-        assert " " in result  # has space between date and time
+        assert " " in result  # 日期和时间之间有空格
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_empty_string(self):
@@ -245,7 +245,7 @@ class TestToLocalTime:
         assert "not-a" in result
 
 
-# ─── _relative_time ──────────────────────────────────────────────────
+# ─── _relative_time ──────────────────────────────────────────────────────
 
 class TestRelativeTime:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -276,7 +276,7 @@ class TestRelativeTime:
         assert "not-a" in result
 
 
-# ─── _truncate_path ──────────────────────────────────────────────────
+# ─── _truncate_path ──────────────────────────────────────────────────────
 
 class TestTruncatePath:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -299,7 +299,7 @@ class TestTruncatePath:
         assert len(result) <= 45
 
 
-# ─── _display_path ───────────────────────────────────────────────────
+# ─── _display_path ────────────────────────────────────────────────────────
 
 class TestDisplayPath:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -325,7 +325,7 @@ class TestDisplayPath:
         assert _display_path("/opt/some/path") == "/opt/some/path"
 
 
-# ─── _html_escape ─────────────────────────────────────────────────────
+# ─── _html_escape ─────────────────────────────────────────────────────────
 
 class TestHtmlEscape:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -341,7 +341,7 @@ class TestHtmlEscape:
         assert _html_escape("hello") == "hello"
 
 
-# ─── render_markdown (aliased as _md_filter in tests) ─────────────────
+# ─── render_markdown（测试中别名为 _md_filter）─────────────────────────
 
 class TestMdFilter:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -360,7 +360,7 @@ class TestMdFilter:
         assert "<script>" not in result
 
 
-# ─── Line number helpers ─────────────────────────────────────────────
+# ─── 行号辅助函数 ─────────────────────────────────────────────────────────
 
 class TestLineNumbers:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -394,7 +394,7 @@ class TestLineNumbers:
         assert _renumber_lines(text) == text
 
 
-# ─── _infer_code_language ─────────────────────────────────────────────
+# ─── _infer_code_language ─────────────────────────────────────────────────
 
 class TestInferCodeLanguage:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -423,7 +423,7 @@ class TestInferCodeLanguage:
         assert _infer_code_language() is None
 
 
-# ─── normalize_llm_content ────────────────────────────────────────────
+# ─── normalize_llm_content ────────────────────────────────────────────────
 
 class TestNormalizeLlmContent:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -441,7 +441,7 @@ class TestNormalizeLlmContent:
         text = "preamble\nTool result for toolu_abc:\nsome code here\n"
         blocks = normalize_llm_content(text)
         assert len(blocks) >= 1
-        # Should have preamble + tool content
+        # 应包含前缀文本 + tool 内容
         kinds = [b["kind"] for b in blocks]
         assert "plain_text" in kinds
 
@@ -453,7 +453,7 @@ class TestNormalizeLlmContent:
         assert any("AGENTS" in b.get("title", "") for b in blocks)
 
 
-# ─── render_llm_blocks_html ───────────────────────────────────────────
+# ─── render_llm_blocks_html ─────────────────────────────────────────────────
 
 class TestRenderLlmBlocksHtml:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -474,7 +474,7 @@ class TestRenderLlmBlocksHtml:
         assert "llm-block" in result
 
 
-# ─── _content_parts_to_blocks ────────────────────────────────────────
+# ─── _content_parts_to_blocks ─────────────────────────────────────────────
 
 class TestContentPartsToBlocks:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -503,7 +503,7 @@ class TestContentPartsToBlocks:
         assert required.issubset(blocks[0].keys())
 
 
-# ─── _parts_mode_from_raw ────────────────────────────────────────────
+# ─── _parts_mode_from_raw ───────────────────────────────────────────────────
 
 class TestPartsModeFromRaw:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -516,14 +516,14 @@ class TestPartsModeFromRaw:
         assert isinstance(blocks, list)
 
 
-# ─── _relative_paths_in_json ──────────────────────────────────────────
+# ─── _relative_paths_in_json ────────────────────────────────────────────────
 
 class TestRelativePathsInJson:
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_replaces_file_path(self):
         obj = {"file_path": "/some/deep/path/file.txt", "other": "value"}
         result = _relative_paths_in_json(obj)
-        # Should call _relative_to_repo; result depends on repo context
+        # 应调用 _relative_to_repo；结果取决于 repo 上下文
         assert isinstance(result, dict)
         assert "other" in result
         assert "file_path" in result
@@ -540,7 +540,7 @@ class TestRelativePathsInJson:
         assert _relative_paths_in_json("hello") == "hello"
 
 
-# ─── _tojson_repo_html ────────────────────────────────────────────────
+# ─── _tojson_repo_html ──────────────────────────────────────────────────────
 
 class TestTojsonRepoHtml:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -561,7 +561,7 @@ class TestTojsonRepoHtml:
         assert "name" in result
 
 
-# ─── URL encode/decode filters ─────────────────────────────────────────
+# ─── URL 编码/解码过滤器 ────────────────────────────────────────────────────
 
 class TestUrlFilters:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -575,7 +575,7 @@ class TestUrlFilters:
         assert f("hello%20world") == "hello world"
 
 
-# ─── Template loading via env ─────────────────────────────────────────
+# ─── 通过 env 加载模板 ──────────────────────────────────────────────────────
 
 class TestTemplateLoading:
     @pytest.mark.contract_case("ROUTE-API-004")
@@ -596,6 +596,6 @@ class TestTemplateLoading:
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_render_dashboard_no_error(self):
         tmpl = env.get_template("dashboard.html")
-        # Render with minimal context; may raise if required vars missing,
-        # but template should at least be parseable.
+        # 使用最小上下文渲染；如果缺少必需变量可能报错，
+        # 但模板至少应可解析。
         assert tmpl.filename is not None

@@ -1,4 +1,4 @@
-"""Tests for scripts/hooks/stop_quality_gate.py."""
+"""stop_quality_gate.py 脚本测试。"""
 import pytest
 import importlib.util
 import json
@@ -27,7 +27,7 @@ def _make_artifact(status: str, finished: str = "2026-05-18T00:01:00Z") -> dict:
 
 
 def _setup_env(changed_files_content: list[dict], artifact: dict | None = None, change_id: str = "test"):
-    """Create a temp environment with changed-files and optional artifact."""
+    """使用 changed-files 和可选 artifact 创建临时测试环境。"""
     td = tempfile.mkdtemp()
     p = Path(td)
     cf = p / "changed-files.jsonl"
@@ -38,7 +38,7 @@ def _setup_env(changed_files_content: list[dict], artifact: dict | None = None, 
         qd.mkdir(parents=True, exist_ok=True)
         (qd / "quality-gate-summary.json").write_text(json.dumps(artifact))
 
-    # Patch module globals
+    # 修补模块全局变量
     _sqg.CHANGED_FILES = cf
     _sqg.QUALITY_DIR = p / "quality"
     return p
@@ -108,14 +108,14 @@ class TestDocsOnly:
 
 
 class TestFreshArtifactAfterRunner:
-    """Scenario: run_required_quality_gates.py just ran and created a fresh artifact.
-    stop_quality_gate.py should PASS because the artifact is fresh."""
+    """场景：run_required_quality_gates.py 刚运行并创建了最新 artifact，
+    stop_quality_gate.py 应返回 PASS，因为 artifact 是新鲜的。"""
 
     @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_fresh_artifact_from_runner_passes(self):
-        """UI changed, runner just created PASS artifact => stop_quality_gate should PASS."""
+        """UI 文件被修改，runner 刚创建 PASS artifact，stop_quality_gate 应 PASS。"""
         now_ts = "2026-05-24T10:00:00Z"
-        # Artifact finished after the UI edit (fresh)
+        # Artifact 完成时间晚于 UI 编辑（新鲜的）
         artifact = _make_artifact("PASS", finished="2026-05-24T10:00:30Z")
         _setup_env([{
             "ts": now_ts, "tool": "Edit",
@@ -129,14 +129,14 @@ class TestFreshArtifactAfterRunner:
 class TestNoFeipiAgentLogDir:
     @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_stop_quality_gate_no_feipi_agent_log_dir(self):
-        """stop_quality_gate.py must not reference FEIPI_AGENT_LOG_DIR."""
+        """stop_quality_gate.py 不得引用 FEIPI_AGENT_LOG_DIR。"""
         source = SCRIPT_PATH.read_text()
         assert "FEIPI_AGENT_LOG_DIR" not in source, \
             "stop_quality_gate.py must not reference FEIPI_AGENT_LOG_DIR"
 
     @pytest.mark.contract_case("HOOK-HARNESS-006")
     def test_stop_check_targets_no_feipi_agent_log_dir(self):
-        """stop_check_targets.py must not reference FEIPI_AGENT_LOG_DIR."""
+        """stop_check_targets.py 不得引用 FEIPI_AGENT_LOG_DIR。"""
         script = Path(__file__).resolve().parents[2] / "scripts" / "quality" / "stop_check_targets.py"
         source = script.read_text()
         assert "FEIPI_AGENT_LOG_DIR" not in source, \

@@ -1,10 +1,10 @@
-"""Script loading contract tests (T016).
+"""脚本加载契约测试（T016）。
 
-Verifies that ui_primitives.js is loaded exactly once (by base.html only)
-and that sessions.html does not duplicate-load it.
+验证 ui_primitives.js 仅被加载一次（仅由 base.html 加载），
+且 sessions.html 不会重复加载它。
 
-This prevents duplicate document-level event listeners that cause
-next-button pagination to skip two pages at once.
+这可以防止重复的文档级事件监听器导致
+下一页按钮分页一次跳过两页。
 """
 import pytest
 from pathlib import Path
@@ -20,7 +20,7 @@ SESSIONS_LIST_JS = "/static/js/sessions-list.js"
 
 
 def _read(path: Path) -> str:
-    """Read file text, skipping test if missing."""
+    """读取文件文本，如果缺失则跳过测试。"""
     if not path.exists():
         pytest.skip(f"{path.name} not found at {path}")
     return path.read_text(encoding="utf-8")
@@ -43,7 +43,7 @@ def sessions_text():
 
 
 def _count_script_src(text: str, script_path: str) -> int:
-    """Count actual <script src="..."> tags for a given path, ignoring comments."""
+    """统计给定路径的实际 <script src="..."> 标签数量，忽略注释。"""
     # Strip Jinja {# ... #} block comments first
     stripped = re.sub(r'\{#.*?#\}', '', text, flags=re.DOTALL)
     # Strip HTML <!-- ... --> comments
@@ -53,18 +53,18 @@ def _count_script_src(text: str, script_path: str) -> int:
 
 
 class TestScriptLoadingOwnership:
-    """base.html is the sole owner of ui_primitives.js loading."""
+    """base.html 是 ui_primitives.js 加载的唯一所有者。"""
 
     @pytest.mark.contract_case("UI-VISUAL-001")
     def test_base_html_loads_ui_primitives_js(self, base_text):
-        """base.html must load ui_primitives.js (it is the canonical source)."""
+        """base.html 必须加载 ui_primitives.js（它是规范源）。"""
         count = _count_script_src(base_text, UI_PRIMITIVES_JS)
         assert count >= 1, \
             f"base.html must load {UI_PRIMITIVES_JS} via <script> tag"
 
     @pytest.mark.contract_case("UI-VISUAL-001")
     def test_base_html_load_count_exactly_one(self, base_text):
-        """base.html must load ui_primitives.js exactly once (via <script> tag)."""
+        """base.html 必须恰好加载 ui_primitives.js 一次（通过 <script> 标签）。"""
         count = _count_script_src(base_text, UI_PRIMITIVES_JS)
         assert count == 1, \
             f"base.html loads {UI_PRIMITIVES_JS} {count} times (expected 1)"

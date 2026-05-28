@@ -1,17 +1,16 @@
-"""Parser compatibility regression tests.
+"""parser 兼容性回归测试。
 
-Verifies that the three adapter modules (claude, codex, qoder) expose
-callable public function signatures, handle their respective fixture
-corpora correctly, return properly-typed values, and gracefully tolerate
-bad JSON and empty files without raising uncaught exceptions.
+验证三个 adapter 模块（claude、codex、qoder）暴露可调用的公共函数签名、
+正确处理各自的 fixture 语料库、返回类型匹配约定，
+并能优雅容错坏 JSON 和空文件，不会抛出未捕获异常。
 
-Coverage:
-1. Public function signatures are importable and callable.
-2. Each adapter handles its fixture corpus JSONL type.
-3. Return value types match contracts (events: list[dict],
-   diagnostics: JsonlDiagnostics, summary: SessionSummary).
-4. Bad JSON lines do not cause uncaught exceptions.
-5. Empty JSONL files do not cause uncaught exceptions.
+覆盖：
+1. 公共函数签名可导入且可调用。
+2. 每个 adapter 能处理其 fixture 语料库的 JSONL 类型。
+3. 返回值类型与约定匹配（events: list[dict]、
+   diagnostics: JsonlDiagnostics、summary: SessionSummary）。
+4. 坏 JSON 行不会导致未捕获异常。
+5. 空 JSONL 文件不会导致未捕获异常。
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
-# ─── Shared types ────────────────────────────────────────────────────────
+# ─── 共享类型 ────────────────────────────────────────────────────────────
 
 from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
 from session_browser.sources.jsonl_reader import (
@@ -31,24 +30,24 @@ from session_browser.sources.jsonl_reader import (
     parse_jsonl_events,
 )
 
-# ─── Fixture helpers ─────────────────────────────────────────────────────
+# ─── fixture 辅助函数 ─────────────────────────────────────────────────────
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "sources"
 
 
 def _write_jsonl(content: str) -> Path:
-    """Write *content* to a temporary .jsonl file and return its Path."""
+    """将 *content* 写入临时 .jsonl 文件并返回其 Path。"""
     fd, path = tempfile.mkstemp(suffix=".jsonl")
     with open(fd, "w", encoding="utf-8") as fh:
         fh.write(content)
     return Path(path)
 
 
-# ─── 1. Public function signatures are callable ──────────────────────────
+# ─── 1. 公共函数签名可调用 ────────────────────────────────────────────────
 
 
 class TestPublicSignatures:
-    """Verify that each adapter's public API is importable and callable."""
+    """验证每个 adapter 的公共 API 可导入且可调用。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_parse_history_callable(self):
@@ -113,15 +112,15 @@ class TestPublicSignatures:
         assert "verbose" in params
 
 
-# ─── 2. Adapter fixture corpus compatibility ─────────────────────────────
+# ─── 2. Adapter fixture 语料库兼容性 ─────────────────────────────────────
 
 
 class TestFixtureCorpusCompatibility:
-    """Each adapter must handle its fixture corpus without errors."""
+    """每个 adapter 必须无误处理其 fixture 语料库。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_fixture_parses(self):
-        """Claude-style JSONL fixture must parse into events + diagnostics."""
+        """Claude 风格的 JSONL fixture 必须解析为事件 + 诊断信息。"""
         jsonl_path = FIXTURES_DIR / "claude_valid.jsonl"
         assert jsonl_path.exists(), f"Fixture not found: {jsonl_path}"
         events, diag = parse_jsonl_events(jsonl_path)
@@ -131,14 +130,14 @@ class TestFixtureCorpusCompatibility:
         assert isinstance(diag, JsonlDiagnostics)
         assert diag.events_parsed == len(events)
 
-        # Claude fixtures have user and assistant types
+        # Claude fixture 包含 user 和 assistant 类型
         types = {ev.get("type") for ev in events}
         assert "user" in types
         assert "assistant" in types
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_fixture_parses(self):
-        """Codex-style JSONL fixture must parse into events + diagnostics."""
+        """Codex 风格的 JSONL fixture 必须解析为事件 + 诊断信息。"""
         jsonl_path = FIXTURES_DIR / "codex_valid.jsonl"
         assert jsonl_path.exists(), f"Fixture not found: {jsonl_path}"
         events, diag = parse_jsonl_events(jsonl_path)
@@ -148,7 +147,7 @@ class TestFixtureCorpusCompatibility:
         assert isinstance(diag, JsonlDiagnostics)
         assert diag.events_parsed == len(events)
 
-        # Codex fixtures have message, tool_call, tool_result types
+        # Codex fixture 包含 message、tool_call、tool_result 类型
         types = {ev.get("type") for ev in events}
         assert "message" in types
         assert "tool_call" in types
@@ -156,7 +155,7 @@ class TestFixtureCorpusCompatibility:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_qoder_fixture_parses(self):
-        """Qoder-style JSONL fixture must parse into events + diagnostics."""
+        """Qoder 风格的 JSONL fixture 必须解析为事件 + 诊断信息。"""
         jsonl_path = FIXTURES_DIR / "qoder_valid.jsonl"
         assert jsonl_path.exists(), f"Fixture not found: {jsonl_path}"
         events, diag = parse_jsonl_events(jsonl_path)
@@ -166,17 +165,17 @@ class TestFixtureCorpusCompatibility:
         assert isinstance(diag, JsonlDiagnostics)
         assert diag.events_parsed == len(events)
 
-        # Qoder fixtures have user and assistant types (Claude-like format)
+        # Qoder fixture 包含 user 和 assistant 类型（类似 Claude 格式）
         types = {ev.get("type") for ev in events}
         assert "user" in types
         assert "assistant" in types
 
 
-# ─── 3. Return value type contracts ──────────────────────────────────────
+# ─── 3. 返回值类型契约 ─────────────────────────────────────────────
 
 
 class TestReturnValueContracts:
-    """Verify that return types and structures match the expected contracts."""
+    """验证返回值类型和结构与预期契约匹配。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_parse_jsonl_events_returns_list_of_dict(self):
@@ -203,7 +202,7 @@ class TestReturnValueContracts:
         )
         try:
             _, diag = parse_jsonl_events(p)
-            # Required numeric fields
+            # 必填数值字段
             assert isinstance(diag.total_lines, int)
             assert isinstance(diag.non_empty_lines, int)
             assert isinstance(diag.events_parsed, int)
@@ -304,15 +303,15 @@ class TestReturnValueContracts:
                 qoder.QODER_DATA_DIR = original
 
 
-# ─── 4. Bad JSON tolerance ───────────────────────────────────────────────
+# ─── 4. 坏 JSON 容错 ───────────────────────────────────────────────
 
 
 class TestBadJsonTolerance:
-    """Bad JSON must not raise uncaught exceptions."""
+    """坏 JSON 不得引发未捕获异常。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_completely_unparseable_lines(self):
-        """Lines that are not valid JSON at all must be silently skipped."""
+        """完全不是 JSON 的行必须被静默跳过。"""
         p = _write_jsonl(
             '{"type": "user"}\n'
             'this is not json at all\n'
@@ -329,12 +328,12 @@ class TestBadJsonTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_malformed_json_with_partial_structure(self):
-        """JSON with missing braces must not crash.
+        """缺少大括号的畸形 JSON 不得导致崩溃。
 
-        Note: the parser tracks brace depth across lines, so unbalanced
-        opening braces cause subsequent lines to be accumulated.  When
-        EOF is reached with depth > 0, the unterminated fragment is
-        silently dropped.  The key invariant is: no uncaught exception.
+        注意：解析器会跨行追踪花括号深度，因此不平衡的
+        开大括号会导致后续行被累积。当到达 EOF 且深度 > 0
+        时，未终止的片段会被静默丢弃。关键不变量是：不抛出
+        未捕获异常。
         """
         p = _write_jsonl(
             '{"type": "user"\n'
@@ -343,7 +342,7 @@ class TestBadJsonTolerance:
         )
         try:
             events, diag = parse_jsonl_events(p)
-            # No crash -- that is the invariant we are testing.
+            # 不崩溃 —— 这是我们要测试的不变量。
             assert isinstance(events, list)
             assert isinstance(diag, JsonlDiagnostics)
         finally:
@@ -351,8 +350,8 @@ class TestBadJsonTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_non_dict_json_values(self):
-        """Valid JSON that is not a dict (strings, numbers, arrays) must be
-        silently skipped, not crash downstream."""
+        """有效的 JSON 但不是字典（字符串、数字、数组）必须被
+        静默跳过，不得向下游崩溃。"""
         p = _write_jsonl(
             '{"type": "user"}\n'
             '"bare string"\n'
@@ -371,7 +370,7 @@ class TestBadJsonTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_unicode_garbage_in_jsonl(self):
-        """Unicode garbage mixed with valid JSON must not crash."""
+        """Unicode 乱码与有效 JSON 混合不得导致崩溃。"""
         p = _write_jsonl(
             '{"type": "user"}\n'
             '\x00\x01\x02binary garbage\xff\xfe\n'
@@ -385,7 +384,7 @@ class TestBadJsonTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_very_long_bad_line(self):
-        """A very long unparseable line must not cause memory issues."""
+        """非常长的不可解析行不得导致内存问题。"""
         garbage = "x" * 100_000
         p = _write_jsonl(
             '{"type": "user"}\n'
@@ -401,7 +400,7 @@ class TestBadJsonTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_adapter_with_bad_json_does_not_crash(self):
-        """Claude adapter must not raise uncaught exceptions on bad JSON."""
+        """Claude adapter 在处理坏 JSON 时不得抛出未捕获异常。"""
         from session_browser.sources import claude
 
         lines = [
@@ -437,15 +436,15 @@ class TestBadJsonTolerance:
                 claude.CLAUDE_DATA_DIR = original
 
 
-# ─── 5. Empty file tolerance ─────────────────────────────────────────────
+# ─── 5. 空文件容错 ─────────────────────────────────────────────
 
 
 class TestEmptyFileTolerance:
-    """Empty and near-empty files must not raise uncaught exceptions."""
+    """空文件和近空文件不得引发未捕获异常。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_completely_empty_file(self):
-        """A zero-byte file must return empty results, not crash."""
+        """零字节文件必须返回空结果，不崩溃。"""
         p = _write_jsonl("")
         try:
             events, diag = parse_jsonl_events(p)
@@ -458,7 +457,7 @@ class TestEmptyFileTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_whitespace_only_file(self):
-        """A file with only whitespace must return empty results."""
+        """仅包含空白字符的文件必须返回空结果。"""
         p = _write_jsonl("\n\n  \t\n")
         try:
             events, diag = parse_jsonl_events(p)
@@ -469,7 +468,7 @@ class TestEmptyFileTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_adapter_with_missing_session_file(self):
-        """Claude adapter must gracefully handle missing session file."""
+        """Claude adapter 必须优雅处理缺失的会话文件。"""
         from session_browser.sources import claude
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -489,7 +488,7 @@ class TestEmptyFileTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_adapter_with_missing_session_file(self):
-        """Codex adapter must gracefully handle missing session file."""
+        """Codex adapter 必须优雅处理缺失的会话文件。"""
         from session_browser.sources import codex
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -509,7 +508,7 @@ class TestEmptyFileTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_qoder_adapter_with_missing_session_file(self):
-        """Qoder adapter must gracefully handle missing session file."""
+        """Qoder adapter 必须优雅处理缺失的会话文件。"""
         from session_browser.sources import qoder
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -529,7 +528,7 @@ class TestEmptyFileTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_claude_parse_history_with_no_data_dir(self):
-        """parse_history must return empty list when data dir is empty."""
+        """当数据目录为空时，parse_history 必须返回空列表。"""
         from session_browser.sources import claude
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -543,7 +542,7 @@ class TestEmptyFileTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_index_with_no_data_dir(self):
-        """parse_session_index must return empty list when data dir is empty."""
+        """当数据目录为空时，parse_session_index 必须返回空列表。"""
         from session_browser.sources import codex
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -557,7 +556,7 @@ class TestEmptyFileTolerance:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_read_threads_db_with_no_data_dir(self):
-        """read_threads_db must return empty dict when data dir is empty."""
+        """当数据目录为空时，read_threads_db 必须返回空字典。"""
         from session_browser.sources import codex
 
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -1,12 +1,12 @@
-"""Trace header contract test (T021 / SD-15).
+"""Trace header 契约测试（T021 / SD-15）。
 
-Verifies that the session detail trace_header macro:
-- Does NOT contain the sd-trace-title class
-- Does NOT contain data-action="collapse-all"
-- DOES contain data-action="toggle-all" (or toggle-all class)
+验证 session detail 的 trace_header 宏：
+- 不包含 sd-trace-title 类
+- 不包含 data-action="collapse-all"
+- 包含 data-action="toggle-all"（或 toggle-all 类）
 
-This contract ensures the trace header only needs a toggle-all button
-without a separate sd-trace-title or collapse-all element.
+此契约确保 trace header 只需要一个 toggle-all 按钮，
+而不需要独立的 sd-trace-title 或 collapse-all 元素。
 """
 import pytest
 from pathlib import Path
@@ -17,18 +17,18 @@ TIMELINE_HTML = ROOT / "src" / "session_browser" / "web" / "templates" / "compon
 
 @pytest.fixture(scope="module")
 def trace_header_source():
-    """Extract the trace_header macro body from the template."""
+    """从模板中提取 trace_header 宏体。"""
     if not TIMELINE_HTML.exists():
         pytest.skip(f"Template not found at {TIMELINE_HTML}")
     text = TIMELINE_HTML.read_text(encoding="utf-8")
-    # Locate the trace_header macro block
+    # 定位 trace_header 宏块
     start = text.find("{% macro trace_header()")
     if start == -1:
         pytest.fail("trace_header macro not found in session_detail_timeline.html")
     end = text.find("{%- endmacro %}", start)
     if end == -1:
         pytest.fail("trace_header macro lacks closing endmacro")
-    # Include the endmacro marker
+    # 包含 endmacro 标记
     return text[start:end + len("{%- endmacro %}")]
 
 

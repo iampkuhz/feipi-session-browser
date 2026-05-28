@@ -1,4 +1,4 @@
-"""Tests for new quality gate scripts — bad fixture tests."""
+"""新增 quality gate 门禁脚本测试 — bad fixture 测试。"""
 from __future__ import annotations
 
 import pytest
@@ -52,7 +52,7 @@ from check_layout_inline_style import (
 
 
 # ======================================================================
-# check_selector_depth tests
+# check_selector_depth 测试
 # ======================================================================
 
 
@@ -69,15 +69,13 @@ class TestSplitSelectors:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_ignores_comma_in_not(self):
-        """
-
-Comma inside :not() should not split."""
+        """:not() 内的逗号不应被分割。"""
         result = split_selectors(".foo:not(.a, .b)")
         assert len(result) == 1
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_ignores_comma_in_has(self):
-        """Comma inside :has() should not split."""
+        """:has() 内的逗号不应被分割。"""
         result = split_selectors(".foo:has(.a, .b)")
         assert len(result) == 1
 
@@ -113,7 +111,7 @@ class TestCalculateSelectorDepth:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_pseudo_class_not_extra(self):
-        """Pseudo classes attach to elements, don't add depth."""
+        """伪类依附于元素，不额外增加深度。"""
         assert calculate_selector_depth(".foo:hover") == 1
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
@@ -122,7 +120,7 @@ class TestCalculateSelectorDepth:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_not_function(self):
-        """Content inside :not() should count properly."""
+        """:not() 内部的内容应正确计数。"""
         assert calculate_selector_depth(".foo:not(.bar) .baz") == 2
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
@@ -161,7 +159,7 @@ class TestCheckSelectorDepth:
         css.write_text(".foo { color: red; }\n.foo .bar { margin: 0; }")
         report = check_selector_depth(css)
         assert report.blocks == []
-        # depth=2 is PASS (WARN_THRESHOLD=2 means depth > 2 triggers WARN)
+        # depth=2 为通过（WARN_THRESHOLD=2 意味着 depth > 2 才触发告警）
         assert report.warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
@@ -174,7 +172,7 @@ class TestCheckSelectorDepth:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_boundary_depth_3_warns(self, tmp_path):
-        """depth == 3 should be WARN, not BLOCK."""
+        """depth == 3 应为告警，不应拦截。"""
         css = tmp_path / "boundary.css"
         css.write_text(".a .b .c { color: red; }")
         report = check_selector_depth(css)
@@ -187,7 +185,7 @@ class TestCheckSelectorDepth:
         css = tmp_path / "multi.css"
         css.write_text(".a .b, .x .y .z .w { color: red; }")
         report = check_selector_depth(css)
-        # .a .b = depth 2 (pass), .x .y .z .w = depth 4 (BLOCK)
+        # .a .b = depth 2（通过），.x .y .z .w = depth 4（拦截）
         assert len(report.blocks) == 1
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
@@ -195,16 +193,16 @@ class TestCheckSelectorDepth:
         css = tmp_path / "media.css"
         css.write_text("@media (max-width: 600px) { .a .b .c .d { color: red; } }")
         report = check_selector_depth(css)
-        # Inside @media the selector is still analyzed
-        # (extract_css_rules unwraps @media)
-        # Actually the @media selector starts with @, so it's skipped at outer level
-        # but inner rules are still extracted
-        # Let's just verify no crash
+        # @media 内的选择器仍然会被分析
+        # （extract_css_rules 会展开 @media）
+        # 实际上 @media 选择器以 @ 开头，在外层会被跳过
+        # 但内层规则仍会被提取
+        # 这里只需验证不崩溃
         assert report.files_scanned == 1
 
 
 # ======================================================================
-# check_no_id_selector tests
+# check_no_id_selector 测试
 # ======================================================================
 
 
@@ -220,7 +218,7 @@ class TestExtractIdNames:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_hex_color_excluded(self):
-        """Hex colors should not be treated as IDs."""
+        """十六进制颜色不应被当作 ID 处理。"""
         assert extract_id_names("#fff") == []
         assert extract_id_names("#d9e2ef") == []
         assert extract_id_names("#aabbcc") == []
@@ -256,7 +254,7 @@ class TestCheckIdSelectors:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_stock_id_warns_not_blocks(self, tmp_path):
-        """Whitelisted IDs should WARN, not BLOCK."""
+        """白名单 ID 应告警，不应拦截。"""
         css = tmp_path / "glossary.css"
         css.write_text("#glossary-empty { display: none; }")
         report = check_id_selectors(css)
@@ -266,7 +264,7 @@ class TestCheckIdSelectors:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_hex_color_in_css_not_id(self, tmp_path):
-        """Hex color values in CSS should not trigger ID detection."""
+        """CSS 中的十六进制颜色值不应触发 ID 检测。"""
         css = tmp_path / "colors.css"
         css.write_text(".foo { color: #d9e2ef; background: #fff; }")
         report = check_id_selectors(css)
@@ -275,7 +273,7 @@ class TestCheckIdSelectors:
 
 
 # ======================================================================
-# check_css_ownership tests
+# check_css_ownership 测试
 # ======================================================================
 
 
@@ -343,7 +341,7 @@ class TestCheckCrossLayerDuplicate:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_descendant_selector_ok(self):
-        """Descendant selector like '.page .btn' should not warn."""
+        """后代选择器如 '.page .btn' 不应告警。"""
         violations = check_cross_layer_duplicate("dashboard.css", [
             (1, ".dashboard-page .btn", "color: blue;"),
         ], {".btn"})
@@ -351,7 +349,7 @@ class TestCheckCrossLayerDuplicate:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_modifier_variant_ok(self):
-        """.btn--primary is a modifier, should not warn."""
+        """.btn--primary 是修饰符变体，不应告警。"""
         violations = check_cross_layer_duplicate("dashboard.css", [
             (1, ".btn--primary", "color: blue;"),
         ], {".btn"})
@@ -398,10 +396,10 @@ class TestCheckLegacyAliasesPurity:
 
 
 # ======================================================================
-# check_raw_innerhtml tests
+# check_raw_innerhtml 测试
 # ======================================================================
 
-# Helper: create test files in a repo-subdir so relative_to(REPO_ROOT) works
+# 辅助函数：在 repo 子目录中创建测试文件，以便 relative_to(REPO_ROOT) 正常工作
 _TMP_INNERHTML = ROOT / "tmp" / "test_innerhtml_tmp"
 _TMP_INNERHTML.mkdir(parents=True, exist_ok=True)
 
@@ -427,7 +425,7 @@ class TestScanInnerhtmlAssignments:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_innerhtml_clear_not_reported(self):
-        """Clearing innerHTML is still reported but marked as isClear."""
+        """清除 innerHTML 仍被报告但标记为 isClear（清除标志）。"""
         js = self._write_js("clear_tmp.js", "container.innerHTML = '';")
         findings = scan_innerhtml_assignments([js])
         assert len(findings) == 1
@@ -452,13 +450,13 @@ class TestScanInnerhtmlAssignments:
     def test_isClear_flag_not_reported(self):
         js = self._write_js('is_clear_tmp.js', 'el.innerHTML = "";')
         findings = scan_innerhtml_assignments([js])
-        # Clear operations are reported but marked as isClear
+        # 清除操作会被报告，但标记为 isClear（清除标志）
         assert len(findings) == 1
         assert findings[0]["isClear"] is True
 
 
 # ======================================================================
-# check_layout_inline_style tests
+# check_layout_inline_style 测试
 # ======================================================================
 
 _TMP_LAYOUT = ROOT / "tmp" / "test_layout_tmp"
@@ -491,21 +489,21 @@ class TestScanHtmlInlineStyles:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_custom_property_only_skipped(self):
-        """Pure CSS custom property should not trigger."""
+        """纯 CSS 自定义属性不应触发检测。"""
         html = self._write_html("custom_tmp.html", '<div style="--segment-width: 200px;">hello</div>')
         findings = scan_html_inline_styles([html])
         assert findings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_mixed_custom_property_detected(self):
-        """Custom property + layout property should trigger."""
+        """自定义属性 + 布局属性应触发检测。"""
         html = self._write_html("mixed_tmp.html", '<div style="--segment-width: 200px; display: flex;">hello</div>')
         findings = scan_html_inline_styles([html])
         assert len(findings) == 1
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_template_variable_skipped(self):
-        """Template variable injection should be skipped."""
+        """模板变量注入应被跳过。"""
         html = self._write_html("template_tmp.html", '<div style="{{ grid_style }}">hello</div>')
         findings = scan_html_inline_styles([html])
         assert findings == []
@@ -555,7 +553,7 @@ class TestScanJsStyleAssignments:
 
     @pytest.mark.contract_case("HOOK-HARNESS-008")
     def test_camelcase_properties(self):
-        """CamelCase JS properties like minWidth should be detected."""
+        """驼峰式 JS 属性如 minWidth 应被检测到。"""
         js = self._write_js("layout_camel_tmp.js", "el.style.minWidth = '100px';")
         findings = scan_js_style_assignments([js])
         assert len(findings) == 1

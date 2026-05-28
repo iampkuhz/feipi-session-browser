@@ -19,7 +19,7 @@ def _read_routes():
     return ROUTES.read_text(encoding="utf-8")
 
 
-# ── Message payload in view model ──────────────────────────────────────────
+# ── 视图模型中的消息载荷 ──────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-SD-008")
@@ -53,7 +53,7 @@ def test_payload_map_in_routes():
 def test_payload_entries_have_required_fields():
     """Payload entries must have type, title, rendered, raw, missing_reason."""
     routes = _read_routes()
-    # The view model builds payload dicts with these keys
+    # 视图模型使用这些键构建载荷字典
     assert "'type'" in routes or '"type"' in routes, (
         "Payload entries must have 'type' field"
     )

@@ -1,10 +1,10 @@
-"""Tests for Projects page table restructure.
+"""Projects 页面表格重构测试。
 
-Page-level pytest for projects.html covering template structure, CSS/JS imports,
-metric cards, filter card, table structure, row structure, pagination,
-empty/error states, and absence of inline onclick.
+针对 projects.html 的页面级 pytest，覆盖模板结构、CSS/JS 导入、
+指标卡片、过滤卡片、表格结构、行结构、分页、
+空态/错误态，以及无 inline onclick。
 
-T108 — Projects List: Add page-specific pytest.
+T108 — Projects 列表：添加页面专属 pytest。
 """
 
 from __future__ import annotations
@@ -28,11 +28,11 @@ def _read_template() -> str:
 
 
 class TestTruncatePath:
-    """Verify project path display does not show '.' for repo root."""
+    """验证项目路径显示不会对仓库根目录显示 '.'。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_repo_root_not_dot(self):
-        """A full absolute path should never be truncated to '.'."""
+        """完整绝对路径绝不应被截断为 '.'。"""
         from session_browser.web.template_env import _truncate_path
         result = _truncate_path("/Users/zhehan/Documents/tools/llm/feipi-agent-kit")
         assert result != "."
@@ -43,7 +43,7 @@ class TestTruncatePath:
         from session_browser.web.template_env import _truncate_path
         path = "/Users/zhehan/some/very/long/path/to/project"
         result = _truncate_path(path)
-        # Should preserve beginning and end
+        # 应保留开头和结尾
         assert result.startswith("/")
         assert "project" in result
 
@@ -56,7 +56,7 @@ class TestTruncatePath:
 
 
 class TestProjectsTemplateColumns:
-    """Verify the projects.html template has correct columns and no removed ones."""
+    """验证 projects.html 模板的列正确且无已删除的列。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_cache_r_column(self):
@@ -71,7 +71,7 @@ class TestProjectsTemplateColumns:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_output_column(self):
         content = _read_template()
-        # No standalone Output column (may appear in tooltip text, that's OK)
+        # 无独立的 Output 列（可能出现在提示文本中，那是允许的）
         assert "Output Tokens" not in content
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
@@ -96,7 +96,7 @@ class TestProjectsTemplateColumns:
 
 
 class TestProjectsTemplateSortOptions:
-    """Verify sort options no longer include removed columns."""
+    """验证排序选项不再包含已删除的列。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_cache_read_sort(self):
@@ -132,11 +132,11 @@ def _read_ui_primitives() -> str:
 
 
 class TestProjectsTemplatePathDisplay:
-    """Verify path display uses truncate_path without relative_to_repo."""
+    """验证路径显示使用 truncate_path 而非 relative_to_repo。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_relative_to_repo_for_project_path(self):
-        """Project paths should not use relative_to_repo filter."""
+        """项目路径不应使用 relative_to_repo 过滤器。"""
         content = _read_template()
         lines = content.split("\n")
         for line in lines:
@@ -145,9 +145,9 @@ class TestProjectsTemplatePathDisplay:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_path_copy_uses_full_project_key(self):
-        """Copy button should use the full project_key via data-clipboard-text."""
+        """复制按钮应通过 data-clipboard-text 使用完整 project_key。"""
         content = _read_template()
-        # projects.html passes full p.project_key as path parameter to macro
+        # projects.html 将完整 p.project_key 作为 path 参数传递给宏
         macro = _read_ui_primitives()
         assert 'data-clipboard-text="{{ path }}"' in macro, \
             "project_cell macro must have data-clipboard-text bound to path"
@@ -156,34 +156,34 @@ class TestProjectsTemplatePathDisplay:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_path_tooltip_shows_full_key(self):
-        """Tooltip should show the full project_key."""
+        """工具提示应显示完整 project_key。"""
         content = _read_template()
-        # projects.html passes full p.project_key to macro;
-        # the macro renders data-tooltip="{{ path }}"
+        # projects.html 将完整 p.project_key 传递给宏；
+        # 宏渲染 data-tooltip="{{ path }}"
         assert "ui.project_cell(" in content, \
             "projects.html must use project_cell macro"
-        # Verify macro template has data-tooltip
+        # 验证宏模板有 data-tooltip
         macro = _read_ui_primitives()
         assert 'data-tooltip="{{ path }}"' in macro, \
             "project_cell macro must have data-tooltip on path"
 
 
 class TestProjectsTemplateTitle:
-    """Verify the title doesn't have excessive spacing."""
+    """验证标题没有过度间距。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_title_not_justified_between(self):
-        """Title should not use justify-between to separate ( and )."""
+        """标题不应使用 justify-between 分隔 ( 和 )。"""
         content = _read_template()
         assert "justify-between" not in content
-        # Should use ui.table_card macro which renders card-title (T103: migrated)
+        # 应使用 ui.table_card 宏来渲染 card-title（T103：已迁移）
         assert "ui.table_card(" in content
 
 
 # ── TestProjectsTemplate ──────────────────────────────────────────
 
 class TestProjectsTemplate:
-    """Verify the projects Jinja2 template renders structurally."""
+    """验证 projects Jinja2 模板的结构化渲染。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_template_file_exists(self):
@@ -210,7 +210,7 @@ class TestProjectsTemplate:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_inline_onclick(self):
-        """Projects must not use inline onclick handlers."""
+        """Projects 不得使用 inline onclick 处理器。"""
         content = _read_template()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
         assert len(matches) == 0, \
@@ -220,7 +220,7 @@ class TestProjectsTemplate:
 # ── TestProjectsImports ───────────────────────────────────────────
 
 class TestProjectsImports:
-    """Verify CSS and JS import statements."""
+    """验证 CSS 和 JS 导入语句。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_css_import_projects_css(self):
@@ -248,7 +248,7 @@ class TestProjectsImports:
 # ── TestProjectsPageHead ──────────────────────────────────────────
 
 class TestProjectsPageHead:
-    """Verify page-head structure (uses ui.page_head macro, T15)."""
+    """验证 page-head 结构（使用 ui.page_head 宏，T15）。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_page_head_macro_used(self):
@@ -284,7 +284,7 @@ class TestProjectsPageHead:
 # ── TestProjectsMetricCards ───────────────────────────────────────
 
 class TestProjectsMetricCards:
-    """Verify 4 metric cards with correct labels and structure."""
+    """验证 4 个指标卡片带有正确标签和结构。"""
 
     _EXPECTED_LABELS = ["Projects", "Sessions", "Total Tokens", "Failed Tools"]
 
@@ -306,22 +306,22 @@ class TestProjectsMetricCards:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_card_labels(self, label):
         content = _read_template()
-        # Template has ">Label\n" or '>"Label"' -- check for the label text near metric-card__label
+        # 模板使用 ">Label\n" 或 '>"Label"' -- 检查 metric-card__label 附近的标签文本
         assert f">{label}" in content, \
             f"Projects must have a metric card labeled '{label}'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_card_aria_labels(self):
-        """Each metric card must have a data-metric attribute for info buttons."""
+        """每个指标卡片必须有 data-metric 属性供信息按钮使用。"""
         content = _read_template()
-        # Template uses data-metric on info buttons
+        # 模板在信息按钮上使用 data-metric
         data_metrics = re.findall(r'data-metric="([^"]*)"', content)
         assert len(data_metrics) >= 4, \
             f"Projects must have at least 4 data-metric attributes, found {len(data_metrics)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_card_has_icon(self):
-        """Each metric card must have a metric-icon element."""
+        """每个指标卡片必须有 metric-icon 元素。"""
         content = _read_template()
         icons = re.findall(r'class="metric-icon[^"]*"', content)
         assert len(icons) >= 4, \
@@ -329,7 +329,7 @@ class TestProjectsMetricCards:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_card_has_label_class(self):
-        """Each metric card must have a metric-card__label element."""
+        """每个指标卡片必须有 metric-card__label 元素。"""
         content = _read_template()
         labels = re.findall(r'class="metric-card__label"', content)
         assert len(labels) >= 4, \
@@ -337,7 +337,7 @@ class TestProjectsMetricCards:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_card_has_value_class(self):
-        """Each metric card must have a metric-card__value element."""
+        """每个指标卡片必须有 metric-card__value 元素。"""
         content = _read_template()
         values = re.findall(r'class="metric-card__value mono"', content)
         assert len(values) >= 4, \
@@ -345,7 +345,7 @@ class TestProjectsMetricCards:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_card_has_panel_sub(self):
-        """Each metric card must have a metric-card__sub element."""
+        """每个指标卡片必须有 metric-card__sub 元素。"""
         content = _read_template()
         subs = re.findall(r'class="metric-card__sub"', content)
         assert len(subs) >= 4, \
@@ -353,7 +353,7 @@ class TestProjectsMetricCards:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_info_buttons(self):
-        """Each metric card must have an info button with data-action='metric-info'."""
+        """每个指标卡片必须有带 data-action='metric-info' 的信息按钮。"""
         content = _read_template()
         buttons = re.findall(r'data-action="metric-info"', content)
         assert len(buttons) == 4, \
@@ -361,7 +361,7 @@ class TestProjectsMetricCards:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_info_buttons_have_data_metric(self):
-        """Each info button must have a data-metric attribute."""
+        """每个信息按钮必须有 data-metric 属性。"""
         content = _read_template()
         data_metrics = re.findall(r'data-metric="[^"]*"', content)
         assert len(data_metrics) >= 4, \
@@ -369,7 +369,7 @@ class TestProjectsMetricCards:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_info_uses_icon_button_info_class(self):
-        """Info buttons must use icon-button--info class."""
+        """信息按钮必须使用 icon-button--info 类。"""
         content = _read_template()
         assert "icon-button--info" in content, \
             "Info buttons must use icon-button--info class"
@@ -378,7 +378,7 @@ class TestProjectsMetricCards:
 # ── TestProjectsFilterCard ────────────────────────────────────────
 
 class TestProjectsFilterCard:
-    """Verify filter card structure."""
+    """验证过滤卡片结构。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     @pytest.mark.contract_case("UI-PROJECTS-005")
@@ -390,7 +390,7 @@ class TestProjectsFilterCard:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_search_input_with_data_search(self):
-        # data-search attribute is optional with macro-based filters
+        # 基于宏的过滤器中 data-search 属性是可选的
         content = _read_template()
         assert ('data-search="project-name"' in content
                 or "id='project-search'" in content
@@ -429,7 +429,7 @@ class TestProjectsFilterCard:
 # ── TestProjectsTableStructure ────────────────────────────────────
 
 class TestProjectsTableStructure:
-    """Verify table structure and column headers."""
+    """验证表格结构和列表头。"""
 
     _EXPECTED_COLUMNS = ["Project", "Agents", "Sessions", "Tokens", "Tools", "Last Active"]
 
@@ -470,7 +470,7 @@ class TestProjectsTableStructure:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_sortable_headers_have_title(self):
         content = _read_template()
-        # Unified pattern: sort-button has title attribute (Chinese label)
+        # 统一模式：sort-button 有 title 属性（中文标签）
         sort_titles = re.findall(r'title="按[^"]*排序"', content)
         assert len(sort_titles) >= 4, \
             f"Sortable headers must have sort title, found {len(sort_titles)}"
@@ -501,7 +501,7 @@ class TestProjectsTableStructure:
 # ── TestProjectsRowStructure ──────────────────────────────────────
 
 class TestProjectsRowStructure:
-    """Verify table row structure and data attributes."""
+    """验证表格行结构和数据属性。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_row_has_open_project_action(self):
@@ -542,37 +542,37 @@ class TestProjectsRowStructure:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_name_link(self):
         content = _read_template()
-        # projects.html delegates to project_cell macro;
-        # verify macro defines the class
+        # projects.html 委托给 project_cell 宏；
+        # 验证宏定义了该类
         assert 'class="project-name-link"' in _read_ui_primitives(), \
             "project_cell macro must define project-name-link class"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_name_link_action(self):
         content = _read_template()
-        # Verify projects.html passes name_data_action parameter
+        # 验证 projects.html 传递 name_data_action 参数
         assert "name_data_action='open-project-link'" in content, \
             "projects.html must pass name_data_action='open-project-link' to macro"
-        # Verify macro supports name_data_action
+        # 验证宏支持 name_data_action
         macro = _read_ui_primitives()
         assert "name_data_action" in macro, \
             "project_cell macro must support name_data_action parameter"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_path_text_truncate(self):
-        # Path text class is defined in the macro
+        # 路径文本类在宏中定义
         assert 'class="path-text truncate"' in _read_ui_primitives(), \
             "project_cell macro must define path-text truncate class"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_path_copy_button(self):
-        # Copy button class is defined in the macro
+        # 复制按钮类在宏中定义
         assert 'class="path-copy-btn"' in _read_ui_primitives(), \
             "project_cell macro must define path-copy-btn class"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_path_copy_button_data_action(self):
-        # Copy button data-action is defined in the macro
+        # 复制按钮 data-action 在宏中定义
         assert 'data-action="copy-project-path"' in _read_ui_primitives(), \
             "project_cell macro must have data-action='copy-project-path'"
 
@@ -596,7 +596,7 @@ class TestProjectsRowStructure:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_tokenbar_present(self):
-        # Token cells are rendered via ui.token_cell macro
+        # Token 单元格通过 ui.token_cell 宏渲染
         content = _read_template()
         assert 'ui.token_cell' in content, \
             "projects.html must call ui.token_cell macro"
@@ -643,7 +643,7 @@ class TestProjectsRowStructure:
 # ── TestProjectsPagination ────────────────────────────────────────
 
 class TestProjectsPagination:
-    """Verify pagination structure."""
+    """验证分页结构。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_nav_present(self):
@@ -685,7 +685,7 @@ class TestProjectsPagination:
 # ── TestProjectsEmptyState ────────────────────────────────────────
 
 class TestProjectsEmptyState:
-    """Verify empty state rendering."""
+    """验证空态渲染。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_empty_state_macro_used(self):
@@ -702,7 +702,7 @@ class TestProjectsEmptyState:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_empty_state_has_icon(self):
         content = _read_template()
-        # Check the inline empty state strip has state-icon element
+        # 检查内联空态条带有 state-icon 元素
         assert 'class="state-icon"' in content, \
             "Empty state must have state-icon element"
         assert "state-strip" in content, \
@@ -717,7 +717,7 @@ class TestProjectsEmptyState:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_empty_state_has_data_action_clear_search(self):
         content = _read_template()
-        # The inline empty state strip also has clear-search
+        # 内联空态条也有 clear-search
         assert 'data-action="clear-search"' in content, \
             "Empty state clear button must have data-action='clear-search'"
 
@@ -725,7 +725,7 @@ class TestProjectsEmptyState:
 # ── TestProjectsErrorState ────────────────────────────────────────
 
 class TestProjectsErrorState:
-    """Verify error state rendering."""
+    """验证错误态渲染。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_error_state_condition(self):
@@ -753,17 +753,17 @@ class TestProjectsErrorState:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_error_state_has_role_alert(self):
-        """Error state macro generates role='alert' at render time."""
+        """错误态宏在渲染时生成 role='alert'。"""
         content = _read_template()
-        # The ui.error_state macro generates role="alert"; verify the macro is used
+        # ui.error_state 宏生成 role="alert"；验证使用了该宏
         assert "ui.error_state" in content, \
             "Error state must use ui.error_state macro (which generates role='alert')"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_error_state_has_aria_live_assertive(self):
-        """Error state macro generates aria-live='assertive' at render time."""
+        """错误态宏在渲染时生成 aria-live='assertive'。"""
         content = _read_template()
-        # The ui.error_state macro generates aria-live="assertive"; verify the macro is used
+        # ui.error_state 宏生成 aria-live="assertive"；验证使用了该宏
         assert "ui.error_state" in content, \
             "Error state must use ui.error_state macro (which generates aria-live='assertive')"
 
@@ -771,7 +771,7 @@ class TestProjectsErrorState:
 # ── TestProjectsNoStalePatterns ───────────────────────────────────
 
 class TestProjectsNoStalePatterns:
-    """Verify stale v15/v16 patterns are NOT present."""
+    """验证不存在的 v15/v16 陈旧模式。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_cache_r_columns(self):
@@ -787,9 +787,9 @@ class TestProjectsNoStalePatterns:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_select_based_sorting(self):
-        """No <select> elements for sorting — uses button-based sortable headers."""
+        """无用于排序的 <select> 元素 — 使用基于按钮的可排序表头。"""
         content = _read_template()
-        # Should not have sorting via select elements
+        # 不应有通过 select 元素的排序
         assert '<select' not in content, \
             "Projects must not use select-based sorting"
 
@@ -802,16 +802,16 @@ class TestProjectsNoStalePatterns:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_inline_script_in_template(self):
-        """Template must not have inline <script> blocks (uses script_extra)."""
+        """模板不得有 inline <script> 块（使用 script_extra）。"""
         content = _read_template()
-        # Only allow script_extra block with src= import
+        # 只允许带 src= 导入的 script_extra 块
         script_tags = re.findall(r'<script(?! src)[^>]*>', content)
         assert len(script_tags) == 0, \
             f"Projects must not have inline script tags, found {len(script_tags)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_inline_style_in_template(self):
-        """Template must not have inline style blocks (uses projects.css)."""
+        """模板不得有 inline style 块（使用 projects.css）。"""
         content = _read_template()
         style_blocks = re.findall(r'<style[^>]*>', content)
         assert len(style_blocks) == 0, \
@@ -839,7 +839,7 @@ class TestProjectsNoStalePatterns:
 # ── TestProjectsDataActions ───────────────────────────────────────
 
 class TestProjectsDataActions:
-    """Verify all required data-action attributes are present."""
+    """验证所有必需的 data-action 属性都存在。"""
 
     _EXPECTED_ACTIONS = [
         "open-project",
@@ -851,9 +851,9 @@ class TestProjectsDataActions:
         "next-page",
     ]
 
-    # Actions defined in the project_cell macro (verified separately)
-    # Note: open-project-link is passed via name_data_action parameter,
-    # so the macro has data-action="{{ name_data_action }}" not a literal string.
+    # 在 project_cell 宏中定义的 actions（单独验证）
+    # 注意：open-project-link 通过 name_data_action 参数传递，
+    # 因此宏使用 data-action="{{ name_data_action }}" 而非字面字符串。
     _MACRO_ACTIONS = [
         "copy-project-path",
     ]
@@ -862,7 +862,7 @@ class TestProjectsDataActions:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_data_action_present(self, action):
         content = _read_template()
-        # Accept both rendered HTML (data-action="...") and Jinja2 params (data_action='...')
+        # 接受渲染后的 HTML（data-action="..."）和 Jinja2 参数（data_action='...'）
         assert (f'data-action="{action}"' in content
                 or f"data_action='{action}'" in content), \
             f"Template must have data-action='{action}'"
@@ -870,48 +870,48 @@ class TestProjectsDataActions:
     @pytest.mark.parametrize("action", _MACRO_ACTIONS)
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_macro_data_actions(self, action):
-        """Verify data-actions defined in the project_cell macro."""
+        """验证 project_cell 宏中定义的 data-action。"""
         macro = _read_ui_primitives()
         assert f'data-action="{action}"' in macro, \
             f"project_cell macro must have data-action='{action}'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_projects_passes_open_project_link(self):
-        """Verify projects.html passes the open-project-link action to macro."""
+        """验证 projects.html 将 open-project-link action 传递给宏。"""
         content = _read_template()
         assert "name_data_action='open-project-link'" in content, \
             "projects.html must pass name_data_action='open-project-link'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_macro_supports_name_data_action(self):
-        """Verify macro renders data-action from name_data_action parameter."""
+        """验证宏从 name_data_action 参数渲染 data-action。"""
         macro = _read_ui_primitives()
         assert 'data-action="{{ name_data_action }}"' in macro, \
             "project_cell macro must support name_data_action parameter"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_data_action_go_dashboard(self):
-        """go-dashboard action is generated via ui.button macro parameter."""
+        """go-dashboard action 通过 ui.button 宏参数生成。"""
         content = _read_template()
-        # Template uses Jinja2 macro parameter: data_action='go-dashboard'
+        # 模板使用 Jinja2 宏参数：data_action='go-dashboard'
         assert "go-dashboard" in content, \
             "Template must have go-dashboard action"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_data_action_run_scan(self):
-        """run-scan action is generated via ui.button macro parameter."""
+        """run-scan action 通过 ui.button 宏参数生成。"""
         content = _read_template()
-        # Template uses Jinja2 macro parameter: data_action='run-scan'
+        # 模板使用 Jinja2 宏参数：data_action='run-scan'
         assert "run-scan" in content, \
             "Template must have run-scan action"
 
 
-# ── Fixture-based live server tests ────────────────────────────────
+# ── 基于夹具的实时服务器测试 ────────────────────────────────
 
 
 @pytest.fixture(scope="module")
 def projects_html(hifi_fixture_session):
-    """Fetch rendered projects HTML from the live fixture server."""
+    """从实时夹具服务器获取渲染后的 projects HTML。"""
     base_url, agent, session_id = hifi_fixture_session
     import urllib.request
 
@@ -921,73 +921,73 @@ def projects_html(hifi_fixture_session):
 
 
 class TestProjectsPageRender:
-    """Verify the rendered Projects page from a live fixture server."""
+    """验证实时夹具服务器上渲染后的 Projects 页面。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     @pytest.mark.contract_case("UI-PROJECTS-009")
     def test_page_returns_200(self, projects_html):
-        """Projects page must render with substantial HTML."""
+        """Projects 页面必须渲染出足够内容的 HTML。"""
         assert len(projects_html) > 500, \
             "Projects HTML must be substantial"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_has_doctype_and_html(self, projects_html):
-        """Page must have proper HTML structure."""
+        """页面必须有正确的 HTML 结构。"""
         assert "<!doctype html" in projects_html.lower() or "<!DOCTYPE html" in projects_html, \
             "Projects page must have DOCTYPE declaration"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_title_contains_projects(self, projects_html):
-        """Page title must contain 'Projects'."""
+        """页面标题必须包含 'Projects'。"""
         assert "<title>Projects" in projects_html, \
             "Page title must contain 'Projects'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_has_page_head_title(self, projects_html):
-        """Page must show 'Projects' as the page heading."""
+        """页面必须显示 'Projects' 作为页面标题。"""
         assert "Projects" in projects_html, \
             "'Projects' text must appear in rendered page"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_has_subtitle(self, projects_html):
-        """Page must show the subtitle about indexed workspaces."""
+        """页面必须显示关于已索引工作区的副标题。"""
         assert "Indexed local workspaces" in projects_html, \
             "Subtitle 'Indexed local workspaces' must appear"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_inline_onclick(self, projects_html):
-        """Rendered page must not use inline onclick handlers."""
+        """渲染后的页面不得使用 inline onclick 处理器。"""
         matches = re.findall(r'\bonclick\s*=', projects_html, re.IGNORECASE)
         assert len(matches) == 0, \
             f"Projects page must not have inline onclick, found {len(matches)}"
 
 
 class TestProjectsListRender:
-    """Verify the project list is rendered with fixture data."""
+    """验证使用夹具数据渲染的项目列表。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_grid_present(self, projects_html):
-        """Projects page must have a metric-grid container."""
+        """Projects 页面必须有 metric-grid 容器。"""
         assert 'class="metric-grid"' in projects_html, \
             "metric-grid must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_four_metric_cards(self, projects_html):
-        """Exactly 4 metric cards must be rendered."""
+        """必须恰好渲染 4 个指标卡片。"""
         cards = re.findall(r'class="metric-card"', projects_html)
         assert len(cards) == 4, \
             f"Expected 4 metric cards, found {len(cards)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_metric_card_labels(self, projects_html):
-        """All 4 metric labels must be visible."""
+        """所有 4 个指标标签必须可见。"""
         for label in ["Projects", "Sessions", "Total Tokens", "Failed Tools"]:
             assert f">{label}" in projects_html or f'aria-label="{label}"' in projects_html, \
                 f"Metric card labeled '{label}' must be visible"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_count_positive(self, projects_html):
-        """Project count must be greater than 0 with fixture data."""
+        """使用夹具数据时项目计数必须大于 0。"""
         match = re.search(
             r'class="metric-card__value mono">(\d[\d,]*)<',
             projects_html
@@ -999,171 +999,171 @@ class TestProjectsListRender:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_projects_count_element(self, projects_html):
-        """The projects-count element must be present and populated."""
+        """projects-count 元素必须存在并已填充。"""
         assert 'id="projects-count"' in projects_html, \
             "projects-count element must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_projects_table_present(self, projects_html):
-        """Projects table must be rendered."""
+        """Projects 表格必须已渲染。"""
         assert 'id="projects-table"' in projects_html, \
             "projects-table must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_table_has_data_enhanced(self, projects_html):
-        """Table must have data-table-enhanced attribute."""
+        """表格必须有 data-table-enhanced 属性。"""
         assert 'data-table-enhanced' in projects_html, \
             "Table must have data-table-enhanced attribute"
 
 
 class TestProjectsColumnHeaders:
-    """Verify rendered table column headers."""
+    """验证渲染后的表格列表头。"""
 
     @pytest.mark.parametrize("column", ["Project", "Agents", "Sessions", "Tokens", "Tools", "Last Active"])
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_column_header_rendered(self, projects_html, column):
-        """Each expected column header must be present in rendered HTML."""
+        """每个预期的列表头必须出现在渲染后的 HTML 中。"""
         assert f"<th>{column}</th>" in projects_html or f"<th " in projects_html and column in projects_html, \
             f"Table must have '{column}' column header"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_column_not_sortable(self, projects_html):
-        """Project column must NOT have sort controls."""
-        # Project column is static; it should not have data-sort-key
+        """Project 列不得有排序控件。"""
+        # Project 列是静态的；不应有 data-sort-key
         project_th_section = projects_html[projects_html.find("Project"):projects_html.find("Project") + 200]
-        # The Project header itself should not carry data-sort-key
+        # Project 表头本身不应携带 data-sort-key
         assert 'data-sort-key' not in project_th_section.split("Agents")[0] if "Agents" in project_th_section else True, \
             "Project column should not be sortable"
 
 
 class TestProjectsProjectData:
-    """Verify individual project data rows are rendered."""
+    """验证各项目数据行已渲染。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_rows_present(self, projects_html):
-        """At least one project table row must be rendered (rows use <tr> with data-action='open-project')."""
-        # Project rows are <tr data-action="open-project" ...> elements inside the table body
+        """必须至少渲染一个项目表格行（行使用带 data-action='open-project' 的 <tr>）。"""
+        # 项目行是表格主体内的 <tr data-action="open-project" ...> 元素
         rows = re.findall(r'<tr\s+data-action="open-project"', projects_html)
         assert len(rows) > 0, \
             "At least one project <tr> with data-action='open-project' must be rendered"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_row_has_data_name(self, projects_html):
-        """Each project row must have data-name attribute."""
+        """每个项目行必须有 data-name 属性。"""
         assert 'data-name=' in projects_html, \
             "Project rows must have data-name attribute"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_row_has_data_path(self, projects_html):
-        """Each project row must have data-path attribute."""
+        """每个项目行必须有 data-path 属性。"""
         assert 'data-path=' in projects_html, \
             "Project rows must have data-path attribute"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_row_has_data_total_sessions(self, projects_html):
-        """Each project row must have data-total-sessions attribute."""
+        """每个项目行必须有 data-total-sessions 属性。"""
         assert 'data-total-sessions=' in projects_html, \
             "Project rows must have data-total-sessions attribute"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_row_has_data_total_tokens(self, projects_html):
-        """Each project row must have data-total-tokens attribute."""
+        """每个项目行必须有 data-total-tokens 属性。"""
         assert 'data-total-tokens=' in projects_html, \
             "Project rows must have data-total-tokens attribute"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_project_name_link_rendered(self, projects_html):
-        """Project name links must be rendered."""
+        """项目名称链接必须已渲染。"""
         assert 'class="project-name-link"' in projects_html, \
             "Project name links must use project-name-link class"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_open_project_action(self, projects_html):
-        """Rows must have data-action='open-project'."""
+        """行必须有 data-action='open-project'。"""
         assert 'data-action="open-project"' in projects_html, \
             "Project rows must have open-project action"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_agent_badge_rendered(self, projects_html):
-        """At least one agent badge must be rendered."""
+        """必须至少渲染一个 agent 徽章。"""
         assert 'badge_with_dot' not in projects_html or "badge" in projects_html, \
             "Agent badges must be rendered in project rows"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_token_cell_rendered(self, projects_html):
-        """Token bar segments must be rendered in the table."""
+        """Token 条段必须在表格中渲染。"""
         assert 'tokenbar-seg' in projects_html, \
             "Token bar segments must be rendered"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_relative_time_rendered(self, projects_html):
-        """Last Active column must show relative time text (e.g. 'Xd ago', 'Xh ago')."""
-        # relative_time filter returns plain text like "3d ago" or "2h ago"
+        """Last Active 列必须显示相对时间文本（如 'Xd ago'、'Xh ago'）。"""
+        # relative_time 过滤器返回纯文本如 "3d ago" 或 "2h ago"
         assert re.search(r'\d+[dhm]\s+ago', projects_html), \
             "Last Active column must show relative time like 'Xd ago'"
 
 
 class TestProjectsFilterRender:
-    """Verify the filter card is rendered."""
+    """验证过滤卡片已渲染。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_filter_card_present(self, projects_html):
-        """Filter card must be in the rendered page."""
+        """过滤卡片必须出现在渲染后的页面中。"""
         assert 'class="card filter-card"' in projects_html, \
             "Filter card must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_search_input_present(self, projects_html):
-        """Project search input must be rendered."""
+        """项目搜索输入必须已渲染。"""
         assert 'id="project-search"' in projects_html, \
             "Search input with id='project-search' must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_apply_button_present(self, projects_html):
-        """Apply search button must be present."""
+        """应用搜索按钮必须存在。"""
         assert 'data-action="apply-search"' in projects_html, \
             "Apply search button must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_clear_button_present(self, projects_html):
-        """Clear search button must be present."""
+        """清除搜索按钮必须存在。"""
         assert 'data-action="clear-search"' in projects_html, \
             "Clear search button must be present"
 
 
 class TestProjectsPaginationRender:
-    """Verify pagination is rendered."""
+    """验证分页已渲染。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_present(self, projects_html):
-        """Pagination controls must be present."""
+        """分页控件必须存在。"""
         assert 'class="pagination unified-pagination"' in projects_html, \
             "Pagination must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_page_input_present(self, projects_html):
-        """Page input must be rendered."""
+        """页面输入必须已渲染。"""
         assert 'data-action="page-input"' in projects_html, \
             "Page input must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_next_page_present(self, projects_html):
-        """Next page button must be rendered."""
+        """下一页按钮必须已渲染。"""
         assert 'data-action="next-page"' in projects_html, \
             "Next page button must be present"
 
 
 class TestProjectsBreadcrumb:
-    """Verify the breadcrumb navigation."""
+    """验证面包屑导航。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_breadcrumb_has_dashboard_link(self, projects_html):
-        """Breadcrumb must link back to dashboard."""
+        """面包屑必须链接回 dashboard。"""
         assert 'href="/dashboard"' in projects_html, \
             "Breadcrumb must have link to /dashboard"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_breadcrumb_has_current(self, projects_html):
-        """Breadcrumb must show 'Projects' as current page."""
+        """面包屑必须显示 'Projects' 为当前页。"""
         assert 'class="current">Projects</span>' in projects_html, \
             "Breadcrumb must show Projects as current"

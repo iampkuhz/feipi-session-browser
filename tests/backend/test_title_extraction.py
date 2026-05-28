@@ -1,4 +1,4 @@
-"""Tests for title extraction from Claude Code content."""
+"""测试从 Claude Code 内容中提取标题。"""
 import pytest
 from session_browser.sources.claude import (
     _extract_readable_title,
@@ -7,7 +7,7 @@ from session_browser.sources.claude import (
 
 
 class TestTitleExtraction:
-    """Test title extraction from various content patterns."""
+    """测试从各种内容模式中提取标题。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-015")
     def test_command_envelope_with_args(self):
@@ -17,7 +17,7 @@ class TestTitleExtraction:
         )
         title = _extract_readable_title(content)
         assert "spec-research" in title
-        # The args text should be summarized
+        # 参数字段文本应被摘要
         assert "·" in title
 
     @pytest.mark.contract_case("DATA-SOURCE-015")
@@ -30,7 +30,7 @@ class TestTitleExtraction:
     def test_normal_user_message(self):
         content = "帮我创建一个 tool，可以查看历史记录"
         title = _extract_readable_title(content)
-        # Should summarize the text
+        # 应摘要化文本
         assert len(title) <= 80
         assert title != ""
 
@@ -69,7 +69,7 @@ class TestTitleExtraction:
 
 
 class TestSummarizeText:
-    """Test text summarization helper."""
+    """测试文本摘要辅助函数。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-015")
     def test_short_text(self):

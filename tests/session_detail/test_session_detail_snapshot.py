@@ -1,18 +1,17 @@
-"""Session detail snapshot tests.
+"""Session detail snapshot 测试。
 
-End-to-end tests that call the presenter to generate a complete session detail
-view model from fixture data, then compare key metrics against expected JSON
-snapshots.
+端到端测试，调用 presenter 从 fixture 数据生成完整的 session detail
+视图模型，然后将关键指标与预期 JSON snapshot 进行比较。
 
-Coverage:
-- Round count, token totals, subagent count
-- Tool call count, failed tool count, tool name diversity
-- LLM call counts (main vs subagent)
-- Round-level signals
-- Session anomaly detection
+覆盖范围:
+- Round 数量、token 总计、subagent 数量
+- Tool 调用次数、失败 tool 次数、tool 名称多样性
+- LLM 调用次数（main vs subagent）
+- Round 级信号
+- Session 异常检测
 
-The snapshot fixture lives at tests/fixtures/session_detail/*.expected.json.
-Run with: pytest tests/session_detail/test_session_detail_snapshot.py -v
+snapshot fixture 位于 tests/fixtures/session_detail/*.expected.json。
+运行方式: pytest tests/session_detail/test_session_detail_snapshot.py -v
 """
 
 from __future__ import annotations
@@ -29,16 +28,16 @@ HIFFI_FIXTURE_DIR = SB_ROOT / "tests" / "fixtures" / "session_hifi_fixture"
 
 
 def _set_fixture_env():
-    """Point CLAUDE_DATA_DIR at the hifi fixture and reload config."""
+    """将 CLAUDE_DATA_DIR 指向 hifi fixture 并重新加载配置。"""
     import importlib
 
     old_data_dir = os.environ.get("CLAUDE_DATA_DIR", "")
     os.environ["CLAUDE_DATA_DIR"] = str(HIFFI_FIXTURE_DIR)
 
-    # Reload config so CLAUDE_DATA_DIR is re-read
+    # 重新加载配置以读取 CLAUDE_DATA_DIR
     if "session_browser.config" in sys.modules:
         importlib.reload(sys.modules["session_browser.config"])
-    # Clear source modules to force re-scan of fixture
+    # 清除 source 模块以强制重新扫描 fixture
     for _mod in list(sys.modules):
         if _mod.startswith("session_browser.sources"):
             del sys.modules[_mod]
@@ -53,12 +52,12 @@ def _restore_env(old_data_dir: str):
         os.environ.pop("CLAUDE_DATA_DIR", None)
 
 
-# Add src to path
+# 将 src 添加到路径
 sys.path.insert(0, str(SB_ROOT / "src"))
 
 
 def _build_view_model():
-    """Parse fixture, build presenter view model, return structured snapshot data."""
+    """解析 fixture，构建 presenter 视图模型，返回结构化 snapshot 数据。"""
     old_data_dir = _set_fixture_env()
     try:
         from session_browser.sources.claude import parse_session_detail
@@ -78,7 +77,7 @@ def _build_view_model():
 
         agent = "claude_code"
 
-        # Simple md_filter (no actual markdown rendering for snapshot)
+        # 简单 md_filter（snapshot 不做实际 markdown 渲染）
         def md_filter(text: str) -> str:
             return text
 
@@ -99,9 +98,9 @@ def _build_view_model():
         for r in rounds:
             r.compute_preview()
 
-        # ── Build snapshot dict ──────────────────────────────────────
+        # ── 构建 snapshot 字典 ──────────────────────────────────────
 
-        # Summary
+        # 摘要
         total_tokens = (
             summary.input_tokens
             + summary.output_tokens
@@ -109,16 +108,16 @@ def _build_view_model():
             + summary.cached_output_tokens
         )
 
-        # Messages
+        # 消息
         assistant_msgs = [m for m in messages if m.role == "assistant"]
         assistant_with_content = [m for m in assistant_msgs if m.content]
         assistant_with_llm_call_id = [m for m in assistant_msgs if m.llm_call_id]
 
-        # Tool calls
+        # Tool 调用
         tool_names = sorted(set(tc.name for tc in tool_calls))
         failed_tools = sorted(set(tc.name for tc in tool_calls if tc.is_failed))
 
-        # Subagent runs
+        # Subagent 运行
         subagent_run_details = []
         for run in subagent_runs:
             s = run["summary"]
@@ -135,7 +134,7 @@ def _build_view_model():
                 "total_output_tokens": sub_output,
             })
 
-        # Rounds
+        # 轮次
         round_details = []
         for i, r in enumerate(rounds):
             signals = compute_round_signals(r, i + 1, summary.input_tokens)
@@ -149,15 +148,15 @@ def _build_view_model():
                 "signal_count": len(signals),
             })
 
-        # LLM calls
+        # LLM 调用
         main_calls = [c for c in llm_calls if c.scope == "main"]
         sub_calls = [c for c in llm_calls if c.scope == "subagent"]
 
-        # Anomalies
+        # 异常
         session_data = compute_derived_metrics(summary.to_dict())
         sa = detect_session_anomalies(session_data)
 
-        # Round signals
+        # Round 信号
         signals_by_round = {}
         total_signal_count = 0
         for i, r in enumerate(rounds):
@@ -237,25 +236,25 @@ def _build_view_model():
 
 
 def _load_expected():
-    """Load the expected snapshot JSON."""
+    """加载预期的 snapshot JSON。"""
     expected_path = FIXTURES_DIR / "hifi-viz-session-001.expected.json"
     with open(expected_path, "r", encoding="utf-8") as fh:
         return json.load(fh)
 
 
 class TestSessionDetailSnapshot:
-    """End-to-end snapshot tests for session detail view model."""
+    """Session detail 视图模型的端到端 snapshot 测试。"""
 
     @pytest.fixture(autouse=True)
     def snapshot(self):
-        """Build the view model once per test class."""
+        """构建视图模型，每个测试类执行一次。"""
         return _build_view_model()
 
-    # ── Summary ───────────────────────────────────────────────────
+    # ── 摘要 ────────────────────────────────────────────────────
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_summary_identity(self, snapshot):
-        """Agent, session_id, project_key must match expected."""
+        """Agent、session_id、project_key 必须与预期值匹配。"""
         expected = _load_expected()
         assert snapshot["agent"] == expected["agent"]
         assert snapshot["session_id"] == expected["session_id"]
@@ -263,7 +262,7 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_summary_title_and_model(self, snapshot):
-        """Title and model must match expected."""
+        """Title 和 model 必须与预期值匹配。"""
         expected = _load_expected()
         assert snapshot["summary"]["title"] == expected["summary"]["title"]
         assert snapshot["summary"]["model"] == expected["summary"]["model"]
@@ -272,7 +271,7 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_token_totals(self, snapshot):
-        """All token category totals must match expected."""
+        """所有 token 类别总计必须与预期值匹配。"""
         expected = _load_expected()
         for key in (
             "input_tokens", "output_tokens",
@@ -283,7 +282,7 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_llm_call_token_aggregates(self, snapshot):
-        """Aggregate token counts across all LLM calls must match expected."""
+        """所有 LLM 调用的聚合 token 计数必须与预期值匹配。"""
         expected = _load_expected()
         for key in (
             "aggregate_input_tokens", "aggregate_output_tokens",
@@ -296,7 +295,7 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_message_counts(self, snapshot):
-        """Message counts must match expected."""
+        """消息计数必须与预期值匹配。"""
         expected = _load_expected()
         for key in ("total_count", "assistant_count", "assistant_with_content", "assistant_with_llm_call_id"):
             assert snapshot["messages"][key] == expected["messages"][key], \
@@ -306,14 +305,14 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_round_count(self, snapshot):
-        """Round count must match expected."""
+        """Round 数量必须与预期值匹配。"""
         expected = _load_expected()
         assert snapshot["rounds"]["count"] == expected["rounds"]["count"], \
             f"Expected {expected['rounds']['count']} rounds, got {snapshot['rounds']['count']}"
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_round_details(self, snapshot):
-        """Each round's tool count, token count, interaction count must match."""
+        """每个 round 的 tool 数量、token 总计、交互次数必须匹配。"""
         expected = _load_expected()
         assert len(snapshot["rounds"]["rounds"]) == len(expected["rounds"]["rounds"])
         for i, (actual_r, expected_r) in enumerate(
@@ -327,13 +326,13 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_tool_call_count(self, snapshot):
-        """Total tool call count must match expected."""
+        """Tool 调用总次数必须与预期值匹配。"""
         expected = _load_expected()
         assert snapshot["tool_calls"]["total_count"] == expected["tool_calls"]["total_count"]
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_tool_name_diversity(self, snapshot):
-        """Tool name set must match expected (verifies fixture diversity)."""
+        """Tool 名称集合必须与预期值匹配（验证 fixture 多样性）。"""
         expected = _load_expected()
         assert sorted(snapshot["tool_calls"]["unique_tool_names"]) == sorted(
             expected["tool_calls"]["unique_tool_names"]
@@ -341,7 +340,7 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_failed_tool_count(self, snapshot):
-        """Failed tool count and names must match expected."""
+        """失败 tool 的次数和名称必须与预期值匹配。"""
         expected = _load_expected()
         assert snapshot["tool_calls"]["failed_count"] == expected["tool_calls"]["failed_count"]
         assert sorted(snapshot["tool_calls"]["failed_tools"]) == sorted(
@@ -352,7 +351,7 @@ class TestSessionDetailSnapshot:
 
     @pytest.mark.contract_case("UI-SD-015")
     def test_llm_call_counts(self, snapshot):
-        """Main and subagent LLM call counts must match expected."""
+        """Main 和 subagent LLM 调用次数必须与预期值匹配。"""
         expected = _load_expected()
         assert snapshot["llm_calls"]["total_count"] == expected["llm_calls"]["total_count"]
         assert snapshot["llm_calls"]["main_count"] == expected["llm_calls"]["main_count"]

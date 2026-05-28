@@ -1,13 +1,13 @@
-"""Tests for session_browser.web.renderers.llm_blocks module.
+"""session_browser.web.renderers.llm_blocks 模块测试。
 
-Covers:
-- normalize_llm_content behavior (tool results, file markers, plain text, line numbers)
-- render_llm_blocks_html output (HTML card structure, escaping)
-- Code block rendering (language inference, file_code kind)
-- File path processing (file marker detection, multi-file splitting)
-- Empty input handling
-- _content_parts_to_blocks bridge
-- _parts_mode_from_raw bridge
+覆盖：
+- normalize_llm_content 行为（工具结果、文件标记、纯文本、行号）
+- render_llm_blocks_html 输出（HTML 卡片结构、转义）
+- 代码块渲染（语言推断、file_code kind）
+- 文件路径处理（文件标记检测、多文件分割）
+- 空输入处理
+- _content_parts_to_blocks 桥接
+- _parts_mode_from_raw 桥接
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from session_browser.web.renderers.llm_blocks import (
 )
 
 
-# ─── normalize_llm_content ────────────────────────────────────────────
+# ─── normalize_llm_content ──────────────────────────────────────────────────
 
 class TestNormalizeLlmContent:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -59,7 +59,7 @@ class TestNormalizeLlmContent:
         text = "Tool result for toolu_abc123:\n# config.yaml\nkey: value\n"
         result = normalize_llm_content(text)
         assert len(result) >= 1
-        # Tool ID should appear in title
+        # Tool ID 应出现在标题中
         titles = " ".join(b.get("title", "") for b in result)
         assert "toolu_abc123" in titles
 
@@ -86,7 +86,7 @@ class TestNormalizeLlmContent:
         text = "Here is some preamble text.\nTool result for toolu_x:\n# a.py\ncode\n"
         result = normalize_llm_content(text)
         kinds = [b["kind"] for b in result]
-        # Should have at least a plain_text (preamble) and a file block
+        # 应至少包含 plain_text（前缀文本）和文件块
         assert "plain_text" in kinds
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -129,13 +129,13 @@ class TestNormalizeLlmContent:
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
     def test_unknown_kind_when_no_content(self):
-        # Edge case: content that produces no recognizable blocks
+        # 边界场景：无法产生可识别块的内容
         result = normalize_llm_content("   \n   \n   ")
-        # Whitespace-only should yield empty or unknown
+        # 纯空白内容应返回空或未知类型
         assert isinstance(result, list)
 
 
-# ─── render_llm_blocks_html ──────────────────────────────────────────
+# ─── render_llm_blocks_html ────────────────────────────────────────────────
 
 class TestRenderLlmBlocksHtml:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -209,7 +209,7 @@ class TestRenderLlmBlocksHtml:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
     def test_header_contains_title(self):
         result = render_llm_blocks_html("Some content with tools")
-        # llm-block__header may or may not be present for plain text with no title
+        # 纯文本无标题时 llm-block__header 可能存在也可能不存在
         assert isinstance(result, str)
         assert len(result) > 0
 
@@ -242,7 +242,7 @@ class TestRenderLlmBlocksHtml:
             }
         ]
         result = render_llm_blocks_html(blocks)
-        # Content goes through render_markdown which escapes HTML
+        # 内容通过 render_markdown 渲染，会转义 HTML
         assert "<b>" not in result.replace("&lt;b&gt;", "")
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -276,7 +276,7 @@ class TestRenderLlmBlocksHtml:
         assert "hello.py" in result
 
 
-# ─── Code block rendering / language inference ────────────────────────
+# ─── 代码块渲染 / 语言推断 ─────────────────────────────────────────────
 
 class TestLanguageInference:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -356,12 +356,12 @@ class TestLanguageInference:
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
     def test_filename_takes_precedence(self):
-        # Filename hint should override content inference
+        # 文件名提示应优先于内容推断
         result = _infer_code_language("data.json", content="const x = 42;")
         assert result == "json"
 
 
-# ─── File path processing ─────────────────────────────────────────────
+# ─── 文件路径处理 ─────────────────────────────────────────────────────────
 
 class TestFileMarkerDetection:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -389,7 +389,7 @@ class TestFileMarkerDetection:
     def test_file_marker_too_far(self):
         text = "L1\nL2\nL3\nL4\nL5\n# deep.md"
         result = _detect_file_marker(text)
-        # The marker is on line 6, beyond first 5
+        # 标记在第 6 行，超出前 5 行限制
         assert result is None
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -400,10 +400,10 @@ class TestFileMarkerDetection:
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
     def test_try_split_files_single_file_returns_empty(self):
-        # Single file marker may not produce meaningful split
+        # 单个文件标记可能无法产生有意义的分割
         text = "# a.py\ncode"
         result = _try_split_files(text)
-        # May return empty list if split doesn't produce multiple parts
+        # 如果分割未产生多个部分，可能返回空列表
         assert isinstance(result, list)
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -413,7 +413,7 @@ class TestFileMarkerDetection:
         assert result == []
 
 
-# ─── Line number gutter handling ──────────────────────────────────────
+# ─── 行号栏处理 ─────────────────────────────────────────────────────────
 
 class TestLineNumberGutter:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -445,7 +445,7 @@ class TestLineNumberGutter:
         assert result == text
 
 
-# ─── Block builders ───────────────────────────────────────────────────
+# ─── 块构建器 ───────────────────────────────────────────────────────────────
 
 class TestBlockBuilders:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -470,7 +470,7 @@ class TestBlockBuilders:
         assert block["kind"] == "plain_text"
 
 
-# ─── HTML escape ──────────────────────────────────────────────────────
+# ─── HTML 转义 ────────────────────────────────────────────────────────────
 
 class TestHtmlEscape:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -490,7 +490,7 @@ class TestHtmlEscape:
         assert _html_escape("safe text") == "safe text"
 
 
-# ─── _content_parts_to_blocks bridge ─────────────────────────────────
+# ─── _content_parts_to_blocks 桥接 ─────────────────────────────────────────
 
 class TestContentPartsToBlocks:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -555,7 +555,7 @@ class TestContentPartsToBlocks:
         assert result[0]["content_bytes"] == len("hello world".encode("utf-8"))
 
 
-# ─── _parts_mode_from_raw bridge ──────────────────────────────────────
+# ─── _parts_mode_from_raw 桥接 ─────────────────────────────────────────────
 
 class TestPartsModeFromRaw:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -576,7 +576,7 @@ class TestPartsModeFromRaw:
             assert isinstance(result[0], dict)
 
 
-# ─── Edge cases / integration ────────────────────────────────────────
+# ─── 边界场景 / 集成 ─────────────────────────────────────────────────────
 
 class TestEdgeCases:
     @pytest.mark.contract_case("DATA-PRESENTER-009")
@@ -608,21 +608,21 @@ class TestEdgeCases:
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
     def test_file_with_dockerfile_name(self):
-        # Note: source code lowers filename_hint but lang_map has "Dockerfile" (capitalized),
-        # so endswith("Dockerfile") fails after lowering. Returns None in practice.
+        # 注意：源代码会将 filename_hint 转小写，但 lang_map 中的 "Dockerfile" 是大写，
+        # 所以 endswith("Dockerfile") 在转小写后匹配失败，实际返回 None。
         result = _infer_code_language("Dockerfile")
         assert result is None
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
     def test_file_with_makefile_name(self):
-        # Same case-sensitivity issue: "Makefile" lowered to "makefile" doesn't match "Makefile" key.
+        # 同样大小写问题："Makefile" 转小写为 "makefile" 无法匹配 "Makefile" 键。
         result = _infer_code_language("Makefile")
         assert result is None
 
     @pytest.mark.contract_case("DATA-PRESENTER-009")
     def test_import_without_brace_not_python(self):
-        # "import { something }" is JS, not Python
-        # Python: "import os" (without curly brace)
+        # "import { something }" 是 JS，不是 Python
+        # Python: "import os"（不带花括号）
         result = _infer_code_language(content="import os")
         assert result == "python"
 

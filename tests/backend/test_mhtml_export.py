@@ -1,4 +1,4 @@
-"""MHTML export regression tests."""
+"""MHTML 导出回归测试。"""
 import os
 import pytest
 import pathlib
@@ -8,7 +8,7 @@ TEMPLATES = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_JS = ROOT / "src" / "session_browser" / "web" / "static" / "js"
 STATIC_CSS_DIR = ROOT / "src" / "session_browser" / "web" / "static" / "css"
 
-# CSS files bundled by mhtml.py get_css()
+# mhtml.py get_css() 捆绑的 CSS 文件
 MHTML_CSS_FILES = [
     "css/tokens.css",
     "css/base.css",
@@ -19,7 +19,7 @@ MHTML_CSS_FILES = [
 
 
 class TestMhtmlTemplateContracts:
-    """Static template-level contracts for MHTML readiness."""
+    """MHTML 就绪状态的静态模板级契约。"""
 
     def _read(self, rel_path: str) -> str:
         return (TEMPLATES / rel_path).read_text(encoding="utf-8")
@@ -28,7 +28,7 @@ class TestMhtmlTemplateContracts:
         return (STATIC_JS / name).read_text(encoding="utf-8")
 
     def _read_css(self) -> str:
-        """Read all MHTML-bundled CSS files concatenated."""
+        """读取所有由 mhtml.py get_css() 捆绑的 CSS 文件并拼接。"""
         parts = []
         for rel in MHTML_CSS_FILES:
             p = ROOT / "src" / "session_browser" / "web" / "static" / rel
@@ -36,7 +36,7 @@ class TestMhtmlTemplateContracts:
                 parts.append(p.read_text(encoding="utf-8"))
         return "\n".join(parts)
 
-    # ── Trace panel structure (Phase 1 simplified) ──
+    # ── Trace 面板结构（Phase 1 简化版） ──
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_trace_panel_exists(self):
@@ -45,7 +45,7 @@ class TestMhtmlTemplateContracts:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_trace_row_structure(self):
-        # v9 uses component macros; trace_round is defined in session_detail_timeline.html
+        # v9 使用组件宏；trace_round 定义在 session_detail_timeline.html 中
         html = self._read("session.html")
         assert "sdt.trace_round" in html, "missing sdt.trace_round macro call"
         component = self._read("components/session_detail_timeline.html")
@@ -54,16 +54,16 @@ class TestMhtmlTemplateContracts:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_toggle_round_detail_function_exists(self):
-        # v9 uses toggleRound in session_detail_timeline.js
+        # v9 使用 session_detail_timeline.js 中的 toggleRound
         js = (STATIC_JS / "session_detail_timeline.js").read_text(encoding="utf-8")
         assert "function toggleRound" in js, "missing toggleRound function"
 
-    # ── Layout modes ──
+    # ── 布局模式 ──
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_layout_mode_classes(self):
         js = self._read_js("view-switching.js")
-        # hide-left migration code lives in view-switching.js
+        # hide-left 迁移代码位于 view-switching.js 中
         assert "hide-left" in js, 'missing hide-left toggle support'
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
@@ -72,9 +72,9 @@ class TestMhtmlTemplateContracts:
         assert ".shell" in css, "missing .shell grid"
         assert "grid-template-columns" in css, "missing grid-template-columns"
 
-    # Inspector removed — MHTML export no longer requires inspector components
+    # Inspector 已移除——MHTML 导出不再需要 inspector 组件
 
-    # ── MHTML export infrastructure ──
+    # ── MHTML 导出基础设施 ──
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_base_html_has_export_mhtml_branch(self):
@@ -98,7 +98,7 @@ class TestMhtmlTemplateContracts:
 
 
 class TestMhtmlSelfContained:
-    """Self-contained HTML export content checks (static template analysis)."""
+    """自包含 HTML 导出内容检查（静态模板分析）。"""
 
     def _read(self, rel_path: str) -> str:
         return (TEMPLATES / rel_path).read_text(encoding="utf-8")
@@ -108,24 +108,24 @@ class TestMhtmlSelfContained:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_external_resources_in_export(self):
-        """Check that MHTML export has no external CSS/JS/font references."""
+        """检查 MHTML 导出无外部 CSS/JS/字体引用。"""
         html = self._read("base.html")
-        # In MHTML mode, the template should have conditional branches
+        # MHTML 模式下模板应有条件分支
         assert "export_mhtml" in html
-        # Verify the CSS/JS are conditionally inlined
+        # 验证 CSS/JS 是否条件内联
         assert "mhtml_css" in html
         assert "mhtml_js" in html
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_key_functions_present_in_template(self):
-        """Verify key JS functions are referenced for MHTML inclusion."""
-        # v9 uses toggleRound in session_detail_timeline.js
+        """验证关键 JS 函数已引用以便 MHTML 包含。"""
+        # v9 使用 session_detail_timeline.js 中的 toggleRound
         js = self._read_js("session_detail_timeline.js")
         assert "toggleRound" in js, "toggleRound missing from session_detail_timeline.js"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_google_fonts_reference(self):
-        """No Google Fonts references in either mode."""
+        """两种模式下均不应出现 Google Fonts 引用。"""
         base = self._read("base.html")
         assert "fonts.googleapis.com" not in base, "Google Fonts reference found in base.html"
         for rel in MHTML_CSS_FILES:
@@ -138,7 +138,7 @@ class TestMhtmlSelfContained:
 
 
 class TestPhase1SimplifiedStructure:
-    """Verify Phase 1 simplified session detail structure (trace-first)."""
+    """验证 Phase 1 简化版会话详情结构（trace 优先）。"""
 
     def _read(self, rel_path: str) -> str:
         return (TEMPLATES / rel_path).read_text(encoding="utf-8")
@@ -151,7 +151,7 @@ class TestPhase1SimplifiedStructure:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_issue_summary(self):
-        # v9 uses data-issue-strip in the component macro
+        # v9 在组件宏中使用 data-issue-strip
         component = self._read("components/session_detail_timeline.html")
         assert 'data-issue-strip' in component, "missing issue-strip section"
 
@@ -162,14 +162,14 @@ class TestPhase1SimplifiedStructure:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_expand_collapse_buttons(self):
-        # v19: single toggle-all button, no separate collapse-all
+        # v19: 单个 toggle-all 按钮，无独立的 collapse-all
         component = self._read("components/session_detail_timeline.html")
         assert 'data-action="toggle-all"' in component, "missing toggle-all"
         assert 'data-action="collapse-all"' not in component, "collapse-all must be removed; use toggle-all only"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_all_failed_segmented_control(self):
-        # v18: filter controls use status-all/status-failed (HIFI table migration)
+        # v18: 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
         component = self._read("components/session_detail_timeline.html")
         has_new = 'data-action="status-all"' in component and 'data-action="status-failed"' in component
         has_legacy = 'data-action="filter-status"' in component
@@ -177,13 +177,13 @@ class TestPhase1SimplifiedStructure:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_old_workbench_views(self):
-        """Calls and Hotspots workbench views should be removed."""
+        """Calls 和 Hotspots workbench 视图应已移除。"""
         html = self._read("session.html")
         assert 'data-workbench-view="calls"' not in html, "calls view should be removed"
         assert 'data-workbench-view="hotspots"' not in html, "hotspots view should be removed"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_token_charts_card(self):
-        """Token charts card should be removed in Phase 1."""
+        """Phase 1 应移除 Token charts 卡片。"""
         html = self._read("session.html")
         assert 'id="tokenChartsCard"' not in html, "token-charts-card should be removed"

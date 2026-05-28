@@ -1,17 +1,17 @@
-"""Unit tests for normalize_message_content.
+"""normalize_message_content 单元测试。
 
-Covers:
-- Empty / None input returns a single empty text part.
-- Whitespace-only input.
-- Simple markdown text.
-- Fenced code blocks with various languages.
-- JSON objects and arrays (standalone and embedded).
-- Mixed content (markdown + code + JSON).
-- Multiple code blocks in one message.
-- Unclosed / partial fences (fallback to markdown).
-- Idempotency: running twice yields the same result.
-- Content preservation: no original text is lost.
-- Backward compatibility: from_text bridge.
+覆盖范围：
+- 空值 / None 输入返回单个空文本部件。
+- 纯空白输入。
+- 简单 markdown 文本。
+- 带多种语言的围栏代码块。
+- JSON 对象和数组（独立和嵌入）。
+- 混合内容（markdown + 代码 + JSON）。
+- 一条消息中的多个代码块。
+- 未闭合/部分围栏（回退到 markdown）。
+- 幂等性：运行两次得到相同结果。
+- 内容保留：不丢失任何原始文本。
+- 向后兼容：from_text 桥接。
 """
 
 import pytest
@@ -20,7 +20,7 @@ from session_browser.domain.normalizer import normalize_message_content
 from session_browser.domain.content_part import ContentPart, ContentPartType
 
 
-# ─── Empty / None input ───────────────────────────────────────────────────
+# ─── 空值 / None 输入 ───────────────────────────────────────────────────
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_none_input():
@@ -46,7 +46,7 @@ def test_whitespace_only():
     assert parts[0].part_type == ContentPartType.TEXT
 
 
-# ─── Simple markdown ─────────────────────────────────────────────────────
+# ─── 简单 markdown ─────────────────────────────────────────────────────
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_simple_markdown():
@@ -65,7 +65,7 @@ def test_markdown_with_table():
     assert parts[0].part_type == ContentPartType.MARKDOWN
 
 
-# ─── Fenced code blocks ──────────────────────────────────────────────────
+# ─── 围栏代码块 ──────────────────────────────────────────────────────────
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_python_code_block():
@@ -124,23 +124,23 @@ def test_multiple_code_blocks():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_unclosed_fence_with_language():
-    """Unclosed code fence with language is still detected (fence pattern match)."""
+    """未闭合的带语言的代码围栏仍能被检测（围栏模式匹配）。"""
     text = "```python\ndef broken():"
     parts = normalize_message_content(text)
-    # Detected as code because content starts with ``` and has code patterns.
+    # 因内容以 ``` 开头且具有代码模式，被检测为代码。
     assert len(parts) == 1
     assert parts[0].part_type == ContentPartType.CODE
-    # Language extracted from the opening fence line.
+    # 语言从围栏首行提取。
     assert parts[0].language == "python"
     assert "def broken():" in parts[0].content
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_unclosed_fence_prose():
-    """Unclosed fence with prose is still detected as code (fence pattern match)."""
+    """未闭合围栏含散文内容仍被检测为代码（围栏模式匹配）。"""
     text = "```\nThis is just plain text, not code.\nNo functions or classes here."
     parts = normalize_message_content(text)
-    # Detected as code because content starts with ``` (fenced code pattern).
+    # 因内容以 ``` 开头（围栏代码模式），被检测为代码。
     assert len(parts) == 1
     assert parts[0].part_type == ContentPartType.CODE
 
@@ -180,7 +180,7 @@ def test_json_with_whitespace():
     assert parts[0].part_type == ContentPartType.JSON
 
 
-# ─── Mixed content ───────────────────────────────────────────────────────
+# ─── 混合内容 ───────────────────────────────────────────────────────
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_markdown_then_code():
@@ -202,7 +202,7 @@ def test_code_then_markdown():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_json_embedded_in_markdown():
-    """JSON separated by blank lines from surrounding text."""
+    """与周围文本以空行分隔的 JSON。"""
     text = (
         "The API returned this response:\n\n"
         '{"status": "ok", "data": [1, 2, 3]}\n\n'
@@ -216,7 +216,7 @@ def test_json_embedded_in_markdown():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_complex_mixed():
-    """Markdown + code + JSON + more markdown."""
+    """Markdown + 代码 + JSON + 更多 markdown。"""
     text = (
         "Let me show you the config:\n\n"
         "```yaml\nname: test\nversion: 1\n```\n\n"
@@ -229,15 +229,15 @@ def test_complex_mixed():
     assert ContentPartType.CODE in types
     assert ContentPartType.JSON in types
     assert ContentPartType.MARKDOWN in types
-    # Should have at least 4 parts (md + code + md + json + md)
+    # 应至少有 4 个部分（md + code + md + json + md）
     assert len(parts) >= 4
 
 
-# ─── Content preservation ────────────────────────────────────────────────
+# ─── 内容保留 ────────────────────────────────────────────────
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_no_content_lost_simple():
-    """All original text should be present in the output."""
+    """所有原始文本应存在于输出中。"""
     text = "Hello world\n\n```python\nx = 1\n```\n\nDone."
     parts = normalize_message_content(text)
     all_content = " ".join(p.content for p in parts)
@@ -257,14 +257,14 @@ def test_no_content_lost_json():
     assert "Outro" in all_content
 
 
-# ─── Idempotency ──────────────────────────────────────────────────────────
+# ─── 幂等性 ──────────────────────────────────────────────────────────
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_idempotent_markdown():
-    """Running on a markdown part's content again yields the same type."""
+    """对 markdown 部件内容再次运行，应得到相同类型。"""
     text = "# Hello\n\nWorld"
     parts1 = normalize_message_content(text)
-    # Re-normalize the combined content
+    # 再次归一化合并后的内容
     combined = parts1[0].content
     parts2 = normalize_message_content(combined)
     assert len(parts1) == len(parts2)
@@ -280,12 +280,12 @@ def test_idempotent_code():
         language="python",
     )
     parts = normalize_message_content(part.content)
-    # The code without fence should be detected as code by content patterns
+    # 无围栏的代码应通过内容模式检测为代码。
     code_parts = [p for p in parts if p.part_type == ContentPartType.CODE]
     assert len(code_parts) >= 1
 
 
-# ─── Edge cases ──────────────────────────────────────────────────────────
+# ─── 边界情况 ──────────────────────────────────────────────────────────
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_json_array_at_start():
@@ -296,7 +296,7 @@ def test_json_array_at_start():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_code_block_with_json_inside():
-    """JSON inside a code block should be part of the code, not separate."""
+    """代码块内的 JSON 应属于代码，不应单独分离。"""
     text = '```json\n{"key": "value"}\n```'
     parts = normalize_message_content(text)
     assert len(parts) == 1
@@ -316,14 +316,14 @@ def test_empty_lines_between_code_blocks():
 def test_single_line_code():
     text = "`inline code`"
     parts = normalize_message_content(text)
-    # Single backtick is not a fence, should be markdown
+    # 单反引号不是围栏，应为 markdown
     assert len(parts) == 1
     assert parts[0].part_type == ContentPartType.MARKDOWN
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_long_fence():
-    """Fences with more than 3 backticks should work."""
+    """超过 3 个反引号的围栏也应正常工作。"""
     text = "````python\ncode here\n````"
     parts = normalize_message_content(text)
     assert len(parts) == 1
@@ -333,16 +333,16 @@ def test_long_fence():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_invalid_json_fallback():
-    """Text that looks like JSON but isn't valid should be markdown."""
+    """看似 JSON 但无效的文本应回退为 markdown。"""
     text = '{"key": }'
     parts = normalize_message_content(text)
-    # Invalid JSON should fall back to markdown
+    # 无效 JSON 应回退为 markdown。
     assert all(p.part_type != ContentPartType.JSON for p in parts)
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_output_is_list_of_contentpart():
-    """Output must be list of ContentPart instances."""
+    """输出必须是 ContentPart 实例的列表。"""
     parts = normalize_message_content("test content")
     assert isinstance(parts, list)
     for p in parts:
@@ -351,7 +351,7 @@ def test_output_is_list_of_contentpart():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_has_no_empty_metadata():
-    """ContentParts should have default empty metadata."""
+    """ContentPart 应具有默认空元数据。"""
     parts = normalize_message_content("test")
     for p in parts:
         assert isinstance(p.metadata, dict)
@@ -396,7 +396,7 @@ def test_normalize_context_parts_sets_type_and_title():
     for p in parts:
         assert p.context_type == ContextPartType.USER_MESSAGE
         assert p.title == "User Message #1"
-        # Metadata should be auto-computed.
+        # 元数据应自动计算
         assert p.content_bytes > 0 or p.content == ""
         assert p.token_hint >= 0
 
@@ -409,12 +409,12 @@ def test_normalize_context_parts_markdown_with_code():
         default_context_type=ContextPartType.ASSISTANT_MESSAGE,
         title="Assistant #1",
     )
-    # Should have at least 2 parts (markdown intro + code).
+    # 应至少有 2 个部分（markdown 引言 + 代码）。
     assert len(parts) >= 2
     types = [p.part_type for p in parts]
     assert ContentPartType.CODE in types
     assert ContentPartType.MARKDOWN in types
-    # All parts should have the same context_type and title.
+    # 所有部分应具有相同的 context_type 和 title。
     for p in parts:
         assert p.context_type == ContextPartType.ASSISTANT_MESSAGE
         assert p.title == "Assistant #1"
@@ -425,7 +425,7 @@ def test_normalize_context_parts_markdown_with_code():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_multipart_not_json():
-    """Plain text should return empty list (not a messages array)."""
+    """纯文本应返回空列表（不是消息数组）。"""
     result = detect_multipart_messages("Hello world")
     assert result == []
 
@@ -461,7 +461,7 @@ def test_detect_multipart_with_tool_result():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_multipart_with_complex_content():
-    """Message with list content should be serialized properly."""
+    """含列表内容的消息应正确序列化。"""
     text = json.dumps([
         {
             "role": "user",
@@ -474,7 +474,7 @@ def test_detect_multipart_with_complex_content():
     parts = detect_multipart_messages(text)
     assert len(parts) == 1
     assert parts[0].context_type == ContextPartType.USER_MESSAGE
-    # Content should be stringified, not a list.
+    # 内容应为字符串化形式，而非列表。
     assert isinstance(parts[0].content, str)
     assert "What is this?" in parts[0].content
 
@@ -490,14 +490,14 @@ def test_detect_multipart_metadata_computed():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_multipart_invalid_json():
-    """Invalid JSON should return empty list."""
+    """无效 JSON 应返回空列表。"""
     parts = detect_multipart_messages('[{"role": "system", invalid}]')
     assert parts == []
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_multipart_non_message_array():
-    """Array without role field should return empty."""
+    """不含 role 字段的数组应返回空。"""
     parts = detect_multipart_messages('[1, 2, 3]')
     assert parts == []
 

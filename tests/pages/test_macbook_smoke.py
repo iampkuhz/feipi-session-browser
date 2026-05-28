@@ -1,12 +1,12 @@
-"""MacBook viewport smoke matrix — Python-level HTTP tests.
+"""MacBook 视口冒烟矩阵 — Python 级 HTTP 测试。
 
-Verifies that all major pages return HTTP 200 with expected HTML structure
-at MacBook viewport sizes (1280x800 / 1440x900).
+验证所有主要页面在 MacBook 视口尺寸（1280x800 / 1440x900）下
+返回 HTTP 200 且具有预期的 HTML 结构。
 
-This test starts a local session-browser server using the local test index,
-then makes HTTP requests with MacBook User-Agent strings to verify each page.
+本测试使用本地测试索引启动 session-browser 服务器，
+然后通过带有 MacBook User-Agent 字符串的 HTTP 请求验证每个页面。
 
-Usage:
+用法：
     python3 -m pytest tests/pages/test_macbook_smoke.py -v
 """
 
@@ -21,7 +21,7 @@ import sys
 import time
 import urllib.request
 
-# ─── Constants ──────────────────────────────────────────────────────────
+# ─── 常量 ──────────────────────────────────────────────────────────
 
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_INDEX_DIR = os.path.expanduser("~/.local/share/feipi/session-browser/local-test-index")
@@ -37,7 +37,7 @@ MACBOOK_14_UA = (
     "Chrome/120.0.0.0 Safari/537.36"
 )
 
-# Pages to smoke test: (name, path, expected HTML fragment, min HTML length)
+# 冒烟测试页面：(名称, 路径, 预期 HTML 片段, 最小 HTML 长度)
 PAGES = [
     ("Dashboard", "/dashboard", ">Dashboard<", 500),
     ("Sessions List", "/sessions", ">Sessions<", 500),
@@ -46,7 +46,7 @@ PAGES = [
 ]
 
 
-# ─── Server fixture ─────────────────────────────────────────────────────
+# ─── 服务器夹具 ─────────────────────────────────────────────────────────────
 
 
 def _find_free_port() -> int:
@@ -82,23 +82,21 @@ def _wait_for_server(port: int, timeout: float = 15.0) -> str:
         except Exception:
             pass
         time.sleep(0.3)
-    raise TimeoutError(f"Server on port {port} did not start within {timeout}s")
+    raise TimeoutError(f"端口 {port} 上的服务器在 {timeout}s 内未启动")
 
 
 @pytest.fixture(scope="module")
 def macbook_smoke_server():
-    """
+    """使用本地测试索引启动 session-browser 服务器。
 
-import Start a session-browser server with the local test index.
-
-    Yields base_url or skips if no index is found.
+    产出 base_url，如果没有找到索引则跳过。
     """
     index_file = os.path.join(TEST_INDEX_DIR, "index.sqlite")
     if not os.path.exists(index_file):
-        # Try index.db as fallback
+        # 尝试 index.db 作为备选
         index_file = os.path.join(TEST_INDEX_DIR, "index.db")
         if not os.path.exists(index_file):
-            pytest.skip("No local test index found at " + TEST_INDEX_DIR)
+            pytest.skip("在 " + TEST_INDEX_DIR + " 未找到本地测试索引")
 
     port = _find_free_port()
     env = os.environ.copy()
@@ -115,11 +113,11 @@ import Start a session-browser server with the local test index.
         proc.wait()
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
+# ─── 辅助函数 ────────────────────────────────────────────────────────────
 
 
 def fetch_page(base_url: str, path: str, viewport: str = "macbook-13") -> tuple[int, str]:
-    """Fetch a page and return (status_code, html_body)."""
+    """获取页面并返回 (status_code, html_body)。"""
     ua = MACBOOK_13_UA if viewport == "macbook-13" else MACBOOK_14_UA
     url = f"{base_url}{path}"
     req = urllib.request.Request(url, headers={
@@ -133,11 +131,11 @@ def fetch_page(base_url: str, path: str, viewport: str = "macbook-13") -> tuple[
         return e.code, e.read().decode("utf-8") if e.fp else ""
 
 
-# ─── Tests ──────────────────────────────────────────────────────────────
+# ─── 测试 ──────────────────────────────────────────────────────────────
 
 
 class TestMacbookSmoke:
-    """Smoke test all major pages at MacBook viewport sizes."""
+    """在 MacBook 视口尺寸下对所有主要页面进行冒烟测试。"""
 
     @pytest.mark.parametrize("viewport", ["macbook-13", "macbook-14"])
     @pytest.mark.parametrize("name,path,expected_fragment,min_length", PAGES)
@@ -145,74 +143,74 @@ class TestMacbookSmoke:
     def test_page_loads(
         self, macbook_smoke_server, viewport, name, path, expected_fragment, min_length
     ):
-        """Each page must return HTTP 200 with expected content at MacBook viewport."""
+        """每个页面在 MacBook 视口下必须返回 HTTP 200 且包含预期内容。"""
         base_url = macbook_smoke_server
         status, html = fetch_page(base_url, path, viewport)
 
-        assert status == 200, f"{name} at {viewport} returned HTTP {status}"
+        assert status == 200, f"{name} 在 {viewport} 下返回 HTTP {status}"
         assert len(html) >= min_length, (
-            f"{name} at {viewport} HTML too short: {len(html)} bytes "
-            f"(expected >= {min_length})"
+            f"{name} 在 {viewport} 下 HTML 过短：{len(html)} 字节 "
+            f"(预期 >= {min_length})"
         )
         assert expected_fragment in html, (
-            f"{name} at {viewport} missing expected fragment '{expected_fragment}'"
+            f"{name} 在 {viewport} 下缺少预期片段 '{expected_fragment}'"
         )
 
 
 class TestMacbookViewportSpecific:
-    """Viewport-specific structural checks."""
+    """特定视口的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_dashboard_metric_cards(self, macbook_smoke_server):
-        """Dashboard must have 4 metric cards."""
+        """Dashboard 必须有 4 个指标卡片。"""
         base_url = macbook_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
         cards = re.findall(r'class="metric-card"', html)
-        assert len(cards) == 4, f"Expected 4 metric cards, found {len(cards)}"
+        assert len(cards) == 4, f"预期 4 个指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_sessions_list_has_table(self, macbook_smoke_server):
-        """Sessions List must have a sessions table."""
+        """Sessions List 必须有会话表格。"""
         base_url = macbook_smoke_server
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
         assert 'aria-label="Sessions table"' in html, \
-            "Sessions table must be present"
+            "Sessions table 必须存在"
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_agents_page_has_agent_entries(self, macbook_smoke_server):
-        """Agents page must list at least one agent."""
+        """Agents 页面必须列出至少一个 agent。"""
         base_url = macbook_smoke_server
         status, html = fetch_page(base_url, "/agents")
         assert status == 200
-        # Check for data-table or agent-list structure
+        # 检查 data-table 或 agent-list 结构
         has_table = 'class="data-table"' in html or 'class="agent-list"' in html
-        assert has_table, "Agents page must have a table or agent list"
+        assert has_table, "Agents 页面必须有表格或 agent 列表"
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_projects_page_has_project_entries(self, macbook_smoke_server):
-        """Projects page must list at least one project."""
+        """Projects 页面必须列出至少一个 project。"""
         base_url = macbook_smoke_server
         status, html = fetch_page(base_url, "/projects")
         assert status == 200
-        # Check for data-table structure
+        # 检查 data-table 结构
         has_table = 'class="data-table"' in html or 'class="project-list"' in html
-        assert has_table, "Projects page must have a table or project list"
+        assert has_table, "Projects 页面必须有表格或 project 列表"
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_session_detail_page_exists(self, macbook_smoke_server):
-        """Session Detail page must exist for at least one session."""
+        """Session Detail 页面必须对至少一个会话存在。"""
         base_url = macbook_smoke_server
-        # First get a session ID from the sessions page
+        # 首先从会话页面获取一个会话 ID
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
 
-        # Extract a session link from the rendered HTML
+        # 从渲染的 HTML 中提取会话链接
         match = re.search(r'href="(/sessions/[^"]+/[^"]+)"', html)
-        assert match, "No session link found on Sessions List page"
+        assert match, "在会话列表页面未找到会话链接"
 
         session_url = match.group(1)
         status, detail_html = fetch_page(base_url, session_url)
-        assert status == 200, f"Session detail at {session_url} returned HTTP {status}"
-        assert len(detail_html) >= 500, "Session detail HTML too short"
+        assert status == 200, f"Session detail 在 {session_url} 返回 HTTP {status}"
+        assert len(detail_html) >= 500, "Session detail HTML 过短"

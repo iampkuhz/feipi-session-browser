@@ -1,10 +1,10 @@
-"""Projects template-JS contract tests (T029).
+"""Projects 模板-JS 契约测试（T029）。
 
-Verifies that:
-1. projects.html filter-footer contains an active filter chip container.
-2. JS updateFilterChip selector matches the template structure.
+验证：
+1. projects.html 的 filter-footer 包含活跃的筛选标签容器。
+2. JS 的 updateFilterChip 选择器与模板结构匹配。
 
-Covers P-23 fix verification: active filter chip visibility in filter-footer.
+覆盖 P-23 修复验证：活跃筛选标签在 filter-footer 中的可见性。
 """
 import pytest
 from pathlib import Path
@@ -19,14 +19,14 @@ PROJECTS_JS = STATIC_JS / "projects.js"
 
 
 def _projects_template():
-    """Return projects.html text, skipping tests if file is missing."""
+    """返回 projects.html 文本，如果文件缺失则跳过测试。"""
     if not PROJECTS_HTML.exists():
         pytest.skip(f"projects.html not found at {PROJECTS_HTML}")
     return PROJECTS_HTML.read_text(encoding="utf-8")
 
 
 def _projects_js():
-    """Return projects.js text, skipping tests if file is missing."""
+    """返回 projects.js 文本，如果文件缺失则跳过测试。"""
     if not PROJECTS_JS.exists():
         pytest.skip(f"projects.js not found at {PROJECTS_JS}")
     return PROJECTS_JS.read_text(encoding="utf-8")
@@ -49,19 +49,19 @@ def projects_js():
 
 
 class TestProjectsFilterFooterStructure:
-    """projects.html filter-footer must contain active filter chip container."""
+    """projects.html 的 filter-footer 必须包含活跃筛选标签容器。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_filter_footer_exists(self, projects_html):
-        """filter-footer container must be present."""
+        """filter-footer 容器必须存在。"""
         assert "filter-footer" in projects_html, (
             "projects.html lacks .filter-footer container"
         )
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_active_filters_container_in_footer(self, projects_html):
-        """filter-footer must contain an active-filters container or count element."""
-        # Accept either .active-filters parent or .active-filters__count BEM class
+        """filter-footer 必须包含 active-filters 容器或计数元素。"""
+        # 接受 .active-filters 父元素或 .active-filters__count BEM 类
         has_container = (
             "active-filters" in projects_html
         )
@@ -71,8 +71,8 @@ class TestProjectsFilterFooterStructure:
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_active_filters_count_element(self, projects_html):
-        """filter-footer must display active filter count text."""
-        # The template should show a count like "X matching projects"
+        """filter-footer 必须显示活跃筛选计数文本。"""
+        # 模板应显示类似 "X matching projects" 的计数
         assert "matching projects" in projects_html or "active-filters__count" in projects_html, (
             "projects.html filter-footer lacks active filter count display"
         )
@@ -82,10 +82,10 @@ class TestProjectsFilterFooterStructure:
 
 
 class TestProjectsJsUpdateFilterChipSelector:
-    """projects.js updateFilterChip must define a valid CSS selector."""
+    """projects.js 的 updateFilterChip 必须定义有效的 CSS 选择器。"""
 
     def _extract_update_filter_chip(self, js_text):
-        """Extract the updateFilterChip function body from JS text."""
+        """从 JS 文本中提取 updateFilterChip 函数体。"""
         match = re.search(
             r'function\s+updateFilterChip\s*\([^)]*\)\s*\{([^}]+)\}',
             js_text,
@@ -97,14 +97,14 @@ class TestProjectsJsUpdateFilterChipSelector:
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_update_filter_chip_function_exists(self, projects_js):
-        """updateFilterChip function must be defined."""
+        """updateFilterChip 函数必须已定义。"""
         assert "updateFilterChip" in projects_js, (
             "projects.js lacks updateFilterChip function"
         )
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_update_filter_chip_has_selector(self, projects_js):
-        """updateFilterChip must use querySelector with a CSS selector."""
+        """updateFilterChip 必须使用 querySelector 与 CSS 选择器。"""
         body = self._extract_update_filter_chip(projects_js)
         assert "querySelector" in body, (
             "updateFilterChip lacks querySelector call"
@@ -112,14 +112,14 @@ class TestProjectsJsUpdateFilterChipSelector:
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_update_filter_chip_selector_value(self, projects_js):
-        """Extract and verify the selector targets an active-filters element."""
+        """提取并验证选择器指向 active-filters 元素。"""
         body = self._extract_update_filter_chip(projects_js)
-        # Extract the selector string from querySelector('...')
+        # 从 querySelector('...') 中提取选择器字符串
         match = re.search(r"querySelector\(['\"]([^'\"]+)['\"]\)", body)
         assert match, "updateFilterChip querySelector lacks a string argument"
         selector = match.group(1)
 
-        # Selector must reference active-filters in some form
+        # 选择器必须以某种形式引用 active-filters
         assert "active-filters" in selector, (
             f"updateFilterChip selector '{selector}' does not reference .active-filters"
         )
@@ -129,16 +129,16 @@ class TestProjectsJsUpdateFilterChipSelector:
 
 
 class TestTemplateJsContractMatch:
-    """JS selector must be satisfiable by the rendered template structure.
+    """JS 选择器必须与模板结构兼容。
 
-    This is a static contract check: it verifies that if the JS selector
-    looks for a descendant element (e.g., `.active-filters .filter-chip`),
-    the template must contain a compatible structure, or the selector must
-    be broad enough to match existing elements.
+    这是一个静态契约检查：验证如果 JS 选择器
+    查找后代元素（例如 `.active-filters .filter-chip`），
+    模板必须包含兼容的结构，或者选择器必须
+    足够宽泛以匹配现有元素。
     """
 
     def _extract_selector(self, js_text):
-        """Extract the CSS selector from updateFilterChip."""
+        """从 updateFilterChip 中提取 CSS 选择器。"""
         match = re.search(
             r'function\s+updateFilterChip\s*\([^)]*\)\s*\{[^}]*querySelector\([\'"]([^\'"]+)[\'"]\)',
             js_text,
@@ -150,31 +150,31 @@ class TestTemplateJsContractMatch:
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_js_selector_compatible_with_template(self, projects_html, projects_js):
-        """JS updateFilterChip selector must be compatible with template structure.
+        """JS updateFilterChip 选择器必须与模板结构兼容。
 
-        Contract rules:
-        - If selector is a descendant combinator like `.parent .child`,
-          the template must have .parent AND .child (or a single combined
-          class that serves both roles).
-        - If selector targets a class that the template defines, PASS.
+        契约规则：
+        - 如果选择器是后代组合器如 `.parent .child`，
+          模板必须包含 .parent 和 .child（或同时 serving
+          两个角色的单一组合类）。
+        - 如果选择器指向模板中定义的类，则通过。
         """
         selector = self._extract_selector(projects_js)
         if not selector:
             pytest.skip("Cannot extract selector from updateFilterChip")
 
-        # Parse the selector into its parts (split by space for descendant)
+        # 将选择器拆分为各部分（按空格拆分为后代选择器）
         parts = selector.split()
 
         for part in parts:
-            # Strip leading combinators (>, +, ~)
+            # 去除前缀组合器（>、+、~）
             part = re.sub(r'^[>+~]\s*', '', part).strip()
             if not part:
                 continue
 
-            # Extract class names from the part (e.g., ".foo.bar" -> ["foo", "bar"])
+            # 从选择器部分中提取类名（例如 ".foo.bar" -> ["foo", "bar"]）
             classes = re.findall(r'\.([a-zA-Z_][\w-]*)', part)
             if not classes:
-                # It might be a tag name without a class — that's fine
+                # 可能是不带类的标签名 — 可以接受
                 continue
 
             for cls in classes:

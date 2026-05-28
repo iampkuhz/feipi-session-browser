@@ -1,12 +1,11 @@
-"""Presenter route integration tests.
+"""Presenter 与路由集成测试。
 
-Covers:
-- All routes correctly call their presenter and return expected view-model keys.
-- Presenter output is consumable by Jinja templates (render without error).
-- Each page route returns HTTP 200 when a fixture server is available.
-- Presenters are pure functions — they only depend on their explicit
-  parameters (sqlite3.Connection, raw_params, etc.) and do not reach
-  into HTTP context or global state.
+覆盖范围：
+- 所有路由正确调用其对应的 presenter 并返回预期的视图模型键。
+- Presenter 输出可被 Jinja 模板消费（无渲染错误）。
+- 当 fixture 服务器可用时，每个页面路由返回 HTTP 200。
+- Presenter 是纯函数——仅依赖显式参数（sqlite3.Connection、raw_params 等），
+  不访问 HTTP 上下文或全局状态。
 """
 from __future__ import annotations
 
@@ -32,7 +31,7 @@ from session_browser.web.presenters.sessions import (
     build_sessions_context,
 )
 
-# ─── Presenter module map for parametrize ─────────────────────────────
+# ─── Presenter 模块映射（用于 parametrize）────────────────────────────
 
 _PRESENTER_MODULES = {
     "dashboard": "session_browser.web.presenters.dashboard",
@@ -41,9 +40,9 @@ _PRESENTER_MODULES = {
     "sessions": "session_browser.web.presenters.sessions",
 }
 
-# ─── Pure-function assertion helpers ──────────────────────────────────
+# ─── 纯函数断言辅助 ───────────────────────────────────────────────────
 
-# Global state that presenters must NOT access
+# Presenter 不得访问的全局状态
 _FORBIDDEN_GLOBALS = [
     "request",
     "flask",
@@ -54,7 +53,7 @@ _FORBIDDEN_GLOBALS = [
 ]
 
 
-# ─── Dashboard presenter route integration ────────────────────────────
+# ─── Dashboard presenter 路由集成 ────────────────────────────────────
 
 _DASHBOARD_INDEXERS = [
     "get_dashboard_stats",
@@ -73,7 +72,7 @@ _DASHBOARD_INDEXERS = [
 
 
 def _patch_dashboard_indexers():
-    """Return an ExitStack patching all dashboard presenter dependencies."""
+    """返回一个 ExitStack，patch 所有 dashboard presenter 依赖。"""
     stack = ExitStack()
     patchers = {}
     for name in _DASHBOARD_INDEXERS:
@@ -84,7 +83,7 @@ def _patch_dashboard_indexers():
 
 
 def _default_dashboard_mocks(patchers):
-    """Apply zero-data defaults to all dashboard patchers."""
+    """对所有 dashboard patcher 应用零数据默认值。"""
     patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
     patchers["list_projects"].return_value = []
     patchers["get_trend_data"].return_value = []
@@ -106,7 +105,7 @@ def _default_dashboard_mocks(patchers):
 
 
 class TestDashboardRoutePresenter:
-    """Verify /dashboard route calls presenter correctly."""
+    """验证 /dashboard 路由正确调用 presenter。"""
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_route_presenter_returns_expected_keys(self):
@@ -135,7 +134,7 @@ class TestDashboardRoutePresenter:
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_route_presenter_is_pure_function(self):
-        """Presenter only uses conn parameter, no HTTP globals."""
+        """Presenter 仅使用 conn 参数，不依赖 HTTP 全局变量。"""
         import inspect
         source = inspect.getsource(build_dashboard_view_model)
         for forbidden in _FORBIDDEN_GLOBALS:
@@ -144,10 +143,10 @@ class TestDashboardRoutePresenter:
             )
 
 
-# ─── Agents presenter route integration ───────────────────────────────
+# ─── Agents presenter 路由集成 ──────────────────────────────────────
 
 class TestAgentsRoutePresenter:
-    """Verify /agents and /agents/<agent> routes call presenters correctly."""
+    """验证 /agents 和 /agents/<agent> 路由正确调用 presenter。"""
 
     @pytest.mark.contract_case("ROUTE-API-011")
     @pytest.mark.contract_case("ROUTE-API-008")
@@ -204,10 +203,10 @@ class TestAgentsRoutePresenter:
                 )
 
 
-# ─── Projects presenter route integration ─────────────────────────────
+# ─── Projects presenter 路由集成 ────────────────────────────────────
 
 class TestProjectsRoutePresenter:
-    """Verify /projects and /projects/<key> routes call presenters correctly."""
+    """验证 /projects 和 /projects/<key> 路由正确调用 presenter。"""
 
     @pytest.mark.contract_case("ROUTE-API-011")
     @pytest.mark.contract_case("ROUTE-API-007")
@@ -263,10 +262,10 @@ class TestProjectsRoutePresenter:
                 )
 
 
-# ─── Sessions presenter route integration ─────────────────────────────
+# ─── Sessions presenter 路由集成 ────────────────────────────────────
 
 class TestSessionsRoutePresenter:
-    """Verify /sessions route calls presenter correctly."""
+    """验证 /sessions 路由正确调用 presenter。"""
 
     @staticmethod
     def _make_mock_conn():
@@ -313,7 +312,7 @@ class TestSessionsRoutePresenter:
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_sessions_parse_query_params_integration(self):
-        """parse_sessions_query_params is the entry point for /sessions query."""
+        """parse_sessions_query_params 是 /sessions 查询的入口。"""
         raw = {"page": ["2"], "agent": ["claude_code"], "sort": ["tokens"], "dir": ["asc"]}
         result = parse_sessions_query_params(raw)
         assert result["page"] == 2
@@ -404,10 +403,10 @@ class TestSessionsRoutePresenter:
                 )
 
 
-# ─── Cross-presenter route-to-view-model contract ────────────────────
+# ─── 跨 Presenter 路由到视图模型契约 ──────────────────────────────────
 
 class TestAllPresentersShareActivePage:
-    """Every list presenter should set active_page for nav highlighting."""
+    """每个列表 presenter 都应设置 active_page 用于导航高亮。"""
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_dashboard_active_page(self):
@@ -438,7 +437,7 @@ class TestAllPresentersShareActivePage:
 
 
 class TestPresenterReturnTypes:
-    """All presenters must return dict (JSON-serializable view models)."""
+    """所有 presenter 必须返回 dict（可 JSON 序列化的视图模型）。"""
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_dashboard_returns_dict(self):
@@ -510,10 +509,10 @@ class TestPresenterReturnTypes:
         assert isinstance(result, dict)
 
 
-# ─── Template consumption tests ───────────────────────────────────────
+# ─── 模板消费测试 ─────────────────────────────────────────────────────
 
 class TestPresenterOutputConsumableByTemplate:
-    """Presenter view models must not contain types that break Jinja rendering."""
+    """Presenter 视图模型不得包含破坏 Jinja 渲染的类型。"""
 
     @staticmethod
     def _make_jinja_env():
@@ -529,12 +528,12 @@ class TestPresenterOutputConsumableByTemplate:
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_dashboard_vm_has_no_render_blocking_types(self):
-        """Dashboard VM values should be JSON/Jinja friendly."""
+        """Dashboard VM 值应为 JSON/Jinja 兼容类型。"""
         conn = MagicMock()
         with _patch_dashboard_indexers() as stack:
             patchers = stack.get_patchers()
             _default_dashboard_mocks(patchers)
-            # Replace MagicMock token_breakdown with a non-callable named tuple
+            # 用非可调用的 namedtuple 替换 MagicMock token_breakdown
             from collections import namedtuple
             TokenBreakdown = namedtuple("TokenBreakdown", [
                 "total_input", "total_output",
@@ -576,17 +575,17 @@ class TestPresenterOutputConsumableByTemplate:
             )
 
 
-# ─── HTTP 200 route tests (when fixture server available) ────────────
+# ─── HTTP 200 路由测试（fixture 服务器可用时）────────────────────────
 
 class TestRouteHttp200:
-    """Verify each page route returns HTTP 200 when fixture server is running.
+    """验证每个页面路由在 fixture 服务器运行时返回 HTTP 200。
 
-    These tests are skipped unless a test index/server fixture is available.
+    除非测试 index/server fixture 可用，否则这些测试将被跳过。
     """
 
     @staticmethod
     def _fetch_html(url: str) -> str:
-        """Fetch URL and return decoded HTML text."""
+        """获取 URL 并返回解码后的 HTML 文本。"""
         import urllib.request
         resp = urllib.request.urlopen(url, timeout=15)
         assert resp.status == 200
@@ -631,21 +630,20 @@ class TestRouteHttp200:
         assert len(html) > 0
 
 
-# ─── Route-to-presenter dispatch mapping ──────────────────────────────
+# ─── 路由到 presenter 的调度映射 ──────────────────────────────────────
 
 class TestRoutePresenterDispatchMapping:
-    """Verify that routes.py imports and wires each presenter correctly.
+    """验证 routes.py 正确导入和连接每个 presenter。
 
-    This checks the module-level imports in routes.py match the presenter
-    functions we test above.
+    这检查 routes.py 的模块级导入与我们上面测试的 presenter 函数匹配。
     """
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_routes_imports_dashboard_presenter(self):
         from session_browser.web import routes
-        # routes.py uses from-import so the function is available in its namespace
+        # routes.py 使用 from-import，因此该函数在其命名空间中可用
         assert hasattr(routes, "build_dashboard_view_model") is True
-        # Verify the function exists in the presenter module
+        # 验证该函数存在于 presenter 模块中
         from session_browser.web.presenters.dashboard import build_dashboard_view_model as fn
         assert callable(fn)
 
@@ -680,7 +678,7 @@ class TestRoutePresenterDispatchMapping:
 
     @pytest.mark.contract_case("ROUTE-API-011")
     def test_route_path_to_presenter_map(self):
-        """Document and verify the expected route-to-presenter mapping."""
+        """记录并验证预期的路由到 presenter 映射。"""
         mapping = {
             "/": "build_dashboard_view_model",
             "/dashboard": "build_dashboard_view_model",
@@ -690,7 +688,7 @@ class TestRoutePresenterDispatchMapping:
             "/projects/<key>": "build_project_view_model",
             "/sessions": "fetch_sessions_view_model",
         }
-        # All referenced presenter functions exist and are callable
+        # 所有引用的 presenter 函数均存在且可调用
         from session_browser.web.presenters.dashboard import build_dashboard_view_model
         from session_browser.web.presenters.agents import build_agents_view_model, build_agent_view_model
         from session_browser.web.presenters.projects import build_projects_view_model, build_project_view_model

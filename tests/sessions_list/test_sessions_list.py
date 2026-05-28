@@ -1,10 +1,10 @@
-"""Page-specific sessions list tests for sessions.html.
+"""Sessions List 页面级测试，针对 sessions.html 模板。
 
-Verifies the Jinja2 template structure, CSS/JS imports, filter bar,
-data table with sortable headers, token bar rendering, pagination,
-empty states, and absence of inline onclick.
+验证 Jinja2 模板结构、CSS/JS 引入、筛选栏、
+带可排序表头的数据表格、token 栏渲染、分页、
+空状态，以及无内联 onclick。
 
-T080 — Sessions List page-specific pytest.
+T080 — Sessions List 页面级 pytest。
 """
 
 from __future__ import annotations
@@ -36,10 +36,10 @@ def _read_base_html() -> str:
     return _read("src/session_browser/web/templates/base.html")
 
 
-# ── TestSessionsTemplate ─────────────────────────────────────────────
+# ── TestSessionsTemplate（模板结构）────────────────────────────────────────────
 
 class TestSessionsTemplate:
-    """Verify the sessions Jinja2 template renders structurally."""
+    """验证 sessions Jinja2 模板结构正确渲染。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     @pytest.mark.contract_case("UI-SESSIONS-011")
@@ -68,17 +68,17 @@ class TestSessionsTemplate:
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_no_inline_onclick(self):
-        """Sessions must not use inline onclick handlers."""
+        """Sessions 不得使用内联 onclick 处理器。"""
         content = _read_sessions()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
         assert len(matches) == 0, \
             f"Sessions must not have inline onclick, found {len(matches)} occurrences"
 
 
-# ── TestSessionsImports ──────────────────────────────────────────────
+# ── TestSessionsImports（CSS/JS 引入）─────────────────────────────────────────────
 
 class TestSessionsImports:
-    """Verify CSS and JS import statements."""
+    """验证 CSS 和 JS 引入语句。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_css_import_sessions_list_css(self):
@@ -88,12 +88,12 @@ class TestSessionsImports:
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_css_import_ui_primitives_css(self):
-        """ui-primitives.css is loaded by base.html, not duplicated by page templates.
-        Verify that base.html loads it (page templates inherit it)."""
+        """ui-primitives.css 由 base.html 加载，页面模板不重复引入。
+        验证 base.html 已加载它（页面模板继承）。"""
         base = _read_base_html()
         assert 'href="/static/css/ui-primitives.css"' in base, \
             "base.html must load ui-primitives.css"
-        # Page template must NOT duplicate it (checked by static_contract_check)
+        # 页面模板不得重复引入（由 static_contract_check 检查）
         content = _read_sessions()
         assert 'href="/static/css/ui-primitives.css"' not in content, \
             "Sessions must not duplicate ui-primitives.css already loaded by base.html"
@@ -121,10 +121,10 @@ class TestSessionsImports:
             "sessions-list.js must exist on disk"
 
 
-# ── TestSessionsPageHead ─────────────────────────────────────────────
+# ── TestSessionsPageHead（页面头部）────────────────────────────────────────────
 
 class TestSessionsPageHead:
-    """Verify page-head structure."""
+    """验证页面头部结构。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_page_head_section_present(self):
@@ -145,10 +145,10 @@ class TestSessionsPageHead:
             "Page-head must have subtitle about browsing sessions"
 
 
-# ── TestSessionsFilterBar ────────────────────────────────────────────
+# ── TestSessionsFilterBar（筛选栏）───────────────────────────────────────────
 
 class TestSessionsFilterBar:
-    """Verify filter row with search + dropdowns."""
+    """验证带搜索和下拉的筛选行。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_filter_form_exists(self):
@@ -209,10 +209,10 @@ class TestSessionsFilterBar:
             "Clear All must use data_action='clear'"
 
 
-# ── TestSessionsDataTable ────────────────────────────────────────────
+# ── TestSessionsDataTable（数据表格）───────────────────────────────────────────
 
 class TestSessionsDataTable:
-    """Verify data table with sortable headers."""
+    """验证带可排序表头的数据表格。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_data_table_present(self):
@@ -232,9 +232,9 @@ class TestSessionsDataTable:
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_sortable_columns(self):
         content = _read_sessions()
-        # Unified pattern: col-num sortable or just sortable
+        # 统一模式：col-num sortable 或仅 sortable
         sortable = re.findall(r'class="[^"]*sortable[^"]*"', content)
-        # Tokens, Rounds, Tools, Duration, Updated are sortable
+        # Tokens, Rounds, Tools, Duration, Updated 为可排序列
         assert len(sortable) >= 4, \
             f"Must have at least 4 sortable columns, found {len(sortable)}"
 
@@ -248,14 +248,14 @@ class TestSessionsDataTable:
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_sort_icons_present(self):
         content = _read_sessions()
-        # Unified pattern: .sort-mark is the arrow container
+        # 统一模式：.sort-mark 是箭头容器
         assert 'class="sort-mark"' in content, \
             "Sort buttons must have sort-mark class for arrow injection"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_static_headers(self):
         content = _read_sessions()
-        # static-header can appear as standalone or combined with col-* classes
+        # static-header 可独立出现或与 col-* 类组合
         static = re.findall(r'static-header', content)
         assert len(static) >= 3, \
             f"Must have at least 3 static (non-sortable) headers, found {len(static)}"
@@ -263,18 +263,18 @@ class TestSessionsDataTable:
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_aria_sort_on_active(self):
         content = _read_sessions()
-        # Unified pattern: data-sort-dir tracks active sort state (replaces aria-sort)
+        # 统一模式：data-sort-dir 跟踪当前排序状态（替代 aria-sort）
         assert 'data-sort-dir=' in content, \
             "Active sortable th must have data-sort-dir attribute"
 
 
-# ── TestSessionsTokenBar ─────────────────────────────────────────────
+# ── TestSessionsTokenBar（Token 进度条）────────────────────────────────────────────
 
 class TestSessionsTokenBar:
-    """Verify token bar rendering in token column.
+    """验证 token 列中的 tokenbar 渲染。
 
-    Token cells are now rendered via ui.token_cell macro in ui_primitives.html.
-    Tests verify sessions.html calls the macro, and the macro provides the HTML.
+    Token 单元格现在通过 ui_primitives.html 中的 ui.token_cell 宏渲染。
+    测试验证 sessions.html 调用了该宏，且宏提供了正确的 HTML。
     """
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
@@ -309,7 +309,7 @@ class TestSessionsTokenBar:
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_tokenbar_has_four_segments(self):
         macro = _read_ui_primitives()
-        # Find the token_cell macro definition and count segments within it
+        # 找到 token_cell 宏定义并统计其中的段数
         macro_start = macro.find('{% macro token_cell(')
         macro_end = macro.find('{%- endmacro %}', macro_start)
         if macro_end == -1:
@@ -320,10 +320,10 @@ class TestSessionsTokenBar:
             f"token_cell macro must have 4 segments, found {len(segments)}"
 
 
-# ── TestSessionsPagination ───────────────────────────────────────────
+# ── TestSessionsPagination（分页）──────────────────────────────────────────
 
 class TestSessionsPagination:
-    """Verify pagination uses ui.pagination macro."""
+    """验证分页使用 ui.pagination 宏。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_pagination_uses_macro(self):
@@ -352,10 +352,10 @@ class TestSessionsPagination:
             "Pagination must only render when total_count > 0"
 
 
-# ── TestSessionsEmptyState ───────────────────────────────────────────
+# ── TestSessionsEmptyState（空状态）──────────────────────────────────────────
 
 class TestSessionsEmptyState:
-    """Verify empty state rendering."""
+    """验证空状态渲染。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     @pytest.mark.contract_case("UI-SESSIONS-010")
@@ -391,10 +391,10 @@ class TestSessionsEmptyState:
             "Filtered empty state must have clear filters button"
 
 
-# ── TestSessionsRowData ──────────────────────────────────────────────
+# ── TestSessionsRowData（行数据属性）─────────────────────────────────────────────
 
 class TestSessionsRowData:
-    """Verify data attributes on session rows."""
+    """验证会话行上的 data 属性。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_row_data_action(self):
@@ -419,10 +419,10 @@ class TestSessionsRowData:
                 f"Must have agent badge class '{badge_class}'"
 
 
-# ── TestSessionsBreadcrumb ───────────────────────────────────────────
+# ── TestSessionsBreadcrumb（面包屑导航）──────────────────────────────────────────
 
 class TestSessionsBreadcrumb:
-    """Verify breadcrumb navigation."""
+    """验证面包屑导航。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_breadcrumb_has_dashboard_link(self):

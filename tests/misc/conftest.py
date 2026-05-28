@@ -1,1 +1,1 @@
-# pytest fixtures for misc tests — inherits all from root conftest.py
+# misc 测试的 pytest fixtures — 继承根 conftest.py

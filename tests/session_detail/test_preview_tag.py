@@ -1,8 +1,8 @@
-"""Tests for timeline preview user input (v9).
-v9 builds preview text in the view model (routes.py):
-- preview_title: from round.preview_text or user_msg.content[:80] (sanitized)
-- preview_subtitle: tool count string
-- User input indication is embedded in preview_title, not a separate tag.
+"""时间线预览用户输入测试 (v9)。
+v9 在视图模型 (routes.py) 中构建预览文本:
+- preview_title: 来自 round.preview_text 或 user_msg.content[:80]（已清洗）
+- preview_subtitle: 工具数量字符串
+- 用户输入指示已嵌入 preview_title，而非单独标签
 """
 
 import pytest
@@ -19,7 +19,7 @@ def _read_routes():
 
 
 class TestPreviewTextBuiltInViewmodel:
-    """Verify preview text is built from user_msg.content in routes.py."""
+    """验证预览文本在 routes.py 中由 user_msg.content 构建。"""
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_title_uses_user_msg(self):
@@ -29,38 +29,38 @@ class TestPreviewTextBuiltInViewmodel:
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_title_sanitized(self):
-        """preview_title should sanitize forbidden framework words."""
+        """preview_title 应清洗禁止出现的框架词汇。"""
         source = _read_routes()
-        # Should replace forbidden words with ***
+        # 应将禁止词汇替换为 ***
         assert "***" in source
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_subtitle_shows_tool_count(self):
-        """preview_subtitle should show tool count."""
+        """preview_subtitle 应显示工具数量。"""
         source = _read_routes()
         assert "preview_subtitle" in source
         assert "tool" in source.lower()
 
 
 class TestPreviewTagDoesNotLeakUserContent:
-    """Verify user input content is not directly leaked in templates."""
+    """验证用户输入内容不会直接泄露到模板中。"""
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_no_direct_user_msg_in_session_template(self):
-        """session.html should not reference user_msg.content directly."""
+        """session.html 不应直接引用 user_msg.content。"""
         session_html = os.path.join(
             ROOT, "src", "session_browser", "web", "templates", "session.html"
         )
         with open(session_html) as f:
             content = f.read()
-        # user_msg.content should not appear directly in the template
+        # user_msg.content 不应直接出现在模板中
         assert "user_msg.content" not in content, (
-            "Template should not reference user_msg.content directly"
+            "模板不应直接引用 user_msg.content"
         )
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_uses_view_model_vars(self):
-        """Templates should use row.preview_title from view model, not raw content."""
+        """模板应使用视图模型中的 row.preview_title，而非原始内容。"""
         timeline = os.path.join(
             ROOT, "src", "session_browser", "web", "templates",
             "components", "session_detail_timeline.html"
@@ -72,10 +72,10 @@ class TestPreviewTagDoesNotLeakUserContent:
 
 
 class TestPreviewTextTruncation:
-    """Verify preview text truncation in view model."""
+    """验证视图模型中预览文本的截断处理。"""
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_truncation_in_routes(self):
         source = _read_routes()
-        # preview_title is truncated to 120 chars
+        # preview_title 截断至 120 字符
         assert "[:120]" in source or "[:80]" in source

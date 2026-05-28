@@ -1,1 +1,1 @@
-# pytest fixtures for performance tests — inherits all from root conftest.py
+# 用于性能测试的 pytest fixture — 继承自根 conftest.py

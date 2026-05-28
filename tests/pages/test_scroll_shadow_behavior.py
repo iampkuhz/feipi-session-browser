@@ -1,10 +1,10 @@
-"""Tests verifying scroll shadow feature has been removed.
+"""验证滚动阴影功能已移除的测试。
 
-These tests verify that the scroll shadow feature is ABSENT from CSS/JS,
-as required by the Hi-Fi refactoring (Plan A: remove the feature entirely).
+这些测试验证滚动阴影功能已从 CSS/JS 中移除，
+符合 Hi-Fi 重构要求（方案 A：完全移除该功能）。
 
-Usage:
-    cd <repo-root>
+用法：
+    cd <仓库根目录>
     ./scripts/session-browser.sh test tests/test_scroll_shadow_behavior.py
 """
 
@@ -26,61 +26,61 @@ JS_PATH = "src/session_browser/web/static/js/app.js"
 
 
 class TestCSSAbsent:
-    """Verify scroll shadow pseudo-elements are removed from CSS."""
+    """验证 CSS 中已移除滚动阴影伪元素。"""
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_before_pseudo(self):
         css = open(CSS_PATH).read()
-        assert ".table-wrap::before" not in css, ".table-wrap::before should be removed"
+        assert ".table-wrap::before" not in css, ".table-wrap::before 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_after_pseudo(self):
         css = open(CSS_PATH).read()
-        assert ".table-wrap::after" not in css, ".table-wrap::after should be removed"
+        assert ".table-wrap::after" not in css, ".table-wrap::after 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_scroll_state_classes(self):
         css = open(CSS_PATH).read()
-        assert "is-scroll-left" not in css, "is-scroll-left class should be removed"
-        assert "is-scroll-right" not in css, "is-scroll-right class should be removed"
+        assert "is-scroll-left" not in css, "is-scroll-left 类应被移除"
+        assert "is-scroll-right" not in css, "is-scroll-right 类应被移除"
 
 
 class TestJSAbsent:
-    """Verify scroll shadow functions are removed from JS."""
+    """验证 JS 中已移除滚动阴影函数。"""
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_update_scroll_shadow(self):
         js = open(JS_PATH).read()
-        assert "updateScrollShadow" not in js, "updateScrollShadow should be removed"
+        assert "updateScrollShadow" not in js, "updateScrollShadow 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_init_scroll_shadows(self):
         js = open(JS_PATH).read()
-        assert "initScrollShadows" not in js, "initScrollShadows should be removed"
+        assert "initScrollShadows" not in js, "initScrollShadows 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_init_all_scroll_shadows(self):
         js = open(JS_PATH).read()
-        assert "initAllScrollShadows" not in js, "initAllScrollShadows should be removed"
+        assert "initAllScrollShadows" not in js, "initAllScrollShadows 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_scroll_shadow_resize(self):
         js = open(JS_PATH).read()
-        # resize listener for scroll shadows should be gone
+        # 滚动阴影的 resize 监听器应已移除
         assert "resize" not in js or "scroll" not in js, \
-            "resize+scroll shadow listeners should be removed"
+            "resize+scroll 阴影监听器应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_profile_loaded_shadow(self):
         js = open(JS_PATH).read()
-        assert "profile-loaded" not in js, "profile-loaded shadow reinit should be removed"
+        assert "profile-loaded" not in js, "profile-loaded 阴影重新初始化应被移除"
 
 
 class TestTableWrapLayoutPreserved:
-    """Verify .table-wrap layout CSS itself is NOT removed."""
+    """验证 .table-wrap 布局 CSS 本身未被移除。"""
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_table_wrap_base_exists(self):
         css = open(CSS_TABLE_WRAP).read()
-        assert ".table-wrap" in css, ".table-wrap base rule must still exist"
-        assert "overflow-x" in css, "overflow-x:auto must be preserved for scrolling"
+        assert ".table-wrap" in css, ".table-wrap 基础规则必须保留"
+        assert "overflow-x" in css, "overflow-x:auto 必须保留以支持滚动"

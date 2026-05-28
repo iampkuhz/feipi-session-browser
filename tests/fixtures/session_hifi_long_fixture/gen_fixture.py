@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a synthetic 100-round session fixture for performance testing."""
+"""生成 100 轮合成 session fixture，用于性能测试。"""
 
 import json
 import os
@@ -39,7 +39,7 @@ def rand_id(prefix=""):
     return f"{prefix}{''.join(random.choices(string.ascii_lowercase + string.digits, k=8))}"
 
 def gen_tool_results(tool_uses):
-    """Generate tool result entries matching tool_use IDs."""
+    """生成与 tool_use ID 匹配的 tool result 条目。"""
     results = []
     for tu in tool_uses:
         tu_id = tu["id"]
@@ -70,7 +70,7 @@ def gen_tool_results(tool_uses):
     return results
 
 def gen_tool_uses(count):
-    """Generate tool_use blocks."""
+    """生成 tool_use 块。"""
     tools = random.sample(TOOLS, min(count, len(TOOLS)))
     return [
         {
@@ -96,14 +96,14 @@ def main():
     with open(os.path.join(FIXTURE_DIR, "history.jsonl"), "w") as f:
         f.write(json.dumps(history) + "\n")
 
-    # Session JSONL
+    # Session JSONL 文件
     ts_offset = 0
     for round_idx in range(NUM_ROUNDS):
         topic = TOPICS[round_idx % len(TOPICS)]
         if round_idx >= len(TOPICS):
             topic = f"Round {round_idx + 1}: {topic}"
 
-        # 1. User message
+        # 1. 用户消息
         ts_offset += random.randint(5, 30)
         user_ts = f"2026-04-24T{10 + ts_offset // 3600:02d}:{(ts_offset % 3600) // 60:02d}:{ts_offset % 60:02d}.000Z"
         session_lines.append(json.dumps({
@@ -118,7 +118,7 @@ def main():
             "gitBranch": "main"
         }))
 
-        # 2. Assistant LLM call with optional tool uses
+        # 2. 助手 LLM 调用（含可选 tool uses）
         ts_offset += random.randint(2, 15)
         llm_ts = f"2026-04-24T{10 + ts_offset // 3600:02d}:{(ts_offset % 3600) // 60:02d}:{ts_offset % 60:02d}.000Z"
         input_tokens = random.randint(500, 5000)
@@ -126,7 +126,7 @@ def main():
         cache_write = random.randint(200, 2000) if round_idx < 20 else 0
         output_tokens = random.randint(50, 500)
 
-        # Generate tool uses (sometimes text-only response)
+        # 生成 tool uses（有时为纯文本响应）
         if random.random() < 0.3:
             content_blocks = [{"type": "text", "text": f"I'll work on {topic.lower()}."}]
             stop_reason = "end_turn"
@@ -159,7 +159,7 @@ def main():
             "timestamp": llm_ts
         }))
 
-        # 3. Tool results (if any tool_uses were emitted)
+        # 3. 工具结果（如果有 tool_uses 输出）
         all_tool_uses = [b for b in content_blocks if b["type"] == "tool_use"]
 
         if all_tool_uses:
@@ -178,7 +178,7 @@ def main():
                 "gitBranch": "main"
             }))
 
-    # Write session file
+    # 写入 session 文件
     session_path = os.path.join(FIXTURE_DIR, "projects", PROJECT_KEY, f"{SESSION_ID}.jsonl")
     with open(session_path, "w") as f:
         f.write("\n".join(session_lines) + "\n")

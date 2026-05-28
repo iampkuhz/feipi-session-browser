@@ -65,13 +65,13 @@ class TestToolCountNoDuplication:
         ]
         r.compute_preview()
 
-        # tool_summary_html should have each tool exactly once
+        # tool_summary_html 应包含每个工具恰好一次
         assert r.tool_summary_html.count("Read") == 1
         assert r.tool_summary_html.count("Bash") == 1
-        assert "×2" in r.tool_summary_html  # Read×2
+        assert "×2" in r.tool_summary_html  # 读取×2
         assert "×1" in r.tool_summary_html  # Bash×1
 
-        # preview_text must NOT contain tool badges
+        # preview_text 不得包含工具徽章
         assert "preview-tool" not in r.preview_text
         assert "×2" not in r.preview_text
         assert "×1" not in r.preview_text
@@ -98,12 +98,12 @@ class TestToolCountNoDuplication:
         ]
         r.compute_preview()
 
-        # Each tool name should appear at most once in tool_summary_html
+        # 每个工具名在 tool_summary_html 中应最多出现一次
         for name in ["Read", "Bash", "Write"]:
             count = r.tool_summary_html.count(name)
             assert count <= 1, f"{name} appears {count} times in tool_summary_html"
 
-        # preview_text should NOT have tool badges
+        # preview_text 不应有工具徽章
         assert "preview-tool" not in r.preview_text
 
     @pytest.mark.contract_case("UI-SD-019")
@@ -121,7 +121,7 @@ class TestToolCountNoDuplication:
         ]
         r.compute_preview()
 
-        assert "Fix the bug" not in r.preview_text  # uses assistant response, not user
+        assert "Fix the bug" not in r.preview_text  # 使用助手回复，而非用户消息
         assert "Found the issue" in r.preview_text
         assert "Grep" not in r.preview_text
         assert "Read" not in r.preview_text
@@ -129,7 +129,7 @@ class TestToolCountNoDuplication:
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_empty_tools(self):
-        """Round with no tools should have empty tool_summary_html."""
+        """无工具的轮次应有空的 tool_summary_html。"""
         r = ConversationRound(
             user_msg=ChatMessage(role="user", content="Hello", timestamp=""),
             assistant_msg=ChatMessage(
@@ -145,7 +145,7 @@ class TestToolCountNoDuplication:
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_user_only_no_tools(self):
-        """Round with only user message (no assistant response) should show user text."""
+        """仅用户消息无工具的轮次应显示用户文本。"""
         r = ConversationRound(
             user_msg=ChatMessage(
                 role="user", content="Please explain this code", timestamp=""
@@ -161,7 +161,7 @@ class TestToolCountNoDuplication:
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_legacy_format_preserved(self):
-        """preview_text_legacy should preserve old HTML-embedded format."""
+        """preview_text_legacy 应保留旧的 HTML 嵌入格式。"""
         r = ConversationRound(
             user_msg=ChatMessage(role="user", content="Test", timestamp=""),
             assistant_msg=ChatMessage(
@@ -173,16 +173,16 @@ class TestToolCountNoDuplication:
         r.compute_preview()
 
         assert "Response text" in r.preview_text_legacy
-        assert "preview-tool" in r.preview_text_legacy  # legacy has HTML
+        assert "preview-tool" in r.preview_text_legacy  # 旧版包含 HTML
         assert "×2" in r.preview_text_legacy
 
 
 class TestPreviewDoesNotRepeatText:
-    """preview_text and secondary content should not repeat each other."""
+    """preview_text 和次要内容不应互相重复。"""
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_preview_no_html_badges(self):
-        """preview_text must be plain text, no HTML tool badges."""
+        """preview_text 应为纯文本，无 HTML 工具徽章。"""
         r = ConversationRound(
             user_msg=ChatMessage(role="user", content="test", timestamp=""),
             assistant_msg=ChatMessage(
@@ -198,7 +198,7 @@ class TestPreviewDoesNotRepeatText:
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_tool_summary_is_valid_html(self):
-        """tool_summary_html should contain preview-tool spans."""
+        """tool_summary_html 应包含 preview-tool span。"""
         r = ConversationRound(
             user_msg=ChatMessage(role="user", content="test", timestamp=""),
             assistant_msg=ChatMessage(
@@ -215,11 +215,11 @@ class TestPreviewDoesNotRepeatText:
 
 
 class TestTraceRowDOMContract:
-    """Verify v9 template uses component macros for trace rows."""
+    """验证 v9 模板使用组件宏渲染 trace 行。"""
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_template_uses_component_macros(self):
-        """session.html must use sdt.trace_round macro for trace rows."""
+        """session.html 应使用 sdt.trace_round 宏渲染 trace 行。"""
         template_path = (
             __file__.rsplit("/", 1)[0]
             .rsplit("tests", 1)[0]
@@ -228,11 +228,11 @@ class TestTraceRowDOMContract:
         with open(template_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # v9 uses sdt.trace_round macro which encapsulates preview + detail
+        # v9 使用 sdt.trace_round 宏封装 preview + detail
         assert "sdt.trace_round" in content, (
             "Template must use sdt.trace_round macro for trace rows"
         )
-        # v9 passes round object to macro; preview computed in view model
+        # v9 将 round 对象传递给宏；preview 在视图模型中计算
         assert "for row in trace_rows" in content, (
             "Template must iterate over trace_rows"
         )
@@ -242,8 +242,7 @@ class TestTraceRowDOMContract:
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_normalized_trace_row_text_no_dup(self):
-        """Simulated: if preview_text + tool_summary_html were concatenated,
-        no tool name×count should appear more than once."""
+        """模拟：如果 preview_text + tool_summary_html 拼接，工具名×计数不应出现多次。"""
         r = ConversationRound(
             user_msg=ChatMessage(role="user", content="test", timestamp=""),
             assistant_msg=ChatMessage(
@@ -266,8 +265,8 @@ class TestTraceRowDOMContract:
 
         combined = r.preview_text + " " + r.tool_summary_html
         for name, expected_count in [("Read", 1), ("Bash", 1), ("TaskCreate", 1)]:
-            # Count occurrences of the tool name in the combined string
-            # (excluding HTML tag content — just count plain occurrences)
+            # 统计组合字符串中工具名的出现次数
+            #（排除 HTML 标签内容——只统计纯文本出现次数）
             plain = re.sub(r'<[^>]+>', '', combined)
             occurrences = plain.count(name)
             assert occurrences <= expected_count, (

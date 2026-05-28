@@ -1,16 +1,16 @@
-"""Gate test T035: Unified copy action contract.
-Verifies that all copy buttons in the codebase follow the canonical contract:
+"""T035 门控测试：统一复制操作契约。
+验证代码库中所有复制按钮遵循标准契约：
 
-  data-action="copy" + data-copy-text="<text-to-copy>"
+  data-action="copy" + data-copy-text="<要复制的文本>"
 
-The canonical handler lives in ui_primitives.js:handleCopy() and only reads
-data-copy-text.  Any button that uses a non-canonical data-action (e.g.
-copy-session, copy-project-path, copy-path, copy-session-id) or the legacy
-data-clipboard-text attribute will NOT be handled by the unified handler
-and constitutes a contract violation.
+标准处理器位于 ui_primitives.js:handleCopy()，仅读取
+data-copy-text。任何使用非标准 data-action（如
+copy-session、copy-project-path、copy-path、copy-session-id）或遗留
+data-clipboard-text 属性的按钮都不会被统一处理器处理，
+构成契约违反。
 
-This is a gate/regression test.  Current bugs are expected to FAIL until
-the source templates and JS are migrated.
+这是门控/回归测试。在源模板和 JS 迁移完成之前，
+预期的 bug 会 FAIL。
 """
 
 
@@ -25,15 +25,15 @@ TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 JS_DIR = ROOT / "src" / "session_browser" / "web" / "static" / "js"
 
 # ---------------------------------------------------------------------------
-# Helpers
+# 辅助函数
 # ---------------------------------------------------------------------------
 
 CANONICAL_ACTION = "copy"
 CANONICAL_ATTR = "data-copy-text"
 LEGACY_ATTR = "data-clipboard-text"
 
-# data-action values that are NOT the canonical "copy".
-# These are per-page JS handlers that bypass the unified ui_primitives.js handler.
+# 非标准 data-action 值。
+# 这些是页面级 JS 处理器，会绕过统一的 ui_primitives.js 处理器。
 NON_CANONICAL_ACTIONS = [
     "copy-session",
     "copy-session-id",
@@ -43,24 +43,24 @@ NON_CANONICAL_ACTIONS = [
 
 
 def _all_html_files():
-    """Yield all .html files under the templates directory."""
+    """遍历 templates 目录下所有 .html 文件。"""
     yield from TEMPLATE_DIR.rglob("*.html")
 
 
 def _find_copy_buttons(html: str):
-    """Return list of dicts describing each copy-like button in the HTML.
+    """返回 HTML 中所有类复制按钮的描述列表。
 
-    Each dict has keys: data_action, has_copy_text, has_clipboard_text,
-    has_session_id, file (the source file path).
+    每个字典包含键：data_action、has_copy_text、has_clipboard_text、
+    has_session_id、file（源文件路径）。
     """
     results = []
-    # Match <button ...> tags (single-line, no nested > in attributes)
+    # 匹配 <button ...> 标签（单行，属性中不含嵌套 >）
     for btn in re.finditer(r'<button\b[^>]*>', html):
         attrs = btn.group(0)
         action_match = re.search(r'data-action="([^"]*)"', attrs)
         data_action = action_match.group(1) if action_match else None
 
-        # Only care about copy-related buttons
+        # 只关注与复制相关的按钮
         if data_action is None or "copy" not in data_action.lower():
             continue
 
@@ -74,16 +74,16 @@ def _find_copy_buttons(html: str):
 
 
 # ---------------------------------------------------------------------------
-# T035-1: All HTML templates use canonical copy contract
+# T035-1：所有 HTML 模板使用标准复制契约
 # ---------------------------------------------------------------------------
 
 class TestCopyActionContractTemplates:
-    """Static scan: every copy button must use data-action="copy" + data-copy-text."""
+    """静态扫描：每个复制按钮必须使用 data-action="copy" + data-copy-text。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_all_copy_buttons_use_canonical_data_action(self):
-        """All copy buttons must use data-action="copy", not custom actions like
-        copy-session, copy-project-path, copy-path, copy-session-id."""
+        """所有复制按钮必须使用 data-action="copy"，不能使用自定义 action 如
+        copy-session、copy-project-path、copy-path、copy-session-id。"""
         violations = []
         for html_file in _all_html_files():
             text = html_file.read_text(encoding="utf-8", errors="ignore")
@@ -100,7 +100,7 @@ class TestCopyActionContractTemplates:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_all_copy_buttons_use_data_copy_text(self):
-        """All copy buttons must carry data-copy-text, not the legacy data-clipboard-text."""
+        """所有复制按钮必须携带 data-copy-text，不能使用遗留的 data-clipboard-text。"""
         violations = []
         for html_file in _all_html_files():
             text = html_file.read_text(encoding="utf-8", errors="ignore")
@@ -117,7 +117,7 @@ class TestCopyActionContractTemplates:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_legacy_data_clipboard_text(self):
-        """No copy button should use the legacy data-clipboard-text attribute."""
+        """复制按钮不得使用遗留的 data-clipboard-text 属性。"""
         violations = []
         for html_file in _all_html_files():
             text = html_file.read_text(encoding="utf-8", errors="ignore")
@@ -134,8 +134,8 @@ class TestCopyActionContractTemplates:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_data_session_id_as_copy_fallback(self):
-        """Buttons should not rely on data-session-id as a copy fallback;
-        the text to copy should be in data-copy-text."""
+        """按钮不应依赖 data-session-id 作为复制后备；
+        要复制的文本应放在 data-copy-text 中。"""
         violations = []
         for html_file in _all_html_files():
             text = html_file.read_text(encoding="utf-8", errors="ignore")
@@ -152,18 +152,18 @@ class TestCopyActionContractTemplates:
 
 
 # ---------------------------------------------------------------------------
-# T035-2: ui_primitives.js handleCopy supports canonical + backward compat
+# T035-2：ui_primitives.js handleCopy 支持标准 + 向后兼容
 # ---------------------------------------------------------------------------
 
 class TestUiPrimitivesCopyHandler:
-    """Verify ui_primitives.js handleCopy reads both data-copy-text (canonical)
-    and data-clipboard-text (backward compat fallback)."""
+    """验证 ui_primitives.js handleCopy 同时读取 data-copy-text（标准）
+    和 data-clipboard-text（向后兼容后备）。"""
 
     _js_file = JS_DIR / "ui_primitives.js"
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_exists(self):
-        """The handleCopy function must be defined."""
+        """handleCopy 函数必须已定义。"""
         text = self._js_file.read_text(encoding="utf-8")
         assert "function handleCopy" in text, (
             f"{self._js_file}: handleCopy function not found"
@@ -171,9 +171,9 @@ class TestUiPrimitivesCopyHandler:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_reads_data_copy_text(self):
-        """handleCopy must read data-copy-text as the primary source."""
+        """handleCopy 必须以 data-copy-text 作为主要数据源读取。"""
         text = self._js_file.read_text(encoding="utf-8")
-        # Extract the handleCopy function body
+        # 提取 handleCopy 函数体
         match = re.search(
             r'function handleCopy\([^)]*\)\s*\{(.*?)(?=\n  //|  function |\n  window\.|}$)',
             text,
@@ -187,7 +187,7 @@ class TestUiPrimitivesCopyHandler:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_data_copy_text_is_primary(self):
-        """data-copy-text must be the FIRST attribute checked (primary), not a fallback."""
+        """data-copy-text 必须是 FIRST 个被检查的属性（主要来源），而非后备。"""
         text = self._js_file.read_text(encoding="utf-8")
         match = re.search(
             r'function handleCopy\([^)]*\)\s*\{(.*?)(?=\n  //|  function |\n  window\.|}$)',
@@ -196,7 +196,7 @@ class TestUiPrimitivesCopyHandler:
         )
         assert match, f"{self._js_file}: could not parse handleCopy body"
         body = match.group(1)
-        # The first getAttribute or getAttribute-style call should be for data-copy-text
+        # 第一个 getAttribute 或类似调用应针对 data-copy-text
         first_attr = re.search(
             r"(?:getAttribute\(['\"]|\.dataset\.)([^'\"]+)",
             body,
@@ -209,8 +209,8 @@ class TestUiPrimitivesCopyHandler:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_handleCopy_supports_backward_compat(self):
-        """handleCopy should optionally fall back to data-clipboard-text or title for
-        backward compatibility with legacy buttons."""
+        """handleCopy 应可选地回退到 data-clipboard-text 或 title，
+        以兼容遗留按钮。"""
         text = self._js_file.read_text(encoding="utf-8")
         match = re.search(
             r'function handleCopy\([^)]*\)\s*\{(.*?)(?=\n  //|  function |\n  window\.|}$)',
@@ -232,40 +232,39 @@ class TestUiPrimitivesCopyHandler:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_copy_registered_in_switch(self):
-        """The click delegation switch must have a 'copy' case that calls handleCopy."""
+        """点击委托开关必须包含 'copy' 分支并调用 handleCopy。"""
         text = self._js_file.read_text(encoding="utf-8")
         assert "case 'copy':" in text, (
             f"{self._js_file}: no 'case \"copy\":' in the click delegation switch"
         )
-        # Verify it calls handleCopy
+        # 验证它调用了 handleCopy
         assert "handleCopy(" in text, (
             f"{self._js_file}: handleCopy is not called from the delegation switch"
         )
 
 
 # ---------------------------------------------------------------------------
-# T035-3: projects.js has no conflicting private copy handlers
+# T035-3：projects.js 无冲突的私有复制处理器
 # ---------------------------------------------------------------------------
 
 class TestProjectsJsCopyHandlers:
-    """Verify projects.js does not have private copy handlers that conflict
-    with the unified ui_primitives.js contract.
+    """验证 projects.js 不存在与统一 ui_primitives.js 契约冲突的私有复制处理器。
 
-    The canonical contract requires:
-    - No addEventListener on [data-action="copy-project-path"] or
-      [data-action="copy-session"] that bypasses the unified handler.
-    - If page-specific copy logic exists, it must be compatible (i.e. reads
-      both data-copy-text AND data-clipboard-text).
+    标准契约要求：
+    - 不得在 [data-action="copy-project-path"] 或
+      [data-action="copy-session"] 上注册绕过统一处理器的 addEventListener。
+    - 如果存在页面级复制逻辑，它必须兼容（即同时读取
+      data-copy-text 和 data-clipboard-text）。
     """
 
     _js_file = JS_DIR / "projects.js"
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_private_copy_project_path_handler(self):
-        """projects.js must not register a private click handler on
-        [data-action="copy-project-path"] that bypasses the unified handler."""
+        """projects.js 不得在 [data-action="copy-project-path"] 上注册
+        绕过统一处理器的私有点击处理器。"""
         text = self._js_file.read_text(encoding="utf-8")
-        # Check for direct querySelectorAll on copy-project-path
+        # 检查是否直接对 copy-project-path 使用 querySelectorAll
         has_direct_handler = (
             'copy-project-path' in text
             and 'addEventListener' in text
@@ -277,16 +276,16 @@ class TestProjectsJsCopyHandlers:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_private_copy_session_handler(self):
-        """projects.js must not register a private click handler on
-        [data-action="copy-session"] that bypasses the unified handler."""
+        """projects.js 不得在 [data-action="copy-session"] 上注册
+        绕过统一处理器的私有点击处理器。"""
         text = self._js_file.read_text(encoding="utf-8")
         has_direct_handler = (
             'copy-session' in text
             and 'addEventListener' in text
         )
-        # Be more precise: look for copy-session related addEventListener
+        # 更精确地检查：查找 copy-session 相关的 addEventListener
         if has_direct_handler:
-            # Check if it's really a copy-session handler (not just copy-session-id in a comment)
+        # 检查是否真的是 copy-session 处理器（而非注释中的 copy-session-id）
             lines = text.split("\n")
             for i, line in enumerate(lines):
                 if "copy-session" in line and "addEventListener" in line:
@@ -295,7 +294,7 @@ class TestProjectsJsCopyHandlers:
                         f"that bypasses the unified ui_primitives.js copy handler"
                     )
                 if "copy-session" in line:
-                    # Check nearby lines for addEventListener
+                    # 检查附近行是否有 addEventListener
                     nearby = "\n".join(lines[max(0, i - 3):i + 5])
                     if "addEventListener" in nearby and "forEach" in nearby:
                         assert False, (
@@ -305,10 +304,10 @@ class TestProjectsJsCopyHandlers:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_projects_js_copy_handlers_use_canonical_attribute(self):
-        """If any copy handler remains in projects.js, it must read data-copy-text
-        (canonical) in addition to data-clipboard-text (legacy)."""
+        """如果 projects.js 中仍存在复制处理器，它必须读取 data-copy-text
+        （标准）以及 data-clipboard-text（遗留）。"""
         text = self._js_file.read_text(encoding="utf-8")
-        # Extract function bodies that deal with copy
+        # 提取与复制相关的函数体
         copy_functions = re.findall(
             r'(?:function\s+\w+|var\s+\w+)\s*[^{]*\{[^}]*(?:copy|clipboard)[^}]*\}',
             text,
@@ -316,7 +315,7 @@ class TestProjectsJsCopyHandlers:
         )
         for func in copy_functions:
             if "addEventListener" in func or "clipboard" in func.lower():
-                # This is a copy-related handler; check it supports canonical attr
+                # 这是复制相关处理器；检查它是否支持标准属性
                 has_canonical = "data-copy-text" in func or "copyText" in func
                 assert has_canonical, (
                     f"{self._js_file}: copy-related handler does not read "

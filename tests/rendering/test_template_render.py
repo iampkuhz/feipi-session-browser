@@ -1,12 +1,12 @@
-"""Quality gate: every page template must render with the same Jinja2
-environment (filters + globals) as routes.py.
+"""质量门：每个页面模板必须使用与 routes.py 相同的 Jinja2
+环境（过滤器 + 全局变量）进行渲染。
 
-Catches "No filter named 'X'" errors before they reach the browser.
-This is what would have caught the missing 'shorten_path' filter.
+在错误到达浏览器之前捕获“未找到名为 'X' 的过滤器”错误。
+这正是应该捕获缺失 'shorten_path' 过滤器的安全网。
 
-Each test loads a page template with minimal context data and verifies it
-does not raise Jinja2 UndefinedError, TemplateRuntimeError, or
-TemplateAssertionError.
+每个测试使用最小上下文数据加载页面模板，并验证其
+不会抛出 Jinja2 UndefinedError、TemplateRuntimeError 或
+TemplateAssertionError。
 """
 
 from __future__ import annotations
@@ -16,18 +16,17 @@ import pathlib
 import urllib.parse
 
 import jinja2
-# ── Mirror routes.py template environment ──────────────────────────────
+# ── 镜像 routes.py 模板环境 ─────────────────────────────────────────
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
 
 
 def _make_page_env() -> jinja2.Environment:
     """
+    创建与 routes.py 相同过滤器的 Jinja2 环境。
 
-import Create a Jinja2 Environment with the SAME filters as routes.py.
-
-    If a filter registered in routes.py is missing here, the test will
-    fail — that's the safety net we want.
+    如果此处缺失了 routes.py 中注册的过滤器，测试将
+    失败 — 这正是我们想要的安全网。
     """
     import os
     import re
@@ -38,9 +37,9 @@ import Create a Jinja2 Environment with the SAME filters as routes.py.
         autoescape=True,
     )
 
-    # intentionally mirrors routes.py filter registrations;
-    # if a new filter is added there but not here, the page render
-    # will fail and the test will catch it.
+    # 有意镜像 routes.py 中的过滤器注册；
+    # 如果新过滤器添加到了那边但未添加到这边，
+    # 页面渲染将失败，测试会捕获到。
     env.filters["format_number"] = lambda n: (
         "0" if n is None
         else f"{n / 1_000_000:.1f}M" if n >= 1_000_000
@@ -73,13 +72,13 @@ import Create a Jinja2 Environment with the SAME filters as routes.py.
     env.filters["urldecode"] = urllib.parse.unquote
     env.filters["tojson_safe"] = lambda v: safe_json_display(v)
     env.filters["safe_json_display"] = safe_json_display
-    env.filters["markdown"] = lambda t: t  # passthrough for test
-    env.filters["render_llm_blocks_html"] = lambda t: ""  # passthrough
+    env.filters["markdown"] = lambda t: t  # 测试用直通
+    env.filters["render_llm_blocks_html"] = lambda t: ""  # 直通
     env.filters["strip_line_numbers"] = lambda t: (
         re.sub(r'^\d+\t', '', t, flags=re.MULTILINE)
         if t and re.search(r'^\d+\t', t, flags=re.MULTILINE) else t
     )
-    env.filters["renumber_lines"] = lambda t: t  # passthrough for test
+    env.filters["renumber_lines"] = lambda t: t  # 测试用直通
     env.filters["display_path"] = lambda p: p or ""
     env.filters["truncate_path"] = lambda p: (p or "")[:40] + "…" if p and len(p) > 40 else (p or "")
     env.filters["relative_to_repo"] = lambda p: p or ""
@@ -89,13 +88,13 @@ import Create a Jinja2 Environment with the SAME filters as routes.py.
     return env
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────
+# ── 辅助函数 ──────────────────────────────────────────────────────────────
 
 def _render_page(page_name: str, context: dict) -> str:
-    """Render a page template with the given context.
+    """使用给定上下文渲染页面模板。
 
-    Raises AssertionError if Jinja2 UndefinedError or
-    TemplateRuntimeError occurs (e.g. missing filter).
+    如果发生 Jinja2 UndefinedError 或
+    TemplateRuntimeError（例如缺少过滤器），则抛出 AssertionError。
     """
     env = _make_page_env()
     try:
@@ -105,10 +104,10 @@ def _render_page(page_name: str, context: dict) -> str:
         raise AssertionError(f"Template render failed: {page_name}: {e}") from e
 
 
-# ── Content quality gate ───────────────────────────────────────────────
+# ── 内容质量门 ───────────────────────────────────────────────────────────
 
-# Texts that indicate the page rendered an error state instead of real content.
-# These come from base.html error fallback and common error patterns.
+# 指示页面渲染为错误状态而非真实内容的文本。
+# 这些来自 base.html 的错误回退和常见错误模式。
 _ERROR_INDICATORS = [
     "Something Went Wrong",
     "unexpected error occurred",
@@ -118,26 +117,26 @@ _ERROR_INDICATORS = [
 
 
 def _assert_page_content_ok(html: str, page_title: str) -> None:
-    """Verify the rendered HTML looks like a real page, not an error state.
+    """验证渲染的 HTML 看起来像真实页面，而非错误状态。
 
-    page_title: the human-readable title expected on the page
-                (e.g. "Dashboard", "Sessions", NOT "dashboard.html")
+    page_title: 页面上预期的人类可读标题
+                （例如 "Dashboard"、"Sessions"，而非 "dashboard.html"）
     """
     for indicator in _ERROR_INDICATORS:
         assert indicator not in html, (
             f"{page_title} rendered error state: '{indicator}' — "
             "the quality gate should have caught this"
         )
-    # Page must contain its primary title (verifies it's not empty/broken)
+    # 页面必须包含其主要标题（验证不为空/损坏）
     assert page_title in html, (
         f"'{page_title}' not found in rendered HTML — page may be blank or broken"
     )
 
 
-# ── Tests ───────────────────────────────────────────────────────────────
+# ── 测试 ──────────────────────────────────────────────────────────────────
 
 class TestDashboardRender:
-    """dashboard.html must render without filter/template errors."""
+    """dashboard.html 必须在无过滤器/模板错误的情况下渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_dashboard_renders(self):
@@ -162,11 +161,11 @@ class TestDashboardRender:
 
 
 class TestSessionsRender:
-    """sessions.html must render without filter/template errors."""
+    """sessions.html 必须在无过滤器/模板错误的情况下渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_sessions_renders(self):
-        # Minimal stub for sessions_aggregate object
+        # sessions_aggregate 对象的最小桩
         agg = type("A", (), {
             "project_count": 0,
             "total_tokens": 0,
@@ -201,7 +200,7 @@ class TestSessionsRender:
 
 
 class TestSessionDetailRender:
-    """session.html must render without filter/template errors."""
+    """session.html 必须在无过滤器/模板错误的情况下渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_session_detail_renders(self):
@@ -234,7 +233,7 @@ class TestSessionDetailRender:
 
 
 class TestProjectRender:
-    """project.html must render without filter/template errors."""
+    """project.html 必须在无过滤器/模板错误的情况下渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_project_renders(self):
@@ -265,7 +264,7 @@ class TestProjectRender:
 
 
 class TestProjectsRender:
-    """projects.html must render without filter/template errors."""
+    """projects.html 必须在无过滤器/模板错误的情况下渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_projects_renders(self):
@@ -277,7 +276,7 @@ class TestProjectsRender:
 
 
 class TestAgentDetailRender:
-    """agent.html must render without filter/template errors."""
+    """agent.html 必须在无过滤器/模板错误的情况下渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_agent_detail_renders(self):
@@ -303,7 +302,7 @@ class TestAgentDetailRender:
 
 
 class TestAgentsRender:
-    """agents.html must render without filter/template errors."""
+    """agents.html 必须在无过滤器/模板错误的情况下渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_agents_renders(self):

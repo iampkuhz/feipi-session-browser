@@ -1,11 +1,10 @@
-"""T031 · info icon entity/component contract.
+"""T031 · info 图标组件契约测试。
 
-Verifies that projects.html and project.html do NOT directly embed the
-Unicode info character ⓘ (U+24D8) as raw text. Instead, info icons should
-be rendered via a macro or component that uses a semantic/accessible pattern
-(e.g., SVG icon, entity reference, or CSS pseudo-element).
+验证 projects.html 和 project.html 不直接嵌入 Unicode info 字符
+ⓘ（U+24D8）作为原始文本。info 图标应通过宏或组件渲染，
+使用语义化/可访问的模式（如 SVG 图标、实体引用或 CSS 伪元素）。
 
-Covers P-25: 页面有乱码/特殊字符图标 ⓘ
+覆盖 P-25：页面有乱码/特殊字符图标 ⓘ
 """
 import pytest
 from pathlib import Path
@@ -16,7 +15,7 @@ TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 PROJECTS_HTML = TEMPLATE_DIR / "projects.html"
 PROJECT_HTML = TEMPLATE_DIR / "project.html"
 
-# The problematic Unicode character
+# 问题 Unicode 字符
 INFO_CHAR = "ⓘ"  # ⓘ
 
 
@@ -37,17 +36,15 @@ def project_html():
 
 
 class TestInfoIconNotRawEmbedded:
-    """
+    """模板不得直接嵌入 ⓘ 作为原始文本。
 
-import Templates must not directly embed ⓘ as raw text.
-
-    The info icon should be produced via a macro/component, not pasted as
-    a raw Unicode character into the template source.
+    info 图标应通过宏/组件生成，而非将原始 Unicode 字符
+    粘贴到模板源码中。
     """
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_projects_no_raw_info_icon(self, projects_html):
-        """projects.html must not contain the raw ⓘ character."""
+        """projects.html 不得包含原始 ⓘ 字符。"""
         assert INFO_CHAR not in projects_html, (
             "projects.html contains raw ⓘ (U+24D8) character. "
             "Use a macro/component or SVG icon instead."
@@ -55,7 +52,7 @@ import Templates must not directly embed ⓘ as raw text.
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_project_no_raw_info_icon(self, project_html):
-        """project.html must not contain the raw ⓘ character."""
+        """project.html 不得包含原始 ⓘ 字符。"""
         assert INFO_CHAR not in project_html, (
             "project.html contains raw ⓘ (U+24D8) character. "
             "Use a macro/component or SVG icon instead."
@@ -63,12 +60,12 @@ import Templates must not directly embed ⓘ as raw text.
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_projects_uses_info_button_component(self, projects_html):
-        """projects.html should use a semantic info button pattern.
+        """projects.html 应使用语义化 info 按钮模式。
 
-        Acceptable patterns:
-        - icon_button macro call
-        - icon-button class with info variant
-        - data-action="metric-info" or data-action="info"
+        可接受的模式：
+        - icon_button 宏调用
+        - icon-button 类 + info 变体
+        - data-action="metric-info" 或 data-action="info"
         """
         has_icon_button = "icon-button--info" in projects_html or "icon_button" in projects_html
         has_data_action = "metric-info" in projects_html or 'data-action="info"' in projects_html
@@ -79,7 +76,7 @@ import Templates must not directly embed ⓘ as raw text.
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_project_uses_info_button_component(self, project_html):
-        """project.html should use a semantic info button pattern."""
+        """project.html 应使用语义化 info 按钮模式。"""
         has_icon_button = "icon-button--info" in project_html or "icon_button" in project_html
         has_data_action = 'data-action="info"' in project_html
         assert has_icon_button or has_data_action, (

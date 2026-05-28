@@ -1,7 +1,7 @@
-"""New file scenario tests for incremental scan.
+"""新文件场景的增量扫描测试。
 
-Validates that incremental_scan() correctly discovers and indexes
-new session JSONL files that appear after the initial full scan.
+验证 incremental_scan() 能正确发现并索引
+初始全量扫描后新出现的会话 JSONL 文件。
 """
 
 import pytest
@@ -13,15 +13,15 @@ import sys
 import time
 from pathlib import Path
 
-# ─── Constants ──────────────────────────────────────────────────────────────
+# ─── 常量 ─────────────────────────────────────────────────────────────────────
 
 FIXTURE_ROOT = Path(__file__).parent.parent / "fixtures" / "index_corpus" / "full_scan_claude"
 
-# ─── Helpers ────────────────────────────────────────────────────────────────
+# ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 
 def _setup_claude_env(data_dir: str):
-    """Set CLAUDE_DATA_DIR and reload dependent modules."""
+    """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("CLAUDE_DATA_DIR", None)
     os.environ["CLAUDE_DATA_DIR"] = data_dir
 
@@ -39,7 +39,7 @@ def _setup_claude_env(data_dir: str):
 
 
 def _restore_claude_env(old: str | None):
-    """Restore original CLAUDE_DATA_DIR."""
+    """恢复原始的 CLAUDE_DATA_DIR。"""
     if old is not None:
         os.environ["CLAUDE_DATA_DIR"] = old
     else:
@@ -47,7 +47,7 @@ def _restore_claude_env(old: str | None):
 
 
 def _run_full_scan(data_dir: str, db_path: str) -> dict:
-    """Run full_scan() against data_dir, returning scan statistics."""
+    """对 data_dir 运行 full_scan()，返回扫描统计。"""
     old_env = _setup_claude_env(data_dir)
     try:
         from session_browser.index.indexer import full_scan
@@ -62,7 +62,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 
 
 def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
-    """Run incremental_scan() against data_dir, returning scan statistics."""
+    """对 data_dir 运行 incremental_scan()，返回扫描统计。"""
     old_env = _setup_claude_env(data_dir)
     try:
         from session_browser.index.indexer import incremental_scan
@@ -77,7 +77,7 @@ def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
 
 
 def _create_valid_session_file(path: Path):
-    """Write a minimal valid session JSONL file with usage data."""
+    """写入最小有效会话 JSONL 文件（含 usage 数据）。"""
     now_iso = "2025-01-15T10:00:00+00:00"
     msg_user = {
         "type": "user",
@@ -103,30 +103,30 @@ def _create_valid_session_file(path: Path):
         f.write(json.dumps(msg_assistant) + "\n")
 
 
-# ─── Tests ──────────────────────────────────────────────────────────────────
+# ─── 测试 ─────────────────────────────────────────────────────────────────────
 
 
 class TestNewFileScenario:
-    """N01: incremental_scan discovers and indexes new session files."""
+    """N01: incremental_scan 发现并索引新会话文件。"""
 
     @pytest.mark.contract_case("DATA-INDEX-004")
     def test_new_session_file_discovered_and_indexed(self, tmp_path):
-        """Adding a new session JSONL file after initial scan should be discovered and indexed.
+        """初始扫描后添加新会话 JSONL 文件应被发现并索引。
 
-        Steps:
-        1. Build initial index with full_scan (2 sessions).
-        2. Append a new entry to history.jsonl and create the corresponding session JSONL file.
-        3. Update the session file mtime to ensure detectability.
-        4. Run incremental_scan.
-        5. Verify the new session is discovered and indexed.
-        6. Verify index count increased by exactly 1.
+        步骤：
+        1. 使用 full_scan 建立初始索引（2 个会话）。
+        2. 向 history.jsonl 追加新条目并创建对应的会话 JSONL 文件。
+        3. 更新会话文件 mtime 以确保可检测。
+        4. 运行 incremental_scan。
+        5. 验证新会话被发现并索引。
+        6. 验证索引计数恰好增加 1。
         """
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: Build initial index
+        # 步骤 1: 建立初始索引
         _run_full_scan(str(data_dir), db_path)
 
         conn = sqlite3.connect(db_path)
@@ -134,7 +134,7 @@ class TestNewFileScenario:
         conn.close()
         assert count_before == 2, f"Expected 2 initial sessions, got {count_before}"
 
-        # Step 2: Append new session entry to history.jsonl
+        # 步骤 2: 向 history.jsonl 追加新会话条目
         history_path = data_dir / "history.jsonl"
         new_history_entry = {
             "sessionId": "sess-003",
@@ -145,28 +145,28 @@ class TestNewFileScenario:
         with open(str(history_path), "a") as f:
             f.write(json.dumps(new_history_entry) + "\n")
 
-        # Create the new session file under a new project directory
+        # 在新项目目录下创建新会话文件
         proj_dir = data_dir / "projects" / "proj-gamma"
         proj_dir.mkdir(parents=True, exist_ok=True)
         new_session_file = proj_dir / "sess-003.jsonl"
         _create_valid_session_file(new_session_file)
 
-        # Step 3: Update mtime to ensure it is detectable
+        # 步骤 3: 更新 mtime 以确保可检测
         time.sleep(0.05)
         new_stat = os.stat(str(new_session_file))
         new_mtime = new_stat.st_mtime + 1.0
         os.utime(str(new_session_file), (new_mtime, new_mtime))
 
-        # Step 4: Run incremental scan
+        # 步骤 4: 运行增量扫描
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # Step 5: Verify new session is discovered
+        # 步骤 5: 验证新会话被发现
         assert result["new_count"] >= 1, (
             f"Expected at least 1 new session from incremental scan, "
             f"got new_count={result['new_count']}"
         )
 
-        # Step 6: Verify index count increased by exactly 1
+        # 步骤 6: 验证索引计数恰好增加 1
         conn = sqlite3.connect(db_path)
         count_after = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         conn.close()
@@ -178,10 +178,10 @@ class TestNewFileScenario:
 
     @pytest.mark.contract_case("DATA-INDEX-004")
     def test_new_session_queryable_in_db(self, tmp_path):
-        """A newly indexed session should be queryable from the sessions table.
+        """新索引的会话应可在 sessions 表中查询。
 
-        Verifies that the new session appears in the database with correct
-        session_key and project information after incremental scan.
+        验证新会话在增量扫描后以正确的 session_key
+        和项目信息出现在数据库中。
         """
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
@@ -189,7 +189,7 @@ class TestNewFileScenario:
         db_path = str(tmp_path / "index.sqlite")
         _run_full_scan(str(data_dir), db_path)
 
-        # Append new session entry to history.jsonl
+        # 向 history.jsonl 追加新会话条目
         history_path = data_dir / "history.jsonl"
         new_history_entry = {
             "sessionId": "sess-003",
@@ -200,7 +200,7 @@ class TestNewFileScenario:
         with open(str(history_path), "a") as f:
             f.write(json.dumps(new_history_entry) + "\n")
 
-        # Create new session file
+        # 创建新会话文件
         proj_dir = data_dir / "projects" / "proj-gamma"
         proj_dir.mkdir(parents=True, exist_ok=True)
         new_session_file = proj_dir / "sess-003.jsonl"
@@ -213,7 +213,7 @@ class TestNewFileScenario:
 
         _run_incremental_scan(str(data_dir), db_path)
 
-        # Query the new session
+        # 查询新会话
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -231,10 +231,9 @@ class TestNewFileScenario:
 
     @pytest.mark.contract_case("DATA-INDEX-004")
     def test_multiple_new_sessions_discovered(self, tmp_path):
-        """Adding multiple new session files should all be discovered by incremental scan.
+        """添加多个新会话文件应都被增量扫描发现。
 
-        Verifies that incremental scan can handle batch additions
-        and correctly indexes all new sessions.
+        验证增量扫描能处理批量添加并正确索引所有新会话。
         """
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
@@ -246,7 +245,7 @@ class TestNewFileScenario:
         count_before = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         conn.close()
 
-        # Append new session entries to history.jsonl and create session files
+        # 向 history.jsonl 追加新会话条目并创建会话文件
         history_path = data_dir / "history.jsonl"
         for proj, sess in [("proj-gamma", "sess-003"), ("proj-delta", "sess-004")]:
             new_history_entry = {

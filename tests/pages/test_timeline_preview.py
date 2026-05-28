@@ -1,4 +1,4 @@
-"""Tests for timeline preview text generation in ConversationRound."""
+"""验证 ConversationRound 中时间线预览文本生成的测试。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from session_browser.domain.models import (
 )
 
 
-# ── _compact_preview_text helper ────────────────────────────────────
+# ── _compact_preview_text 辅助函数 ────────────────────────────────────
 
 
 class TestCompactPreviewText:
@@ -39,7 +39,7 @@ class TestCompactPreviewText:
     def test_truncates_at_limit(self):
         long_text = "a" * 200
         result = ConversationRound._compact_preview_text(long_text, limit=120)
-        assert len(result) == 121  # 120 chars + ellipsis
+        assert len(result) == 121  # 120 个字符 + 省略号
         assert result.endswith("…")
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
@@ -58,7 +58,7 @@ class TestCompactPreviewText:
         assert ConversationRound._compact_preview_text(None) == ""
 
 
-# ── _format_tool_counts helper ──────────────────────────────────────
+# ── _format_tool_counts 辅助函数 ──────────────────────────────────────
 
 
 class TestFormatToolCounts:
@@ -104,19 +104,18 @@ class TestFormatToolCounts:
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_tool_names_wrapped_in_spans(self):
         """
-
-Tool names are now wrapped in preview-tool spans for CSS styling."""
+        工具名称现在包装在 preview-tool span 中以便 CSS 样式化。"""
         tools = [ToolCall(name="Read"), ToolCall(name="Bash")]
         result = ConversationRound._format_tool_counts(tools)
         assert '<span class="preview-tool">Read</span>' in result
         assert '<span class="preview-tool">Bash</span>' in result
 
 
-# ── compute_preview() scenarios ─────────────────────────────────────
+# ── compute_preview() 场景 ─────────────────────────────────────
 
 
 class TestComputePreviewLLMResponse:
-    """Priority 1: LLM response text + tool counts if present."""
+    """优先级 1：LLM 响应文本 + 工具计数（如果存在）。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_response_with_tools(self):
@@ -131,16 +130,16 @@ class TestComputePreviewLLMResponse:
             tool_calls=tools,
         )]
         r.compute_preview()
-        # preview_text: text only, NO tool badges
+        # preview_text：仅文本，无工具徽章
         assert "Let me check" in r.preview_text
         assert "preview-tool" not in r.preview_text
-        # Tool counts in tool_summary_html
+        # 工具计数在 tool_summary_html 中
         assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
         assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_response_truncated_when_long(self):
-        long_response = "word " * 50  # 250 chars
+        long_response = "word " * 50  # 250 个字符
         assistant = ChatMessage(role="assistant", content=long_response, timestamp="")
         user = ChatMessage(role="user", content="question", timestamp="")
         tools = [ToolCall(name="Read")]
@@ -152,16 +151,16 @@ class TestComputePreviewLLMResponse:
             tool_calls=tools,
         )]
         r.compute_preview()
-        # preview_text: truncated response, no tool badges
+        # preview_text：截断的响应，无工具徽章
         assert "…" in r.preview_text
         assert "preview-tool" not in r.preview_text
-        # Tool count in tool_summary_html
+        # 工具计数在 tool_summary_html 中
         assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_response_long_with_no_tools(self):
-        """When response text is long but there are no tools, preview shows truncated assistant."""
-        long_response = "word " * 50  # 250 chars
+        """当响应文本较长但没有工具时，预览显示截断的 assistant 内容。"""
+        long_response = "word " * 50  # 250 个字符
         assistant = ChatMessage(role="assistant", content=long_response, timestamp="")
         user = ChatMessage(role="user", content="q", timestamp="")
         r = ConversationRound(user_msg=user, assistant_msg=assistant)
@@ -171,13 +170,13 @@ class TestComputePreviewLLMResponse:
             timestamp="", status="ok", response_preview=long_response,
         )]
         r.compute_preview()
-        # Has assistant content → show assistant (truncated)
+        # 有 assistant 内容 → 显示 assistant（截断）
         assert "…" in r.preview_text
         assert r.tool_summary_html == ""
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_user_input_only_when_no_tools(self):
-        """When assistant content is empty, preview falls back to user input text."""
+        """当 assistant 内容为空时，预览回退到用户输入文本。"""
         assistant = ChatMessage(role="assistant", content="", timestamp="")
         user = ChatMessage(role="user", content="Please explain this", timestamp="")
         r = ConversationRound(user_msg=user, assistant_msg=assistant)
@@ -187,13 +186,13 @@ class TestComputePreviewLLMResponse:
             timestamp="", status="ok", response_preview="",
         )]
         r.compute_preview()
-        # No assistant content + no tools → shows user input
+        # 无 assistant 内容 + 无工具 → 显示用户输入
         assert "Please explain this" in r.preview_text
         assert r.tool_summary_html == ""
 
 
 class TestComputePreviewSubagent:
-    """Subagent rounds show response first instead of just labels."""
+    """Subagent round 显示响应而非仅标签。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_subagent_with_response_text(self):
@@ -222,7 +221,7 @@ class TestComputePreviewSubagent:
         )]
         r.compute_preview()
         assert "Done" in r.preview_text
-        # Tool counts in tool_summary_html, not in preview_text
+        # 工具计数在 tool_summary_html 中，不在 preview_text 中
         assert "preview-tool" not in r.preview_text
         assert '<span class="preview-tool">Read</span>×2' in r.tool_summary_html
 
@@ -241,13 +240,13 @@ class TestComputePreviewSubagent:
         r.compute_preview()
         assert "Subagent" in r.preview_text
         assert "Agent" in r.preview_text
-        # Tool counts in tool_summary_html
+        # 工具计数在 tool_summary_html 中
         assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
         assert "preview-tool" not in r.preview_text
 
 
 class TestComputePreviewFallback:
-    """Fallback: user input text when no LLM response."""
+    """回退：当无 LLM 响应时使用用户输入文本。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_user_input_only(self):
@@ -275,26 +274,26 @@ class TestComputePreviewFallback:
             tool_calls=tools,
         )]
         r.compute_preview()
-        # Both assistant and user empty → tool_summary_html only
+        # assistant 和 user 都为空 → 仅 tool_summary_html
         assert r.preview_text == ""
         assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
         assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
 
 
 class TestComputePreviewNoHTML:
-    """Preview text rendering: template must use escaped output, not | safe."""
+    """预览文本渲染：模板必须使用转义输出，而非 | safe。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_compact_preview_preserves_raw_text(self):
-        """_compact_preview_text only compresses whitespace; it does NOT sanitize."""
+        """_compact_preview_text 仅压缩空白；不执行清理。"""
         text = "use `<code>` here"
         result = ConversationRound._compact_preview_text(text)
-        # The helper just compresses whitespace - raw text is preserved
+        # 该辅助函数只是压缩空白 — 保留原始文本
         assert "`<code>`" in result
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_preview_text_from_integration(self):
-        """Integration test: compute_preview() splits text and tool summary."""
+        """集成测试：compute_preview() 拆分文本和工具摘要。"""
         assistant = ChatMessage(role="assistant", content="See the code section", timestamp="")
         user = ChatMessage(role="user", content="task", timestamp="")
         tools = [ToolCall(name="Read")]
@@ -306,8 +305,8 @@ class TestComputePreviewNoHTML:
             tool_calls=tools,
         )]
         r.compute_preview()
-        # preview_text: text only, no tool badges
+        # preview_text：仅文本，无工具徽章
         assert "See the code section" in r.preview_text
         assert "preview-tool" not in r.preview_text
-        # tool_summary_html: tool chips
+        # tool_summary_html：工具芯片
         assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html

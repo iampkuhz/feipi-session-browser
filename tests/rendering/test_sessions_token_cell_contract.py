@@ -1,12 +1,12 @@
-"""Contract test: ui.token_cell Qoder profile rendering.
+"""契约测试：ui.token_cell Qoder profile 渲染。
 
-S-06: Qoder token breakdown should NOT show cache write/cache read.
-This test defines the expected contract and serves as a quality gate.
-It will FAIL until the source template is updated to support per-provider profiles.
+S-06：Qoder token 细目不应显示 cache write/cache read。
+此测试定义预期契约并作为质量门。
+在源模板更新以支持 per-provider profile 之前，它将 FAIL。
 
-Contract:
-- Qoder (profile="qoder"): only 2 rows — Fresh input + Output
-- Non-Qoder (e.g. claude_code): 4 rows — Fresh / Cached Rd / Cached Wr / Output
+契约：
+- Qoder（profile="qoder"）：仅 2 行 — Fresh input + Output
+- 非 Qoder（例如 claude_code）：4 行 — Fresh / Cached Rd / Cached Wr / Output
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import pytest
 import pathlib
 
 import jinja2
-# ── Jinja2 environment (mirrors test_ui_primitives.py) ──────────────────
+# ── Jinja2 环境（镜像 test_ui_primitives.py） ─────────────────────────
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
 
@@ -29,7 +29,7 @@ def _make_env() -> jinja2.Environment:
 
 
 def _render_token_cell(**kwargs) -> str:
-    """Render token_cell macro with the given kwargs."""
+    """使用给定 kwargs 渲染 token_cell 宏。"""
     env = _make_env()
     args = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
     tmpl_str = (
@@ -40,14 +40,14 @@ def _render_token_cell(**kwargs) -> str:
 
 
 def _render_with_profile(provider: str) -> str:
-    """Render token_cell as it would be called for a given provider.
+    """渲染 token_cell，如同为给定 provider 调用。
 
-    Simulates the caller template logic that would pass a `profile`
-    parameter or selectively suppress cache rows.
+    模拟调用者模板逻辑，该逻辑会传递 `profile`
+    参数或有选择地抑制 cache 行。
     """
-    # Current macro does not accept profile, so we render with
-    # representative values that a real caller would pass.
-    # For Qoder: cache values should be zero/absent.
+    # 当前宏不接受 profile，因此我们使用
+    # 真实调用者会传递的代表性值进行渲染。
+    # 对于 Qoder：cache 值应为零/缺失。
     if provider == "qoder":
         return _render_token_cell(
             total="1.0K",
@@ -65,7 +65,7 @@ def _render_with_profile(provider: str) -> str:
         )
 
 
-# ── Token cell type-name rows ────────────────────────────────────────────
+# ── Token cell 类型名称行 ────────────────────────────────────────────────
 
 _QODER_ALLOWED_TYPE_NAMES = {"Fresh input", "Output"}
 _NON_QODER_TYPE_NAMES = {"Fresh input", "Cached Rd", "Cached Wr", "Output"}
@@ -74,17 +74,17 @@ _CACHE_KEYWORDS = ["Cached Rd", "Cached Wr", "Cache read", "Cache write", "dot--
 
 
 class TestTokenCellQoderContract:
-    """Qoder profile: only Fresh input and Output rows.
+    """Qoder profile：仅 Fresh input 和 Output 行。
 
-    The token-cell tooltip must NOT contain any cache-related rows
-    when rendered for a Qoder session.
+    为 Qoder 会话渲染时，token-cell 提示框
+    不得包含任何 cache 相关行。
     """
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_cached_read_row(self):
         html = _render_with_profile("qoder")
-        # The contract says Qoder should NOT show Cached Rd
-        # This test will FAIL until source template is updated to support profile
+        # 契约规定 Qoder 不应显示 Cached Rd
+        # 此测试在源模板更新以支持 profile 之前将 FAIL
         assert "Cached Rd" not in html, (
             "Qoder token_cell must not contain 'Cached Rd' row"
         )
@@ -114,7 +114,7 @@ class TestTokenCellQoderContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_read_dot_class(self):
-        """No dot--read CSS class in Qoder output."""
+        """Qoder 输出中不得包含 dot--read CSS 类。"""
         html = _render_with_profile("qoder")
         assert "dot--read" not in html, (
             "Qoder token_cell must not contain dot--read class"
@@ -122,7 +122,7 @@ class TestTokenCellQoderContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_no_write_dot_class(self):
-        """No dot--write CSS class in Qoder output."""
+        """Qoder 输出中不得包含 dot--write CSS 类。"""
         html = _render_with_profile("qoder")
         assert "dot--write" not in html, (
             "Qoder token_cell must not contain dot--write class"
@@ -140,17 +140,17 @@ class TestTokenCellQoderContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_type_name_count(self):
-        """Qoder tooltip should have exactly 2 type-name rows."""
+        """Qoder 提示框应恰好有 2 个类型名称行。"""
         html = _render_with_profile("qoder")
         type_names = _extract_type_names(html)
-        # Contract: only Fresh + Output = 2
+        # 契约：仅 Fresh + Output = 2
         assert len(type_names) == 2, (
             f"Qoder token_cell should have exactly 2 type rows, got {len(type_names)}: {type_names}"
         )
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_only_allowed_type_names(self):
-        """Qoder type names must be a subset of {Fresh, Output}."""
+        """Qoder 类型名称必须是 {Fresh, Output} 的子集。"""
         html = _render_with_profile("qoder")
         type_names = _extract_type_names(html)
         assert type_names <= _QODER_ALLOWED_TYPE_NAMES, (
@@ -159,9 +159,9 @@ class TestTokenCellQoderContract:
 
 
 class TestTokenCellNonQoderContract:
-    """Non-Qoder (e.g. claude_code): full 4-segment breakdown.
+    """非 Qoder（例如 claude_code）：完整 4 段细目。
 
-    Must still show Fresh, Cached Rd, Cached Wr, and Output rows.
+    必须仍然显示 Fresh、Cached Rd、Cached Wr 和 Output 行。
     """
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
@@ -190,7 +190,7 @@ class TestTokenCellNonQoderContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_four_type_names(self):
-        """Non-Qoder tooltip should have exactly 4 type-name rows."""
+        """非 Qoder 提示框应恰好有 4 个类型名称行。"""
         html = _render_with_profile("claude_code")
         type_names = _extract_type_names(html)
         assert len(type_names) == 4, (
@@ -199,7 +199,7 @@ class TestTokenCellNonQoderContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_claude_all_expected_type_names(self):
-        """Non-Qoder type names must match the expected set."""
+        """非 Qoder 类型名称必须匹配预期集合。"""
         html = _render_with_profile("claude_code")
         type_names = _extract_type_names(html)
         assert type_names == _NON_QODER_TYPE_NAMES, (

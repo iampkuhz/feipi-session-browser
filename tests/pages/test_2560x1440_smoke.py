@@ -1,20 +1,19 @@
-"""2560x1440 viewport smoke matrix — Python-level HTTP tests.
+"""2560x1440 视口冒烟测试矩阵 — Python 级 HTTP 测试。
 
-Verifies that all major pages return HTTP 200 with expected HTML structure
-at 2560x1440 (2K desktop monitor) viewport sizes.
+验证所有主要页面在 2560x1440（2K 桌面显示器）视口下返回 HTTP 200 并具有预期的 HTML 结构。
 
-This test starts a local session-browser server using the hifi fixture,
-then makes HTTP requests with a 2560x1440 User-Agent string to verify each page.
+本测试使用 hifi 夹具启动本地 session-browser 服务器，
+然后通过 2560x1440 User-Agent 发起 HTTP 请求验证每个页面。
 
-Covers:
-- Dashboard page renders
-- Sessions List page renders
-- Session Detail page renders
-- Agents page renders
-- Projects page renders
-- Structural checks: CSS media queries, layout containers, table elements
+覆盖：
+- Dashboard 页面渲染
+- Sessions List 页面渲染
+- Session Detail 页面渲染
+- Agents 页面渲染
+- Projects 页面渲染
+- 结构检查：CSS 媒体查询、布局容器、表格元素
 
-Usage:
+用法：
     python3 -m pytest tests/pages/test_2560x1440_smoke.py -v
 """
 
@@ -23,17 +22,17 @@ from __future__ import annotations
 import pytest
 import re
 
-# ─── Constants ──────────────────────────────────────────────────────────
+# ─── 常量 ──────────────────────────────────────────────────────────────
 
-# 2560x1440 (QHD / 2K monitor) User-Agent
+# 2560x1440 (QHD / 2K 显示器) User-Agent
 DISPLAY_2K_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/120.0.0.0 Safari/537.36"
 )
 
-# Pages to smoke test: (name, path, expected HTML fragment, min HTML length)
-# Note: 404 page is tested separately by TestDisplay2K404Page (expects HTTP 404).
+# 冒烟测试页面：(名称, 路径, 预期 HTML 片段, 最小 HTML 长度)
+# 注意：404 页面由 TestDisplay2K404Page 单独测试（预期 HTTP 404）。
 PAGES = [
     ("Dashboard", "/dashboard", ">Dashboard<", 500),
     ("Sessions List", "/sessions", ">Sessions<", 500),
@@ -43,26 +42,24 @@ PAGES = [
 ]
 
 
-# ─── Server fixture ─────────────────────────────────────────────────────
+# ─── 服务器夹具 ─────────────────────────────────────────────────────────────
 
 
 @pytest.fixture(scope="module")
 def display_2k_smoke_server(hifi_fixture_session):
-    """
+    """使用 hifi 夹具会话服务器进行冒烟测试。
 
-import Use the hifi fixture session server for smoke testing.
-
-    Yields base_url from the deterministic fixture server.
+    产出确定性夹具服务器的 base_url。
     """
     base_url, agent, session_id = hifi_fixture_session
     yield base_url
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
+# ─── 辅助函数 ────────────────────────────────────────────────────────────
 
 
 def fetch_page(base_url: str, path: str) -> tuple[int, str]:
-    """Fetch a page and return (status_code, html_body)."""
+    """获取页面并返回 (status_code, html_body)。"""
     import urllib.request
     import urllib.error
 
@@ -79,192 +76,192 @@ def fetch_page(base_url: str, path: str) -> tuple[int, str]:
         return e.code, e.read().decode("utf-8") if e.fp else ""
 
 
-# ─── Tests: Page Loads ──────────────────────────────────────────────────
+# ─── 测试：页面加载 ──────────────────────────────────────────────────────────
 
 
 class TestDisplay2KSmoke:
-    """Smoke test all major pages at 2560x1440 viewport."""
+    """在 2560x1440 视口下对所有主要页面进行冒烟测试。"""
 
     @pytest.mark.parametrize("name,path,expected_fragment,min_length", PAGES)
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_page_loads(self, display_2k_smoke_server, name, path, expected_fragment, min_length):
-        """Each page must return HTTP 200 with expected content at 2560x1440 viewport."""
+        """每个页面在 2560x1440 视口下必须返回 HTTP 200 并包含预期内容。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, path)
 
-        assert status == 200, f"{name} at 2560x1440 returned HTTP {status}"
+        assert status == 200, f"{name} 在 2560x1440 下返回 HTTP {status}"
         assert len(html) >= min_length, (
-            f"{name} at 2560x1440 HTML too short: {len(html)} bytes "
-            f"(expected >= {min_length})"
+            f"{name} 在 2560x1440 下 HTML 过短：{len(html)} 字节 "
+            f"（预期 >= {min_length}）"
         )
         assert expected_fragment in html, (
-            f"{name} at 2560x1440 missing expected fragment '{expected_fragment}'"
+            f"{name} 在 2560x1440 下缺少预期片段 '{expected_fragment}'"
         )
 
 
-# ─── Tests: Viewport-Specific Structural Checks ─────────────────────────
+# ─── 测试：视口特定结构检查 ────────────────────────────────────────────────
 
 
 class TestDisplay2KDashboard:
-    """Dashboard structural checks at 2560x1440."""
+    """Dashboard 在 2560x1440 下的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_metric_cards_present(self, display_2k_smoke_server):
-        """Dashboard must have 4 metric cards."""
+        """Dashboard 必须有 4 个指标卡片。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
         cards = re.findall(r'class="metric-card"', html)
-        assert len(cards) == 4, f"Expected 4 metric cards, found {len(cards)}"
+        assert len(cards) == 4, f"预期 4 个指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_chart_containers_present(self, display_2k_smoke_server):
-        """Dashboard must have chart containers."""
+        """Dashboard 必须有图表容器。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
         containers = re.findall(r'data-dashboard-chart', html)
         assert len(containers) >= 2, \
-            f"Expected at least 2 chart containers, found {len(containers)}"
+            f"预期至少 2 个图表容器，发现 {len(containers)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_metric_grid_layout(self, display_2k_smoke_server):
-        """Dashboard metric-grid must be present for wide layout."""
+        """Dashboard 的 metric-grid 必须存在以支持宽屏布局。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
         assert 'class="metric-grid"' in html, \
-            "metric-grid must be present for 2560x1440 layout"
+            "metric-grid 必须存在以支持 2560x1440 布局"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_scope_switch_ui(self, display_2k_smoke_server):
-        """Dashboard must have scope switch UI."""
+        """Dashboard 必须有范围切换 UI。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
         for scope in ["day", "week", "month"]:
             assert f'data-scope="{scope}"' in html, \
-                f"Scope button '{scope}' must be present"
+                f"范围按钮 '{scope}' 必须存在"
 
 
 class TestDisplay2KSessionsList:
-    """Sessions List structural checks at 2560x1440."""
+    """Sessions List 在 2560x1440 下的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_sessions_table_present(self, display_2k_smoke_server):
-        """Sessions List must have a sessions table."""
+        """Sessions List 必须有会话表格。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
         assert 'aria-label="Sessions table"' in html, \
-            "Sessions table must be present"
+            "Sessions 表格必须存在"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_sessions_has_data_rows(self, display_2k_smoke_server):
-        """Sessions List must have data rows."""
+        """Sessions List 必须有数据行。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
         rows = re.findall(r'class="sessions-row"', html)
         assert len(rows) > 0, \
-            "Sessions List must have at least one session row"
+            "Sessions List 必须至少有一个会话行"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_links_exist(self, display_2k_smoke_server):
-        """Sessions List must have clickable session links."""
+        """Sessions List 必须有可点击的会话链接。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
         match = re.search(r'href="(/sessions/[^"]+/[^"]+)"', html)
-        assert match, "No session link found on Sessions List page"
+        assert match, "Sessions List 页面上未找到会话链接"
 
 
 class TestDisplay2KSessionDetail:
-    """Session Detail structural checks at 2560x1440."""
+    """Session Detail 在 2560x1440 下的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_accessible(self, display_2k_smoke_server):
-        """Session Detail page must be accessible and render."""
+        """Session Detail 页面必须可访问并渲染。"""
         base_url = display_2k_smoke_server
-        # First get a session link from the sessions page
+        # 先从 sessions 页面获取一个会话链接
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
 
         match = re.search(r'href="(/sessions/[^"]+/[^"]+)"', html)
-        assert match, "No session link found on Sessions List page"
+        assert match, "Sessions List 页面上未找到会话链接"
 
         session_url = match.group(1)
         status, detail_html = fetch_page(base_url, session_url)
-        assert status == 200, f"Session detail at {session_url} returned HTTP {status}"
-        assert len(detail_html) >= 500, "Session detail HTML too short"
+        assert status == 200, f"Session Detail 在 {session_url} 返回 HTTP {status}"
+        assert len(detail_html) >= 500, "Session Detail HTML 过短"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_has_timeline(self, display_2k_smoke_server):
-        """Session Detail must have a timeline section."""
+        """Session Detail 必须有时间线部分。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
 
         match = re.search(r'href="(/sessions/[^"]+/[^"]+)"', html)
-        assert match, "No session link found"
+        assert match, "未找到会话链接"
 
         status, detail_html = fetch_page(base_url, match.group(1))
         assert status == 200
         has_timeline = "timeline" in detail_html.lower() or "round" in detail_html.lower()
-        assert has_timeline, "Session detail must have timeline or round content"
+        assert has_timeline, "Session Detail 必须包含时间线或 round 内容"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_has_header(self, display_2k_smoke_server):
-        """Session Detail must have a page header with session title."""
+        """Session Detail 必须有包含会话标题的页面头部。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/sessions")
         assert status == 200
 
         match = re.search(r'href="(/sessions/[^"]+/[^"]+)"', html)
-        assert match, "No session link found"
+        assert match, "未找到会话链接"
 
         status, detail_html = fetch_page(base_url, match.group(1))
         assert status == 200
         assert "page-head" in detail_html or "session-detail" in detail_html.lower(), \
-            "Session detail must have a page header"
+            "Session Detail 必须有页面头部"
 
 
 class TestDisplay2KAgents:
-    """Agents page structural checks at 2560x1440."""
+    """Agents 页面在 2560x1440 下的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_agents_page_loads(self, display_2k_smoke_server):
-        """Agents page must return HTTP 200."""
+        """Agents 页面必须返回 HTTP 200。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/agents")
         assert status == 200
-        assert len(html) >= 500, "Agents page HTML too short"
+        assert len(html) >= 500, "Agents 页面 HTML 过短"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_agents_has_table_or_list(self, display_2k_smoke_server):
-        """Agents page must have a data table or agent list."""
+        """Agents 页面必须有数据表格或 Agent 列表。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/agents")
         assert status == 200
         has_table = 'class="data-table"' in html or 'class="agent-list"' in html
-        assert has_table, "Agents page must have a table or agent list"
+        assert has_table, "Agents 页面必须有表格或 Agent 列表"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_agents_has_entries(self, display_2k_smoke_server):
-        """Agents page must list at least one agent."""
+        """Agents 页面必须列出至少一个 Agent。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/agents")
         assert status == 200
         assert "claude" in html.lower() or "agent" in html.lower(), \
-            "Agents page must list at least one agent entry"
+            "Agents 页面必须至少列出一个 Agent 条目"
 
 
 class TestDisplay2KProjects:
-    """Projects page structural checks at 2560x1440."""
+    """Projects 页面在 2560x1440 下的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_projects_page_loads(self, display_2k_smoke_server):
-        """Projects page must return HTTP 200."""
+        """Projects 页面必须返回 HTTP 200。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/projects")
         assert status == 200
@@ -272,7 +269,7 @@ class TestDisplay2KProjects:
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_projects_has_table_or_list(self, display_2k_smoke_server):
-        """Projects page must have a data table or project list."""
+        """Projects 页面必须有数据表格或项目列表。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/projects")
         assert status == 200
@@ -281,11 +278,11 @@ class TestDisplay2KProjects:
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_projects_has_entries(self, display_2k_smoke_server):
-        """Projects page must list at least one project."""
+        """Projects 页面必须列出至少一个项目。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/projects")
         assert status == 200
-        # Check for project-related content in the page
+        # 检查页面中的项目相关内容
         has_project_content = (
             'class="data-table"' in html
             or 'class="project-list"' in html
@@ -295,15 +292,15 @@ class TestDisplay2KProjects:
             "Projects page must list at least one project entry"
 
 
-# ─── Tests: CSS Media Query Presence ────────────────────────────────────
+# ─── 测试：CSS 媒体查询检查 ─────────────────────────────────────────────
 
 
 class TestDisplay2KCSSSupport:
-    """Verify CSS files contain responsive media queries suitable for 2560x1440."""
+    """验证 CSS 文件包含适用于 2560x1440 的响应式媒体查询。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_style_css_has_wide_media_query(self):
-        """shell.css should contain media queries for wide viewports."""
+        """shell.css 应包含宽视口的媒体查询。"""
         css_path = "src/session_browser/web/static/css/shell.css"
         import os
         full_path = os.path.join(
@@ -321,7 +318,7 @@ class TestDisplay2KCSSSupport:
         with open(full_path) as f:
             content = f.read()
 
-        # Check for min-width media queries that cover 2560px
+        # 检查覆盖 2560px 的 min-width 媒体查询
         has_wide_query = (
             "@media" in content
             and ("min-width" in content or "max-width" in content)
@@ -345,17 +342,17 @@ class TestDisplay2KCSSSupport:
         with open(full_path) as f:
             content = f.read()
 
-        # Dashboard CSS should have layout rules
+        # Dashboard CSS 应包含布局规则
         has_layout = "grid" in content or "flex" in content or "display" in content
         assert has_layout, \
             "dashboard.css must contain layout rules"
 
 
-# ─── Tests: Session Detail at 2560x1440 ─────────────────────────────
+# ─── 测试：2560x1440 下的 Session Detail ─────────────────────────────
 
 
 class TestDisplay2KSessionDetailPage:
-    """Session Detail page structural checks at 2560x1440 using fixture session."""
+    """使用夹具会话检查 2560x1440 下 Session Detail 页面的结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_session_detail_page_loads(self, display_2k_smoke_server):
@@ -393,11 +390,11 @@ class TestDisplay2KSessionDetailPage:
             "Session Detail must have trace/round content"
 
 
-# ─── Tests: Glossary at 2560x1440 ───────────────────────────────────
+# ─── 测试：2560x1440 下的 Glossary ───────────────────────────────────
 
 
 class TestDisplay2KGlossary:
-    """Glossary page structural checks at 2560x1440."""
+    """2560x1440 下 Glossary 页面的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_glossary_page_loads(self, display_2k_smoke_server):
@@ -444,11 +441,11 @@ class TestDisplay2KGlossary:
             "Glossary must contain token terminology"
 
 
-# ─── Tests: 404 Error Page at 2560x1440 ─────────────────────────────
+# ─── 测试：2560x1440 下的 404 错误页面 ─────────────────────────────
 
 
 class TestDisplay2K404Page:
-    """404 error page structural checks at 2560x1440."""
+    """2560x1440 下 404 错误页面的结构检查。"""
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_404_page_returns_404_status(self, display_2k_smoke_server):

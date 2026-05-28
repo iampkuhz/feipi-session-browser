@@ -17,10 +17,10 @@ from session_browser.index.indexer import (
 )
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────────
+# ─── 辅助函数 ────────────────────────────────────────────────────────────────
 
 def _make_conn() -> sqlite3.Connection:
-    """Create an in-memory SQLite connection with the sessions schema."""
+    """创建带有 sessions schema 的内存 SQLite 连接。"""
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     init_schema(conn)
@@ -28,7 +28,7 @@ def _make_conn() -> sqlite3.Connection:
 
 
 def _insert(conn: sqlite3.Connection, session_id: str, title: str, **kw) -> SessionSummary:
-    """Insert a single session and return the summary."""
+    """插入单个会话并返回摘要对象。"""
     s = SessionSummary(
         agent="claude_code",
         session_id=session_id,
@@ -45,10 +45,10 @@ def _insert(conn: sqlite3.Connection, session_id: str, title: str, **kw) -> Sess
     return s
 
 
-# ─── Case-insensitive title search (existing behavior, regression guard) ────
+# ─── 不区分大小写的标题搜索（现有行为，回归防护） ────────
 
 class TestTitleCaseInsensitive:
-    """Verify title LIKE is case-insensitive (SQLite LIKE default)."""
+    """验证标题 LIKE 不区分大小写（SQLite LIKE 默认行为）。"""
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_lowercase_query_matches_mixed_case_title(self):
@@ -72,7 +72,7 @@ class TestTitleCaseInsensitive:
         conn = _make_conn()
         _insert(conn, session_id="sess-003", title="Feipi Session Browser")
 
-        # Mixed case query
+        # 混合大小写查询
         results = list_sessions(conn, title_like="sSiOn")
         assert len(results) == 1
 
@@ -113,47 +113,47 @@ class TestSessionIdCaseInsensitiveSubstring:
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_lowercase_session_id_matches(self):
-        """adb90c9c (lowercase) should match AdB90C9C-3C4B-4318."""
+        """adb90c9c（小写）应匹配 AdB90C9C-3C4B-4318。"""
         results = list_sessions(self.conn, title_like="adb90c9c")
         assert len(results) == 1
         assert results[0].session_id == self.MIXED_CASE_SID
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_uppercase_session_id_matches(self):
-        """ADB90C9C (uppercase) should match AdB90C9C-3C4B-4318."""
+        """ADB90C9C（大写）应匹配 AdB90C9C-3C4B-4318。"""
         results = list_sessions(self.conn, title_like="ADB90C9C")
         assert len(results) == 1
         assert results[0].session_id == self.MIXED_CASE_SID
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_mixed_case_session_id_matches(self):
-        """AdB90C9C (mixed) should match AdB90C9C-3C4B-4318."""
+        """AdB90C9C（混合大小写）应匹配 AdB90C9C-3C4B-4318。"""
         results = list_sessions(self.conn, title_like="AdB90C9C")
         assert len(results) == 1
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_session_id_substring_matches(self):
-        """3c4b (lowercase substring) should match session_id."""
+        """3c4b（小写子串）应匹配 session_id。"""
         results = list_sessions(self.conn, title_like="3c4b")
         assert len(results) == 1
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_unrelated_query_no_match(self):
-        """Unrelated q should not match."""
+        """不相关的查询不应匹配。"""
         results = list_sessions(self.conn, title_like="notexist123")
         assert len(results) == 0
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_count_session_id_match(self):
-        """count_sessions should also match session_id."""
+        """count_sessions 也应匹配 session_id。"""
         count = count_sessions(self.conn, title_like="adb90c9c")
         assert count == 1
 
 
-# ─── Dual-match: title OR session_id should match ──────────────────────────
+# ─── 双重匹配：title 或 session_id 均可匹配 ──────────────────────────
 
 class TestDualMatchTitleOrSessionId:
-    """Verify q matches title OR session_id."""
+    """验证查询匹配 title 或 session_id。"""
 
     def setup_method(self):
         self.conn = _make_conn()
@@ -179,6 +179,6 @@ class TestDualMatchTitleOrSessionId:
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_count_dual_match(self):
-        # Should return 2 since both title and session_id are searchable
+        # 应返回 2，因为 title 和 session_id 都可搜索
         count = count_sessions(self.conn, title_like="API")
         assert count == 1

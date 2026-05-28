@@ -1,9 +1,9 @@
-"""Tests for build_sessions_url query state helper."""
+"""测试 build_sessions_url 查询状态辅助函数。"""
 import pytest
 import sys
 import os
 
-# Ensure src is on path
+# 确保 src 在路径中
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from session_browser.web.routes import build_sessions_url, _build_view_actions
@@ -47,11 +47,11 @@ class TestBuildSessionsUrl:
     @pytest.mark.contract_case("UI-INTERACTION-010")
     def test_stable_param_order(self):
         url = build_sessions_url(current={"project": "x", "agent": "cc", "sort": "updated"})
-        # q should come before agent before project
+        # q 应在 agent 之前出现
         q_idx = url.find("q=")
         agent_idx = url.find("agent=")
         project_idx = url.find("project=")
-        # agent should appear before project
+        # agent 应出现在 project 之前
         assert agent_idx < project_idx
 
     @pytest.mark.contract_case("UI-INTERACTION-010")

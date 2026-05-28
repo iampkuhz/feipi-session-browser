@@ -1,4 +1,4 @@
-"""Tests for Sessions page grid — HIFI v4 componentized layout."""
+"""验证 Sessions 页面网格的测试 — HIFI v4 组件化布局。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 import re
 from session_browser.web.template_env import _display_path
 
-# Grid content is in the main template and the partial.
+# 网格内容在主模板和局部模板中。
 _TEMPLATE_PATH = "src/session_browser/web/templates/sessions.html"
 _PARTIAL_PATH = "src/session_browser/web/templates/partials/sessions_grid.html"
 _UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
@@ -15,7 +15,7 @@ _SL_COMPONENTS_PATH = "src/session_browser/web/templates/components/sessions_lis
 
 
 def _read_sessions_templates():
-    """Read sessions.html, its grid partial, and component macros, return combined content."""
+    """读取 sessions.html、其网格局部模板和组件宏，返回合并后的内容。"""
     with open(_TEMPLATE_PATH) as f:
         main = f.read()
     with open(_PARTIAL_PATH) as f:
@@ -28,7 +28,7 @@ def _read_sessions_templates():
 
 
 class TestSessionsTemplateColumns:
-    """Verify sessions.html has the correct 9-column grid headers."""
+    """验证 sessions.html 有正确的 9 列表头。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_title_column(self):
@@ -77,7 +77,7 @@ class TestSessionsTemplateColumns:
 
 
 class TestSessionsTemplateRemovedColumns:
-    """Verify old table columns are no longer present in grid."""
+    """验证旧的表格列不再出现在网格中。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_failures_column(self):
@@ -119,13 +119,13 @@ class TestSessionsTemplateRemovedColumns:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_hero(self):
-        """No hero section in sessions list page."""
+        """Sessions 列表页面不得有 hero 区域。"""
         content = _read_sessions_templates()
         assert "hero" not in content.lower()
 
 
 class TestSessionsTemplateGridStructure:
-    """Verify the new div-based grid structure."""
+    """验证新的基于 div 的网格结构。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_data_sessions_grid(self):
@@ -155,13 +155,13 @@ class TestSessionsTemplateGridStructure:
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_agent_badge(self):
         content = _read_sessions_templates()
-        # Badge uses base class + agent-specific modifier
+        # 徽章使用基础类 + agent 特定修饰符
         assert 'sessions-agent-badge' in content
         assert 'sessions-agent-badge--' in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_token_bar(self):
-        """Token bar should be present in tokens cell."""
+        """Token 单元格中必须有 token bar。"""
         content = _read_sessions_templates()
         assert 'class="sessions-token-bar"' in content
 
@@ -172,17 +172,17 @@ class TestSessionsTemplateGridStructure:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_data_table_enhanced(self):
-        """data-table-enhanced attribute should be removed."""
+        """应移除 data-table-enhanced 属性。"""
         content = _read_sessions_templates()
         assert "data-table-enhanced" not in content
 
 
 class TestSortableHeaders:
-    """Verify sortable / non-sortable header contract."""
+    """验证可排序/不可排序表头契约。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_title_not_sortable(self):
-        """Title column should not be sortable."""
+        """Title 列不得可排序。"""
         content = _read_sessions_templates()
         assert "th_sort('Title'" not in content
 
@@ -228,27 +228,27 @@ class TestSortableHeaders:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_five_sortable_headers(self):
-        """Exactly 5 sortable header definitions in the table_header macro."""
+        """table_header 宏中必须恰好有 5 个可排序表头定义。"""
         content = _read_sessions_templates()
-        # Count th_sort calls in the table_header macro body (excluding the macro def line itself)
+        # 统计 table_header 宏体中的 th_sort 调用（排除宏定义行本身）
         assert content.count("ui.th_sort(") == 5
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_default_sort_aria(self):
-        """Default sort column should have aria-sort set."""
+        """默认排序列必须有 aria-sort 设置。"""
         content = _read_sessions_templates()
         assert "aria-sort" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_sortable_legend(self):
-        """No Sortable / Info only legend in the template."""
+        """模板中不得有 Sortable / Info only 图例。"""
         content = _read_sessions_templates()
         assert "legend-sort" not in content
         assert "Info only" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_density_toggle(self):
-        """No Compact / Comfort density toggle."""
+        """不得有 Compact / Comfort 密度切换。"""
         content = _read_sessions_templates()
         assert "density-toggle" not in content
         assert "Compact" not in content
@@ -256,7 +256,7 @@ class TestSortableHeaders:
 
 
 class TestFooter:
-    """Verify footer layout — contract-compliant pagination."""
+    """验证页脚布局 — 符合契约的分页。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_pagination_nav(self):
@@ -291,43 +291,43 @@ class TestFooter:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_sorted_by_in_footer(self):
-        """Footer must not contain 'sorted by' text."""
+        """页脚不得包含 'sorted by' 文本。"""
         content = _read_sessions_templates()
         assert "sorted by" not in content.lower()
 
 
 class TestSearch:
-    """Verify search input contract."""
+    """验证搜索输入契约。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_search_placeholder_session_id(self):
-        """Search placeholder should indicate Session ID only."""
+        """搜索占位符应仅指示 Session ID。"""
         content = _read_sessions_templates()
         assert "仅支持 Session ID" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_search_hint_chinese(self):
-        """Search hint should be in Chinese: 仅支持 Session ID."""
+        """搜索提示必须为中文：仅支持 Session ID。"""
         content = _read_sessions_templates()
         assert "仅支持 Session ID" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_search_placeholder_in_input(self):
-        """Search hint should be inside the search input as placeholder, not a separate element."""
+        """搜索提示应在搜索输入内作为 placeholder，而非单独元素。"""
         content = _read_sessions_templates()
         assert "placeholder=" in content
         assert "仅支持 Session ID" in content
-        # Must NOT have a separate hint element
+        # 不得有单独的 hint 元素
         assert 'sessions-search-hint' not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_broad_search_placeholder(self):
-        """Search placeholder should NOT mention title, project, or prompt."""
+        """搜索占位符不得提及 title、project 或 prompt。"""
         content = _read_sessions_templates()
-        # Extract placeholder value (single or double quotes)
+        # 提取 placeholder 值（单引号或双引号）
         import re
         match = re.search(r"placeholder=['\"]([^'\"]*)['\"]", content)
-        assert match, "Search input must have placeholder"
+        assert match, "搜索输入必须有 placeholder"
         hint = match.group(1).lower()
         assert "title" not in hint
         assert "project" not in hint
@@ -335,38 +335,38 @@ class TestSearch:
 
 
 class TestSessionsTemplateJS:
-    """Verify JS selectors in canonical sessions-list.js."""
+    """验证规范 sessions-list.js 中的 JS 选择器。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_js_uses_sessions_row_selector(self):
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
-        assert ".sessions-row" in js, "sessions-list.js must use .sessions-row"
+        assert ".sessions-row" in js, "sessions-list.js 必须使用 .sessions-row"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_tbody_selector(self):
-        """Old tbody selector should be removed."""
+        """应移除旧的 tbody 选择器。"""
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
-        assert "#sessions-table tbody" not in js, "Old tbody selector should be removed"
+        assert "#sessions-table tbody" not in js, "应移除旧的 tbody 选择器"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_tr_selector_in_filter(self):
-        """Old 'tr' query selector should be removed."""
+        """应移除旧的 'tr' 查询选择器。"""
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
-        assert "tbody.querySelectorAll" not in js, "Old tbody querySelectorAll should be removed"
+        assert "tbody.querySelectorAll" not in js, "应移除旧的 tbody querySelectorAll"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_data_sessions_grid(self):
-        """Old data-sessions-grid selector should be removed."""
+        """应移除旧的 data-sessions-grid 选择器。"""
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
-        assert "data-sessions-grid" not in js, "Old data-sessions-grid should be removed"
+        assert "data-sessions-grid" not in js, "应移除旧的 data-sessions-grid"
 
 
 class TestSessionsListActions:
-    """Verify triage action buttons have been removed."""
+    """验证已移除 triage 操作按钮。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_failed_only_button(self):
@@ -386,39 +386,39 @@ class TestSessionsListActions:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_top_actions(self):
-        """The .top-actions container should not exist."""
+        """不得存在 .top-actions 容器。"""
         content = _read_sessions_templates()
         assert "top-actions" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_toggle_quick_filter_js(self):
-        """toggleQuickFilter function should be removed."""
+        """应移除 toggleQuickFilter 函数。"""
         content = _read_sessions_templates()
         assert "toggleQuickFilter" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_open_selected_session_js(self):
-        """openSelectedSession function should be removed."""
+        """应移除 openSelectedSession 函数。"""
         content = _read_sessions_templates()
         assert "openSelectedSession" not in content
 
 
 class TestSessionsListRowClick:
-    """Verify session row click navigates to detail page."""
+    """验证会话行点击导航到详情页面。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_agent(self):
         content = _read_sessions_templates()
-        assert 'data-agent=' in content, "Session rows must have data-agent attribute"
+        assert 'data-agent=' in content, "会话行必须有 data-agent 属性"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_session_id(self):
         content = _read_sessions_templates()
-        assert 'data-session-id=' in content, "Session rows must have data-session-id attribute"
+        assert 'data-session-id=' in content, "会话行必须有 data-session-id 属性"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_js_navigates_to_session_url(self):
-        """JS click handler should build /sessions/<agent>/<session_id> URL."""
+        """JS 点击处理器应构建 /sessions/<agent>/<session_id> URL。"""
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
         assert "/sessions/" in js
@@ -427,17 +427,18 @@ class TestSessionsListRowClick:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_js_skips_links_on_click(self):
-        """JS should not hijack clicks on <a> elements."""
+        """JS 不应劫持 <a> 元素的点击。"""
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
-        assert "tagName" in js and ("'A'" in js or '"A"' in js),             "JS must skip <a> elements on row click"
+        assert "tagName" in js and ("'A'" in js or '"A"' in js), \
+            "JS 必须在行点击时跳过 <a> 元素"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_selection_js_leftover(self):
-        """Should not have .selected class manipulation or aria-selected."""
+        """不应有 .selected 类操作或 aria-selected。"""
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
-        # Check templates for leftover selection patterns
+        # 检查模板中的残留选择模式
         content = _read_sessions_templates()
         assert ".selected" not in content
         assert "aria-selected" not in content
@@ -445,7 +446,7 @@ class TestSessionsListRowClick:
 
 
 class TestDisplayPathFilter:
-    """Verify the display_path Jinja filter replaces home prefix with ~."""
+    """验证 display_path Jinja 过滤器将 home 前缀替换为 ~。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_home_path_becomes_tilde(self):
@@ -472,13 +473,13 @@ class TestDisplayPathFilter:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_data_project_keeps_raw_path(self):
-        """data-project attribute must retain the original project_key."""
+        """data-project 属性必须保留原始 project_key。"""
         content = _read_sessions_templates()
         assert 'data-project="{{ s.project_key }}"' in content
 
 
 class TestProjectColumn:
-    """Verify Project column rendering."""
+    """验证 Project 列渲染。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_project_cell_has_project_name_class(self):
@@ -497,33 +498,33 @@ class TestProjectColumn:
 
 
 class TestPaginationTemplate:
-    """Verify pagination-related template changes."""
+    """验证分页相关的模板变更。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_client_side_apply_filters(self):
-        """Old client-side applyFilters should be removed."""
+        """应移除旧的客户端 applyFilters。"""
         content = _read_sessions_templates()
         assert "function applyFilters()" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_submit_filters_function(self):
-        """submitFilters AJAX function removed in favor of link-based navigation."""
+        """submitFilters AJAX 函数已移除，改用基于链接的导航。"""
         content = _read_sessions_templates()
         assert "submitFilters" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_pagination_uses_links(self):
-        """Pagination should use <a> links, not button forms."""
+        """分页应使用 <a> 链接，而非按钮表单。"""
         content = _read_sessions_templates()
         assert 'name="page"' not in content or 'value="prev"' not in content
-        # sessions.html uses ui.pagination macro which generates button-based pagination
+        # sessions.html 使用 ui.pagination 宏生成基于按钮的分页
         assert "ui.pagination(" in content, \
-            "Sessions must use ui.pagination macro"
+            "Sessions 必须使用 ui.pagination 宏"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()
-        # Accept both single and double quote patterns (macros use single quotes)
+        # 接受单引号和双引号模式（宏使用单引号）
         assert ("name='q'" in content or 'name="q"' in content)
         assert ("name='agent'" in content or 'name="agent"' in content)
         assert ("name='model'" in content or 'name="model"' in content)
@@ -532,13 +533,13 @@ class TestPaginationTemplate:
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_link_based_pagination(self):
-        """Pagination uses anchor links with href."""
+        """分页使用带 href 的锚链接。"""
         content = _read_sessions_templates()
         assert "href=" in content and ("Previous" in content or "Next" in content)
 
 
 class TestCSS:
-    """Verify CSS selectors for HIFI v4."""
+    """验证 HIFI v4 的 CSS 选择器。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_sessions_grid_css(self):
@@ -583,23 +584,23 @@ class TestCSS:
         assert ".sessions-sort-icon" in content
 
 
-# ── Sessions List page fixture tests (T093) ─────────────────────────
-# Uses the hifi_fixture_session fixture to spin up a live server with
-# deterministic fixture data, then verifies the *rendered* Sessions List HTML.
-# Covers: page renders, session rows, filtering, pagination, key metrics, AJAX.
+# ── Sessions List 页面夹具测试（T093） ─────────────────────────
+# 使用 hifi_fixture_session 夹具启动带有确定性夹具数据的本地服务器，
+# 然后验证*渲染后*的 Sessions List HTML。
+# 覆盖：页面渲染、会话行、过滤、分页、关键指标、AJAX。
 
 
-# ── Sessions List page fixture ────────────────────────────────────────
+# ── Sessions List 页面夹具 ───────────────────────────────────────
 
 
 @pytest.fixture(scope="module")
 def sessions_list_html(hifi_fixture_session):
-    """Fetch rendered Sessions List HTML from the live fixture server."""
+    """从本地夹具服务器获取渲染后的 Sessions List HTML。"""
     base_url, agent, session_id = hifi_fixture_session
     import urllib.request
 
     resp = urllib.request.urlopen(f"{base_url}/sessions", timeout=10)
-    assert resp.status == 200, "Sessions List must return HTTP 200"
+    assert resp.status == 200, "Sessions List 必须返回 HTTP 200"
     return resp.read().decode("utf-8")
 
 
@@ -607,297 +608,297 @@ def sessions_list_html(hifi_fixture_session):
 
 
 class TestSessionsListPageRender:
-    """Verify the rendered Sessions List page structure."""
+    """验证渲染后的 Sessions List 页面结构。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_page_returns_200(self, sessions_list_html):
-        """Sessions List must render successfully."""
+        """Sessions List 必须成功渲染。"""
         assert len(sessions_list_html) > 500, \
-            "Sessions List HTML must be substantial"
+            "Sessions List HTML 必须有足够内容"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_doctype_and_html(self, sessions_list_html):
-        """Page must have proper HTML structure."""
+        """页面必须有正确的 HTML 结构。"""
         lower = sessions_list_html.lower()
         assert "<!doctype html" in lower or "<!DOCTYPE html" in sessions_list_html, \
-            "Sessions List must have DOCTYPE declaration"
+            "Sessions List 必须有 DOCTYPE 声明"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_title_contains_sessions(self, sessions_list_html):
-        """Page title must contain 'Sessions'."""
+        """页面标题必须包含 'Sessions'。"""
         assert "<title>Sessions" in sessions_list_html, \
-            "Page title must contain 'Sessions'"
+            "页面标题必须包含 'Sessions'"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_page_head_sessions(self, sessions_list_html):
-        """Page must have a visible 'Sessions' heading."""
+        """页面必须有可见的 'Sessions' 标题。"""
         assert ">Sessions<" in sessions_list_html, \
-            "'Sessions' heading must be visible"
+            "'Sessions' 标题必须可见"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_subtitle(self, sessions_list_html):
-        """Page must show the subtitle."""
+        """页面必须显示副标题。"""
         assert "Browse indexed local agent runs" in sessions_list_html, \
-            "Subtitle 'Browse indexed local agent runs' must appear"
+            "副标题 'Browse indexed local agent runs' 必须出现"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_data_table(self, sessions_list_html):
-        """Page must contain the sessions data table."""
+        """页面必须包含 sessions 数据表格。"""
         assert 'aria-label="Sessions table"' in sessions_list_html, \
-            "Sessions table with aria-label must be present"
+            "带 aria-label 的 Sessions 表格必须存在"
 
 
 # ── TestSessionsListDisplay ──────────────────────────────────────────
 
 
 class TestSessionsListDisplay:
-    """Verify session list rows are rendered with correct data."""
+    """验证会话列表行的渲染及其数据正确性。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_sessions_rows(self, sessions_list_html):
-        """At least one sessions-row must be rendered."""
+        """必须至少渲染一个 sessions-row。"""
         rows = re.findall(r'class="sessions-row"', sessions_list_html)
         assert len(rows) > 0, \
-            "At least one sessions-row must be rendered"
+            "必须至少渲染一个 sessions-row"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_session_id(self, sessions_list_html):
-        """Session rows must have data-session-id attribute."""
+        """会话行必须有 data-session-id 属性。"""
         match = re.search(r'class="sessions-row"[^>]*data-session-id="([^"]+)"', sessions_list_html)
-        assert match, "sessions-row must have data-session-id"
+        assert match, "sessions-row 必须有 data-session-id"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_agent(self, sessions_list_html):
-        """Session rows must have data-agent attribute."""
+        """会话行必须有 data-agent 属性。"""
         assert "data-agent=" in sessions_list_html, \
-            "sessions-row must have data-agent"
+            "sessions-row 必须有 data-agent"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_model(self, sessions_list_html):
-        """Session rows must have data-model attribute."""
+        """会话行必须有 data-model 属性。"""
         assert "data-model=" in sessions_list_html, \
-            "sessions-row must have data-model"
+            "sessions-row 必须有 data-model"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_project(self, sessions_list_html):
-        """Session rows must have data-project attribute."""
+        """会话行必须有 data-project 属性。"""
         assert "data-project=" in sessions_list_html, \
-            "sessions-row must have data-project"
+            "sessions-row 必须有 data-project"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_total_tokens(self, sessions_list_html):
-        """Session rows must have data-total-tokens attribute."""
+        """会话行必须有 data-total-tokens 属性。"""
         assert "data-total-tokens=" in sessions_list_html, \
-            "sessions-row must have data-total-tokens"
+            "sessions-row 必须有 data-total-tokens"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_rounds(self, sessions_list_html):
-        """Session rows must have data-rounds attribute."""
+        """会话行必须有 data-rounds 属性。"""
         assert "data-rounds=" in sessions_list_html, \
-            "sessions-row must have data-rounds"
+            "sessions-row 必须有 data-rounds"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_tool_count(self, sessions_list_html):
-        """Session rows must have data-tool-count attribute."""
+        """会话行必须有 data-tool-count 属性。"""
         assert "data-tool-count=" in sessions_list_html, \
-            "sessions-row must have data-tool-count"
+            "sessions-row 必须有 data-tool-count"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_duration(self, sessions_list_html):
-        """Session rows must have data-duration attribute."""
+        """会话行必须有 data-duration 属性。"""
         assert "data-duration=" in sessions_list_html, \
-            "sessions-row must have data-duration"
+            "sessions-row 必须有 data-duration"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_row_has_data_ended_at(self, sessions_list_html):
-        """Session rows must have data-ended-at attribute."""
+        """会话行必须有 data-ended-at 属性。"""
         assert "data-ended-at=" in sessions_list_html, \
-            "sessions-row must have data-ended-at"
+            "sessions-row 必须有 data-ended-at"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_session_links_present(self, sessions_list_html):
-        """Each session row must link to its detail page."""
+        """每个会话行必须链接到其详情页面。"""
         links = re.findall(r'href="/sessions/[^"]+/[^"]+"', sessions_list_html)
         assert len(links) > 0, \
-            "Session detail links must be present"
+            "会话详情链接必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_title_column_rendered(self, sessions_list_html):
-        """Title column content must be visible."""
+        """Title 列内容必须可见。"""
         assert 'class="col-title"' in sessions_list_html or 'class="title-main"' in sessions_list_html, \
-            "Title column must be rendered"
+            "Title 列必须渲染"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_agent_badge_rendered(self, sessions_list_html):
-        """Agent badge must be rendered."""
+        """Agent 徽章必须渲染。"""
         assert "sessions-agent-badge" in sessions_list_html or 'class="badge ' in sessions_list_html, \
-            "Agent badge must be rendered"
+            "Agent 徽章必须渲染"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_token_bar_rendered(self, sessions_list_html):
-        """Token bar must be rendered in tokens cell."""
+        """Token 单元格中必须渲染 token bar。"""
         assert "tokenbar" in sessions_list_html, \
-            "Token bar must be rendered"
+            "Token bar 必须渲染"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_project_link_rendered(self, sessions_list_html):
-        """Project column must have links."""
+        """Project 列必须有链接。"""
         assert 'href="/projects/' in sessions_list_html, \
-            "Project links must be present"
+            "Project 链接必须存在"
 
 
 # ── TestSessionsListFiltering ────────────────────────────────────────
 
 
 class TestSessionsListFiltering:
-    """Verify filter form and controls."""
+    """验证过滤表单和控件。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_filter_form_present(self, sessions_list_html):
-        """Filter form must be rendered."""
+        """过滤表单必须渲染。"""
         assert 'id="session-filter-form"' in sessions_list_html, \
-            "Filter form with id='session-filter-form' must be present"
+            "带 id='session-filter-form' 的过滤表单必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_filter_form_action_sessions(self, sessions_list_html):
-        """Filter form must post to /sessions."""
+        """过滤表单必须提交到 /sessions。"""
         assert 'action="/sessions"' in sessions_list_html, \
-            "Filter form must have action='/sessions'"
+            "过滤表单必须有 action='/sessions'"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_search_input_present(self, sessions_list_html):
-        """Search input must be present."""
+        """搜索输入必须存在。"""
         assert 'id="session-search"' in sessions_list_html or 'name="q"' in sessions_list_html, \
-            "Search input must be present"
+            "搜索输入必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_search_placeholder_chinese(self, sessions_list_html):
-        """Search input placeholder must be Chinese."""
+        """搜索输入占位符必须为中文。"""
         assert "仅支持 Session ID" in sessions_list_html, \
-            "Search placeholder must be in Chinese"
+            "搜索占位符必须为中文"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_agent_filter_select(self, sessions_list_html):
-        """Agent filter select must be present."""
+        """Agent 过滤选择器必须存在。"""
         assert 'id="filter-agent"' in sessions_list_html or 'name="agent"' in sessions_list_html, \
-            "Agent filter select must be present"
+            "Agent 过滤选择器必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_model_filter_select(self, sessions_list_html):
-        """Model filter select must be present."""
+        """Model 过滤选择器必须存在。"""
         assert 'id="filter-model"' in sessions_list_html or 'name="model"' in sessions_list_html, \
-            "Model filter select must be present"
+            "Model 过滤选择器必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_project_filter_select(self, sessions_list_html):
-        """Project filter select must be present."""
+        """Project 过滤选择器必须存在。"""
         assert 'id="filter-project"' in sessions_list_html or 'name="project"' in sessions_list_html, \
-            "Project filter select must be present"
+            "Project 过滤选择器必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_reset_button_present(self, sessions_list_html):
-        """Reset button must be present."""
+        """Reset 按钮必须存在。"""
         assert ">Reset<" in sessions_list_html, \
-            "Reset button must be visible"
+            "Reset 按钮必须可见"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_apply_button_present(self, sessions_list_html):
-        """Apply button must be present."""
+        """Apply 按钮必须存在。"""
         assert ">Apply<" in sessions_list_html, \
-            "Apply button must be visible"
+            "Apply 按钮必须可见"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_filter_form_uses_get(self, sessions_list_html):
-        """Filter form must use GET method for URL-based filtering."""
+        """过滤表单必须使用 GET 方法以支持基于 URL 的过滤。"""
         assert "method='get'" in sessions_list_html or 'method="get"' in sessions_list_html, \
-            "Filter form must use GET method"
+            "过滤表单必须使用 GET 方法"
 
 
 # ── TestSessionsListPagination ───────────────────────────────────────
 
 
 class TestSessionsListPagination:
-    """Verify pagination controls."""
+    """验证分页控件。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_pagination_container_present(self, sessions_list_html):
-        """Pagination container must be present."""
+        """分页容器必须存在。"""
         assert 'id="ajax-pagination"' in sessions_list_html, \
-            "AJAX pagination container must be present"
+            "AJAX 分页容器必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_page_status_present(self, sessions_list_html):
-        """Page status indicator must be present."""
+        """页面状态指示器必须存在。"""
         assert 'class="page-status"' in sessions_list_html, \
-            "Page status element must be present"
+            "页面状态元素必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_previous_button_present(self, sessions_list_html):
-        """Previous page button must be present."""
+        """上一页按钮必须存在。"""
         assert 'data-action="prev-page"' in sessions_list_html, \
-            "Previous page button must be present"
+            "上一页按钮必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_next_button_present(self, sessions_list_html):
-        """Next page button must be present."""
+        """下一页按钮必须存在。"""
         assert 'data-action="next-page"' in sessions_list_html, \
-            "Next page button must be present"
+            "下一页按钮必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_page_input_present(self, sessions_list_html):
-        """Page input must be present."""
+        """页面输入必须存在。"""
         assert 'data-action="page-input"' in sessions_list_html, \
-            "Page input must be present"
+            "页面输入必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_total_count_displayed(self, sessions_list_html):
-        """Total count must be displayed somewhere on the page."""
-        # Page status shows "X of Y sessions" or similar
+        """页面某处必须显示总计数。"""
+        # 页面状态显示 "X of Y sessions" 或类似
         assert re.search(r'[0-9]+', sessions_list_html), \
-            "Page must display numeric count"
+            "页面必须显示数字计数"
 
 
 # ── TestSessionsListKeyMetrics ───────────────────────────────────────
 
 
 class TestSessionsListKeyMetrics:
-    """Verify key metrics / stat pills displayed on the page."""
+    """验证页面上显示的关键指标/统计药丸。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_stat_pills(self, sessions_list_html):
-        """Page must have stat pills container."""
+        """页面必须有统计药丸容器。"""
         assert 'class="ui-stat-pill"' in sessions_list_html, \
-            "Stat pills must be present in rendered output"
+            "统计药丸必须出现在渲染输出中"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_sessions_count_pill(self, sessions_list_html):
-        """Sessions count stat pill must reference 'sessions'."""
-        # The stat_pill macro renders the label
+        """Sessions 计数统计药丸必须引用 'sessions'。"""
+        # stat_pill 宏渲染标签
         assert "sessions" in sessions_list_html.lower(), \
-            "Sessions stat pill must be present"
+            "Sessions 统计药丸必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_projects_pill(self, sessions_list_html):
-        """Projects stat pill must reference 'projects'."""
+        """Projects 统计药丸必须引用 'projects'。"""
         assert "projects" in sessions_list_html.lower(), \
-            "Projects stat pill must be present"
+            "Projects 统计药丸必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_total_tokens_pill(self, sessions_list_html):
-        """Total tokens stat pill must reference 'tokens'."""
+        """Total tokens 统计药丸必须引用 'tokens'。"""
         assert "token" in sessions_list_html.lower(), \
-            "Total tokens stat pill must be present"
+            "Total tokens 统计药丸必须存在"
 
 
 # ── TestSessionsListAjaxEndpoint ─────────────────────────────────────
 
 
 class TestSessionsListAjaxEndpoint:
-    """Verify AJAX pagination returns partial HTML."""
+    """验证 AJAX 分页返回部分 HTML。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_ajax_returns_html(self, hifi_fixture_session):
-        """AJAX request to /sessions must return HTML fragment."""
+        """向 /sessions 的 AJAX 请求必须返回 HTML 片段。"""
         base_url, agent, session_id = hifi_fixture_session
         import urllib.request
 
@@ -906,9 +907,9 @@ class TestSessionsListAjaxEndpoint:
             headers={"X-Requested-With": "XMLHttpRequest"},
         )
         resp = urllib.request.urlopen(req, timeout=10)
-        assert resp.status == 200, "AJAX must return HTTP 200"
+        assert resp.status == 200, "AJAX 必须返回 HTTP 200"
         body = resp.read().decode("utf-8")
-        assert len(body) > 100, "AJAX response must be non-trivial"
-        # AJAX response should contain sessions-row or sessions-grid
+        assert len(body) > 100, "AJAX 响应必须有意义"
+        # AJAX 响应应包含 sessions-row 或 sessions-grid
         assert "sessions-row" in body or "data-sessions-grid" in body or "ajax-pagination" in body, \
-            "AJAX response must contain session grid content"
+            "AJAX 响应必须包含会话网格内容"

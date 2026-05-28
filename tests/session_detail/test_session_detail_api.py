@@ -1,10 +1,10 @@
-"""Tests for the session detail lazy-load API endpoint.
+"""会话详情懒加载 API 端点测试。
 
-Validates /api/sessions/{agent}/{session_id}/payload/{payload_id}:
-- Endpoint exists and returns JSON
-- Response has expected fields: payload_id, kind, title, status, text
-- Text is NOT truncated (full content returned)
-- 404 for invalid session or payload_id
+验证 /api/sessions/{agent}/{session_id}/payload/{payload_id}:
+- 端点存在且返回 JSON
+- 响应包含预期字段: payload_id, kind, title, status, text
+- 文本未被截断（返回完整内容）
+- 无效的 session 或 payload_id 返回 404
 """
 
 import pytest
@@ -19,7 +19,7 @@ except ImportError:
 
 
 def _scrape_payload_ids(base_url, agent, session_id):
-    """Scrape the session detail page once and return all payload IDs."""
+    """抓取会话详情页面一次，返回所有 payload ID。"""
     from tests.conftest import get_html
     html = get_html(f"{base_url}/sessions/{agent}/{session_id}")
     soup = BeautifulSoup(html, "html.parser")
@@ -32,17 +32,17 @@ def _scrape_payload_ids(base_url, agent, session_id):
 
 @pytest.fixture(scope="session")
 def api_payload_ids(local_test_server):
-    """Scrape payload IDs from the session detail page once."""
+    """从会话详情页面抓取 payload ID（仅一次）。"""
     base_url, agent, session_id = local_test_server
     return base_url, agent, session_id, _scrape_payload_ids(base_url, agent, session_id)
 
 
 class TestPayloadApiEndpoint:
-    """Test that the /api/sessions/{agent}/{session_id}/payload/{payload_id} endpoint exists."""
+    """测试 /api/sessions/{agent}/{session_id}/payload/{payload_id} 端点存在性。"""
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_payload_api_returns_json(self, api_payload_ids):
-        """API endpoint must return 200 with JSON content type."""
+        """API 端点必须返回 200 且内容类型为 JSON。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
             pytest.skip("No payload buttons found on session detail page")
@@ -54,7 +54,7 @@ class TestPayloadApiEndpoint:
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_payload_api_has_required_fields(self, api_payload_ids):
-        """Response must contain payload_id, kind, title, status, text fields."""
+        """响应必须包含 payload_id, kind, title, status, text 字段。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
             pytest.skip("No payload buttons found on session detail page")
@@ -68,7 +68,7 @@ class TestPayloadApiEndpoint:
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_payload_api_returns_payload_id_match(self, api_payload_ids):
-        """Response payload_id must match the requested id."""
+        """响应的 payload_id 必须与请求的 id 匹配。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
             pytest.skip("No payload buttons found on session detail page")
@@ -80,11 +80,11 @@ class TestPayloadApiEndpoint:
 
 
 class TestPayloadApiNoTruncation:
-    """Test that the API returns full, untruncated content."""
+    """测试 API 返回完整、未截断的内容。"""
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_text_not_truncated(self, api_payload_ids):
-        """The text field must NOT be truncated (no 5000/10000 char limit)."""
+        """text 字段不得被截断（无 5000/10000 字符限制）。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
             pytest.skip("No payload buttons found on session detail page")
@@ -100,16 +100,16 @@ class TestPayloadApiNoTruncation:
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_long_payload_returns_full_content(self, api_payload_ids):
-        """For a known-long payload, verify the API returns content beyond truncation limits."""
+        """对于已知较长的 payload，验证 API 返回超出截断限制的内容。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
             pytest.skip("No payload buttons found on session detail page")
 
         from tests.conftest import get_json
-        # Prefer llm.context payloads (typically largest), fall back to any
+        # 优先 llm.context payload（通常最大），否则回退到任意 payload
         candidates = [pid for pid in payload_ids if pid.endswith("-context")] or payload_ids
 
-        for pid in candidates[:3]:  # Try up to 3 candidates
+        for pid in candidates[:3]:  # 最多尝试 3 个候选
             url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/{pid}"
             data = get_json(url)
             text = data.get("text", "")
@@ -122,11 +122,11 @@ class TestPayloadApiNoTruncation:
 
 
 class TestPayloadApi404:
-    """Test 404 responses for invalid requests."""
+    """测试无效请求的 404 响应。"""
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_invalid_session_returns_404(self, api_payload_ids):
-        """Request for non-existent session must return 404."""
+        """请求不存在的会话必须返回 404。"""
         base_url, agent, session_id, _ = api_payload_ids
         url = f"{base_url}/api/sessions/{agent}/nonexistent-session-xyz/payload/some-id"
         try:
@@ -138,7 +138,7 @@ class TestPayloadApi404:
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_invalid_payload_id_returns_404(self, api_payload_ids):
-        """Request for non-existent payload_id must return 404."""
+        """请求不存在的 payload_id 必须返回 404。"""
         base_url, agent, session_id, _ = api_payload_ids
         url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/nonexistent-payload-xyz"
         try:
@@ -150,7 +150,7 @@ class TestPayloadApi404:
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_invalid_agent_returns_404(self, api_payload_ids):
-        """Request with invalid agent must return 404."""
+        """使用无效的 agent 请求必须返回 404。"""
         base_url, agent, session_id, _ = api_payload_ids
         url = f"{base_url}/api/sessions/nonexistent-agent/{session_id}/payload/some-id"
         try:

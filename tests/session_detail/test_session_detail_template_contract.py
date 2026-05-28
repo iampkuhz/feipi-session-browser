@@ -48,7 +48,7 @@ def assert_contains_any(text, candidates, reason):
     assert any(c in text for c in candidates), reason
 
 
-# ── base.html checks ──
+# ── base.html 检查 ──
 
 
 class TestBaseHtml:
@@ -140,7 +140,7 @@ class TestBaseHtml:
             "Modal must have raw section"
 
 
-# ── session.html checks ──
+# ── session.html 检查 ──
 
 
 class TestSessionHtml:

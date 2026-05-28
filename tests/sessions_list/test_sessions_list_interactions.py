@@ -1,11 +1,11 @@
-"""Interaction contract tests for sessions list page.
+"""会话列表页面的交互契约测试。
 
-Validates that rendered HTML satisfies the DOM contract:
-- sortable headers have clickable controls containing labels
-- pagination uses real page numbers, not prev/next actions
-- filter chips have remove links
-- exactly one aria-sort
-- footer does not contain 'sorted by'
+验证渲染后的 HTML 满足 DOM 契约：
+- 可排序表头包含含标签的可点击控件
+- 分页使用真实页码，而非 prev/next 动作
+- 筛选标签具有移除链接
+- 恰好一个 aria-sort
+- 页脚不包含 'sorted by'
 """
 import pytest
 import html.parser
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
 class HTMLParserTree(html.parser.HTMLParser):
-    """Minimal HTML tree builder for contract assertions."""
+    """用于契约断言的简易 HTML 树构建器。"""
 
     def __init__(self):
         super().__init__()
@@ -60,11 +60,11 @@ def all_text_of(node):
 
 
 class TestSortableHeaders:
-    """Sort header contract tests."""
+    """表头契约测试。"""
 
     @pytest.fixture
     def html_sample(self):
-        """Minimal sortable headers HTML."""
+        """最小可排序表头 HTML。"""
         return """
         <div class="sessions-th sessions-th--sortable" role="columnheader">
           <a class="sessions-th__sort-btn" href="/sessions?sort=tokens">
@@ -116,7 +116,7 @@ class TestSortableHeaders:
 
 
 class TestPagination:
-    """Pagination contract tests."""
+    """分页契约测试。"""
 
     @pytest.fixture
     def footer_with_links(self):
@@ -158,12 +158,12 @@ class TestPagination:
         links = [n for n in nodes if n["tag"] == "a" and ("Previous" in all_text_of(n) or "Next" in all_text_of(n))]
         for link in links:
             href = link["attrs"].get("href", "")
-            # Should include filters
+            # 应包含筛选条件
             assert "agent=" in href or "page=" in href
 
 
 class TestFilterChips:
-    """Active filter chip contract tests."""
+    """活跃筛选标签契约测试。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_chip_remove_has_href(self):
@@ -179,7 +179,7 @@ class TestFilterChips:
 
 
 class TestClearAll:
-    """Clear All contract tests."""
+    """Clear All 契约测试。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_clear_all_is_anchor_with_href(self):
@@ -191,7 +191,7 @@ class TestClearAll:
 
 
 class TestRefresh:
-    """Refresh contract tests."""
+    """Refresh 契约测试。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-002")
     def test_refresh_is_anchor_with_href(self):

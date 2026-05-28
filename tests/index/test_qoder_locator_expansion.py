@@ -1,12 +1,12 @@
-"""Qoder locator expansion tests.
+"""Qoder 定位器路径展开测试。
 
-Validates that _find_session_file and _locate_qoder_session_file correctly:
-1. Resolve short ID alias -> full UUID, then search projects/.
-2. Find full UUID sessions in projects/ (direct match + recursive).
-3. Find sessions in cache/projects/ via recursive walk.
-4. Handle empty/stale project_key (old index scenario).
+验证 _find_session_file 和 _locate_qoder_session_file 能正确：
+1. 将短 ID 别名解析为完整 UUID，然后搜索 projects/。
+2. 在 projects/ 中找到完整 UUID 会话（直接匹配 + 递归搜索）。
+3. 通过递归遍历在 cache/projects/ 中找到会话。
+4. 处理空的或过期的 project_key（旧索引场景）。
 
-Tests use monkeypatched tmp QODER_DATA_DIR — no real user data.
+测试使用 monkeypatch 的临时 QODER_DATA_DIR —— 不涉及真实用户数据。
 """
 
 from __future__ import annotations
@@ -17,13 +17,13 @@ import os
 import sys
 from pathlib import Path
 
-# ─── Constants ──────────────────────────────────────────────────────────────
+# ─── 常量 ──────────────────────────────────────────────────────────────
 
 FULL_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 SHORT_ID = "a1b2c3d4"
 PROJECT_NAME = "myproj"
 
-# Minimal Qoder CLI JSONL (has timestamps, type field, usage)
+# 最小化 Qoder CLI JSONL（含时间戳、type 字段、usage）
 CLI_JSONL_LINES = [
     json.dumps({
         "type": "user",
@@ -49,7 +49,7 @@ CLI_JSONL_LINES = [
 ]
 CLI_JSONL_CONTENT = "\n".join(CLI_JSONL_LINES) + "\n"
 
-# Minimal Qoder cache-format JSONL (no timestamps, role field)
+# 缓存格式的最小化 Qoder JSONL（无时间戳、role 字段）
 CACHE_JSONL_LINES = [
     json.dumps({"role": "user", "message": {"content": "Hello from cache"}}),
     json.dumps({"role": "assistant", "message": {"content": [{"type": "text", "text": "Cache hi"}]}}),
@@ -60,7 +60,7 @@ CACHE_JSONL_CONTENT = "\n".join(CACHE_JSONL_LINES) + "\n"
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 def _setup_qoder_env(data_dir: str):
-    """Set QODER_DATA_DIR and reload dependent modules."""
+    """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("QODER_DATA_DIR", None)
     os.environ["QODER_DATA_DIR"] = data_dir
 
@@ -78,7 +78,7 @@ def _setup_qoder_env(data_dir: str):
 
 
 def _restore_qoder_env(old: str | None):
-    """Restore original QODER_DATA_DIR."""
+    """恢复原始的 QODER_DATA_DIR。"""
     if old is not None:
         os.environ["QODER_DATA_DIR"] = old
     else:
@@ -86,7 +86,7 @@ def _restore_qoder_env(old: str | None):
 
 
 def _reload_qoder_module():
-    """Reload qoder source module after env change."""
+    """环境变量变更后重新加载 Qoder 源模块。"""
     for _mod in list(sys.modules):
         if _mod == "session_browser.sources.qoder" or _mod.startswith("session_browser.sources.qoder"):
             del sys.modules[_mod]
@@ -96,7 +96,7 @@ def _reload_qoder_module():
 
 @pytest.fixture()
 def full_uuid_in_projects(tmp_path: Path) -> Path:
-    """Create projects/<project>/<FULL_UUID>.jsonl — CLI session."""
+    """创建 projects/<project>/<FULL_UUID>.jsonl —— CLI 会话。"""
     data_dir = tmp_path / "qoder_data"
     projects_dir = data_dir / "projects" / PROJECT_NAME
     projects_dir.mkdir(parents=True, exist_ok=True)
@@ -106,8 +106,8 @@ def full_uuid_in_projects(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def short_id_in_cache_only(tmp_path: Path) -> Path:
-    """Create cache/projects/<project>/conversation-history/<SHORT_ID>/<SHORT_ID>.jsonl
-    WITHOUT a corresponding projects/ entry."""
+    """创建 cache/projects/<project>/conversation-history/<SHORT_ID>/<SHORT_ID>.jsonl
+    且不在 projects/ 中创建对应条目。"""
     data_dir = tmp_path / "qoder_data"
     cache_dir = data_dir / "cache" / "projects" / PROJECT_NAME / "conversation-history" / SHORT_ID
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -117,7 +117,7 @@ def short_id_in_cache_only(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def both_full_and_short(tmp_path: Path) -> Path:
-    """Create both projects/ (full UUID) and cache/ (short ID) for the same session."""
+    """为同一会话同时创建 projects/（完整 UUID）和 cache/（短 ID）。"""
     data_dir = tmp_path / "qoder_data"
     projects_dir = data_dir / "projects" / PROJECT_NAME
     projects_dir.mkdir(parents=True, exist_ok=True)
@@ -131,7 +131,7 @@ def both_full_and_short(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def cache_only_full_uuid(tmp_path: Path) -> Path:
-    """Create only cache/projects/ with a full UUID session file (no projects/)."""
+    """仅在 cache/projects/ 中创建完整 UUID 会话文件（无 projects/）。"""
     data_dir = tmp_path / "qoder_data"
     cache_dir = data_dir / "cache" / "projects" / PROJECT_NAME / "conversation-history" / FULL_UUID
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -139,14 +139,14 @@ def cache_only_full_uuid(tmp_path: Path) -> Path:
     return data_dir
 
 
-# ─── Tests: _find_session_file (qoder.py) ──────────────────────────────────
+# ─── 测试：_find_session_file (qoder.py) ──────────────────────────────────
 
 class TestFindSessionFile:
-    """Tests for qoder._find_session_file."""
+    """qoder._find_session_file 的测试。"""
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_full_uuid_direct_match_in_projects(self, full_uuid_in_projects):
-        """Full UUID session in projects/ should be found via direct match."""
+        """projects/ 中的完整 UUID 会话应能通过直接匹配找到。"""
         data_dir = full_uuid_in_projects
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -162,7 +162,7 @@ class TestFindSessionFile:
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_short_id_resolved_to_full_uuid(self, both_full_and_short):
-        """Short ID should resolve to full UUID and find the projects/ file."""
+        """短 ID 应解析为完整 UUID 并找到 projects/ 中的文件。"""
         data_dir = both_full_and_short
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -172,14 +172,14 @@ class TestFindSessionFile:
             result = _find_session_file(PROJECT_NAME, SHORT_ID)
             assert result is not None, "Short ID should resolve and find session"
             assert result.name == f"{FULL_UUID}.jsonl"
-            # Should prefer projects/ over cache
+            # 应优先选择 projects/ 而非 cache
             assert "projects" in str(result) and "cache" not in str(result).split("projects")[0].split("/")[-1:]
         finally:
             _restore_qoder_env(old)
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_cache_only_short_id_found(self, short_id_in_cache_only):
-        """Session only in cache/ with short ID should still be locatable."""
+        """仅在 cache/ 中且使用短 ID 的会话仍应能被定位。"""
         data_dir = short_id_in_cache_only
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -195,7 +195,7 @@ class TestFindSessionFile:
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_empty_project_key_still_finds_session(self, full_uuid_in_projects):
-        """When project_key is empty (old index), recursive search should find session."""
+        """当 project_key 为空（旧索引）时，递归搜索应能找到会话。"""
         data_dir = full_uuid_in_projects
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -210,7 +210,7 @@ class TestFindSessionFile:
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_cache_only_full_uuid_found(self, cache_only_full_uuid):
-        """Full UUID session only in cache/ should be found via recursive walk."""
+        """仅在 cache/ 中的完整 UUID 会话应能通过递归遍历找到。"""
         data_dir = cache_only_full_uuid
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -226,7 +226,7 @@ class TestFindSessionFile:
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_no_session_returns_none(self, tmp_path):
-        """Non-existent session should return None, not raise."""
+        """不存在的会话应返回 None，而非抛出异常。"""
         data_dir = tmp_path / "qoder_empty"
         data_dir.mkdir(parents=True)
         old = _setup_qoder_env(str(data_dir))
@@ -240,14 +240,14 @@ class TestFindSessionFile:
             _restore_qoder_env(old)
 
 
-# ─── Tests: _locate_qoder_session_file (indexer.py) ────────────────────────
+# ─── 测试：_locate_qoder_session_file (indexer.py) ────────────────────────
 
 class TestLocateQoderSessionFile:
-    """Tests for indexer._locate_qoder_session_file."""
+    """indexer._locate_qoder_session_file 的测试。"""
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_full_uuid_in_projects(self, full_uuid_in_projects):
-        """Locator should find full UUID session in projects/."""
+        """定位器应在 projects/ 中找到完整 UUID 会话。"""
         data_dir = full_uuid_in_projects
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -262,7 +262,7 @@ class TestLocateQoderSessionFile:
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_short_id_resolved_in_indexer(self, both_full_and_short):
-        """Indexer locator should also resolve short ID -> full UUID."""
+        """索引器定位器也应解析短 ID -> 完整 UUID。"""
         data_dir = both_full_and_short
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -277,7 +277,7 @@ class TestLocateQoderSessionFile:
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_cache_fallback_in_indexer(self, short_id_in_cache_only):
-        """Indexer locator should fall back to cache/ for cache-only sessions."""
+        """索引器定位器应对仅存在于 cache/ 的会话回退到 cache。"""
         data_dir = short_id_in_cache_only
         old = _setup_qoder_env(str(data_dir))
         try:
@@ -292,7 +292,7 @@ class TestLocateQoderSessionFile:
 
     @pytest.mark.contract_case("DATA-INDEX-010")
     def test_empty_project_key_in_indexer(self, full_uuid_in_projects):
-        """Indexer locator should find session even with empty project_key."""
+        """索引器定位器即使 project_key 为空也应找到会话。"""
         data_dir = full_uuid_in_projects
         old = _setup_qoder_env(str(data_dir))
         try:

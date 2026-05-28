@@ -1,9 +1,9 @@
-"""Tests for session_browser.web.presenters.projects module.
+"""session_browser.web.presenters.projects 模块测试。
 
-Covers:
-- parse_projects_query_params: pagination parsing
-- compute_projects_pagination: normal, edge cases, "all" mode
-- build_projects_view_model: structure, pagination parameters, page input effect
+覆盖范围：
+- parse_projects_query_params：分页参数解析
+- compute_projects_pagination：正常情况、边界情况、"all" 模式
+- build_projects_view_model：结构、分页参数、页码输入效果
 """
 from __future__ import annotations
 
@@ -145,7 +145,7 @@ class TestComputeProjectsPagination:
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_beyond_total_clamped(self):
         result = compute_projects_pagination(50, 10, 20)
-        # total_pages = 3, page 10 -> clamped to 3
+        # total_pages = 3，page=10 → 截断到 3
         assert result["page"] == 3
         assert result["offset"] == 40
 
@@ -189,7 +189,7 @@ class TestComputeProjectsPagination:
 
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_end_capped_at_total(self):
-        # Last partial page
+        # 最后一个不完整的页
         result = compute_projects_pagination(55, 3, 20)
         assert result["total_pages"] == 3
         assert result["page_end"] == 55
@@ -201,8 +201,8 @@ class TestBuildProjectsViewModel:
 
     def _make_mock_conn(self):
         """
-
-Create a mock sqlite3.Connection."""
+        创建模拟 sqlite3.Connection。
+        """
         return MagicMock()
 
     @patch("session_browser.web.presenters.projects.count_projects")
@@ -211,7 +211,7 @@ Create a mock sqlite3.Connection."""
     def test_view_model_has_pagination_keys(
         self, mock_list, mock_count,
     ):
-        """View model should contain page/page_size/total_pages keys."""
+        """视图模型应包含 page/page_size/total_pages 等键。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 0
         mock_list.return_value = []
@@ -236,7 +236,7 @@ Create a mock sqlite3.Connection."""
     def test_view_model_values_defaults(
         self, mock_list, mock_count,
     ):
-        """Default values should be page=1, page_size=20, total_pages=1."""
+        """默认值应为 page=1, page_size=20, total_pages=1。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 0
         mock_list.return_value = []
@@ -259,7 +259,7 @@ Create a mock sqlite3.Connection."""
     def test_view_model_with_pagination(
         self, mock_list, mock_count,
     ):
-        """Pagination parameters should flow through to the view model."""
+        """分页参数应传递到视图模型中。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 100
         mock_list.return_value = [MagicMock()]
@@ -282,7 +282,7 @@ Create a mock sqlite3.Connection."""
     def test_view_model_passes_pagination_to_list_projects(
         self, mock_list, mock_count,
     ):
-        """list_projects should be called with correct limit/offset."""
+        """list_projects 应以正确的 limit/offset 被调用。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 100
         mock_list.return_value = []
@@ -300,7 +300,7 @@ Create a mock sqlite3.Connection."""
     def test_page_input_affects_result_set(
         self, mock_list, mock_count,
     ):
-        """Page input parameter should affect the offset passed to list_projects."""
+        """页码输入参数应影响传递给 list_projects 的 offset。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 200
         mock_list.return_value = []
@@ -321,7 +321,7 @@ Create a mock sqlite3.Connection."""
     def test_view_model_page_size_all(
         self, mock_list, mock_count,
     ):
-        """page_size='all' should disable pagination."""
+        """page_size='all' 应禁用分页。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 30
         mock_list.return_value = []
@@ -338,7 +338,7 @@ Create a mock sqlite3.Connection."""
     def test_view_model_active_page_is_projects(
         self, mock_list, mock_count,
     ):
-        """active_page should be 'projects'."""
+        """active_page 应为 'projects'。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 0
         mock_list.return_value = []

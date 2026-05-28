@@ -29,7 +29,7 @@ def template_source():
     return TIMELINE.read_text(encoding="utf-8")
 
 
-# ── Trace row is NOT a button ────────────────────────────────────────
+# ── 追踪行不是按钮 ────────────────────────────────────────
 
 
 class TestTraceRowNotButton:
@@ -49,7 +49,7 @@ class TestTraceRowNotButton:
         assert len(matches) > 0, "No <tr class=\"round-row\" data-trace-round-row> found"
 
 
-# ── Toggle button contract ──────────────────────────────────────────
+# ── 切换按钮契约 ──────────────────────────────────────────
 
 
 class TestToggleButtonContract:

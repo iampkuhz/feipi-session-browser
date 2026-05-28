@@ -1,13 +1,13 @@
-"""Canonical UUID dedup test for Qoder projects/cache sessions.
+"""Qoder 项目的规范 UUID 去重测试。
 
-Validates that when the same Qoder session appears in both:
-  - projects/<project>/<uuid>.jsonl  (CLI, full UUID)
-  - cache/projects/<project>/conversation-history/<short>/<short>.jsonl  (GUI, short ID alias)
+验证当同一个 Qoder 会话同时出现在以下两个位置时：
+  - projects/<project>/<uuid>.jsonl  （CLI，完整 UUID）
+  - cache/projects/<project>/conversation-history/<short>/<short>.jsonl  （GUI，短 ID 别名）
 
-The sessions table should contain only ONE record keyed by the full UUID
-canonical, not two separate records.
+sessions 表应仅包含一条以完整 UUID 为键的记录，
+而非两条独立的记录。
 
-Tests the S-08 scenario: Qoder short ID vs full UUID dedup.
+测试 S-08 场景：Qoder 短 ID 与完整 UUID 去重。
 """
 
 from __future__ import annotations
@@ -19,18 +19,18 @@ import sqlite3
 import sys
 from pathlib import Path
 
-# ─── Fixtures ───────────────────────────────────────────────────────────────
+# ─── 测试夹具 ───────────────────────────────────────────────────────────
 
-# Full UUID canonical
+# 完整 UUID 规范键
 FULL_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
-# Short ID alias (same session, different key) — must be a prefix of FULL_UUID
-# for exact UUID prefix match canonicalization
+# 短 ID 别名（同一会话，不同键）—— 必须是 FULL_UUID 的前缀
+# 用于精确 UUID 前缀匹配规范化
 SHORT_ID = "a1b2c3d4"
 
 PROJECT_NAME = "myproj"
 
-# Minimal Qoder JSONL session content (valid events with timestamps + usage)
+# 最小 Qoder JSONL 会话内容（含时间戳和 usage 的有效事件）
 SESSION_JSONL_LINES = [
     json.dumps({
         "type": "user",
@@ -77,14 +77,14 @@ SESSION_JSONL_LINES = [
 SESSION_JSONL_CONTENT = "\n".join(SESSION_JSONL_LINES) + "\n"
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────────
+# ─── 辅助函数 ───────────────────────────────────────────────────────────
 
 def _setup_qoder_env(data_dir: str):
-    """Set QODER_DATA_DIR and reload dependent modules."""
+    """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("QODER_DATA_DIR", None)
     os.environ["QODER_DATA_DIR"] = data_dir
 
-    # Reload config + sources so they pick up the new env var
+    # 重新加载 config + sources 以获取新的环境变量
     for _mod in list(sys.modules):
         if _mod.startswith("session_browser.config"):
             del sys.modules[_mod]
@@ -99,7 +99,7 @@ def _setup_qoder_env(data_dir: str):
 
 
 def _restore_qoder_env(old: str | None):
-    """Restore original QODER_DATA_DIR."""
+    """恢复原始的 QODER_DATA_DIR。"""
     if old is not None:
         os.environ["QODER_DATA_DIR"] = old
     else:
@@ -107,7 +107,7 @@ def _restore_qoder_env(old: str | None):
 
 
 def _create_fixture(tmp_path: Path) -> Path:
-    """Create temp Qoder data dir with projects + cache session files."""
+    """创建包含 projects + cache 会话文件的临时 Qoder 数据目录。"""
     data_dir = tmp_path / "qoder_data"
 
     # projects/<project>/<FULL_UUID>.jsonl
@@ -124,7 +124,7 @@ def _create_fixture(tmp_path: Path) -> Path:
 
 
 def _run_full_scan(data_dir: str, db_path: str) -> dict:
-    """Run full_scan() against data_dir, returning scan statistics."""
+    """对 data_dir 运行 full_scan()，返回扫描统计。"""
     old_env = _setup_qoder_env(data_dir)
     try:
         from session_browser.index.indexer import full_scan
@@ -138,18 +138,18 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
         _restore_qoder_env(old_env)
 
 
-# ─── Tests ──────────────────────────────────────────────────────────────────
+# ─── 测试 ──────────────────────────────────────────────────────────────────
 
 class TestQoderCanonicalDedup:
     """T012: Qoder short ID vs full UUID dedup — projects/cache overlap."""
 
     @pytest.mark.contract_case("DATA-INDEX-008")
     def test_no_duplicate_session_records(self, tmp_path):
-        """When the same session exists in both projects/ and cache/,
-        the sessions table should have only ONE record, not two.
+        """当同一会话同时存在于 projects/ 和 cache/ 时，
+        sessions 表应只有一条记录，而非两条。
 
-        This is the core S-08 assertion: canonical UUID dedup must prevent
-        two list entries for the same logical session.
+        这是核心 S-08 断言：规范 UUID 去重必须防止
+        同一逻辑会话产生两个列表条目。
         """
         data_dir = _create_fixture(tmp_path)
         db_path = str(tmp_path / "index.sqlite")
@@ -167,7 +167,7 @@ class TestQoderCanonicalDedup:
 
     @pytest.mark.contract_case("DATA-INDEX-008")
     def test_canonical_key_is_full_uuid(self, tmp_path):
-        """The surviving session should be keyed by the full UUID, not the short ID alias."""
+        """存活的会话应以完整 UUID 为键，而非短 ID 别名。"""
         data_dir = _create_fixture(tmp_path)
         db_path = str(tmp_path / "index.sqlite")
         _run_full_scan(str(data_dir), db_path)
@@ -190,7 +190,7 @@ class TestQoderCanonicalDedup:
             f"got '{row['session_id']}'."
         )
 
-        # Short ID should NOT produce a separate record
+        # 短 ID 不应产生独立的记录
         short_key = f"qoder:{SHORT_ID}"
         short_row = conn.execute(
             "SELECT session_key FROM sessions WHERE session_key = ?",
@@ -205,7 +205,7 @@ class TestQoderCanonicalDedup:
 
     @pytest.mark.contract_case("DATA-INDEX-008")
     def test_total_count_matches_canonical(self, tmp_path):
-        """full_scan total count should be 1, not 2."""
+        """full_scan 的总计数应为 1，而非 2。"""
         data_dir = _create_fixture(tmp_path)
         db_path = str(tmp_path / "index.sqlite")
         result = _run_full_scan(str(data_dir), db_path)
@@ -219,12 +219,12 @@ class TestQoderCanonicalDedup:
 
     @pytest.mark.contract_case("DATA-INDEX-008")
     def test_fixture_data_isolated(self, tmp_path):
-        """Scan should not touch real ~/.qoder/ when using fixture."""
+        """使用 fixture 时，扫描不应触及真实的 ~/.qoder/。"""
         data_dir = _create_fixture(tmp_path)
         db_path = str(tmp_path / "index.sqlite")
         result = _run_full_scan(str(data_dir), db_path)
 
-        # Should only see our 1 canonical session, nothing from real ~/.qoder/
+        # 应仅看到我们的 1 个规范会话，不包含真实 ~/.qoder/ 的数据
         assert result["total"] == 1, (
             "Index should only contain the fixture session, not real data"
         )

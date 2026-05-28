@@ -1,11 +1,11 @@
-"""Tests for session_browser.web.presenters.dashboard module.
+"""session_browser.web.presenters.dashboard 模块测试。
 
-Covers:
-- build_dashboard_view_model: return structure (all expected keys)
-- Statistics data flow from mocked indexers
-- Empty-data scenario
-- Session list truncation (limit=2000) and needs_attention cap (limit=8)
-- model_dist.distribution unwrapping
+覆盖：
+- build_dashboard_view_model：返回结构（所有预期的键）
+- 统计数据从模拟 indexer 的数据流
+- 空数据场景
+- 会话列表截断（limit=2000）和 needs_attention 上限（limit=8）
+- model_dist.distribution 解包
 """
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ from unittest.mock import MagicMock, patch
 from session_browser.web.presenters.dashboard import build_dashboard_view_model
 
 
-# ─── Helpers ───────────────────────────────────────────────────────────
+# ─── 辅助函数 ───────────────────────────────────────────────────────────
 
 def _make_mock_session(key: str, index: int) -> dict:
-    """Create a minimal session dict with derived metrics fields."""
+    """创建最小会话字典，含派生指标字段。"""
     return {
         "session_key": key,
         "title": f"Session {index}",
@@ -37,16 +37,16 @@ def _make_mock_session(key: str, index: int) -> dict:
 
 
 def _make_session_row(key: str, index: int) -> MagicMock:
-    """Create a mock session row (as returned by list_sessions) with to_dict()."""
+    """创建模拟会话行（如 list_sessions 返回），含 to_dict()。"""
     row = MagicMock()
     row.to_dict.return_value = _make_mock_session(key, index)
     return row
 
 
 def _patch_all_indexers():
-    """Return an ExitStack that patches every external dependency.
+    """返回 ExitStack，patch 所有外部依赖。
 
-    Usage:
+    用法：
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
     """
@@ -74,10 +74,10 @@ def _patch_all_indexers():
     return stack
 
 
-# ─── Tests ─────────────────────────────────────────────────────────────
+# ─── 测试 ─────────────────────────────────────────────────────────────
 
 class TestBuildDashboardViewModelStructure:
-    """Verify the returned dict contains all expected top-level keys."""
+    """验证返回的字典包含所有预期的顶层键。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_all_keys_present(self):
@@ -146,7 +146,7 @@ class TestBuildDashboardViewModelStructure:
 
 
 class TestStatisticsDataFlow:
-    """Verify that mocked index data flows through to the view model."""
+    """验证模拟的 indexer 数据正确流入视图模型。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_stats_passed_through(self):
@@ -247,7 +247,7 @@ class TestStatisticsDataFlow:
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_model_distribution_unwrapped(self):
-        """model_dist in result should be the .distribution dict, not the object."""
+        """result 中的 model_dist 应为 .distribution 字典，而非对象。"""
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
@@ -277,7 +277,7 @@ class TestStatisticsDataFlow:
 
 
 class TestEmptyDataScenario:
-    """Verify behavior when all indexers return empty/zero data."""
+    """验证所有 indexer 返回空/零数据时的行为。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_empty_data_returns_valid_structure(self):
@@ -314,11 +314,11 @@ class TestEmptyDataScenario:
 
 
 class TestDataTruncation:
-    """Verify session list limit and needs_attention cap."""
+    """验证会话列表 limit 和 needs_attention 上限。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_list_sessions_called_with_limit_2000(self):
-        """Presenter should request up to 2000 sessions."""
+        """Presenter 应请求最多 2000 个会话。"""
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
@@ -349,7 +349,7 @@ class TestDataTruncation:
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_get_needs_attention_called_with_limit_8(self):
-        """Presenter should cap needs_attention to 8 items."""
+        """Presenter 应将 needs_attention 上限设为 8 项。"""
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
@@ -374,13 +374,13 @@ class TestDataTruncation:
 
             build_dashboard_view_model(conn)
 
-            # get_needs_attention is called with (anomalies_map, sessions_lookup, limit=8)
+            # get_needs_attention 被调用，参数为 (anomalies_map, sessions_lookup, limit=8)
             call_kwargs = patchers["get_needs_attention"].call_args.kwargs
             assert call_kwargs.get("limit") == 8
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_needs_attention_capped_at_8(self):
-        """Even if anomalies have many items, needs_attention returns max 8."""
+        """即使 anomalies 含多项，needs_attention 最多返回 8 项。"""
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
@@ -402,7 +402,7 @@ class TestDataTruncation:
             patchers["compute_derived_metrics"].side_effect = lambda d: d
             patchers["detect_all_anomalies"].return_value = {}
 
-            # Simulate indexer returning exactly 8 items (the cap)
+            # 模拟 indexer 恰好返回 8 个（上限）
             capped = [{"session_key": f"sk-{i}"} for i in range(8)]
             patchers["get_needs_attention"].return_value = capped
 
@@ -412,7 +412,7 @@ class TestDataTruncation:
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_sessions_derived_metrics_applied(self):
-        """compute_derived_metrics should be called for each raw session."""
+        """compute_derived_metrics 应为每个原始会话调用。"""
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
@@ -443,7 +443,7 @@ class TestDataTruncation:
 
 
 class TestTrendDataParameters:
-    """Verify trend functions are called with correct parameters."""
+    """验证 trend 函数调用参数正确。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_trend_data_called_with_365_days(self):

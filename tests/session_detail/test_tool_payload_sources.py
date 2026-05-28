@@ -46,7 +46,7 @@ class TestToolResultPayloadFields:
     def test_payload_title_includes_tool_name(self):
         """Payload title must include tc.name for traceability."""
         routes = _read_routes()
-        # Title pattern: f"R{rid} . {tc.name} . Result"
+        # 标题模式：f"R{rid} . {tc.name} . Result"
         assert "tc.name" in routes, (
             "tool.result payload title must reference tc.name"
         )
@@ -71,7 +71,7 @@ class TestToolResultPayloadFields:
     def test_tool_vm_uses_tool_name(self):
         """tool_vm kind field must derive from tc.name."""
         routes = _read_routes()
-        # tool_vm uses getattr(tc, "name", "tool")
+        # tool_vm 使用 getattr(tc, "name", "tool")
         assert 'getattr(tc, "name"' in routes or "getattr(tc, 'name'" in routes, (
             "tool_vm must use tc.name for kind label"
         )

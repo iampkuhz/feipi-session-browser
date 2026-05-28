@@ -1,13 +1,13 @@
-"""Primitive unit tests for ui_primitives.html macros and JS.
+"""ui_primitives.html 宏和 JS 的单元测试。
 
-Covers:
-- All Jinja2 macros render without errors with minimal arguments
-- Macros include expected aria attributes
-- Macros include expected data-action attributes
-- Token formatter produces expected output
-- Pagination macro renders prev/next/input correctly
-- Button macro renders correct variants
-- ui_primitives.js syntax and data-action delegation pattern
+覆盖：
+- 所有 Jinja2 宏使用最小参数可无报错渲染
+- 宏包含预期的 aria 属性
+- 宏包含预期的 data-action 属性
+- Token 格式化器产生预期输出
+- 分页宏正确渲染 prev/next/input
+- 按钮宏渲染正确的变体
+- ui_primitives.js 语法和 data-action 委托模式
 """
 
 from __future__ import annotations
@@ -18,13 +18,13 @@ import re
 import urllib.parse
 
 import jinja2
-# ── Jinja2 environment setup ─────────────────────────────────────────────
+# ── Jinja2 环境配置 ────────────────────────────────────────────────────────────
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates"
 
 
 def _make_env() -> jinja2.Environment:
-    """Create a Jinja2 env with the same filters as routes.py."""
+    """创建与 routes.py 相同的 Jinja2 环境。"""
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
         autoescape=True,
@@ -53,20 +53,19 @@ def _make_env() -> jinja2.Environment:
 
 
 def _render_macro(macro_name: str, _context=None, **kwargs) -> str:
-    """Render a specific macro from ui_primitives.html with the given kwargs.
+    """使用给定参数渲染 ui_primitives.html 中的指定宏。
 
-    _context: optional dict of variables passed directly to the render
-        context (for complex objects like session stubs that cannot be
-        represented as Python literals in the template string).
-        Keys in _context can also be referenced as macro arguments by name.
+    _context: 可选字典，直接传入渲染上下文变量（用于无法用
+        Python 字面量表示的复杂对象如 session stub）。
+        _context 中的键也可按名作为宏参数引用。
     """
     env = _make_env()
     args_parts = []
-    # Context variables first (referenced by name as macro arguments)
+    # 先传入上下文变量（可作为宏参数按名引用）
     if _context:
         for key in _context:
             args_parts.append(key)
-    # Then keyword arguments (rendered as Python literals)
+    # 再传入关键字参数（在模板中渲染为 Python 字面量）
     for k, v in kwargs.items():
         args_parts.append(f"{k}={v!r}")
     all_args = ", ".join(args_parts)
@@ -78,11 +77,11 @@ def _render_macro(macro_name: str, _context=None, **kwargs) -> str:
     return env.from_string(tmpl_str).render(**render_ctx)
 
 
-# ── Macro rendering: no errors with minimal arguments ────────────────────
+# ── 宏渲染：使用最小参数无报错 ────────────────────────────────────────────
 
 
 class TestMacroMinimalRender:
-    """All macros render without errors when called with minimal arguments."""
+    """所有宏使用最小参数调用时无报错渲染。"""
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_renders(self):
@@ -121,9 +120,9 @@ class TestMacroMinimalRender:
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_pagination_single_page(self):
-        """Single page: prev/next buttons are disabled."""
+        """单页场景：prev/next 按钮应禁用。"""
         html = _render_macro("pagination", current_page=1, total_pages=1)
-        assert 'disabled' in html  # buttons and input should be disabled
+        assert 'disabled' in html  # 按钮和 input 应被禁用
         assert 'data-action="prev-page"' in html
         assert 'data-action="next-page"' in html
 
@@ -242,7 +241,7 @@ class TestMacroMinimalRender:
 
 
 def _make_session_stub():
-    """Create a minimal session stub for session_row macro tests."""
+    """为 session_row 宏测试创建最小 session stub。"""
     class SessionStub:
         session_id = "test-001"
         agent = "claude_code"
@@ -259,15 +258,15 @@ def _make_session_stub():
     return SessionStub()
 
 
-# ── Aria attributes ──────────────────────────────────────────────────────
+# ── Aria 属性 ──────────────────────────────────────────────────────────────
 
 
 class TestAriaAttributes:
-    """Macros include the expected aria attributes."""
+    """宏渲染应包含预期的 aria 属性。"""
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_has_aria_label(self):
-        # aria-label is only added when aria_label param differs from label
+        # 仅当 aria_label 与 label 不同时才添加 aria-label
         html = _render_macro("button", label="X", data_action="delete-item", aria_label="Delete item")
         assert 'aria-label="Delete item"' in html
 
@@ -391,11 +390,11 @@ class TestAriaAttributes:
         assert 'aria-hidden="true"' in html
 
 
-# ── data-action attributes ───────────────────────────────────────────────
+# ── data-action 属性 ───────────────────────────────────────────────────────
 
 
 class TestDataActionAttributes:
-    """Macros include the expected data-action attributes."""
+    """宏渲染应包含预期的 data-action 属性。"""
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_button_data_action(self):
@@ -457,11 +456,11 @@ class TestDataActionAttributes:
         assert 'data-action="toggle-popover"' in html
 
 
-# ── Token formatter ─────────────────────────────────────────────────────
+# ── Token 格式化器 ──────────────────────────────────────────────────────
 
 
 class TestFormatCompactToken:
-    """Token formatter produces expected output."""
+    """Token 格式化器产生预期输出。"""
 
     def _fmt(self, n):
         from session_browser.web.template_env import _format_compact_token
@@ -504,11 +503,11 @@ class TestFormatCompactToken:
         assert self._fmt(1234.5) == "1.2K"
 
 
-# ── Pagination structure ────────────────────────────────────────────────
+# ── 分页结构 ────────────────────────────────────────────────────────────
 
 
 class TestPaginationStructure:
-    """Pagination macro renders prev/next/input correctly."""
+    """分页宏正确渲染 prev/next/input。"""
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_multi_page_has_prev(self):
@@ -540,7 +539,7 @@ class TestPaginationStructure:
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_single_page_no_prev_next(self):
         html = _render_macro("pagination", current_page=1, total_pages=1)
-        # Both buttons present but disabled on single page
+        # 单页时两个按钮都存在但被禁用
         assert "prev-page" in html
         assert "next-page" in html
         assert 'disabled' in html
@@ -548,17 +547,17 @@ class TestPaginationStructure:
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_first_page_no_prev(self):
         html = _render_macro("pagination", current_page=1, total_pages=5)
-        # prev button present but disabled on first page
+        # 第一页 prev 按钮存在但被禁用
         assert "prev-page" in html
         assert "next-page" in html
-        # Check prev button is disabled
+        # 检查 prev 按钮被禁用
         assert 'data-action="prev-page"' in html
-        assert html.count('disabled') >= 1  # at least prev button disabled
+        assert html.count('disabled') >= 1  # 至少 prev 按钮被禁用
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_last_page_no_next(self):
         html = _render_macro("pagination", current_page=5, total_pages=5)
-        # next button present but disabled on last page
+        # 最后一页 next 按钮存在但被禁用
         assert "prev-page" in html
         assert "next-page" in html
         assert 'data-action="next-page"' in html
@@ -574,11 +573,11 @@ class TestPaginationStructure:
         assert 'class="pagination unified-pagination"' in html
 
 
-# ── Button variants ──────────────────────────────────────────────────────
+# ── 按钮变体 ──────────────────────────────────────────────────────────────
 
 
 class TestButtonVariants:
-    """Button macro renders correct variants."""
+    """按钮宏渲染正确的变体。"""
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_default_primary(self):
@@ -647,11 +646,11 @@ class TestButtonVariants:
         assert 'aria-disabled="true"' in html
 
 
-# ── ui_primitives.js checks ─────────────────────────────────────────────
+# ── ui_primitives.js 检查 ────────────────────────────────────────────────────
 
 
 class TestUIPrimitivesJS:
-    """ui_primitives.js syntax and data-action delegation pattern."""
+    """ui_primitives.js 语法和 data-action 委托模式。"""
 
     JS_PATH = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "static" / "js" / "ui_primitives.js"
 
@@ -661,7 +660,7 @@ class TestUIPrimitivesJS:
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_valid_syntax(self, capsys):
-        """Run node --check on the JS file."""
+        """对 JS 文件运行 node --check 语法检查。"""
         import subprocess
         result = subprocess.run(
             ["node", "--check", str(self.JS_PATH)],
@@ -671,35 +670,35 @@ class TestUIPrimitivesJS:
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_data_action_delegation_present(self):
-        """The data-action delegation pattern is present."""
+        """JS 文件中存在 data-action 委托模式。"""
         js = self.JS_PATH.read_text()
         assert "data-action" in js, "missing data-action pattern"
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_document_level_click_listener(self):
-        """Uses document-level click listener for delegation."""
+        """使用 document 级点击监听器进行委托。"""
         js = self.JS_PATH.read_text()
         assert "document" in js
         assert "addEventListener" in js
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_registered_actions_exist(self):
-        """JS file defines action handlers."""
+        """JS 文件定义了 action 处理器。"""
         js = self.JS_PATH.read_text()
-        # Verify key action handlers are present
+        # 验证关键 action 处理器是否存在
         for action in ("sort", "clear", "prev-page", "next-page", "close-modal", "toggle-popover"):
             assert action in js, f"missing handler for {action}"
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_no_inline_onclick_in_js(self):
-        """JS file does not contain inline onclick assignments."""
+        """JS 文件不含内联 onclick 赋值。"""
         js = self.JS_PATH.read_text()
-        # Should not assign .onclick directly
+        # 不得直接赋值 .onclick
         assert ".onclick =" not in js
 
     @pytest.mark.contract_case("UI-VISUAL-012")
     def test_global_api_exposed(self):
-        """Global API (UiPrimitives) is exposed."""
+        """暴露全局 API (UiPrimitives)。"""
         js = self.JS_PATH.read_text()
         assert "UiPrimitives" in js
         assert "showToast" in js

@@ -1,11 +1,11 @@
-"""Qoder incremental scan: file_path/model update tests.
+"""Qoder 增量扫描：file_path/model 更新测试。
 
-Validates that incremental_scan correctly:
-1. Updates file_path for old records that have timing data but missing file_path.
-2. Re-parses records with empty model to fill it in (without mtime change).
-3. Still skips complete records (file_path + model + timing) when mtime unchanged.
+验证 incremental_scan 能正确：
+1. 更新有 timing 数据但缺少 file_path 的旧记录。
+2. 重新解析 model 为空的记录以填充（无需 mtime 变化）。
+3. 在 mtime 未变时仍跳过完整记录（file_path + model + timing）。
 
-Tests use monkeypatched tmp QODER_DATA_DIR -- no real user data.
+测试使用 monkeypatch 的临时 QODER_DATA_DIR —— 不涉及真实用户数据。
 """
 
 from __future__ import annotations
@@ -18,12 +18,12 @@ import sys
 import time
 from pathlib import Path
 
-# ─── Constants ──────────────────────────────────────────────────────────────
+# ─── 常量 ─────────────────────────────────────────────────────────────────────
 
 FULL_UUID = "b2c3d4e5-f6a7-8901-bcde-f23456789012"
 PROJECT_NAME = "testproj"
 
-# Minimal Qoder CLI JSONL with usage data + tool calls (produces timing + model)
+# 最小 Qoder CLI JSONL（含 usage 数据 + tool 调用，可产生 timing + model）
 CLI_JSONL_LINES = [
     json.dumps({
         "type": "user",
@@ -74,10 +74,10 @@ CLI_JSONL_LINES = [
 CLI_JSONL_CONTENT = "\n".join(CLI_JSONL_LINES) + "\n"
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────────
+# ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 def _setup_qoder_env(data_dir: str):
-    """Set QODER_DATA_DIR and reload dependent modules."""
+    """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("QODER_DATA_DIR", None)
     os.environ["QODER_DATA_DIR"] = data_dir
 
@@ -95,7 +95,7 @@ def _setup_qoder_env(data_dir: str):
 
 
 def _restore_qoder_env(old: str | None):
-    """Restore original QODER_DATA_DIR."""
+    """恢复原始的 QODER_DATA_DIR。"""
     if old is not None:
         os.environ["QODER_DATA_DIR"] = old
     else:
@@ -103,7 +103,7 @@ def _restore_qoder_env(old: str | None):
 
 
 def _run_full_scan(data_dir: str, db_path: str) -> dict:
-    """Run full_scan for Qoder only."""
+    """仅对 Qoder 运行 full_scan。"""
     old = _setup_qoder_env(data_dir)
     try:
         from session_browser.index.indexer import full_scan
@@ -118,7 +118,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 
 
 def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
-    """Run incremental_scan for Qoder only."""
+    """仅对 Qoder 运行 incremental_scan。"""
     old = _setup_qoder_env(data_dir)
     try:
         from session_browser.index.indexer import incremental_scan
@@ -134,7 +134,7 @@ def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
 
 def _create_qoder_project(data_dir: Path, project_name: str, session_id: str,
                           jsonl_content: str) -> Path:
-    """Create a Qoder project directory with a session file."""
+    """创建 Qoder 项目目录及会话文件。"""
     proj_dir = data_dir / "projects" / project_name
     proj_dir.mkdir(parents=True, exist_ok=True)
     sess_file = proj_dir / f"{session_id}.jsonl"
@@ -142,28 +142,28 @@ def _create_qoder_project(data_dir: Path, project_name: str, session_id: str,
     return sess_file
 
 
-# ─── Tests ──────────────────────────────────────────────────────────────────
+# ─── 测试 ─────────────────────────────────────────────────────────────────────
 
 class TestQoderIncrementalFilepathUpdate:
-    """Validate that incremental scan updates file_path for old records."""
+    """验证增量扫描更新旧记录的 file_path。"""
 
     @pytest.mark.contract_case("DATA-INDEX-009")
     def test_empty_file_path_gets_populated_without_mtime_change(self, tmp_path):
-        """Old record with timing data but empty file_path should be updated.
+        """有 timing 数据但 file_path 为空的旧记录应被更新。
 
-        Scenario: full_scan was run with a bug that didn't save file_path,
-        or file_path was cleared. Incremental scan should locate the file
-        and update file_path WITHOUT requiring an mtime change.
+        场景：full_scan 存在未保存 file_path 的 bug，
+        或 file_path 被清空。增量扫描应定位文件并更新
+        file_path，无需 mtime 变化。
         """
         data_dir = tmp_path / "qoder_data"
         _create_qoder_project(data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT)
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: full scan to create the record
+        # 步骤 1: 全量扫描创建记录
         _run_full_scan(str(data_dir), db_path)
 
-        # Step 2: Manually clear file_path to simulate the bug scenario
+        # 步骤 2: 手动清空 file_path 以模拟 bug 场景
         conn = sqlite3.connect(db_path)
         skey = f"qoder:{FULL_UUID}"
         conn.execute(
@@ -172,7 +172,7 @@ class TestQoderIncrementalFilepathUpdate:
         )
         conn.commit()
 
-        # Verify file_path is empty
+        # 验证 file_path 为空
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT file_path, model, model_execution_seconds, tool_execution_seconds FROM sessions WHERE session_key = ?",
@@ -182,16 +182,16 @@ class TestQoderIncrementalFilepathUpdate:
         assert row["model"] != "", "Precondition: model should be set"
         conn.close()
 
-        # Step 3: Run incremental scan WITHOUT any file change
+        # 步骤 3: 运行增量扫描，无任何文件变化
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # The record should have been re-processed (not skipped)
+        # 记录应被重新处理（而非跳过）
         assert result["qoder_count"] >= 1, (
             f"Expected at least 1 re-indexed Qoder session (file_path update), "
             f"got qoder_count={result['qoder_count']}, skipped={result.get('skipped', 0)}"
         )
 
-        # Verify file_path is now populated
+        # 验证 file_path 已被填充
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -208,20 +208,20 @@ class TestQoderIncrementalFilepathUpdate:
 
     @pytest.mark.contract_case("DATA-INDEX-009")
     def test_empty_model_gets_reparsed_without_mtime_change(self, tmp_path):
-        """Old record with timing data but empty model should be re-parsed.
+        """有 timing 数据但 model 为空的旧记录应被重新解析。
 
-        Scenario: model field was empty due to a parsing bug. Incremental
-        scan should re-parse to fill in the model WITHOUT requiring mtime change.
+        场景：model 字段因解析 bug 为空。增量扫描应重新解析
+        以填充 model，无需 mtime 变化。
         """
         data_dir = tmp_path / "qoder_data"
         _create_qoder_project(data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT)
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: full scan
+        # 步骤 1: 全量扫描
         _run_full_scan(str(data_dir), db_path)
 
-        # Step 2: Manually clear model to simulate the bug scenario
+        # 步骤 2: 手动清空 model 以模拟 bug 场景
         conn = sqlite3.connect(db_path)
         skey = f"qoder:{FULL_UUID}"
         conn.execute(
@@ -230,7 +230,7 @@ class TestQoderIncrementalFilepathUpdate:
         )
         conn.commit()
 
-        # Verify model is empty
+        # 验证 model 为空
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT model, file_path FROM sessions WHERE session_key = ?",
@@ -240,16 +240,16 @@ class TestQoderIncrementalFilepathUpdate:
         assert row["file_path"] != "", "Precondition: file_path should be set"
         conn.close()
 
-        # Step 3: incremental scan WITHOUT file change
+        # 步骤 3: 增量扫描，无文件变化
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # Record should be re-processed (not skipped) because model is empty
+        # 记录应被重新处理（而非跳过），因为 model 为空
         assert result["qoder_count"] >= 1, (
             f"Expected at least 1 re-indexed Qoder session (model fill), "
             f"got qoder_count={result['qoder_count']}, skipped={result.get('skipped', 0)}"
         )
 
-        # Verify model is now populated
+        # 验证 model 已被填充
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -266,20 +266,19 @@ class TestQoderIncrementalFilepathUpdate:
 
     @pytest.mark.contract_case("DATA-INDEX-009")
     def test_complete_record_still_skipped_on_unchanged_mtime(self, tmp_path):
-        """Complete record (file_path + model + timing) should still be skipped.
+        """完整记录（file_path + model + timing）仍应被跳过。
 
-        This validates the performance contract: normal records should NOT
-        be re-parsed on every incremental scan.
+        验证性能契约：正常记录不应在每次增量扫描时被重新解析。
         """
         data_dir = tmp_path / "qoder_data"
         _create_qoder_project(data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT)
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: full scan
+        # 步骤 1: 全量扫描
         _run_full_scan(str(data_dir), db_path)
 
-        # Verify record is complete
+        # 验证记录完整
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         skey = f"qoder:{FULL_UUID}"
@@ -292,10 +291,10 @@ class TestQoderIncrementalFilepathUpdate:
         assert row["model"] != "", "Precondition: model should be set"
         conn.close()
 
-        # Step 2: incremental scan WITHOUT any file change
+        # 步骤 2: 增量扫描，无任何文件变化
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # Record should be skipped (not re-indexed)
+        # 记录应被跳过（而非重新索引）
         assert result["qoder_count"] == 0, (
             f"Expected 0 re-indexed sessions (complete record, no change), "
             f"got qoder_count={result['qoder_count']}"
@@ -306,40 +305,40 @@ class TestQoderIncrementalFilepathUpdate:
 
     @pytest.mark.contract_case("DATA-INDEX-009")
     def test_deleted_file_path_gets_relocated(self, tmp_path):
-        """Record with file_path pointing to deleted file should relocate.
+        """file_path 指向已删除文件的记录应被重新定位。
 
-        Scenario: session file was moved to a different project directory.
-        Incremental scan should find the new location and update file_path.
+        场景：会话文件被移动到其他项目目录。
+        增量扫描应找到新位置并更新 file_path。
         """
         data_dir = tmp_path / "qoder_data"
 
-        # Create session in original project
+        # 在原始项目中创建会话
         sess_file = _create_qoder_project(
             data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT
         )
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: full scan
+        # 步骤 1: 全量扫描
         _run_full_scan(str(data_dir), db_path)
 
-        # Step 2: Move the file to a different project directory
+        # 步骤 2: 将文件移动到其他项目目录
         new_proj = "movedproj"
         new_proj_dir = data_dir / "projects" / new_proj
         new_proj_dir.mkdir(parents=True, exist_ok=True)
         new_file = new_proj_dir / f"{FULL_UUID}.jsonl"
         sess_file.rename(new_file)
 
-        # Step 3: incremental scan
+        # 步骤 3: 增量扫描
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # Record should be re-processed (file was relocated)
+        # 记录应被重新处理（文件已迁移）
         assert result["qoder_count"] >= 1, (
             f"Expected at least 1 re-indexed session (file relocation), "
             f"got qoder_count={result['qoder_count']}"
         )
 
-        # Verify file_path is updated to new location
+        # 验证 file_path 已更新到新位置
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         skey = f"qoder:{FULL_UUID}"
@@ -355,16 +354,16 @@ class TestQoderIncrementalFilepathUpdate:
 
     @pytest.mark.contract_case("DATA-INDEX-009")
     def test_both_empty_filepath_and_model_reparsed(self, tmp_path):
-        """Record with both empty file_path and model should be re-parsed."""
+        """file_path 和 model 都为空的记录应被重新解析。"""
         data_dir = tmp_path / "qoder_data"
         _create_qoder_project(data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT)
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: full scan
+        # 步骤 1: 全量扫描
         _run_full_scan(str(data_dir), db_path)
 
-        # Step 2: Clear both file_path and model
+        # 步骤 2: 清空 file_path 和 model
         conn = sqlite3.connect(db_path)
         skey = f"qoder:{FULL_UUID}"
         conn.execute(
@@ -374,16 +373,16 @@ class TestQoderIncrementalFilepathUpdate:
         conn.commit()
         conn.close()
 
-        # Step 3: incremental scan
+        # 步骤 3: 增量扫描
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # Should be re-processed
+        # 应被重新处理
         assert result["qoder_count"] >= 1, (
             f"Expected at least 1 re-indexed session (both fields empty), "
             f"got qoder_count={result['qoder_count']}"
         )
 
-        # Verify both fields are restored
+        # 验证两个字段都已恢复
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         row = conn.execute(

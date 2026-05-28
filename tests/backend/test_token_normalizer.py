@@ -1,4 +1,4 @@
-"""Tests for token normalizer."""
+"""测试 token 归一化。"""
 import pytest
 from session_browser.domain.token_normalizer import (
     normalize_tokens,
@@ -10,7 +10,7 @@ from session_browser.domain.token_normalizer import (
 
 
 class TestAnthropicNormalization:
-    """Test Anthropic usage normalization."""
+    """测试 Anthropic 用量归一化。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_basic_anthropic_usage(self):
@@ -49,7 +49,7 @@ class TestAnthropicNormalization:
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_anthropic_cache_read_not_double_counted(self):
-        """Cache read must not be added to inputFresh."""
+        """Cache read 不应加入 inputFresh。"""
         usage = {
             "input_tokens": 1000,
             "cache_read_input_tokens": 5000,
@@ -79,7 +79,7 @@ class TestAnthropicNormalization:
 
 
 class TestOpenAINormalization:
-    """Test OpenAI usage normalization."""
+    """测试 OpenAI 用量归一化。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_basic_openai_usage(self):
@@ -122,7 +122,7 @@ class TestOpenAINormalization:
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_new_format(self):
-        """Test newer OpenAI format with input_tokens/output_tokens."""
+        """测试较新的 OpenAI 格式（带 input_tokens/output_tokens）。"""
         usage = {
             "input_tokens": 4000,
             "output_tokens": 600,
@@ -140,7 +140,7 @@ class TestOpenAINormalization:
 
 
 class TestCodexNormalization:
-    """Test Codex usage normalization."""
+    """测试 Codex 用量归一化。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_total_only(self):
@@ -148,7 +148,7 @@ class TestCodexNormalization:
         result = normalize_tokens(usage, provider=TokenProvider.CODEX)
 
         assert result.total_input == 10000
-        assert result.precision == TokenPrecision.PROVIDER_REPORTED  # tokens_used is directly from provider
+        assert result.precision == TokenPrecision.PROVIDER_REPORTED  # tokens_used 直接来自 provider
         assert result.provider == TokenProvider.CODEX
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
@@ -161,9 +161,9 @@ class TestCodexNormalization:
 
 
 class TestQoderNormalization:
-    """Test Qoder usage normalization.
+    """测试 Qoder 用量归一化。
 
-    Qoder tokens are always ESTIMATED; cache fields are preserved as-is (usually 0).
+    Qoder token 始终为 ESTIMATED；cache 字段原样保留（通常为 0）。
     """
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
@@ -199,7 +199,7 @@ class TestQoderNormalization:
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qoder_estimated_flag_in_usage(self):
-        """Estimated flag from qoder.py should be preserved in raw_fields."""
+        """qoder.py 中的 estimated 标志应保留在 raw_fields 中。"""
         usage = {
             "input_tokens": 100,
             "output_tokens": 50,
@@ -215,7 +215,7 @@ class TestQoderNormalization:
 
 
 class TestMissingAndUnknownFields:
-    """Test handling of missing and unknown fields."""
+    """测试缺失和未知字段的处理。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_empty_usage(self):
@@ -233,9 +233,9 @@ class TestMissingAndUnknownFields:
         result = normalize_tokens(usage, provider=TokenProvider.ANTHROPIC)
 
         assert result.input_fresh == 1000
-        assert result.input_cache_read is None  # Not 0
-        assert result.input_cache_write is None  # Not 0
-        assert result.output_visible is None  # Not 0
+        assert result.input_cache_read is None  # 不是 0
+        assert result.input_cache_write is None  # 不是 0
+        assert result.output_visible is None  # 不是 0
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_unknown_provider_fallback(self):
@@ -246,7 +246,7 @@ class TestMissingAndUnknownFields:
 
 
 class TestProviderInference:
-    """Test provider inference from model string."""
+    """测试从 model 字符串推断 provider。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qwen_model_inferred(self):
@@ -278,7 +278,7 @@ class TestProviderInference:
 
 
 class TestFormatHelpers:
-    """Test formatting helper functions."""
+    """测试格式化辅助函数。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_format_tokens_none(self):

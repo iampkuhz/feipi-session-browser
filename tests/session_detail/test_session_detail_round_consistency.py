@@ -22,7 +22,7 @@ import sqlite3
 import tempfile
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────
+# ─── 辅助函数 ──────────────────────────────────────────────────────────────
 
 def _make_qoder_project_fixture(tmpdir: str, session_id: str, jsonl_content: str) -> str:
     """
@@ -59,7 +59,7 @@ def _make_qoder_cache_fixture(tmpdir: str, session_id: str, jsonl_content: str) 
     return tmpdir
 
 
-# 3-round Qoder project (CLI) session with real usage data (2 user messages, 3 assistant responses)
+# 3 轮 Qoder 项目（CLI）会话，含真实用量数据（2 条用户消息，3 条助手回复）
 QODER_3ROUND_JSONL = """\
 {"type": "user", "message": {"role": "user", "content": "请帮我写一个 Hello World"}, "timestamp": "2026-05-02T14:00:00.000Z", "cwd": "/Users/test/proj", "entrypoint": "cli", "gitBranch": "main", "sessionId": "qoder-session-001", "version": "1.0.0"}
 {"type": "assistant", "message": {"model": "qwen3.6-plus", "role": "assistant", "content": [{"type": "text", "text": "好的，我来帮你写。"}], "usage": {"input_tokens": 100, "output_tokens": 20}}, "timestamp": "2026-05-02T14:00:05.000Z", "sessionId": "qoder-session-001", "version": "1.0.0"}

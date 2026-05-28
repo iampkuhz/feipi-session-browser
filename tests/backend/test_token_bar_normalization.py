@@ -1,11 +1,11 @@
-"""Tests for token bar normalization.
+"""测试 token 条归一化。
 
-Covers:
-- compute_bar_scale (Python helper)
+覆盖范围：
+- compute_bar_scale（Python 辅助函数）
 
-Note: Jinja2 token_bar macro tests were removed when components/token_bar.html
-was deleted (T183 cleanup). The canonical token_bar macro now lives in
-components/session_detail_primitives.html.
+注：Jinja2 token_bar 宏测试已在 components/token_bar.html 删除时移除
+（T183 清理）。规范的 token_bar 宏现位于
+components/session_detail_primitives.html。
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pytest
 from session_browser.web.routes import compute_bar_scale
 
 
-# ── compute_bar_scale tests ─────────────────────────────────────────────
+# ── compute_bar_scale 测试 ─────────────────────────────────────────────
 
 
 class TestComputeBarScale:
@@ -28,9 +28,7 @@ class TestComputeBarScale:
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_small_vs_large(self):
-        """
-
-import pytest60K vs 135K ≈ 44.4%."""
+        """60K vs 135K ≈ 44.4%。"""
         result = compute_bar_scale(60_000, 135_000)
         assert abs(result - 44.44) < 0.1
 
@@ -44,16 +42,16 @@ import pytest60K vs 135K ≈ 44.4%."""
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_max_is_zero_no_error(self):
-        """If max is 0 (no rounds with tokens), scale is 0."""
+        """max 为 0（无带 token 的轮次）时 scale 为 0。"""
         assert compute_bar_scale(0, 0) == 0.0
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_round_tokens_exceeds_max_clamped(self):
-        """In practice round_tokens <= max, but verify behavior."""
+        """实际中 round_tokens <= max，但需验证行为。"""
         result = compute_bar_scale(200, 100)
         assert result == 200.0
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_one_percent(self):
-        """1 token out of 100 = 1%."""
+        """100 中占 1 = 1%。"""
         assert compute_bar_scale(1, 100) == 1.0

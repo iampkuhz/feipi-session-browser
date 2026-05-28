@@ -1,8 +1,8 @@
-"""Tests for payload modal renderer contract in session_detail_timeline.html.
-Verifies that the sd-payload-modal panel includes the canonical `payload-modal__panel`
-CSS class and does not use fullscreen inline styles.
+"""session_detail_timeline.html 中 payload modal 渲染器契约测试。
+验证 sd-payload-modal 面板包含标准的 `payload-modal__panel`
+CSS 类且不使用全屏内联样式。
 
-Related: SD-17 — sd-payload-modal 宽高变成整个页面
+相关：SD-17 — sd-payload-modal 宽高变成整个页面
 """
 
 import pytest
@@ -20,14 +20,13 @@ def _timeline_html():
 
 
 def _has_canonical_panel_class(source: str) -> bool:
-    """Check whether any class attribute in the payload_modal macro
-    contains `payload-modal__panel` as a standalone CSS class token.
+    """检查 payload_modal 宏中是否有 class 属性包含 `payload-modal__panel`
+    作为独立的 CSS 类标记。
 
-    A standalone token means it is separated by whitespace within the
-    class attribute value, not merely a substring of a longer identifier
-    (e.g. 'sd-payload-modal__panel' does NOT count).
+    独立标记意味着它在 class 属性值中由空白字符分隔，
+    而不是较长标识符的子串（例如 'sd-payload-modal__panel' 不算）。
     """
-    # Extract the payload_modal macro block
+    # 提取 payload_modal 宏块
     macro_match = re.search(
         r'\{% macro payload_modal\(\) -%\}(.*?){%- endmacro %}',
         source,
@@ -37,10 +36,10 @@ def _has_canonical_panel_class(source: str) -> bool:
         return False
     macro_body = macro_match.group(1)
 
-    # Find all class="..." attributes in the macro body
+    # 查找宏体中所有 class="..." 属性
     class_attrs = re.findall(r'class="([^"]*)"', macro_body)
     for attr_value in class_attrs:
-        # Split by whitespace and check each token
+        # 按空白字符分割并检查每个标记
         tokens = attr_value.split()
         if 'payload-modal__panel' in tokens:
             return True
@@ -48,8 +47,8 @@ def _has_canonical_panel_class(source: str) -> bool:
 
 
 def _panel_inline_style(source: str) -> str | None:
-    """Return the inline style string of the payload-modal__panel element,
-    or None if not found."""
+    """返回 payload-modal__panel 元素的 inline style 字符串，
+    如果未找到则返回 None。"""
     macro_match = re.search(
         r'\{% macro payload_modal\(\) -%\}(.*?){%- endmacro %}',
         source,
@@ -59,7 +58,7 @@ def _panel_inline_style(source: str) -> str | None:
         return None
     macro_body = macro_match.group(1)
 
-    # Find elements that reference payload-modal__panel (either standalone or namespaced)
+    # 查找引用 payload-modal__panel 的元素（独立或带命名空间）
     tags = re.findall(r'<[^>]*(?:payload-modal__panel)[^>]*>', macro_body)
     for tag in tags:
         style_match = re.search(r'style="([^"]*)"', tag)
@@ -68,18 +67,18 @@ def _panel_inline_style(source: str) -> str | None:
     return None
 
 
-# ── Panel class contract ──────────────────────────────────────────
+# ── 面板类契约 ─────────────────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-SD-020")
 def test_payload_modal_panel_has_canonical_class():
-    """sd-payload-modal panel must include canonical `payload-modal__panel` class.
+    """sd-payload-modal 面板必须包含规范的 `payload-modal__panel` 类。
 
-    The panel inside the payload-modal dialog must carry the canonical BEM class
-    `payload-modal__panel` as a standalone CSS class token so that selectors in
-    ui-primitives.css (e.g. `.payload-modal--sd .payload-modal__panel`) apply.
-    A namespaced-only class like `sd-payload-modal__panel` does NOT satisfy this
-    contract because the canonical selector would miss it (SD-17).
+    payload-modal 对话框内的面板必须携带规范的 BEM 类
+    `payload-modal__panel` 作为独立的 CSS 类标记，以便
+    ui-primitives.css 中的选择器（如 `.payload-modal--sd .payload-modal__panel`）
+    能够生效。仅带命名空间的类如 `sd-payload-modal__panel` 不满足此契约，
+    因为规范选择器会匹配不到它（SD-17）。
     """
     source = _timeline_html()
     assert _has_canonical_panel_class(source), (
@@ -91,7 +90,7 @@ def test_payload_modal_panel_has_canonical_class():
 
 @pytest.mark.contract_case("UI-SD-020")
 def test_payload_modal_panel_no_fullscreen_inline_style():
-    """Panel must not carry fullscreen inline styles like width:100% or height:100vh."""
+    """面板不得携带 width:100% 或 height:100vh 等全屏 inline 样式。"""
     source = _timeline_html()
     style = _panel_inline_style(source)
     if style is not None:
@@ -103,7 +102,7 @@ def test_payload_modal_panel_no_fullscreen_inline_style():
 
 @pytest.mark.contract_case("UI-SD-020")
 def test_payload_modal_dialog_has_sd_namespace():
-    """The payload modal dialog should carry sd-payload-modal class for scoped targeting."""
+    """payload modal 对话框应携带 sd-payload-modal 类以便作用域定位。"""
     source = _timeline_html()
     assert 'sd-payload-modal' in source, (
         "payload modal dialog should include sd-payload-modal class"

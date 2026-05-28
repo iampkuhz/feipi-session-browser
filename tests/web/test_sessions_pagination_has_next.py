@@ -1,12 +1,10 @@
-"""T015 · has_next / offset / page clamp consistency tests.
+"""T015 · has_next / offset / 页码钳制一致性测试。
 
-Guard: on the last page has_next must be false, and page/offset/total_pages
-must form a consistent state. See S-09: session list next jumps from page 1
-to page 3 with an empty page.
+门禁：在最后一页 has_next 必须为 false，且 page/offset/total_pages
+必须构成一致的状态。参见 S-09：会话列表下一页从第 1 页跳到第 3 页且出现空页的问题。
 
-These tests declare the *expected* contract. If any fail, it signals that
-compute_pagination's has_next logic needs fixing (source modification is
-out of scope for this task).
+这些测试声明*预期*契约。如果任何测试失败，表明 compute_pagination 的
+has_next 逻辑需要修复（修改源码不在本任务范围内）。
 """
 
 from __future__ import annotations
@@ -15,10 +13,10 @@ import pytest
 from session_browser.web.presenters.sessions import compute_pagination
 
 
-# ─── Core scenario: total_count=40, page_size=20 (exactly 2 pages) ──────
+# ─── 核心场景：total_count=40, page_size=20（恰好 2 页）──────
 
 class TestHasNextConsistencyExactTwoPages:
-    """total_count=40, page_size=20 → total_pages=2, each page full."""
+    """total_count=40, page_size=20 → total_pages=2，每页满额。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_page1_has_next_true(self):
@@ -30,9 +28,9 @@ class TestHasNextConsistencyExactTwoPages:
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_page2_last_page_has_next_false(self):
-        """Last page: has_next must be False.
-        Current implementation: page_start=21, total_count=40 → 21 < 40 → True.
-        This is the S-09 root cause."""
+        """最后一页：has_next 必须为 False。
+        当前实现：page_start=21, total_count=40 → 21 < 40 → True。
+        这是 S-09 的根本原因。"""
         r = compute_pagination(40, 2, 20)
         assert r["total_pages"] == 2
         assert r["page"] == 2
@@ -44,23 +42,23 @@ class TestHasNextConsistencyExactTwoPages:
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_page3_clamped_to_last(self):
-        """Requesting page 3 must clamp to page 2."""
+        """请求第 3 页必须钳制到第 2 页。"""
         r = compute_pagination(40, 3, 20)
         assert r["page"] == 2
         assert r["offset"] == 20
         assert r["has_next"] is False
 
 
-# ─── Edge: partial last page ────────────────────────────────────────────
+# ─── 边界：最后一页不满 ────────────────────────────────────────────
 
 class TestHasNextPartialLastPage:
-    """Last page has fewer items than page_size."""
+    """最后一页项目数少于 page_size。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_last_page_partial_has_next_false(self):
-        """total_count=45, page_size=20 → total_pages=3.
-        page=3: offset=40, page_start=41, 41 < 45 → current impl returns True.
-        Expected: False (this is the last page)."""
+        """total_count=45, page_size=20 → total_pages=3。
+        page=3：offset=40, page_start=41, 41 < 45 → 当前实现返回 True。
+        预期：False（这是最后一页）。"""
         r = compute_pagination(45, 3, 20)
         assert r["total_pages"] == 3
         assert r["page"] == 3
@@ -71,15 +69,15 @@ class TestHasNextPartialLastPage:
         )
 
 
-# ─── Edge: single-item last page ────────────────────────────────────────
+# ─── 边界：最后一页恰好 1 项 ────────────────────────────────────────
 
 class TestHasNextSingleItemLastPage:
-    """Last page has exactly 1 item — the only case current impl gets right."""
+    """最后一页恰好只有 1 个项目——当前实现唯一碰巧正确的情况。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_single_item_last_page_has_next_false(self):
-        """total_count=41, page_size=20 → total_pages=3.
-        page=3: offset=40, page_start=41, 41 < 41 → False (correct by luck)."""
+        """total_count=41, page_size=20 → total_pages=3。
+        page=3：offset=40, page_start=41, 41 < 41 → False（碰巧正确）。"""
         r = compute_pagination(41, 3, 20)
         assert r["total_pages"] == 3
         assert r["page"] == 3
@@ -87,14 +85,14 @@ class TestHasNextSingleItemLastPage:
         assert r["has_next"] is False
 
 
-# ─── Edge: single page (total_count <= page_size) ───────────────────────
+# ─── 边界：仅一页（total_count <= page_size）───────────────────────
 
 class TestHasNextSinglePage:
-    """Only one page exists — has_next must be False."""
+    """仅有一页 — has_next 必须为 False。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_total_equals_page_size_has_next_false(self):
-        """total_count=20, page_size=20 → exactly 1 page."""
+        """total_count=20, page_size=20 → 恰好 1 页。"""
         r = compute_pagination(20, 1, 20)
         assert r["total_pages"] == 1
         assert r["page"] == 1
@@ -108,14 +106,14 @@ class TestHasNextSinglePage:
         assert r["has_next"] is False
 
 
-# ─── Clamp consistency ──────────────────────────────────────────────────
+# ─── 页码钳制一致性 ─────────────────────────────────────────────────
 
 class TestPageClampConsistency:
-    """Clamped page must produce consistent offset + has_next."""
+    """钳制后的页码必须产生一致的 offset + has_next。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_clamp_to_page_1(self):
-        """total_count=10, page_size=20 → total_pages=1. page=5 → clamped to 1."""
+        """total_count=10, page_size=20 → total_pages=1。page=5 → 钳制为 1。"""
         r = compute_pagination(10, 5, 20)
         assert r["page"] == 1
         assert r["offset"] == 0
@@ -123,7 +121,7 @@ class TestPageClampConsistency:
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_clamp_to_last_page_consistent(self):
-        """total_count=50, page_size=20 → total_pages=3. page=10 → clamped to 3."""
+        """total_count=50, page_size=20 → total_pages=3。page=10 → 钳制为 3。"""
         r = compute_pagination(50, 10, 20)
         assert r["page"] == 3
         assert r["offset"] == 40
@@ -133,16 +131,16 @@ class TestPageClampConsistency:
 
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_offset_formula(self):
-        """offset = (page - 1) * page_size, after clamp."""
+        """offset = (page - 1) * page_size，钳制后同样适用。"""
         r = compute_pagination(40, 5, 20)
         assert r["page"] == 2
         assert r["offset"] == (r["page"] - 1) * 20
 
 
-# ─── Contract: last page invariant ──────────────────────────────────────
+# ─── 契约：最后一页不变量 ──────────────────────────────────────────
 
 class TestLastPageInvariant:
-    """For any page == total_pages, has_next must be False."""
+    """对于任何 page == total_pages 的情况，has_next 必须为 False。"""
 
     @pytest.mark.parametrize("total_count,page_size", [
         (40, 20),
@@ -179,7 +177,7 @@ class TestLastPageInvariant:
     ])
     @pytest.mark.contract_case("DATA-PRESENTER-007", "UI-INTERACTION-004")
     def test_clamped_page_has_next_false(self, total_count, page_size):
-        """Requesting page >> total_pages must clamp and has_next=False."""
+        """请求页码远超总页数时必须钳制且 has_next=False。"""
         r = compute_pagination(total_count, 999, page_size)
         tp = max(1, (total_count + page_size - 1) // page_size)
         assert r["page"] == tp

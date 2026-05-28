@@ -1,10 +1,9 @@
-"""T017 · Sessions AJAX partial structure gate.
+"""T017 · Sessions AJAX 局部结构门禁测试。
 
-Verifies that /sessions with X-Requested-With: XMLHttpRequest returns an HTML
-partial containing the expected structural markers (#sessions-ajax-response,
-tbody, #ajax-pagination, page input).
+验证 /sessions 在携带 X-Requested-With: XMLHttpRequest 头时返回的 HTML
+局部包含预期的结构标记（#sessions-ajax-response、tbody、#ajax-pagination、页码输入）。
 
-See S-09: session list next jumps from page 1 to page 3 with empty page.
+参见 S-09：会话列表下一页从第 1 页跳到第 3 页且出现空页的问题。
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from bs4 import BeautifulSoup
 from session_browser.web.template_env import env as _template_env
 
 
-# ─── Mock session row ──────────────────────────────────────────────────
+# ─── 模拟会话行 ────────────────────────────────────────────────────────────
 
 def _make_mock_session(
     index: int = 1,
@@ -24,7 +23,7 @@ def _make_mock_session(
     session_id: str = None,
     title: str = None,
 ) -> MagicMock:
-    """Create a mock session object matching the template's attribute access."""
+    """创建匹配模板属性访问的模拟 session 对象。"""
     if session_id is None:
         session_id = f"sess-000000-{index:04d}"
     if title is None:
@@ -49,7 +48,7 @@ def _make_mock_session(
     return m
 
 
-# ─── Default AJAX context ──────────────────────────────────────────────
+# ─── 默认 AJAX 上下文 ──────────────────────────────────────────────────────
 
 def _make_ajax_context(
     sessions: list = None,
@@ -58,11 +57,11 @@ def _make_ajax_context(
     total_count: int = 60,
     total_pages: int = 3,
 ) -> dict:
-    """Build the context dict that routes.py passes to the AJAX partial template."""
+    """构建 routes.py 传递给 AJAX 局部模板的上下文字典。"""
     if sessions is None:
         sessions = [_make_mock_session(i) for i in range(1, page_size + 1)]
 
-    # Minimal actions mock — templates access .remove_filter_urls and .sort_urls
+    # 最小化 actions 模拟——模板访问 .remove_filter_urls 和 .sort_urls
     actions = MagicMock()
     actions.remove_filter_urls = {}
     actions.sort_urls = {"tokens": "/sessions?sort=tokens", "rounds": "/sessions?sort=rounds",
@@ -89,10 +88,10 @@ def _make_ajax_context(
     }
 
 
-# ─── Tests ─────────────────────────────────────────────────────────────
+# ─── 测试 ────────────────────────────────────────────────────────────────────
 
 class TestSessionsAjaxPartialStructure:
-    """Render sessions_ajax_page.html and assert structural markers."""
+    """渲染 sessions_ajax_page.html 并断言结构标记存在。"""
 
     def _render_ajax(self, **overrides) -> str:
         ctx = _make_ajax_context(**overrides)
@@ -128,18 +127,17 @@ class TestSessionsAjaxPartialStructure:
 
     @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_page_input_value_matches_requested_page(self):
-        """Page 2 AJAX response: page input should show 2."""
+        """第 2 页 AJAX 响应：页码输入应显示 2。"""
         html = self._render_ajax(page=2, total_count=60, total_pages=3)
         soup = BeautifulSoup(html, "html.parser")
-        # The pagination macro renders a page input — look for the input
-        # with value matching the current page inside #ajax-pagination
+        # 分页宏渲染页码输入——在 #ajax-pagination 内查找匹配的 input
         pagination = soup.find(id="ajax-pagination")
         assert pagination is not None
         inputs = pagination.find_all("input")
         page_inputs = [i for i in inputs if i.get("type") == "text" or i.get("type") == "number" or (i.get("value") and i.get("value").isdigit())]
         assert len(page_inputs) >= 1, "No page input found in pagination"
-        # The primary page input should have value == current page
-        # (may have hidden inputs too; filter by presence of numeric value)
+        # 主页码输入的值应等于当前页
+        # （可能也有隐藏 input；通过数值存在性过滤）
         found_page_2 = any(
             inp.get("value") == "2"
             for inp in page_inputs
@@ -150,7 +148,7 @@ class TestSessionsAjaxPartialStructure:
 
     @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_page_input_value_page_3(self):
-        """Page 3 AJAX response: page input should show 3."""
+        """第 3 页 AJAX 响应：页码输入应显示 3。"""
         html = self._render_ajax(page=3, total_count=100, total_pages=5)
         soup = BeautifulSoup(html, "html.parser")
         pagination = soup.find(id="ajax-pagination")
@@ -164,7 +162,7 @@ class TestSessionsAjaxPartialStructure:
 
 
 class TestSessionsAjaxPartialEmptyState:
-    """AJAX partial when no sessions exist."""
+    """不存在会话时的 AJAX 局部。"""
 
     @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_empty_tbody_shows_message(self):
@@ -174,7 +172,7 @@ class TestSessionsAjaxPartialEmptyState:
         soup = BeautifulSoup(html, "html.parser")
         tbody = soup.find("tbody")
         assert tbody is not None
-        # Empty state should contain a text message about no sessions
+        # 空状态应包含无会话的文本提示
         text = tbody.get_text()
         assert "no sessions" in text.lower() or "no sessions" in text.lower(), (
             f"Empty tbody should show 'no sessions' message, got: {text[:200]}"
@@ -182,7 +180,7 @@ class TestSessionsAjaxPartialEmptyState:
 
     @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_empty_has_no_pagination_div(self):
-        """When total_count=0, no #ajax-pagination div should render."""
+        """当 total_count=0 时，不应渲染 #ajax-pagination _div。"""
         html = _template_env.get_template("partials/sessions_ajax_page.html").render(
             **_make_ajax_context(sessions=[], total_count=0, total_pages=1)
         )
@@ -194,7 +192,7 @@ class TestSessionsAjaxPartialEmptyState:
 
 
 class TestSessionsAjaxPartialMultiPage:
-    """AJAX partial with multiple pages of sessions."""
+    """多页会话的 AJAX 局部。"""
 
     @pytest.mark.contract_case("ROUTE-API-012", "UI-INTERACTION-003")
     def test_page_2_has_20_rows(self):

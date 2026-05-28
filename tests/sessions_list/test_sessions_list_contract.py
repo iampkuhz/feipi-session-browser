@@ -1,14 +1,14 @@
-"""Tests for sessions-list-v15-fix contract.
+"""Sessions list v15 修复契约测试。
 
-Covers the 8 verification items:
-1. /sessions HTTP 200 (template renders OK)
-2. Header tokens aggregate not 0 when fixture sessions have tokens
-3. sort=rounds&dir=desc returns first rows with non-increasing rounds
-4. sort=rounds&dir=asc returns first rows with non-decreasing rounds
-5. page_size=20/100/500/all all work
-6. Refresh NOT in HTML output
-7. Agent badge has claude/codex/qoder different classes
-8. ROUNDS header not clipped: HTML/CSS has dedicated width/class
+覆盖 8 项验证内容：
+1. /sessions 返回 HTTP 200（模板正常渲染）
+2. 当 fixture sessions 有 token 时，header token 聚合值不为 0
+3. sort=rounds&dir=desc 返回 rounds 非递增的前几行
+4. sort=rounds&dir=asc 返回 rounds 非递减的前几行
+5. page_size=20/100/500/all 均可用
+6. Refresh 不在 HTML 输出中
+7. Agent badge 对 claude/codex/qoder 使用不同的 class
+8. ROUNDS 列头不被裁剪：HTML/CSS 有专属宽度/class
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ _COMPONENTS_PATH = "src/session_browser/web/templates/components/sessions_list_c
 
 
 def _read_all_templates():
-    """Read all relevant template files and return combined content."""
+    """读取所有相关模板文件并返回合并内容。"""
     parts = []
     for path in [_TEMPLATE_PATH, _PARTIAL_PATH, _COMPONENTS_PATH]:
         with open(path) as f:
@@ -85,7 +85,7 @@ def _make_summary(
 
 @pytest.fixture
 def populated_db(tmp_path):
-    """Create a SQLite DB with 30 sessions across 3 agents with varying rounds and tokens."""
+    """创建包含 30 个 sessions 的 SQLite DB，分布在 3 个 agent 下，rounds 和 tokens 各不相同。"""
     db_path = tmp_path / "test_v15_index.db"
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -98,9 +98,9 @@ def populated_db(tmp_path):
     for i in range(1, 31):
         agent = agents[(i - 1) % 3]
         project = projects[(i - 1) % 3]
-        # Varying rounds: 1..30 (ascending by ID)
+        # rounds 递增：1..30（按 ID 递增）
         rounds = i
-        # Varying tokens so aggregate is meaningful
+        # tokens 变化，使聚合值有意义
         s = _make_summary(
             str(i),
             title=f"V15 Session {i:03d}",
@@ -119,45 +119,45 @@ def populated_db(tmp_path):
     conn.close()
 
 
-# ─── 1. Template renders (HTTP 200 equivalent) ──────────────────────
+# ─── 1. 模板渲染（等价于 HTTP 200）─────────────────────────────────
 
 class TestTemplateRenders:
-    """Verify the sessions template can render with expected context."""
+    """验证 sessions 模板能用预期 context 渲染。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_sessions_template_contains_expected_blocks(self):
         content = _read_all_templates()
-        # Core page structure
+        # 页面核心结构
         assert "sessions-page" in content
-        # Filter card can be literal class or macro call
+        # 筛选卡片可以是字面 class 或宏调用
         assert ('class="sessions-filter-card"' in content
                 or 'ui.filter_card(' in content)
         assert "data-table" in content, "Sessions must use canonical data-table component"
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_template_receives_sessions_aggregate(self):
-        """Template must reference sessions_aggregate for tokens."""
+        """模板必须引用 sessions_aggregate 以渲染 tokens。"""
         content = _read_all_templates()
         assert "sessions_aggregate" in content
 
 
-# ─── 2. Header tokens aggregate ─────────────────────────────────────
+# ─── 2. Header token 聚合 ─────────────────────────────────────────────
 
 class TestHeaderTokensAggregate:
-    """Verify get_sessions_list_aggregate returns non-zero total_tokens."""
+    """验证 get_sessions_list_aggregate 返回非零 total_tokens。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_aggregate_total_tokens_nonzero(self, populated_db):
         agg = get_sessions_list_aggregate(populated_db)
-        assert agg["total_tokens"] > 0, "aggregate total_tokens should be > 0"
+        assert agg["total_tokens"] > 0, "聚合 total_tokens 应大于 0"
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_aggregate_token_formula(self, populated_db):
-        """Verify formula: input + cached_input + cached_output + output."""
+        """验证公式：input + cached_input + cached_output + output。"""
         agg = get_sessions_list_aggregate(populated_db)
-        # Manually compute expected total from fixture:
-        # sum of (100*i + 50*i + 20*i + 10*i) for i=1..30
-        # = sum of 180*i for i=1..30 = 180 * 30*31/2 = 180 * 465 = 83700
+        # 手动计算期望总数：
+        # 计算 (100*i + 50*i + 20*i + 10*i) 在 i=1..30 的总和
+        # = 180*i 在 i=1..30 的总和 = 180 * 30*31/2 = 180 * 465 = 83700
         assert agg["total_tokens"] == 83700
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
@@ -166,10 +166,10 @@ class TestHeaderTokensAggregate:
         assert agg["project_count"] >= 3
 
 
-# ─── 3. Rounds sort desc (non-increasing) ──────────────────────────
+# ─── 3. Rounds 降序排列（非递增）──────────────────────────────────
 
 class TestRoundsSortDesc:
-    """Verify sort=rounds&dir=desc returns non-increasing rounds."""
+    """验证 sort=rounds&dir=desc 返回非递增的 rounds。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_desc_first_rows_non_increasing(self, populated_db):
@@ -195,10 +195,10 @@ class TestRoundsSortDesc:
         assert rows[0].assistant_message_count == 30
 
 
-# ─── 4. Rounds sort asc (non-decreasing) ───────────────────────────
+# ─── 4. Rounds 升序排列（非递减）──────────────────────────────────
 
 class TestRoundsSortAsc:
-    """Verify sort=rounds&dir=asc returns non-decreasing rounds."""
+    """验证 sort=rounds&dir=asc 返回非递减的 rounds。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_asc_first_rows_non_decreasing(self, populated_db):
@@ -224,14 +224,14 @@ class TestRoundsSortAsc:
         assert rows[0].assistant_message_count == 1
 
 
-# ─── 5. Pagination contract: prev/input/next, no page-size selector ──
+# ─── 5. 分页契约：prev/input/next，无页大小选择器 ──
 
 class TestPaginationContract:
-    """Verify pagination follows the contract: prev/input/next only, no page-size selector."""
+    """验证分页遵循契约：仅有 prev/input/next，无页大小选择器。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_footer_macro_has_page_input(self):
-        """Footer component must have page number input."""
+        """Footer 组件必须包含页码输入框。"""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
         assert 'data-action="page-input"' in content
@@ -239,21 +239,21 @@ class TestPaginationContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_footer_macro_has_prev_button(self):
-        """Footer component must have prev button."""
+        """Footer 组件必须包含上一页按钮。"""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
         assert 'data-action="prev-page"' in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_footer_macro_has_next_button(self):
-        """Footer component must have next button."""
+        """Footer 组件必须包含下一页按钮。"""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
         assert 'data-action="next-page"' in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_no_page_size_select_in_footer(self):
-        """Footer component must NOT have page-size selector (contract: no page-size)."""
+        """Footer 组件不得包含页大小选择器（契约：无页大小选择）。"""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
         assert "sessions-footer-page-size__select" not in content
@@ -261,18 +261,18 @@ class TestPaginationContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_prev_hidden_on_first_page(self):
-        """Prev button should be conditionally hidden on page 1."""
+        """上一页按钮在第 1 页时应条件性隐藏。"""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
-        # Jinja2 conditional: current_page > 1
+        # Jinja2 条件判断：current_page > 1
         assert "current_page > 1" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_next_hidden_on_last_page(self):
-        """Next button should be conditionally hidden on last page."""
+        """下一页按钮在最后一页时应条件性隐藏。"""
         with open(_COMPONENTS_PATH) as f:
             content = f.read()
-        # Jinja2 conditional: current_page < total_pages
+        # Jinja2 条件判断：current_page < total_pages
         assert "current_page < total_pages" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
@@ -283,7 +283,7 @@ class TestPaginationContract:
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_page_size_100_returns_all(self, populated_db):
         rows = list_sessions(populated_db, limit=100)
-        assert len(rows) == 30  # only 30 sessions exist
+        assert len(rows) == 30  # 总共只有 30 个 sessions
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_page_size_all_returns_all(self, populated_db):
@@ -291,10 +291,10 @@ class TestPaginationContract:
         assert len(rows) == 30
 
 
-# ─── 6. Refresh NOT in HTML output ─────────────────────────────────
+# ─── 6. HTML 输出中无 Refresh ─────────────────────────────────
 
 class TestRefreshRemoval:
-    """Verify refresh button/link is removed from templates."""
+    """验证模板中已移除 Refresh 按钮/链接。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_no_refresh_in_sessions_html(self):
@@ -316,10 +316,10 @@ class TestRefreshRemoval:
         assert "refresh" not in content.lower()
 
 
-# ─── 7. Agent badge modifier classes ───────────────────────────────
+# ─── 7. Agent badge 修饰类 ───────────────────────────────
 
 class TestAgentBadgeClasses:
-    """Verify agent badge has distinct classes for claude/codex/qoder."""
+    """验证 agent badge 对 claude/codex/qoder 使用不同的 class。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_badge_base_class(self):
@@ -328,16 +328,16 @@ class TestAgentBadgeClasses:
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_claude_code_modifier(self):
-        """CSS must define claude_code badge style."""
+        """CSS 必须定义 claude_code badge 样式。"""
         css = _read_css()
         assert "claude_code" in css.lower()
-        # Template uses dynamic {{ s.agent }} for the modifier class
+        # 模板使用动态 {{ s.agent }} 作为修饰类
         content = _read_all_templates()
         assert "sessions-agent-badge--" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_codex_modifier(self):
-        """CSS must define codex badge style."""
+        """CSS 必须定义 codex badge 样式。"""
         css = _read_css()
         assert "codex" in css.lower()
         content = _read_all_templates()
@@ -345,7 +345,7 @@ class TestAgentBadgeClasses:
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_qoder_modifier(self):
-        """CSS must define qoder badge style."""
+        """CSS 必须定义 qoder badge 样式。"""
         css = _read_css()
         assert "qoder" in css.lower()
         content = _read_all_templates()
@@ -353,15 +353,15 @@ class TestAgentBadgeClasses:
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_badge_uses_agent_variable(self):
-        """Template should use {{ s.agent }} for dynamic badge class."""
+        """模板应使用 {{ s.agent }} 作为动态 badge class。"""
         content = _read_all_templates()
         assert 'sessions-agent-badge--{{ s.agent }}' in content
 
 
-# ─── 8. ROUNDS header not clipped ──────────────────────────────────
+# ─── 8. ROUNDS 表头不被裁剪 ──────────────────────────────────
 
 class TestRoundsColumn:
-    """Verify ROUNDS column has dedicated width and is not clipped."""
+    """验证 ROUNDS 列有专属宽度且不被裁剪。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_header_in_template(self):
@@ -370,25 +370,25 @@ class TestRoundsColumn:
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_th_sort_call(self):
-        """Rounds must be a sortable column."""
+        """Rounds 必须是可排序列。"""
         content = _read_all_templates()
         assert "th_sort('Rounds'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_css_column_width(self):
-        """CSS should define grid column width for rounds."""
+        """CSS 应为 rounds 定义网格列宽度。"""
         css = _read_css()
-        # The grid uses grid-template-columns with minmax
+        # 网格使用 grid-template-columns 配合 minmax
         assert "minmax" in css or "px" in css
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_data_attribute(self):
-        """Row should have data-rounds attribute."""
+        """行应包含 data-rounds 属性。"""
         content = _read_all_templates()
         assert "data-rounds=" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_cell_renders_assistant_message_count(self):
-        """Rounds cell should render s.assistant_message_count."""
+        """Rounds 单元格应渲染 s.assistant_message_count。"""
         content = _read_all_templates()
         assert "s.assistant_message_count" in content

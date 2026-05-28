@@ -10,7 +10,7 @@ import json
 import os
 import sys
 
-# Ensure src is importable
+# 确保 src 可导入
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if SB_ROOT not in sys.path:
     sys.path.insert(0, os.path.join(SB_ROOT, "src"))

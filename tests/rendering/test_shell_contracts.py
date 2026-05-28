@@ -1,9 +1,9 @@
-"""Shell contract tests (T054).
+"""Shell 契约测试（T054）。
 
-Verifies that base.html contains the expected app-shell structure and that
-CSS files contain required shell CSS rules.
+验证 base.html 包含预期的 app-shell 结构，且
+CSS 文件包含所需的 shell CSS 规则。
 
-Covers ui-shell spec at:
+覆盖 ui-shell 规约：
   openspec/changes/contract-driven-ui-redesign/specs/ui-shell.md
 """
 import pytest
@@ -14,21 +14,21 @@ ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_DIR = ROOT / "src" / "session_browser" / "web" / "static"
 BASE_HTML = TEMPLATE_DIR / "base.html"
-STYLE_CSS = None  # style.css deleted — MHTML now bundles modular CSS
+STYLE_CSS = None  # style.css 已删除 — MHTML 现在打包模块化 CSS
 SHELL_CSS = STATIC_DIR / "css" / "shell.css"
 UI_PRIMITIVES_CSS = STATIC_DIR / "css" / "ui-primitives.css"
 LEGACY_ALIASES_CSS = STATIC_DIR / "css" / "legacy-aliases.css"
 
 
 def _base_source():
-    """Return base.html text, skipping tests if file is missing."""
+    """返回 base.html 文本，如果文件缺失则跳过测试。"""
     if not BASE_HTML.exists():
         pytest.skip(f"base.html not found at {BASE_HTML}")
     return BASE_HTML.read_text(encoding="utf-8")
 
 
 def _shell_source():
-    """Return shell.css text, skipping tests if file is missing."""
+    """返回 shell.css 文本，如果文件缺失则跳过测试。"""
     if not SHELL_CSS.exists():
         pytest.skip(f"shell.css not found at {SHELL_CSS}")
     return SHELL_CSS.read_text(encoding="utf-8")
@@ -48,7 +48,7 @@ def shell_text():
 
 
 def _ui_primitives_source():
-    """Return ui-primitives.css text, skipping tests if file is missing."""
+    """返回 ui-primitives.css 文本，如果文件缺失则跳过测试。"""
     if not UI_PRIMITIVES_CSS.exists():
         pytest.skip(f"ui-primitives.css not found at {UI_PRIMITIVES_CSS}")
     return UI_PRIMITIVES_CSS.read_text(encoding="utf-8")
@@ -63,7 +63,7 @@ def ui_primitives_text():
 
 
 class TestBaseHtmlShellStructure:
-    """base.html must contain the expected app-shell container hierarchy."""
+    """base.html 必须包含预期的 app-shell 容器层级。"""
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_app_shell_root_exists(self, base_text):
@@ -111,9 +111,9 @@ class TestBaseHtmlShellStructure:
 
 
 class TestBaseHtmlNavItems:
-    """Sidebar must contain all required nav items with data-action="nav-*"."""
+    """侧边栏必须包含所有所需的导航项及 data-action="nav-*"。"""
 
-    # Expected nav targets as defined in ui-shell spec section 1.2
+    # ui-shell 规约 1.2 节中定义的导航目标
     NAV_TARGETS = [
         "nav-dashboard",
         "nav-sessions",
@@ -149,14 +149,14 @@ class TestBaseHtmlNavItems:
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_nav_item_has_data_target(self, base_text):
-        """Each nav-item must have a data-target attribute."""
+        """每个导航项必须包含 data-target 属性。"""
         for target in ["dashboard", "sessions", "projects", "agents", "glossary"]:
             assert f'data-target="{target}"' in base_text, \
                 f"Missing data-target=\"{target}\""
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_nav_list_container(self, base_text):
-        """Navigation must be wrapped in <nav class="nav-list">."""
+        """导航必须包裹在 <nav class="nav-list"> 中。"""
         assert 'class="nav-list"' in base_text, \
             "base.html lacks .nav-list container"
 
@@ -165,23 +165,23 @@ class TestBaseHtmlNavItems:
 
 
 class TestBaseHtmlSidebarA11y:
-    """Sidebar must have proper aria attributes."""
+    """侧边栏必须具有适当的 aria 属性。"""
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_sidebar_aria_label(self, base_text):
-        """Sidebar <aside> must have aria-label."""
+        """侧边栏 <aside> 必须包含 aria-label。"""
         assert '<aside class="sidebar" aria-label=' in base_text, \
             "Sidebar lacks aria-label"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_nav_aria_label(self, base_text):
-        """Nav container must have aria-label."""
+        """导航容器必须包含 aria-label。"""
         assert 'aria-label="主导航"' in base_text or 'aria-label="Primary navigation"' in base_text, \
             "Nav container lacks aria-label"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_icon_aria_hidden(self, base_text):
-        """Nav icons should have aria-hidden for accessibility."""
+        """导航图标应设置 aria-hidden 以支持无障碍访问。"""
         assert 'aria-hidden="true"' in base_text, \
             "Nav icons lack aria-hidden"
 
@@ -190,29 +190,29 @@ class TestBaseHtmlSidebarA11y:
 
 
 class TestBaseHtmlTopbar:
-    """Topbar must contain breadcrumb and actions."""
+    """顶栏必须包含面包屑导航和操作按钮。"""
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_breadcrumb_exists(self, base_text):
-        """Breadcrumb navigation must exist."""
+        """面包屑导航必须存在。"""
         assert 'class="breadcrumb' in base_text, \
             "Topbar lacks .breadcrumb"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_breadcrumb_aria_label(self, base_text):
-        """Breadcrumb must have aria-label."""
+        """面包屑导航必须包含 aria-label。"""
         assert 'aria-label="页面导航"' in base_text or 'aria-label="Page navigation"' in base_text, \
             "Breadcrumb lacks aria-label"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_top_actions_container(self, base_text):
-        """Top actions container must exist."""
+        """顶部操作容器必须存在。"""
         assert 'class="top-actions"' in base_text, \
             "Topbar lacks .top-actions container"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_topbar_actions_block(self, base_text):
-        """Topbar actions block must exist for page extensions."""
+        """顶栏操作块必须存在，供页面模板扩展。"""
         assert "{% block topbar_actions %}" in base_text, \
             "base.html lacks topbar_actions block"
 
@@ -221,7 +221,7 @@ class TestBaseHtmlTopbar:
 
 
 class TestBaseHtmlBrandCard:
-    """Brand card structure in sidebar."""
+    """侧边栏中的品牌卡片结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_brand_card_exists(self, base_text):
@@ -248,90 +248,90 @@ class TestBaseHtmlBrandCard:
 
 
 class TestCssShellRules:
-    """shell.css and modular CSS files must contain required shell CSS rules."""
+    """shell.css 和模块化 CSS 文件必须包含所需的 shell CSS 规则。"""
 
-    # Rules moved to shell.css (Task 05)
+    # 规则已移至 shell.css（任务 05）
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_app_shell_rule(self, shell_text):
-        """.app-shell rule must exist in shell.css."""
+        """.app-shell 规则必须存在于 shell.css 中。"""
         assert re.search(r'\.app-shell\s*\{', shell_text), \
             "shell.css lacks .app-shell rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_sidebar_rule(self, shell_text):
-        """.sidebar rule must exist in shell.css."""
+        """.sidebar 规则必须存在于 shell.css 中。"""
         assert re.search(r'\.sidebar\s*\{', shell_text), \
             "shell.css lacks .sidebar rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_main_panel_rule(self, shell_text):
-        """.main-panel rule must exist in shell.css."""
+        """.main-panel 规则必须存在于 shell.css 中。"""
         assert re.search(r'\.main-panel\s*\{', shell_text), \
             "shell.css lacks .main-panel rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_topbar_rule(self, shell_text):
-        """.topbar rule must exist in shell.css."""
+        """.topbar 规则必须存在于 shell.css 中。"""
         assert re.search(r'\.topbar\s*\{', shell_text), \
             "shell.css lacks .topbar rule"
 
-    # Rules migrated to modular CSS (formerly in style.css)
+    # 规则已迁移到模块化 CSS（原在 style.css 中）
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_breadcrumb_rule(self, ui_primitives_text):
-        """.breadcrumb rule must exist in ui-primitives.css (migrated from style.css)."""
+        """.breadcrumb 规则必须存在于 ui-primitives.css 中（从 style.css 迁移）。"""
         assert re.search(r'\.breadcrumb\s*\{', ui_primitives_text), \
             "ui-primitives.css lacks .breadcrumb rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_top_actions_rule(self, shell_text):
-        """.top-actions rule must exist in shell.css."""
+        """.top-actions 规则必须存在于 shell.css 中。"""
         assert re.search(r'\.top-actions\s*\{', shell_text), \
             "shell.css lacks .top-actions rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_footer_rule(self, shell_text):
-        """.footer rule must exist in shell.css."""
+        """.footer 规则必须存在于 shell.css 中。"""
         assert re.search(r'\.footer\s*\{', shell_text), \
             "shell.css lacks .footer rule"
 
-    # NOTE: .brand-card, .nav-list, .nav-item rules were in the deleted style.css.
-    # These classes are still used in base.html templates for structure.
-    # Their styling is now handled through CSS variables and inheritance.
-    # The template structure tests above verify the classes exist in base.html.
+    # 注意：.brand-card、.nav-list、.nav-item 规则位于已删除的 style.css 中。
+    # 这些类仍在 base.html 模板中用于结构。
+    # 其样式现通过 CSS 变量和继承处理。
+    # 上方的模板结构测试已验证这些类存在于 base.html 中。
 
 
 # ── CSS responsive breakpoints ────────────────────────────────────────────
 
 
 class TestCssResponsiveBreakpoints:
-    """shell.css must contain responsive breakpoints for shell.
+    """shell.css 必须包含 shell 的响应式断点。
 
-    Project only supports MacBook Pro 13/14 inch built-in displays
-    and 2560x1440 external monitors. Mobile/tablet breakpoints
-    are not supported and should not be present.
+    项目仅支持 MacBook Pro 13/14 英寸内置显示器
+    和 2560x1440 外接显示器。不支持移动端/平板断点，
+    也不应出现。
     """
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_no_mobile_breakpoint(self, shell_text):
-        """Must NOT have mobile @media max-width below 1024px."""
+        """不得包含低于 1024px 的移动端 @media max-width。"""
         assert not re.search(r'@media\s*\(max-width:\s*(480|600|767|768|820|900)\b', shell_text), \
             "shell.css should not have mobile breakpoint"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_no_tablet_breakpoint(self, shell_text):
-        """Must NOT have tablet @media max-width below 1400px."""
+        """不得包含低于 1400px 的平板端 @media max-width。"""
         assert not re.search(r'@media\s*\(max-width:\s*(1023|1024|1180|1260|1320)\b', shell_text), \
             "shell.css should not have tablet breakpoint"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_has_desktop_1400_breakpoint(self, shell_text):
-        """Must have @media (min-width: 1400px) for desktop."""
+        """必须包含 @media (min-width: 1400px) 用于桌面端。"""
         assert re.search(r'@media\s*\([^)]*min-width:\s*1400', shell_text), \
             "shell.css lacks desktop min-width: 1400px breakpoint"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_sidebar_collapse_rule(self, shell_text):
-        """Must have body.hide-left .sidebar or similar collapse rule."""
+        """必须包含 body.hide-left .sidebar 或类似的折叠规则。"""
         assert 'body.hide-left' in shell_text or 'body.sidebar-collapsed' in shell_text, \
             "shell.css lacks sidebar collapse rule"
 
@@ -340,41 +340,41 @@ class TestCssResponsiveBreakpoints:
 
 
 class TestBaseHtmlShellBlocks:
-    """base.html must provide Jinja blocks for shell customization."""
+    """base.html 必须提供 Jinja 块用于 shell 自定义。"""
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_shell_class_block(self, base_text):
-        """Must have shell_class block on root container."""
+        """根容器上必须有 shell_class 块。"""
         assert "{% block shell_class %}" in base_text, \
             "base.html lacks shell_class block"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_content_block(self, base_text):
-        """Must have content block."""
+        """必须有 content 块。"""
         assert "{% block content %}" in base_text, \
             "base.html lacks content block"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_breadcrumb_block(self, base_text):
-        """Must have breadcrumb block for page override."""
+        """必须有 breadcrumb 块供页面覆写。"""
         assert "{% block breadcrumb %}" in base_text, \
             "base.html lacks breadcrumb block"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_sidebar_nav_block(self, base_text):
-        """Must have sidebar_nav block."""
+        """必须有 sidebar_nav 块。"""
         assert "{% block sidebar_nav %}" in base_text, \
             "base.html lacks sidebar_nav block"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_head_extra_block(self, base_text):
-        """Must have head_extra block for page CSS."""
+        """必须有 head_extra 块供页面引入 CSS。"""
         assert "{% block head_extra %}" in base_text, \
             "base.html lacks head_extra block"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_shell_has_no_inspector(self, base_text):
-        """shell container must not reference inspector in class."""
+        """shell 容器不得在 class 中引用 inspector。"""
         # The root container may have {% block shell_class %}, but
         # should not hardcode inspector-related classes
         assert "data-context-inspector" not in base_text, \

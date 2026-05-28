@@ -1,10 +1,10 @@
-"""Tests for State Pages (404.html, error.html).
+"""State 页面（404.html、error.html）的测试。
 
-Page-level pytest for state pages covering template structure, .state-panel
-class, ARIA roles, aria-hidden on icons, navigation links, absence of inline
-styles/scripts, and conditional error details rendering.
+State 页面的页面级 pytest，覆盖模板结构、.state-panel 类、
+ARIA 角色、图标上的 aria-hidden、导航链接、不含 inline 样式/脚本，
+以及条件性错误详情渲染。
 
-T178 -- State Pages: Add page-specific pytest.
+T178 -- State Pages：添加页面级 pytest。
 """
 
 from __future__ import annotations
@@ -34,521 +34,521 @@ def _read_error() -> str:
 
 
 class Test404Template:
-    """Verify the 404.html Jinja2 template structure."""
+    """验证 404.html 的 Jinja2 模板结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_template_file_exists(self):
-        """404.html must exist on disk."""
+        """404.html 必须存在于磁盘上。"""
         assert os.path.isfile(_404_PATH), \
-            f"{_404_PATH} must exist"
+            f"{_404_PATH} 必须存在"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_extends_base(self):
-        """404 must extend base.html."""
+        """404 必须继承 base.html。"""
         content = _read_404()
         assert '{% extends "base.html" %}' in content, \
-            "404 must extend base.html"
+            "404 必须继承 base.html"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_title_block(self):
-        """404 must set a descriptive page title."""
+        """404 必须设置描述性的页面标题。"""
         content = _read_404()
         assert "Not Found" in content, \
-            "404 title must contain 'Not Found'"
+            "404 标题必须包含 'Not Found'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_states_css_import(self):
-        """404 must import states.css via head_extra block."""
+        """404 必须通过 head_extra 块导入 states.css。"""
         content = _read_404()
         assert 'href="/static/css/states.css"' in content, \
-            "404 must import states.css"
+            "404 必须导入 states.css"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_page_specific_js(self):
-        """404 must not import page-specific JS (states.js not needed for static page)."""
+        """404 不得导入页面级 JS（静态页面不需要 states.js）。"""
         content = _read_404()
         assert 'states.js' not in content, \
-            "404 must not import states.js (static page, no JS needed)"
+            "404 不得导入 states.js（静态页面无需 JS）"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_head_extra_block(self):
-        """404 must use head_extra block for CSS import."""
+        """404 必须使用 head_extra 块来导入 CSS。"""
         content = _read_404()
         assert '{% block head_extra %}' in content, \
-            "404 must use head_extra block"
+            "404 必须使用 head_extra 块"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_topbar_toggles_empty(self):
-        """404 must suppress topbar toggles."""
+        """404 必须抑制 topbar 切换按钮。"""
         content = _read_404()
         assert '{% block topbar_toggles %}{% endblock %}' in content, \
-            "404 must define empty topbar_toggles block"
+            "404 必须定义空的 topbar_toggles 块"
 
 
 # -- Test404Breadcrumb ------------------------------------------------------
 
 
 class Test404Breadcrumb:
-    """Verify 404 breadcrumb structure."""
+    """验证 404 面包屑结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_breadcrumb_dashboard_link(self):
-        """Breadcrumb must link to /dashboard."""
+        """面包屑必须链接到 /dashboard。"""
         content = _read_404()
         assert 'href="/dashboard"' in content, \
-            "404 breadcrumb must link to /dashboard"
+            "404 面包屑必须链接到 /dashboard"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_breadcrumb_current(self):
-        """Breadcrumb must show current page label."""
+        """面包屑必须显示当前页面标签。"""
         content = _read_404()
         assert "Not Found" in content, \
-            "404 breadcrumb must show 'Not Found' as current"
+            "404 面包屑必须显示 'Not Found' 为当前页"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_breadcrumb_separator(self):
-        """Breadcrumb must use separator span."""
+        """面包屑必须使用分隔符 span。"""
         content = _read_404()
         assert 'class="sep"' in content, \
-            "404 breadcrumb must use separator span"
+            "404 面包屑必须使用分隔符 span"
 
 
 # -- Test404StatePanel ------------------------------------------------------
 
 
 class Test404StatePanel:
-    """Verify .state-panel structure for 404 page."""
+    """验证 404 页面的 .state-panel 结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_class(self):
-        """404 must have a .state-panel container."""
+        """404 必须有 .state-panel 容器。"""
         content = _read_404()
         assert 'class="state-panel"' in content, \
-            "404 must have state-panel class"
+            "404 必须有 state-panel 类"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_role_status(self):
-        """404 state-panel must have role='status'."""
+        """404 的 state-panel 必须有 role='status'。"""
         content = _read_404()
         assert 'role="status"' in content, \
-            "404 state-panel must have role='status'"
+            "404 的 state-panel 必须有 role='status'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_aria_live(self):
-        """404 state-panel must have aria-live='polite'."""
+        """404 的 state-panel 必须有 aria-live='polite'。"""
         content = _read_404()
         assert 'aria-live="polite"' in content, \
-            "404 state-panel must have aria-live='polite'"
+            "404 的 state-panel 必须有 aria-live='polite'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_icon(self):
-        """404 must have a .state-panel__icon element."""
+        """404 必须有 .state-panel__icon 元素。"""
         content = _read_404()
         assert 'class="state-panel__icon"' in content, \
-            "404 must have state-panel__icon"
+            "404 必须有 state-panel__icon"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_icon_aria_hidden(self):
-        """404 icon must have aria-hidden='true'."""
+        """404 图标必须有 aria-hidden='true'。"""
         content = _read_404()
         icon_section = content[content.find('state-panel__icon'):]
         icon_section = icon_section[:icon_section.find('</div>') + 6]
         assert 'aria-hidden="true"' in icon_section, \
-            "404 state-panel__icon must have aria-hidden='true'"
+            "404 的 state-panel__icon 必须有 aria-hidden='true'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_icon_value(self):
-        """404 icon must display '404'."""
+        """404 图标必须显示 '404'。"""
         content = _read_404()
         assert '>404<' in content, \
-            "404 state-panel__icon must display '404'"
+            "404 的 state-panel__icon 必须显示 '404'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_title(self):
-        """404 must have a .state-panel__title with 'Page Not Found'."""
+        """404 必须有 .state-panel__title 且内容为 'Page Not Found'。"""
         content = _read_404()
         assert 'class="state-panel__title"' in content, \
-            "404 must have state-panel__title"
+            "404 必须有 state-panel__title"
         assert "Page Not Found" in content, \
-            "404 title must contain 'Page Not Found'"
+            "404 标题必须包含 'Page Not Found'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_desc(self):
-        """404 must have a .state-panel__desc element."""
+        """404 必须有 .state-panel__desc 元素。"""
         content = _read_404()
         assert 'class="state-panel__desc"' in content, \
-            "404 must have state-panel__desc"
+            "404 必须有 state-panel__desc"
 
 
 # -- Test404Navigation ------------------------------------------------------
 
 
 class Test404Navigation:
-    """Verify 404 navigation links."""
+    """验证 404 导航链接。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_links_nav(self):
-        """404 must have a nav with .state-panel__links."""
+        """404 必须有带 .state-panel__links 的 nav。"""
         content = _read_404()
         assert 'class="state-panel__links"' in content, \
-            "404 must have state-panel__links"
+            "404 必须有 state-panel__links"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_nav_aria_label(self):
-        """404 nav must have aria-label."""
+        """404 的 nav 必须有 aria-label。"""
         content = _read_404()
         assert 'aria-label="Navigation links"' in content, \
-            "404 nav must have aria-label='Navigation links'"
+            "404 的 nav 必须有 aria-label='Navigation links'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_dashboard_link(self):
-        """404 must link back to /dashboard."""
+        """404 必须链接回 /dashboard。"""
         content = _read_404()
         assert 'href="/dashboard"' in content, \
-            "404 must have /dashboard link"
+            "404 必须有 /dashboard 链接"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_projects_link(self):
-        """404 must link to /projects."""
+        """404 必须链接到 /projects。"""
         content = _read_404()
         assert 'href="/projects"' in content, \
-            "404 must have /projects link"
+            "404 必须有 /projects 链接"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_sessions_link(self):
-        """404 must link to /sessions."""
+        """404 必须链接到 /sessions。"""
         content = _read_404()
         assert 'href="/sessions"' in content, \
-            "404 must have /sessions link"
+            "404 必须有 /sessions 链接"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_agents_link(self):
-        """404 must link to /agents."""
+        """404 必须链接到 /agents。"""
         content = _read_404()
         assert 'href="/agents"' in content, \
-            "404 must have /agents link"
+            "404 必须有 /agents 链接"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_four_nav_links(self):
-        """404 must have exactly 4 navigation links."""
+        """404 必须恰好有 4 个导航链接。"""
         content = _read_404()
         links = re.findall(r'class="state-panel__link"', content)
         assert len(links) == 4, \
-            f"404 must have 4 state-panel__link elements, found {len(links)}"
+            f"404 必须有 4 个 state-panel__link 元素，发现 {len(links)} 个"
 
 
 # -- TestErrorTemplate ------------------------------------------------------
 
 
 class TestErrorTemplate:
-    """Verify the error.html Jinja2 template structure."""
+    """验证 error.html 的 Jinja2 模板结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_template_file_exists(self):
-        """error.html must exist on disk."""
+        """error.html 必须存在于磁盘上。"""
         assert os.path.isfile(_ERROR_PATH), \
-            f"{_ERROR_PATH} must exist"
+            f"{_ERROR_PATH} 必须存在"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_extends_base(self):
-        """Error must extend base.html."""
+        """Error 必须继承 base.html。"""
         content = _read_error()
         assert '{% extends "base.html" %}' in content, \
-            "Error must extend base.html"
+            "Error 必须继承 base.html"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_title_block(self):
-        """Error must set a descriptive page title."""
+        """Error 必须设置描述性的页面标题。"""
         content = _read_error()
         assert "Error" in content, \
-            "Error title must contain 'Error'"
+            "Error 标题必须包含 'Error'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_states_css_import(self):
-        """Error must import states.css via head_extra block."""
+        """Error 必须通过 head_extra 块导入 states.css。"""
         content = _read_error()
         assert 'href="/static/css/states.css"' in content, \
-            "Error must import states.css"
+            "Error 必须导入 states.css"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_page_specific_js(self):
-        """Error must not import page-specific JS (states.js not needed for static page)."""
+        """Error 不得导入页面级 JS（静态页面不需要 states.js）。"""
         content = _read_error()
         assert 'states.js' not in content, \
-            "Error must not import states.js (static page, no JS needed)"
+            "Error 不得导入 states.js（静态页面无需 JS）"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_head_extra_block(self):
-        """Error must use head_extra block for CSS import."""
+        """Error 必须使用 head_extra 块来导入 CSS。"""
         content = _read_error()
         assert '{% block head_extra %}' in content, \
-            "Error must use head_extra block"
+            "Error 必须使用 head_extra 块"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_topbar_toggles_empty(self):
-        """Error must suppress topbar toggles."""
+        """Error 必须抑制 topbar 切换按钮。"""
         content = _read_error()
         assert '{% block topbar_toggles %}{% endblock %}' in content, \
-            "Error must define empty topbar_toggles block"
+            "Error 必须定义空的 topbar_toggles 块"
 
 
 # -- TestErrorBreadcrumb ----------------------------------------------------
 
 
 class TestErrorBreadcrumb:
-    """Verify error breadcrumb structure."""
+    """验证 error 面包屑结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_breadcrumb_dashboard_link(self):
-        """Breadcrumb must link to /dashboard."""
+        """面包屑必须链接到 /dashboard。"""
         content = _read_error()
         assert 'href="/dashboard"' in content, \
-            "Error breadcrumb must link to /dashboard"
+            "Error 面包屑必须链接到 /dashboard"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_breadcrumb_current(self):
-        """Breadcrumb must show current page label."""
+        """面包屑必须显示当前页面标签。"""
         content = _read_error()
-        # The breadcrumb shows "Error" as current
+        # 面包屑显示 "Error" 为当前页
         assert "Error" in content, \
-            "Error breadcrumb must show 'Error' as current"
+            "Error 面包屑必须显示 'Error' 为当前页"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_breadcrumb_separator(self):
-        """Breadcrumb must use separator span."""
+        """面包屑必须使用分隔符 span。"""
         content = _read_error()
         assert 'class="sep"' in content, \
-            "Error breadcrumb must use separator span"
+            "Error 面包屑必须使用分隔符 span"
 
 
 # -- TestErrorStatePanel ----------------------------------------------------
 
 
 class TestErrorStatePanel:
-    """Verify .state-panel structure for error page."""
+    """验证 error 页面的 .state-panel 结构。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_class(self):
-        """Error must have a .state-panel container."""
+        """Error 必须有 .state-panel 容器。"""
         content = _read_error()
         assert 'class="state-panel"' in content, \
-            "Error must have state-panel class"
+            "Error 必须有 state-panel 类"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_role_alert(self):
-        """Error state-panel must have role='alert'."""
+        """Error 的 state-panel 必须有 role='alert'。"""
         content = _read_error()
         assert 'role="alert"' in content, \
-            "Error state-panel must have role='alert'"
+            "Error 的 state-panel 必须有 role='alert'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_aria_live_assertive(self):
-        """Error state-panel must have aria-live='assertive'."""
+        """Error 的 state-panel 必须有 aria-live='assertive'。"""
         content = _read_error()
         assert 'aria-live="assertive"' in content, \
-            "Error state-panel must have aria-live='assertive'"
+            "Error 的 state-panel 必须有 aria-live='assertive'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_icon(self):
-        """Error must have a .state-panel__icon element."""
+        """Error 必须有 .state-panel__icon 元素。"""
         content = _read_error()
         assert 'class="state-panel__icon' in content, \
-            "Error must have state-panel__icon"
+            "Error 必须有 state-panel__icon"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_icon_error_modifier(self):
-        """Error icon must have .state-panel__icon--error modifier."""
+        """Error 图标必须有 .state-panel__icon--error 修饰类。"""
         content = _read_error()
         assert 'state-panel__icon--error' in content, \
-            "Error icon must have state-panel__icon--error modifier"
+            "Error 图标必须有 state-panel__icon--error 修饰类"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_icon_aria_hidden(self):
-        """Error icon must have aria-hidden='true'."""
+        """Error 图标必须有 aria-hidden='true'。"""
         content = _read_error()
         icon_section = content[content.find('state-panel__icon'):]
         icon_section = icon_section[:icon_section.find('</div>') + 6]
         assert 'aria-hidden="true"' in icon_section, \
-            "Error state-panel__icon must have aria-hidden='true'"
+            "Error 的 state-panel__icon 必须有 aria-hidden='true'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_icon_value(self):
-        """Error icon must display '!'."""
+        """Error 图标必须显示 '!'。"""
         content = _read_error()
-        # The icon div contains "!" - check within the icon element
+        # 图标 div 包含 "!" — 在图标元素内检查
         icon_start = content.find('state-panel__icon--error')
-        assert icon_start != -1, "Error must have state-panel__icon--error"
+        assert icon_start != -1, "Error 必须有 state-panel__icon--error"
         icon_snippet = content[icon_start:icon_start + 100]
         assert '!' in icon_snippet, \
-            "Error state-panel__icon must display '!'"
+            "Error 的 state-panel__icon 必须显示 '!'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_title(self):
-        """Error must have a .state-panel__title."""
+        """Error 必须有 .state-panel__title。"""
         content = _read_error()
         assert 'class="state-panel__title"' in content, \
-            "Error must have state-panel__title"
+            "Error 必须有 state-panel__title"
         assert "Something Went Wrong" in content, \
-            "Error title must contain 'Something Went Wrong'"
+            "Error 标题必须包含 'Something Went Wrong'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_desc(self):
-        """Error must have a .state-panel__desc element."""
+        """Error 必须有 .state-panel__desc 元素。"""
         content = _read_error()
         assert 'class="state-panel__desc"' in content, \
-            "Error must have state-panel__desc"
+            "Error 必须有 state-panel__desc"
 
 
 # -- TestErrorNavigation ----------------------------------------------------
 
 
 class TestErrorNavigation:
-    """Verify error navigation links."""
+    """验证 error 导航链接。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_links_nav(self):
-        """Error must have a nav with .state-panel__links."""
+        """Error 必须有带 .state-panel__links 的 nav。"""
         content = _read_error()
         assert 'class="state-panel__links"' in content, \
-            "Error must have state-panel__links"
+            "Error 必须有 state-panel__links"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_nav_aria_label(self):
-        """Error nav must have aria-label."""
+        """Error 的 nav 必须有 aria-label。"""
         content = _read_error()
         assert 'aria-label="Navigation links"' in content, \
-            "Error nav must have aria-label='Navigation links'"
+            "Error 的 nav 必须有 aria-label='Navigation links'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_dashboard_link(self):
-        """Error must link back to /dashboard."""
+        """Error 必须链接回 /dashboard。"""
         content = _read_error()
         assert 'href="/dashboard"' in content, \
-            "Error must have /dashboard link"
+            "Error 必须有 /dashboard 链接"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_single_nav_link(self):
-        """Error must have exactly 1 navigation link (Dashboard only)."""
+        """Error 必须恰好有 1 个导航链接（仅 Dashboard）。"""
         content = _read_error()
         links = re.findall(r'class="state-panel__link"', content)
         assert len(links) == 1, \
-            f"Error must have 1 state-panel__link, found {len(links)}"
+            f"Error 必须有 1 个 state-panel__link，发现 {len(links)} 个"
 
 
 # -- TestErrorConditionalDetails --------------------------------------------
 
 
 class TestErrorConditionalDetails:
-    """Verify conditional error details rendering in error.html."""
+    """验证 error.html 中条件性错误详情渲染。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_jinja_if_error_block(self):
-        """Error template must conditionally render error details."""
+        """Error 模板必须条件性地渲染错误详情。"""
         content = _read_error()
         assert '{% if error %}' in content, \
-            "Error must have {% if error %} conditional block"
+            "Error 必须有 {% if error %} 条件块"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_details(self):
-        """Error must have .state-panel__details collapsible."""
+        """Error 必须有 .state-panel__details 可折叠区域。"""
         content = _read_error()
         assert 'class="state-panel__details"' in content, \
-            "Error must have state-panel__details"
+            "Error 必须有 state-panel__details"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_details_summary(self):
-        """Error details must have a summary element."""
+        """Error 详情必须有 summary 元素。"""
         content = _read_error()
         assert "<summary>" in content, \
-            "Error details must have a summary element"
+            "Error 详情必须有 summary 元素"
         assert "Error details" in content, \
-            "Error details summary must say 'Error details'"
+            "Error 详情的 summary 必须显示 'Error details'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_raw_error_output(self):
-        """Error must have .state-panel__raw for raw error output."""
+        """Error 必须有 .state-panel__raw 用于原始错误输出。"""
         content = _read_error()
         assert 'class="state-panel__raw"' in content, \
-            "Error must have state-panel__raw"
+            "Error 必须有 state-panel__raw"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_jinja_error_variable(self):
-        """Error template must render the error variable."""
+        """Error 模板必须渲染 error 变量。"""
         content = _read_error()
         assert "{{ error }}" in content, \
-            "Error must render {{ error }} variable"
+            "Error 必须渲染 {{ error }} 变量"
 
 
 # -- TestNoInlinePatterns (shared) -----------------------------------------
 
 
 class Test404NoInlinePatterns:
-    """Verify 404 has no inline styles or scripts."""
+    """验证 404 不含 inline 样式或脚本。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_onclick(self):
-        """404 must not use inline onclick handlers."""
+        """404 不得使用 inline onclick 处理器。"""
         content = _read_404()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
         assert len(matches) == 0, \
-            f"404 must not have inline onclick, found {len(matches)}"
+            f"404 不得有 inline onclick，发现 {len(matches)} 处"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_script_tags(self):
-        """404 must not have inline script blocks."""
+        """404 不得有 inline 脚本块。"""
         content = _read_404()
         script_tags = re.findall(r'<script(?! src)[^>]*>', content)
         assert len(script_tags) == 0, \
-            f"404 must not have inline script tags, found {len(script_tags)}"
+            f"404 不得有 inline 脚本标签，发现 {len(script_tags)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_style_blocks(self):
-        """404 must not have inline style blocks."""
+        """404 不得有 inline 样式块。"""
         content = _read_404()
         style_blocks = re.findall(r'<style[^>]*>', content)
         assert len(style_blocks) == 0, \
-            f"404 must not have inline style blocks, found {len(style_blocks)}"
+            f"404 不得有 inline 样式块，发现 {len(style_blocks)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_style_attribute(self):
-        """404 must not have inline style= attributes."""
+        """404 不得有 inline style= 属性。"""
         content = _read_404()
         inline_styles = re.findall(r'\bstyle\s*="[^"]*"', content, re.IGNORECASE)
         assert len(inline_styles) == 0, \
-            f"404 must not have inline style attributes, found {len(inline_styles)}"
+            f"404 不得有 inline 样式属性，发现 {len(inline_styles)} 处"
 
 
 class TestErrorNoInlinePatterns:
-    """Verify error.html has no inline styles or scripts."""
+    """验证 error.html 不含 inline 样式或脚本。"""
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_onclick(self):
-        """Error must not use inline onclick handlers."""
+        """Error 不得使用 inline onclick 处理器。"""
         content = _read_error()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
         assert len(matches) == 0, \
-            f"Error must not have inline onclick, found {len(matches)}"
+            f"Error 不得有 inline onclick，发现 {len(matches)} 处"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_script_tags(self):
-        """Error must not have inline script blocks."""
+        """Error 不得有 inline 脚本块。"""
         content = _read_error()
         script_tags = re.findall(r'<script(?! src)[^>]*>', content)
         assert len(script_tags) == 0, \
-            f"Error must not have inline script tags, found {len(script_tags)}"
+            f"Error 不得有 inline 脚本标签，发现 {len(script_tags)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_style_blocks(self):
-        """Error must not have inline style blocks."""
+        """Error 不得有 inline 样式块。"""
         content = _read_error()
         style_blocks = re.findall(r'<style[^>]*>', content)
         assert len(style_blocks) == 0, \
-            f"Error must not have inline style blocks, found {len(style_blocks)}"
+            f"Error 不得有 inline 样式块，发现 {len(style_blocks)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_no_inline_style_attribute(self):
-        """Error must not have inline style= attributes."""
+        """Error 不得有 inline style= 属性。"""
         content = _read_error()
         inline_styles = re.findall(r'\bstyle\s*="[^"]*"', content, re.IGNORECASE)
         assert len(inline_styles) == 0, \
-            f"Error must not have inline style attributes, found {len(inline_styles)}"
+            f"Error 不得有 inline 样式属性，发现 {len(inline_styles)} 处"

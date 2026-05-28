@@ -1,4 +1,4 @@
-"""Tests for round-level signal computation in the Timeline tab."""
+"""测试 Timeline 标签页中的轮次级信号计算。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def _make_round(
     llm_error_count: int = 0,
     usage: dict | None = None,
 ) -> ConversationRound:
-    """Helper to build a ConversationRound with the given properties."""
+    """构建带指定属性的 ConversationRound 的辅助函数。"""
     assistant = ChatMessage(
         role="assistant",
         content="",
@@ -40,7 +40,7 @@ def _signal_keys(signals: list[dict]) -> list[str]:
     return [s["key"] for s in signals]
 
 
-# ── Critical signals ──────────────────────────────────────────────────
+# ── 严重信号 ─────────────────────────────────────────────────────────
 
 
 class TestFailedToolSignal:
@@ -115,7 +115,7 @@ class TestLLMErrorSignal:
         assert "llm-error" not in _signal_keys(sigs)
 
 
-# ── Warning signals ───────────────────────────────────────────────────
+# ── 警告信号 ────────────────────────────────────────────────────
 
 
 class TestLongToolSignal:
@@ -148,7 +148,7 @@ class TestToolBurstSignal:
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_20_tools_tight_loop_suppressed(self):
-        # All same tool name -> tight loop, should NOT trigger
+        # 所有工具名相同 -> 紧密循环，不应触发
         tools = [_tc("Read") for _ in range(25)]
         r = _make_round(tool_calls=tools)
         sigs = compute_round_signals(r, 1)
@@ -179,7 +179,7 @@ class TestHighWriteSignal:
 class TestLargeInputSignal:
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_large_input_meets_both_thresholds(self):
-        # 200K input AND 50% of session
+        # 200K 输入且占会话总量的 50%
         r = _make_round(usage={
             "input_tokens": 200_000,
             "cache_read_input_tokens": 0,
@@ -200,7 +200,7 @@ class TestLargeInputSignal:
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_large_input_below_percentage_threshold(self):
-        # 200K input but only 10% of session total
+        # 200K 输入但仅占会话总量的 10%
         r = _make_round(usage={
             "input_tokens": 200_000,
             "cache_read_input_tokens": 0,
@@ -209,18 +209,29 @@ class TestLargeInputSignal:
         sigs = compute_round_signals(r, 1, session_input_tokens=2_000_000)
         assert "large-input" not in _signal_keys(sigs)
 
+    @pytest.mark.contract_case("DATA-PRESENTER-006")
+    def test_large_input_uses_input_side_session_denominator(self):
+        # 分母应为 session input-side 总量，而不是 Fresh-only。
+        r = _make_round(usage={
+            "input_tokens": 10_000,
+            "cache_read_input_tokens": 190_000,
+            "cache_creation_input_tokens": 0,
+        })
+        sigs = compute_round_signals(r, 1, session_input_tokens=1_000_000)
+        assert "large-input" not in _signal_keys(sigs)
 
-# ── Removed signals must NOT appear ───────────────────────────────────
+
+# ── 已移除的信号不得出现 ───────────────────────────────────────────────
 
 
 class TestRemovedSignals:
-    """Verify that previously-existing low-value signals are no longer emitted."""
+    """验证之前存在的低价值信号不再产生。"""
 
     REMOVED_KEYS = {"warm-up", "cache-hit", "low-output", "llm-burst"}
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_warm_up_not_emitted(self):
-        # Old rule: first 3 rounds with no cache read -> "warm-up"
+        # 旧规则：前 3 轮无 cache read -> "warm-up"
         r = _make_round(usage={
             "input_tokens": 5000,
             "cache_read_input_tokens": 0,
@@ -232,7 +243,7 @@ class TestRemovedSignals:
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_cache_hit_not_emitted(self):
-        # Old rule: cache_read > 50% of input -> "cache-hit"
+        # 旧规则：cache_read > 50% input -> "cache-hit"
         r = _make_round(usage={
             "input_tokens": 1000,
             "cache_read_input_tokens": 9000,
@@ -244,7 +255,7 @@ class TestRemovedSignals:
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_low_output_not_emitted(self):
-        # Old rule: output < 100 with input > 10K -> "low-output"
+        # 旧规则：output < 100 且 input > 10K -> "low-output"
         r = _make_round(usage={
             "input_tokens": 50000,
             "cache_read_input_tokens": 0,
@@ -256,7 +267,7 @@ class TestRemovedSignals:
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_llm_burst_not_emitted(self):
-        # Old rule: llm_call_count > 10 -> "llm-burst"
+        # 旧规则：llm_call_count > 10 -> "llm-burst"
         assistant = ChatMessage(role="assistant", content="", timestamp="", usage={})
         user = ChatMessage(role="user", content="test", timestamp="")
         r = ConversationRound(
@@ -267,21 +278,21 @@ class TestRemovedSignals:
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_old_low_threshold_high_write_not_emitted(self):
-        # Old threshold was 10K; new threshold is 300K
+        # 旧阈值为 10K；新阈值为 300K
         r = _make_round(usage={"cache_creation_input_tokens": 100_000})
         sigs = compute_round_signals(r, 1)
         assert "high-write" not in _signal_keys(sigs)
 
     @pytest.mark.contract_case("DATA-PRESENTER-006")
     def test_old_low_threshold_tool_burst_not_emitted(self):
-        # Old threshold was > 5 tools; new threshold is >= 20
+        # 旧阈值 > 5 个工具；新阈值为 >= 20
         tools = [_tc(f"Tool{i}") for i in range(6)]
         r = _make_round(tool_calls=tools)
         sigs = compute_round_signals(r, 1)
         assert "tool-burst" not in _signal_keys(sigs)
 
 
-# ── Signal structure ──────────────────────────────────────────────────
+# ── 信号结构 ─────────────────────────────────────────────────────
 
 
 class TestSignalStructure:

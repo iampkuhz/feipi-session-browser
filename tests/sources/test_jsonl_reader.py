@@ -1,12 +1,12 @@
-"""Unit tests for session_browser.sources.jsonl_reader.
+"""session_browser.sources.jsonl_reader 的单元测试。
 
-Covers:
-- Standard JSONL (one object per line, all succeed)
-- JSONL with bad lines (bad rows skipped, diagnostics collected)
-- Pretty-printed / multi-line JSON objects
-- Mixed ``}{`` concatenated format on transition lines
-- Empty file handling
-- Diagnostic completeness (line_no, issue type, preview, severity)
+覆盖：
+- 标准 JSONL（每行一个对象，全部成功）
+- 含坏行的 JSONL（跳过坏行，收集诊断信息）
+- 美化打印/多行 JSON 对象
+- 混合 ``}{`` 拼接格式（过渡行）
+- 空文件处理
+- 诊断信息完整性（line_no、issue 类型、preview、severity）
 """
 
 from __future__ import annotations
@@ -28,22 +28,22 @@ from session_browser.sources.jsonl_reader import (
 )
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────
+# ─── 辅助函数 ─────────────────────────────────────────────────────────────
 
 
 def _write(content: str) -> Path:
-    """Write *content* to a temporary file and return its Path."""
+    """将 *content* 写入临时文件并返回其路径。"""
     fd, path = tempfile.mkstemp(suffix=".jsonl")
     with open(fd, "w", encoding="utf-8") as fh:
         fh.write(content)
     return Path(path)
 
 
-# ─── Standard JSONL ──────────────────────────────────────────────────────
+# ─── 标准 JSONL ──────────────────────────────────────────────────────
 
 
 class TestStandardJsonl:
-    """One JSON object per line, all parseable."""
+    """每行一个 JSON 对象，全部可解析。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_single_object(self):
@@ -90,11 +90,11 @@ class TestStandardJsonl:
         assert len(events) == 1
 
 
-# ─── Bad lines / non-object values ───────────────────────────────────────
+# ─── 坏行/非对象值 ───────────────────────────────────────────────
 
 
 class TestBadLines:
-    """JSONL containing unparseable lines or non-dict JSON values."""
+    """包含不可解析行或非 dict JSON 值的 JSONL。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_bad_json_line_skipped(self):
@@ -141,11 +141,11 @@ class TestBadLines:
         assert diag.warning_count == 1
 
 
-# ─── Multi-line / pretty-printed JSON ────────────────────────────────────
+# ─── 多行/美化打印 JSON ────────────────────────────────────────────
 
 
 class TestMultiLineJson:
-    """Pretty-printed JSON spanning multiple lines."""
+    """跨多行的美化打印 JSON。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_single_pretty_object(self):
@@ -178,7 +178,7 @@ class TestMultiLineJson:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_pretty_with_string_containing_braces(self):
-        """Braces inside JSON strings must not affect depth tracking."""
+        """JSON 字符串中的花括号不得影响深度追踪。"""
         pretty = (
             '{\n'
             '  "key": "a{b}c",\n'
@@ -191,25 +191,24 @@ class TestMultiLineJson:
         assert events[0]["key"] == "a{b}c"
 
 
-# ─── Mixed }{ concatenated format ───────────────────────────────────────
+# ─── 混合 }{ 拼接格式 ──────────────────────────────────────────────
 
 
 class TestConcatenatedObjects:
-    """Transition lines containing ``}{...}{`` concatenated JSON.
+    """包含 ``}{...}{`` 拼接 JSON 的过渡行。
 
-    The parser accumulates lines until depth returns to 0.  A ``}{``
-    transition is detected when the accumulated text contains multiple
-    top-level objects.  This happens when a partial multi-line object
-    is followed by a line that both closes the previous object AND
-    starts new ones (e.g. ``}{"b": 2}`` while depth > 0).
+    解析器累积行直到深度回到 0。当累积文本包含多个
+    顶层对象时检测到 ``}{`` 过渡。这发生在部分多行对象
+    后面跟着一行同时关闭前一个对象并开始新对象时
+    （例如深度 > 0 时出现 ``}{"b": 2}``）。
     """
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_pretty_then_concatenated_transition(self):
-        """Multi-line object closed on same line as concatenated new object.
+        """多行对象在同一行关闭并拼接新对象。
 
-        Accumulated text: ``{\n  "a": 1\n}{"b": 2}``
-        After _split_at_depth0 -> two objects.
+        累积文本：``{\n  "a": 1\n}{"b": 2}``
+        经 _split_at_depth0 分割后得到两个对象。
         """
         content = (
             '{\n'
@@ -224,7 +223,7 @@ class TestConcatenatedObjects:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_pretty_then_two_concatenated(self):
-        """Multi-line object followed by two concatenated objects on close line."""
+        """多行对象后跟关闭行上的两个拼接对象。"""
         content = (
             '{\n'
             '  "a": 1\n'
@@ -239,7 +238,7 @@ class TestConcatenatedObjects:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_concatenated_followed_by_standard_jsonl(self):
-        """Transition line followed by independent standard JSONL lines."""
+        """过渡行后面跟独立的标准 JSONL 行。"""
         content = (
             '{\n'
             '  "a": 1\n'
@@ -255,20 +254,20 @@ class TestConcatenatedObjects:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_concatenated_non_object_in_split(self):
-        """A concatenated line containing non-objects is recorded as BAD_JSON.
+        """拼接分割产生非对象片段时记录为 BAD_JSON。
 
-        When ``}{`` splits yield non-parseable fragments (because a
-        non-object is concatenated), they fall through as BAD_JSON
-        rather than NON_OBJECT_SKIPPED.
+        当 ``}{`` 分割产生不可解析的片段时（因为
+        拼接了非对象），它们作为 BAD_JSON 处理
+        而非 NON_OBJECT_SKIPPED。
         """
         events: list = []
         skipped: list = []
-        # Clean two dicts concatenated
+        # 干净地拼接两个 dict
         _try_parse_json('{"a": 1}{"b": 2}', 5, events, skipped)
         assert len(events) == 2
         assert len(skipped) == 0
 
-        # Dict followed by a number via }{ -- the split part is unparseable
+        # 通过 }{ 拼接 dict 和数字 —— 分割部分不可解析
         events2: list = []
         skipped2: list = []
         _try_parse_json('{"a": 1}}{42}', 7, events2, skipped2)
@@ -278,11 +277,11 @@ class TestConcatenatedObjects:
         assert skipped2[0][1] == "BAD_JSON"
 
 
-# ─── Empty file ──────────────────────────────────────────────────────────
+# ─── 空文件 ─────────────────────────────────────────────────────────────
 
 
 class TestEmptyFile:
-    """Empty and whitespace-only files should return empty results, not crash."""
+    """空文件和纯空白文件应返回空结果，不崩溃。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_completely_empty_returns_empty(self):
@@ -301,11 +300,11 @@ class TestEmptyFile:
         assert diagnostics.error_count == 0
 
 
-# ─── Diagnostics completeness ────────────────────────────────────────────
+# ─── 诊断信息完整性 ────────────────────────────────────────────────────
 
 
 class TestDiagnosticsCompleteness:
-    """Verify that diagnostics carry all required fields."""
+    """验证诊断信息携带所有必需字段。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_issue_has_line_no_detail_preview(self):
@@ -330,7 +329,7 @@ class TestDiagnosticsCompleteness:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_total_lines_reflects_file(self):
-        """total_lines should equal the last line number seen."""
+        """total_lines 应等于最后一行的行号。"""
         content = "a\nb\nc\n"
         p = _write(content)
         _, diag = parse_jsonl_events(p)
@@ -362,15 +361,15 @@ class TestDiagnosticsCompleteness:
         )
         p = _write(content)
         _, diag = parse_jsonl_events(p)
-        assert diag.warning_count == 1   # one non-dict
-        assert diag.error_count == 2     # two bad json lines
+        assert diag.warning_count == 1   # 一个非字典对象
+        assert diag.error_count == 2     # 两行错误的 JSON
 
 
-# ─── Internal helpers ────────────────────────────────────────────────────
+# ─── 内部辅助函数 ────────────────────────────────────────────────────────
 
 
 class TestBraceCharsOutsideStrings:
-    """Verify _brace_chars_outside_strings correctly ignores braces in strings."""
+    """验证 _brace_chars_outside_strings 正确忽略字符串中的花括号。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_simple_object(self):
@@ -378,7 +377,7 @@ class TestBraceCharsOutsideStrings:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_braces_in_string_ignored(self):
-        # {"key": "{value}"} should yield only {}
+        # {"key": "{value}"} 应只保留 {}
         result = _brace_chars_outside_strings('{"key": "{value}"}')
         assert result == "{}"
 
@@ -390,12 +389,12 @@ class TestBraceCharsOutsideStrings:
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_escaped_quote(self):
         result = _brace_chars_outside_strings('{"key": "say \\"hi\\""}')
-        # Escaped quotes should not toggle in_string state
+        # 转义引号不应切换 in_string 状态
         assert result == "{}"
 
 
 class TestSplitAtDepth0:
-    """Verify _split_at_depth0 splits concatenated objects."""
+    """验证 _split_at_depth0 正确分割拼接对象。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_no_split_needed(self):
@@ -422,13 +421,13 @@ class TestSplitAtDepth0:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_string_with_brace_not_split(self):
-        # }{"k": "}{"}  -- the }{ inside string should not be a split point
+        # }{"k": "}{"}  -- 字符串内的 }{ 不应成为分割点
         parts = _split_at_depth0('{"k": "}{"}')
         assert parts == ['{"k": "}{"}']
 
 
 class TestTryParseJson:
-    """Verify _try_parse_json routes events vs skipped correctly."""
+    """验证 _try_parse_json 正确路由事件与跳过项。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_valid_dict(self):
@@ -460,7 +459,7 @@ class TestTryParseJson:
 
 
 class TestBuildDiagnostics:
-    """Verify _build_diagnostics maps skipped tuples to ParseIssueItems."""
+    """验证 _build_diagnostics 将跳过元组映射为 ParseIssueItem。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_bad_json_mapped(self):

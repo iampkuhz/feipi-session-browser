@@ -83,7 +83,7 @@ class TestPartialCaptureWarning:
     def test_warning_condition_in_routes(self):
         """View model must handle partial context capture."""
         routes = _read_routes()
-        # The view model processes request_full and context data
+        # 视图模型处理 request_full 和上下文数据
         assert "request_full" in routes, (
             "View model must reference request_full for partial capture"
         )

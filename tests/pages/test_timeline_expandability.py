@@ -1,4 +1,4 @@
-"""Tests for check_timeline_expandability.py static analysis script."""
+"""验证 check_timeline_expandability.py 静态分析脚本的测试。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import pytest
 import re
 import textwrap
 
-# Import the check functions from the script
+# 从脚本导入检查函数
 import sys
 from pathlib import Path
 
@@ -17,7 +17,7 @@ import check_timeline_expandability as chk  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Helper: create minimal file-like content for testing
+# 辅助：创建最小化的类文件内容用于测试
 # ---------------------------------------------------------------------------
 
 GOOD_TIMELINE_HTML = textwrap.dedent("""
@@ -174,7 +174,7 @@ BAD_CSS_NO_CHILDREN_HIDE = textwrap.dedent("""\
 
 
 # ---------------------------------------------------------------------------
-# Check 1: has-children + toggle
+# 检查 1：has-children + toggle
 # ---------------------------------------------------------------------------
 
 class TestToggleForHasChildren:
@@ -194,7 +194,7 @@ class TestToggleForHasChildren:
 
 
 # ---------------------------------------------------------------------------
-# Check 2: data-timeline-id
+# 检查 2：data-timeline-id
 # ---------------------------------------------------------------------------
 
 class TestTimelineId:
@@ -214,7 +214,7 @@ class TestTimelineId:
 
 
 # ---------------------------------------------------------------------------
-# Check 3: expandAll/collapseAll coverage
+# 检查 3：expandAll/collapseAll 覆盖
 # ---------------------------------------------------------------------------
 
 class TestExpandCollapseCoverage:
@@ -243,7 +243,7 @@ class TestExpandCollapseCoverage:
 
 
 # ---------------------------------------------------------------------------
-# Check 4: toggle aria-expanded sync
+# 检查 4：toggle aria-expanded 同步
 # ---------------------------------------------------------------------------
 
 class TestToggleAriaSync:
@@ -259,14 +259,14 @@ class TestToggleAriaSync:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_toggle_aria_sync(BAD_TIMELINE_HTML_NO_TOGGLE)
-        # BAD_TIMELINE_HTML_NO_TOGGLE lacks inline onclick, but event delegation
-        # in the real timeline.js supersedes it. So the check should pass via
-        # event delegation rather than fail. Verify no crash occurred.
+        # BAD_TIMELINE_HTML_NO_TOGGLE 缺少 inline onclick，
+        # 但实际 timeline.js 中的事件委托会替代它。因此检查应通过事件委托而非失败。
+        # 验证没有崩溃发生。
         assert chk._FAIL_COUNT == 0
 
 
 # ---------------------------------------------------------------------------
-# Check 5: filter preserve state
+# 检查 5：filter 保持状态
 # ---------------------------------------------------------------------------
 
 class TestFilterPreserveState:
@@ -282,12 +282,12 @@ class TestFilterPreserveState:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_filter_preserves_state(BAD_JS_NO_EXPAND_ALL)
-        # This JS removes is-expanded inside filter, which is a FAIL
+        # 该 JS 在 filter 中移除 is-expanded，这是 FAIL
         assert chk._FAIL_COUNT > 0
 
 
 # ---------------------------------------------------------------------------
-# Check 6: tab switching
+# 检查 6：tab 切换
 # ---------------------------------------------------------------------------
 
 class TestTabSwitchExpand:
@@ -303,12 +303,12 @@ class TestTabSwitchExpand:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_tab_switch_expand('id="timeline"', BAD_CSS_NO_CHILDREN_HIDE)
-        # Uses visibility:hidden not display:none — may cause issues
+        # 使用 visibility:hidden 而非 display:none — 可能导致问题
         assert chk._WARN_COUNT > 0 or chk._FAIL_COUNT > 0
 
 
 # ---------------------------------------------------------------------------
-# Round structure checks
+# Round 结构检查
 # ---------------------------------------------------------------------------
 
 class TestRoundExpandStructure:
@@ -333,7 +333,7 @@ class TestRoundExpandStructure:
 
 
 # ---------------------------------------------------------------------------
-# CSS children visibility
+# CSS 子元素可见性
 # ---------------------------------------------------------------------------
 
 class TestChildrenVisibilityCss:
@@ -353,35 +353,35 @@ class TestChildrenVisibilityCss:
 
 
 # ---------------------------------------------------------------------------
-# Regression: event delegation replaces inline onclick on trace rows
+# 回归：事件委托替代 trace 行上的 inline onclick
 # ---------------------------------------------------------------------------
 
-# Path to session.html: tests/ is at repo root, so ../src/session_browser/web/templates/
+# session.html 路径：tests/ 在仓库根目录，所以用 ../src/session_browser/web/templates/
 SESSION_HTML = (Path(__file__).resolve().parents[2]
                 / "src" / "session_browser" / "web" / "templates" / "session.html")
 
 
 class TestNoInlineOnclickOnTraceRows:
-    """Regression: trace rows must NOT have inline onclick; event delegation handles them."""
+    """回归：trace 行不得有 inline onclick；事件委托负责处理。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_trace_row_no_inline_onclick(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         html = chk._read(SESSION_HTML)
-        # There should be NO onclick="handleTraceRowClick on .trace-row elements
+        # .trace-row 元素上不应有 onclick="handleTraceRowClick
         inline_onclick = re.search(
             r'class="trace-row"[^>]*onclick\s*=\s*["\']handleTraceRowClick',
             html,
         )
         assert inline_onclick is None, (
-            "Regression: .trace-row still has inline onclick for handleTraceRowClick. "
-            "Switch to event delegation in the unified click handler."
+            "回归：.trace-row 仍有 handleTraceRowClick 的 inline onclick。"
+            "请切换到统一点击处理器中的事件委托。"
         )
 
 
 class TestExpandCollapseUsesDataAction:
-    """Regression: expand-all/collapse-all buttons use data-action, not inline onclick."""
+    """回归：expand-all/collapse-all 按钮使用 data-action，而非 inline onclick。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_expand_all_no_inline_onclick(self):
@@ -393,8 +393,8 @@ class TestExpandCollapseUsesDataAction:
             html,
         )
         assert inline is None, (
-            "Regression: expand-all button has inline onclick. "
-            "Use event delegation via [data-action=expand-all]."
+            "回归：expand-all 按钮有 inline onclick。"
+            "请通过 [data-action=expand-all] 使用事件委托。"
         )
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
@@ -407,46 +407,46 @@ class TestExpandCollapseUsesDataAction:
             html,
         )
         assert inline is None, (
-            "Regression: collapse-all button has inline onclick. "
-            "Use event delegation via [data-action=collapse-all]."
+            "回归：collapse-all 按钮有 inline onclick。"
+            "请通过 [data-action=collapse-all] 使用事件委托。"
         )
 
 
 class TestEventDelegationPresent:
-    """Verify event delegation handler covers v9 trace rows and expand/collapse buttons."""
+    """验证事件委托处理器覆盖 v9 trace 行和展开/折叠按钮。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_trace_row(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        # v9: JS is in session_detail_timeline.js, handles data-action="toggle-round"
+        # v9：JS 在 session_detail_timeline.js 中，处理 data-action="toggle-round"
         js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
             has_toggle = "toggle-round" in js or "toggleRound" in js
             assert has_toggle, (
-                "Event delegation should handle toggle-round in session_detail_timeline.js"
+                "事件委托应在 session_detail_timeline.js 中处理 toggle-round"
             )
         else:
-            pytest.skip("session_detail_timeline.js not found")
+            pytest.skip("未找到 session_detail_timeline.js")
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_expand_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        # v9: Uses data-action="collapse-all" (no separate expand-visible)
-        # Check timeline JS for collapse-all
+        # v9：使用 data-action="collapse-all"（没有单独的 expand-visible）
+        # 检查 timeline JS 中的 collapse-all
         js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
             has_collapse = "collapse-all" in js or "collapseAll" in js or "collapse_all" in js
             assert has_collapse, (
-                "v9: session_detail_timeline.js must handle collapse-all"
+                "v9：session_detail_timeline.js 必须处理 collapse-all"
             )
         else:
-            pytest.skip("session_detail_timeline.js not found")
+            pytest.skip("未找到 session_detail_timeline.js")
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_collapse_all(self):
@@ -458,35 +458,35 @@ class TestEventDelegationPresent:
             js = js_path.read_text(encoding="utf-8")
             has_collapse = "collapse-all" in js or "collapseAll" in js or "collapse_all" in js
             assert has_collapse, (
-                "v9: session_detail_timeline.js must handle collapse-all"
+                "v9：session_detail_timeline.js 必须处理 collapse-all"
             )
         else:
-            pytest.skip("session_detail_timeline.js not found")
+            pytest.skip("未找到 session_detail_timeline.js")
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_filter_status(self):
-        """Phase 1: filter-status action must exist for All/Failed filtering."""
+        """阶段 1：必须存在 filter-status 操作以支持 All/Failed 过滤。"""
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        # v9: filter-status is in timeline component
+        # v9：filter-status 在 timeline 组件中
         timeline_path = (Path(__file__).resolve().parents[2]
                         / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html")
         if timeline_path.exists():
             html = timeline_path.read_text(encoding="utf-8")
             has_filter = 'data-action="filter-status"' in html
             assert has_filter, (
-                "v9: [data-action=filter-status] must exist in timeline component"
+                "v9：timeline 组件中必须存在 [data-action=filter-status]"
             )
             has_all = 'data-status="all"' in html
-            assert has_all, "v9: [data-status=all] filter chip must exist"
+            assert has_all, "v9：必须存在 [data-status=all] 过滤芯片"
             has_failed = 'data-status="failed"' in html
-            assert has_failed, "v9: [data-status=failed] filter chip must exist"
+            assert has_failed, "v9：必须存在 [data-status=failed] 过滤芯片"
         else:
-            pytest.skip("timeline component not found")
+            pytest.skip("未找到 timeline 组件")
 
 
 class TestAccordionBehavior:
-    """Verify accordion logic in v9 session_detail_timeline.js."""
+    """验证 v9 session_detail_timeline.js 中的手风琴逻辑。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_collapse_others_function_exists(self):
@@ -496,13 +496,13 @@ class TestAccordionBehavior:
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
-            # v9: toggleRound handles accordion behavior
+            # v9：toggleRound 处理手风琴行为
             has_toggle = "toggleRound" in js
             assert has_toggle, (
-                "v9: session_detail_timeline.js must have toggleRound function"
+                "v9：session_detail_timeline.js 必须有 toggleRound 函数"
             )
         else:
-            pytest.skip("session_detail_timeline.js not found")
+            pytest.skip("未找到 session_detail_timeline.js")
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_toggle_round_detail_calls_collapse_others(self):
@@ -512,13 +512,12 @@ class TestAccordionBehavior:
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
-            # v9: toggleRound should collapse other rounds
+            # v9：toggleRound 应折叠其他 round
             has_toggle = "toggleRound" in js
             has_collapse_other = "is-open" in js or "collapseOther" in js or \
                 "classList.remove" in js or "aria-expanded" in js
             assert has_toggle and has_collapse_other, (
-                "v9: toggleRound should handle accordion (collapse other rounds)"
+                "v9：toggleRound 应处理手风琴行为（折叠其他 round）"
             )
         else:
-            pytest.skip("session_detail_timeline.js not found")
-
+            pytest.skip("未找到 session_detail_timeline.js")

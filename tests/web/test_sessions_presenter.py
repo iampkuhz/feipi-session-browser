@@ -1,9 +1,9 @@
-"""Tests for session_browser.web.presenters.sessions module.
+"""session_browser.web.presenters.sessions 模块测试。
 
-Covers:
-- parse_sessions_query_params: pagination, filters, sort parsing
-- compute_pagination: normal, edge cases, "all" mode
-- build_sessions_context: structure and integration with mocked DB layer
+覆盖范围：
+- parse_sessions_query_params：分页、过滤、排序解析
+- compute_pagination：正常情况、边界情况、"all" 模式
+- build_sessions_context：结构及与模拟数据库层的集成
 """
 from __future__ import annotations
 
@@ -215,7 +215,7 @@ class TestComputePagination:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_beyond_total_clamped(self):
         result = compute_pagination(50, 10, 20)
-        # total_pages = 3, page 10 -> clamped to 3
+        # total_pages = 3，page=10 → 截断到 3
         assert result["page"] == 3
         assert result["offset"] == 40
 
@@ -264,7 +264,7 @@ class TestComputePagination:
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_end_capped_at_total(self):
-        # Last partial page
+        # 最后一个不完整的页
         result = compute_pagination(55, 3, 20)
         assert result["total_pages"] == 3
         assert result["page_end"] == 55
@@ -277,12 +277,12 @@ class TestBuildSessionsContext:
     @staticmethod
     def _make_mock_conn():
         """
-
-Create a mock sqlite3.Connection with row factories."""
+        创建模拟 sqlite3.Connection（带 row factory）。
+        """
         conn = MagicMock()
 
-        # Mock count_sessions to return 0 (will be overridden)
-        # Mock the cursor/execute for filter dropdowns
+        # 模拟 count_sessions 返回 0（后续会被覆盖）
+        # 模拟 cursor/execute 用于过滤器下拉列表
         mock_models_cursor = MagicMock()
         mock_models_cursor.fetchall.return_value = []
         mock_projects_cursor = MagicMock()
@@ -440,12 +440,12 @@ Create a mock sqlite3.Connection with row factories."""
             "project_list": [],
         }
 
-        # "duration" sort
+        # "duration" 排序
         ctx = build_sessions_context({"sort": ["duration"], "dir": ["asc"]}, conn)
         assert ctx["sort_by"] == "duration"
         assert ctx["sort_dir"] == "asc"
 
-        # "ended-at" maps to "updated" in template
+        # "ended-at" 在模板中映射为 "updated"
         ctx = build_sessions_context({"sort": ["ended-at"]}, conn)
         assert ctx["sort_by"] == "updated"
 

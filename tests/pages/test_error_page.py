@@ -1,16 +1,16 @@
-"""Error page fixture tests.
+"""错误页面夹具测试。
 
-Verify the 404 and 500 error pages render correctly, display error
-messages, and provide navigation links back to the dashboard.
+验证 404 和 500 错误页面正确渲染，显示错误消息，
+并提供返回 Dashboard 的导航链接。
 
-Covers:
-- 404 page renders and returns HTTP 404
-- 500 page template renders with and without error context
-- Error message display in the error template
-- Return-to-dashboard links present on both pages
-- Shared state-panel structure and CSS references
+覆盖：
+- 404 页面渲染并返回 HTTP 404
+- 500 页面模板在有/无错误上下文时均可渲染
+- 错误模板中的错误消息显示
+- 两个页面都有返回 Dashboard 的链接
+- 共享的 state-panel 结构和 CSS 引用
 
-T098 -- Error page fixture.
+T098 -- Error page 夹具。
 """
 
 from __future__ import annotations
@@ -21,18 +21,18 @@ import re
 import urllib.request
 import urllib.error
 
-# ── Paths ─────────────────────────────────────────────────────────────
+# ── 路径 ─────────────────────────────────────────────────────────────
 
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEMPLATE_DIR = os.path.join(SB_ROOT, "src", "session_browser", "web", "templates")
 
 
-# ── 404 page fixture (live server) ────────────────────────────────────
+# ── 404 页面夹具（本地服务器） ────────────────────────────────────────
 
 
 @pytest.fixture(scope="module")
 def error_404_response(hifi_fixture_session):
-    """Fetch a non-existent URL and capture the HTTP response."""
+    """请求一个不存在的路径并捕获 HTTP 响应。"""
     base_url, agent, session_id = hifi_fixture_session
     url = f"{base_url}/__nonexistent_test_path_xyz__"
     try:
@@ -42,11 +42,11 @@ def error_404_response(hifi_fixture_session):
         return exc.code, exc.read().decode("utf-8")
 
 
-# ── Error template rendering helpers ──────────────────────────────────
+# ── 错误模板渲染辅助函数 ──────────────────────────────────────────────
 
 
 def _render_error_template(error: str | None = None) -> str:
-    """Render error.html via Jinja2 (with autoescape) and return the HTML string."""
+    """通过 Jinja2（启用自动转义）渲染 error.html 并返回 HTML 字符串。"""
     from jinja2 import Environment, FileSystemLoader, select_autoescape
 
     env = Environment(
@@ -58,7 +58,7 @@ def _render_error_template(error: str | None = None) -> str:
 
 
 def _render_404_template() -> str:
-    """Render 404.html via Jinja2 (with autoescape) and return the HTML string."""
+    """通过 Jinja2（启用自动转义）渲染 404.html 并返回 HTML 字符串。"""
     from jinja2 import Environment, FileSystemLoader
 
     env = Environment(
@@ -73,251 +73,251 @@ def _render_404_template() -> str:
 
 
 class Test404Page:
-    """Verify the 404 Not Found page renders and has correct structure."""
+    """验证 404 Not Found 页面渲染及其结构正确。"""
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_returns_404_status(self, error_404_response):
-        """Request to an unknown path must return HTTP 404."""
+        """请求未知路径必须返回 HTTP 404。"""
         status, html = error_404_response
-        assert status == 404, f"Expected HTTP 404, got {status}"
+        assert status == 404, f"预期 HTTP 404，得到 {status}"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_page_renders_substantial_html(self, error_404_response):
-        """404 page must contain meaningful HTML content."""
+        """404 页面必须包含有意义的 HTML 内容。"""
         _, html = error_404_response
-        assert len(html) > 200, "404 HTML must be substantial"
+        assert len(html) > 200, "404 HTML 必须有足够内容"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_doctype(self, error_404_response):
-        """404 page must have proper DOCTYPE declaration."""
+        """404 页面必须有正确的 DOCTYPE 声明。"""
         _, html = error_404_response
-        assert "<!doctype html" in html.lower(), "404 page must have DOCTYPE"
+        assert "<!doctype html" in html.lower(), "404 页面必须有 DOCTYPE"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_title_contains_not_found(self, error_404_response):
-        """Page title must indicate 'Not Found'."""
+        """页面标题必须表示 'Not Found'。"""
         _, html = error_404_response
-        assert "Not Found" in html, "404 title must contain 'Not Found'"
+        assert "Not Found" in html, "404 标题必须包含 'Not Found'"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_404_icon(self, error_404_response):
-        """Page must display the 404 icon."""
+        """页面必须显示 404 图标。"""
         _, html = error_404_response
-        assert ">404<" in html or "404" in html, "404 icon must be visible"
+        assert ">404<" in html or "404" in html, "404 图标必须可见"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_page_not_found_text(self, error_404_response):
-        """Page must show 'Page Not Found' heading."""
+        """页面必须显示 'Page Not Found' 标题。"""
         _, html = error_404_response
-        assert "Page Not Found" in html, "404 page must show 'Page Not Found'"
+        assert "Page Not Found" in html, "404 页面必须显示 'Page Not Found'"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_description(self, error_404_response):
-        """Page must show a description of the error."""
+        """页面必须显示错误描述。"""
         _, html = error_404_response
         assert "doesn't exist" in html or "has been removed" in html, \
-            "404 page must describe the error"
+            "404 页面必须描述该错误"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_state_panel_structure(self, error_404_response):
-        """404 page must use the shared state-panel component."""
+        """404 页面必须使用共享的 state-panel 组件。"""
         _, html = error_404_response
-        assert 'class="state-panel"' in html, "404 page must have state-panel container"
-        assert 'role="status"' in html, "404 page must have role=status"
+        assert 'class="state-panel"' in html, "404 页面必须有 state-panel 容器"
+        assert 'role="status"' in html, "404 页面必须有 role=status"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_states_css_reference(self, error_404_response):
-        """404 page must reference the states.css stylesheet."""
+        """404 页面必须引用 states.css 样式表。"""
         _, html = error_404_response
-        assert "states.css" in html, "404 page must reference states.css"
+        assert "states.css" in html, "404 页面必须引用 states.css"
 
 
 # ── Test404Template ───────────────────────────────────────────────────
 
 
 class Test404Template:
-    """Verify the 404 template directly (no server needed)."""
+    """直接验证 404 模板（无需服务器）。"""
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_template_renders(self):
-        """404.html must render without errors."""
+        """404.html 必须无错误地渲染。"""
         html = _render_404_template()
-        assert len(html) > 100, "404 template must produce HTML"
+        assert len(html) > 100, "404 模板必须产生 HTML"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_dashboard_link(self):
-        """404 page must contain a link back to Dashboard."""
+        """404 页面必须包含返回 Dashboard 的链接。"""
         html = _render_404_template()
-        assert '/dashboard' in html, "404 page must link to /dashboard"
-        assert "Dashboard" in html, "404 page must show 'Dashboard' link text"
+        assert '/dashboard' in html, "404 页面必须链接到 /dashboard"
+        assert "Dashboard" in html, "404 页面必须显示 'Dashboard' 链接文本"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_navigation_links(self):
-        """404 page must offer multiple navigation options."""
+        """404 页面必须提供多个导航选项。"""
         html = _render_404_template()
         nav_links = ["/dashboard", "/projects", "/sessions", "/agents"]
         for link in nav_links:
-            assert link in html, f"404 page must link to {link}"
+            assert link in html, f"404 页面必须链接到 {link}"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_state_panel_links(self):
-        """404 page navigation links must use state-panel__link class."""
+        """404 页面的导航链接必须使用 state-panel__link 类。"""
         html = _render_404_template()
         assert 'class="state-panel__link"' in html, \
-            "404 page must use state-panel__link for nav links"
+            "404 页面必须为导航链接使用 state-panel__link"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_breadcrumb(self):
-        """404 page must render a breadcrumb."""
+        """404 页面必须渲染面包屑。"""
         html = _render_404_template()
-        assert "sep" in html, "404 page must have breadcrumb separator"
-        assert "current" in html, "404 page must mark current breadcrumb item"
+        assert "sep" in html, "404 页面必须有面包屑分隔符"
+        assert "current" in html, "404 页面必须标记当前面包屑项"
 
 
 # ── Test500ErrorPage ──────────────────────────────────────────────────
 
 
 class Test500ErrorPage:
-    """Verify the 500 error page template renders correctly."""
+    """验证 500 错误页面模板正确渲染。"""
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_template_renders_without_error(self):
-        """Error page must render even without an error message."""
+        """即使没有错误消息，错误页面也应能渲染。"""
         html = _render_error_template(error=None)
-        assert len(html) > 100, "Error template must produce HTML"
+        assert len(html) > 100, "错误模板必须产生 HTML"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_template_renders_with_error(self):
-        """Error page must render with an error message."""
+        """错误页面必须在有错误消息时渲染。"""
         html = _render_error_template(error="Test error message")
-        assert len(html) > 100, "Error template must produce HTML with error"
+        assert len(html) > 100, "错误模板必须在有错误时产生 HTML"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_title_contains_error(self):
-        """Page title must indicate an error."""
+        """页面标题必须表示发生了错误。"""
         html = _render_error_template()
-        assert "Error" in html, "Error page title must contain 'Error'"
+        assert "Error" in html, "错误页面标题必须包含 'Error'"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_something_went_wrong_text(self):
-        """Page must show 'Something Went Wrong' heading."""
+        """页面必须显示 'Something Went Wrong' 标题。"""
         html = _render_error_template()
         assert "Something Went Wrong" in html, \
-            "Error page must show 'Something Went Wrong'"
+            "错误页面必须显示 'Something Went Wrong'"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_description(self):
-        """Error page must show a description of the issue."""
+        """错误页面必须显示问题描述。"""
         html = _render_error_template()
         assert "unexpected error" in html.lower() or "An unexpected error" in html, \
-            "Error page must describe the issue"
+            "错误页面必须描述问题"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_state_panel_structure(self):
-        """Error page must use the shared state-panel component."""
+        """错误页面必须使用共享的 state-panel 组件。"""
         html = _render_error_template()
-        assert 'class="state-panel"' in html, "Error page must have state-panel container"
-        assert 'role="alert"' in html, "Error page must have role=alert"
-        assert 'aria-live="assertive"' in html, "Error page must have aria-live=assertive"
+        assert 'class="state-panel"' in html, "错误页面必须有 state-panel 容器"
+        assert 'role="alert"' in html, "错误页面必须有 role=alert"
+        assert 'aria-live="assertive"' in html, "错误页面必须有 aria-live=assertive"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_error_icon(self):
-        """Error page must display an error icon."""
+        """错误页面必须显示错误图标。"""
         html = _render_error_template()
         assert 'state-panel__icon--error' in html, \
-            "Error page must have error icon modifier class"
+            "错误页面必须有错误图标修饰类"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_states_css_reference(self):
-        """Error page must reference the states.css stylesheet."""
+        """错误页面必须引用 states.css 样式表。"""
         html = _render_error_template()
-        assert "states.css" in html, "Error page must reference states.css"
+        assert "states.css" in html, "错误页面必须引用 states.css"
 
 
 # ── TestErrorMessageDisplay ──────────────────────────────────────────
 
 
 class TestErrorMessageDisplay:
-    """Verify error messages are displayed correctly."""
+    """验证错误消息正确显示。"""
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_error_message_shown_in_details(self):
-        """Error message must appear in a details/summary block."""
+        """错误消息必须出现在 details/summary 块中。"""
         html = _render_error_template(error="Database connection failed")
         assert "Database connection failed" in html, \
-            "Error message must be rendered in the page"
-        assert "<details" in html, "Error details must be in a <details> element"
-        assert "<summary>" in html, "Error details must have a <summary> label"
-        assert "Error details" in html, "Summary must say 'Error details'"
+            "错误消息必须在页面中渲染"
+        assert "<details" in html, "错误详情必须在 <details> 元素中"
+        assert "<summary>" in html, "错误详情必须有 <summary> 标签"
+        assert "Error details" in html, "Summary 必须显示 'Error details'"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_error_in_pre_tag(self):
-        """Error message must be wrapped in a <pre> tag for readability."""
+        """错误消息必须包裹在 <pre> 标签中以便阅读。"""
         html = _render_error_template(error="Traceback: line 42")
-        assert "<pre" in html, "Error text must be in a <pre> block"
+        assert "<pre" in html, "错误文本必须在 <pre> 块中"
         assert "Traceback: line 42" in html, \
-            "Error message text must appear verbatim"
+            "错误消息文本必须原样显示"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_no_error_details_when_none(self):
-        """Error details block must be hidden when no error is provided."""
+        """当没有错误时，错误详情块应隐藏。"""
         html = _render_error_template(error=None)
-        # Jinja2 {% if error %} should suppress the block entirely
+        # Jinja2 {% if error %} 应完全抑制该块
         assert "<details" not in html, \
-            "Error details block must not render when error is None"
-        # Note: <pre> and <script> come from the base template (payload modal, JS),
-        # so we only check for the error-specific <details> element.
+            "当 error 为 None 时错误详情块不应渲染"
+        # 注意：<pre> 和 <script> 来自基础模板（payload modal、JS），
+        # 因此我们只检查错误特定的 <details> 元素。
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_html_escaped_in_error(self):
-        """Error message containing HTML should be escaped in the output."""
+        """包含 HTML 的错误消息应在输出中被转义。"""
         html = _render_error_template(error="<script>alert('xss')</script>")
-        # Jinja2 auto-escapes; the injected <script> should not appear as raw HTML.
-        # Instead it should appear as &lt;script&gt; within the pre/details block.
-        # Note: other <script> tags come from the base template JS includes,
-        # so we check that our specific XSS payload is escaped.
+        # Jinja2 自动转义；注入的 <script> 不应作为原始 HTML 出现。
+        # 而应作为 &lt;script&gt; 出现在 pre/details 块内。
+        # 注意：其他 <script> 标签来自基础模板的 JS 引入，
+        # 因此我们检查特定的 XSS 载荷是否被转义。
         assert "&lt;script&gt;" in html, \
-            "Error message must HTML-escape script tags"
-        # The raw unescaped <script>alert should NOT be present in the error area
+            "错误消息必须转义 script 标签"
+        # 原始未转义的 <script>alert 不应出现在错误区域
         assert "<script>alert" not in html, \
-            "Error message must not contain unescaped script tag"
+            "错误消息不得包含未转义的 script 标签"
 
 
 # ── TestReturnToDashboard ─────────────────────────────────────────────
 
 
 class TestReturnToDashboard:
-    """Verify both error pages provide a link back to the dashboard."""
+    """验证两个错误页面都提供返回 Dashboard 的链接。"""
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_404_has_dashboard_link(self):
-        """404 page must have a link back to Dashboard."""
+        """404 页面必须有返回 Dashboard 的链接。"""
         html = _render_404_template()
-        assert '/dashboard' in html, "404 page must link to /dashboard"
-        # Verify it looks like a proper navigation link
+        assert '/dashboard' in html, "404 页面必须链接到 /dashboard"
+        # 验证它看起来像一个正常的导航链接
         assert 'class="state-panel__link"' in html, \
-            "404 dashboard link must use state-panel__link class"
+            "404 的 Dashboard 链接必须使用 state-panel__link 类"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_500_has_dashboard_link(self):
-        """500 error page must have a link back to Dashboard."""
+        """500 错误页面必须有返回 Dashboard 的链接。"""
         html = _render_error_template()
-        assert '/dashboard' in html, "Error page must link to /dashboard"
+        assert '/dashboard' in html, "错误页面必须链接到 /dashboard"
         assert 'class="state-panel__link"' in html, \
-            "Error dashboard link must use state-panel__link class"
-        assert "Dashboard" in html, "Error page must show 'Dashboard' link text"
+            "错误的 Dashboard 链接必须使用 state-panel__link 类"
+        assert "Dashboard" in html, "错误页面必须显示 'Dashboard' 链接文本"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_404_has_back_arrow(self):
-        """404 page dashboard link should have a back arrow indicator."""
+        """404 页面的 Dashboard 链接应有返回箭头指示器。"""
         html = _render_404_template()
-        # &larr; renders as the left arrow
+        # &larr; 渲染为左箭头
         assert "&larr;" in html or "←" in html, \
-            "404 page should have a back arrow on the Dashboard link"
+            "404 页面的 Dashboard 链接应有返回箭头"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_500_has_back_arrow(self):
-        """500 error page dashboard link should have a back arrow indicator."""
+        """500 错误页面的 Dashboard 链接应有返回箭头指示器。"""
         html = _render_error_template()
         assert "&larr;" in html or "←" in html, \
-            "Error page should have a back arrow on the Dashboard link"
+            "错误页面的 Dashboard 链接应有返回箭头"

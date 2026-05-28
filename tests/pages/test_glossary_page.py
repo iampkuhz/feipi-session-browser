@@ -1,10 +1,10 @@
-"""Tests for Glossary page (glossary.html).
+"""Glossary 页面（glossary.html）测试。
 
-Page-level pytest for glossary.html covering template structure, header,
-metric grid, filter card, empty state, sections, tables, data actions,
-accessibility, and absence of stale patterns.
+针对 glossary.html 的页面级 pytest，覆盖模板结构、头部、
+指标网格、过滤卡片、空态、分区、表格、data-action、
+可访问性，以及无陈旧模式。
 
-T164 -- Glossary: Add page-specific pytest.
+T164 -- Glossary：添加页面专属 pytest。
 """
 
 from __future__ import annotations
@@ -29,466 +29,466 @@ def _read_template() -> str:
 
 
 class TestGlossaryTemplate:
-    """Verify the glossary Jinja2 template renders structurally."""
+    """验证 glossary Jinja2 模板的结构化渲染。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     @pytest.mark.contract_case("UI-GLOSSARY-002")
     def test_template_file_exists(self):
-        """glossary.html must exist on disk."""
+        """glossary.html 必须存在于磁盘上。"""
         assert os.path.isfile(_GLOSSARY_PATH), \
-            f"{_GLOSSARY_PATH} must exist"
+            f"{_GLOSSARY_PATH} 必须存在"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_extends_base(self):
-        """Glossary must extend base.html."""
+        """Glossary 必须继承 base.html。"""
         content = _read_template()
         assert '{% extends "base.html" %}' in content, \
-            "Glossary must extend base.html"
+            "Glossary 必须继承 base.html"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_active_page_set(self):
-        """Glossary must set active_page = 'glossary'."""
+        """Glossary 必须设置 active_page = 'glossary'。"""
         content = _read_template()
         assert "active_page = 'glossary'" in content, \
-            "Glossary must set active_page = 'glossary'"
+            "Glossary 必须设置 active_page = 'glossary'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_ui_primitives_imported(self):
-        """Glossary must import ui_primitives.html."""
+        """Glossary 必须导入 ui_primitives.html。"""
         content = _read_template()
         assert 'components/ui_primitives.html' in content, \
-            "Glossary must import ui_primitives.html"
+            "Glossary 必须导入 ui_primitives.html"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_inline_onclick(self):
-        """Glossary must not use inline onclick handlers."""
+        """Glossary 不得使用 inline onclick 处理器。"""
         content = _read_template()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
         assert len(matches) == 0, \
-            f"Glossary must not have inline onclick, found {len(matches)} occurrences"
+            f"Glossary 不得有 inline onclick，发现 {len(matches)} 次"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_page_specific_css_import(self):
-        """Glossary must import page-specific CSS for glossary styling."""
+        """Glossary 必须导入页面专属 CSS 用于术语样式。"""
         content = _read_template()
         assert 'href="/static/css/glossary.css"' in content, \
-            "Glossary must import glossary.css"
+            "Glossary 必须导入 glossary.css"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_page_specific_js_import(self):
-        """Glossary must import page-specific JS for glossary functionality."""
+        """Glossary 必须导入页面专属 JS 用于术语功能。"""
         content = _read_template()
         assert 'src="/static/js/glossary.js"' in content, \
-            "Glossary must import glossary.js"
+            "Glossary 必须导入 glossary.js"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_script_extra_block(self):
-        """Glossary must use script_extra block for JS."""
+        """Glossary 必须使用 script_extra 块加载 JS。"""
         content = _read_template()
         assert '{% block script_extra %}' in content, \
-            "Glossary must use script_extra block"
+            "Glossary 必须使用 script_extra 块"
 
 
 # -- TestGlossaryHeader -----------------------------------------------------
 
 
 class TestGlossaryHeader:
-    """Verify header structure."""
+    """验证头部结构。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_page_head_present(self):
-        """Glossary must use ui.page_head() macro (T15)."""
+        """Glossary 必须使用 ui.page_head() 宏（T15）。"""
         content = _read_template()
         assert 'ui.page_head(' in content, \
-            "Glossary must use ui.page_head() macro"
+            "Glossary 必须使用 ui.page_head() 宏"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_h1_title(self):
-        """Page head must have 'Token Glossary' as title parameter."""
+        """page-head 必须以 'Token Glossary' 作为标题参数。"""
         content = _read_template()
         assert "'Token Glossary'" in content, \
-            "Glossary page_head must have 'Token Glossary' as title"
+            "Glossary 的 page_head 必须以 'Token Glossary' 作为标题"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_subtitle_present(self):
-        """Page head must have a subtitle passed to macro."""
+        """page-head 必须有传递给宏的副标题。"""
         content = _read_template()
         assert '必要术语说明' in content, \
-            "Glossary page_head must have subtitle about essential terminology"
+            "Glossary 的 page_head 必须有关于基本术语说明的副标题"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_subtitle_text(self):
-        """Subtitle must describe the glossary purpose per HIFI."""
+        """副标题必须按 HIFI 描述术语表目的。"""
         content = _read_template()
         assert "必要术语说明" in content, \
-            "Subtitle must describe glossary as essential terminology reference"
+            "副标题必须将术语表描述为基本术语参考"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_breadcrumb(self):
-        """Breadcrumb must link to dashboard."""
+        """面包屑必须链接到 dashboard。"""
         content = _read_template()
         assert 'href="/dashboard"' in content, \
-            "Breadcrumb must link to /dashboard"
+            "面包屑必须链接到 /dashboard"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_breadcrumb_current(self):
-        """Breadcrumb must show glossary as current."""
+        """面包屑必须显示 glossary 为当前页。"""
         content = _read_template()
         assert "术语表" in content or "Glossary" in content, \
-            "Breadcrumb must show glossary name"
+            "面包屑必须显示 glossary 名称"
 
 
 # -- TestGlossaryMetricGrid -------------------------------------------------
 
 
 class TestGlossaryMetricGrid:
-    """Verify summary metric grid structure."""
+    """验证摘要指标网格结构。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_grid_present(self):
-        """Glossary must have a metric-grid section."""
+        """Glossary 必须有 metric-grid 区域。"""
         content = _read_template()
         assert 'class="metric-grid"' in content, \
-            "Glossary must have a metric-grid section"
+            "Glossary 必须有 metric-grid 区域"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_grid_aria_label(self):
-        """Metric grid must have an aria-label."""
+        """指标网格必须有 aria-label。"""
         content = _read_template()
         assert 'aria-label="术语页摘要指标"' in content, \
-            "Metric grid must have aria-label"
+            "指标网格必须有 aria-label"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_four_metric_cards(self):
-        """Glossary must have exactly 4 metric cards."""
+        """Glossary 必须恰好有 4 个指标卡片。"""
         content = _read_template()
         cards = re.findall(r'class="metric-card"', content)
         assert len(cards) == 4, \
-            f"Glossary must have exactly 4 metric cards, found {len(cards)}"
+            f"Glossary 必须恰好有 4 个指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_card_token_types(self):
-        """Must have a metric card for Token Types."""
+        """必须有 Token Types 指标卡片。"""
         content = _read_template()
         assert "Token Types" in content, \
-            "Glossary must have a 'Token Types' metric card"
+            "Glossary 必须有 'Token Types' 指标卡片"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_card_derived_metrics(self):
-        """Must have a metric card for Derived Metrics."""
+        """必须有 Derived Metrics 指标卡片。"""
         content = _read_template()
         assert "Derived Metrics" in content, \
-            "Glossary must have a 'Derived Metrics' metric card"
+            "Glossary 必须有 'Derived Metrics' 指标卡片"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_card_provider_fields(self):
-        """Must have a metric card for Provider Fields."""
+        """必须有 Provider Fields 指标卡片。"""
         content = _read_template()
         assert "Provider Fields" in content, \
-            "Glossary must have a 'Provider Fields' metric card"
+            "Glossary 必须有 'Provider Fields' 指标卡片"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_card_round_signals(self):
-        """Must have a metric card for Round Signals."""
+        """必须有 Round Signals 指标卡片。"""
         content = _read_template()
         assert "Round Signals" in content, \
-            "Glossary must have a 'Round Signals' metric card"
+            "Glossary 必须有 'Round Signals' 指标卡片"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_icons_present(self):
-        """Each metric card must have a metric-icon element."""
+        """每个指标卡片必须有 metric-icon 元素。"""
         content = _read_template()
         icons = re.findall(r'class="metric-icon', content)
         assert len(icons) == 4, \
-            f"Glossary must have 4 metric-icon elements, found {len(icons)}"
+            f"Glossary 必须有 4 个 metric-icon 元素，发现 {len(icons)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_icons_have_emoji_aria_hidden(self):
-        """Each metric-icon must contain a span with aria-hidden."""
+        """每个 metric-icon 必须包含带 aria-hidden 的 span。"""
         content = _read_template()
-        # Metric icons use <span aria-hidden="true"> for emoji (no class="emoji")
+        # 指标图标使用 <span aria-hidden="true"> 表示表情（无 class="emoji"）
         metric_icons = re.findall(r'class="metric-icon[^"]*"[^>]*>', content)
         aria_count = content.count('aria-hidden="true"')
         assert aria_count >= 4, \
-            f"Glossary must have at least 4 aria-hidden spans in metric icons, found {aria_count}"
+            f"Glossary 在指标图标中必须至少有 4 个 aria-hidden span，发现 {aria_count} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_labels_present(self):
-        """Each metric card must have a metric-card__label element."""
+        """每个指标卡片必须有 metric-card__label 元素。"""
         content = _read_template()
         labels = re.findall(r'class="metric-card__label"', content)
         assert len(labels) >= 4, \
-            f"Glossary must have at least 4 metric-card__label elements, found {len(labels)}"
+            f"Glossary 必须至少有 4 个 metric-card__label 元素，发现 {len(labels)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_values_present(self):
-        """Each metric card must have a metric-card__value element."""
+        """每个指标卡片必须有 metric-card__value 元素。"""
         content = _read_template()
-        # Template uses class="metric-card__value mono" (with additional class)
+        # 模板使用 class="metric-card__value mono"（带附加类）
         values = re.findall(r'class="metric-card__value', content)
         assert len(values) >= 4, \
-            f"Glossary must have at least 4 metric-card__value elements, found {len(values)}"
+            f"Glossary 必须至少有 4 个 metric-card__value 元素，发现 {len(values)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_notes_present(self):
-        """Each metric card must have a metric-card__sub element."""
+        """每个指标卡片必须有 metric-card__sub 元素。"""
         content = _read_template()
         notes = re.findall(r'class="metric-card__sub"', content)
         assert len(notes) >= 4, \
-            f"Glossary must have at least 4 metric-card__sub elements, found {len(notes)}"
+            f"Glossary 必须至少有 4 个 metric-card__sub 元素，发现 {len(notes)} 个"
 
 
 # -- TestGlossaryFilterCard -------------------------------------------------
 
 
 class TestGlossaryFilterCard:
-    """Verify filter/search card structure."""
+    """验证过滤/搜索卡片结构。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_filter_card_present(self):
-        """Glossary must have a filter-card."""
+        """Glossary 必须有 filter-card。"""
         content = _read_template()
         assert 'class="card filter-card' in content or 'ui.filter_card()' in content, \
-            "Glossary must have a filter-card (literal or macro)"
+            "Glossary 必须有 filter-card（字面或宏）"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_input_present(self):
-        """Filter card must have a search input."""
+        """过滤卡片必须有搜索输入。"""
         content = _read_template()
         assert 'class="input search"' in content, \
-            "Glossary must have a search input with class 'input search'"
+            "Glossary 必须有带 'input search' 类的搜索输入"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_input_id(self):
-        """Search input must have id='glossary-search'."""
+        """搜索输入必须有 id='glossary-search'。"""
         content = _read_template()
         assert 'id="glossary-search"' in content, \
-            "Glossary search input must have id='glossary-search'"
+            "Glossary 搜索输入必须有 id='glossary-search'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_data_search_attribute(self):
-        """Search input must have data-search attribute."""
+        """搜索输入必须有 data-search 属性。"""
         content = _read_template()
         assert 'data-search="glossary-term"' in content, \
-            "Glossary search input must have data-search='glossary-term'"
+            "Glossary 搜索输入必须有 data-search='glossary-term'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_aria_label(self):
-        """Search input must have aria-label."""
+        """搜索输入必须有 aria-label。"""
         content = _read_template()
         assert 'aria-label="Search glossary terms"' in content, \
-            "Glossary search input must have aria-label='Search glossary terms'"
+            "Glossary 搜索输入必须有 aria-label='Search glossary terms'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_autocomplete_off(self):
-        """Search input must have autocomplete='off'."""
+        """搜索输入必须有 autocomplete='off'。"""
         content = _read_template()
         assert 'autocomplete="off"' in content, \
-            "Glossary search input must have autocomplete='off'"
+            "Glossary 搜索输入必须有 autocomplete='off'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_placeholder(self):
-        """Search input must have a placeholder."""
+        """搜索输入必须有占位文本。"""
         content = _read_template()
         assert "搜索术语" in content or "Search" in content, \
-            "Glossary search input must have a placeholder"
+            "Glossary 搜索输入必须有占位文本"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_match_count_element(self):
-        """Glossary must have a match count span."""
+        """Glossary 必须有匹配计数 span。"""
         content = _read_template()
         assert 'id="glossary-match-count"' in content, \
-            "Glossary must have glossary-match-count span"
+            "Glossary 必须有 glossary-match-count span"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_filter_row_present(self):
-        """Filter card must have a filter-row."""
+        """过滤卡片必须有 filter-row。"""
         content = _read_template()
         assert 'class="filter-row"' in content, \
-            "Glossary must have a filter-row"
+            "Glossary 必须有 filter-row"
 
 
 # -- TestGlossaryEmptyState -------------------------------------------------
 
 
 class TestGlossaryEmptyState:
-    """Verify empty state rendering."""
+    """验证空态渲染。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_present(self):
-        """Glossary must have a state-strip for empty state."""
+        """Glossary 必须有用于空态的 state-strip。"""
         content = _read_template()
         assert 'class="state-strip' in content, \
-            "Glossary must have a state-strip for empty state"
+            "Glossary 必须有用于空态的 state-strip"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_id(self):
-        """Empty state must have id='glossary-empty'."""
+        """空态必须有 id='glossary-empty'。"""
         content = _read_template()
         assert 'id="glossary-empty"' in content, \
-            "Glossary empty state must have id='glossary-empty'"
+            "Glossary 空态必须有 id='glossary-empty'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_role_status(self):
-        """Empty state must have role='status'."""
+        """空态必须有 role='status'。"""
         content = _read_template()
         assert 'role="status"' in content, \
-            "Glossary empty state must have role='status'"
+            "Glossary 空态必须有 role='status'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_aria_live(self):
-        """Empty state must have aria-live='polite'."""
+        """空态必须有 aria-live='polite'。"""
         content = _read_template()
         assert 'aria-live="polite"' in content, \
-            "Glossary empty state must have aria-live='polite'"
+            "Glossary 空态必须有 aria-live='polite'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_is_hidden(self):
-        """Empty state must start with is-hidden class."""
+        """空态初始必须带 is-hidden 类。"""
         content = _read_template()
         assert 'is-hidden' in content, \
-            "Glossary empty state must have is-hidden class"
+            "Glossary 空态必须有 is-hidden 类"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_icon_aria_hidden(self):
-        """Empty state icon must have aria-hidden='true'."""
+        """空态图标必须有 aria-hidden='true'。"""
         content = _read_template()
-        # The state icon uses class="state-icon" with aria-hidden
+        # 状态图标使用 class="state-icon" 并带 aria-hidden
         assert 'class="state-icon"' in content, \
-            "Glossary empty state must have state-icon"
+            "Glossary 空态必须有 state-icon"
         assert 'aria-hidden="true"' in content, \
-            "Glossary empty state icon must have aria-hidden='true'"
+            "Glossary 空态图标必须有 aria-hidden='true'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_no_match_message(self):
-        """Empty state must have a no-match message."""
+        """空态必须有未匹配提示消息。"""
         content = _read_template()
         assert "没有匹配的术语" in content, \
-            "Glossary empty state must show no-match message"
+            "Glossary 空态必须显示未匹配提示消息"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_try_again_message(self):
-        """Empty state must suggest trying again."""
+        """空态必须建议重试。"""
         content = _read_template()
         assert "尝试更换关键词" in content or "清空搜索框" in content, \
-            "Glossary empty state must suggest trying different keywords"
+            "Glossary 空态必须建议尝试更换关键词"
 
 
 # -- TestGlossarySections ---------------------------------------------------
 
 
 class TestGlossarySections:
-    """Verify 8 card.section elements."""
+    """验证 8 个 card.section 元素。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_card_section_class(self):
-        """Glossary must use card.section.section-card.full-width class for sections."""
+        """Glossary 必须对分区使用 card.section.section-card.full-width 类。"""
         content = _read_template()
         assert 'class="card section section-card full-width"' in content, \
-            "Glossary must use card.section.section-card.full-width class"
+            "Glossary 必须使用 card.section.section-card.full-width 类"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_eight_sections(self):
-        """Glossary must have exactly 8 card.section elements."""
+        """Glossary 必须恰好有 8 个 card.section 元素。"""
         content = _read_template()
-        # Sections may have additional classes like glossary-table-section
+        # 分区可能带有额外类如 glossary-table-section
         sections = re.findall(r'class="card section[^"]*"', content)
         assert len(sections) == 8, \
-            f"Glossary must have exactly 8 card.section elements, found {len(sections)}"
+            f"Glossary 必须恰好有 8 个 card.section 元素，发现 {len(sections)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_badge_reference_section(self):
-        """Must have a Badge Reference section."""
+        """必须有 Badge Reference 分区。"""
         content = _read_template()
         assert "Badge Reference" in content, \
-            "Glossary must have a Badge Reference section"
+            "Glossary 必须有 Badge Reference 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_overview_section(self):
-        """Must have a Token 概览 (Token Overview) section."""
+        """必须有 Token 概览（Token Overview）分区。"""
         content = _read_template()
         assert "Token 概览" in content, \
-            "Glossary must have a Token Overview section"
+            "Glossary 必须有 Token Overview 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_composition_section(self):
-        """Must have a Token 组成 (Token Composition) section."""
+        """必须有 Token 组成（Token Composition）分区。"""
         content = _read_template()
         assert "Token 组成" in content, \
-            "Glossary must have a Token Composition section"
+            "Glossary 必须有 Token Composition 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_derived_metrics_section(self):
-        """Must have a 派生指标 (Derived Metrics) section."""
+        """必须有 派生指标（Derived Metrics）分区。"""
         content = _read_template()
         assert "派生指标" in content, \
-            "Glossary must have a Derived Metrics section"
+            "Glossary 必须有 Derived Metrics 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_provider_mapping_section(self):
-        """Must have a Provider 映射 (Provider Mapping) section."""
+        """必须有 Provider 映射（Provider Mapping）分区。"""
         content = _read_template()
         assert "Provider 映射" in content or "Provider Mapping" in content, \
-            "Glossary must have a Provider Mapping section"
+            "Glossary 必须有 Provider Mapping 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_provider_mapping_anchor_id(self):
-        """Provider mapping section must have anchor id='provider-mapping'."""
+        """Provider mapping 分区必须有锚点 id='provider-mapping'。"""
         content = _read_template()
         assert 'id="provider-mapping"' in content, \
-            "Provider mapping section must have id='provider-mapping'"
+            "Provider mapping 分区必须有 id='provider-mapping'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_limitations_section(self):
-        """Must have a 已知限制 (Known Limitations) section."""
+        """必须有 已知限制（Known Limitations）分区。"""
         content = _read_template()
         assert "已知限制" in content, \
-            "Glossary must have a Known Limitations section"
+            "Glossary 必须有 Known Limitations 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_session_anomalies_section(self):
-        """Must have a Session Anomalies section."""
+        """必须有 Session Anomalies 分区。"""
         content = _read_template()
         assert "Session Anomalies" in content, \
-            "Glossary must have a Session Anomalies section"
+            "Glossary 必须有 Session Anomalies 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_round_signals_section(self):
-        """Must have a Round Signals section."""
+        """必须有 Round Signals 分区。"""
         content = _read_template()
         assert "Round Signals" in content, \
-            "Glossary must have a Round Signals section"
+            "Glossary 必须有 Round Signals 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_section_head_elements(self):
-        """Each section must have a section-head element."""
+        """每个分区必须有 section-head 元素。"""
         content = _read_template()
         heads = re.findall(r'class="section-head"', content)
         assert len(heads) == 8, \
-            f"Glossary must have 8 section-head elements, found {len(heads)}"
+            f"Glossary 必须有 8 个 section-head 元素，发现 {len(heads)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_section_title_elements(self):
-        """Each section must have a section-title element."""
+        """每个分区必须有 section-title 元素。"""
         content = _read_template()
         titles = re.findall(r'class="section-title"', content)
         assert len(titles) == 8, \
-            f"Glossary must have 8 section-title elements, found {len(titles)}"
+            f"Glossary 必须有 8 个 section-title 元素，发现 {len(titles)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_section_sub_elements(self):
-        """Sections must have section-desc descriptions (HIFI-aligned alias)."""
+        """分区必须有 section-desc 描述（HIFI 对齐别名）。"""
         content = _read_template()
         subs = re.findall(r'class="section-desc"', content)
         assert len(subs) == 5, \
-            f"Glossary must have exactly 5 section-desc elements, found {len(subs)}"
+            f"Glossary 必须恰好有 5 个 section-desc 元素，发现 {len(subs)} 个"
 
 
 # -- TestGlossaryTables -----------------------------------------------------
 
 
 class TestGlossaryTables:
-    """Verify 6 data-tables present."""
+    """验证 6 个 data-table 存在。"""
 
     _TABLE_SECTIONS = [
         ("Token 组成", "Token composition"),
@@ -501,83 +501,83 @@ class TestGlossaryTables:
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_six_data_tables(self):
-        """Glossary must have exactly 6 data-table elements (may have additional classes like glossary-table)."""
+        """Glossary 必须恰好有 6 个 data-table 元素（可能带有 glossary-table 等附加类）。"""
         content = _read_template()
         tables = re.findall(r'class="data-table[^"]*"', content)
         assert len(tables) == 6, \
-            f"Glossary must have exactly 6 data-table elements, found {len(tables)}"
+            f"Glossary 必须恰好有 6 个 data-table 元素，发现 {len(tables)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_all_tables_enhanced(self):
-        """All tables must have data-table-enhanced attribute."""
+        """所有表格必须有 data-table-enhanced 属性。"""
         content = _read_template()
         enhanced = re.findall(r'data-table-enhanced', content)
         assert len(enhanced) == 6, \
-            f"Glossary must have 6 data-table-enhanced attributes, found {len(enhanced)}"
+            f"Glossary 必须有 6 个 data-table-enhanced 属性，发现 {len(enhanced)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_all_tables_in_wrap(self):
-        """All tables must be inside a table-wrap."""
+        """所有表格必须在 table-wrap 内。"""
         content = _read_template()
         wraps = re.findall(r'class="table-wrap"', content)
         assert len(wraps) == 6, \
-            f"Glossary must have 6 table-wrap elements, found {len(wraps)}"
+            f"Glossary 必须有 6 个 table-wrap 元素，发现 {len(wraps)} 个"
 
     @pytest.mark.parametrize("section_name,_", _TABLE_SECTIONS)
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_table_section_exists(self, section_name, _):
-        """Each expected table section must exist."""
+        """每个预期的表格分区必须存在。"""
         content = _read_template()
         assert section_name in content, \
-            f"Glossary must have a '{section_name}' table section"
+            f"Glossary 必须有 '{section_name}' 表格分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_composition_table_has_thead(self):
-        """Token composition table must have thead."""
+        """Token composition 表格必须有 thead。"""
         content = _read_template()
         assert '<thead>' in content, \
-            "Token composition table must have thead"
+            "Token composition 表格必须有 thead"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_composition_table_has_tbody(self):
-        """Token composition table must have tbody."""
+        """Token composition 表格必须有 tbody。"""
         content = _read_template()
         assert '<tbody>' in content, \
-            "Token composition table must have tbody"
+            "Token composition 表格必须有 tbody"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_data_table_has_code_elements(self):
-        """Data tables must have code elements for formulas/fields."""
+        """数据表格必须有用于公式/字段的 code 元素。"""
         content = _read_template()
         assert '<code>' in content, \
-            "Glossary tables must have code elements"
+            "Glossary 表格必须有 code 元素"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_badge_elements_in_tables(self):
-        """Tables must use badge elements."""
+        """表格必须使用 badge 元素。"""
         content = _read_template()
         badges = re.findall(r'class="badge', content)
         assert len(badges) >= 4, \
-            f"Glossary must have at least 4 badge elements, found {len(badges)}"
+            f"Glossary 必须至少有 4 个 badge 元素，发现 {len(badges)} 个"
 
 
 # -- TestGlossaryDataActions ------------------------------------------------
 
 
 class TestGlossaryDataActions:
-    """Verify all required data-action and data-search attributes."""
+    """验证所有必需的 data-action 和 data-search 属性。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_sort_action_on_headers(self):
-        """Sortable headers must have data-action='sort'."""
+        """可排序表头必须有 data-action='sort'。"""
         content = _read_template()
         sorts = re.findall(r'data-action="sort"', content)
         assert len(sorts) >= 6, \
-            f"Glossary must have at least 6 sortable columns, found {len(sorts)}"
+            f"Glossary 必须至少有 6 个可排序列，发现 {len(sorts)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_sort_keys_present(self):
-        """Sortable columns must have data-sort-key attributes."""
+        """可排序列必须有 data-sort-key 属性。"""
         content = _read_template()
         expected_keys = [
             "token-name",
@@ -589,151 +589,151 @@ class TestGlossaryDataActions:
         ]
         for sort_key in expected_keys:
             assert f'data-sort-key="{sort_key}"' in content, \
-                f"Glossary must have data-sort-key='{sort_key}'"
+                f"Glossary 必须有 data-sort-key='{sort_key}'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_data_search(self):
-        """Search input must have data-search attribute."""
+        """搜索输入必须有 data-search 属性。"""
         content = _read_template()
         assert 'data-search="glossary-term"' in content, \
-            "Glossary search input must have data-search='glossary-term'"
+            "Glossary 搜索输入必须有 data-search='glossary-term'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_sortable_th_elements(self):
-        """Sortable columns must have sortable class on th."""
+        """可排序列的 th 必须有 sortable 类。"""
         content = _read_template()
         sortable_ths = re.findall(r'class="sortable"', content)
         assert len(sortable_ths) >= 6, \
-            f"Glossary must have at least 6 sortable th elements, found {len(sortable_ths)}"
+            f"Glossary 必须至少有 6 个 sortable th 元素，发现 {len(sortable_ths)} 个"
 
 
 # -- TestGlossaryAccessibility ----------------------------------------------
 
 
 class TestGlossaryAccessibility:
-    """Verify accessibility attributes."""
+    """验证可访问性属性。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_icon_emojis_aria_hidden(self):
-        """Metric icon emojis must have aria-hidden='true'."""
+        """指标图标表情必须有 aria-hidden='true'。"""
         content = _read_template()
-        # Metric icons use <span aria-hidden="true"> without class="emoji"
+        # 指标图标使用 <span aria-hidden="true"> 无 class="emoji"
         aria_hidden = content.count('aria-hidden="true"')
         assert aria_hidden >= 4, \
-            f"Glossary must have at least 4 aria-hidden spans, found {aria_hidden}"
+            f"Glossary 必须至少有 4 个 aria-hidden span，发现 {aria_hidden} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_icon_aria_hidden(self):
-        """Empty state icon must have aria-hidden='true'."""
+        """空态图标必须有 aria-hidden='true'。"""
         content = _read_template()
-        # The state-strip icon uses aria-hidden on the state-icon div
+        # state-strip 图标在 state-icon div 上使用 aria-hidden
         state_icon_section = content[content.find('class="state-strip'):]
         state_icon_section = state_icon_section[:state_icon_section.find('</div>') + 6]
         assert 'aria-hidden="true"' in state_icon_section, \
-            "Empty state icon must have aria-hidden='true'"
+            "空态图标必须有 aria-hidden='true'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_input_aria_label(self):
-        """Search input must have aria-label."""
+        """搜索输入必须有 aria-label。"""
         content = _read_template()
         assert 'aria-label="Search glossary terms"' in content, \
-            "Glossary search input must have aria-label"
+            "Glossary 搜索输入必须有 aria-label"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_aria_live(self):
-        """Empty state must have aria-live='polite'."""
+        """空态必须有 aria-live='polite'。"""
         content = _read_template()
         assert 'aria-live="polite"' in content, \
-            "Glossary empty state must have aria-live='polite'"
+            "Glossary 空态必须有 aria-live='polite'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_role_status(self):
-        """Empty state must have role='status'."""
+        """空态必须有 role='status'。"""
         content = _read_template()
         assert 'role="status"' in content, \
-            "Glossary empty state must have role='status'"
+            "Glossary 空态必须有 role='status'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_metric_grid_aria_label(self):
-        """Metric grid must have an aria-label."""
+        """指标网格必须有 aria-label。"""
         content = _read_template()
         assert 'aria-label="术语页摘要指标"' in content, \
-            "Glossary metric grid must have aria-label"
+            "Glossary 指标网格必须有 aria-label"
 
 
 # -- TestGlossaryNoStalePatterns --------------------------------------------
 
 
 class TestGlossaryNoStalePatterns:
-    """Verify stale patterns are NOT present."""
+    """验证不存在的陈旧模式。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_inline_onclick(self):
-        """Glossary must not have inline onclick."""
+        """Glossary 不得有 inline onclick。"""
         content = _read_template()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
         assert len(matches) == 0, \
-            f"Glossary must not have inline onclick, found {len(matches)}"
+            f"Glossary 不得有 inline onclick，发现 {len(matches)} 次"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_inline_script(self):
-        """Template must not have inline script blocks."""
+        """模板不得有 inline script 块。"""
         content = _read_template()
         script_tags = re.findall(r'<script(?! src)[^>]*>', content)
         assert len(script_tags) == 0, \
-            f"Glossary must not have inline script tags, found {len(script_tags)}"
+            f"Glossary 不得有 inline script 标签，发现 {len(script_tags)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_inline_style_blocks(self):
-        """Template must not have inline style blocks."""
+        """模板不得有 inline style 块。"""
         content = _read_template()
         style_blocks = re.findall(r'<style[^>]*>', content)
         assert len(style_blocks) == 0, \
-            f"Glossary must not have inline style blocks, found {len(style_blocks)}"
+            f"Glossary 不得有 inline style 块，发现 {len(style_blocks)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_filter_bar_class(self):
-        """Glossary must not use .filter-bar class (uses .filter-card)."""
+        """Glossary 不得使用 .filter-bar 类（使用 .filter-card）。"""
         content = _read_template()
         assert 'class="filter-bar"' not in content, \
-            "Glossary must not have filter-bar class"
+            "Glossary 不得有 filter-bar 类"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_table_scroll_class(self):
-        """Glossary must not use .table-scroll class (uses .table-wrap)."""
+        """Glossary 不得使用 .table-scroll 类（使用 .table-wrap）。"""
         content = _read_template()
         assert 'class="table-scroll"' not in content, \
-            "Glossary must not have table-scroll class"
+            "Glossary 不得有 table-scroll 类"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_select_elements(self):
-        """No <select> elements."""
+        """无 <select> 元素。"""
         content = _read_template()
         assert '<select' not in content, \
-            "Glossary must not use select elements"
+            "Glossary 不得使用 select 元素"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_hero_section(self):
-        """Glossary must not have hero section."""
+        """Glossary 不得有 hero 分区。"""
         content = _read_template()
         assert 'class="hero"' not in content, \
-            "Glossary must not have hero section"
+            "Glossary 不得有 hero 分区"
 
 
-# ── Glossary fixed fixture tests (T097) ─────────────────────────────
-# Uses the hifi_fixture_session fixture to spin up a live server with
-# deterministic fixture data, then verifies the *rendered* Glossary HTML.
-# Covers: page renders, terms list, key data display.
+# ── Glossary 固定夹具测试（T097）─────────────────────────────
+# 使用 hifi_fixture_session 夹具启动带确定性夹具数据的实时服务器，
+# 然后验证*渲染后*的 Glossary HTML。
+# 覆盖：页面渲染、术语列表、关键数据展示。
 
 
 @pytest.fixture(scope="module")
 def glossary_html(hifi_fixture_session):
-    """Fetch rendered Glossary HTML from the live fixture server."""
+    """从实时夹具服务器获取渲染后的 Glossary HTML。"""
     base_url, agent, session_id = hifi_fixture_session
     import urllib.request
 
     resp = urllib.request.urlopen(f"{base_url}/glossary", timeout=10)
-    assert resp.status == 200, "Glossary must return HTTP 200"
+    assert resp.status == 200, "Glossary 必须返回 HTTP 200"
     return resp.read().decode("utf-8")
 
 
@@ -741,188 +741,188 @@ def glossary_html(hifi_fixture_session):
 
 
 class TestGlossaryPageRender:
-    """Verify the rendered Glossary page structure."""
+    """验证渲染后的 Glossary 页面结构。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_page_returns_200(self, glossary_html):
-        """Glossary must render successfully."""
+        """Glossary 必须成功渲染。"""
         assert len(glossary_html) > 500, \
-            "Glossary HTML must be substantial"
+            "Glossary HTML 必须有足够内容"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_has_doctype_and_html(self, glossary_html):
-        """Page must have proper HTML structure."""
+        """页面必须有正确的 HTML 结构。"""
         lower = glossary_html.lower()
         assert "<!doctype html" in lower or "<!DOCTYPE html" in glossary_html, \
-            "Glossary must have DOCTYPE declaration"
+            "Glossary 必须有 DOCTYPE 声明"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_title_contains_glossary(self, glossary_html):
-        """Page title must contain '术语表' or 'Glossary'."""
+        """页面标题必须包含 '术语表' 或 'Glossary'。"""
         assert "<title>" in glossary_html, \
-            "Glossary must have a title tag"
+            "Glossary 必须有 title 标签"
         assert "术语表" in glossary_html or "Glossary" in glossary_html or "Token Glossary" in glossary_html, \
-            "Page title must reference Glossary"
+            "页面标题必须引用 Glossary"
 
 
 # -- TestGlossaryPageDisplay ----------------------------------------------
 
 
 class TestGlossaryPageDisplay:
-    """Verify Glossary page displays terms and key data from rendered HTML."""
+    """验证 Glossary 页面从渲染 HTML 中展示术语和关键数据。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_has_page_head(self, glossary_html):
-        """Page must show the 'Token Glossary' heading."""
+        """页面必须显示 'Token Glossary' 标题。"""
         assert "Token Glossary" in glossary_html, \
-            "'Token Glossary' heading must be visible"
+            "'Token Glossary' 标题必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_has_subtitle(self, glossary_html):
-        """Page must show the subtitle about terminology."""
+        """页面必须显示关于术语的副标题。"""
         assert "必要术语说明" in glossary_html or "术语说明" in glossary_html or "术语" in glossary_html, \
-            "Subtitle about terminology must appear"
+            "必须出现关于术语的副标题"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_has_metric_grid(self, glossary_html):
-        """Glossary must render the summary metric grid."""
+        """Glossary 必须渲染摘要指标网格。"""
         assert 'class="metric-grid"' in glossary_html, \
-            "Metric grid must be rendered"
+            "指标网格必须已渲染"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_four_metric_cards_rendered(self, glossary_html):
-        """Glossary must have exactly 4 metric cards in rendered output."""
+        """Glossary 在渲染输出中必须恰好有 4 个指标卡片。"""
         cards = re.findall(r'class="metric-card"', glossary_html)
         assert len(cards) == 4, \
-            f"Glossary must have 4 metric cards, found {len(cards)}"
+            f"Glossary 必须有 4 个指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_types_card(self, glossary_html):
-        """Must display Token Types metric card."""
+        """必须显示 Token Types 指标卡片。"""
         assert "Token Types" in glossary_html, \
-            "Token Types metric card must be visible"
+            "Token Types 指标卡片必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_derived_metrics_card(self, glossary_html):
-        """Must display Derived Metrics metric card."""
+        """必须显示 Derived Metrics 指标卡片。"""
         assert "Derived Metrics" in glossary_html, \
-            "Derived Metrics metric card must be visible"
+            "Derived Metrics 指标卡片必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_provider_fields_card(self, glossary_html):
-        """Must display Provider Fields metric card."""
+        """必须显示 Provider Fields 指标卡片。"""
         assert "Provider Fields" in glossary_html, \
-            "Provider Fields metric card must be visible"
+            "Provider Fields 指标卡片必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_round_signals_card(self, glossary_html):
-        """Must display Round Signals metric card."""
+        """必须显示 Round Signals 指标卡片。"""
         assert "Round Signals" in glossary_html, \
-            "Round Signals metric card must be visible"
+            "Round Signals 指标卡片必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_search_input_rendered(self, glossary_html):
-        """Glossary must render the search/filter input."""
+        """Glossary 必须渲染搜索/过滤输入。"""
         assert 'id="glossary-search"' in glossary_html, \
-            "Search input must be rendered"
+            "搜索输入必须已渲染"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_filter_card_rendered(self, glossary_html):
-        """Glossary must render the filter card."""
+        """Glossary 必须渲染过滤卡片。"""
         assert "filter-card" in glossary_html or "filter" in glossary_html, \
-            "Filter card must be rendered"
+            "过滤卡片必须已渲染"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_sections_rendered(self, glossary_html):
-        """Glossary must render section cards."""
+        """Glossary 必须渲染分区卡片。"""
         sections = re.findall(r'class="card section', glossary_html)
         assert len(sections) >= 6, \
-            f"Glossary must have at least 6 section cards, found {len(sections)}"
+            f"Glossary 必须至少有 6 个分区卡片，发现 {len(sections)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_data_tables_rendered(self, glossary_html):
-        """Glossary must render data tables."""
+        """Glossary 必须渲染数据表格。"""
         tables = re.findall(r'class="data-table', glossary_html)
         assert len(tables) >= 4, \
-            f"Glossary must have at least 4 data tables, found {len(tables)}"
+            f"Glossary 必须至少有 4 个数据表格，发现 {len(tables)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_overview_section(self, glossary_html):
-        """Must render Token 概览 section."""
+        """必须渲染 Token 概览分区。"""
         assert "Token 概览" in glossary_html, \
-            "Token Overview section must be visible"
+            "Token Overview 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_composition_section(self, glossary_html):
-        """Must render Token 组成 section."""
+        """必须渲染 Token 组成分区。"""
         assert "Token 组成" in glossary_html, \
-            "Token Composition section must be visible"
+            "Token Composition 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_derived_metrics_section(self, glossary_html):
-        """Must render 派生指标 section."""
+        """必须渲染 派生指标 分区。"""
         assert "派生指标" in glossary_html, \
-            "Derived Metrics section must be visible"
+            "Derived Metrics 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_provider_mapping_section(self, glossary_html):
-        """Must render Provider 映射 section."""
+        """必须渲染 Provider 映射分区。"""
         assert "Provider 映射" in glossary_html, \
-            "Provider Mapping section must be visible"
+            "Provider Mapping 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_badge_reference_section(self, glossary_html):
-        """Must render Badge Reference section."""
+        """必须渲染 Badge Reference 分区。"""
         assert "Badge Reference" in glossary_html, \
-            "Badge Reference section must be visible"
+            "Badge Reference 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_known_terms_present(self, glossary_html):
-        """Glossary must display key terms like 'cache read'."""
+        """Glossary 必须显示关键术语如 'cache read'。"""
         assert "cache" in glossary_html.lower() or "Cache" in glossary_html, \
-            "Key terms like 'cache' must appear in glossary"
+            "Glossary 中必须出现 'cache' 等关键术语"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_inline_onclick(self, glossary_html):
-        """Rendered Glossary must not have inline onclick handlers."""
+        """渲染后的 Glossary 不得有 inline onclick 处理器。"""
         matches = re.findall(r'\bonclick\s*=', glossary_html, re.IGNORECASE)
         assert len(matches) == 0, \
-            f"Glossary must not have inline onclick, found {len(matches)}"
+            f"Glossary 不得有 inline onclick，发现 {len(matches)} 次"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_empty_state_rendered(self, glossary_html):
-        """Glossary must render the empty state element."""
+        """Glossary 必须渲染空态元素。"""
         assert "state-strip" in glossary_html or "glossary-empty" in glossary_html, \
-            "Empty state element must be rendered"
+            "空态元素必须已渲染"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_breadcrumb_rendered(self, glossary_html):
-        """Glossary must show the breadcrumb."""
+        """Glossary 必须显示面包屑。"""
         assert 'href="/dashboard"' in glossary_html, \
-            "Breadcrumb must link to dashboard"
+            "面包屑必须链接到 dashboard"
 
 
 # -- TestGlossaryNoStalePatterns ------------------------------------------
 
 
 class TestGlossaryNoStalePatternsFixture:
-    """Verify stale patterns are NOT present in rendered HTML."""
+    """验证渲染 HTML 中不存在的陈旧模式。"""
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_filter_bar_class(self, glossary_html):
-        """Glossary must not use .filter-bar class."""
+        """Glossary 不得使用 .filter-bar 类。"""
         assert 'class="filter-bar"' not in glossary_html, \
-            "Glossary must not have filter-bar class"
+            "Glossary 不得有 filter-bar 类"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_hero_section(self, glossary_html):
-        """Glossary must not have hero section."""
+        """Glossary 不得有 hero 分区。"""
         assert 'class="hero"' not in glossary_html, \
-            "Glossary must not have hero section"
+            "Glossary 不得有 hero 分区"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_no_inline_script(self, glossary_html):
-        """Rendered HTML must not have inline script blocks."""
+        """渲染后的 HTML 不得有 inline script 块。"""
         script_tags = re.findall(r'<script(?! src)[^>]*>', glossary_html)
         assert len(script_tags) == 0, \
-            f"Glossary must not have inline script tags, found {len(script_tags)}"
+            f"Glossary 不得有 inline script 标签，发现 {len(script_tags)} 个"

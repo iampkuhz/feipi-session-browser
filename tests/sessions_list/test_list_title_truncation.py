@@ -1,9 +1,9 @@
-"""Tests for list-view title sanitization.
+"""列表视图标题清理测试。
 
-Covers:
-- ``sanitize_list_title`` utility (unit).
-- ``list_sessions`` returns truncated titles (integration).
-- ``get_session`` returns full titles (no truncation).
+覆盖：
+- ``sanitize_list_title`` 工具函数（单元测试）。
+- ``list_sessions`` 返回截断后的标题（集成测试）。
+- ``get_session`` 返回完整标题（不截断）。
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ from session_browser.index.indexer import (
 from session_browser.domain.models import SessionSummary
 
 
-# ─── Unit: sanitize_list_title ─────────────────────────────────────────────
+# ─── 单元测试：sanitize_list_title ─────────────────────────────────────────────
 
 
 class TestSanitizeListTitle:
-    """Unit tests for the title sanitization helper."""
+    """标题清理辅助函数的单元测试。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_empty_string(self):
@@ -67,13 +67,12 @@ class TestSanitizeListTitle:
     def test_long_title_truncated(self):
         title = "x" * 200
         result = sanitize_list_title(title)
-        assert len(result) == 121  # 120 chars + "…"
+        assert len(result) == 121  # 120 字符 + "…"
         assert result.endswith("…")
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_truncated_title_does_not_cut_mid_char_at_boundary(self):
-        # Boundary: 120 chars — trailing whitespace strip ensures we don't
-        # have a dangling space before the ellipsis.
+        # 边界：120 个字符 —— 去除尾部空白确保省略号前不会出现悬空空格。
         title = "a" * 120 + " extra"
         result = sanitize_list_title(title)
         assert len(result) == 121  # 120 + "…"
@@ -84,13 +83,13 @@ class TestSanitizeListTitle:
     def test_exact_max_len_no_ellipsis(self):
         title = "a" * 120
         result = sanitize_list_title(title)
-        assert result == title  # exactly max_len → no truncation
+        assert result == title  # 恰好等于最大长度 → 不截断
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_one_over_max_len_gets_ellipsis(self):
         title = "a" * 121
         result = sanitize_list_title(title)
-        assert len(result) == 121  # 120 chars + "…"
+        assert len(result) == 121  # 120 字符 + "…"
         assert result.endswith("…")
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
@@ -102,7 +101,7 @@ class TestSanitizeListTitle:
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_multiline_long_text(self):
-        """Realistic case: a multi-sentence user message spanning lines."""
+        """真实场景：跨多行的多句用户消息。"""
         title = textwrap.dedent("""\
             Create a comprehensive API documentation
             that includes all endpoints, request/response formats,
@@ -113,30 +112,30 @@ class TestSanitizeListTitle:
         result = sanitize_list_title(title)
         assert "\n" not in result
         assert len(result) <= 121  # 120 + "…"
-        # Should start with the first part
+        # 应以开头部分开始
         assert result.startswith("Create a comprehensive API")
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_mixed_whitespace_types(self):
-        """Mix of spaces, tabs, newlines, non-breaking spaces."""
+        """混合空格、制表符、换行符、不间断空格。"""
         title = "hello\t\tworld\n\nfoo\rbar"
         result = sanitize_list_title(title)
         assert result == "hello world foo bar"
 
 
-# ─── Integration: list_sessions truncates, get_session does not ────────────
+# ─── 集成测试：list_sessions 截断标题，get_session 不截断 ────────────
 
 
 @pytest.fixture
 def tmp_db(tmp_path):
-    """Create a temporary DB with test sessions."""
+    """创建带有测试 sessions 的临时数据库。"""
     db_path = tmp_path / "test.db"
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     init_schema(conn)
 
-    # Insert sessions with various titles
+    # 插入具有各种标题的 sessions
     long_title = "This is a very long title that should definitely be truncated because it contains way too many characters for a list view " + "extra padding here"
     sessions = [
         SessionSummary(
@@ -168,7 +167,7 @@ def tmp_db(tmp_path):
 
 
 class TestListSessionsTruncatesTitle:
-    """Integration tests: list_sessions should return sanitized titles."""
+    """集成测试：list_sessions 应返回清理后的标题。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_short_title_unchanged(self, tmp_db):
@@ -207,11 +206,11 @@ class TestListSessionsTruncatesTitle:
         nl = next(s for s in sessions if s.session_id == "sess-4")
         assert "\n" not in nl.title
         assert "\t" not in nl.title
-        assert " " in nl.title  # newlines replaced by spaces
+        assert " " in nl.title  # 换行符已替换为空格
 
 
 class TestGetSessionFullTitle:
-    """get_session should return the original full title."""
+    """get_session 应返回原始完整标题。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-013")
     def test_long_title_not_truncated(self, tmp_db):
@@ -220,4 +219,4 @@ class TestGetSessionFullTitle:
         session = get_session(conn, "claude_code:sess-2")
         conn.close()
         assert session is not None
-        assert len(session.title) > 120  # full title preserved
+        assert len(session.title) > 120  # 完整标题已保留

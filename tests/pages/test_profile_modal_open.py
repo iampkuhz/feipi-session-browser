@@ -1,9 +1,9 @@
-"""Tests for payload modal and trace structure (v9).
-v9 architecture:
-- Component-based Jinja2 macros (sdp, sdt) replace inline HTML.
-- Tool calls rendered via sdt.tool_batch macro in session_detail_timeline.html.
-- Payload modal in base.html handles all payload viewing.
-- Click delegation via _arpClosest helper in view-switching.js (extracted from base.html).
+"""验证 Payload 模态框和 Trace 结构的测试（v9）。
+v9 架构：
+- 基于组件的 Jinja2 宏（sdp、sdt）替代内联 HTML。
+- 工具调用通过 session_detail_timeline.html 中的 sdt.tool_batch 宏渲染。
+- Payload 模态框在 base.html 中统一处理所有 payload 查看。
+- 点击委托通过 view-switching.js 中的 _arpClosest 辅助函数处理（从 base.html 中提取）。
 """
 
 import pytest
@@ -30,92 +30,92 @@ def _timeline_component():
     return (TEMPLATE_DIR / "components" / "session_detail_timeline.html").read_text(encoding="utf-8")
 
 
-# ── Tool rendering (v9 component macros) ──────────────────
+# ── 工具渲染（v9 组件宏） ──────────────────────────
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_has_tool_batch_macro():
-    """Timeline component must define tool_batch macro."""
+    """Timeline 组件必须定义 tool_batch 宏。"""
     source = _timeline_component()
-    assert "macro tool_batch" in source, "tool_batch macro must exist"
+    assert "macro tool_batch" in source, "tool_batch 宏必须存在"
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_tool_rows_have_data_attrs():
-    """Tool rows must have data attributes for identification."""
+    """工具行必须有用于识别的 data 属性。"""
     source = _timeline_component()
-    assert "data-tool-call-id" in source, "Tool rows must have data-tool-call-id"
+    assert "data-tool-call-id" in source, "工具行必须有 data-tool-call-id"
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_tool_rows_show_status():
-    """Tool rows must render status information."""
+    """工具行必须渲染状态信息。"""
     source = _timeline_component()
     assert "tool.result_summary" in source or "tool.status_tone" in source, (
-        "Tool rows must show status"
+        "工具行必须显示状态"
     )
 
 
-# ── Payload modal (base.html) ────────────────────────────────────
+# ── Payload 模态框（base.html） ────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_payload_modal_in_base():
-    """Payload modal must be defined in base.html."""
+    """Payload 模态框必须在 base.html 中定义。"""
     source = _base_source()
-    assert "payload-modal" in source, "payload-modal must exist in base.html"
+    assert "payload-modal" in source, "payload-modal 必须存在于 base.html 中"
 
 
-# ── Event handling (base.html) ────────────────────────────────────
+# ── 事件处理（base.html） ───────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_capture_phase_click_listener():
-    """view-switching.js must have a capture-phase click listener for [data-content-modal]."""
+    """view-switching.js 必须有一个捕获阶段的点击监听器用于 [data-content-modal]。"""
     source = _view_switching_source()
     assert "addEventListener('click'" in source, (
-        "view-switching.js must add click event listeners"
+        "view-switching.js 必须添加点击事件监听器"
     )
     assert ", true)" in source, (
-        "view-switching.js must register a capture-phase click listener"
+        "view-switching.js 必须注册捕获阶段的点击监听器"
     )
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_closest_polyfill():
-    """view-switching.js must define a closest helper for older WebView compatibility."""
+    """view-switching.js 必须定义 closest 辅助函数以兼容旧版 WebView。"""
     source = _view_switching_source()
     assert "_arpClosest" in source, (
-        "view-switching.js must define _arpClosest helper function"
+        "view-switching.js 必须定义 _arpClosest 辅助函数"
     )
     assert "webkitMatchesSelector" in source, (
-        "view-switching.js's _arpClosest must support webkitMatchesSelector"
+        "view-switching.js 的 _arpClosest 必须支持 webkitMatchesSelector"
     )
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_capture_handler_sets_handled_flag():
-    """The capture-phase handler must set e.__contentModalHandled."""
+    """捕获阶段处理器必须设置 e.__contentModalHandled。"""
     source = _view_switching_source()
     assert "__contentModalHandled" in source, (
-        "Capture handler must set e.__contentModalHandled flag"
+        "捕获处理器必须设置 e.__contentModalHandled 标志"
     )
 
 
-# ── v9 component usage ────────────────────────────────────────────
+# ── v9 组件使用 ────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_session_uses_sdt_macros():
-    """session.html must use sdt macros."""
+    """session.html 必须使用 sdt 宏。"""
     source = _session_source()
-    assert "sdt.hero" in source, "Should use sdt.hero macro"
-    assert "sdt.trace_header" in source, "Should use sdt.trace_header macro"
-    assert "sdt.trace_round" in source, "Should use sdt.trace_round macro"
+    assert "sdt.hero" in source, "应使用 sdt.hero 宏"
+    assert "sdt.trace_header" in source, "应使用 sdt.trace_header 宏"
+    assert "sdt.trace_round" in source, "应使用 sdt.trace_round 宏"
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
 def test_session_uses_sdp_import():
-    """session.html must import sdp primitives."""
+    """session.html 必须导入 sdp 原语。"""
     source = _session_source()
-    assert "import" in source and "sdp" in source, "Should import sdp primitives"
+    assert "import" in source and "sdp" in source, "应导入 sdp 原语"

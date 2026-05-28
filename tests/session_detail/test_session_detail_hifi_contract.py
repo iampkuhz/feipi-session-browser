@@ -1,15 +1,15 @@
-"""HIFI fixture session contract tests.
+"""HIFI fixture 会话契约测试。
 
-Verifies that the deterministic fixture session (tests/fixtures/session_hifi_fixture/)
-contains the required signals for visual testing:
-- Multiple rounds with different tool types
-- At least one tool call failure
-- Anomaly signals (failed subagent)
-- Token usage across all categories (input, output, cache_read, cache_write)
-- Mix of LLM calls and tool calls
-- Subagent interaction (even if failed)
+验证确定性 fixture 会话 (tests/fixtures/session_hifi_fixture/)
+包含视觉测试所需的信号:
+- 多轮对话使用不同工具类型
+- 至少一个工具调用失败
+- 异常信号（失败的 subagent）
+- 所有类别的 token 使用情况（input、output、cache_read、cache_write）
+- LLM 调用和工具调用的混合
+- Subagent 交互（即使失败）
 
-Runs with standard pytest using the hifi_fixture_session fixture from conftest.py.
+使用标准 pytest 运行，使用 conftest.py 中的 hifi_fixture_session fixture。
 """
 
 import pytest
@@ -28,11 +28,11 @@ SRC_DIR = os.path.join(SB_ROOT, "src")
 
 
 class TestFixtureSessionRenders:
-    """Basic smoke tests: the fixture session page renders without errors."""
+    """基本冒烟测试: fixture 会话页面正常渲染。"""
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_session_has_content(self, hifi_fixture_session):
-        """Fixture session must render non-empty HTML with expected structure."""
+        """Fixture 会话必须渲染非空 HTML 且具有预期结构。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -41,36 +41,36 @@ class TestFixtureSessionRenders:
         body = soup.find("body")
         assert body is not None
         assert len(body.get_text(strip=True)) > 100
-        # HTTP 200 implied by get_html; verify key structural elements
+        # HTTP 200 由 get_html 隐含验证；验证关键结构元素
         assert soup.select_one("[data-session-detail-shell]") is not None
         assert soup.select_one("[data-trace-panel]") is not None
 
 
 class TestFixtureDataAttributes:
-    """Verify the fixture session has correct data attributes for HIFI wiring."""
+    """验证 fixture 会话具有正确的 data 属性以支持 HIFI 布线。"""
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_view_switch_buttons(self, hifi_fixture_session):
-        """v18: no data-switch buttons for calls/hotspots; toggle-all and filter controls exist."""
+        """v18: 无 data-switch 按钮用于 calls/hotspots；存在 toggle-all 和过滤控件。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        # Old view switch buttons must NOT exist
+        # 旧的视图切换按钮不得存在
         for view in ("calls", "hotspots"):
             btn = soup.select_one(f'[data-switch="{view}"]')
             assert btn is None, f'unexpected button with data-switch="{view}" (should be removed)'
-        # v18: filter controls use status-all/status-failed (HIFI table migration)
+        # v18: 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
         has_new = soup.select_one('[data-action="status-all"]') is not None or \
                   soup.select_one('[data-action="status-failed"]') is not None
         has_legacy = soup.select_one('[data-action="filter-status"]') is not None
-        assert has_new or has_legacy, 'missing filter status buttons (status-all/status-failed or legacy filter-status)'
-        # toggle-all must exist (single button, no separate collapse-all)
+        assert has_new or has_legacy, '缺少过滤状态按钮（status-all/status-failed 或旧版 filter-status）'
+        # toggle-all 必须存在（单个按钮，无独立的 collapse-all）
         btn = soup.select_one('[data-action="toggle-all"]')
-        assert btn is not None, 'missing button with data-action="toggle-all"'
+        assert btn is not None, '缺少 data-action="toggle-all" 按钮'
         btn_collapse = soup.select_one('[data-action="collapse-all"]')
-        assert btn_collapse is None, 'collapse-all button must not exist (use toggle-all only)'
-        # expand-visible was removed in v9
+        assert btn_collapse is None, 'collapse-all 按钮不得存在（仅使用 toggle-all）'
+        # expand-visible 在 v9 中已移除
         btn = soup.select_one('[data-action="expand-visible"]')
         assert btn is None, "expand-visible button should not exist in v9"
 
@@ -85,14 +85,14 @@ class TestFixtureDataAttributes:
         assert panel is not None, "missing [data-trace-panel]"
         issue = soup.select_one("[data-issue-strip]")
         assert issue is not None, "missing [data-issue-strip]"
-        # Old view panels must NOT exist
+        # 旧的视图面板不得存在
         for view in ("calls", "hotspots"):
             panel = soup.select_one(f'[data-view="{view}"]')
             assert panel is None, f'unexpected panel with data-view="{view}" (should be removed)'
 
 
 class TestFixtureRoundCount:
-    """Verify the fixture has the expected number of conversation rounds."""
+    """验证 fixture 具有预期数量的对话轮次。"""
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_at_least_3_rounds(self, hifi_fixture_session):
@@ -101,7 +101,7 @@ class TestFixtureRoundCount:
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        # v9: Timeline rows use [data-trace-round-row]
+        # v9：时间线行使用 [data-trace-round-row]
         timeline_rows = soup.select("[data-trace-round-row]")
         round_count = len(timeline_rows)
         assert round_count >= 3, f"Expected at least 3 rounds, found {round_count}"
@@ -113,17 +113,17 @@ class TestFixtureRoundCount:
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        # v9: tool groups use [data-tool-batch-id]
+        # v9：工具组使用 [data-tool-batch-id]
         tool_elements = soup.select("[data-tool-batch-id]")
         assert len(tool_elements) > 0, "No tool batch elements found in rounds"
 
 
 class TestFixtureTokenData:
-    """Verify the fixture session has token data across all categories."""
+    """验证 fixture 会话包含所有类别的 token 数据。"""
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_token_bar_elements_present(self, hifi_fixture_session):
-        """Token bar elements should be rendered in round rows."""
+        """Round 行中应渲染 token bar 元素。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -134,7 +134,7 @@ class TestFixtureTokenData:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_session_has_token_summary(self, hifi_fixture_session):
-        """Session page should display token summary/metrics."""
+        """会话页面应显示 token 摘要/指标。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -143,11 +143,11 @@ class TestFixtureTokenData:
 
 
 class TestFixtureAnomalySignals:
-    """Verify the fixture session triggers anomaly signals."""
+    """验证 fixture 会话触发异常信号。"""
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_session_page_has_anomaly_elements(self, hifi_fixture_session):
-        """Session page should render anomaly-related elements if detected."""
+        """如果检测到异常，会话页面应渲染异常相关元素。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -161,11 +161,11 @@ class TestFixtureAnomalySignals:
 
 
 class TestFixtureFailedToolCall:
-    """Verify the fixture has at least one failed tool call."""
+    """验证 fixture 包含至少一个失败的工具调用。"""
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_failed_tool_in_session_html(self, hifi_fixture_session):
-        """Session HTML should contain references to failed tool or error state."""
+        """会话 HTML 应包含失败工具或错误状态的引用。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -181,11 +181,11 @@ class TestFixtureFailedToolCall:
 
 
 class TestFixtureLLMCalls:
-    """Verify the fixture has multiple LLM calls."""
+    """验证 fixture 包含多个 LLM 调用。"""
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_calls_view_removed(self, hifi_fixture_session):
-        """Phase 1: calls view is removed; trace panel with token data should exist."""
+        """阶段 1：calls 视图已移除；应存在带 token 数据的 trace 面板。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -196,10 +196,10 @@ class TestFixtureLLMCalls:
 
 
 class TestFixtureDirectParser:
-    """Directly parse the fixture JSONL to verify its contents, without HTTP."""
+    """直接解析 fixture JSONL 以验证其内容，无需 HTTP。"""
 
     def _parse_fixture(self):
-        """Parse the fixture JSONL directly and return structured data."""
+        """直接解析 fixture JSONL，返回结构化数据。"""
         import importlib
         sys.path.insert(0, SRC_DIR)
         fixture_dir = os.path.join(
@@ -235,27 +235,27 @@ class TestFixtureDirectParser:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_has_multiple_rounds(self):
-        """Fixture must produce at least 3 conversation rounds."""
+        """Fixture 必须产生至少 3 个对话轮次。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
         assistant_msgs = [m for m in messages if m.role == "assistant" and m.content]
         assert len(assistant_msgs) >= 3, f"Expected >= 3 assistant messages, got {len(assistant_msgs)}"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_has_tool_calls(self):
-        """Fixture must contain tool calls."""
+        """Fixture 必须包含工具调用。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
         assert len(tool_calls) > 0, "No tool calls found in fixture"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_has_failed_tool(self):
-        """Fixture must have at least one failed tool call."""
+        """Fixture 必须包含至少一个失败的工具调用。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
         failed = [tc for tc in tool_calls if tc.is_failed]
         assert len(failed) > 0, f"No failed tool calls found. Tool statuses: {[tc.status for tc in tool_calls]}"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_has_token_usage(self):
-        """Fixture must have non-zero token counts across categories."""
+        """Fixture 在各类别中必须有非零的 token 计数。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
         assert summary.input_tokens > 0, f"input_tokens is 0"
         assert summary.output_tokens > 0, f"output_tokens is 0"
@@ -265,21 +265,21 @@ class TestFixtureDirectParser:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_has_multiple_tool_types(self):
-        """Fixture must use at least 3 different tool types."""
+        """Fixture 必须使用至少 3 种不同的工具类型。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
         tool_names = set(tc.name for tc in tool_calls)
         assert len(tool_names) >= 3, f"Expected >= 3 tool types, got {tool_names}"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_has_subagent_run(self):
-        """Fixture must include a subagent run (even if it failed)."""
+        """Fixture 必须包含一个 subagent run（即使失败）。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
         agent_tools = [tc for tc in tool_calls if tc.name == "Agent"]
         assert len(agent_tools) > 0, "No Agent tool calls found — fixture should include a subagent"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_session_summary_fields(self):
-        """SessionSummary must be populated with expected metadata."""
+        """SessionSummary 必须填充预期的元数据。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
         assert summary.agent == "claude_code"
         assert summary.session_id == "hifi-viz-session-001"
@@ -291,7 +291,7 @@ class TestFixtureDirectParser:
 
 
 class TestHifiDomSelectors:
-    """Positive assertions for required HIFI DOM data selectors."""
+    """对所需 HIFI DOM data 选择器的正向断言。"""
 
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
@@ -301,59 +301,59 @@ class TestHifiDomSelectors:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_data_session_detail_shell(self, hifi_fixture_session):
-        """Root shell wrapper must exist."""
+        """必须存在根 shell 包裹元素。"""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one("[data-session-detail-shell]")
         assert el is not None, "missing [data-session-detail-shell]"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_data_session_overview_hero(self, hifi_fixture_session):
-        """Overview hero must exist."""
+        """必须存在概览 hero。"""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one("[data-session-overview-hero]")
         assert el is not None, "missing [data-session-overview-hero]"
 
-    # v9 does not render an anomaly banner element in session detail
-    # (anomaly detection is in dashboard; round-level status shown via sd-round-status)
+    # v9 不在会话详情中渲染异常横幅元素
+    #（异常检测在仪表板中；轮次级状态通过 sd-round-status 显示）
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_data_trace_panel(self, hifi_fixture_session):
-        """Trace panel container must exist (replaces old workbench)."""
+        """必须存在 trace 面板容器（替代旧版 workbench）。"""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one("[data-trace-panel]")
         assert el is not None, "missing [data-trace-panel]"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_data_trace_list(self, hifi_fixture_session):
-        """Trace list (.trace-list or equivalent container) must exist."""
+        """必须存在 trace 列表（.trace-list 或等效容器）。"""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one(".trace-list") or soup.select_one("[data-trace-panel]")
         assert el is not None, "missing trace list container"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_data_workbench_view_calls_removed(self, hifi_fixture_session):
-        """Workbench calls view must NOT exist (removed in Phase 1)."""
+        """workbench calls 视图不得存在（阶段 1 已移除）。"""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one('[data-workbench-view="calls"]')
         assert el is None, 'unexpected [data-workbench-view="calls"] (should be removed)'
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_data_workbench_view_hotspots_removed(self, hifi_fixture_session):
-        """Workbench hotspots view must NOT exist (removed in Phase 1)."""
+        """workbench hotspots 视图不得存在（阶段 1 已移除）。"""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one('[data-workbench-view="hotspots"]')
         assert el is None, 'unexpected [data-workbench-view="hotspots"] (should be removed)'
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_data_context_inspector(self, hifi_fixture_session):
-        """Context inspector must NOT exist on session detail (Phase 1 removes default inspector)."""
+        """会话详情不得存在 context inspector（阶段 1 移除默认 inspector）。"""
         soup, _ = self._soup(hifi_fixture_session)
         el = soup.select_one("[data-context-inspector]")
         assert el is None, "[data-context-inspector] should not exist on session detail (Phase 1)"
 
 
 class TestLegacyNegativeContract:
-    """Legacy negative tests: verify old patterns are not the primary layout."""
+    """旧版负向契约测试：验证旧模式不再是主要布局。"""
 
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
@@ -363,16 +363,16 @@ class TestLegacyNegativeContract:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_no_legacy_top_level_tabs(self, hifi_fixture_session):
-        """Top-level Profile/Timeline/Hotspots tabs must not be the primary layout."""
+        """顶级 Profile/Timeline/Hotspots 标签页不得作为主要布局。"""
         soup, html = self._soup(hifi_fixture_session)
-        # Check for old-style tab navigation with these labels
+        # 检查旧式标签页导航
         legacy_tabs = soup.select(".tab-nav, .tab-bar, nav[aria-label*='tab']")
         for tab in legacy_tabs:
             text = tab.get_text(strip=True).lower()
             assert not any(kw in text for kw in ["profile", "timeline", "hotspots"]), \
                 f"Legacy top-level tabs found: {tab.get_text(strip=True)}"
 
-        # Also check for standalone tab buttons
+        # 同时检查独立的标签页按钮
         tab_buttons = soup.select("button[data-tab], .tab-item, .nav-tab")
         for btn in tab_buttons:
             text = btn.get_text(strip=True).lower()
@@ -381,25 +381,25 @@ class TestLegacyNegativeContract:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_trace_view_no_hotspots_cards(self, hifi_fixture_session):
-        """Trace panel must not contain Hotspots cards."""
+        """trace 面板不得包含 Hotspots 卡片。"""
         soup, _ = self._soup(hifi_fixture_session)
         trace_panel = soup.select_one("[data-trace-panel]")
         assert trace_panel is not None, "trace panel container missing"
-        # Hotspots cards use .hotspot-card or .hot-card classes
+        # Hotspots 卡片使用 .hotspot-card 或 .hot-card 类
         hotspots_cards = trace_panel.select(".hotspot-card, .hot-card, .hotspots-diagnostic")
         assert len(hotspots_cards) == 0, \
             f"Trace panel contains {len(hotspots_cards)} hotspots card(s)"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_calls_view_no_inline_large_payload(self, hifi_fixture_session):
-        """Calls view must not exist in Phase 1 (negative test)."""
+        """calls 视图在阶段 1 不得存在（负向测试）。"""
         soup, html = self._soup(hifi_fixture_session)
         calls_view = soup.select_one('[data-view="calls"]')
         assert calls_view is None, "calls view should not exist in Phase 1"
 
 
 class TestShellResidue:
-    """Shell residue tests: verify removed entries are not present."""
+    """Shell 残留测试：验证已移除条目不存在。"""
 
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
@@ -409,19 +409,19 @@ class TestShellResidue:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_no_round_map(self, hifi_fixture_session):
-        """Round Map must not appear in sidebar."""
+        """Round Map 不得出现在侧边栏。"""
         soup, _ = self._soup(hifi_fixture_session)
         round_map = soup.select_one(".round-map")
         assert round_map is None, "sidebar Round Map must be removed"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_no_sidebar_extra(self, hifi_fixture_session):
-        """Sidebar extra block must be empty on session detail."""
+        """侧边栏额外区块在会话详情上必须为空。"""
         soup, _ = self._soup(hifi_fixture_session)
         sidebar_extra = soup.select_one("aside .nav-label + .map-row")
-        # More precise: check no sidebar_extra content
+        # 更精确：检查无侧边栏额外内容
         sidebar_navs = soup.select("aside .nav a")
-        # Should only have Sessions and Dashboard
+        # 应只有 Sessions 和 Dashboard
         hrefs = [a.get("href", "") for a in sidebar_navs]
         for h in hrefs:
             assert h in ("/sessions", "/dashboard", "#"), \
@@ -429,9 +429,9 @@ class TestShellResidue:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_no_topbar_toggles(self, hifi_fixture_session):
-        """Topbar toggle buttons (☰ left, ☰ right, focus ●) must not render."""
+        """顶栏切换按钮不得渲染。"""
         soup, html = self._soup(hifi_fixture_session)
-        # Check that the topbar-actions does NOT contain the toggle buttons
+        # 检查 topbar-actions 不包含切换按钮
         topbar_actions = soup.select_one(".topbar-actions")
         if topbar_actions:
             top_btns = topbar_actions.select("button.top-btn")
@@ -446,7 +446,7 @@ class TestShellResidue:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_no_disabled_placeholders(self, hifi_fixture_session):
-        """No visible disabled placeholder buttons."""
+        """无可见的禁用占位按钮。"""
         soup, html = self._soup(hifi_fixture_session)
         disabled = soup.select('button[disabled]')
         visible_disabled = [b for b in disabled
@@ -456,17 +456,17 @@ class TestShellResidue:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_no_content_modal(self, hifi_fixture_session):
-        """Content-modal element must not exist."""
+        """Content-modal 元素不得存在。"""
         soup, html = self._soup(hifi_fixture_session)
         modal = soup.select_one("#content-modal")
         assert modal is None, "content-modal element must be removed"
-        # openContentModal must not be defined as window.openContentModal
+        # openContentModal 不得定义为 window.openContentModal
         assert "window.openContentModal = function" not in html, \
             "window.openContentModal must not be defined"
 
 
 class TestTraceRowAria:
-    """Trace rows must be semantic buttons with proper ARIA."""
+    """Trace 行必须是具有适当 ARIA 的语义按钮。"""
 
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
@@ -476,7 +476,7 @@ class TestTraceRowAria:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_trace_rows_are_not_buttons(self, hifi_fixture_session):
-        """Trace rows must be <article> elements, NOT <button> (to avoid nested button conflict)."""
+        """Trace 行必须是 <article> 元素，而非 <button>（避免嵌套按钮冲突）。"""
         soup, _ = self._soup(hifi_fixture_session)
         rows = soup.select("[data-trace-round-row]")
         assert len(rows) > 0, "No trace rows found"
@@ -486,9 +486,9 @@ class TestTraceRowAria:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_trace_rows_are_clickable(self, hifi_fixture_session):
-        """Each trace row must be clickable to toggle expand/collapse.
-        Rows use data-round and data-trace-round-row attributes;
-        JS handles click via toggleRoundByRow()."""
+        """每个 trace 行必须可点击以切换展开/折叠。
+        行使用 data-round 和 data-trace-round-row 属性；
+        JS 通过 toggleRoundByRow() 处理点击。"""
         soup, _ = self._soup(hifi_fixture_session)
         rows = soup.select("[data-trace-round-row]")
         assert len(rows) > 0, "No trace rows found"
@@ -498,9 +498,9 @@ class TestTraceRowAria:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_trace_rows_have_aria_expanded(self, hifi_fixture_session):
-        """Toggle elements must have aria-expanded."""
+        """切换元素必须具有 aria-expanded。"""
         soup, _ = self._soup(hifi_fixture_session)
-        # Check both toggle buttons and rows that have aria-expanded
+        # 同时检查切换按钮和具有 aria-expanded 的行
         toggles = soup.select("[data-action='toggle-round'][aria-expanded]")
         rows = soup.select("[data-trace-round-row][aria-expanded]")
         total = len(toggles) + len(rows)
@@ -509,7 +509,7 @@ class TestTraceRowAria:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_trace_toggle_aria_controls_exist(self, hifi_fixture_session):
-        """Toggle elements with aria-controls must reference a valid detail element."""
+        """带有 aria-controls 的切换元素必须引用有效的 detail 元素。"""
         soup, _ = self._soup(hifi_fixture_session)
         toggles = soup.select("[data-action='toggle-round'][aria-controls]")
         for toggle in toggles:
@@ -520,7 +520,7 @@ class TestTraceRowAria:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_trace_detail_has_matching_id(self, hifi_fixture_session):
-        """Each trace-detail must have an id matching the pattern trace-detail-N."""
+        """每个 trace-detail 必须有匹配 trace-detail-N 模式的 id。"""
         soup, _ = self._soup(hifi_fixture_session)
         details = soup.select(".trace-detail")
         for detail in details:
@@ -530,7 +530,7 @@ class TestTraceRowAria:
 
 
 class TestDeadButtonGate:
-    """Every visible button must have a supported data-action."""
+    """每个可见按钮必须有支持的 data-action。"""
 
     def _soup(self, hifi_fixture_session):
         base_url, agent, session_id = hifi_fixture_session
@@ -547,27 +547,27 @@ class TestDeadButtonGate:
         "copy-session-id",
     }
 
-    # Sidebar nav actions (nav-*) are validated separately by sidebar contract tests
+    # 侧边栏导航操作（nav-*）由侧边栏契约测试单独验证
     NAV_ACTIONS_PREFIX = "nav-"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_all_buttons_have_supported_data_action(self, hifi_fixture_session):
-        """All visible buttons must have a supported data-action or known role."""
+        """所有可见按钮必须有支持的 data-action 或已知角色。"""
         soup, _ = self._soup(hifi_fixture_session)
         buttons = soup.select("button")
         for btn in buttons:
             action = btn.get("data-action")
             title = btn.get("title", "")[:40]
             cls = btn.get("class", [])
-            # Skip buttons without data-action that have other valid roles
+            # 跳过无 data-action 但有其他有效角色的按钮
             if action is None:
-                # Allow type='submit' or type='reset' buttons
+                # 允许 type='submit' 或 type='reset' 按钮
                 if btn.get("type") in ("submit", "reset"):
                     continue
-                # Skip topbar toggles with onclick (legacy base.html patterns)
+                # 跳过带 onclick 的顶栏切换按钮（旧版 base.html 模式）
                 if "top-btn" in cls and btn.get("onclick"):
                     continue
-                # Skip payload buttons in modal tabs (they use data-mode)
+                # 跳过模态标签页中的 payload 按钮（它们使用 data-mode）
                 if "payload-modal__tab" in cls or "payload-modal__close" in cls:
                     continue
                 assert False, \

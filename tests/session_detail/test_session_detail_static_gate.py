@@ -35,7 +35,7 @@ def _run_checks(css, base, session):
             p / "shell.css",
             p / "base.html",
             p / "session.html",
-            None,  # shell_css not needed for temp fixture tests
+            None,  # 临时 fixture 测试不需要 shell_css
         )
 
 

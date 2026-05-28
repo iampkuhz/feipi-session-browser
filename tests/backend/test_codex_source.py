@@ -1,4 +1,4 @@
-"""Tests for Codex parser."""
+"""Codex 解析器测试。"""
 import pytest
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_parse_session_index_empty_when_missing():
-    """Test that parse_session_index returns empty when no data dir."""
+    """测试无数据目录时 parse_session_index 返回空列表。"""
     from session_browser.sources import codex
     import tempfile
 
@@ -22,7 +22,7 @@ def test_parse_session_index_empty_when_missing():
 
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_read_threads_db_empty_when_missing():
-    """Test that read_threads_db returns empty when no DB."""
+    """测试无数据库时 read_threads_db 返回空字典。"""
     from session_browser.sources import codex
     import tempfile
 
@@ -38,7 +38,7 @@ def test_read_threads_db_empty_when_missing():
 
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_session_file_search():
-    """Test that _find_session_file walks the hierarchy."""
+    """测试 _find_session_file 遍历层级目录。"""
     from session_browser.sources import codex
     import tempfile
 
@@ -46,7 +46,7 @@ def test_session_file_search():
         original = codex.CODEX_DATA_DIR
         codex.CODEX_DATA_DIR = Path(tmpdir)
         try:
-            # Create a fake session file
+            # 创建模拟会话文件
             session_dir = Path(tmpdir) / "sessions" / "2026" / "03" / "28"
             session_dir.mkdir(parents=True)
             session_file = session_dir / "rollout-2026-03-28T15-54-11-019d336f.jsonl"

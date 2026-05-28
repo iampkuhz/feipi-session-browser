@@ -17,12 +17,12 @@ import sqlite3
 import sys
 from pathlib import Path, PurePosixPath
 
-# ─── Constants ──────────────────────────────────────────────────────────────
+# ─── 常量 ──────────────────────────────────────────────────────────────
 
 SESSION_ID = "path-test-session-001"
 PROJECT_DIR_NAME = "my-cool-project"
 
-# Minimal Qoder JSONL events for CLI format (has cwd)
+# CLI 格式的最小化 Qoder JSONL 事件（含 cwd）
 CLI_JSONL_LINES = [
     json.dumps({
         "type": "user",
@@ -49,7 +49,7 @@ CLI_JSONL_LINES = [
 
 CLI_JSONL_CONTENT = "\n".join(CLI_JSONL_LINES) + "\n"
 
-# Minimal Qoder cache-format JSONL events (no cwd field)
+# 缓存格式的最小化 Qoder JSONL 事件（无 cwd 字段）
 CACHE_JSONL_LINES = [
     json.dumps({
         "role": "user",
@@ -63,13 +63,13 @@ CACHE_JSONL_LINES = [
 
 CACHE_JSONL_CONTENT = "\n".join(CACHE_JSONL_LINES) + "\n"
 
-# Cache format with cwd-missing CLI-style events (no cwd in user event)
+# 缺少 cwd 的 CLI 风格缓存格式事件（用户事件中无 cwd）
 NO_CWD_CLI_JSONL_LINES = [
     json.dumps({
         "type": "user",
         "message": {"role": "user", "content": "Hello no cwd"},
         "timestamp": "2026-05-01T10:00:00.000Z",
-        # Deliberately no "cwd" field
+        # 故意不包含 "cwd" 字段
         "entrypoint": "cli",
         "sessionId": SESSION_ID,
         "version": "1.0.0",
@@ -94,7 +94,7 @@ NO_CWD_CLI_JSONL_CONTENT = "\n".join(NO_CWD_CLI_JSONL_LINES) + "\n"
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 def _setup_qoder_env(data_dir: str):
-    """Set QODER_DATA_DIR and reload dependent modules."""
+    """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("QODER_DATA_DIR", None)
     os.environ["QODER_DATA_DIR"] = data_dir
 
@@ -112,7 +112,7 @@ def _setup_qoder_env(data_dir: str):
 
 
 def _restore_qoder_env(old: str | None):
-    """Restore original QODER_DATA_DIR."""
+    """恢复原始的 QODER_DATA_DIR。"""
     if old is not None:
         os.environ["QODER_DATA_DIR"] = old
     else:
@@ -120,7 +120,7 @@ def _restore_qoder_env(old: str | None):
 
 
 def _run_full_scan(data_dir: str, db_path: str) -> dict:
-    """Run full_scan() against data_dir, returning scan statistics."""
+    """对 data_dir 运行 full_scan()，返回扫描统计。"""
     old_env = _setup_qoder_env(data_dir)
     try:
         from session_browser.index.indexer import full_scan
@@ -135,7 +135,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 
 
 def _query_session(db_path: str, session_key: str) -> dict | None:
-    """Query a session by session_key and return its row as a dict."""
+    """按 session_key 查询会话并返回其行字典。"""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     row = conn.execute(
@@ -151,7 +151,7 @@ def _query_session(db_path: str, session_key: str) -> dict | None:
 
 @pytest.fixture()
 def cli_cwd_fixture(tmp_path: Path) -> tuple[Path, str]:
-    """Create a Qoder CLI session with cwd field."""
+    """创建带 cwd 字段的 Qoder CLI 会话。"""
     data_dir = tmp_path / "qoder_cli_cwd"
     projects_dir = data_dir / "projects" / PROJECT_DIR_NAME
     projects_dir.mkdir(parents=True, exist_ok=True)
@@ -161,7 +161,7 @@ def cli_cwd_fixture(tmp_path: Path) -> tuple[Path, str]:
 
 @pytest.fixture()
 def no_cwd_cli_fixture(tmp_path: Path) -> tuple[Path, str]:
-    """Create a Qoder CLI session without cwd field."""
+    """创建不带 cwd 字段的 Qoder CLI 会话。"""
     data_dir = tmp_path / "qoder_no_cwd_cli"
     projects_dir = data_dir / "projects" / PROJECT_DIR_NAME
     projects_dir.mkdir(parents=True, exist_ok=True)
@@ -171,7 +171,7 @@ def no_cwd_cli_fixture(tmp_path: Path) -> tuple[Path, str]:
 
 @pytest.fixture()
 def cache_fixture(tmp_path: Path) -> tuple[Path, str]:
-    """Create a Qoder cache-format session (no cwd)."""
+    """创建 Qoder cache 格式会话（无 cwd）。"""
     data_dir = tmp_path / "qoder_cache"
     cache_dir = data_dir / "cache" / "projects" / PROJECT_DIR_NAME / "conversation-history" / SESSION_ID
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -190,8 +190,8 @@ class TestQoderProjectPathContract:
 
     @pytest.mark.contract_case("DATA-INDEX-011")
     def test_cli_session_with_cwd_uses_cwd_as_project_key(self, cli_cwd_fixture, tmp_path):
-        """When cwd exists in events, project_key should be derived from cwd,
-        not from the directory-based project_key."""
+        """当事件中存在 cwd 时，project_key 应从 cwd 推导，
+        而非基于目录的 project_key。"""
         data_dir, expected_cwd = cli_cwd_fixture
         db_path = str(tmp_path / "index.sqlite")
         _run_full_scan(str(data_dir), db_path)
@@ -213,8 +213,8 @@ class TestQoderProjectPathContract:
 
     @pytest.mark.contract_case("DATA-INDEX-011")
     def test_no_cwd_session_uses_directory_name(self, no_cwd_cli_fixture, tmp_path):
-        """When cwd is missing, project_key should use the directory-based
-        project_key (URL-decoded path from projects/), and should NOT be '.'."""
+        """当事件中不存在 cwd 时，project_key 应使用基于目录的
+        project_key（来自 projects/ 的 URL 解码路径），且不应为 '.'。"""
         data_dir, expected_project_name = no_cwd_cli_fixture
         db_path = str(tmp_path / "index.sqlite")
         _run_full_scan(str(data_dir), db_path)
@@ -222,12 +222,12 @@ class TestQoderProjectPathContract:
         session = _query_session(db_path, f"qoder:{SESSION_ID}")
         assert session is not None, "Session should be indexed"
 
-        # cwd should be empty or missing when not present in events
+        # 当事件中不存在时，cwd 应为空或缺失
         assert session["cwd"] == "", (
             f"cwd should be empty when not in events, got '{session['cwd']}'"
         )
 
-        # project_key should be the directory name, NOT '.'
+        # project_key 应为目录名，而非 '.'
         assert session["project_key"] != ".", (
             f"project_key should not be '.', got '{session['project_key']}'"
         )
@@ -242,7 +242,7 @@ class TestQoderProjectPathContract:
 
     @pytest.mark.contract_case("DATA-INDEX-011")
     def test_cache_session_no_cwd_project_key_not_dot(self, cache_fixture, tmp_path):
-        """Cache-format sessions have no cwd; project_key must not be '.'."""
+        """缓存格式的会话没有 cwd；project_key 绝不能为 '.'。"""
         data_dir, expected_project_name = cache_fixture
         db_path = str(tmp_path / "index.sqlite")
         _run_full_scan(str(data_dir), db_path)
@@ -264,10 +264,10 @@ class TestQoderProjectPathContract:
 
     @pytest.mark.contract_case("DATA-INDEX-011")
     def test_project_name_is_meaningful_folder_name(self, tmp_path):
-        """project_name should always be the last meaningful path segment,
-        not '.' or empty."""
+        """project_name 应始终为最后一个有意义的路径段，
+        而非 '.' 或空。"""
         data_dir = tmp_path / "qoder_project_name"
-        # Create a session under a normal project directory
+        # 在正常项目目录下创建会话
         projects_dir = data_dir / "projects" / "real-project-name"
         projects_dir.mkdir(parents=True, exist_ok=True)
         (projects_dir / f"{SESSION_ID}.jsonl").write_text(CLI_JSONL_CONTENT)
@@ -278,7 +278,7 @@ class TestQoderProjectPathContract:
         session = _query_session(db_path, f"qoder:{SESSION_ID}")
         assert session is not None
 
-        # When cwd exists, project_name is derived from cwd
+        # 当 cwd 存在时，project_name 从 cwd 推导
         assert session["project_name"] != ".", (
             f"project_name should never be '.', got '{session['project_name']}'"
         )

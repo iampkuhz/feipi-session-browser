@@ -30,7 +30,7 @@ def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-# ── Hero area ────────────────────────────────────────────────────────
+# ── 主视觉区 ────────────────────────────────────────────────────────
 
 
 class TestHeroArea:
@@ -78,7 +78,7 @@ class TestHeroArea:
     def test_kpi_tokens(self, timeline):
         """KPIs must include Tokens."""
         assert "sd-kpi" in timeline, "Missing .sd-kpi items"
-        # Find the tokens KPI block
+        # 查找 token KPI 区块
         assert "Tokens" in timeline, "Missing Tokens KPI label"
         assert "metrics.tokens" in timeline, \
             "KPI must render metrics.tokens value"

@@ -1,4 +1,4 @@
-"""Tests for scripts/quality/run_required_quality_gates.py."""
+"""测试 scripts/quality/run_required_quality_gates.py。"""
 import pytest
 import importlib.util
 import json
@@ -14,7 +14,7 @@ _spec.loader.exec_module(_runner)
 
 
 def _setup_env(changed_files: list[dict], session_id: str | None = "test-session-001"):
-    """Create temp env with changed-files.jsonl and optional session-id.txt."""
+    """创建包含 changed-files.jsonl 和可选 session-id.txt 的临时环境。"""
     td = Path(tempfile.mkdtemp())
     agent_log = td / "agent_logs" / "current"
     agent_log.mkdir(parents=True)
@@ -28,7 +28,7 @@ def _setup_env(changed_files: list[dict], session_id: str | None = "test-session
     if session_id:
         (agent_log / "session-id.txt").write_text(session_id)
 
-    # Patch module globals
+    # 修补模块全局变量
     _runner.AGENT_LOG_DIR = agent_log
     _runner.CHANGED_FILES = cf
     _runner.SESSION_ID_FILE = agent_log / "session-id.txt"
@@ -39,7 +39,7 @@ def _setup_env(changed_files: list[dict], session_id: str | None = "test-session
 
 
 def _write_hook_quality_changes(cf_path: Path):
-    """Write changed-files entry that triggers hook-runtime target."""
+    """写入触发 hook-runtime 目标的 changed-files 条目。"""
     cf_path.write_text(json.dumps({
         "ts": "2026-05-24T00:00:00Z",
         "tool": "Edit",
@@ -53,7 +53,7 @@ def _write_hook_quality_changes(cf_path: Path):
 class TestDryRun:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_dry_run_hook_runtime_detected(self):
-        """Changed files include scripts/quality/*.py => hook-runtime in required targets, session-detail skipped."""
+        """变更文件包含 scripts/quality/*.py => hook-runtime 出现在必需目标中，session-detail 被跳过。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -69,13 +69,13 @@ class TestDryRun:
             rc = _runner.main()
         finally:
             sys.argv = old_argv
-        assert rc == 0  # dry-run always returns 0
+        assert rc == 0  # dry-run 始终返回 0
 
 
 class TestNoRequiredTargets:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_empty_changed_files(self):
-        """No changed files => exit 0."""
+        """无变更文件 => 退出码 0。"""
         td = _setup_env([])
         old_argv = sys.argv
         try:
@@ -87,7 +87,7 @@ class TestNoRequiredTargets:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_docs_only(self):
-        """Only docs changed => no quality targets => exit 0."""
+        """仅文档变更 => 无质量目标 => 退出码 0。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -108,7 +108,7 @@ class TestNoRequiredTargets:
 class TestSessionDetailExcluded:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_session_detail_not_in_executed_targets(self):
-        """UI files changed => session-detail in required but excluded from runner execution."""
+        """UI 文件变更 => session-detail 在必需目标中但被 runner 排除。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -121,13 +121,13 @@ class TestSessionDetailExcluded:
         changed_files = _runner.get_changed_files()
         all_targets = _runner.compute_required_targets(changed_files, _runner.EXCLUDED_TARGETS)
         assert "session-detail" not in all_targets, \
-            "session-detail must be excluded from runner targets"
+            "session-detail 必须从 runner 目标中排除"
 
 
 class TestChangedFilesReading:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_reads_from_jsonl(self):
-        """Changed files should be read from changed-files.jsonl."""
+        """应从 changed-files.jsonl 读取变更文件。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -142,7 +142,7 @@ class TestChangedFilesReading:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_filters_by_session_id(self):
-        """Files with different sessionId should be filtered out."""
+        """不同 sessionId 的文件应被过滤掉。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -153,7 +153,7 @@ class TestChangedFilesReading:
         }], session_id="test-session-001")
 
         files = _runner.get_changed_files()
-        assert len(files) == 0, "Files from different session should be filtered"
+        assert len(files) == 0, "来自不同会话的文件应被过滤"
 
 
 class TestChangeIdResolution:
@@ -163,7 +163,7 @@ class TestChangeIdResolution:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_env_fallback(self, monkeypatch):
-        """When ACTIVE_CHANGE_ID env var is set, it should be returned."""
+        """设置 ACTIVE_CHANGE_ID 环境变量时应返回该值。"""
         tmp_dir = Path(tempfile.mkdtemp())
         monkeypatch.setattr(_runner, "REPO_ROOT", tmp_dir)
         old = os.environ.get("ACTIVE_CHANGE_ID")
@@ -178,14 +178,14 @@ class TestChangeIdResolution:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_unknown_fallback(self, monkeypatch):
-        """When no env var and no active-change file, return 'unknown'."""
+        """无环境变量且无 active-change 文件时，返回 'unknown'。"""
         tmp_dir = Path(tempfile.mkdtemp())
         monkeypatch.setattr(_runner, "REPO_ROOT", tmp_dir)
         old = os.environ.get("ACTIVE_CHANGE_ID")
         try:
             if "ACTIVE_CHANGE_ID" in os.environ:
                 del os.environ["ACTIVE_CHANGE_ID"]
-            # active-change file doesn't exist in temp env
+            # 临时环境中不存在 active-change 文件
             result = _runner.resolve_change_id(None)
             assert result == "unknown"
         finally:
@@ -194,7 +194,7 @@ class TestChangeIdResolution:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_active_change_file_exists(self, monkeypatch):
-        """When active-change file exists and no env var, return file content."""
+        """active-change 文件存在且无环境变量时，返回文件内容。"""
         tmp_dir = Path(tempfile.mkdtemp())
         (tmp_dir / "tmp").mkdir()
         (tmp_dir / "tmp" / "active-change").write_text("from-file-change")
@@ -213,16 +213,16 @@ class TestChangeIdResolution:
 class TestNoFeipiAgentLogDir:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_no_env_variable_used(self):
-        """Verify the script does not reference FEIPI_AGENT_LOG_DIR."""
+        """验证脚本不引用 FEIPI_AGENT_LOG_DIR。"""
         source = SCRIPT_PATH.read_text()
         assert "FEIPI_AGENT_LOG_DIR" not in source, \
-            "run_required_quality_gates.py must not reference FEIPI_AGENT_LOG_DIR"
+            "run_required_quality_gates.py 不得引用 FEIPI_AGENT_LOG_DIR"
 
 
 class TestIncludeSessionDetail:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_default_excludes_session_detail_dry_run(self):
-        """Default behavior: session-detail excluded from dry-run targets."""
+        """默认行为：session-detail 从 dry-run 目标中排除。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -242,7 +242,7 @@ class TestIncludeSessionDetail:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_include_session_detail_dry_run(self):
-        """--include-session-detail: session-detail appears in dry-run targets."""
+        """--include-session-detail：session-detail 出现在 dry-run 目标中。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -262,7 +262,7 @@ class TestIncludeSessionDetail:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_include_session_detail_computes_targets(self):
-        """--include-session-detail: compute_required_targets includes session-detail."""
+        """--include-session-detail：compute_required_targets 包含 session-detail。"""
         td = _setup_env([{
             "ts": "2026-05-24T00:00:00Z",
             "tool": "Edit",
@@ -273,11 +273,11 @@ class TestIncludeSessionDetail:
         }])
 
         changed_files = _runner.get_changed_files()
-        # With exclusion (default)
+        # 使用排除（默认）
         excluded_targets = _runner.compute_required_targets(changed_files, _runner.EXCLUDED_TARGETS)
         assert "session-detail" not in excluded_targets
 
-        # Without exclusion (--include-session-detail)
+        # 不使用排除（--include-session-detail）
         no_exclusion = set()
         all_targets = _runner.compute_required_targets(changed_files, no_exclusion)
         assert "session-detail" in all_targets
@@ -286,22 +286,22 @@ class TestIncludeSessionDetail:
 class TestStopShOrdering:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_run_required_before_stop_quality_gate(self):
-        """stop.sh must call run_required_quality_gates.py before stop_quality_gate.py."""
+        """stop.sh 必须在 stop_quality_gate.py 之前调用 run_required_quality_gates.py。"""
         stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"
         text = stop_sh.read_text()
 
         run_required_pos = text.find("run_required_quality_gates.py")
         stop_quality_pos = text.find("stop_quality_gate.py")
 
-        assert run_required_pos != -1, "run_required_quality_gates.py not found in stop.sh"
-        assert stop_quality_pos != -1, "stop_quality_gate.py not found in stop.sh"
+        assert run_required_pos != -1, "stop.sh 中未找到 run_required_quality_gates.py"
+        assert stop_quality_pos != -1, "stop.sh 中未找到 stop_quality_gate.py"
         assert run_required_pos < stop_quality_pos, \
-            f"run_required_quality_gates.py (pos {run_required_pos}) must appear before stop_quality_gate.py (pos {stop_quality_pos})"
+            f"run_required_quality_gates.py (位置 {run_required_pos}) 必须出现在 stop_quality_gate.py (位置 {stop_quality_pos}) 之前"
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_stop_sh_includes_session_detail_flag(self):
-        """stop.sh must pass --include-session-detail to run_required_quality_gates.py."""
+        """stop.sh 必须向 run_required_quality_gates.py 传递 --include-session-detail。"""
         stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"
         text = stop_sh.read_text()
         assert "--include-session-detail" in text, \
-            "stop.sh must pass --include-session-detail to run_required_quality_gates.py"
+            "stop.sh 必须向 run_required_quality_gates.py 传递 --include-session-detail"

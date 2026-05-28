@@ -1,19 +1,18 @@
-"""Dashboard page-level fixture tests.
+"""Dashboard 页面级夹具测试。
 
-These tests use the hifi_fixture_session to spin up a live server with
-deterministic fixture data, then verify the *rendered* Dashboard HTML
-(not just the static template file).
+这些测试使用 hifi_fixture_session 启动一个带有确定性夹具数据的本地服务器，
+然后验证*渲染后*的 Dashboard HTML（而非仅静态模板文件）。
 
-Covers:
-- Page renders and returns HTTP 200
-- Key data/metrics are visible (stats values > 0)
-- All metric cards present with populated values
-- Chart containers rendered with JSON data
-- Scope switch UI present
-- Overlays (tooltip, popover, toast) present
-- No inline onclick (accessibility gate)
+覆盖：
+- 页面渲染并返回 HTTP 200
+- 关键数据/指标可见（stats 值 > 0）
+- 所有指标卡片存在且填充了值
+- 图表容器渲染并嵌入了 JSON 数据
+- Scope switch UI 存在
+- 覆盖层（tooltip、popover、toast）存在
+- 无 inline onclick（可访问性门控）
 
-T092 — Dashboard fixed fixture.
+T092 — Dashboard 固定夹具。
 """
 
 from __future__ import annotations
@@ -22,17 +21,17 @@ import pytest
 import json
 import re
 
-# ── Dashboard page fixture ────────────────────────────────────────────
+# ── Dashboard 页面夹具 ────────────────────────────────────────────
 
 
 @pytest.fixture(scope="module")
 def dashboard_html(hifi_fixture_session):
-    """Fetch rendered dashboard HTML from the live fixture server."""
+    """从本地夹具服务器获取渲染后的 Dashboard HTML。"""
     base_url, agent, session_id = hifi_fixture_session
     import urllib.request
 
     resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=10)
-    assert resp.status == 200, "Dashboard must return HTTP 200"
+    assert resp.status == 200, "Dashboard 必须返回 HTTP 200"
     return resp.read().decode("utf-8")
 
 
@@ -40,165 +39,165 @@ def dashboard_html(hifi_fixture_session):
 
 
 class TestDashboardPageRender:
-    """Verify the rendered dashboard page structure."""
+    """验证渲染后的 Dashboard 页面结构。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-003")
     def test_page_returns_200(self, dashboard_html):
-        """Dashboard must render successfully."""
+        """Dashboard 必须成功渲染。"""
         assert len(dashboard_html) > 500, \
-            "Dashboard HTML must be substantial"
+            "Dashboard HTML 必须有足够内容"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-006")
     def test_has_doctype_and_html(self, dashboard_html):
-        """Page must have proper HTML structure."""
+        """页面必须有正确的 HTML 结构。"""
         assert "<!doctype html" in dashboard_html.lower() or "<!DOCTYPE html" in dashboard_html, \
-            "Dashboard must have DOCTYPE declaration"
+            "Dashboard 必须有 DOCTYPE 声明"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-007")
     def test_title_contains_dashboard(self, dashboard_html):
-        """Page title must contain 'Dashboard'."""
+        """页面标题必须包含 'Dashboard'。"""
         assert "<title>Dashboard" in dashboard_html, \
-            "Page title must contain 'Dashboard'"
+            "页面标题必须包含 'Dashboard'"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_has_h1_dashboard(self, dashboard_html):
-        """Page must have a visible 'Dashboard' heading."""
-        # Could be in an h1 or in the page-head component
+        """页面必须有可见的 'Dashboard' 标题。"""
+        # 可能在 h1 或 page-head 组件中
         assert "Dashboard" in dashboard_html, \
-            "Dashboard text must appear in rendered page"
+            "Dashboard 文本必须出现在渲染页面中"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-008")
     def test_has_subtitle(self, dashboard_html):
-        """Page must show the subtitle."""
+        """页面必须显示副标题。"""
         assert "Local agent session overview" in dashboard_html, \
-            "Subtitle 'Local agent session overview' must appear"
+            "副标题 'Local agent session overview' 必须出现"
 
 
 # ── TestDashboardMetrics ─────────────────────────────────────────────
 
 
 class TestDashboardMetrics:
-    """Verify rendered metric cards with actual data values."""
+    """验证渲染后的指标卡片及其实际数据值。"""
 
     _METRIC_LABELS = ["Projects", "Sessions", "Total Tokens", "Failed Tools"]
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-001")
     def test_metric_grid_present(self, dashboard_html):
-        """Dashboard must have a metric-grid container."""
+        """Dashboard 必须有 metric-grid 容器。"""
         assert 'class="metric-grid"' in dashboard_html, \
-            "metric-grid must be present"
+            "metric-grid 必须存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_four_metric_cards(self, dashboard_html):
-        """Exactly 4 metric cards must be rendered."""
+        """必须恰好渲染 4 个指标卡片。"""
         cards = re.findall(r'class="metric-card"', dashboard_html)
         assert len(cards) == 4, \
-            f"Expected 4 metric cards, found {len(cards)}"
+            f"预期 4 个指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.parametrize("label", ["Projects", "Sessions", "Total Tokens", "Failed Tools"])
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_label_present(self, dashboard_html, label):
-        """Each metric card must show its label."""
+        """每个指标卡片必须显示其标签。"""
         assert f">{label}<" in dashboard_html or f'aria-label="{label}"' in dashboard_html, \
-            f"Metric card labeled '{label}' must be visible"
+            f"标签为 '{label}' 的指标卡片必须可见"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_values_nonzero(self, dashboard_html):
-        """Metric cards must have populated values (not zero when fixture has data)."""
-        # Extract values from metric-card__value elements
+        """当夹具包含数据时，指标卡片必须有填充的值（不为零）。"""
+        # 从 metric-card__value 元素中提取值
         values = re.findall(
             r'class="metric-card__value">([^<]+)<',
             dashboard_html
         )
         assert len(values) == 4, \
-            f"Expected 4 metric values, found {len(values)}"
+            f"预期 4 个指标值，发现 {len(values)} 个"
 
-        # Parse and verify at least Projects and Sessions have positive counts
+        # 解析并验证 Projects 和 Sessions 至少有正数计数
         projects_val = values[0].strip().replace(",", "")
         sessions_val = values[1].strip().replace(",", "")
 
         assert projects_val.isdigit() and int(projects_val) > 0, \
-            f"Projects count must be > 0, got '{projects_val}'"
+            f"Projects 计数必须 > 0，得到 '{projects_val}'"
         assert sessions_val.isdigit() and int(sessions_val) > 0, \
-            f"Sessions count must be > 0, got '{sessions_val}'"
+            f"Sessions 计数必须 > 0，得到 '{sessions_val}'"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_aria_labels(self, dashboard_html):
-        """Each metric card must have an aria-label for accessibility."""
+        """每个指标卡片必须有用于可访问性的 aria-label。"""
         for label in self._METRIC_LABELS:
             assert f'aria-label="{label}"' in dashboard_html, \
-                f"Metric card '{label}' must have aria-label"
+                f"指标卡片 '{label}' 必须有 aria-label"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_has_info_buttons(self, dashboard_html):
-        """Each metric card must have an info button."""
+        """每个指标卡片必须有一个信息按钮。"""
         for info_key in ["projects", "sessions", "tokens", "failed-tools"]:
             assert f'data-info="{info_key}"' in dashboard_html, \
-                f"Dashboard must have info button for '{info_key}'"
+                f"Dashboard 必须有 '{info_key}' 的信息按钮"
 
 
 # ── TestDashboardCharts ──────────────────────────────────────────────
 
 
 class TestDashboardCharts:
-    """Verify rendered chart cards and embedded data."""
+    """验证渲染后的图表卡片及其嵌入的数据。"""
 
     _CHART_TITLES = ["Session Trend", "Token Trend", "Prompt Activity Trend"]
 
     @pytest.mark.parametrize("title", ["Session Trend", "Token Trend", "Prompt Activity Trend"])
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_title_present(self, dashboard_html, title):
-        """Each chart card must show its title."""
+        """每个图表卡片必须显示其标题。"""
         assert title in dashboard_html, \
-            f"Chart '{title}' must be present"
+            f"图表 '{title}' 必须存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-005")
     def test_chart_containers_rendered(self, dashboard_html):
-        """Charts must have dedicated container elements."""
+        """图表必须有专用的容器元素。"""
         containers = re.findall(r'data-dashboard-chart', dashboard_html)
         assert len(containers) >= 2, \
-            f"Expected at least 2 chart containers, found {len(containers)}"
+            f"预期至少 2 个图表容器，发现 {len(containers)} 个"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_json_data_embedded(self, dashboard_html):
-        """Dashboard must embed chart data as JSON."""
-        # Look for the script tag with chart data
+        """Dashboard 必须将图表数据嵌入为 JSON。"""
+        # 查找包含图表数据的 script 标签
         assert 'id="dashboard-chart-data"' in dashboard_html, \
-            "Dashboard must embed chart JSON data"
+            "Dashboard 必须嵌入图表 JSON 数据"
         assert 'id="dashboard-prompt-data"' in dashboard_html, \
-            "Dashboard must embed prompt activity JSON data"
+            "Dashboard 必须嵌入 prompt 活动 JSON 数据"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_json_parseable(self, dashboard_html):
-        """Embedded chart JSON must be valid JSON."""
+        """嵌入的图表 JSON 必须是有效的。"""
         match = re.search(
             r'id="dashboard-chart-data">(\[.*?\])</script>',
             dashboard_html,
             re.DOTALL,
         )
-        assert match, "Chart data script must contain a JSON array"
+        assert match, "图表数据脚本必须包含一个 JSON 数组"
         data = json.loads(match.group(1))
-        assert isinstance(data, list), "Chart data must be a list"
-        assert len(data) > 0, "Chart data must not be empty when fixture has sessions"
+        assert isinstance(data, list), "图表数据必须是一个列表"
+        assert len(data) > 0, "当夹具包含会话时图表数据不能为空"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_has_legend(self, dashboard_html):
-        """Charts must display a legend."""
-        # The chart_legend macro renders a legend-row div with legend-item spans
+        """图表必须显示图例。"""
+        # chart_legend 宏渲染 legend-row div 和 legend-item span
         assert 'class="legend-row"' in dashboard_html or "legend-row" in dashboard_html, \
-            "Dashboard must render chart legend"
+            "Dashboard 必须渲染图例"
         assert "Claude Code" in dashboard_html, \
-            "Chart legend must include Claude Code"
+            "图例必须包含 Claude Code"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_subtitles(self, dashboard_html):
-        """Each chart must have a subtitle."""
+        """每个图表必须有副标题。"""
         subtitles = [
             "Daily session count by agent",
             "Daily token usage by agent",
@@ -206,69 +205,69 @@ class TestDashboardCharts:
         ]
         for sub in subtitles:
             assert sub in dashboard_html, \
-                f"Chart subtitle '{sub}' must be present"
+                f"图表副标题 '{sub}' 必须存在"
 
 
 # ── TestDashboardScopeSwitch ─────────────────────────────────────────
 
 
 class TestDashboardScopeSwitch:
-    """Verify scope-switch UI is rendered."""
+    """验证 scope-switch UI 已渲染。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-002")
     def test_scope_switch_present(self, dashboard_html):
-        """Dashboard must render scope switch controls."""
+        """Dashboard 必须渲染 scope switch 控件。"""
         assert 'data-scope="day"' in dashboard_html, \
-            "Day scope button must be present"
+            "Day 范围按钮必须存在"
         assert 'data-scope="week"' in dashboard_html, \
-            "Week scope button must be present"
+            "Week 范围按钮必须存在"
         assert 'data-scope="month"' in dashboard_html, \
-            "Month scope button must be present"
+            "Month 范围按钮必须存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_button_labels(self, dashboard_html):
-        """Scope buttons must show correct labels."""
+        """范围按钮必须显示正确的标签。"""
         for label in ["Day", "Week", "Month"]:
             assert f">{label}<" in dashboard_html, \
-                f"Scope button '{label}' must be visible"
+                f"范围按钮 '{label}' 必须可见"
 
 
 # ── TestDashboardOverlays ────────────────────────────────────────────
 
 
 class TestDashboardOverlays:
-    """Verify floating overlay elements."""
+    """验证浮动覆盖层元素。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     @pytest.mark.contract_case("UI-DASHBOARD-004")
     def test_tooltip_present(self, dashboard_html):
-        """Chart tooltip element must exist."""
+        """图表 tooltip 元素必须存在。"""
         assert 'id="chartTooltip"' in dashboard_html, \
-            "chartTooltip element must be present"
+            "chartTooltip 元素必须存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_popover_present(self, dashboard_html):
-        """Info popover element must exist."""
+        """信息 popover 元素必须存在。"""
         assert 'id="infoPopover"' in dashboard_html, \
-            "infoPopover element must be present"
+            "infoPopover 元素必须存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_toast_present(self, dashboard_html):
-        """Toast notification element must exist."""
+        """Toast 通知元素必须存在。"""
         assert 'id="toast"' in dashboard_html, \
-            "toast element must be present"
+            "toast 元素必须存在"
 
 
 # ── TestDashboardAccessibility ───────────────────────────────────────
 
 
 class TestDashboardAccessibility:
-    """Accessibility gates on the rendered dashboard."""
+    """渲染后 Dashboard 的可访问性门控。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_inline_onclick(self, dashboard_html):
-        """Dashboard must not use inline onclick handlers."""
+        """Dashboard 不得使用 inline onclick 处理器。"""
         matches = re.findall(r'\bonclick\s*=', dashboard_html, re.IGNORECASE)
         assert len(matches) == 0, \
-            f"Dashboard must not have inline onclick, found {len(matches)} occurrences"
+            f"Dashboard 不得有 inline onclick，发现 {len(matches)} 处"

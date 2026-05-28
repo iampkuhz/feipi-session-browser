@@ -53,7 +53,7 @@ class TestRoundRowLayout:
     @pytest.mark.contract_case("UI-SD-018")
     def test_round_row_is_open_shows_expanded(self):
         css = _read_css()
-        # Check for selector that shows expanded row when round is open
+        # 检查选择器是否在轮次展开时显示展开行
         assert '.round-row.is-open + .expanded-row' in css or 'is-open' in css, (
             "CSS must show expanded-row when round-row is-open"
         )
@@ -98,7 +98,7 @@ class TestTemplateStructure:
             / "src" / "session_browser" / "web" / "templates" / "session.html"
         )
         content = template_path.read_text(encoding="utf-8")
-        # v18 uses sdt.trace_round macro which renders <tr> rows
+        # v18 使用 sdt.trace_round 宏渲染 <tr> 行
         assert 'sdt.trace_round' in content, (
             "session.html must call sdt.trace_round macro"
         )

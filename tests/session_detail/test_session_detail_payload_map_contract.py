@@ -39,7 +39,7 @@ def _timeline_component():
     return (COMPONENTS / "session_detail_timeline.html").read_text(encoding="utf-8")
 
 
-# ── Payload map in view model ─────────────────────────────────────────
+# ── 视图模型中的载荷映射 ─────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-SD-008")
@@ -70,7 +70,7 @@ def test_payload_map_uses_safe_json():
     )
 
 
-# ── Payload buttons in component ─────────────────────────────────────
+# ── 组件中的载荷按钮 ─────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-SD-008")

@@ -1,4 +1,4 @@
-"""Tests for scripts/quality/generate_quality_report.py."""
+"""scripts/quality/generate_quality_report.py 测试。"""
 from __future__ import annotations
 
 import pytest
@@ -170,12 +170,12 @@ class TestGenerateReport:
         )
         report = generate_report(sample)
         assert "(truncated)" in report
-        # Should not contain the full 5000 chars
+        # 不应包含完整的 5000 字符
         assert long_output not in report
 
     @pytest.mark.contract_case("HOOK-HARNESS-007")
     def test_no_gate_details(self):
         sample = self._sample(gateDetails=[])
         report = generate_report(sample)
-        # Should not have gate table if no details
+        # 无 gate 详情时不应有 gate 表格
         assert "| Gate |" not in report

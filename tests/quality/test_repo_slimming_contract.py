@@ -1,4 +1,4 @@
-"""Tests for scripts/quality/repo_slimming_contract_check.py pure functions."""
+"""测试 scripts/quality/repo_slimming_contract_check.py 的纯函数。"""
 from __future__ import annotations
 
 import pytest
@@ -18,7 +18,7 @@ from repo_slimming_contract_check import (
 )
 
 
-# ── Rule 1: no-historical-version-comments ────────────────────────────
+# ── 规则 1：no-historical-version-comments ────────────────────────────
 
 
 class TestNoHistoricalVersionComments:
@@ -89,7 +89,7 @@ class TestNoHistoricalVersionComments:
         assert warnings == [], f"Unexpected warning: {warnings}"
 
 
-# ── Rule 2: harness-current-state-only ────────────────────────────────
+# ── 规则 2：harness-current-state-only ────────────────────────────────
 
 
 class TestHarnessCurrentStateOnly:
@@ -155,7 +155,7 @@ class TestHarnessCurrentStateOnly:
         assert warnings == []
 
 
-# ── Rule 3: supported-viewports-only ─────────────────────────────────
+# ── 规则 3：supported-viewports-only ─────────────────────────────────
 
 
 class TestSupportedViewportsOnly:
@@ -196,15 +196,15 @@ class TestSupportedViewportsOnly:
         css = tmp_path / "mobile.css"
         css.write_text("@media only screen and (max-width: 480px) and (orientation: portrait)")
         errors, warnings = check_supported_viewports_only([css], [])
-        # Only blocks if it matches mobile/tablet/ipad keywords or specific widths
-        # The generic mobile keyword pattern catches this
-        assert errors == []  # This specific line doesn't match any of our patterns
+        # 仅在匹配移动设备/平板/iPad关键词或特定宽度时才拦截
+        # 通用的移动设备关键词模式在此处未命中
+        assert errors == []  # 该行未命中任何模式
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_js_mobile_blocks(self, tmp_path):
         js = tmp_path / "responsive.js"
         js.write_text("// @media tablet breakpoint\nconst TABLET = 768;")
-        # Comment lines are skipped
+        # 注释行会被跳过
         errors, warnings = check_supported_viewports_only([], [js])
         assert errors == []
 
@@ -223,7 +223,7 @@ class TestSupportedViewportsOnly:
         assert errors == []
 
 
-# ── Rule 4: no-dead-compat-shim ──────────────────────────────────────
+# ── 规则 4：no-dead-compat-shim ──────────────────────────────────────
 
 
 class TestCssHasOnlyCommentsOrEmpty:
@@ -306,7 +306,7 @@ class TestNoDeadCompatShim:
         css = tmp_path / "compat.css"
         css.write_text(".old-header {\n  display: none;\n}")
         errors, warnings = check_no_dead_compat_shim([css], [])
-        # The "old" selector with display:none should warn
+        # 带有 "old" 选择器和 display:none 应该触发警告
         assert len(warnings) == 1
         assert "兼容垫片" in warnings[0]
 
@@ -318,7 +318,7 @@ class TestNoDeadCompatShim:
         assert warnings == []
 
 
-# ── Integration: actual repo state ────────────────────────────────────
+# ── 集成：实际仓库状态 ─────────────────────────────────────────────────
 
 
 class TestActualRepoState:
@@ -340,22 +340,20 @@ class TestActualRepoState:
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_historical_version_warnings_exist(self):
-        """
-
-Verify that existing historical version comments are detected as WARN."""
+        """验证已有历史版本注释能被检测为 WARN。"""
         static = ROOT / "src/session_browser/web/static"
         css_files = list(static.rglob("*.css"))
-        # Modular CSS files (sessions-list.css, glossary.css, etc.) should trigger warnings
+        # 模块化 CSS 文件（sessions-list.css、glossary.css 等）应触发警告
         errors, warnings = check_no_historical_version_comments(css_files)
-        # At least some warnings expected from current repo
+        # 当前仓库应有至少一些警告
         warned_files = [w for w in warnings if "sessions-list.css" in w or "glossary.css" in w or "shell.css" in w]
         assert len(warned_files) >= 1, f"Expected warnings from modular CSS files, got: {warnings}"
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_repo_slimming_contract_passes_no_block(self):
-        """Full check should not BLOCK on current repo state."""
+        """完整检查不应在当前仓库状态下触发 BLOCK。"""
         from repo_slimming_contract_check import check_repo_slimming
         errors, warnings = check_repo_slimming(ROOT)
         assert errors == [], f"Unexpected BLOCK errors: {errors}"
-        # Should have some WARNs from existing residues
+        # 应该有一些来自已有历史残留的 WARN
         assert len(warnings) > 0, "Expected WARNs from existing historical residues"

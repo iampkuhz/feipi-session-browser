@@ -21,10 +21,10 @@ def test_empty_required_is_blocked():
     assert failures
 
 
-# ── Schema consistency tests ──────────────────────────────────────────────
+# ── Schema 一致性测试 ─────────────────────────────────────────────────────
 
 class TestSchemaConsistency:
-    """Ensure all quality gate outputs share a common schema baseline."""
+    """验证所有 quality gate 输出共享相同的 schema 基线。"""
 
     REQUIRED_FIELDS = {"schemaVersion", "status"}
 
@@ -57,7 +57,7 @@ class TestSchemaConsistency:
         from pathlib import Path
         repo_root = Path(__file__).resolve().parents[2]
         result = check_css_ownership(repo_root)
-        # Build the same JSON dict the main() function writes
+        # 构建与 main() 函数写入的相同 JSON 字典
         json_report = {
             "schemaVersion": 1,
             "gate": "css-ownership",
@@ -73,7 +73,7 @@ class TestSchemaConsistency:
     def test_quality_summary_schema_version(self):
         """QualitySummary schemaVersion 应为最新值 3。"""
         from scripts.quality import run_quality_gate
-        # Verify the constant is accessible
+        # 验证常量可访问
         import inspect
         source = inspect.getsource(run_quality_gate.build_summary)
         assert "schemaVersion=3" in source, "build_summary 应使用 schemaVersion=3"

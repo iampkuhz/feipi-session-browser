@@ -1,4 +1,4 @@
-"""Tests for scripts/quality/run_quality_gate.py."""
+"""测试 scripts/quality/run_quality_gate.py 的质量门禁运行器。"""
 import pytest
 import json
 import tempfile

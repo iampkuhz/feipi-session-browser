@@ -1,16 +1,15 @@
-"""Snapshot tests for parser output against fixture corpus.
+"""parser 输出的快照测试，对照 fixture 语料库。
 
-Each fixture JSONL in ``tests/fixtures/sources/`` has a corresponding
-``.expected.json`` that captures the canonical parser output.  These
-tests verify that ``parse_jsonl_events`` produces events and diagnostics
-matching the stored snapshots.
+``tests/fixtures/sources/`` 中的每个 fixture JSONL 文件都有对应的
+``.expected.json``，记录了标准的 parser 输出。这些测试验证
+``parse_jsonl_events`` 产生的事件和诊断信息与存储的快照一致。
 
-Coverage:
-- All 6 fixture files: claude_valid, codex_valid, qoder_valid,
-  multiline_json, empty, mixed_with_bad
-- Event list equality (content + order)
-- Diagnostic counters: total_lines, non_empty_lines, events_parsed, events_skipped
-- Diagnostic issues: issue type, severity, line_no, detail, preview
+覆盖：
+- 全部 6 个 fixture 文件：claude_valid、codex_valid、qoder_valid、
+  multiline_json、empty、mixed_with_bad
+- 事件列表一致性（内容 + 顺序）
+- 诊断计数器：total_lines、non_empty_lines、events_parsed、events_skipped
+- 诊断问题：问题类型、严重级别、行号、详情、预览
 """
 
 from __future__ import annotations
@@ -27,14 +26,14 @@ from session_browser.sources.jsonl_reader import (
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "sources"
 
-# Discover all fixture pairs automatically.
+# 自动发现所有 fixture 对。
 FIXTURE_PAIRS = sorted(
     p.stem for p in FIXTURES_DIR.glob("*.jsonl")
 )
 
 
 def _serialize_issue(issue_item) -> dict:
-    """Convert a ParseIssueItem to the serialised dict shape used in expected files."""
+    """将 ParseIssueItem 转换为 expected 文件中使用的序列化字典格式。"""
     return {
         "issue": issue_item.issue.value,
         "severity": issue_item.severity.name,
@@ -45,7 +44,7 @@ def _serialize_issue(issue_item) -> dict:
 
 
 def _serialize_diagnostics(diag) -> dict:
-    """Convert JsonlDiagnostics to the serialised dict shape used in expected files."""
+    """将 JsonlDiagnostics 转换为 expected 文件中使用的序列化字典格式。"""
     return {
         "total_lines": diag.total_lines,
         "non_empty_lines": diag.non_empty_lines,
@@ -56,7 +55,7 @@ def _serialize_diagnostics(diag) -> dict:
 
 
 def _build_actual(jsonl_path: Path) -> dict:
-    """Run the parser on a fixture and return the serialised result."""
+    """在 fixture 上运行 parser 并返回序列化结果。"""
     events, diagnostics = parse_jsonl_events(jsonl_path)
     return {
         "source_file": jsonl_path.name,
@@ -66,7 +65,7 @@ def _build_actual(jsonl_path: Path) -> dict:
 
 
 def _load_expected(name: str) -> dict:
-    """Load the expected snapshot for a fixture."""
+    """加载 fixture 的预期快照。"""
     expected_path = FIXTURES_DIR / f"{name}.expected.json"
     with open(expected_path, "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -74,11 +73,11 @@ def _load_expected(name: str) -> dict:
 
 @pytest.mark.parametrize("fixture_name", FIXTURE_PAIRS)
 class TestParserSnapshots:
-    """Snapshot-based tests comparing parser output to expected fixtures."""
+    """基于快照的测试，将 parser 输出与预期 fixtures 对比。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_events_match(self, fixture_name: str):
-        """Parsed events must exactly match the expected snapshot."""
+        """解析的事件必须与预期快照完全匹配。"""
         jsonl_path = FIXTURES_DIR / f"{fixture_name}.jsonl"
         actual = _build_actual(jsonl_path)
         expected = _load_expected(fixture_name)
@@ -91,7 +90,7 @@ class TestParserSnapshots:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_diagnostics_counters_match(self, fixture_name: str):
-        """Diagnostic counters must match the expected snapshot."""
+        """诊断计数器必须与预期快照一致。"""
         jsonl_path = FIXTURES_DIR / f"{fixture_name}.jsonl"
         actual = _build_actual(jsonl_path)
         expected = _load_expected(fixture_name)
@@ -111,7 +110,7 @@ class TestParserSnapshots:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_diagnostics_issues_match(self, fixture_name: str):
-        """Diagnostic issues list must match the expected snapshot."""
+        """诊断问题列表必须与预期快照一致。"""
         jsonl_path = FIXTURES_DIR / f"{fixture_name}.jsonl"
         actual = _build_actual(jsonl_path)
         expected = _load_expected(fixture_name)

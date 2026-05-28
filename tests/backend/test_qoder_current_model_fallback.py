@@ -1,4 +1,4 @@
-"""Qoder current model selector fallback tests."""
+"""Qoder 当前模型选择器回退测试。"""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def _write_qoder_state(app_support, assistant_model_config: str) -> None:
 
 
 def test_uuid_session_model_falls_back_to_current_assistant_selector(tmp_path, monkeypatch):
-    """Project sessions without per-session model use Qoder's current selector."""
+    """无逐会话 model 的项目会话使用 Qoder 的当前选择器。"""
     app_support = tmp_path / "Qoder"
     _write_qoder_state(app_support, "custom:model_123")
     monkeypatch.setenv("QODER_APP_SUPPORT_DIR", str(app_support))
@@ -68,7 +68,7 @@ def test_uuid_session_model_falls_back_to_current_assistant_selector(tmp_path, m
 
 
 def test_current_selector_fallback_does_not_fabricate_for_short_cache_ids(tmp_path, monkeypatch):
-    """Cache short ids still require a per-session mapping."""
+    """缓存短 id 仍需逐会话映射。"""
     app_support = tmp_path / "Qoder"
     _write_qoder_state(app_support, "custom:model_123")
     monkeypatch.setenv("QODER_APP_SUPPORT_DIR", str(app_support))

@@ -1,4 +1,4 @@
-"""Tests for CLI process handling."""
+"""CLI 进程处理测试。"""
 
 import pytest
 import subprocess
@@ -7,7 +7,7 @@ import sys
 
 @pytest.mark.contract_case("ACCEPTANCE-001")
 def test_run_command_success():
-    """Short commands return stdout and return code."""
+    """短命令返回 stdout 和返回码。"""
     from session_browser.cli import _run_command
 
     result = _run_command(
@@ -21,7 +21,7 @@ def test_run_command_success():
 
 @pytest.mark.contract_case("ACCEPTANCE-001")
 def test_run_command_timeout_cleans_process_group():
-    """Timeouts are surfaced after terminating the spawned process group."""
+    """超时后终止派生的进程组并抛出异常。"""
     from session_browser.cli import _run_command
 
     with pytest.raises(subprocess.TimeoutExpired):

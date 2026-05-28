@@ -10,7 +10,7 @@ import pytest
 from session_browser.web.routes import _build_tool_command_summary
 
 
-# ── Read/Write/Edit: file path ────────────────────────────────────────────
+# ── Read/Write/Edit：文件路径 ────────────────────────────────────────────
 
 
 class TestReadWriteEditTools:
@@ -47,7 +47,7 @@ class TestReadWriteEditTools:
         assert result == ""
 
 
-# ── Bash: first 120 chars of command ──────────────────────────────────────
+# ── Bash：命令的前 120 个字符 ─────────────────────────────────────────────
 
 
 class TestBashTool:

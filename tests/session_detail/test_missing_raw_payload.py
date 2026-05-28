@@ -1,4 +1,4 @@
-"""Missing raw payload fixture tests for session detail presenter.
+"""缺失原始 payload 的 fixture 测试，用于会话详情展示器。
 
 验证 raw payload 缺失时的处理:
 - LLMCall.request_payload_missing_reason 被正确传递
@@ -12,7 +12,7 @@ import json
 import os
 import sys
 
-# Ensure src is importable
+# 确保 src 目录可被导入
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if SB_ROOT not in sys.path:
     sys.path.insert(0, os.path.join(SB_ROOT, "src"))
@@ -30,11 +30,11 @@ from session_browser.web.presenters.session_detail import (
 )
 
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
+# ─── 测试夹具 ───────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
 def missing_raw_payload_fixture():
-    """Load missing raw payload scenario fixture data."""
+    """加载缺失原始 payload 场景的 fixture 数据。"""
     fixture_path = os.path.join(
         SB_ROOT, "tests", "fixtures", "session_detail", "missing_raw_payload.json"
     )
@@ -44,7 +44,7 @@ def missing_raw_payload_fixture():
 
 @pytest.fixture(scope="module")
 def fixture_messages(missing_raw_payload_fixture):
-    """Convert fixture messages to ChatMessage objects."""
+    """将 fixture 消息转换为 ChatMessage 对象。"""
     msgs = []
     for m in missing_raw_payload_fixture["messages"]:
         msgs.append(ChatMessage(
@@ -63,7 +63,7 @@ def fixture_messages(missing_raw_payload_fixture):
 
 @pytest.fixture(scope="module")
 def fixture_tool_calls(missing_raw_payload_fixture):
-    """Convert fixture tool_calls to ToolCall objects."""
+    """将 fixture tool_calls 转换为 ToolCall 对象。"""
     tcs = []
     for tc in missing_raw_payload_fixture["tool_calls"]:
         tcs.append(ToolCall(
@@ -85,13 +85,13 @@ def fixture_tool_calls(missing_raw_payload_fixture):
 
 @pytest.fixture(scope="module")
 def fixture_session(missing_raw_payload_fixture):
-    """Return session metadata."""
+    """返回会话元数据。"""
     return missing_raw_payload_fixture["session"]
 
 
 @pytest.fixture(scope="module")
 def built_rounds(fixture_messages, fixture_tool_calls, fixture_session):
-    """Build rounds from fixture data."""
+    """从 fixture 数据构建 rounds。"""
     def identity_md(text):
         return text
 
@@ -110,7 +110,7 @@ def built_rounds(fixture_messages, fixture_tool_calls, fixture_session):
 
 @pytest.fixture(scope="module")
 def built_llm_calls(fixture_messages, fixture_tool_calls, built_rounds):
-    """Build LLM calls from fixture data."""
+    """从 fixture 数据构建 LLM calls。"""
     return build_llm_calls(
         messages=fixture_messages,
         tool_calls=fixture_tool_calls,
@@ -121,7 +121,7 @@ def built_llm_calls(fixture_messages, fixture_tool_calls, built_rounds):
 
 @pytest.fixture(scope="module")
 def final_rounds(built_rounds, built_llm_calls, fixture_tool_calls):
-    """Rounds with interactions assigned."""
+    """已分配交互的 rounds。"""
     assign_interactions_to_rounds(
         rounds=built_rounds,
         llm_calls=built_llm_calls,
@@ -131,7 +131,7 @@ def final_rounds(built_rounds, built_llm_calls, fixture_tool_calls):
     return built_rounds
 
 
-# ─── Tests ──────────────────────────────────────────────────────────────
+# ─── 测试 ──────────────────────────────────────────────────────────────
 
 
 class TestLLMCallMissingPayloadFields:
@@ -153,7 +153,7 @@ class TestLLMCallMissingPayloadFields:
         )
         assert call.request_payload_raw == ""
         assert call.request_payload_missing_reason == ""
-        # Default is empty string; the presenter/routes set the actual reason
+        # 默认值为空字符串；presenter/routes 设置实际原因
 
     @pytest.mark.contract_case("UI-SD-026")
     def test_llm_call_missing_reason_can_be_set(self):
@@ -206,7 +206,7 @@ class TestPresenterMissingPayloadPropagation:
         """Presenter 构建的 LLMCall 必须有 request_payload_missing_reason。"""
         assert len(built_llm_calls) >= 1, "Fixture 必须产生至少一个 LLMCall"
         for call in built_llm_calls:
-            # The presenter should set a missing reason when raw payload is unavailable
+            # presenter 应在原始 payload 不可用时设置缺失原因
             assert call.request_payload_missing_reason is not None, (
                 f"LLMCall {call.id} request_payload_missing_reason 不应为 None"
             )
@@ -294,7 +294,7 @@ class TestRoutesFallbackBehavior:
         )
         with open(routes_path, encoding="utf-8") as f:
             content = f.read()
-        # The logic: raw_val = getattr(ix, "request_payload_raw", "") or getattr(ix, "response_payload_raw", "")
+        # 逻辑: raw_val = getattr(ix, "request_payload_raw", "") or getattr(ix, "response_payload_raw", "")
         assert "response_payload_raw" in content, (
             "routes.py 应有 response_payload_raw fallback 逻辑"
         )
@@ -341,7 +341,7 @@ class TestUINoCrashOnMissingPayload:
                 assert hasattr(ix, "request_payload_missing_reason"), (
                     "Interaction 必须有 request_payload_missing_reason 属性"
                 )
-                # Attribute exists; it may be empty string or a message
+                # 属性存在；可能是空字符串或提示信息
                 assert ix.request_payload_missing_reason is not None, (
                     "request_payload_missing_reason 不应为 None"
                 )
@@ -353,7 +353,7 @@ class TestUINoCrashOnMissingPayload:
             assert call.response_full is not None, (
                 f"LLMCall {call.id} response_full 不应为 None"
             )
-            # Even if empty, it should be a string
+            # 即使为空，也应为字符串
             assert isinstance(call.response_full, str), (
                 f"LLMCall {call.id} response_full 应为字符串"
             )

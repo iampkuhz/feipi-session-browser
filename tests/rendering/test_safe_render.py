@@ -1,4 +1,4 @@
-"""Tests for web/safe_render.py — JSON/Code/HTML safe rendering helpers."""
+"""web/safe_render.py 测试 — JSON/Code/HTML 安全渲染辅助函数。"""
 
 from __future__ import annotations
 
@@ -38,14 +38,13 @@ class TestSafeJsonDisplay:
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_simple_dict(self):
         result = safe_json_display({"key": "value"})
-        # Must unescape first — the output is HTML-escaped for safe embedding
+        # 必须先 unescape — 输出已进行 HTML 转义以安全嵌入
         assert json.loads(html_mod.unescape(result)) == {"key": "value"}
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_script_tag(self):
         """
-
-HTML entities in JSON values must be escaped."""
+JSON 值中的 HTML 实体必须转义。
         payload = {"html": "<script>alert(1)</script>"}
         result = safe_json_display(payload)
         assert "<script>" not in result
@@ -53,7 +52,7 @@ HTML entities in JSON values must be escaped."""
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_pre_close(self):
-        """</pre> breakout must be prevented."""
+        """必须防止 </pre> 逃逸。"""
         payload = {"code": "</pre><script>alert(1)</script>"}
         result = safe_json_display(payload)
         assert "</pre>" not in result
@@ -68,7 +67,7 @@ HTML entities in JSON values must be escaped."""
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_indent_supported(self):
         result = safe_json_display({"a": 1, "b": 2}, indent=2)
-        # Should contain newlines when indented
+        # 缩进时应包含换行
         assert "\n" in result
         assert json.loads(html_mod.unescape(result)) == {"a": 1, "b": 2}
 
@@ -79,16 +78,16 @@ HTML entities in JSON values must be escaped."""
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_safe_inside_pre(self):
-        """Simulate the actual template context: inside <pre> tags."""
+        """模拟真实模板上下文：位于 <pre> 标签内。"""
         payload = {"x": "</pre><img onerror=alert(1)>"}
         result = safe_json_display(payload)
         wrapped = f"<pre>{result}</pre>"
-        # No executable HTML should exist
+        # 不应存在可执行的 HTML
         assert "<img" not in wrapped
-        # The escaped content should not contain literal </pre>
-        # (only the outer closing tag should exist)
+        # 转义后的内容不应包含字面量 </pre>
+        # （只有外层闭合标签应存在）
         assert wrapped.endswith("</pre>")
-        # The inner data's </pre> must be escaped to &lt;/pre&gt;
+        # 内部数据的 </pre> 必须转义为 &lt;/pre&gt;
         assert "&lt;/pre&gt;" in result
 
 
@@ -110,7 +109,7 @@ class TestTojsonSafeHtml:
     def test_roundtrip_json(self):
         value = {"key": "value with <tags>"}
         result = tojson_safe_html(value)
-        # Unescape then parse
+        # 先 unescape 再解析
         import html
         parsed = json.loads(html.unescape(result))
         assert parsed == value
@@ -142,7 +141,7 @@ class TestSafeHtmlBlock:
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_class_name(self):
-        """Malicious class names must be escaped."""
+        """恶意类名必须被转义。"""
         result = safe_html_block("x", class_name='"><script>alert(1)</script><"')
         assert "<script>" not in result
 
@@ -179,28 +178,28 @@ class TestJinjaFilterIntegration:
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_filter_chain_with_e(self, env):
-        """safe_json_display followed by |e should not double-escape issues."""
+        """safe_json_display 后接 |e 不应出现双重转义问题。"""
         tpl = env.from_string("{{ data | safe_json_display }}")
         result = tpl.render(data={"msg": "a & b"})
-        # The output should contain &amp; (escaped once by safe_json_display)
+        # 输出应包含 &amp;（由 safe_json_display 转义一次）
         assert "&amp;" in result
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_filter_in_pre_context(self, env):
-        """Template: <pre>{{ data | safe_json_display }}</pre>"""
+        """模板：<pre>{{ data | safe_json_display }}</pre>"""
         tpl = env.from_string("<pre>{{ data | safe_json_display }}</pre>")
         result = tpl.render(data={"code": "</pre><script>x</script>"})
-        # Should not contain executable HTML
+        # 不应包含可执行的 HTML
         assert "<script>" not in result
-        # The </pre> inside data should be escaped
-        assert result.count("</pre>") == 1  # only the outer one
+        # 数据中的 </pre> 应被转义
+        assert result.count("</pre>") == 1  # 仅外层一个
 
 
 # ─── Backward compatibility with existing filters ────────────────────
 
 class TestBackwardCompat:
-    """Ensure the new safe_json_display replaces tojson_safe behavior
-    without breaking existing template usage."""
+    """确保新的 safe_json_display 替换 tojson_safe 行为
+    同时不破坏现有的模板使用方式。"""
 
     @pytest.fixture
     def env(self):

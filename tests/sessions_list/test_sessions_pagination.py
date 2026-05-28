@@ -20,7 +20,7 @@ _SL_COMPONENTS_PATH = "src/session_browser/web/templates/components/sessions_lis
 
 
 def _read_sessions_templates():
-    """Read sessions.html, its grid partial, and component macros, return combined content."""
+    """读取 sessions.html、其网格 partial 和组件宏，返回合并内容。"""
     with open(_TEMPLATE_PATH) as f:
         main = f.read()
     with open(_PARTIAL_PATH) as f:
@@ -62,7 +62,7 @@ def _make_summary(sid: str, title: str = "", agent: str = "claude_code",
 
 @pytest.fixture
 def populated_db(tmp_path):
-    """Create a SQLite DB with 55 sessions across 3 agents and 3 projects."""
+    """创建包含 55 个 sessions 的 SQLite DB，分布在 3 个 agent 和 3 个 project 下。"""
     db_path = tmp_path / "test_index.db"
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -86,7 +86,7 @@ def populated_db(tmp_path):
     conn.close()
 
 
-# ─── Pagination: limit / offset ──────────────────────────────────────────
+# ─── 分页：limit / offset ──────────────────────────────────────────
 
 class TestListSessionsPagination:
     @pytest.mark.contract_case("UI-SESSIONS-012")
@@ -123,7 +123,7 @@ class TestListSessionsPagination:
         assert len(rows) == 0
 
 
-# ─── Count with filters ──────────────────────────────────────────────────
+# ─── 带过滤条件的计数 ──────────────────────────────────────────────
 
 class TestCountSessionsFilters:
     @pytest.mark.contract_case("UI-SESSIONS-012")
@@ -147,7 +147,7 @@ class TestCountSessionsFilters:
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_count_by_title_wildcard(self, populated_db):
-        # Sessions 001-009 all have "Session 00" in their title
+        # Sessions 001-009 的标题中都包含 "Session 00"
         count = count_sessions(populated_db, title_like="Session 00")
         assert count == 9  # 001-009
 
@@ -157,7 +157,7 @@ class TestCountSessionsFilters:
         assert count > 0
 
 
-# ─── Pagination with filters ─────────────────────────────────────────────
+# ─── 带过滤条件的分页 ─────────────────────────────────────────────
 
 class TestListSessionsWithFilters:
     @pytest.mark.contract_case("UI-SESSIONS-012")
@@ -176,10 +176,10 @@ class TestListSessionsWithFilters:
         assert all("Test Session 00" in r.title for r in rows)
 
 
-# ─── Template: footer controls ───────────────────────────────────────────
+# ─── 模板：footer 控件 ───────────────────────────────────────────
 
 class TestFooterTemplate:
-    """Verify sessions.html contains contract-compliant pagination."""
+    """验证 sessions.html 包含符合契约的分页。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_pagination_nav(self):
@@ -210,44 +210,44 @@ class TestFooterTemplate:
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_sorted_by(self):
-        """Footer must not contain 'sorted by' text."""
+        """Footer 不得包含 'sorted by' 文本。"""
         content = _read_sessions_templates()
         assert "sorted by" not in content.lower()
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_page_size_select_in_footer(self):
-        """HIFI v4 footer does not have page size select."""
+        """HIFI v4 footer 不包含页大小选择器。"""
         content = _read_sessions_templates()
         assert "sessions-footer-page-size__select" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_page_info_text(self):
-        """No 'Page X of Y' static text — uses page-status + page-input instead."""
+        """无 'Page X of Y' 静态文本 —— 改用 page-status + page-input。"""
         content = _read_sessions_templates()
         assert 'Page {{ page }} of {{ total_pages }}' not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_pagination_prev_conditional(self):
-        """Prev button is conditionally rendered (hidden on page 1)."""
+        """上一页按钮条件性渲染（第 1 页时隐藏）。"""
         content = _read_sessions_templates()
         assert "current_page > 1" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_pagination_next_conditional(self):
-        """Next button is conditionally rendered (hidden on last page)."""
+        """下一页按钮条件性渲染（最后一页时隐藏）。"""
         content = _read_sessions_templates()
         assert "current_page < total_pages" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_button_based_pagination(self):
-        """No button with name=page (old form-based pagination)."""
+        """无 name=page 的按钮（旧的基于表单的分页）。"""
         content = _read_sessions_templates()
         assert 'name="page"' not in content or 'value="prev"' not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_filter_form_has_name_attributes(self):
         content = _read_sessions_templates()
-        # Accept both single and double quote patterns (macros use single quotes)
+        # 接受单引号和双引号模式（宏使用单引号）
         assert ("name='q'" in content or 'name="q"' in content)
         assert ("name='agent'" in content or 'name="agent"' in content)
         assert ("name='model'" in content or 'name="model"' in content)
@@ -264,18 +264,18 @@ class TestFooterTemplate:
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_client_side_apply_filters(self):
-        """Old client-side applyFilters should be removed."""
+        """旧的客户端 applyFilters 应已移除。"""
         content = _read_sessions_templates()
         assert "function applyFilters()" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_submit_filters_function(self):
-        """submitFilters removed in favor of link-based navigation."""
+        """submitFilters 已移除，改用基于链接的导航。"""
         content = _read_sessions_templates()
         assert "submitFilters" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_actions_dict_passed(self):
-        """Template must receive actions dict for URL building."""
+        """模板必须接收 actions 字典用于构建 URL。"""
         content = _read_sessions_templates()
         assert "actions." in content

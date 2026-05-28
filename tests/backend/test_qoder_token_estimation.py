@@ -1,11 +1,11 @@
-"""Tests for Qoder token estimation in qoder.py.
+"""测试 qoder.py 中的 Qoder token 估算。
 
-Covers:
-a. No usage -> each assistant message gets estimated usage.
-b. Multi-turn: later assistant input_tokens > earlier (context accumulation).
-c. Session summary tokens == per-message usage sum.
-d. Real usage present -> no estimation, no overwrite.
-e. Long tool_result/text does not crash; estimation stays fast.
+覆盖范围：
+a. 无用量 -> 每条 assistant 消息获得估算用量。
+b. 多轮对话：后续 assistant input_tokens > 前面（上下文累积）。
+c. 会话摘要 token == 逐消息用量之和。
+d. 存在真实用量 -> 不估算，不覆盖。
+e. 长 tool_result/text 不崩溃；估算保持快速。
 """
 
 from __future__ import annotations
@@ -28,14 +28,14 @@ from session_browser.sources.qoder import (
 
 
 def _make_event(typ: str, message: dict, **extra) -> dict:
-    """Helper to build a minimal Qoder event dict."""
+    """构建最小 Qoder 事件字典的辅助函数。"""
     ev = {"type": typ, "message": message, "timestamp": "2025-01-01T00:00:00Z"}
     ev.update(extra)
     return ev
 
 
 def _assistant_event(text: str = "", tool_use: dict | None = None, usage: dict | None = None, msg_id: str = "msg-1", timestamp: str = "") -> dict:
-    """Build an assistant event with optional text, tool_use, and usage."""
+    """构建带可选 text、tool_use 和 usage 的 assistant 事件。"""
     content = []
     if text:
         content.append({"type": "text", "text": text})
@@ -48,14 +48,14 @@ def _assistant_event(text: str = "", tool_use: dict | None = None, usage: dict |
 
 
 def _user_event(text: str = "", content_override=None, **extra) -> dict:
-    """Build a user event."""
+    """构建 user 事件。"""
     msg = {"content": content_override if content_override is not None else text}
     ev = _make_event("user", msg)
     ev.update(extra)
     return ev
 
 
-# ─── Test: text cap ──────────────────────────────────────────────────────
+# ─── 测试：文本截断 ──────────────────────────────────────────────────────
 
 
 class TestTextCap:
@@ -66,7 +66,7 @@ class TestTextCap:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_text_is_capped(self):
-        # Create text that exceeds 128KB
+        # 创建超过 128KB 的文本
         s = "a" * (_ESTIMATE_TEXT_CAP + 1000)
         capped = _cap_text(s)
         assert len(capped.encode("utf-8")) <= _ESTIMATE_TEXT_CAP
@@ -91,26 +91,26 @@ class TestCountTokens:
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_empty_text(self):
         tok = _count_tokens("")
-        assert tok == 1  # max(1, ...) via byte heuristic
+        assert tok == 1  # max(1, ...) 通过字节启发式
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_text_is_fast(self):
-        """Counting a very long string should not hang."""
+        """统计极长字符串不应卡住。"""
         s = "x" * 1_000_000
         start = time.monotonic()
         tok = _count_tokens(s)
         elapsed = time.monotonic() - start
-        assert elapsed < 1.0  # Should complete in well under 1 second
+        assert elapsed < 1.0  # 应在远低于 1 秒内完成
         assert tok > 0
 
 
-# ─── Test: estimated usage when no real usage ────────────────────────────
+# ─── 测试：无真实用量时的估算 ────────────────────────────────────────────
 
 
 class TestEstimatedUsage:
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_no_usage_generates_estimates(self):
-        """When no assistant event has real usage, per-message estimates are generated."""
+        """无真实用量的 assistant 事件应生成逐消息估算。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="hi there", msg_id="msg-1"),
@@ -123,12 +123,12 @@ class TestEstimatedUsage:
         est_output = {}
         _fill_estimates(events, assistant_by_id, est_input, est_output)
 
-        # Both messages should have estimates
+        # 两条消息都应获得估算
         assert "msg-1" in est_input
         assert "msg-1" in est_output
         assert "msg-2" in est_input
         assert "msg-2" in est_output
-        # All estimated values should be non-negative
+        # 所有估算值应为非负数
         assert est_input["msg-1"] >= 0
         assert est_output["msg-1"] > 0
         assert est_input["msg-2"] >= 0
@@ -136,7 +136,7 @@ class TestEstimatedUsage:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_context_accumulation(self):
-        """Second turn input_tokens should be >= first turn input + first output."""
+        """第二轮 input_tokens 应 >= 第一轮 input + 第一轮 output。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="hi", msg_id="msg-1"),
@@ -148,16 +148,16 @@ class TestEstimatedUsage:
         est_output = {}
         _fill_estimates(events, {}, est_input, est_output)
 
-        # msg-2 input should be >= msg-1 input + msg-1 output + user("next question")
+        # msg-2 的 input 应 >= msg-1 的 input + msg-1 的 output + user("next question")
         second_input = est_input["msg-2"]
         first_total = est_input["msg-1"] + est_output["msg-1"]
         assert second_input >= first_total, (
-            f"msg-2 input ({second_input}) should be >= msg-1 total ({first_total})"
+            f"msg-2 的 input ({second_input}) 应 >= msg-1 的总计 ({first_total})"
         )
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_session_summary_matches_per_message_sum(self):
-        """Session-level estimated tokens should equal sum of per-message estimates."""
+        """会话级估算 token 应等于逐消息估算之和。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="response one", msg_id="msg-1"),
@@ -165,11 +165,11 @@ class TestEstimatedUsage:
             _assistant_event(text="response two", msg_id="msg-2"),
         ]
 
-        # Session-level estimate
+        # 会话级估算
         est_input, est_output, has_estimated = _estimate_tokens_from_events(events)
         assert has_estimated
 
-        # Per-message estimates
+        # 逐消息估算
         assistant_by_id = {rec["id"]: rec for rec in _assistant_records(events)}
         est_input_map = {}
         est_output_map = {}
@@ -179,20 +179,20 @@ class TestEstimatedUsage:
         sum_output = sum(est_output_map.values())
 
         assert est_input == sum_input, (
-            f"Session input {est_input} != sum of per-message {sum_input}"
+            f"会话 input {est_input} != 逐消息之和 {sum_input}"
         )
         assert est_output == sum_output, (
-            f"Session output {est_output} != sum of per-message {sum_output}"
+            f"会话 output {est_output} != 逐消息之和 {sum_output}"
         )
 
 
-# ─── Test: real usage is preserved ───────────────────────────────────────
+# ─── 测试：真实用量保留 ────────────────────────────────────────────────
 
 
 class TestRealUsagePreserved:
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_real_usage_skips_estimation(self):
-        """When an assistant event has real usage, estimation is skipped."""
+        """assistant 事件有真实用量时应跳过估算。"""
         events = [
             _user_event("hello"),
             _assistant_event(
@@ -209,7 +209,7 @@ class TestRealUsagePreserved:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_extract_messages_uses_real_usage(self):
-        """_extract_messages should use real usage, not estimates, when present."""
+        """_extract_messages 有真实用量时应使用真实用量而非估算。"""
         events = [
             _user_event("hello"),
             _assistant_event(
@@ -223,38 +223,104 @@ class TestRealUsagePreserved:
         assistant_msgs = [m for m in messages if m.role == "assistant"]
         assert len(assistant_msgs) == 1
         msg = assistant_msgs[0]
-        # Real usage should be present, not estimated
+        # 真实用量应存在，而非估算
         assert msg.usage is not None
         assert msg.usage.get("input_tokens") == 100
         assert msg.usage.get("output_tokens") == 50
-        assert msg.usage.get("estimated") is None  # No estimated flag for real usage
+        assert msg.usage.get("estimated") is None  # 真实用量不应设置 estimated 标志
+
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
+    def test_qoder_provider_usage_normalized_to_canonical_buckets(self):
+        """Qoder provider input total should not be double-counted with cache read."""
+        events = [
+            _user_event("hello"),
+            _assistant_event(
+                text="first",
+                msg_id="msg-1",
+                usage={
+                    "input_tokens": 1000,
+                    "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                    "output_tokens": 10,
+                },
+            ),
+            _user_event("next"),
+            _assistant_event(
+                text="second",
+                msg_id="msg-2",
+                usage={
+                    "input_tokens": 1200,
+                    "cache_read_input_tokens": 990,
+                    "cache_creation_input_tokens": 0,
+                    "output_tokens": 20,
+                },
+            ),
+        ]
+
+        records = _assistant_records(events)
+        assert records[0]["usage"]["input_tokens"] == 10
+        assert records[0]["usage"]["cache_creation_input_tokens"] == 990
+        assert records[0]["usage"]["qoder_input_tokens_total"] == 1000
+        assert records[1]["usage"]["input_tokens"] == 210
+        assert records[1]["usage"]["cache_read_input_tokens"] == 990
+
+        summary = _build_summary_from_events(events, "sess-1", "/tmp")
+        assert summary.input_tokens == 220
+        assert summary.cached_input_tokens == 990
+        assert summary.cached_output_tokens == 990
+        assert summary.output_tokens == 30
+
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
+    def test_extract_messages_uses_normalized_qoder_provider_usage(self):
+        events = [
+            _user_event("hello"),
+            _assistant_event(
+                text="hi",
+                msg_id="msg-1",
+                usage={
+                    "input_tokens": 1000,
+                    "cache_read_input_tokens": 900,
+                    "cache_creation_input_tokens": 50,
+                    "output_tokens": 25,
+                },
+            ),
+        ]
+
+        messages = _extract_messages(events)
+        assistant_msgs = [m for m in messages if m.role == "assistant"]
+        assert len(assistant_msgs) == 1
+        usage = assistant_msgs[0].usage
+        assert usage["input_tokens"] == 50
+        assert usage["cache_read_input_tokens"] == 900
+        assert usage["cache_creation_input_tokens"] == 50
+        assert usage["qoder_input_tokens_total"] == 1000
 
 
-# ─── Test: long text handling ────────────────────────────────────────────
+# ─── 测试：长文本处理 ────────────────────────────────────────────────
 
 
 class TestLongTextHandling:
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_tool_result_no_crash(self):
-        """A very long tool_result should not crash estimation."""
+        """超长 tool_result 不应导致估算崩溃。"""
         long_text = "x" * 500_000
         events = [
             _user_event("hello"),
             _assistant_event(text="checking", msg_id="msg-1"),
-            _user_event(""),  # user event with tool_result
+            _user_event(""),  # 带 tool_result 的 user 事件
         ]
-        # Inject a tool_result into the user event message content
+        # 向 user 事件注入 tool_result
         events[2]["message"]["content"] = [
             {"type": "tool_result", "content": long_text}
         ]
 
-        # Should not crash
+        # 不应崩溃
         est_input, est_output, has_estimated = _estimate_tokens_from_events(events)
         assert has_estimated
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_long_assistant_text_no_crash(self):
-        """A very long assistant text should not crash estimation."""
+        """超长 assistant 文本不应导致估算崩溃。"""
         long_text = "x" * 500_000
         events = [
             _user_event("write a long essay"),
@@ -263,12 +329,12 @@ class TestLongTextHandling:
 
         est_input, est_output, has_estimated = _estimate_tokens_from_events(events)
         assert has_estimated
-        # Output should be capped, not the full 500K characters worth of tokens
-        assert est_output < _count_tokens(long_text) + 10  # Should be close to capped count
+        # output 应被截断，而非完整 500K 字符对应的 token 数
+        assert est_output < _count_tokens(long_text) + 10  # 应接近截断后的计数
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_estimation_is_fast_on_large_text(self):
-        """Estimation should complete in well under 1 second for large events."""
+        """大事件估算应在远低于 1 秒内完成。"""
         long_text = "x" * 1_000_000
         events = [
             _user_event("prompt"),
@@ -285,13 +351,13 @@ class TestLongTextHandling:
         assert has_estimated
 
 
-# ─── Test: multi-fragment messages ───────────────────────────────────────
+# ─── 测试：多片段消息 ────────────────────────────────────────────────
 
 
 class TestMultiFragmentMessages:
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_fragments_merged_output(self):
-        """Multiple assistant fragments with same msg_id should accumulate output tokens."""
+        """相同 msg_id 的多个 assistant 片段应累加 output tokens。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="part one", msg_id="msg-1"),
@@ -302,19 +368,19 @@ class TestMultiFragmentMessages:
         est_output = {}
         _fill_estimates(events, {}, est_input, est_output)
 
-        # Only one message key
+        # 只有一个消息键
         assert "msg-1" in est_input
         assert "msg-1" in est_output
-        # Input should be set only once (from first fragment)
+        # input 只设置一次（来自第一个片段）
         assert est_input["msg-1"] >= 0
-        # Output should be sum of both fragments
+        # output 应为两个片段之和
         combined = "part one part two"
         expected_output = _count_tokens(combined)
         assert est_output["msg-1"] == _count_tokens("part one") + _count_tokens(" part two")
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_different_message_ids(self):
-        """Different msg_ids should get separate estimates."""
+        """不同 msg_id 应得到独立估算。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="response A", msg_id="msg-A"),
@@ -334,13 +400,13 @@ class TestMultiFragmentMessages:
         assert len(est_output) == 2
 
 
-# ─── Test: _extract_messages injects estimated usage ─────────────────────
+# ─── 测试：_extract_messages 注入估算用量 ─────────────────────────────
 
 
 class TestExtractMessagesEstimatedUsage:
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_estimated_usage_injected(self):
-        """When no real usage, _extract_messages should inject estimated usage dicts."""
+        """无真实用量时 _extract_messages 应注入估算用量字典。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="hi", msg_id="msg-1"),
@@ -361,7 +427,7 @@ class TestExtractMessagesEstimatedUsage:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_multi_turn_estimated_usage(self):
-        """Multiple turns should all have estimated usage with increasing input tokens."""
+        """多轮对话都应具有估算用量，且 input tokens 递增。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="hi", msg_id="msg-1"),
@@ -373,25 +439,25 @@ class TestExtractMessagesEstimatedUsage:
         assistant_msgs = [m for m in messages if m.role == "assistant"]
         assert len(assistant_msgs) == 2
 
-        # Both should have estimated usage
+        # 都应具有估算用量
         for msg in assistant_msgs:
             assert msg.usage is not None
             assert msg.usage.get("estimated") is True
 
-        # Second message input should be >= first message total
+        # 第二条消息的 input 应 >= 第一条消息的总计
         first_input = assistant_msgs[0].usage["input_tokens"]
         first_output = assistant_msgs[0].usage["output_tokens"]
         second_input = assistant_msgs[1].usage["input_tokens"]
         assert second_input >= first_input + first_output
 
 
-# ─── Test: Qoder tool execution time ─────────────────────────────────────
+# ─── 测试：Qoder 工具执行时间 ─────────────────────────────────────────────
 
 
 class TestToolExecutionTime:
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_non_overlapping_tools(self):
-        """Two sequential tool calls: tool_execution_seconds should be sum of durations."""
+        """两个顺序工具调用：tool_execution_seconds 应为时长之和。"""
         events = [
             _user_event("hello", timestamp="2025-01-01T00:00:00.000Z"),
             _assistant_event(
@@ -413,14 +479,14 @@ class TestToolExecutionTime:
         ]
 
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
-        # Each tool ran 10s, sequential -> 20s total
+        # 每个工具运行 10s，顺序执行 -> 总计 20s
         assert summary.tool_execution_seconds == 20.0, (
-            f"Expected 20s but got {summary.tool_execution_seconds}"
+            f"期望 20s 但得到 {summary.tool_execution_seconds}"
         )
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_overlapping_tools_merged(self):
-        """Two overlapping tool calls: tool_execution_seconds should be merged wall-clock time."""
+        """两个重叠工具调用：tool_execution_seconds 应为合并后的墙钟时间。"""
         events = [
             _user_event("hello", timestamp="2025-01-01T00:00:00.000Z"),
             _assistant_event(
@@ -443,14 +509,14 @@ class TestToolExecutionTime:
 
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
         # tu-1: 1s -> 11s (10s), tu-2: 3s -> 8s (5s)
-        # Overlap: [1,11] and [3,8] -> merged = [1,11] = 10s (not 15s)
+        # 重叠：[1,11] 和 [3,8] -> 合并 = [1,11] = 10s（非 15s）
         assert summary.tool_execution_seconds == 10.0, (
-            f"Expected 10s (merged) but got {summary.tool_execution_seconds}"
+            f"期望 10s（合并后）但得到 {summary.tool_execution_seconds}"
         )
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_no_tool_results_gives_zero(self):
-        """Assistant with tool_use but no tool_result should not fabricate intervals."""
+        """有 tool_use 但无 tool_result 时不应捏造时间区间。"""
         events = [
             _user_event("hello", timestamp="2025-01-01T00:00:00.000Z"),
             _assistant_event(
@@ -465,7 +531,7 @@ class TestToolExecutionTime:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_tool_call_duration_ms(self):
-        """ToolCall.duration_ms should be computed from tool_use/tool_result timestamps."""
+        """ToolCall.duration_ms 应从 tool_use/tool_result 时间戳计算。"""
         events = [
             _user_event("hello", timestamp="2025-01-01T00:00:00.000Z"),
             _assistant_event(
@@ -482,24 +548,23 @@ class TestToolExecutionTime:
         tool_calls = _extract_tool_calls(events, messages)
         assert len(tool_calls) == 1
         assert tool_calls[0].duration_ms == 10000, (
-            f"Expected 10000ms but got {tool_calls[0].duration_ms}"
+            f"期望 10000ms 但得到 {tool_calls[0].duration_ms}"
         )
 
 
-# ─── Test: Qoder cache values are never fabricated ───────────────────────
+# ─── 测试：Qoder cache 值绝不捏造 ───────────────────────────────────
 
 
 class TestCacheNoFabrication:
-    """Qoder sessions only have fresh input and output tokens — no cache
-    read/write.  The parser must never fabricate cache values to satisfy
-    UI requirements.
+    """Qoder 会话只有 fresh input 和 output tokens——无 cache
+    read/write。解析器绝不能捏造 cache 值来满足 UI 需求。
 
-    See task T057.
+    参见任务 T057。
     """
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_summary_cache_zero_when_estimated(self):
-        """Session summary cache_read/output must be 0 when tokens are estimated."""
+        """token 为估算时，会话摘要 cache_read/output 必须为 0。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="hi", msg_id="msg-1"),
@@ -510,18 +575,18 @@ class TestCacheNoFabrication:
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
 
         assert summary.cached_input_tokens == 0, (
-            f"cached_input_tokens should be 0, got {summary.cached_input_tokens}"
+            f"cached_input_tokens 应为 0，实际为 {summary.cached_input_tokens}"
         )
         assert summary.cached_output_tokens == 0, (
-            f"cached_output_tokens should be 0, got {summary.cached_output_tokens}"
+            f"cached_output_tokens 应为 0，实际为 {summary.cached_output_tokens}"
         )
-        # Tokens should still be estimated (non-zero)
+        # token 仍应被估算（非零）
         assert summary.input_tokens > 0
         assert summary.output_tokens > 0
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_summary_cache_zero_when_real_usage_no_cache(self):
-        """Even with real usage, if source has no cache fields, summary cache stays 0."""
+        """即使有真实用量，若来源无 cache 字段，摘要 cache 仍为 0。"""
         events = [
             _user_event("hello"),
             _assistant_event(
@@ -540,7 +605,7 @@ class TestCacheNoFabrication:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_per_message_cache_zero_when_estimated(self):
-        """Per-message usage dicts injected by _extract_messages must have cache=0."""
+        """_extract_messages 注入的逐消息用量字典 cache 必须为 0。"""
         events = [
             _user_event("hello"),
             _assistant_event(text="hi", msg_id="msg-1"),

@@ -1,9 +1,9 @@
-"""Tests for UI density and font-size check script.
+"""UI density 和 font-size 检查脚本的测试。
 
-These tests verify the static analysis logic in check_ui_density_and_font_size.py
-using synthetic CSS inputs to cover pass, fail, and warning cases.
+这些测试使用合成 CSS 输入验证 check_ui_density_and_font_size.py
+中的静态分析逻辑，覆盖通过、失败和告警场景。
 
-Usage:
+用法：
     cd <repo-root>
     ./scripts/session-browser.sh test tests/test_ui_density_and_font_size.py
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 def _run(css: str):
-    """Run the check on a synthetic CSS string and return (all_pass, lines)."""
+    """在合成 CSS 字符串上运行检查并返回 (all_pass, lines)。"""
     from scripts.check_ui_density_and_font_size import run_checks
     import tempfile
     import os
@@ -32,11 +32,11 @@ def _report_text(lines: list[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Token parsing
+# Token 解析
 # ---------------------------------------------------------------------------
 
 class TestTokenParsing:
-    """Verify CSS token extraction from :root block."""
+    """验证从 :root 块提取 CSS token。"""
 
     @pytest.mark.contract_case("UI-VISUAL-011")
     def test_parses_all_text_tokens(self):
@@ -67,11 +67,11 @@ class TestTokenParsing:
 
 
 # ---------------------------------------------------------------------------
-# Pixel value parsing
+# 像素值解析
 # ---------------------------------------------------------------------------
 
 class TestParsePx:
-    """Verify parse_px helper."""
+    """验证 parse_px 辅助函数。"""
 
     @pytest.mark.contract_case("UI-VISUAL-011")
     def test_valid_px(self):
@@ -89,11 +89,11 @@ class TestParsePx:
 
 
 # ---------------------------------------------------------------------------
-# Token resolution
+# Token 解析与回退
 # ---------------------------------------------------------------------------
 
 class TestTokenResolution:
-    """Verify var() resolution."""
+    """验证 var() 解析。"""
 
     @pytest.mark.contract_case("UI-VISUAL-011")
     def test_direct_var(self):
@@ -117,11 +117,11 @@ class TestTokenResolution:
 
 
 # ---------------------------------------------------------------------------
-# Threshold checks — pass cases
+# 阈值检查 — 通过场景
 # ---------------------------------------------------------------------------
 
 class TestThresholdsPass:
-    """Cases that should pass all checks."""
+    """应全部通过检查的场景。"""
 
     @pytest.mark.contract_case("UI-VISUAL-011")
     def test_all_tokens_meet_minimum(self):
@@ -176,11 +176,11 @@ class TestThresholdsPass:
 
 
 # ---------------------------------------------------------------------------
-# Threshold checks — fail cases
+# 阈值检查 — 失败场景
 # ---------------------------------------------------------------------------
 
 class TestThresholdsFail:
-    """Cases that should fail specific checks."""
+    """应失败特定检查的场景。"""
 
     @pytest.mark.contract_case("UI-VISUAL-011")
     def test_text_base_too_small(self):
@@ -296,11 +296,11 @@ class TestThresholdsFail:
 
 
 # ---------------------------------------------------------------------------
-# Report format
+# 报告格式
 # ---------------------------------------------------------------------------
 
 class TestReportFormat:
-    """Verify report contains expected sections and markers."""
+    """验证报告包含预期的章节和标记。"""
 
     @pytest.mark.contract_case("UI-VISUAL-011")
     def test_report_has_token_section(self):
@@ -370,11 +370,11 @@ class TestReportFormat:
 
 
 # ---------------------------------------------------------------------------
-# Edge cases
+# 边界场景
 # ---------------------------------------------------------------------------
 
 class TestEdgeCases:
-    """Edge case handling."""
+    """边界场景处理。"""
 
     @pytest.mark.contract_case("UI-VISUAL-011")
     @pytest.mark.contract_case("UI-VISUAL-003")
@@ -397,6 +397,6 @@ class TestEdgeCases:
     def test_no_root_block(self):
         css = ".data-table { font-size: 14px; }"
         all_pass, lines = _run(css)
-        # Tokens will be unresolved, so checks will fail/warn
+        # Token 将无法解析，检查会失败/告警
         assert isinstance(all_pass, bool)
         assert len(lines) > 0

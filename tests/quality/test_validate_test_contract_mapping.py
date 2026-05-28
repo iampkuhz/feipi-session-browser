@@ -104,7 +104,7 @@ class TestParsePytestMarker:
     """验证 _parse_pytest_markers 能正确提取 @pytest.mark.contract_case 中的契约 ID。"""
 
     def test_extract_single_id(self, tmp_path: Path):
-        """单 ID marker 应正确提取。"""
+        """单 ID marker（标记）应正确提取。"""
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
         (tests_dir / "test_session.py").write_text(
@@ -122,7 +122,7 @@ class TestParsePytestMarker:
         assert len(bindings["UI-SESSIONS-001"]["files"]) == 1
 
     def test_extract_multiple_ids(self, tmp_path: Path):
-        """一个 marker 含多个 ID 应全部提取。"""
+        """一个标记含多个 ID 应全部提取。"""
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
         (tests_dir / "test_multi.py").write_text(
@@ -280,7 +280,7 @@ class TestMissingInCode:
         return _validate(md_cases, code_bindings, duplicates or [], repo_root)
 
     def test_p0_missing_in_code(self, tmp_path: Path):
-        """P0 用例无代码绑定时应报告 missing_in_code。"""
+        """P0 用例无代码绑定时应报告 代码中缺失。"""
         md_cases = {
             "UI-SESSIONS-001": {
                 "priority": "P0",

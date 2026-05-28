@@ -1,13 +1,13 @@
-"""Unit tests for ContentPart detection functions.
+"""ContentPart 检测函数单元测试。
 
-Covers:
-- is_json detects valid JSON objects and arrays
-- is_image_url detects HTTP URLs, data URIs, markdown image syntax
-- is_html detects HTML documents but not inline tags in prose
-- is_code_block detects fenced code, file extensions, code patterns
-- detect_content_type returns correct type for common payloads
-- Backward compatibility: from_text wraps plain strings as markdown
-- Empty/None handling
+覆盖范围：
+- is_json 检测有效 JSON 对象和数组
+- is_image_url 检测 HTTP URL、data URI、Markdown 图片语法
+- is_html 检测 HTML 文档但不检测散文中的内联标签
+- is_code_block 检测围栏代码、文件扩展名、代码模式
+- detect_content_type 对常见负载返回正确类型
+- 向后兼容：from_text 将普通字符串包装为 markdown
+- 空值/None 处理
 """
 import pytest
 from session_browser.domain.content_part import (
@@ -133,7 +133,7 @@ def test_is_html_with_whitespace():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_is_html_inline_tag_in_prose_not_detected():
-    """Short text with single inline tag should NOT be HTML."""
+    """含单个内联标签的短文本不应被识别为 HTML。"""
     assert is_html('Use <code> for inline code.') is False
 
 
@@ -252,12 +252,12 @@ def test_detect_html():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_detect_ordered_list_not_code():
-    """Ordered list should NOT be detected as code."""
+    """有序列表不应被检测为代码。"""
     result = detect_content_type('1. First step\n2. Second step\n3. Third step')
     assert result == ContentPartType.MARKDOWN
 
 
-# ─── ContentPart model ────────────────────────────────────────────────────
+# ─── ContentPart 模型 ────────────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
@@ -282,13 +282,13 @@ def test_from_text_normal():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_from_text_json_becomes_markdown():
-    """from_text should always produce markdown for non-empty text.
+    """from_text 应始终对非空文本生成 markdown。
 
-    The detection is in detect_content_type; from_text is a simple
-    backward-compat wrapper.
+    检测逻辑在 detect_content_type 中；from_text 是简单的
+    向后兼容包装器。
     """
     part = ContentPart.from_text('{"key": "value"}')
-    # from_text wraps as markdown (not json) — that's the backward-compat behavior
+    """from_text 应始终生成 markdown（不是 json）——这是向后兼容行为。"""
     assert part.part_type == ContentPartType.MARKDOWN
 
 
@@ -357,7 +357,7 @@ def test_context_part_type_constants():
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_new_fields_defaults():
-    """New multipart fields should default to sensible values."""
+    """新增的多字段部件字段应有合理的默认值。"""
     part = ContentPart(part_type="text", content="hello")
     from session_browser.domain.content_part import ContextPartType
     assert part.context_type == ContextPartType.UNKNOWN
@@ -397,19 +397,19 @@ def test_content_part_context_type_properties():
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_compute_metadata():
     part = ContentPart(part_type="markdown", content="Hello world, this is a test.")
-    assert part.content_bytes == 0  # Not yet computed
+    assert part.content_bytes == 0  # 尚未计算
     assert part.token_hint == 0
 
     part.compute_metadata()
     assert part.content_bytes > 0
     assert part.token_hint > 0
-    # 31 chars / 4 = ~7 tokens (heuristic)
+    # 31 字符 / 4 ≈ 7 tokens（启发式估算）
     assert part.token_hint == max(1, 31 // 4)
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001")
 def test_content_part_compute_metadata_preserves_existing():
-    """If bytes/token are already set, compute_metadata should not overwrite."""
+    """如果 bytes/token 已设置，compute_metadata 不应覆盖。"""
     part = ContentPart(
         part_type="markdown",
         content="Hello",

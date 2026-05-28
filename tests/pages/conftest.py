@@ -1,1 +1,1 @@
-# pytest fixtures for page tests — inherits all from root conftest.py
+# pages 测试的 pytest 夹具 — 继承自根目录 conftest.py

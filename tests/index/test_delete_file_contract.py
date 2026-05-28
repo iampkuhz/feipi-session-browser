@@ -22,15 +22,15 @@ import sys
 import time
 from pathlib import Path
 
-# ─── Constants ──────────────────────────────────────────────────────────────
+# ─── 常量 ─────────────────────────────────────────────────────────────────────
 
 FIXTURE_ROOT = Path(__file__).parent.parent / "fixtures" / "index_corpus" / "full_scan_claude"
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────────
+# ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 def _setup_claude_env(data_dir: str):
-    """Set CLAUDE_DATA_DIR and reload dependent modules."""
+    """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("CLAUDE_DATA_DIR", None)
     os.environ["CLAUDE_DATA_DIR"] = data_dir
 
@@ -48,7 +48,7 @@ def _setup_claude_env(data_dir: str):
 
 
 def _restore_claude_env(old: str | None):
-    """Restore original CLAUDE_DATA_DIR."""
+    """恢复原始的 CLAUDE_DATA_DIR。"""
     if old is not None:
         os.environ["CLAUDE_DATA_DIR"] = old
     else:
@@ -56,7 +56,7 @@ def _restore_claude_env(old: str | None):
 
 
 def _run_full_scan(data_dir: str, db_path: str) -> dict:
-    """Run full_scan() against data_dir, returning scan statistics."""
+    """对 data_dir 运行 full_scan()，返回扫描统计。"""
     old_env = _setup_claude_env(data_dir)
     try:
         from session_browser.index.indexer import full_scan
@@ -71,7 +71,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 
 
 def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
-    """Run incremental_scan() against data_dir, returning scan statistics."""
+    """对 data_dir 运行 incremental_scan()，返回扫描统计。"""
     old_env = _setup_claude_env(data_dir)
     try:
         from session_browser.index.indexer import incremental_scan
@@ -85,7 +85,7 @@ def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
         _restore_claude_env(old_env)
 
 
-# ─── Tests ──────────────────────────────────────────────────────────────────
+# ─── 测试 ─────────────────────────────────────────────────────────────────────
 
 class TestDeleteFileContract:
     """D01: 源文件删除 — 两种扫描方式都不会从索引中移除已删除的会话。
@@ -110,33 +110,33 @@ class TestDeleteFileContract:
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: Build initial index
+        # 步骤 1: 建立初始索引
         _run_full_scan(str(data_dir), db_path)
 
         conn = sqlite3.connect(db_path)
         count_before = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         assert count_before == 2, f"Expected 2 sessions after full_scan, got {count_before}"
 
-        # Step 2: Delete one session file (sess-001 from proj-alpha)
+        # 步骤 2: 删除一个会话文件（proj-alpha 下的 sess-001）
         sess001_file = data_dir / "projects" / "proj-alpha" / "sess-001.jsonl"
         assert sess001_file.exists(), "Fixture file should exist before deletion"
         sess001_file.unlink()
         assert not sess001_file.exists(), "Fixture file should be deleted"
 
-        # Step 3: Run incremental_scan
+        # 步骤 3: 运行增量扫描
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # Step 4: Verify current behavior — stale entry remains
+        # 步骤 4: 验证当前行为 —— 陈旧条目仍然存在
         count_after = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
 
-        # KNOWN LIMITATION: incremental_scan does NOT clean up deleted sessions
-        # The stale row for sess-001 remains in the DB.
+        # 已知限制：incremental_scan 不会清理已删除的会话
+        # sess-001 的陈旧行仍保留在数据库中。
         assert count_after == 2, (
             f"KNOWN LIMITATION: incremental_scan does not clean deleted files. "
             f"Expected 2 (stale entry remains), got {count_after}"
         )
 
-        # Verify sess-001 is STILL in the DB (stale)
+        # 验证 sess-001 仍在数据库中（陈旧）
         row = conn.execute(
             "SELECT session_key, file_path FROM sessions WHERE session_key = 'claude_code:sess-001'"
         ).fetchone()
@@ -145,7 +145,7 @@ class TestDeleteFileContract:
             "(stale entry NOT cleaned up)"
         )
 
-        # Verify the scan result includes skipped count (file was detected as missing)
+        # 验证扫描结果包含 skipped 计数（文件被检测为缺失）
         assert result["skipped"] >= 1, (
             f"Expected at least 1 skipped session (deleted file), got {result['skipped']}"
         )
@@ -167,22 +167,22 @@ class TestDeleteFileContract:
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Step 1: Build initial index
+        # 步骤 1: 建立初始索引
         _run_full_scan(str(data_dir), db_path)
 
         conn = sqlite3.connect(db_path)
         count_before = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         assert count_before == 2
 
-        # Step 2: Delete sess-001
+        # 步骤 2: 删除 sess-001
         sess001_file = data_dir / "projects" / "proj-alpha" / "sess-001.jsonl"
         sess001_file.unlink()
 
-        # Step 3: Run full_scan (rebuilds index)
+        # 步骤 3: 运行全量扫描（重建索引）
         result = _run_full_scan(str(data_dir), db_path)
 
-        # KNOWN LIMITATION: full_scan still indexes deleted sessions via _session_from_history
-        # The session is re-indexed from history.jsonl metadata (no event data)
+        # 已知限制：full_scan 仍通过 _session_from_history 索引已删除的会话
+        # 会话从 history.jsonl 元数据重新索引（无事件数据）
         assert result["claude_count"] == 2, (
             f"KNOWN LIMITATION: full_scan still indexes deleted sessions via history fallback. "
             f"Expected 2 (re-indexed from history.jsonl), got {result['claude_count']}"
@@ -194,7 +194,7 @@ class TestDeleteFileContract:
             f"got {count_after}"
         )
 
-        # Verify sess-001 is STILL in DB (re-indexed from history, not from file)
+        # 验证 sess-001 仍在数据库中（从 history 重新索引，而非从文件）
         row001 = conn.execute(
             "SELECT session_key, file_path FROM sessions WHERE session_key = 'claude_code:sess-001'"
         ).fetchone()
@@ -203,8 +203,8 @@ class TestDeleteFileContract:
             "(re-indexed from history.jsonl)"
         )
 
-        # The re-indexed session from history will have empty file_path
-        # (no actual file exists)
+        # 从 history 重新索引的会话将有空的 file_path
+        # （没有实际文件存在）
         row002 = conn.execute(
             "SELECT session_key FROM sessions WHERE session_key = 'claude_code:sess-002'"
         ).fetchone()
@@ -214,10 +214,10 @@ class TestDeleteFileContract:
 
     @pytest.mark.contract_case("DATA-INDEX-007")
     def test_incremental_scan_skipped_count_includes_deleted(self, tmp_path):
-        """D01-C: incremental_scan reports deleted files in skipped count.
+        """D01-C: incremental_scan 在 skipped 计数中报告已删除文件。
 
-        When a source file is deleted, incremental_scan should count it
-        as skipped (not re-indexed), but currently does NOT remove the DB row.
+        当源文件被删除时，incremental_scan 应将其计为
+        skipped（不重新索引），但目前不会删除数据库中的行。
         """
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
@@ -225,28 +225,28 @@ class TestDeleteFileContract:
         db_path = str(tmp_path / "index.sqlite")
         _run_full_scan(str(data_dir), db_path)
 
-        # Delete one session file
+        # 删除一个会话文件
         sess001_file = data_dir / "projects" / "proj-alpha" / "sess-001.jsonl"
         sess001_file.unlink()
 
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # Deleted file should be counted in skipped
+        # 已删除的文件应计入 skipped
         assert result["skipped"] >= 1, (
             f"Expected deleted session to be counted as skipped, got skipped={result['skipped']}"
         )
 
-        # claude_count should be 0 (no re-indexing happened)
+        # claude_count 应为 0（未发生重新索引）
         assert result["claude_count"] == 0, (
             f"Expected 0 re-indexed sessions (file deleted), got {result['claude_count']}"
         )
 
     @pytest.mark.contract_case("DATA-INDEX-007")
     def test_incremental_scan_all_files_deleted(self, tmp_path):
-        """D01-D: All session files deleted — incremental_scan skips all.
+        """D01-D: 所有会话文件被删除 — incremental_scan 全部跳过。
 
-        When all source files are deleted, incremental_scan should skip
-        all sessions. DB retains stale entries (known limitation).
+        当所有源文件都被删除时，incremental_scan 应跳过
+        所有会话。数据库保留陈旧条目（已知限制）。
         """
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
@@ -254,7 +254,7 @@ class TestDeleteFileContract:
         db_path = str(tmp_path / "index.sqlite")
         _run_full_scan(str(data_dir), db_path)
 
-        # Delete ALL session files
+        # 删除所有会话文件
         for proj in ["proj-alpha", "proj-beta"]:
             for sess in ["sess-001", "sess-002"]:
                 fpath = data_dir / "projects" / proj / f"{sess}.jsonl"
@@ -263,7 +263,7 @@ class TestDeleteFileContract:
 
         result = _run_incremental_scan(str(data_dir), db_path)
 
-        # All sessions should be skipped
+        # 所有会话都应被跳过
         assert result["skipped"] >= 2, (
             f"Expected all 2 sessions skipped (all files deleted), got skipped={result['skipped']}"
         )
@@ -271,7 +271,7 @@ class TestDeleteFileContract:
             f"Expected 0 re-indexed, got {result['claude_count']}"
         )
 
-        # KNOWN LIMITATION: stale entries remain
+        # 已知限制：陈旧条目仍然保留
         conn = sqlite3.connect(db_path)
         count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         assert count == 2, (
@@ -292,14 +292,14 @@ class TestDeleteFileContract:
 
         db_path = str(tmp_path / "index.sqlite")
 
-        # Build initial index
+        # 构建初始索引
         _run_full_scan(str(data_dir), db_path)
 
-        # Delete sess-001
+        # 删除 sess-001
         sess001_file = data_dir / "projects" / "proj-alpha" / "sess-001.jsonl"
         sess001_file.unlink()
 
-        # incremental_scan leaves stale entry
+        # incremental_scan 留下陈旧条目
         incr_result = _run_incremental_scan(str(data_dir), db_path)
         conn = sqlite3.connect(db_path)
         count_after_incr = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
@@ -308,7 +308,7 @@ class TestDeleteFileContract:
         )
         conn.close()
 
-        # KNOWN LIMITATION: full_scan also keeps deleted sessions via history fallback
+        # 已知限制：full_scan 也通过 history 回退保留已删除的会话
         full_result = _run_full_scan(str(data_dir), db_path)
         assert full_result["claude_count"] == 2, (
             f"KNOWN LIMITATION: full_scan also keeps deleted sessions via history fallback. "

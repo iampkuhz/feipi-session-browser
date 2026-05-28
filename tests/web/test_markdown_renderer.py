@@ -1,12 +1,12 @@
-"""Tests for session_browser.web.renderers.markdown module.
+"""session_browser.web.renderers.markdown 模块测试。
 
-Covers:
-- Basic markdown to HTML conversion (headings, lists, emphasis)
-- Code block rendering
-- Table rendering
-- XSS protection (HTML escaping)
-- Empty/None input handling
-- Special character handling
+覆盖范围：
+- 基本 Markdown 转 HTML（标题、列表、强调）
+- 代码块渲染
+- 表格渲染
+- XSS 防护（HTML 转义）
+- 空值/None 输入处理
+- 特殊字符处理
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import pytest
 from session_browser.web.renderers.markdown import render_markdown
 
 
-# ─── Basic markdown to HTML ──────────────────────────────────────────
+# ─── 基本 Markdown 转 HTML ─────────────────────────────────────────
 
 class TestBasicMarkdown:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -83,7 +83,7 @@ class TestBasicMarkdown:
         assert "print()" in result
 
 
-# ─── Code block rendering ─────────────────────────────────────────────
+# ─── 代码块渲染 ────────────────────────────────────────────────────
 
 class TestCodeBlock:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -105,7 +105,7 @@ class TestCodeBlock:
     def test_code_block_with_language_hint(self):
         code = "```javascript\nconst x = 42;\n```"
         result = render_markdown(code)
-        # markdown-it wraps language in the code element's class
+        # markdown-it 将语言包裹在 code 元素的 class 中
         assert "<pre>" in result
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -122,7 +122,7 @@ class TestCodeBlock:
         assert "simple code" in result
 
 
-# ─── Table rendering ──────────────────────────────────────────────────
+# ─── 表格渲染 ─────────────────────────────────────────────────────
 
 class TestTableRendering:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -156,7 +156,7 @@ class TestTableRendering:
         assert "<table>" in result
 
 
-# ─── XSS protection ───────────────────────────────────────────────────
+# ─── XSS 防护 ──────────────────────────────────────────────────────
 
 class TestXSSProtection:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -168,7 +168,7 @@ class TestXSSProtection:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_img_onerror_escaped(self):
         result = render_markdown('<img src=x onerror=alert(1)>')
-        # After html.escape, < becomes &lt; so no raw HTML tag exists
+        # html.escape 转义后，< 变成 &lt;，不存在原始 HTML 标签
         assert "<img " not in result
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -180,14 +180,14 @@ class TestXSSProtection:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_anchor_with_javascript_escaped(self):
         result = render_markdown('<a href="javascript:alert(1)">click</a>')
-        # Tags are fully escaped; no raw <a tag
+        # 标签已被完整转义，不存在原始 <a 标签
         assert "<a href=" not in result
         assert "&lt;a href=" in result
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_event_handler_escaped(self):
         result = render_markdown('<div onclick="alert(1)">text</div>')
-        # Tags are escaped; no raw <div tag
+        # 标签已转义，不存在原始 <div 标签
         assert "<div " not in result
         assert "&lt;div " in result
 
@@ -198,13 +198,13 @@ class TestXSSProtection:
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_html_entity_in_markdown(self):
-        # Existing HTML entities should be double-escaped or preserved safely
+        # 已有的 HTML 实体应被双重转义或安全保留
         result = render_markdown("5 &lt; 10")
-        # After escaping, & becomes &amp;lt;
+        # 转义后，& 变成 &amp;lt;
         assert "&amp;lt;" in result or "&lt;" in result
 
 
-# ─── Empty input handling ─────────────────────────────────────────────
+# ─── 空输入处理 ─────────────────────────────────────────────────────
 
 class TestEmptyInput:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -218,7 +218,7 @@ class TestEmptyInput:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_whitespace_only(self):
         result = render_markdown("   \n\t  ")
-        # Whitespace-only may produce empty or whitespace HTML
+        # 仅有空格的输入可能产生空或空白 HTML
         assert isinstance(result, str)
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -227,7 +227,7 @@ class TestEmptyInput:
         assert isinstance(result, str)
 
 
-# ─── Special character handling ───────────────────────────────────────
+# ─── 特殊字符处理 ──────────────────────────────────────────────────
 
 class TestSpecialCharacters:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -249,7 +249,7 @@ class TestSpecialCharacters:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_single_quotes(self):
         result = render_markdown("It's a test")
-        # Single quotes may or may not be escaped depending on html.escape settings
+        # 单引号是否转义取决于 html.escape 的设置
         assert isinstance(result, str)
         assert "test" in result
 
@@ -282,7 +282,7 @@ class TestSpecialCharacters:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_pipe_in_non_table_context(self):
         result = render_markdown("a | b | c")
-        # Single row with pipes but no header separator should still produce table
+        # 仅有空格的输入可能产生空或空白 HTML
         assert isinstance(result, str)
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
@@ -293,7 +293,7 @@ class TestSpecialCharacters:
         assert "<script>" not in result
 
 
-# ─── Integration / edge cases ────────────────────────────────────────
+# ─── 集成 / 边界场景 ───────────────────────────────────────────────
 
 class TestEdgeCases:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
