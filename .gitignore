@@ -59,3 +59,4 @@ node_modules/
 /tests/playwright/*-snapshots/
 
 *.egg-info/
+/.traces/
