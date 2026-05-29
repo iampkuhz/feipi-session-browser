@@ -101,10 +101,19 @@
             <tbody>
                 {% if sessions %}
                 {% for s in sessions %}
-                {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-                {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-                {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-                {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set raw_total_tokens = s.total_tokens | default(none) %}
+                {% set raw_fresh_input = s.fresh_input_tokens | default(none) %}
+                {% set raw_cache_read = s.cache_read_tokens | default(none) %}
+                {% set raw_cache_write = s.cache_write_tokens | default(none) %}
+                {% set total_tokens = raw_total_tokens if raw_total_tokens is number else s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
+                {% set fresh_input = raw_fresh_input if raw_fresh_input is number else s.input_tokens %}
+                {% set cache_read = raw_cache_read if raw_cache_read is number else s.cached_input_tokens %}
+                {% set cache_write = raw_cache_write if raw_cache_write is number else s.cached_output_tokens %}
+                {% set output = s.output_tokens %}
+                {% set fresh_pct = (fresh_input / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set read_pct = (cache_read / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set write_pct = (cache_write / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+                {% set output_pct = (output / total_tokens * 100) | int if total_tokens > 0 else 0 %}
                 <tr class="sessions-row" data-action="row"
                     data-agent="{{ s.agent }}"
                     data-model="{{ s.model }}"
@@ -131,40 +140,22 @@
                     </td>
                     <td class="col-agent"><span class="badge {% if s.agent == 'claude_code' %}cc{% elif s.agent == 'codex' %}cx{% elif s.agent == 'qoder' %}qd{% endif %}" title="{{ 'Claude Code' if s.agent == 'claude_code' else 'Codex' if s.agent == 'codex' else 'Qoder' }} agent badge">{{ 'CC' if s.agent == 'claude_code' else 'CX' if s.agent == 'codex' else 'QD' if s.agent == 'qoder' else s.agent }}</span></td>
                     <td class="mono col-model">{{ s.model }}</td>
-                    {% if s.agent == 'qoder' %}
                     {{ ui.token_cell(
                         total=total_tokens | format_compact_token,
                         fresh_pct=fresh_pct,
-                        read_pct=0,
-                        write_pct=0,
+                        read_pct=read_pct,
+                        write_pct=write_pct,
                         out_pct=output_pct,
-                        fresh_val=s.input_tokens | format_compact_token,
-                        read_val='0',
-                        write_val='0',
-                        out_val=s.output_tokens | format_compact_token,
+                        fresh_val=fresh_input | format_compact_token,
+                        read_val=cache_read | format_compact_token,
+                        write_val=cache_write | format_compact_token,
+                        out_val=output | format_compact_token,
                         fresh_pct_val=fresh_pct,
-                        read_pct_val='0.0',
-                        write_pct_val='0.0',
+                        read_pct_val=read_pct,
+                        write_pct_val=write_pct,
                         out_pct_val=output_pct,
-                        profile='qoder'
+                        profile=s.agent
                     ) }}
-                    {% else %}
-                    {{ ui.token_cell(
-                        total=total_tokens | format_compact_token,
-                        fresh_pct=fresh_pct,
-                        read_pct=(s.cached_input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0,
-                        write_pct=(s.cached_output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0,
-                        out_pct=output_pct,
-                        fresh_val=s.input_tokens | format_compact_token,
-                        read_val=s.cached_input_tokens | format_compact_token,
-                        write_val=s.cached_output_tokens | format_compact_token,
-                        out_val=s.output_tokens | format_compact_token,
-                        fresh_pct_val=fresh_pct,
-                        read_pct_val=(s.cached_input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0,
-                        write_pct_val=(s.cached_output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0,
-                        out_pct_val=output_pct
-                    ) }}
-                    {% endif %}
                     <td class="num mono col-rounds">{{ s.assistant_message_count }}</td>
                     <td class="num mono col-tools">{{ s.tool_call_count }}</td>
                     <td class="mono col-duration" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>

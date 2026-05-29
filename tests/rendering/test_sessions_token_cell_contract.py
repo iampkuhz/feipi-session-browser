@@ -1,12 +1,11 @@
-"""契约测试：ui.token_cell Qoder profile 渲染。
+"""契约测试：ui.token_cell token breakdown 渲染。
 
-S-06：Qoder token 细目不应显示 cache write/cache read。
-此测试定义预期契约并作为质量门。
-在源模板更新以支持 per-provider profile 之前，它将 FAIL。
+Token cell 必须让条形图段和 tooltip breakdown 使用同一套
+Fresh / Cached Rd / Cached Wr / Output 分类。
 
 契约：
-- Qoder（profile="qoder"）：仅 2 行 — Fresh input + Output
-- 非 Qoder（例如 claude_code）：4 行 — Fresh / Cached Rd / Cached Wr / Output
+- 所有 provider 都显示 4 行 — Fresh / Cached Rd / Cached Wr / Output
+- profile 只保留为兼容参数，不改变分类行或颜色段
 """
 
 from __future__ import annotations
@@ -45,87 +44,51 @@ def _render_with_profile(provider: str) -> str:
     模拟调用者模板逻辑，该逻辑会传递 `profile`
     参数或有选择地抑制 cache 行。
     """
-    # 当前宏不接受 profile，因此我们使用
-    # 真实调用者会传递的代表性值进行渲染。
-    # 对于 Qoder：cache 值应为零/缺失。
-    if provider == "qoder":
-        return _render_token_cell(
-            total="1.0K",
-            fresh_pct=70.0, read_pct=0, write_pct=0, out_pct=30.0,
-            fresh_val="700", read_val="0", write_val="0", out_val="300",
-            fresh_pct_val="70.0", read_pct_val="0.0", write_pct_val="0.0", out_pct_val="30.0",
-            profile="qoder",
-        )
-    else:
-        return _render_token_cell(
-            total="2.0K",
-            fresh_pct=40.0, read_pct=20.0, write_pct=10.0, out_pct=30.0,
-            fresh_val="800", read_val="400", write_val="200", out_val="600",
-            fresh_pct_val="40.0", read_pct_val="20.0", write_pct_val="10.0", out_pct_val="30.0",
-        )
+    return _render_token_cell(
+        total="2.0K",
+        fresh_pct=40.0, read_pct=20.0, write_pct=10.0, out_pct=30.0,
+        fresh_val="800", read_val="400", write_val="200", out_val="600",
+        fresh_pct_val="40.0", read_pct_val="20.0", write_pct_val="10.0", out_pct_val="30.0",
+        profile=provider,
+    )
 
 
 # ── Token cell 类型名称行 ────────────────────────────────────────────────
 
-_QODER_ALLOWED_TYPE_NAMES = {"Fresh input", "Output"}
-_NON_QODER_TYPE_NAMES = {"Fresh input", "Cached Rd", "Cached Wr", "Output"}
-
-_CACHE_KEYWORDS = ["Cached Rd", "Cached Wr", "Cache read", "Cache write", "dot--read", "dot--write"]
-
+_TOKEN_TYPE_NAMES = {"Fresh input", "Cached Rd", "Cached Wr", "Output"}
 
 class TestTokenCellQoderContract:
-    """Qoder profile：仅 Fresh input 和 Output 行。
+    """Qoder profile：完整 4 段细目。
 
-    为 Qoder 会话渲染时，token-cell 提示框
-    不得包含任何 cache 相关行。
+    Qoder 也使用统一 token 模型，tooltip 行必须与 tokenbar 段一致。
     """
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
-    def test_qoder_no_cached_read_row(self):
+    def test_qoder_has_cached_read_row(self):
         html = _render_with_profile("qoder")
-        # 契约规定 Qoder 不应显示 Cached Rd
-        # 此测试在源模板更新以支持 profile 之前将 FAIL
-        assert "Cached Rd" not in html, (
-            "Qoder token_cell must not contain 'Cached Rd' row"
+        assert "Cached Rd" in html, (
+            "Qoder token_cell must contain 'Cached Rd' row"
         )
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
-    def test_qoder_no_cached_write_row(self):
+    def test_qoder_has_cached_write_row(self):
         html = _render_with_profile("qoder")
-        assert "Cached Wr" not in html, (
-            "Qoder token_cell must not contain 'Cached Wr' row"
+        assert "Cached Wr" in html, (
+            "Qoder token_cell must contain 'Cached Wr' row"
         )
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
-    def test_qoder_no_cache_read_keyword(self):
+    def test_qoder_has_read_dot_class(self):
         html = _render_with_profile("qoder")
-        for kw in ["Cache read", "cache-read", "cache_read"]:
-            assert kw.lower() not in html.lower(), (
-                f"Qoder token_cell must not contain '{kw}'"
-            )
-
-    @pytest.mark.contract_case("UI-SESSIONS-016")
-    def test_qoder_no_cache_write_keyword(self):
-        html = _render_with_profile("qoder")
-        for kw in ["Cache write", "cache-write", "cache_write"]:
-            assert kw.lower() not in html.lower(), (
-                f"Qoder token_cell must not contain '{kw}'"
-            )
-
-    @pytest.mark.contract_case("UI-SESSIONS-016")
-    def test_qoder_no_read_dot_class(self):
-        """Qoder 输出中不得包含 dot--read CSS 类。"""
-        html = _render_with_profile("qoder")
-        assert "dot--read" not in html, (
-            "Qoder token_cell must not contain dot--read class"
+        assert "dot--read" in html, (
+            "Qoder token_cell must contain dot--read class"
         )
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
-    def test_qoder_no_write_dot_class(self):
-        """Qoder 输出中不得包含 dot--write CSS 类。"""
+    def test_qoder_has_write_dot_class(self):
         html = _render_with_profile("qoder")
-        assert "dot--write" not in html, (
-            "Qoder token_cell must not contain dot--write class"
+        assert "dot--write" in html, (
+            "Qoder token_cell must contain dot--write class"
         )
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
@@ -140,21 +103,20 @@ class TestTokenCellQoderContract:
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_type_name_count(self):
-        """Qoder 提示框应恰好有 2 个类型名称行。"""
+        """Qoder 提示框应恰好有 4 个类型名称行。"""
         html = _render_with_profile("qoder")
         type_names = _extract_type_names(html)
-        # 契约：仅 Fresh + Output = 2
-        assert len(type_names) == 2, (
-            f"Qoder token_cell should have exactly 2 type rows, got {len(type_names)}: {type_names}"
+        assert len(type_names) == 4, (
+            f"Qoder token_cell should have exactly 4 type rows, got {len(type_names)}: {type_names}"
         )
 
     @pytest.mark.contract_case("UI-SESSIONS-016")
     def test_qoder_only_allowed_type_names(self):
-        """Qoder 类型名称必须是 {Fresh, Output} 的子集。"""
+        """Qoder 类型名称必须使用统一 token 分类。"""
         html = _render_with_profile("qoder")
         type_names = _extract_type_names(html)
-        assert type_names <= _QODER_ALLOWED_TYPE_NAMES, (
-            f"Qoder token_cell has unexpected type names: {type_names - _QODER_ALLOWED_TYPE_NAMES}"
+        assert type_names == _TOKEN_TYPE_NAMES, (
+            f"Qoder token_cell has unexpected type names: {type_names ^ _TOKEN_TYPE_NAMES}"
         )
 
 
@@ -202,7 +164,7 @@ class TestTokenCellNonQoderContract:
         """非 Qoder 类型名称必须匹配预期集合。"""
         html = _render_with_profile("claude_code")
         type_names = _extract_type_names(html)
-        assert type_names == _NON_QODER_TYPE_NAMES, (
+        assert type_names == _TOKEN_TYPE_NAMES, (
             f"Non-Qoder token_cell type names mismatch: got {type_names}"
         )
 

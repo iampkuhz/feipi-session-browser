@@ -322,14 +322,13 @@
                     fresh_val='0', read_val='0', write_val='0', out_val='0',
                     fresh_pct_val='0.0', read_pct_val='0.0', write_pct_val='0.0', out_pct_val='0.0',
                     title='Token Breakdown', profile='standard') -%}
-{% set is_qoder = (profile == 'qoder') %}
 <td class="token-cell">
   <div class="token-total">
     <span class="token-total__value">{{ total }}</span>
     <span class="tokenbar" aria-hidden="true">
       <span class="tokenbar-seg fresh" style="--segment-width:{{ fresh_pct }}%"></span>
-      {% if not is_qoder %}<span class="tokenbar-seg read" style="--segment-width:{{ read_pct }}%"></span>{% endif %}
-      {% if not is_qoder %}<span class="tokenbar-seg write" style="--segment-width:{{ write_pct }}%"></span>{% endif %}
+      <span class="tokenbar-seg read" style="--segment-width:{{ read_pct }}%"></span>
+      <span class="tokenbar-seg write" style="--segment-width:{{ write_pct }}%"></span>
       <span class="tokenbar-seg out" style="--segment-width:{{ out_pct }}%"></span>
     </span>
     <div class="token-tooltip" aria-hidden="true">
@@ -339,7 +338,6 @@
         <span class="token-tooltip__value">{{ fresh_val }}</span>
         <span class="token-tooltip__pct">{{ fresh_pct_val }}%</span>
       </div>
-      {% if not is_qoder %}
       <div class="token-tooltip__row">
         <span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
         <span class="token-tooltip__value">{{ read_val }}</span>
@@ -350,7 +348,6 @@
         <span class="token-tooltip__value">{{ write_val }}</span>
         <span class="token-tooltip__pct">{{ write_pct_val }}%</span>
       </div>
-      {% endif %}
       <div class="token-tooltip__row">
         <span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span>
         <span class="token-tooltip__value">{{ out_val }}</span>
