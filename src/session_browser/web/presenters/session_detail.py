@@ -84,15 +84,20 @@ def _make_round(
             if tc.tool_use_id and tc.tool_use_id in matched_ids:
                 round_tool_calls.append(tc)
 
-    # Token info (Claude and Qoder both have per-message usage data)
+    # Token info (Claude Code, Qoder, and Codex all have per-message usage data)
     round_input = 0
     round_output = 0
     round_cached = 0
     round_cache_write = 0
-    if agent in ("claude_code", "qoder") and assistant_msg.usage:
+    if agent in ("claude_code", "qoder", "codex") and assistant_msg.usage:
         round_input = assistant_msg.usage.get("input_tokens", 0)
         round_output = assistant_msg.usage.get("output_tokens", 0)
-        round_cached = assistant_msg.usage.get("cache_read_input_tokens", 0)
+        # Codex uses cached_input_tokens; Claude/Qoder use cache_read_input_tokens
+        round_cached = assistant_msg.usage.get(
+            "cache_read_input_tokens",
+            assistant_msg.usage.get("cached_input_tokens", 0),
+        )
+        # Codex has no cache write tokens
         round_cache_write = assistant_msg.usage.get("cache_creation_input_tokens", 0)
 
     round_total = round_input + round_output + round_cached + round_cache_write
@@ -149,6 +154,9 @@ def build_llm_calls(
 
     Main agent: one call per assistant message.
     Subagent: one call per internal turn (so the LLM Calls tab shows all).
+
+    For agents without llm_call_id (e.g. Codex), a synthetic ID is generated
+    and round assignment is done by sequential matching against rounds.
     """
     llm_calls: list[LLMCall] = []
 
@@ -158,12 +166,40 @@ def build_llm_calls(
         if r.assistant_msg.llm_call_id:
             call_id_to_round[r.assistant_msg.llm_call_id] = r_idx
 
+    # For agents without llm_call_id, build a position-based mapping:
+    # assistant message index -> round_index by sequential match.
+    assistant_msg_indices: list[int] = [
+        i for i, msg in enumerate(messages) if msg.role == "assistant"
+    ]
+    # Map message_index -> round_index for messages without llm_call_id
+    msg_idx_to_round: dict[int, int] = {}
+    round_cursor = 0
+    for msg_idx in assistant_msg_indices:
+        msg = messages[msg_idx]
+        if msg.llm_call_id and msg.llm_call_id in call_id_to_round:
+            # Already mapped by ID
+            msg_idx_to_round[msg_idx] = call_id_to_round[msg.llm_call_id]
+        else:
+            # Assign to current round cursor, advance when round assistant
+            # message timestamp matches (or just assign sequentially).
+            if round_cursor < len(rounds):
+                msg_idx_to_round[msg_idx] = round_cursor
+                round_cursor += 1
+
     # Main agent calls - track prior call's tools for prompt context
     main_calls_in_round: dict[int, list[LLMCall]] = {}
-    for msg in messages:
-        if msg.role != "assistant" or not msg.llm_call_id:
+    for msg_idx, msg in enumerate(messages):
+        if msg.role != "assistant":
             continue
-        r_idx = call_id_to_round.get(msg.llm_call_id, 0)
+
+        # Determine round index: by llm_call_id or by position mapping
+        if msg.llm_call_id and msg.llm_call_id in call_id_to_round:
+            r_idx = call_id_to_round[msg.llm_call_id]
+        elif msg_idx in msg_idx_to_round:
+            r_idx = msg_idx_to_round[msg_idx]
+        else:
+            continue
+
         usage = msg.usage or {}
         round_tools = rounds[r_idx].tool_calls if r_idx < len(rounds) else []
         round_obj = rounds[r_idx] if r_idx < len(rounds) else None
@@ -184,8 +220,11 @@ def build_llm_calls(
         request_full = msg.request_full
         request_preview = request_full[:200] if request_full else prompt_hint
 
+        # Generate synthetic ID for agents without llm_call_id
+        call_id = msg.llm_call_id or f"synthetic-R{r_idx + 1}-M{call_index + 1}"
+
         llm_call = LLMCall(
-            id=msg.llm_call_id,
+            id=call_id,
             model=msg.model,
             scope="main",
             subagent_id="",
@@ -196,7 +235,7 @@ def build_llm_calls(
             status=msg.llm_status,
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
-            cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+            cache_read_tokens=usage.get("cache_read_input_tokens", usage.get("cached_input_tokens", 0)),
             cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
             prompt_preview=prompt_hint,
             request_preview=request_preview,
@@ -256,7 +295,7 @@ def build_llm_calls(
                 status="ok",
                 input_tokens=usage.get("input_tokens", 0),
                 output_tokens=usage.get("output_tokens", 0),
-                cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+                cache_read_tokens=usage.get("cache_read_input_tokens", usage.get("cached_input_tokens", 0)),
                 cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
                 prompt_preview=f"Subagent turn ({msg.content[:80]})" if msg.content else "Subagent turn",
                 request_preview=request_preview,

@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Iterator
 
 from session_browser.config import CODEX_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
+from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, NormalizedTokenBreakdown, TokenPrecision, TokenSourceKind, TokenTotalSemantics
+from session_browser.domain.token_normalizer import normalize_tokens_unified
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -247,6 +248,13 @@ def _build_summary_from_events(
     tool_count = 0
     tokens_used = thread_info.get("tokens_used", 0)
 
+    # Track cumulative token usage for delta recovery
+    prev_cumulative = None
+    # Session-level accumulated component totals
+    sum_fresh = 0
+    sum_cache_read = 0
+    sum_output = 0
+
     # Track first/last timestamps
     first_ts = ""
     last_ts = ""
@@ -267,10 +275,44 @@ def _build_summary_from_events(
             elif msg_type == "agent_message":
                 assistant_count += 1
             elif msg_type == "token_count":
-                # Take the last/largest total
-                total = payload.get("total_token_usage", 0)
-                if total:
-                    tokens_used = total
+                # Codex provides cumulative totals via total_token_usage.
+                # last_token_usage is the last LLM call's usage (not a delta),
+                # so we only use total_token_usage cumulative deltas.
+                info = payload.get("info") or {}
+                cumulative_usage = info.get("total_token_usage") or payload.get("total_token_usage")
+
+                if cumulative_usage and isinstance(cumulative_usage, dict):
+                    if prev_cumulative:
+                        # Compute per-turn delta from cumulative
+                        delta = {}
+                        for key in ("input_tokens", "prompt_tokens", "cached_input_tokens",
+                                     "cache_read_input_tokens", "cached_tokens",
+                                     "output_tokens", "completion_tokens"):
+                            cur_val = _get_int_safe(cumulative_usage, key)
+                            prev_val = _get_int_safe(prev_cumulative, key)
+                            delta[key] = max(cur_val - prev_val, 0)
+                        bd = normalize_tokens_unified(delta, provider="codex")
+                        bd.precision = TokenPrecision.PROVIDER_REPORTED_DELTA
+                        sum_fresh += bd.fresh_input_tokens
+                        sum_cache_read += bd.cache_read_tokens
+                        sum_output += bd.output_tokens
+                    else:
+                        # First cumulative snapshot — treat as-is
+                        bd = normalize_tokens_unified(cumulative_usage, provider="codex")
+                        sum_fresh += bd.fresh_input_tokens
+                        sum_cache_read += bd.cache_read_tokens
+                        sum_output += bd.output_tokens
+
+                    # Track the final cumulative total directly (not summed deltas)
+                    cumulative_total = (
+                        _get_int_safe(cumulative_usage, "total_tokens")
+                        or _get_int_safe(cumulative_usage, "total_token_usage")
+                        or _get_int_safe(cumulative_usage, "tokens_used")
+                    )
+                    if cumulative_total > 0:
+                        tokens_used = max(tokens_used, cumulative_total)
+
+                    prev_cumulative = cumulative_usage
 
         elif etype == "response_item":
             rtype = payload.get("type", "")
@@ -278,6 +320,18 @@ def _build_summary_from_events(
                 tool_count += 1
 
         last_ts = ts
+
+    # Codex: input_tokens is inclusive, cached is subset; no cache_write
+    raw_input_total = sum_fresh + sum_cache_read
+    cache_read = sum_cache_read
+    fresh = sum_fresh
+    output = sum_output
+
+    # Use SQLite tokens_used as authoritative total (event deltas may have rounding)
+    if tokens_used > 0:
+        total = tokens_used
+    else:
+        total = raw_input_total + output
 
     # Get metadata from thread_info (priority from DB)
     cwd = thread_info.get("cwd", "")
@@ -315,10 +369,26 @@ def _build_summary_from_events(
         user_message_count=user_count,
         assistant_message_count=assistant_count,
         tool_call_count=tool_count,
-        input_tokens=tokens_used,  # Codex uses total tokens
-        output_tokens=0,  # Not separately available
-        cached_input_tokens=0,
+        input_tokens=raw_input_total,
+        output_tokens=output,
+        cached_input_tokens=cache_read,
+        cached_output_tokens=0,
+        fresh_input_tokens=fresh,
+        cache_read_tokens=cache_read,
+        cache_write_tokens=0,
+        total_tokens=total,
     )
+
+
+def _get_int_safe(d: dict, key: str) -> int:
+    """Safely get int from dict."""
+    val = d.get(key, 0)
+    if val is None:
+        return 0
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return 0
 
 
 def _extract_messages(events: list[dict]) -> list[ChatMessage]:
@@ -326,11 +396,70 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
 
     Uses event_msg with type=user_message and type=agent_message.
     Tracks pending request parts for subsequent assistant messages.
+    Attaches per-turn token usage from token_count events and tool call IDs
+    from function_call response_items to each assistant message.
+
+    Note: Each agent_message is followed by multiple token_count events (one per
+    LLM call including tool follow-ups). All token_counts between two
+    agent_messages are aggregated to form the per-turn usage for the preceding
+    agent_message. Similarly, function_call IDs between agent_messages are
+    collected to populate assistant_msg.tool_calls for round matching.
     """
     messages = []
     pending_request_parts: list[str] = []
 
-    for ev in events:
+    # Locate agent_message events
+    agent_msg_indices: list[int] = []
+    for i, ev in enumerate(events):
+        etype = ev.get("type", "")
+        payload = ev.get("payload", {})
+        if (etype == "event_msg"
+                and payload.get("type") == "agent_message"
+                and payload.get("phase", "") in ("commentary", "final")):
+            agent_msg_indices.append(i)
+
+    # For each agent_message, collect token_counts and function_call IDs
+    # between it and the next agent_message.
+    agent_usage: dict[int, dict] = {}  # agent_msg_index -> aggregated usage
+    agent_tool_ids: dict[int, list[dict]] = {}  # agent_msg_index -> [{id, name}, ...]
+    for ai, start_idx in enumerate(agent_msg_indices):
+        if ai + 1 < len(agent_msg_indices):
+            end_idx = agent_msg_indices[ai + 1]
+        else:
+            end_idx = len(events)
+
+        # Aggregate token counts
+        usage: dict = {
+            "input_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+        tool_ids: list[dict] = []
+        for i in range(start_idx, end_idx):
+            ev = events[i]
+            if ev.get("type") == "event_msg":
+                payload = ev.get("payload", {})
+                if payload.get("type") == "token_count":
+                    info = payload.get("info") or {}
+                    last_usage = info.get("last_token_usage") or payload.get("last_token_usage")
+                    if last_usage and isinstance(last_usage, dict):
+                        usage["input_tokens"] += last_usage.get("input_tokens", 0) or 0
+                        usage["cached_input_tokens"] += last_usage.get("cached_input_tokens", 0) or 0
+                        usage["output_tokens"] += last_usage.get("output_tokens", 0) or 0
+                        usage["total_tokens"] += last_usage.get("total_tokens", 0) or 0
+            elif ev.get("type") == "response_item":
+                payload = ev.get("payload", {})
+                if payload.get("type") == "function_call":
+                    call_id = payload.get("call_id", "")
+                    tool_name = payload.get("name", "")
+                    if call_id:
+                        tool_ids.append({"id": call_id, "name": tool_name})
+
+        agent_usage[start_idx] = usage
+        agent_tool_ids[start_idx] = tool_ids
+
+    for i, ev in enumerate(events):
         etype = ev.get("type", "")
         payload = ev.get("payload", {})
         ts = ev.get("timestamp", "")
@@ -351,18 +480,24 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                 ))
             elif msg_type == "agent_message":
                 phase = payload.get("phase", "")
-                # Include commentary and final as assistant messages
                 content = payload.get("message", "")
                 if isinstance(content, list):
                     content = "\n".join(str(c) for c in content)
                 if phase in ("commentary", "final"):
                     request_full = "\n\n".join(p for p in pending_request_parts if p)
                     pending_request_parts = []
+
+                    # Attach aggregated per-turn usage and tool call IDs
+                    usage = agent_usage.get(i)
+                    tool_calls_list = agent_tool_ids.get(i, [])
+
                     messages.append(ChatMessage(
                         role="assistant",
                         content=str(content),
                         timestamp=ts,
                         request_full=request_full,
+                        usage=usage,
+                        tool_calls=tool_calls_list,
                     ))
 
     return messages
@@ -371,8 +506,19 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
 def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
     """Extract tool calls from Codex response_items.
 
-    Only counts function_call, not function_call_output (to avoid double counting).
+    Each function_call has a call_id (used as tool_use_id) and a matching
+    function_call_output with the result and exit status.
     """
+    # Pre-index function_call_output by call_id
+    outputs_by_id: dict[str, dict] = {}
+    for ev in events:
+        if ev.get("type") == "response_item":
+            payload = ev.get("payload", {})
+            if payload.get("type") == "function_call_output":
+                call_id = payload.get("call_id", "")
+                if call_id:
+                    outputs_by_id[call_id] = payload
+
     tool_calls = []
     for ev in events:
         etype = ev.get("type", "")
@@ -391,22 +537,31 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                     except json.JSONDecodeError:
                         args = {"raw": args[:200]}
                 call_id = payload.get("call_id", "")
-                # Try to find matching output for status
+
+                # Match with function_call_output for status/result
                 status = "completed"
                 result = ""
-                for ev2 in events:
-                    if ev2.get("type") == "response_item":
-                        p2 = ev2.get("payload", {})
-                        if (p2.get("type") == "function_call_output"
-                                and p2.get("call_id") == call_id):
-                            result = str(p2.get("output", ""))[:500]
-                            break
+                exit_code: int | None = None
+                output_ev = outputs_by_id.get(call_id, {})
+                if output_ev:
+                    output_text = str(output_ev.get("output", ""))
+                    result = output_text[:500]
+                    # Extract exit code from output (e.g. "Process exited with code 1")
+                    import re
+                    exit_match = re.search(r"exited with code (\d+)", output_text)
+                    if exit_match:
+                        exit_code = int(exit_match.group(1))
+                        if exit_code != 0:
+                            status = "error"
+
                 tool_calls.append(ToolCall(
                     name=name,
                     parameters=args if isinstance(args, dict) else {},
                     result=result,
                     status=status,
                     timestamp=ts,
+                    tool_use_id=call_id,
+                    exit_code=exit_code,
                 ))
 
     return tool_calls

@@ -15,6 +15,36 @@ class TokenPrecision:
     PROVIDER_REPORTED = "provider-reported"
     ESTIMATED = "estimated"
     UNKNOWN = "unknown"
+    # New precision enum values for unified breakdown
+    PROVIDER_REPORTED_NORMALIZED = "provider_reported_normalized"
+    PROVIDER_REPORTED_DELTA = "provider_reported_delta"
+    SQLITE_TOKEN_INFO = "sqlite_token_info"
+    ESTIMATED_PARTIAL = "estimated_partial"
+    ZERO_FILLED_UNAVAILABLE = "zero_filled_unavailable"
+    REPORTED_TOTAL_ONLY = "reported_total_only"
+
+
+class TokenTotalSemantics:
+    """Enumerates how total_tokens is derived."""
+    EXCLUSIVE_COMPONENT_SUM = "exclusive_components_sum"
+    REPORTED_TOTAL = "reported_total"
+    REPORTED_CUMULATIVE_DELTA = "reported_cumulative_delta"
+    PROMPT_TOTAL_PLUS_OUTPUT = "prompt_total_plus_output"
+    ESTIMATED_COMPONENT_SUM = "estimated_components_sum"
+    RECOMPUTED_DUE_TO_INCONSISTENT_RAW_TOTAL = "recomputed_due_to_inconsistent_raw_total"
+    REPORTED_TOTAL = "reported_total"
+
+
+class TokenSourceKind:
+    """Enumerates the source of token data."""
+    CLAUDE_CODE_JSONL_USAGE = "claude_code_jsonl_usage"
+    CODEX_ROLLOUT_TOKEN_COUNT = "codex_rollout_token_count"
+    QODER_SEGMENT_MODEL_RESPONSE_COMPLETED = "qoder_segment_model_response_completed"
+    QODER_SQLITE_TOKEN_INFO = "qoder_sqlite_token_info"
+    QODER_TURN_FINISHED_FALLBACK = "qoder_turn_finished_fallback"
+    QODER_TRANSCRIPT_ESTIMATED = "qoder_transcript_estimated"
+    SESSION_TOTAL_ONLY_FALLBACK = "session_total_only_fallback"
+    UNKNOWN = "unknown"
 
 
 class TokenProvider:
@@ -24,6 +54,53 @@ class TokenProvider:
     QWEN_ANTHROPIC_COMPATIBLE = "qwen-anthropic-compatible"
     QODER = "qoder"
     UNKNOWN = "unknown"
+
+
+@dataclass
+class NormalizedTokenBreakdown:
+    """Unified 5-field token breakdown for every session/LLM call.
+
+    All five int fields are guaranteed to be present (never None/null/NaN).
+    Metadata fields document precision and semantics.
+    """
+    fresh_input_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+    precision: str = TokenPrecision.UNKNOWN
+    total_semantics: str = TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
+    source_kind: str = TokenSourceKind.UNKNOWN
+    raw_fields: dict = field(default_factory=dict)
+    notes: list = field(default_factory=list)
+
+    @property
+    def provider(self) -> str:
+        """Alias for backward compat — maps source_kind to provider string."""
+        mapping = {
+            TokenSourceKind.CLAUDE_CODE_JSONL_USAGE: TokenProvider.ANTHROPIC,
+            TokenSourceKind.CODEX_ROLLOUT_TOKEN_COUNT: TokenProvider.CODEX,
+            TokenSourceKind.QODER_SEGMENT_MODEL_RESPONSE_COMPLETED: TokenProvider.QODER,
+            TokenSourceKind.QODER_SQLITE_TOKEN_INFO: TokenProvider.QODER,
+            TokenSourceKind.QODER_TURN_FINISHED_FALLBACK: TokenProvider.QODER,
+            TokenSourceKind.QODER_TRANSCRIPT_ESTIMATED: TokenProvider.QODER,
+        }
+        return mapping.get(self.source_kind, TokenProvider.UNKNOWN)
+
+    def to_dict(self) -> dict:
+        return {
+            "fresh_input_tokens": self.fresh_input_tokens,
+            "cache_read_tokens": self.cache_read_tokens,
+            "cache_write_tokens": self.cache_write_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+            "precision": self.precision,
+            "total_semantics": self.total_semantics,
+            "source_kind": self.source_kind,
+            "raw_fields": self.raw_fields,
+            "notes": self.notes,
+        }
 
 
 @dataclass
@@ -107,8 +184,14 @@ class SessionSummary:
     cached_output_tokens: int = 0  # cache_creation_input_tokens (write cache)
     has_sensitive_data: bool = True
 
+    # Unified 5-field token breakdown (always int, never None)
+    fresh_input_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    total_tokens: int = 0
+
     # New fields for token breakdown
-    token_breakdown: Optional[TokenBreakdown] = None
+    token_breakdown: Optional["NormalizedTokenBreakdown"] = None
     failed_tool_count: int = 0
     parse_diagnostics: Optional[dict] = None  # domain ParseDiagnostics.to_dict() payload, attached by adapters
     file_path: str = ""  # indexed source file path; used by detail parsers to avoid re-search
@@ -202,6 +285,7 @@ class LLMCall:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    total_tokens: int = 0
     prompt_preview: str = ""         # first ~200 chars of prompt context
     request_preview: str = ""        # first ~200 chars of logged request
     request_full: str = ""           # full logged request context (rendered, NOT raw HTTP payload)
@@ -221,6 +305,7 @@ class LLMCall:
     tool_calls: list["ToolCall"] = field(default_factory=list)
     tool_call_count: int = 0
     failed_tool_count: int = 0
+    token_breakdown_normalized: Optional["NormalizedTokenBreakdown"] = None
 
 
 @dataclass
@@ -333,7 +418,10 @@ class ConversationRound:
     @property
     def cached_tokens(self) -> int:
         if self.assistant_msg.usage:
-            return self.assistant_msg.usage.get("cache_read_input_tokens", 0)
+            return self.assistant_msg.usage.get(
+                "cache_read_input_tokens",
+                self.assistant_msg.usage.get("cached_input_tokens", 0),
+            )
         return 0
 
     @property
@@ -349,7 +437,11 @@ class ConversationRound:
             return {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0}
         return {
             "input": self.assistant_msg.usage.get("input_tokens", 0),
-            "cache_read": self.assistant_msg.usage.get("cache_read_input_tokens", 0),
+            # Codex uses cached_input_tokens; Claude/Qoder use cache_read_input_tokens
+            "cache_read": self.assistant_msg.usage.get(
+                "cache_read_input_tokens",
+                self.assistant_msg.usage.get("cached_input_tokens", 0),
+            ),
             "cache_write": self.assistant_msg.usage.get("cache_creation_input_tokens", 0),
             "output": self.assistant_msg.usage.get("output_tokens", 0),
         }

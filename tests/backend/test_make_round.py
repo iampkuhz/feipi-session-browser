@@ -1,7 +1,7 @@
 """测试 routes.py 中的轮次构建和 token 提取。
 
 验证 _make_round 是否正确提取所有提供逐消息用量信息的
-agent（claude_code、qoder）的 token 数据。
+agent（claude_code、qoder、codex）的 token 数据。
 """
 
 from __future__ import annotations
@@ -48,11 +48,16 @@ class TestMakeRoundTokenExtraction:
         assert r.token_ratio == pytest.approx(650 / 1000)
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
-    def test_codex_has_zero_tokens(self):
-        """Codex 不提供逐消息用量，轮次 token 应为 0。"""
-        r = _make_round(USER_MSG, _assistant_msg(usage=USAGE_CLAUDE), [], 1000, "codex")
-        assert r.total_tokens == 0
-        assert r.token_ratio == 0
+    def test_codex_token_extraction(self):
+        """Codex 提供逐消息用量（cached_input_tokens），轮次 token 应正确提取。"""
+        codex_usage = {
+            "input_tokens": 500,
+            "output_tokens": 150,
+            "cached_input_tokens": 200,
+        }
+        r = _make_round(USER_MSG, _assistant_msg(usage=codex_usage), [], 1000, "codex")
+        assert r.total_tokens == 850  # 500 + 150 + 200 + 0
+        assert r.token_ratio == pytest.approx(850 / 1000)
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_qoder_no_usage_dict(self):
