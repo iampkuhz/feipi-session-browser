@@ -545,7 +545,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                 output_ev = outputs_by_id.get(call_id, {})
                 if output_ev:
                     output_text = str(output_ev.get("output", ""))
-                    result = output_text[:500]
+                    result = output_text
                     # Extract exit code from output (e.g. "Process exited with code 1")
                     import re
                     exit_match = re.search(r"exited with code (\d+)", output_text)

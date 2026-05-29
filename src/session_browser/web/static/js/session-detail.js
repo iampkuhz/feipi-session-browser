@@ -256,8 +256,13 @@
     parent.appendChild(row);
   }
 
-  function appendPreBlock(parent, title, text) {
+  function appendPreBlock(parent, title, text, type) {
     var section = makeEl("section", "sd-content-block content-block");
+    if (type === "tool") {
+      section.classList.add("content-block--tool", "sd-response-block--tool");
+    } else if (type === "text") {
+      section.classList.add("content-block--text", "sd-response-block--text");
+    }
     var head = makeEl("div", "sd-response-block-head block-head");
     head.appendChild(makeEl("span", "sd-card-title", title));
     var blockBody = makeEl("div", "sd-response-block-body block-body");
@@ -286,8 +291,8 @@
     if (toolStatus) appendKv(meta, "tool status", toolStatus);
 
     var main = makeEl("main", "sd-payload-main payload-main");
-    if (toolCommand) appendPreBlock(main, "Command", toolCommand);
-    if (text) appendPreBlock(main, "Result", text);
+    if (toolCommand) appendPreBlock(main, "Command", toolCommand, "tool");
+    if (text) appendPreBlock(main, "Result", text, "text");
     else main.appendChild(makeEl("div", "sd-payload-empty", "No content"));
 
     shell.appendChild(meta);
@@ -418,6 +423,31 @@
     }
   }, true);
 
+  /* ── Token tooltip dynamic positioning ── */
+
+  var TOOLTIP_FLIP_THRESHOLD = 120; // px from bottom of viewport to trigger flip
+
+  function positionTokenTooltip(tokenbar) {
+    var tooltip = qs(tokenbar, '.token-tooltip');
+    if (!tooltip) return;
+    var rect = tokenbar.getBoundingClientRect();
+    var vpBottom = window.innerHeight || document.documentElement.clientHeight;
+    var spaceBelow = vpBottom - rect.bottom;
+    var shouldFlip = spaceBelow < TOOLTIP_FLIP_THRESHOLD;
+    tooltip.classList.toggle('token-tooltip--flip', shouldFlip);
+  }
+
+  function setupTokenTooltips() {
+    qsa(document, '.tokenbar-wrap, .sd-sub-tokenbar').forEach(function (bar) {
+      bar.addEventListener('mouseenter', function () {
+        positionTokenTooltip(bar);
+      });
+      bar.addEventListener('focusin', function () {
+        positionTokenTooltip(bar);
+      });
+    });
+  }
+
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closePayload();
   });
@@ -433,5 +463,7 @@
     });
     // Sync toggle-all button text on load
     syncToggleAllButton(document);
+    // Setup dynamic token tooltip positioning
+    setupTokenTooltips();
   });
 })();

@@ -438,7 +438,7 @@
               {{ payload.html|safe }}
             {% elif (payload.kind == 'tool.result' or payload.kind == 'subagent.tool.result') and payload.text %}
               {% if payload.tool_command %}
-              <section class="sd-content-block content-block">
+              <section class="sd-content-block content-block content-block--tool sd-response-block--tool">
                 <div class="sd-response-block-head block-head">
                   <span class="sd-card-title">Command</span>
                 </div>
@@ -447,7 +447,7 @@
                 </div>
               </section>
               {% endif %}
-              <section class="sd-content-block content-block">
+              <section class="sd-content-block content-block content-block--text sd-response-block--text">
                 <div class="sd-response-block-head block-head">
                   <span class="sd-card-title">Result</span>
                 </div>
@@ -456,7 +456,7 @@
                 </div>
               </section>
             {% elif payload.text %}
-              <section class="sd-content-block content-block">
+              <section class="sd-content-block content-block content-block--text sd-response-block--text">
                 <div class="sd-response-block-head block-head">
                   <span class="sd-card-title">{{ payload.kind|default('content') }}</span>
                 </div>

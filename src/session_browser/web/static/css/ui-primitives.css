@@ -1698,7 +1698,6 @@ input[data-action="page-input"]:disabled {
   border-radius: var(--radius-sm);
   padding: 12px;
   overflow: auto;
-  max-height: 50vh;
   margin: 0;
 }
 .modal-body code,
@@ -1889,7 +1888,6 @@ Page-specific adjustments must use modifier classes
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   overflow: auto;
-  max-height: 50vh;
 }
 .payload-modal__raw code,
 .payload-modal__rendered code {
@@ -1992,8 +1990,8 @@ header treatment). Layout properties come from the base definition. */
   background: rgba(15, 23, 42, 0.36);
 }
 .payload-modal--sd .payload-modal__panel {
-  width: min(70vw, 1120px);
-  max-width: min(70vw, 1120px);
+  width: min(92vw, 1600px);
+  max-width: min(92vw, 1600px);
   min-width: min(720px, 92vw);
   max-height: 82vh;
   border-radius: 18px;
@@ -2021,6 +2019,25 @@ header treatment). Layout properties come from the base definition. */
   overflow: auto;
   padding: 12px;
   background: #fff;
+}
+/* Ensure pre elements in session-detail modal are not height-constrained
+and wrap text properly. This lives here (not page CSS) because .payload-modal--sd
+is a modifier of the primitive root component .payload-modal. */
+.payload-modal--sd .sd-modal-body pre,
+.payload-modal--sd .payload-modal__body pre,
+.payload-modal--sd [data-payload-body] pre {
+  max-height: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* Dynamically-generated payload shell (result payloads via JS hydrateFullPayload):
+pre elements inside the payload-shell layout also need wrapping. */
+.payload-modal--sd .payload-shell pre,
+.payload-modal--sd .sd-payload-shell pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 /* === SectionCard ========================================================== */
 .card {

@@ -752,7 +752,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         )
 
         # Build LLM calls and assign interactions to rounds
-        llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs)
+        llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, agent)
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
         # Compute preview text for each round after interactions are assigned
@@ -894,7 +894,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         )
 
         # Build LLM calls and assign interactions to rounds
-        llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs)
+        llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, agent)
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
         # Build payload lookup with NO truncation
@@ -1500,7 +1500,9 @@ def _build_v11_view_model(
     short_id = session.session_id[-8:] if session.session_id else ""
     started = session.started_at[:10] if session.started_at else "—"
 
-    total_tokens = session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
+    total_tokens = getattr(session, "total_tokens", 0) or (
+        session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
+    )
     total_rounds = len(rounds)
     total_tools = sum(len(r.tool_calls) for r in rounds)
     total_failed = session.failed_tool_count or 0
@@ -1782,7 +1784,7 @@ def _build_v11_view_model(
                                 payload_id=t_payload_id,
                                 kind="subagent.tool.result",
                                 title=t_payload_title,
-                                text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                                text=tc.result,
                                 tool_name=tc.name,
                                 tool_command=_build_tool_command_summary(tc.name, tc.parameters),
                                 tool_parameters=tc.parameters,
@@ -1854,7 +1856,7 @@ def _build_v11_view_model(
                         payload_id=u_payload_id,
                         kind="subagent.tool.result",
                         title=u_payload_title,
-                        text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                        text=tc.result,
                         tool_name=tc.name,
                         tool_command=_build_tool_command_summary(tc.name, tc.parameters),
                         tool_parameters=tc.parameters,
@@ -2017,7 +2019,7 @@ def _build_v11_view_model(
                 payload_id=user_payload_id,
                 kind="message.user",
                 title=f"R{rid} · User request",
-                text=r.user_msg.content[:5000] if len(r.user_msg.content) > 5000 else r.user_msg.content,
+                text=r.user_msg.content,
             )
             # Detect language from user message content
             lang_label = ""
@@ -2080,7 +2082,7 @@ def _build_v11_view_model(
                             payload_id=tool_payload_id,
                             kind="tool.result",
                             title=f"R{rid} · {tc.name} · Result",
-                            text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                            text=tc.result,
                             tool_name=tc.name,
                             tool_command=_build_tool_command_summary(tc.name, tc.parameters),
                             tool_parameters=tc.parameters,
@@ -2348,7 +2350,7 @@ def _build_v11_view_model(
                         payload_id=tool_payload_id,
                         kind="tool.result",
                         title=f"R{rid} · {tc.name} · Result",
-                        text=tc.result[:5000] if len(tc.result) > 5000 else tc.result,
+                        text=tc.result,
                         tool_name=tc.name,
                         tool_command=_build_tool_command_summary(tc.name, tc.parameters),
                         tool_parameters=tc.parameters,
@@ -2406,8 +2408,9 @@ def _build_v11_view_model(
                 subagent_count += 1
 
     cache_write_pct = ""
-    if total_tokens > 0 and session.cached_output_tokens:
-        cache_write_pct = f"{session.cached_output_tokens / total_tokens * 100:.1f}%"
+    cwt = getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens
+    if total_tokens > 0 and cwt:
+        cache_write_pct = f"{cwt / total_tokens * 100:.1f}%"
 
     status_label = "Completed"
     if session_anomalies.anomalies:
@@ -2435,9 +2438,15 @@ def _build_v11_view_model(
         },
         "hero_metrics": {
             "tokens": _format_compact_token(total_tokens),
-            "fresh": _format_compact_token(session.input_tokens),
-            "cache_read": _format_compact_token(session.cached_input_tokens),
-            "cache_write": _format_compact_token(session.cached_output_tokens),
+            "fresh": _format_compact_token(
+                getattr(session, "fresh_input_tokens", 0) or session.input_tokens
+            ),
+            "cache_read": _format_compact_token(
+                getattr(session, "cache_read_tokens", 0) or session.cached_input_tokens
+            ),
+            "cache_write": _format_compact_token(
+                getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens
+            ),
             "output": _format_compact_token(session.output_tokens),
             "rounds": str(total_rounds),
             "tools": str(total_tools),
@@ -2466,7 +2475,9 @@ def _build_v9_view_model(
     short_id = session.session_id[-8:] if session.session_id else ""
     started = session.started_at[:10] if session.started_at else "—"
 
-    total_tokens = session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
+    total_tokens = getattr(session, "total_tokens", 0) or (
+        session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
+    )
     total_rounds = len(rounds)
     total_tools = sum(len(r.tool_calls) for r in rounds)
     total_failed = session.failed_tool_count or 0
@@ -2928,9 +2939,15 @@ def _build_v9_view_model(
         },
         "hero_metrics": {
             "tokens": _format_compact_token(total_tokens),
-            "fresh": _format_compact_token(session.input_tokens),
-            "cache_read": _format_compact_token(session.cached_input_tokens),
-            "cache_write": _format_compact_token(session.cached_output_tokens),
+            "fresh": _format_compact_token(
+                getattr(session, "fresh_input_tokens", 0) or session.input_tokens
+            ),
+            "cache_read": _format_compact_token(
+                getattr(session, "cache_read_tokens", 0) or session.cached_input_tokens
+            ),
+            "cache_write": _format_compact_token(
+                getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens
+            ),
             "output": _format_compact_token(session.output_tokens),
             "rounds": str(total_rounds),
             "tools": str(total_tools),
