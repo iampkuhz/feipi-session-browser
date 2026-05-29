@@ -828,18 +828,30 @@ table-layout:fixed scales proportionally
 */
 .sessions-page .card.filter-card .btn[data-action="apply"] {
   transition: opacity 0.15s ease, filter 0.15s ease;
+  font-weight: 850;
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].primary {
+  background: linear-gradient(180deg, #7c6af7, #5c43e0);
+  color: #f0f0ff;
+  border-color: #5c43e0;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.15);
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].primary:hover {
+  filter: brightness(1.05);
 }
 
 /* Muted state: form values match initial snapshot — no changes to apply */
 .sessions-page .card.filter-card .btn[data-action="apply"].is-muted {
-  opacity: 0.55;
-  filter: saturate(0.5);
+  opacity: 0.5;
+  filter: saturate(0.4) brightness(0.95);
   cursor: default;
 }
 
 .sessions-page .card.filter-card .btn[data-action="apply"].is-muted:hover {
-  filter: saturate(0.65);
-  opacity: 0.65;
+  filter: saturate(0.5) brightness(1);
+  opacity: 0.6;
 }
 
 /* Dirty state: form values differ from initial — changes ready to apply */
@@ -850,5 +862,5 @@ table-layout:fixed scales proportionally
 }
 
 .sessions-page .card.filter-card .btn[data-action="apply"].is-dirty:hover {
-  filter: brightness(0.98);
+  filter: brightness(1.02);
 }

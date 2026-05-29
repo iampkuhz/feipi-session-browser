@@ -9,7 +9,7 @@
         <div>
             <div class="chart-card__title-row">
                 <h2>{{ title }}</h2>
-                <button class="icon-button icon-button--info" data-action="info-chart-{{ chart_type }}" data-info="chart-{{ chart_type }}" title="点击后显示当前指标或图表的解释浮层" aria-label="{{ title }} 图表说明">&#x2139;&#xFE0F;</button>
+                <button class="icon-button icon-button--info" data-action="info-chart-{{ chart_type }}" data-info="chart-{{ chart_type }}" title="{{ title }} 指标说明" aria-label="{{ title }} 图表说明">&#x2139;&#xFE0F;</button>
             </div>
             <p class="chart-card__subtitle" data-subtitle="{{ chart_type }}">{{ subtitle }}</p>
         </div>
@@ -66,7 +66,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Projects</span>
-                <button class="icon-button icon-button--info" data-action="info-projects" data-info="projects" title="点击后显示当前指标或图表的解释浮层" aria-label="Projects 指标说明">&#x2139;&#xFE0F;</button>
+                <button class="icon-button icon-button--info" data-action="info-projects" data-info="projects" title="说明：所有已索引 Session 中的项目数量统计" aria-label="Projects 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.project_count }}</div>
         </div>
@@ -76,7 +76,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Sessions</span>
-                <button class="icon-button icon-button--info" data-action="info-sessions" data-info="sessions" title="点击后显示当前指标或图表的解释浮层" aria-label="Sessions 指标说明">&#x2139;&#xFE0F;</button>
+                <button class="icon-button icon-button--info" data-action="info-sessions" data-info="sessions" title="说明：所有 Agent 的已索引 Session 总数" aria-label="Sessions 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.total_sessions | format_number }}</div>
         </div>
@@ -86,7 +86,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Total Tokens</span>
-                <button class="icon-button icon-button--info" data-action="info-tokens" data-info="tokens" title="点击后显示当前指标或图表的解释浮层" aria-label="Total Tokens 指标说明">&#x2139;&#xFE0F;</button>
+                <button class="icon-button icon-button--info" data-action="info-tokens" data-info="tokens" title="说明：所有已索引 Session 中的输入、输出和缓存 Token 总量" aria-label="Total Tokens 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.total_tokens | default(0) | format_number }}</div>
         </div>
@@ -96,7 +96,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Failed Tools</span>
-                <button class="icon-button icon-button--info" data-action="info-failed-tools" data-info="failed-tools" title="点击后显示当前指标或图表的解释浮层" aria-label="Failed Tools 指标说明">&#x2139;&#xFE0F;</button>
+                <button class="icon-button icon-button--info" data-action="info-failed-tools" data-info="failed-tools" title="说明：执行失败的工具调用次数统计" aria-label="Failed Tools 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ stats.total_failed_tools | format_number }}</div>
         </div>

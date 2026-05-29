@@ -435,6 +435,45 @@ no page override ── */
 .chart-container {
   overflow: visible;
 }
+/* Info icon hover tooltip (fast, lightweight) */
+.info-hover-tooltip {
+  position: fixed;
+  z-index: 100;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 280px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.10);
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+.info-hover-tooltip[data-positioned="true"] {
+  top: var(--tooltip-top, 0px);
+}
+/* Info popover */
+#infoPopover {
+  position: fixed;
+  z-index: 101;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  max-width: 300px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.15);
+  display: none;
+}
+#infoPopover.is-visible {
+  display: block;
+}
+#infoPopover[data-positioned="true"] {
+  left: var(--popover-left, 0px);
+  top: var(--popover-top, 0px);
+}
 /* v16 tooltip (dark overlay on chart bars) */
 .dashboard-tooltip {
   position: absolute;

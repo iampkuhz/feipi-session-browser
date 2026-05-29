@@ -79,6 +79,10 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
             output_tokens INTEGER NOT NULL DEFAULT 0,
             cached_input_tokens INTEGER NOT NULL DEFAULT 0,
             cached_output_tokens INTEGER NOT NULL DEFAULT 0,
+            fresh_input_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+            total_tokens INTEGER NOT NULL DEFAULT 0,
             failed_tool_count INTEGER NOT NULL DEFAULT 0,
             indexed_at REAL NOT NULL DEFAULT 0,
             file_mtime REAL NOT NULL DEFAULT 0,
@@ -121,8 +125,10 @@ def upsert_session(
             tool_execution_seconds,
             model, git_branch, source, user_message_count, assistant_message_count,
             tool_call_count, input_tokens, output_tokens, cached_input_tokens,
-            cached_output_tokens, failed_tool_count, indexed_at, file_mtime, file_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            cached_output_tokens, fresh_input_tokens, cache_read_tokens,
+            cache_write_tokens, total_tokens, failed_tool_count, indexed_at,
+            file_mtime, file_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_key) DO UPDATE SET
             title=excluded.title,
             project_key=excluded.project_key,
@@ -143,6 +149,10 @@ def upsert_session(
             output_tokens=excluded.output_tokens,
             cached_input_tokens=excluded.cached_input_tokens,
             cached_output_tokens=excluded.cached_output_tokens,
+            fresh_input_tokens=excluded.fresh_input_tokens,
+            cache_read_tokens=excluded.cache_read_tokens,
+            cache_write_tokens=excluded.cache_write_tokens,
+            total_tokens=excluded.total_tokens,
             failed_tool_count=excluded.failed_tool_count,
             indexed_at=excluded.indexed_at,
             file_mtime=excluded.file_mtime,
@@ -171,6 +181,10 @@ def upsert_session(
             summary.output_tokens,
             summary.cached_input_tokens,
             summary.cached_output_tokens,
+            summary.fresh_input_tokens,
+            summary.cache_read_tokens,
+            summary.cache_write_tokens,
+            summary.total_tokens,
             summary.failed_tool_count,
             time.time(),
             file_mtime,
@@ -847,7 +861,7 @@ def list_sessions(
     valid_orders = {
         "ended_at": "ended_at",
         "input_tokens": "input_tokens",
-        "total_tokens": "(input_tokens + cached_input_tokens + cached_output_tokens + output_tokens)",
+        "total_tokens": "total_tokens",
         "assistant_message_count": "assistant_message_count",
         "tool_call_count": "tool_call_count",
         "duration_seconds": "duration_seconds",
@@ -929,7 +943,7 @@ def get_sessions_list_aggregate(
     row = conn.execute(
         f"SELECT COUNT(*) as session_count, "
         f"COUNT(DISTINCT project_key) as project_count, "
-        f"COALESCE(SUM(input_tokens + cached_input_tokens + cached_output_tokens + output_tokens), 0) as total_tokens "
+        f"COALESCE(SUM(total_tokens), 0) as total_tokens "
         f"FROM sessions {where}",
         params,
     ).fetchone()
@@ -956,7 +970,7 @@ def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStat
             COALESCE(SUM(input_tokens), 0) as total_input_tokens,
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
             COALESCE(SUM(cached_input_tokens), 0) as total_cached_tokens,
-            COALESCE(SUM(cached_output_tokens), 0) as total_cache_write_tokens,
+            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
             COALESCE(SUM(user_message_count), 0) as total_user_messages,
@@ -1019,7 +1033,7 @@ def list_projects(
             COALESCE(SUM(input_tokens), 0) as total_input_tokens,
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
             COALESCE(SUM(cached_input_tokens), 0) as total_cached_tokens,
-            COALESCE(SUM(cached_output_tokens), 0) as total_cache_write_tokens,
+            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
             COALESCE(SUM(user_message_count), 0) as total_user_messages,
@@ -1065,11 +1079,11 @@ def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
             SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_sessions,
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
             COUNT(DISTINCT project_key) as project_count,
-            COALESCE(SUM(input_tokens + output_tokens + cached_input_tokens + cached_output_tokens), 0) as total_tokens,
-            COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) as total_cached_input_tokens,
-            COALESCE(SUM(cached_output_tokens), 0) as total_cached_output_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools
         FROM sessions
@@ -1083,10 +1097,10 @@ def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
         "qoder_sessions": row["qoder_sessions"],
         "project_count": row["project_count"],
         "total_tokens": row["total_tokens"],
-        "total_input_tokens": row["total_input_tokens"],
+        "total_fresh_input_tokens": row["total_fresh_input_tokens"],
+        "total_cache_read_tokens": row["total_cache_read_tokens"],
+        "total_cache_write_tokens": row["total_cache_write_tokens"],
         "total_output_tokens": row["total_output_tokens"],
-        "total_cached_input_tokens": row["total_cached_input_tokens"],
-        "total_cached_output_tokens": row["total_cached_output_tokens"],
         "total_tool_calls": row["total_tool_calls"],
         "total_failed_tools": row["total_failed_tools"],
     }
@@ -1108,10 +1122,11 @@ def get_trend_data(
             SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_count,
             SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_count,
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_count,
-            COALESCE(SUM(input_tokens), 0) as input_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as fresh_input_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+            COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens,
             COALESCE(SUM(output_tokens), 0) as output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) as cache_read_tokens,
-            COALESCE(SUM(cached_output_tokens), 0) as cache_write_tokens,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
             COALESCE(SUM(tool_call_count), 0) as tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as failed_tools,
             COUNT(*) as total_count
@@ -1129,8 +1144,11 @@ def get_trend_data(
             "claude_count": r["claude_count"],
             "codex_count": r["codex_count"],
             "qoder_count": r["qoder_count"],
-            "input_tokens": r["input_tokens"],
+            "fresh_input_tokens": r["fresh_input_tokens"],
+            "cache_read_tokens": r["cache_read_tokens"],
+            "cache_write_tokens": r["cache_write_tokens"],
             "output_tokens": r["output_tokens"],
+            "total_tokens": r["total_tokens"],
             "cache_read_tokens": r["cache_read_tokens"],
             "cache_write_tokens": r["cache_write_tokens"],
             "tool_calls": r["tool_calls"],
@@ -1178,7 +1196,7 @@ def list_agents(conn: sqlite3.Connection) -> list[dict]:
     """List all agents with session counts.
 
     Returns list of {agent, session_count, last_active, total_tokens,
-                     total_input_tokens, total_cached_tokens, total_cache_write_tokens,
+                     total_fresh_input_tokens, total_cache_read_tokens, total_cache_write_tokens,
                      total_output_tokens, total_tool_calls, total_failed_tools,
                      total_assistant_messages, project_count}.
     """
@@ -1188,10 +1206,10 @@ def list_agents(conn: sqlite3.Connection) -> list[dict]:
             agent,
             COUNT(*) as session_count,
             MAX(ended_at) as last_active,
-            COALESCE(SUM(input_tokens + output_tokens + cached_input_tokens + cached_output_tokens), 0) as total_tokens,
-            COALESCE(SUM(input_tokens), 0) as total_input_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) as total_cached_tokens,
-            COALESCE(SUM(cached_output_tokens), 0) as total_cache_write_tokens,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
@@ -1235,6 +1253,10 @@ def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSu
         output_tokens=row["output_tokens"],
         cached_input_tokens=row["cached_input_tokens"],
         cached_output_tokens=row["cached_output_tokens"],
+        fresh_input_tokens=row["fresh_input_tokens"],
+        cache_read_tokens=row["cache_read_tokens"],
+        cache_write_tokens=row["cache_write_tokens"],
+        total_tokens=row["total_tokens"],
         failed_tool_count=row["failed_tool_count"],
         file_path=row["file_path"],
     )

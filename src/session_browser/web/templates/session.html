@@ -51,9 +51,6 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
     <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace">
       <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
     </a>
-    <a class="sd-tab" href="#" data-action="tab-metrics" data-tab="metrics">
-      <span class="sd-tab-icon" aria-hidden="true">&#x1F4CA;</span>Metrics
-    </a>
     <a class="sd-tab" href="#" data-action="tab-payloads" data-tab="payloads">
       <span class="sd-tab-icon" aria-hidden="true">&#x1F4E6;</span>Payloads
     </a>
@@ -97,55 +94,6 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
     {% endif %}
   </section>
 
-  {# ── Metrics panel ── #}
-  <section class="sd-metrics-panel" data-metrics-panel data-tab-panel="metrics" hidden>
-    <div class="sd-metrics-panel__head">
-      <h2>Session Metrics</h2>
-    </div>
-    <div class="sd-metrics-panel__body">
-      <dl class="sd-metrics-grid">
-        <div class="sd-metric-item">
-          <dt class="sd-metric-item__label">Tokens</dt>
-          <dd class="sd-metric-item__value">{{ hero_metrics.tokens|default('—') }}</dd>
-        </div>
-        <div class="sd-metric-item">
-          <dt class="sd-metric-item__label">Rounds</dt>
-          <dd class="sd-metric-item__value">{{ hero_metrics.rounds|default('—') }}</dd>
-        </div>
-        <div class="sd-metric-item">
-          <dt class="sd-metric-item__label">Tools</dt>
-          <dd class="sd-metric-item__value">{{ hero_metrics.tools|default('—') }}</dd>
-        </div>
-        <div class="sd-metric-item">
-          <dt class="sd-metric-item__label">Failed</dt>
-          <dd class="sd-metric-item__value">{{ hero_metrics.failed|default('—') }}</dd>
-        </div>
-        <div class="sd-metric-item">
-          <dt class="sd-metric-item__label">LLM Calls</dt>
-          <dd class="sd-metric-item__value">{{ hero_metrics.llm_calls|default('—') }}</dd>
-        </div>
-      </dl>
-      {% if session_summary %}
-      <div class="sd-metrics-detail">
-        <h3>Session Summary</h3>
-        <div class="sd-metrics-kv">
-          <div class="sd-kv"><span>Agent</span><span>{{ session_summary.agent_label|default('—') }}</span></div>
-          <div class="sd-kv"><span>Model</span><span>{{ session_summary.model|default('—') }}</span></div>
-          <div class="sd-kv"><span>Date</span><span>{{ session_summary.date|default('—') }}</span></div>
-          {% if session_summary.project_name %}
-          <div class="sd-kv"><span>Project</span><span>{{ session_summary.project_name }}</span></div>
-          {% endif %}
-          <div class="sd-kv"><span>User input rounds</span><span>{{ session_summary.manual_input_count|default('0') }}</span></div>
-          <div class="sd-kv"><span>Subagents</span><span>{{ session_summary.subagent_count|default('0') }} runs</span></div>
-          {% if session_summary.agent_key != "qoder" %}
-          <div class="sd-kv"><span>Cache write</span><span>{{ session_summary.cache_write_pct|default('—') }}</span></div>
-          {% endif %}
-        </div>
-      </div>
-      {% endif %}
-    </div>
-  </section>
-
   {# ── Payloads panel ── #}
   <section class="sd-payloads-panel" data-payloads-panel data-tab-panel="payloads" hidden>
     <div class="sd-payloads-panel__head">
@@ -153,25 +101,21 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
     </div>
     <div class="sd-payloads-panel__body">
       {% if payload_sources and payload_sources|length > 0 %}
-      <p class="sd-payloads-panel__desc">Click Request / Response / Result buttons in the trace timeline to view individual payloads in the modal.</p>
-      <table class="sd-payload-index">
-        <thead>
-          <tr>
-            <th>Kind</th>
-            <th>Status</th>
-            <th>Size</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in payload_sources %}
-          <tr>
-            <td>{{ p.kind|default('unknown') }}</td>
-            <td>{{ p.status|default('available') }}</td>
-            <td>{{ p.size|default('—') }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <p class="sd-payloads-panel__desc">Payloads grouped by LLM call. Click Request / Response / Result to view in modal.</p>
+      <div class="sd-payload-index-list">
+        {% for p in payload_sources %}
+        <div class="sd-payload-index-item">
+          <span class="sd-payload-index-kind">{{ p.kind|default('unknown') }}</span>
+          <span class="sd-payload-index-status sd-status--{{ p.status|default('available') }}">{{ p.status|default('available') }}</span>
+          <span class="sd-payload-index-size">{{ p.size|default('—') }}</span>
+          {% if p.payload_id %}
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--sm" data-action="open-payload" data-payload-id="{{ p.payload_id }}" data-payload-kind="{{ p.kind|default('unknown') }}" data-payload-title="{{ p.kind|default('Payload') }}">
+            View
+          </button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
       {% else %}
       <div class="sd-empty-state">
         <p>No payload sources collected for this session.</p>

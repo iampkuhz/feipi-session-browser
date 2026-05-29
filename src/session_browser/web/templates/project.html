@@ -50,13 +50,13 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Sessions</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="Sessions 计数方式说明" title="Total sessions in this project">&#9432;</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Sessions 计数方式说明" title="Total sessions in this project">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value">{{ project.total_sessions }}</div>
             <div class="metric-card__sub">
-                <span class="badge badge-claude">{{ project.claude_sessions }} CC</span>
-                <span class="badge badge-codex">{{ project.codex_sessions }} CX</span>
-                <span class="badge badge-qoder">{{ project.qoder_sessions }} QD</span>
+                <span class="badge badge-claude" data-tooltip="Claude Code: {{ project.claude_sessions }} sessions">{{ project.claude_sessions }} CC</span>
+                <span class="badge badge-codex" data-tooltip="Codex: {{ project.codex_sessions }} sessions">{{ project.codex_sessions }} CX</span>
+                <span class="badge badge-qoder" data-tooltip="Qoder: {{ project.qoder_sessions }} sessions">{{ project.qoder_sessions }} QD</span>
             </div>
         </div>
     </div>
@@ -65,7 +65,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Input-side Tokens</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="Input-side Token 公式说明" title="Total input-side tokens">&#9432;</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Input-side Token 公式说明" title="Total input-side tokens">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value mono">{{ p_input_side | format_compact_token }}</div>
             <div class="metric-card__sub success">Cache R: {{ p_cache_reuse }}%</div>
@@ -76,7 +76,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Output Tokens</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="Output Token 定义说明" title="Total output-side tokens">&#9432;</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="Output Token 定义说明" title="Total output-side tokens">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value mono">{{ project.total_output_tokens | format_compact_token }}</div>
             <div class="metric-card__sub">{{ project.total_tool_calls | format_number }} tools</div>
@@ -87,7 +87,7 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Active Period</span>
-                <button class="icon-button icon-button--info" data-action="info" aria-label="活跃周期来源说明" title="Active period of this project">&#9432;</button>
+                <button class="icon-button icon-button--info" data-action="info" aria-label="活跃周期来源说明" title="Active period of this project">&#x2139;&#xFE0F;</button>
             </div>
             <div class="metric-card__value mono">
                 {% if project.first_seen and project.last_seen %}
@@ -107,7 +107,7 @@
     {% set sessions_pagination %}
     {{ ui.pagination(current_page | default(1), total_pages | default(1), total_items=total_count | default(sessions | length)) }}
     {% endset %}
-    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">&#9432;</button>', pagination_html=sessions_pagination) %}
+    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">&#x2139;&#xFE0F;</button>', pagination_html=sessions_pagination) %}
             <table id="project-sessions-table" class="data-table project-sessions-table" data-table-enhanced>
             <colgroup>
                 <col class="col-title">
@@ -140,7 +140,7 @@
                         <div class="title-main"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}" class="session-link">{{ s.title[:70] or 'Untitled' }}</a></div>
                         <div class="title-sub mono">
                             {{ s.session_id[-8:] if s.session_id else 'unknown' }}
-                            <button class="btn small" data-action="copy" data-copy-text="{{ s.session_id }}" aria-label="Copy session ID" title="复制 Session ID">
+                            <button class="btn sm session-copy-btn" data-action="copy" data-copy-text="{{ s.session_id }}" aria-label="Copy session ID" title="复制 Session ID">
                                 <span class="emoji" aria-hidden="true">📋</span>
                             </button>
                         </div>
@@ -164,12 +164,12 @@
                             write_pct=0,
                             out_pct=s_out_pct,
                             fresh_val=s.input_tokens | format_compact_token,
-                            read_val='0',
-                            write_val='0',
+                            read_val='~',
+                            write_val='~',
                             out_val=s.output_tokens | format_compact_token,
                             fresh_pct_val=s_fresh_pct,
-                            read_pct_val='0.0',
-                            write_pct_val='0.0',
+                            read_pct_val='~',
+                            write_pct_val='~',
                             out_pct_val=s_out_pct,
                             profile='qoder'
                         ) }}

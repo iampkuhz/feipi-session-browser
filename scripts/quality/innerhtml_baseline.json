@@ -33,31 +33,25 @@
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 111,
-      "isClear": false,
-      "snippet": "infoPopover.innerHTML = '<h4>' + info.title + '</h4><p>' + info.text + '</p>';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 554,
+      "line": 628,
       "isClear": false,
       "snippet": "if (!data.length) { container.innerHTML = '<p class=\"text-muted text-sm\">No data</p>'; return; }"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 579,
+      "line": 653,
       "isClear": false,
       "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 620,
+      "line": 694,
       "isClear": false,
       "snippet": "if (tokenContainer) tokenContainer.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 651,
+      "line": 725,
       "isClear": false,
       "snippet": "if (promptContainer) promptContainer.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
     },
@@ -188,5 +182,5 @@
       "snippet": "content.innerHTML = '';"
     }
   ],
-  "count": 31
+  "count": 30
 }

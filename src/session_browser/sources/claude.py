@@ -14,8 +14,8 @@ from collections import Counter
 from pathlib import Path
 
 from session_browser.config import CLAUDE_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenBreakdown
-from session_browser.domain.token_normalizer import normalize_tokens, TokenPrecision
+from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenBreakdown, NormalizedTokenBreakdown
+from session_browser.domain.token_normalizer import normalize_tokens, normalize_tokens_unified, TokenPrecision
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -569,6 +569,12 @@ def _build_summary_from_events(
     model_execution_seconds = _merge_intervals(llm_intervals) / 1000.0
     tool_execution_seconds = _merge_intervals(tool_intervals + subagent_intervals) / 1000.0
 
+    # Unified 5-field totals (Claude Code: 4 exclusive buckets summed)
+    fresh_input_tokens = input_tokens  # input_tokens = fresh in Claude Code
+    cache_read_tokens = cached_tokens
+    cache_write_tokens_sum = cache_write_tokens
+    total_tokens = fresh_input_tokens + cache_read_tokens + cache_write_tokens_sum + output_tokens
+
     project_name = PurePosixPath(project_key).name if project_key else "unknown"
 
     return SessionSummary(
@@ -593,6 +599,10 @@ def _build_summary_from_events(
         output_tokens=output_tokens,
         cached_input_tokens=cached_tokens,
         cached_output_tokens=cache_write_tokens,
+        fresh_input_tokens=fresh_input_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens_sum,
+        total_tokens=total_tokens,
         failed_tool_count=failed_tool_count,
     )
 

@@ -144,11 +144,34 @@ def _derive_prompt_preview(
     return ""
 
 
+def _normalize_codex_usage(usage: dict) -> dict:
+    """Normalize Codex per-turn usage from cumulative totals to deltas.
+
+    Codex msg.usage contains cumulative sums of last_token_usage across events
+    between agent_messages. For display, we need per-turn delta values:
+    fresh = input_tokens - cached_input_tokens.
+    """
+    raw_input = usage.get("input_tokens", 0) or 0
+    cached = usage.get("cached_input_tokens", 0) or 0
+    output = usage.get("output_tokens", 0) or 0
+
+    # Codex: input_tokens is inclusive; cached is a subset
+    fresh = max(raw_input - cached, 0)
+
+    return {
+        "input_tokens": fresh,
+        "cache_read_input_tokens": cached,
+        "cache_creation_input_tokens": 0,
+        "output_tokens": output,
+    }
+
+
 def build_llm_calls(
     messages: list[ChatMessage],
     tool_calls: list[ToolCall],
     rounds: list[ConversationRound],
     subagent_runs: list[dict],
+    agent: str = "",
 ) -> list[LLMCall]:
     """Extract individual LLMCall objects (one per LLM turn).
 
@@ -201,6 +224,9 @@ def build_llm_calls(
             continue
 
         usage = msg.usage or {}
+        # Codex: usage contains cumulative sums, normalize to per-turn deltas
+        if agent == "codex" and usage:
+            usage = _normalize_codex_usage(usage)
         round_tools = rounds[r_idx].tool_calls if r_idx < len(rounds) else []
         round_obj = rounds[r_idx] if r_idx < len(rounds) else None
 
@@ -278,6 +304,9 @@ def build_llm_calls(
             if msg.role != "assistant" or not msg.llm_call_id:
                 continue
             usage = msg.usage or {}
+            # Codex: normalize cumulative sums to per-turn deltas
+            if agent == "codex" and usage:
+                usage = _normalize_codex_usage(usage)
 
             request_full = msg.request_full if msg.request_full else ""
             request_preview = request_full[:200] if request_full else ""

@@ -131,14 +131,39 @@
     }
 
     function updateFilterChip(query) {
-        var chip = document.querySelector('#projects-active-filters .filter-chip');
-        if (!chip) return;
-        if (query) {
-            chip.textContent = 'Search: ' + query;
-            chip.classList.remove('is-hidden');
-        } else {
-            chip.classList.add('is-hidden');
+        var container = document.getElementById('projects-active-filters');
+        if (!container) return;
+
+        // Clear existing chips using DOM methods
+        while (container.firstChild) {
+            container.removeChild(container.firstChild);
         }
+
+        if (query) {
+            var chip = document.createElement('span');
+            chip.className = 'filter-chip';
+
+            var label = document.createTextNode('Search: ');
+            chip.appendChild(label);
+
+            var queryText = document.createTextNode(escapeHtml(query));
+            chip.appendChild(queryText);
+
+            var closeLink = document.createElement('a');
+            closeLink.href = '#';
+            closeLink.setAttribute('data-action', 'remove-filter');
+            closeLink.setAttribute('aria-label', 'Remove search filter');
+            closeLink.textContent = '×';
+            chip.appendChild(closeLink);
+
+            container.appendChild(chip);
+        }
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
     }
 
     function updatePageStatus(visible, total) {
@@ -174,6 +199,22 @@
             }
             filterProjects();
         });
+        // Prevent form submit from causing page reload
+        searchEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                filterProjects();
+            }
+        });
+    }
+
+    // Prevent the filter form from submitting (page reload)
+    var filterForm = document.querySelector('.card.filter-card .filter-form, .filter-form');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            filterProjects();
+        });
     }
 
     // Sortable header buttons (list page)
@@ -195,7 +236,8 @@
     // Apply button: re-apply current filters
     var applyBtn = document.querySelector('[data-action="apply-search"]');
     if (applyBtn) {
-        applyBtn.addEventListener('click', function() {
+        applyBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             filterProjects();
         });
     }
@@ -203,7 +245,8 @@
     // Clear button: reset all filters
     var clearBtns = document.querySelectorAll('[data-action="clear-search"]');
     clearBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
             resetProjectFilters();
         });
     });

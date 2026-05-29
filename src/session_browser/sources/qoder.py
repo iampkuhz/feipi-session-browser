@@ -22,8 +22,8 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from session_browser.config import QODER_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
-from session_browser.domain.token_normalizer import normalize_tokens, TokenPrecision, TokenProvider
+from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, NormalizedTokenBreakdown, TokenPrecision, TokenSourceKind
+from session_browser.domain.token_normalizer import normalize_tokens, normalize_tokens_unified, normalize_qoder_sqlite_unified, TokenPrecision as TP, TokenProvider
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -1227,6 +1227,23 @@ def _build_summary_from_events(
     actual_project = cwd if (cwd and cwd != "." and not cwd.startswith("./")) else project_key
     project_name = PurePosixPath(actual_project).name if actual_project else "unknown"
 
+    # Unified 5-field breakdown: Qoder input_tokens is often inclusive total
+    # fresh = input_tokens - cache_read - cache_write (when input >= cache_read + cache_write)
+    if input_tokens >= cached_tokens + cache_write_tokens:
+        fresh_input_tokens = input_tokens - cached_tokens - cache_write_tokens
+    else:
+        fresh_input_tokens = input_tokens
+    cache_read_tokens_session = cached_tokens
+    cache_write_tokens_session = cache_write_tokens
+    total_tokens = fresh_input_tokens + cache_read_tokens_session + cache_write_tokens_session + output_tokens
+
+    # Use cwd from events as the primary project_key — it holds the actual
+    # filesystem path. Fall back to the directory-based project_key (URL-decoded).
+    # Guard against cwd being "." or a relative path that would produce a
+    # meaningless project_key / project_name.
+    actual_project = cwd if (cwd and cwd != "." and not cwd.startswith("./")) else project_key
+    project_name = PurePosixPath(actual_project).name if actual_project else "unknown"
+
     return SessionSummary(
         agent="qoder",
         session_id=session_id,
@@ -1249,6 +1266,10 @@ def _build_summary_from_events(
         output_tokens=output_tokens,
         cached_input_tokens=cached_tokens,
         cached_output_tokens=cache_write_tokens,
+        fresh_input_tokens=fresh_input_tokens,
+        cache_read_tokens=cache_read_tokens_session,
+        cache_write_tokens=cache_write_tokens_session,
+        total_tokens=total_tokens,
         failed_tool_count=failed_tool_count,
     )
 
@@ -1594,6 +1615,10 @@ def _parse_cache_session(
         output_tokens=output_tokens,
         cached_input_tokens=0,
         cached_output_tokens=0,
+        fresh_input_tokens=input_tokens,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+        total_tokens=input_tokens + output_tokens,
         failed_tool_count=0,
     )
 

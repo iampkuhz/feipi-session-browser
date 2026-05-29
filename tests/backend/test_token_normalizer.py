@@ -2,10 +2,17 @@
 import pytest
 from session_browser.domain.token_normalizer import (
     normalize_tokens,
+    normalize_tokens_unified,
+    normalize_qoder_sqlite_unified,
     format_tokens,
     precision_label,
     TokenPrecision,
     TokenProvider,
+)
+from session_browser.domain.models import (
+    NormalizedTokenBreakdown,
+    TokenTotalSemantics,
+    TokenSourceKind,
 )
 
 
@@ -302,3 +309,279 @@ class TestFormatHelpers:
         assert precision_label(TokenPrecision.PROVIDER_REPORTED) == "provider-reported"
         assert precision_label(TokenPrecision.ESTIMATED) == "estimated"
         assert precision_label(TokenPrecision.UNKNOWN) == "unknown"
+
+
+# ─── Unified 5-field breakdown tests ──────────────────────────────────
+
+
+class TestUnifiedClaudeCode:
+    """测试 Claude Code 统一 5 字段归一化。
+
+    语义：input_tokens = fresh（新输入）；cache buckets 是独立的；
+    total = 4 个独立桶之和。
+    """
+
+    def test_claude_code_basic(self):
+        usage = {
+            "input_tokens": 1000,
+            "output_tokens": 500,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.ANTHROPIC)
+
+        assert result.fresh_input_tokens == 1000
+        assert result.cache_read_tokens == 0
+        assert result.cache_write_tokens == 0
+        assert result.output_tokens == 500
+        assert result.total_tokens == 1500
+        assert result.total_semantics == TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
+        assert result.precision == TokenPrecision.PROVIDER_REPORTED
+
+    def test_claude_code_with_cache(self):
+        usage = {
+            "input_tokens": 1000,
+            "cache_read_input_tokens": 2000,
+            "cache_creation_input_tokens": 500,
+            "output_tokens": 300,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.ANTHROPIC)
+
+        assert result.fresh_input_tokens == 1000
+        assert result.cache_read_tokens == 2000
+        assert result.cache_write_tokens == 500
+        assert result.output_tokens == 300
+        assert result.total_tokens == 3800  # 1000 + 2000 + 500 + 300
+
+    def test_claude_code_zero_fields(self):
+        """所有字段必须为整数，不能为 None。"""
+        usage = {"input_tokens": 100, "output_tokens": 50}
+        result = normalize_tokens_unified(usage, provider=TokenProvider.ANTHROPIC)
+
+        assert isinstance(result.fresh_input_tokens, int)
+        assert isinstance(result.cache_read_tokens, int)
+        assert isinstance(result.cache_write_tokens, int)
+        assert isinstance(result.output_tokens, int)
+        assert isinstance(result.total_tokens, int)
+
+    def test_claude_code_empty_usage(self):
+        result = normalize_tokens_unified({}, provider=TokenProvider.ANTHROPIC)
+        assert result.fresh_input_tokens == 0
+        assert result.cache_read_tokens == 0
+        assert result.cache_write_tokens == 0
+        assert result.output_tokens == 0
+        assert result.total_tokens == 0
+
+    def test_qwen_anthropic_compatible(self):
+        """Qwen Anthropic 兼容模型应使用与 Claude 相同的归一化。"""
+        usage = {
+            "input_tokens": 25728,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 27473,
+            "output_tokens": 275,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.QWEN_ANTHROPIC_COMPATIBLE)
+
+        assert result.fresh_input_tokens == 25728
+        assert result.cache_read_tokens == 0
+        assert result.cache_write_tokens == 27473
+        assert result.output_tokens == 275
+
+
+class TestUnifiedCodex:
+    """测试 Codex 统一 5 字段归一化。
+
+    语义：input_tokens 是包含缓存的总量；cached_input_tokens 是子集。
+    """
+
+    def test_codex_total_only(self):
+        usage = {"tokens_used": 10000}
+        result = normalize_tokens_unified(usage, provider=TokenProvider.CODEX)
+
+        assert result.total_tokens == 10000
+        assert result.total_semantics == TokenTotalSemantics.REPORTED_TOTAL
+
+    def test_codex_with_components(self):
+        """当有组件时，Codex 的 input_tokens 是包含缓存的总量。"""
+        usage = {
+            "input_tokens": 5000,
+            "cached_input_tokens": 3000,
+            "output_tokens": 2000,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.CODEX)
+
+        # fresh = input - cached (inclusive decomposition)
+        assert result.fresh_input_tokens == 2000  # 5000 - 3000
+        assert result.cache_read_tokens == 3000
+        assert result.output_tokens == 2000
+        assert result.total_semantics == TokenTotalSemantics.REPORTED_CUMULATIVE_DELTA
+
+    def test_codex_delta_last_token_usage(self):
+        """直接 delta 值归一化。"""
+        usage = {
+            "input_tokens": 800,
+            "cache_read_input_tokens": 200,
+            "output_tokens": 400,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.CODEX)
+
+        assert result.fresh_input_tokens == 600  # 800 - 200
+        assert result.cache_read_tokens == 200
+        assert result.output_tokens == 400
+
+    def test_codex_empty_usage(self):
+        result = normalize_tokens_unified({}, provider=TokenProvider.CODEX)
+        assert result.total_tokens == 0
+        assert result.precision == TokenPrecision.UNKNOWN
+
+
+class TestUnifiedQoder:
+    """测试 Qoder 统一 5 字段归一化。
+
+    语义：input_tokens 通常是包含缓存的总量，需要分解为 fresh。
+    字段名使用 cache_read_input_tokens / cache_creation_input_tokens。
+    """
+
+    def test_qoder_with_cache(self):
+        usage = {
+            "input_tokens": 5000,
+            "cache_read_input_tokens": 2000,
+            "cache_creation_input_tokens": 500,
+            "output_tokens": 1500,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.QODER)
+
+        # fresh = input - cache_read - cache_write
+        assert result.fresh_input_tokens == 2500  # 5000 - 2000 - 500
+        assert result.cache_read_tokens == 2000
+        assert result.cache_write_tokens == 500
+        assert result.output_tokens == 1500
+        assert result.total_tokens == 6500  # 2500 + 2000 + 500 + 1500
+
+    def test_qoder_no_cache(self):
+        usage = {
+            "input_tokens": 1000,
+            "output_tokens": 500,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.QODER)
+
+        assert result.fresh_input_tokens == 1000
+        assert result.cache_read_tokens == 0
+        assert result.cache_write_tokens == 0
+        assert result.output_tokens == 500
+
+    def test_qoder_cache_exceeds_input(self):
+        """当缓存超过 input 时，fresh 应保持为 input（不产生负数）。"""
+        usage = {
+            "input_tokens": 100,
+            "cache_read_input_tokens": 500,
+            "cache_creation_input_tokens": 200,
+            "output_tokens": 50,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.QODER)
+
+        assert result.fresh_input_tokens == 100  # capped at input_tokens
+        assert result.cache_read_tokens == 500
+        assert result.cache_write_tokens == 200
+
+    def test_qoder_estimated_precision(self):
+        """Qoder 非空 usage 的 precision 为 provider_reported_normalized。"""
+        usage = {
+            "input_tokens": 500,
+            "output_tokens": 200,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.QODER)
+
+        assert result.fresh_input_tokens == 500
+        assert result.output_tokens == 200
+        assert result.precision == TokenPrecision.PROVIDER_REPORTED_NORMALIZED
+
+    def test_qoder_empty_usage(self):
+        """Qoder 空 usage 应返回 ESTIMATED 精度。"""
+        result = normalize_tokens_unified({}, provider=TokenProvider.QODER)
+        assert result.fresh_input_tokens == 0
+        assert result.output_tokens == 0
+        assert result.precision == TokenPrecision.ESTIMATED
+
+
+class TestQoderSQLiteUnified:
+    """测试 Qoder SQLite token_info 统一归一化。"""
+
+    def test_sqlite_basic(self):
+        token_info = {
+            "prompt_tokens": 10000,
+            "cached_tokens": 4000,
+            "completion_tokens": 3000,
+        }
+        result = normalize_qoder_sqlite_unified(token_info)
+
+        # SQLite token_info uses flat fields: prompt_tokens includes cached_tokens
+        assert result.cache_read_tokens == 4000
+        assert result.cache_write_tokens == 0
+        assert result.output_tokens == 3000
+        assert result.fresh_input_tokens == 6000  # 10000 - 4000
+        assert result.total_tokens == 13000  # 6000 + 4000 + 0 + 3000
+        assert result.source_kind == TokenSourceKind.QODER_SQLITE_TOKEN_INFO
+
+    def test_sqlite_empty(self):
+        result = normalize_qoder_sqlite_unified({})
+        assert result.fresh_input_tokens == 0
+        assert result.cache_read_tokens == 0
+        assert result.cache_write_tokens == 0
+        assert result.output_tokens == 0
+        assert result.total_tokens == 0
+
+
+class TestNormalizedTokenBreakdownDefaults:
+    """测试 NormalizedTokenBreakdown 默认值。"""
+
+    def test_all_defaults_zero(self):
+        bd = NormalizedTokenBreakdown()
+        assert bd.fresh_input_tokens == 0
+        assert bd.cache_read_tokens == 0
+        assert bd.cache_write_tokens == 0
+        assert bd.output_tokens == 0
+        assert bd.total_tokens == 0
+
+    def test_metadata_defaults(self):
+        bd = NormalizedTokenBreakdown()
+        assert bd.precision == TokenPrecision.UNKNOWN
+        assert bd.total_semantics == TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
+        assert bd.source_kind == TokenSourceKind.UNKNOWN
+        assert bd.notes == []
+        assert bd.raw_fields == {}
+
+
+class TestUnifiedEdgeCases:
+    """测试统一归一化的边界情况。"""
+
+    def test_none_usage(self):
+        result = normalize_tokens_unified(None, provider=TokenProvider.ANTHROPIC)
+        assert result.total_tokens == 0
+
+    def test_unknown_provider_fallback(self):
+        """未知 provider 应使用 generic 归一化。"""
+        result = normalize_tokens_unified(
+            {"input_tokens": 100, "output_tokens": 50},
+            provider="unknown_provider"
+        )
+        assert result.fresh_input_tokens == 100
+        assert result.output_tokens == 50
+        assert result.total_tokens == 150
+
+    def test_large_values(self):
+        usage = {
+            "input_tokens": 10_000_000,
+            "cache_read_input_tokens": 50_000_000,
+            "cache_creation_input_tokens": 10_000_000,
+            "output_tokens": 5_000_000,
+        }
+        result = normalize_tokens_unified(usage, provider=TokenProvider.ANTHROPIC)
+        assert result.total_tokens == 75_000_000
+
+    def test_model_inferred_provider(self):
+        """通过 model 字符串推断 provider。"""
+        result = normalize_tokens_unified(
+            {"input_tokens": 100, "output_tokens": 50},
+            model="claude-sonnet-4-20250514"
+        )
+        assert result.fresh_input_tokens == 100
+        assert result.total_tokens == 150

@@ -1221,7 +1221,7 @@
        &#x2139;&#xFE0F;
      </button>
 #}
-{% macro metric_info(metric_name, label='指标说明', title='点击后显示当前指标或图表的解释浮层') -%}
+{% macro metric_info(metric_name, label='指标说明', title=metric_name ~ ' 指标说明') -%}
 <button type="button" class="icon-button icon-button--info"
         data-action="info-{{ metric_name }}"
         data-info="{{ metric_name }}"
@@ -1251,7 +1251,7 @@
        [metric_info button]
      </div>
 #}
-{% macro metric_label_row(label, metric_name, info_label='指标说明', info_title='点击后显示当前指标或图表的解释浮层', icon=None) -%}
+{% macro metric_label_row(label, metric_name, info_label='指标说明', info_title=metric_name ~ ' 指标说明', icon=None) -%}
 <div class="metric-card__label-row">
   <span class="metric-card__label">{{ label }}</span>
   {%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}

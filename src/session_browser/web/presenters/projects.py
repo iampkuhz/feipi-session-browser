@@ -160,10 +160,11 @@ def build_projects_view_model(
         offset=pagination["offset"],
     )
 
-    # Compute display_path for each project: full path with ~ substitution.
-    # This avoids shorten_path producing "." when project_key equals repo root.
+    # Compute display_path for each project: use cwd (actual filesystem path)
+    # with ~ substitution, falling back to project_key if cwd is empty.
     for p in projects:
-        p.display_path = _display_path(p.project_key)
+        raw_path = p.cwd if hasattr(p, 'cwd') and p.cwd else p.project_key
+        p.display_path = _display_path(raw_path)
 
     return {
         "projects": projects,

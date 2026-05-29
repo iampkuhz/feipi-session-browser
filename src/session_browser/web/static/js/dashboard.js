@@ -69,6 +69,8 @@
     var infoPopover = null;
     var menuPopover = null;
     var settingsDrawer = null;
+    var infoHoverTooltip = null;
+    var infoHoverTimer = null;
 
     function _cacheElements() {
         infoPopover = document.getElementById('infoPopover');
@@ -102,20 +104,87 @@
 
     /** Position and show the info popover below a button. */
     function showInfoPopover(button) {
+        hideHoverTooltip();
         hideFloating();
         if (!infoPopover) return;
 
         var infoKey = button.getAttribute('data-info') || button.getAttribute('data-dashboard-info');
         var info = INFO_COPY[infoKey] || { title: 'Info', text: 'No description available.' };
 
-        infoPopover.innerHTML = '<h4>' + info.title + '</h4><p>' + info.text + '</p>';
+        // Clear previous content and build safely using DOM methods
+        while (infoPopover.firstChild) infoPopover.removeChild(infoPopover.firstChild);
+        var h4 = document.createElement('h4');
+        h4.textContent = info.title;
+        infoPopover.appendChild(h4);
+        var p = document.createElement('p');
+        p.textContent = info.text;
+        infoPopover.appendChild(p);
         infoPopover.hidden = false;
         infoPopover.setAttribute('aria-hidden', 'false');
         infoPopover.classList.add('is-visible');
 
         var rect = button.getBoundingClientRect();
-        infoPopover.style.left = Math.min(window.innerWidth - 320, rect.left) + 'px';
-        infoPopover.style.top = (rect.bottom + 10) + 'px';
+        var popoverLeft = Math.min(window.innerWidth - 320, rect.left);
+        infoPopover.style.setProperty('--popover-left', popoverLeft + 'px');
+        infoPopover.style.setProperty('--popover-top', (rect.bottom + 10) + 'px');
+        infoPopover.setAttribute('data-positioned', 'true');
+    }
+
+    /* ── Info icon hover tooltip (fast, 150ms delay) ───────────── */
+
+    function createHoverTooltip() {
+        var el = document.createElement('div');
+        el.className = 'info-hover-tooltip';
+        el.setAttribute('aria-hidden', 'true');
+        el.hidden = true;
+        document.body.appendChild(el);
+        return el;
+    }
+
+    function showHoverTooltip(button) {
+        if (!infoHoverTooltip) {
+            infoHoverTooltip = createHoverTooltip();
+        }
+        var infoKey = button.getAttribute('data-info') || button.getAttribute('data-dashboard-info');
+        var info = INFO_COPY[infoKey];
+        if (!info) return;
+
+        infoHoverTooltip.textContent = info.text;
+        infoHoverTooltip.hidden = false;
+        infoHoverTooltip.setAttribute('aria-hidden', 'false');
+
+        var rect = button.getBoundingClientRect();
+        // Center tooltip horizontally below the info button
+        infoHoverTooltip.style.setProperty('--tooltip-top', (rect.bottom + 6 + window.scrollY) + 'px');
+        infoHoverTooltip.setAttribute('data-positioned', 'true');
+        infoHoverTooltip.style.transform = 'translateX(-50%)';
+    }
+
+    function hideHoverTooltip() {
+        if (infoHoverTooltip) {
+            infoHoverTooltip.hidden = true;
+            infoHoverTooltip.setAttribute('aria-hidden', 'true');
+        }
+        if (infoHoverTimer) {
+            clearTimeout(infoHoverTimer);
+            infoHoverTimer = null;
+        }
+    }
+
+    function initInfoHoverListeners() {
+        var infoButtons = document.querySelectorAll('.icon-button--info[data-info]');
+        for (var i = 0; i < infoButtons.length; i++) {
+            (function(btn) {
+                btn.addEventListener('mouseenter', function() {
+                    infoHoverTimer = setTimeout(function() {
+                        showHoverTooltip(btn);
+                    }, 150);
+                });
+                btn.addEventListener('mouseleave', function() {
+                    hideHoverTooltip();
+                });
+            })(infoButtons[i]);
+        }
     }
 
     /* ── Settings drawer ───────────────────────────────────────── */
@@ -427,6 +496,11 @@
     /* ── Init ──────────────────────────────────────────────────── */
 
     _cacheElements();
+    if (typeof document !== 'undefined' && document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initInfoHoverListeners);
+    } else {
+        initInfoHoverListeners();
+    }
 })();
 
 
