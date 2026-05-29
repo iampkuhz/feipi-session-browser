@@ -306,6 +306,29 @@ class TestClaudeExtractToolCalls:
         assert tc.is_failed
         assert tc.status == "error"
 
+    @pytest.mark.contract_case("UI-SD-025")
+    def test_tool_result_keeps_full_text(self):
+        """Claude tool result detail must keep full text for payload viewing."""
+        long_result = "head\n" + ("0123456789" * 260) + "\ntail"
+        events = [
+            {"type": "user", "message": {"role": "user", "content": "read file"},
+             "timestamp": "2026-01-01T00:00:00Z"},
+            {"type": "assistant", "message": {
+                "id": "msg1", "role": "assistant", "model": "claude",
+                "content": [{"type": "tool_use", "id": "tu1", "name": "Read",
+                             "input": {"file_path": "/tmp/long.txt"}}],
+                "usage": {"input_tokens": 100, "output_tokens": 20},
+                "stop_reason": "tool_use",
+            }, "timestamp": "2026-01-01T00:00:01Z"},
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "tu1", "content": long_result}
+            ]}, "timestamp": "2026-01-01T00:00:02Z"},
+        ]
+        tcs = self._parse(events)
+        assert len(tcs) == 1
+        assert tcs[0].result == long_result
+        assert tcs[0].result.endswith("tail")
+
 
 # ── Qoder 解析器测试 ────────────────────────────────────────────────
 
@@ -387,6 +410,41 @@ class TestQoderToolResultHeuristic:
     def test_qoder_git_fatal_error_is_failed(self):
         assert self._looks_failed("fatal: not a git repository")
         assert self._looks_failed("fatal: ambiguous argument 'HEAD'")
+
+
+class TestQoderExtractToolCalls:
+    """端到端测试 Qoder 解析器的 _extract_tool_calls。"""
+
+    def _parse(self, events):
+        from session_browser.sources.qoder import (
+            _extract_tool_calls,
+            _extract_messages,
+        )
+        messages = _extract_messages(events)
+        return _extract_tool_calls(events, messages)
+
+    @pytest.mark.contract_case("UI-SD-025")
+    def test_tool_result_keeps_full_text(self):
+        """Qoder tool result detail must keep full text for payload viewing."""
+        long_result = "head\n" + ("abcdefghij" * 260) + "\ntail"
+        events = [
+            {"type": "user", "message": {"role": "user", "content": "read file"},
+             "timestamp": "2026-01-01T00:00:00Z"},
+            {"type": "assistant", "message": {
+                "id": "msg1", "role": "assistant", "model": "qoder",
+                "content": [{"type": "tool_use", "id": "tu1", "name": "Read",
+                             "input": {"file_path": "/tmp/long.txt"}}],
+                "usage": {"input_tokens": 100, "output_tokens": 20},
+                "stop_reason": "tool_use",
+            }, "timestamp": "2026-01-01T00:00:01Z"},
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "tu1", "content": long_result}
+            ]}, "timestamp": "2026-01-01T00:00:02Z"},
+        ]
+        tcs = self._parse(events)
+        assert len(tcs) == 1
+        assert tcs[0].result == long_result
+        assert tcs[0].result.endswith("tail")
 
 
 # ── 模型层测试 ────────────────────────────────────────────────────────

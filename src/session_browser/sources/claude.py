@@ -1024,7 +1024,7 @@ def _extract_tool_calls(
             error_msg = result_text[:500] if is_error else ""
 
             status = "error" if is_error else "completed"
-            result = result_text[:2000]
+            result = result_text
             files_touched = []
 
             # For Read/Write/Edit tools, extract file path from params

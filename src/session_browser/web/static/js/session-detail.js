@@ -229,6 +229,10 @@
 
     if (typeof modal.showModal === "function") modal.showModal();
     else modal.setAttribute("open", "");
+
+    if (shouldHydrateFullPayload(kind, source)) {
+      hydrateFullPayload(modal, payloadId);
+    }
   }
 
   function closePayload() {
@@ -236,6 +240,97 @@
     if (!modal) return;
     if (typeof modal.close === "function" && modal.open) modal.close();
     else modal.removeAttribute("open");
+  }
+
+  function makeEl(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function appendKv(parent, key, value) {
+    var row = makeEl("div", "sd-kv");
+    row.appendChild(makeEl("span", "", key));
+    row.appendChild(makeEl("span", "", value));
+    parent.appendChild(row);
+  }
+
+  function appendPreBlock(parent, title, text) {
+    var section = makeEl("section", "sd-content-block content-block");
+    var head = makeEl("div", "sd-response-block-head block-head");
+    head.appendChild(makeEl("span", "sd-card-title", title));
+    var blockBody = makeEl("div", "sd-response-block-body block-body");
+    blockBody.appendChild(makeEl("pre", "", text));
+    section.appendChild(head);
+    section.appendChild(blockBody);
+    parent.appendChild(section);
+  }
+
+  function payloadNodeFromJson(payload) {
+    payload = payload || {};
+    var kind = payload.kind || "unknown";
+    var status = payload.status || "available";
+    var size = payload.size || "—";
+    var text = payload.text || "";
+    var toolName = payload.tool_name || "";
+    var toolStatus = payload.tool_status || "";
+    var toolCommand = payload.tool_command || "";
+    var shell = makeEl("div", "sd-payload-shell payload-shell");
+    var meta = makeEl("aside", "sd-payload-meta payload-meta");
+    meta.appendChild(makeEl("h3", "", "Metadata"));
+    appendKv(meta, "kind", kind);
+    appendKv(meta, "status", status);
+    appendKv(meta, "size", size);
+    if (toolName) appendKv(meta, "tool", toolName);
+    if (toolStatus) appendKv(meta, "tool status", toolStatus);
+
+    var main = makeEl("main", "sd-payload-main payload-main");
+    if (toolCommand) appendPreBlock(main, "Command", toolCommand);
+    if (text) appendPreBlock(main, "Result", text);
+    else main.appendChild(makeEl("div", "sd-payload-empty", "No content"));
+
+    shell.appendChild(meta);
+    shell.appendChild(main);
+    return shell;
+  }
+
+  function fullPayloadApiUrl(payloadId) {
+    var meta = document.querySelector('meta[name="payload-api-base"]');
+    var base = meta ? meta.getAttribute("content") : "";
+    if (!base || !payloadId || !window.fetch) return "";
+    return base.replace(/\/$/, "") + "/payload/" + encodeURIComponent(payloadId);
+  }
+
+  function hydrateFullPayload(modal, payloadId) {
+    var url = fullPayloadApiUrl(payloadId);
+    if (!url) return;
+    modal.setAttribute("data-loading-payload-id", payloadId);
+    fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (response) {
+        if (!response.ok) throw new Error("payload fetch failed");
+        return response.json();
+      })
+      .then(function (payload) {
+        if (modal.getAttribute("data-loading-payload-id") !== payloadId) return;
+        var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
+        var subtitleEl = qs(modal, "[data-payload-subtitle]");
+        if (subtitleEl && payload && payload.size) {
+          subtitleEl.textContent = payloadId + " · " + payload.size;
+        }
+        if (body) body.replaceChildren(payloadNodeFromJson(payload));
+      })
+      .catch(function () {
+        modal.removeAttribute("data-loading-payload-id");
+      });
+  }
+
+  function shouldHydrateFullPayload(kind, source) {
+    var normalizedKind = String(kind || "").toLowerCase();
+    if (normalizedKind === "result" || normalizedKind.indexOf("tool.result") !== -1) return true;
+    if (!source || !source.getAttribute) return false;
+    var sourceKind = String(source.getAttribute("data-payload-kind") || "").toLowerCase();
+    return sourceKind.indexOf("tool.result") !== -1;
   }
 
   /* ── Event delegation (single listener) ── */

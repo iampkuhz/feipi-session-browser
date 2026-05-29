@@ -1469,7 +1469,7 @@ def _extract_tool_calls(
 
             status = "error" if is_error else "completed"
             error_msg = result_text[:500] if is_error else ""
-            result = result_text[:2000]
+            result = result_text
             files_touched = []
 
             file_path = (
