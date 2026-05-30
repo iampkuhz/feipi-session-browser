@@ -37,6 +37,32 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
     We rely on transcript reconstruction and usage metadata when available.
     """
 
+    # ── Helpers ─────────────────────────────────────────────────────────
+
+    def _extract_prior_messages(self) -> list[dict]:
+        """Extract prior messages from session_context if available."""
+        ctx = self.session_context or {}
+        prior = ctx.get("prior_messages", ctx.get("conversation_history", []))
+        if isinstance(prior, list):
+            return prior
+        return []
+
+    def _get_available_tools(self) -> list[str]:
+        """Get available tool schemas. Qoder typically does not expose this."""
+        ctx = self.session_context or {}
+        available = ctx.get("available_tools", ctx.get("available_tool_schemas", []))
+        if isinstance(available, list):
+            result = []
+            for item in available:
+                if isinstance(item, str):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    name = item.get("name", item.get("tool_name", ""))
+                    if name:
+                        result.append(name)
+            return result
+        return []
+
     def build_request(self) -> LLMRequestAttribution:
         lc = self.llm_call
         ro = self.round_obj
@@ -87,31 +113,37 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 tool_result_texts.append(tc.result)
         tool_results_tokens = estimate_tokens_from_text("\n".join(tool_result_texts))
 
-        # History messages from transcript
+        # History messages: ONLY from explicit prior_messages
+        prior_messages = self._extract_prior_messages()
+        history_msg_count = len(prior_messages)
         history_tokens = 0
-        history_msg_count = 0
-        # Estimate from interactions — count all message text in round
-        for ix in ro.interactions:
-            if ix.scope == "main" and ix.request_full:
-                history_tokens = estimate_tokens_from_text(ix.request_full[:3000])
-                history_msg_count = ix.request_full.count("\n\n") + 1
-                break
-        if history_tokens == 0 and lc.request_full:
-            history_tokens = estimate_tokens_from_text(lc.request_full[:3000])
-            history_msg_count = lc.request_full.count("\n\n") + 1
+        if prior_messages:
+            prior_texts = []
+            for pm in prior_messages:
+                if isinstance(pm, dict):
+                    prior_texts.append(pm.get("content", ""))
+                else:
+                    prior_texts.append(str(pm))
+            history_tokens = estimate_tokens_from_text("\n".join(prior_texts))
 
-        # Tool schemas
-        tool_count = len(ro.tool_calls)
-        if tool_count == 0:
-            tool_count = sum(1 for ix in ro.interactions for _tc in (getattr(ix, "tool_calls", []) or []) if not getattr(_tc, "subagent_id", ""))
-        tool_schema_tokens = tool_count * _DEFAULT_SCHEMA_TOKENS_PER_TOOL if tool_count > 0 else 0
+        # Captured context fragment: request_full without classifiable prior messages
+        captured_context_tokens = 0
+        if lc.request_full and not prior_messages:
+            captured_context_tokens = estimate_tokens_from_text(lc.request_full[:3000])
+
+        # Tool schemas: ONLY from available_tools, NOT from observed tool_calls
+        available_tools = self._get_available_tools()
+        tool_schema_tokens = 0
+        if available_tools:
+            tool_schema_tokens = len(available_tools) * _DEFAULT_SCHEMA_TOKENS_PER_TOOL
 
         # Injected context / rules (Qoder may inject CLAUDE.md etc.)
         injected_context_tokens = 0  # heuristic placeholder
 
         # ── Step 3: normalize and assemble buckets ─────────────────────
         known_sum = (current_user_msg_tokens + tool_results_tokens
-                     + history_tokens + tool_schema_tokens + injected_context_tokens)
+                     + history_tokens + captured_context_tokens
+                     + tool_schema_tokens + injected_context_tokens)
 
         if total_input_val > 0 and known_sum > total_input_val:
             # Normalize: scale estimated buckets proportionally
@@ -120,24 +152,41 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             tool_results_tokens = max(0, int(tool_results_tokens * scale))
             tool_schema_tokens = max(0, int(tool_schema_tokens * scale))
             current_user_msg_tokens = max(0, int(current_user_msg_tokens * scale))
+            captured_context_tokens = max(0, int(captured_context_tokens * scale))
             known_sum = (current_user_msg_tokens + tool_results_tokens
-                         + history_tokens + tool_schema_tokens + injected_context_tokens)
+                         + history_tokens + captured_context_tokens
+                         + tool_schema_tokens + injected_context_tokens)
 
         unknown_val = max(total_input_val - known_sum, 0) if total_input_val > 0 else 0
 
         buckets = []
 
-        if history_tokens > 0:
+        # History messages — ONLY with explicit prior_messages
+        if history_tokens > 0 and prior_messages:
             buckets.append(RequestAttributionBucket(
                 key="history_messages",
                 label="History messages",
                 tokens=history_tokens,
                 percent=_pct(history_tokens, total_input_val),
-                count_label=f"~{history_msg_count} messages" if history_msg_count else "",
+                count_label=f"{history_msg_count} messages",
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="中",
-                summary="历史消息从 transcript 文本估算，无法精确拆分 token。",
+                summary="历史消息从 prior messages 列表获取，token 通过文本估算。",
+                content_preview=lc.request_preview[:120] if lc.request_preview else "",
+            ))
+
+        # Captured context fragment
+        if captured_context_tokens > 0:
+            buckets.append(RequestAttributionBucket(
+                key="captured_context_fragment",
+                label="Captured context / unknown",
+                tokens=captured_context_tokens,
+                percent=_pct(captured_context_tokens, total_input_val),
+                precision=ValuePrecision.ESTIMATED,
+                source=ValueSource.TRANSCRIPT,
+                confidence_label="低",
+                summary="request_full 中存在但无法分类为历史消息的上下文片段。",
                 content_preview=lc.request_preview[:120] if lc.request_preview else "",
             ))
 
@@ -179,17 +228,30 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 summary="Qoder 可能注入的上下文/规则，无法直接读取时作为估算 bucket。",
             ))
 
+        # Tool schemas — ONLY with available_tools
         if tool_schema_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="tool_schemas",
                 label="Tool schemas",
                 tokens=tool_schema_tokens,
                 percent=_pct(tool_schema_tokens, total_input_val),
-                count_label=f"{tool_count} tools" if tool_count > 0 else "",
+                count_label=f"{len(available_tools)} tools",
                 precision=ValuePrecision.HEURISTIC,
                 source=ValueSource.TOOL_LIST,
                 confidence_label="中低",
-                summary=f"按 {tool_count} 个工具 × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens/tool 估算。",
+                summary=f"按 {len(available_tools)} 个可用工具 × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens/tool 估算。",
+            ))
+        else:
+            # Zero-token unavailable bucket so UI can show "not available"
+            buckets.append(RequestAttributionBucket(
+                key="tool_schemas",
+                label="Tool schemas",
+                tokens=0,
+                percent=0.0,
+                precision=ValuePrecision.UNAVAILABLE,
+                source=ValueSource.HEURISTIC,
+                confidence_label="低",
+                summary="无法从本地日志获取可用工具定义列表；Qoder 不提供 available tools 信息。",
             ))
 
         buckets.append(RequestAttributionBucket(
@@ -204,36 +266,90 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         ))
 
         # ── Step 4: coverage ───────────────────────────────────────────
-        known_bucket_sum = sum(b.tokens for b in buckets if b.key != "unknown_overhead")
+        known_bucket_sum = sum(
+            b.tokens for b in buckets
+            if b.key not in ("unknown_overhead",) and b.contributes_to_total
+        )
         coverage_val = (min(known_bucket_sum / total_input_val, 1.0)
                         if total_input_val > 0 else 0.0)
 
         # ── Step 5: availability rows ──────────────────────────────────
         avail_rows = [
-            self._avail("total_input", total_input_val > 0, "transcript/usage" if total_input_val > 0 else "unavailable"),
-            self._avail("fresh_input", False, "Qoder does not provide fresh/cache split"),
-            self._avail("cache_read", False, "Qoder does not provide cache_read"),
-            self._avail("cache_write", False, "Qoder does not provide cache_write"),
-            self._avail("history_messages_count", history_msg_count > 0, "transcript" if history_msg_count > 0 else "not parsed"),
-            self._avail("history_messages_tokens", history_tokens > 0, "estimated from transcript text"),
-            self._avail("current_user_prompt_content", bool(user_msg_content)),
-            self._avail("current_user_prompt_tokens", True, "estimated from text"),
-            self._avail("tool_results_content", bool(tool_result_texts)),
-            self._avail("tool_results_tokens", True, "estimated from text"),
-            self._avail("tool_schemas_tokens", tool_count > 0, f"estimated: {tool_count} tools" if tool_count > 0 else "no tool list"),
-            self._avail("injected_context_tokens", False, "not directly readable"),
-            self._avail("unknown", True, "residual = total - known"),
+            self._avail("total_input", "Total input tokens", total_input_val > 0,
+                        precision=ValuePrecision.PROVIDER_REPORTED if total_input_val > 0 else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.PROVIDER_USAGE if total_input_val > 0 else ValueSource.HEURISTIC,
+                        fill_strategy="from transcript/usage if available"),
+            self._avail("fresh_input", "Fresh input tokens", False,
+                        precision=ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.HEURISTIC,
+                        fill_strategy="Qoder does not provide fresh/cache split"),
+            self._avail("cache_read", "Cache read tokens", False,
+                        precision=ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.HEURISTIC,
+                        fill_strategy="Qoder does not provide cache_read"),
+            self._avail("cache_write", "Cache write tokens", False,
+                        precision=ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.HEURISTIC,
+                        fill_strategy="Qoder does not provide cache_write"),
+            self._avail("history_messages_count", "History message count",
+                        history_msg_count > 0, exact=False,
+                        precision=ValuePrecision.ESTIMATED if history_msg_count > 0 else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.TRANSCRIPT if history_msg_count > 0 else ValueSource.HEURISTIC,
+                        fill_strategy="count of prior messages" if history_msg_count > 0 else "no prior messages"),
+            self._avail("history_messages_tokens", "History message tokens",
+                        history_tokens > 0, exact=False,
+                        precision=ValuePrecision.ESTIMATED if history_tokens > 0 else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.TRANSCRIPT if history_tokens > 0 else ValueSource.HEURISTIC,
+                        fill_strategy="estimated from prior message text" if history_tokens > 0 else "no prior messages"),
+            self._avail("current_user_prompt_content", "Current user prompt content",
+                        bool(user_msg_content), exact=True,
+                        precision=ValuePrecision.EXACT if user_msg_content else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy="direct from round user_msg"),
+            self._avail("current_user_prompt_tokens", "Current user prompt tokens",
+                        current_user_msg_tokens > 0, exact=False,
+                        precision=ValuePrecision.ESTIMATED,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy="estimated from text"),
+            self._avail("tool_results_content", "Tool results content",
+                        bool(tool_result_texts), exact=True,
+                        precision=ValuePrecision.ESTIMATED if tool_result_texts else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.TOOL_LOGS,
+                        fill_strategy="from tool result text"),
+            self._avail("tool_results_tokens", "Tool results tokens",
+                        tool_results_tokens > 0, exact=False,
+                        precision=ValuePrecision.ESTIMATED,
+                        source=ValueSource.TOOL_LOGS,
+                        fill_strategy="estimated from text"),
+            self._avail("tool_schemas_tokens", "Tool schemas tokens",
+                        bool(available_tools), exact=False,
+                        precision=ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.HEURISTIC,
+                        fill_strategy="no available_tools list for Qoder"),
+            self._avail("injected_context_tokens", "Injected context tokens",
+                        False,
+                        precision=ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.HEURISTIC,
+                        fill_strategy="not directly readable"),
+            self._avail("unknown", "Unknown / residual", True, exact=False,
+                        precision=ValuePrecision.RESIDUAL,
+                        source=ValueSource.RESIDUAL,
+                        fill_strategy="residual = total - known"),
         ]
 
         notes = []
         notes.append("Qoder 不提供 cache_read / cache_write 拆分，所有 fresh/cache 标记为 unknown。")
-        if tool_count > 0:
-            notes.append(f"Tool schemas 按 {tool_count} tools × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens 估算。")
+        if available_tools:
+            notes.append(f"Tool schemas 按 {len(available_tools)} available tools × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens 估算。")
+        else:
+            notes.append("Tool schemas: Qoder 不提供 available tools 信息，tool_schemas 标记为 unavailable。")
+        if not prior_messages and lc.request_full:
+            notes.append("History messages: 无明确 prior messages，request_full 内容归入 captured_context_fragment。")
 
         return LLMRequestAttribution(
             agent="qoder",
             model=lc.model or "unknown",
-            request_id="",
+            request_id=lc.id or "unavailable",
             call_id=lc.id,
             source_label="transcript",
             confidence_label="中",
@@ -333,6 +449,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 confidence_label="中",
                 summary="Tool use 结构从 content_blocks 获取，token 通过 JSON 估算。",
                 block_refs=block_refs,
+                contributes_to_total=True,
             ))
 
         if metadata_tokens > 0:
@@ -358,28 +475,65 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             summary="Total output 减去已知 bucket 后的剩余部分。",
         ))
 
-        # ── Step 4: coverage ───────────────────────────────────────────
-        known_bucket_sum = sum(b.tokens for b in buckets if b.key != "unknown")
+        # ── Step 4: coverage (only counts contributes_to_total=True) ────
+        known_bucket_sum = sum(
+            b.tokens for b in buckets
+            if b.key != "unknown" and b.contributes_to_total
+        )
         coverage_val = (min(known_bucket_sum / total_output_val, 1.0)
                         if total_output_val > 0 else 0.0)
 
         finish_str = lc.finish_reason or ""
         avail_rows = [
-            self._avail("total_output", total_output_val > 0, "provider" if lc.output_tokens > 0 else "estimated"),
-            self._avail("assistant_text_content", bool(response_text)),
-            self._avail("assistant_text_tokens", True, "estimated"),
-            self._avail("tool_use_structure", bool(lc.content_blocks or lc.tool_calls_raw)),
-            self._avail("tool_use_tokens", True, "estimated from JSON"),
-            self._avail("progress_metadata", metadata_tokens > 0, "visible fields"),
-            self._avail("finish_reason", bool(finish_str)),
-            self._avail("blocks_count", True, f"{len(lc.content_blocks)} blocks" if lc.content_blocks else "0"),
-            self._avail("unknown", True, "residual"),
+            self._avail("total_output", "Total output tokens", total_output_val > 0,
+                        precision=ValuePrecision.PROVIDER_REPORTED if lc.output_tokens > 0 else ValuePrecision.ESTIMATED,
+                        source=ValueSource.PROVIDER_USAGE if lc.output_tokens > 0 else ValueSource.HEURISTIC,
+                        fill_strategy="provider output_tokens" if lc.output_tokens > 0 else "estimated"),
+            self._avail("assistant_text_content", "Assistant text content", bool(response_text),
+                        exact=True,
+                        precision=ValuePrecision.ESTIMATED,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy="direct from response_full"),
+            self._avail("assistant_text_tokens", "Assistant text tokens", True,
+                        exact=False,
+                        precision=ValuePrecision.ESTIMATED,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy="estimated"),
+            self._avail("tool_use_structure", "Tool use structure",
+                        bool(lc.content_blocks or lc.tool_calls_raw), exact=True,
+                        precision=ValuePrecision.ESTIMATED,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy="estimated from JSON"),
+            self._avail("tool_use_tokens", "Tool use tokens", True,
+                        exact=False,
+                        precision=ValuePrecision.ESTIMATED,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy="estimated from JSON"),
+            self._avail("progress_metadata", "Progress / metadata",
+                        metadata_tokens > 0, exact=False,
+                        precision=ValuePrecision.HEURISTIC,
+                        source=ValueSource.SESSION_METADATA,
+                        fill_strategy="visible fields"),
+            self._avail("finish_reason", "Finish reason", bool(finish_str),
+                        exact=True,
+                        precision=ValuePrecision.EXACT if finish_str else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy="from llm_call.finish_reason"),
+            self._avail("blocks_count", "Blocks count", True,
+                        exact=True,
+                        precision=ValuePrecision.EXACT,
+                        source=ValueSource.TRANSCRIPT,
+                        fill_strategy=f"{len(lc.content_blocks)} blocks" if lc.content_blocks else "0"),
+            self._avail("unknown", "Unknown / residual", True, exact=False,
+                        precision=ValuePrecision.RESIDUAL,
+                        source=ValueSource.RESIDUAL,
+                        fill_strategy="residual"),
         ]
 
         return LLMResponseAttribution(
             agent="qoder",
             model=lc.model or "unknown",
-            request_id="",
+            request_id=lc.id or "unavailable",
             call_id=lc.id,
             source_label="transcript",
             confidence_label="中",

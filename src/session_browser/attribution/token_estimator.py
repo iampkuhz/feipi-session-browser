@@ -50,10 +50,14 @@ _CODE_PUNCT_RATIO = 3.0
 def estimate_tokens_from_text(text: str, model: str = "") -> int:
     """Estimate token count from plain text.
 
-    Uses character-class weighted heuristic:
+    Uses mutually exclusive character-class weighted heuristic:
       - CJK chars / 1.8
-      - ASCII chars / 4.0
       - Code punctuation / 3.0
+      - ASCII non-code chars / 4.0  (ASCII minus code punctuation)
+      - Other unicode / 2.5
+
+    Code punctuation characters are also ASCII, so we subtract them
+    from the ASCII count to avoid double counting.
 
     Args:
         text: Input text (may be mixed Chinese/English/code).
@@ -70,9 +74,18 @@ def estimate_tokens_from_text(text: str, model: str = "") -> int:
     ascii_chars = count_ascii(text)
     code_punct = count_code_punctuation(text)
 
+    # Mutually exclusive: subtract code punctuation from ASCII
+    ascii_non_code = max(0, ascii_chars - code_punct)
+
+    # Other unicode: total length minus CJK, ASCII, and other unicode
+    # (non-ASCII, non-CJK characters like emoji, mathematical symbols, etc.)
+    total_len = len(text)
+    other_unicode = max(0, total_len - chinese_chars - ascii_chars)
+
     estimated = (chinese_chars / _CJK_RATIO
-                 + ascii_chars / _ASCII_RATIO
-                 + code_punct / _CODE_PUNCT_RATIO)
+                 + code_punct / _CODE_PUNCT_RATIO
+                 + ascii_non_code / _ASCII_RATIO
+                 + other_unicode / 2.5)
 
     return max(1, int(round(estimated)))
 

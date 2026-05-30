@@ -140,7 +140,11 @@ def test_bucket_sums_not_exceed_total_output(agent):
     ro = _make_round()
     result = build_llm_response_attribution(agent, lc, ro)
     total = result.total_output.value or 0
-    bucket_sum = sum(b.tokens for b in result.buckets)
+    # Only sum buckets that contribute to total (excludes display-only children)
+    bucket_sum = sum(
+        b.tokens for b in result.buckets
+        if getattr(b, "contributes_to_total", True)
+    )
     assert bucket_sum <= total, (
         f"Bucket sum {bucket_sum} exceeds total {total} for {agent}"
     )

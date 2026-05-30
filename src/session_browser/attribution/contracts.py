@@ -64,6 +64,9 @@ class RequestAttributionBucket:
     summary: str = ""
     expandable: bool = False
     content_preview: str = ""
+    contributes_to_total: bool = True
+    parent_key: str = ""
+    display_group: str = ""
 
 
 # ─── Response bucket ───────────────────────────────────────────────────
@@ -82,6 +85,22 @@ class ResponseAttributionBucket:
     confidence_label: str = ""
     summary: str = ""
     block_refs: list[str] = field(default_factory=list)
+    contributes_to_total: bool = True
+    parent_key: str = ""
+    display_group: str = ""
+
+
+@dataclass
+class AvailabilityRow:
+    """One row in the parameter availability table for UI consumption."""
+    field: str
+    label: str
+    exact: bool
+    available: bool
+    precision: str
+    source: str
+    fill_strategy: str
+    note: str = ""
 
 
 # ─── Request attribution result ────────────────────────────────────────

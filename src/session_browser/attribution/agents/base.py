@@ -37,12 +37,41 @@ class BaseAttributionBuilder:
         self.session_summary = session_summary
         self.session_context = session_context or {}
 
-    def _avail(self, field_name: str, available: bool, reason: str = "") -> dict:
+    def _avail(
+        self,
+        field_name: str,
+        label: str,
+        available: bool,
+        exact: bool = False,
+        precision: str = "",
+        source: str = "",
+        fill_strategy: str = "",
+        note: str = "",
+    ) -> dict:
+        """Build a full availability row for UI parameter table."""
+        if not precision:
+            precision = ValuePrecision.EXACT if exact else (
+                ValuePrecision.UNAVAILABLE if not available else ValuePrecision.ESTIMATED
+            )
+        if not source:
+            source = ValueSource.HEURISTIC if available else ValueSource.HEURISTIC
+        if not fill_strategy:
+            fill_strategy = "direct" if available else "not available"
         return {
             "field": field_name,
+            "label": label,
+            "exact": exact,
             "available": available,
-            "reason": reason or ("available from " + field_name if available else "not available"),
+            "precision": precision,
+            "source": source,
+            "fill_strategy": fill_strategy,
+            "note": note or ("available from " + field_name if available else "not available"),
         }
+
+    def _request_id(self) -> str:
+        """Fallback chain: provider request_id > llm_call.id > unavailable."""
+        lc = self.llm_call
+        return lc.id or "unavailable"
 
     def build_request(self) -> LLMRequestAttribution:
         """Build a minimal request attribution with all unknowns."""
@@ -73,7 +102,7 @@ class BaseAttributionBuilder:
         return LLMRequestAttribution(
             agent="unknown",
             model=lc.model or "unknown",
-            request_id="",
+            request_id=self._request_id(),
             call_id=lc.id,
             source_label="local logs",
             confidence_label="低",
@@ -88,10 +117,22 @@ class BaseAttributionBuilder:
             captured_context_preview="",
             attribution_notes=["No agent-specific builder available."],
             availability_rows=[
-                self._avail("total_input", total > 0),
-                self._avail("fresh_input", False),
-                self._avail("cache_read", False),
-                self._avail("cache_write", False),
+                self._avail("total_input", "Total input tokens", total > 0,
+                            precision=ValuePrecision.PROVIDER_REPORTED if total > 0 else ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.PROVIDER_USAGE if total > 0 else ValueSource.HEURISTIC,
+                            fill_strategy="direct from llm_call.input_tokens" if total > 0 else "unavailable"),
+                self._avail("fresh_input", "Fresh input tokens", False,
+                            precision=ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.HEURISTIC,
+                            fill_strategy="unknown"),
+                self._avail("cache_read", "Cache read tokens", False,
+                            precision=ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.HEURISTIC,
+                            fill_strategy="unknown"),
+                self._avail("cache_write", "Cache write tokens", False,
+                            precision=ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.HEURISTIC,
+                            fill_strategy="unknown"),
             ],
         )
 
@@ -125,7 +166,7 @@ class BaseAttributionBuilder:
         return LLMResponseAttribution(
             agent="unknown",
             model=lc.model or "unknown",
-            request_id="",
+            request_id=self._request_id(),
             call_id=lc.id,
             source_label="local logs",
             confidence_label="低",
@@ -142,9 +183,21 @@ class BaseAttributionBuilder:
             captured_output_preview=lc.response_preview or "",
             attribution_notes=["No agent-specific builder available."],
             availability_rows=[
-                self._avail("total_output", total > 0),
-                self._avail("visible_text", False),
-                self._avail("tool_use", False),
-                self._avail("finish_reason", bool(finish_str)),
+                self._avail("total_output", "Total output tokens", total > 0,
+                            precision=ValuePrecision.PROVIDER_REPORTED if total > 0 else ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.PROVIDER_USAGE if total > 0 else ValueSource.HEURISTIC,
+                            fill_strategy="direct from llm_call.output_tokens" if total > 0 else "unavailable"),
+                self._avail("visible_text", "Visible text tokens", False,
+                            precision=ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.HEURISTIC,
+                            fill_strategy="unknown"),
+                self._avail("tool_use", "Tool use tokens", False,
+                            precision=ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.HEURISTIC,
+                            fill_strategy="unknown"),
+                self._avail("finish_reason", "Finish reason", bool(finish_str),
+                            precision=ValuePrecision.EXACT if finish_str else ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.TRANSCRIPT,
+                            fill_strategy="from llm_call.finish_reason"),
             ],
         )

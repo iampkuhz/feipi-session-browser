@@ -89,6 +89,11 @@ from session_browser.attribution.contracts import (
     LLMRequestAttribution,
     LLMResponseAttribution,
 )
+from session_browser.attribution.serializers import (
+    request_attribution_to_payload,
+    response_attribution_to_payload,
+    attribution_error_to_payload,
+)
 from dataclasses import asdict
 
 logger = logging.getLogger("session_browser.web")
@@ -2345,6 +2350,7 @@ def _build_v11_view_model(
             # ── LLM attribution payloads ──────────────────────────────
             # Build request/response attribution and add to payload_sources
             # so UI can render them without re-computing.
+            round_id_str = str(rid)
             try:
                 req_attr = build_llm_request_attribution(
                     agent=session.agent,
@@ -2360,94 +2366,58 @@ def _build_v11_view_model(
                     session_summary=session,
                     session_context=None,
                 )
-                # Register request attribution payload
+                # Register request attribution payload via serializer
+                req_payload = request_attribution_to_payload(req_attr)
                 add_payload(
                     payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
                     kind="llm.request_attribution",
                     title=f"R{rid} · LLM Call #{iix} · Request Attribution",
                     text="",
                 )
-                payload_sources[-1]["data"] = {
-                    "kind": "llm.request_attribution",
-                    "agent": req_attr.agent,
-                    "model": req_attr.model,
-                    "source_label": req_attr.source_label,
-                    "confidence_label": req_attr.confidence_label,
-                    "raw_body_available": req_attr.raw_body_available,
-                    "usage": {
-                        "total_input": {"value": req_attr.total_input.value, "unit": req_attr.total_input.unit,
-                                        "precision": req_attr.total_input.precision, "source": req_attr.total_input.source,
-                                        "fill_strategy": req_attr.total_input.fill_strategy},
-                        "fresh_input": {"value": req_attr.fresh_input.value, "unit": req_attr.fresh_input.unit,
-                                        "precision": req_attr.fresh_input.precision, "source": req_attr.fresh_input.source,
-                                        "fill_strategy": req_attr.fresh_input.fill_strategy},
-                        "cache_read": {"value": req_attr.cache_read.value, "unit": req_attr.cache_read.unit,
-                                       "precision": req_attr.cache_read.precision, "source": req_attr.cache_read.source,
-                                       "fill_strategy": req_attr.cache_read.fill_strategy},
-                        "cache_write": {"value": req_attr.cache_write.value, "unit": req_attr.cache_write.unit,
-                                        "precision": req_attr.cache_write.precision, "source": req_attr.cache_write.source,
-                                        "fill_strategy": req_attr.cache_write.fill_strategy},
-                    },
-                    "buckets": [
-                        {
-                            "key": b.key, "label": b.label, "tokens": b.tokens,
-                            "percent": b.percent, "count_label": b.count_label,
-                            "precision": b.precision, "source": b.source,
-                            "confidence_label": b.confidence_label, "summary": b.summary,
-                        }
-                        for b in req_attr.buckets
-                    ],
-                    "availability_rows": req_attr.availability_rows,
-                    "attribution_notes": req_attr.attribution_notes,
-                }
-                # Register response attribution payload
+                payload_sources[-1]["data"] = req_payload
+
+                # Register response attribution payload via serializer
+                resp_payload = response_attribution_to_payload(resp_attr)
                 add_payload(
                     payload_id=f"llm-R{rid}-IX{iix}-response-attribution",
                     kind="llm.response_attribution",
                     title=f"R{rid} · LLM Call #{iix} · Response Attribution",
                     text="",
                 )
-                payload_sources[-1]["data"] = {
-                    "kind": "llm.response_attribution",
-                    "agent": resp_attr.agent,
-                    "model": resp_attr.model,
-                    "source_label": resp_attr.source_label,
-                    "confidence_label": resp_attr.confidence_label,
-                    "raw_body_available": resp_attr.raw_body_available,
-                    "usage": {
-                        "total_output": {"value": resp_attr.total_output.value, "unit": resp_attr.total_output.unit,
-                                         "precision": resp_attr.total_output.precision, "source": resp_attr.total_output.source,
-                                         "fill_strategy": resp_attr.total_output.fill_strategy},
-                        "visible_text": {"value": resp_attr.visible_text.value, "unit": resp_attr.visible_text.unit,
-                                         "precision": resp_attr.visible_text.precision, "source": resp_attr.visible_text.source,
-                                         "fill_strategy": resp_attr.visible_text.fill_strategy},
-                        "tool_use": {"value": resp_attr.tool_use.value, "unit": resp_attr.tool_use.unit,
-                                     "precision": resp_attr.tool_use.precision, "source": resp_attr.tool_use.source,
-                                     "fill_strategy": resp_attr.tool_use.fill_strategy},
-                        "metadata": {"value": resp_attr.metadata.value, "unit": resp_attr.metadata.unit,
-                                     "precision": resp_attr.metadata.precision, "source": resp_attr.metadata.source,
-                                     "fill_strategy": resp_attr.metadata.fill_strategy},
-                        "finish_reason": {"value": resp_attr.finish_reason.value, "unit": resp_attr.finish_reason.unit,
-                                          "precision": resp_attr.finish_reason.precision, "source": resp_attr.finish_reason.source,
-                                          "fill_strategy": resp_attr.finish_reason.fill_strategy},
-                    },
-                    "buckets": [
-                        {
-                            "key": b.key, "label": b.label, "tokens": b.tokens,
-                            "percent": b.percent, "count_label": b.count_label,
-                            "precision": b.precision, "source": b.source,
-                            "confidence_label": b.confidence_label, "summary": b.summary,
-                        }
-                        for b in resp_attr.buckets
-                    ],
-                    "availability_rows": resp_attr.availability_rows,
-                    "attribution_notes": resp_attr.attribution_notes,
-                }
-            except Exception:
-                # Attribution should never block the page; degrade gracefully.
+                payload_sources[-1]["data"] = resp_payload
+            except Exception as exc:
+                # Attribution should never block the page; generate
+                # a diagnostic error payload instead of silently swallowing.
                 import logging
+                import traceback as _tb
                 logging.getLogger("session_browser.web").debug(
-                    "Failed to build attribution for LLM call %s", ix.id, exc_info=True)
+                    "Failed to build attribution for LLM call %s: %s",
+                    ix.id, exc, exc_info=True,
+                )
+                error_type = type(exc).__name__
+                short_msg = str(exc)[:200] if str(exc) else "attribution failed"
+                err_payload = attribution_error_to_payload(
+                    agent=session.agent,
+                    call_id=ix.id or "",
+                    round_id=round_id_str,
+                    error_type=error_type,
+                    message=short_msg,
+                )
+                # Register error payloads for both request and response
+                add_payload(
+                    payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
+                    kind="llm.attribution_error",
+                    title=f"R{rid} · LLM Call #{iix} · Request Attribution (error)",
+                    text="",
+                )
+                payload_sources[-1]["data"] = err_payload
+                add_payload(
+                    payload_id=f"llm-R{rid}-IX{iix}-response-attribution",
+                    kind="llm.attribution_error",
+                    title=f"R{rid} · LLM Call #{iix} · Response Attribution (error)",
+                    text="",
+                )
+                payload_sources[-1]["data"] = dict(err_payload)
 
             items.append(llm_item)
             items.extend(parallel_batches)

@@ -93,8 +93,13 @@ def test_claude_code_response_attribution():
     assert result.finish_reason.value == "end_turn"
 
 
-def test_claude_code_tool_schema_estimation():
-    """Tool schemas should be estimated from tool count."""
+def test_claude_code_tool_schema_estimation_no_available_tools():
+    """Without available_tools list, tool_schemas tokens must be 0.
+
+    Tool schemas refers to available tool definitions, NOT observed tool calls.
+    When local logs don't provide available_tools, we cannot generate positive
+    tool_schemas tokens.
+    """
     tc1 = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="result1")
     tc2 = ToolCall(name="Bash", parameters={"command": "echo hello"}, result="done")
     lc = _make_lc(input_tokens=10000)
@@ -102,11 +107,30 @@ def test_claude_code_tool_schema_estimation():
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    # Should have a tool_schemas bucket
+    # Should have a tool_schemas bucket but with 0 tokens (unavailable)
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None
-    assert schema_bucket.tokens > 0
-    assert "2 tools" in schema_bucket.count_label
+    assert schema_bucket.tokens == 0
+    assert schema_bucket.precision == ValuePrecision.UNAVAILABLE
+
+
+def test_claude_code_tool_schema_from_available_tools():
+    """When available_tools is provided, tool_schemas should use that count."""
+    tc1 = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="result1")
+    lc = _make_lc(input_tokens=10000)
+    ro = _make_ro(user_content="do something", tool_calls=[tc1])
+    # Provide available_tools via session_context
+    session_context = {
+        "available_tools": ["Read", "Bash", "Edit"],
+    }
+    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=session_context)
+    result = builder.build_request()
+
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    assert schema_bucket is not None
+    # 3 available tools × 240 tokens/tool = 720
+    assert schema_bucket.tokens == 3 * 240
+    assert "3 tools" in schema_bucket.count_label
 
 
 def test_claude_code_availability_rows():
