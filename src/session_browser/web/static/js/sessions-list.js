@@ -100,73 +100,75 @@
     window.location.reload();
   });
 
-  // ── Apply button dirty state ──────────────────────────────────────
+  // ── Real-time client-side search ──────────────────────────────────────
 
   /**
-   * Serialize form values into a comparable string snapshot.
-   * Captures all named inputs (search, selects, hidden fields) excluding submit buttons.
+   * Filter visible table rows based on search input value.
+   * Only affects rows currently in the DOM (current page).
    */
-  function serializeFormState(form) {
-    var pairs = [];
-    var inputs = form.querySelectorAll('input, select, textarea');
-    for (var i = 0; i < inputs.length; i++) {
-      var el = inputs[i];
-      var name = el.getAttribute('name');
-      if (!name || el.type === 'submit' || el.type === 'button') continue;
-      pairs.push(name + '=' + (el.value || ''));
+  function filterVisibleRows(query) {
+    var q = (query || '').toLowerCase().trim();
+    var tbody = document.querySelector('.table-card .data-table tbody');
+    if (!tbody) return;
+    var rows = tbody.querySelectorAll('tr.sessions-row');
+    var visibleCount = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var sessionId = (row.dataset.sessionId || '').toLowerCase();
+      var title = (row.dataset.title || '').toLowerCase();
+      var show = !q || sessionId.indexOf(q) >= 0 || title.indexOf(q) >= 0;
+      row.style.display = show ? '' : 'none';
+      if (show) visibleCount++;
     }
-    return pairs.sort().join('&');
+    // Update matching count in filter footer
+    var countEl = document.querySelector('[data-session-match-count]');
+    if (countEl) countEl.textContent = visibleCount + ' matching sessions';
   }
 
-  /**
-   * Update Apply button visual state based on form dirty status.
-   * When form values match initial snapshot: add is-dirty class removal (button looks muted).
-   * When form values differ: add is-dirty class (button looks active/primary).
-   */
-  function updateApplyButtonState() {
-    var form = document.getElementById('session-filter-form');
-    var applyBtn = document.querySelector('[data-action="apply"]');
-    if (!form || !applyBtn) return;
+  function bindRealtimeSearch() {
+    var searchInput = document.getElementById('session-search');
+    if (!searchInput) return;
 
-    var currentState = serializeFormState(form);
-    var isDirty = (currentState !== _initialFormState);
+    searchInput.addEventListener('input', function () {
+      filterVisibleRows(searchInput.value);
+    });
 
-    if (isDirty) {
-      applyBtn.classList.add('is-dirty');
-      applyBtn.classList.remove('is-muted');
-    } else {
-      applyBtn.classList.remove('is-dirty');
-      applyBtn.classList.add('is-muted');
+    // Prevent form submit on Enter — just filter client-side
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        filterVisibleRows(searchInput.value);
+      }
+    });
+
+    // Apply saved search on load
+    if (searchInput.value) {
+      filterVisibleRows(searchInput.value);
     }
   }
 
+  // ── Auto-submit on select change ──────────────────────────────────────
+
   /**
-   * Bind input/change events on filter form to track dirty state.
-   * Whenever any filter value changes, update the Apply button appearance.
+   * Bind change events on filter selects to auto-submit the form.
+   * Since there's no Apply button, selecting a filter immediately
+   * triggers a server-side navigation with reset to page 1.
    */
-  function bindApplyDirtyState() {
+  function bindSelectAutoSubmit() {
     var form = document.getElementById('session-filter-form');
     if (!form) return;
 
-    // Capture initial form state snapshot
-    _initialFormState = serializeFormState(form);
-
-    // Listen for input events (covers text input, search)
-    form.addEventListener('input', function () {
-      updateApplyButtonState();
+    form.addEventListener('change', function (e) {
+      if (e.target.tagName !== 'SELECT') return;
+      // Reset to page 1 when filter changes
+      var pageInput = form.querySelector('input[name="page"]');
+      if (pageInput) {
+        pageInput.value = '1';
+      }
+      // Submit form for server-side filter
+      submitFilter();
     });
-
-    // Listen for change events (covers select dropdowns)
-    form.addEventListener('change', function () {
-      updateApplyButtonState();
-    });
-
-    // Set initial state on load
-    updateApplyButtonState();
   }
-
-  // Module-level variable to store initial form state snapshot
-  var _initialFormState = '';
 
   // ── Token tooltip dynamic positioning ──────────────────────────────
 
@@ -202,7 +204,8 @@
     bindFormSubmit();
     bindFilterClear();
     bindPagination();
-    bindApplyDirtyState();
+    bindRealtimeSearch();
+    bindSelectAutoSubmit();
     setupTokenTooltips();
 
     // Expose public API

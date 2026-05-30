@@ -45,13 +45,12 @@
         <input type="hidden" name="sort" value="{{ sort_by }}"/>
         <input type="hidden" name="dir" value="{{ sort_dir }}"/>
         <input type="hidden" name="page_size" value="{{ page_size }}"/>
-        {{ ui.filter_search(name='q', placeholder='仅支持 Session ID', value=filter_q, id='session-search', extra_classes='js-search') }}
+        {{ ui.filter_search(name='q', placeholder='Search by session ID or title...', value=filter_q, id='session-search', extra_classes='js-search') }}
         {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent, id='filter-agent') }}
         {{ ui.filter_select(label='Model', name='model', options=model_list, selected=filter_model, id='filter-model', all_label='All Models') }}
         {{ ui.filter_select(label='Project', name='project', options=project_list, selected=filter_project, id='filter-project', all_label='All Projects') }}
         <span class="filter-row__push"></span>
         {{ ui.btn('Reset', 'secondary', 'sm', href=actions.clear_all_url, extra_class='js-clear-all', data_action='clear') }}
-        {{ ui.btn('Apply', 'primary', 'sm', type='submit', data_action='apply') }}
     </div>
     {% call ui.filter_footer(show_label=False, count=total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions') %}
         {{ sl.active_filters(
