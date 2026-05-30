@@ -146,8 +146,8 @@
             <td class="numeric mono">{{ a.session_count | format_number }}</td>
             <td class="numeric mono">{{ a.project_count }}</td>
             <td class="token-cell">
-                {% set a_fresh = a.total_input_tokens %}
-                {% set a_read = a.total_cached_tokens %}
+                {% set a_fresh = a.total_fresh_input_tokens %}
+                {% set a_read = a.total_cache_read_tokens %}
                 {% set a_write = a.total_cache_write_tokens %}
                 {% set a_out = a.total_output_tokens %}
                 {% set a_total = a.total_tokens %}

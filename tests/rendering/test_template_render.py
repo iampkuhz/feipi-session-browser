@@ -311,3 +311,35 @@ class TestAgentsRender:
         })
         assert "Agents" in html
         _assert_page_content_ok(html, "Agents")
+
+    @pytest.mark.contract_case("ROUTE-API-004")
+    def test_agents_renders_with_realistic_data(self):
+        """使用真实 agent dict 渲染，覆盖 token bar 数据路径。
+
+        该测试使用 list_agents() 返回的完整字段集合，确保
+        模板中所有 token 字段（total_fresh_input_tokens、
+        total_cache_read_tokens 等）key 名一致，
+        防止再次出现 'dict object' has no attribute 错误。
+        """
+        html = _render_page("agents.html", {
+            "agents": [
+                {
+                    "agent": "claude_code",
+                    "session_count": 5,
+                    "last_active": "2025-01-15T10:00:00",
+                    "total_tokens": 150000,
+                    "total_fresh_input_tokens": 60000,
+                    "total_cache_read_tokens": 40000,
+                    "total_cache_write_tokens": 20000,
+                    "total_output_tokens": 30000,
+                    "total_tool_calls": 500,
+                    "total_failed_tools": 3,
+                    "total_assistant_messages": 200,
+                    "project_count": 2,
+                },
+            ],
+            "efficiency": [],
+        })
+        assert "Agents" in html
+        assert "Claude Code" in html
+        _assert_page_content_ok(html, "Agents")
