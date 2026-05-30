@@ -1,5 +1,6 @@
-"""验证 Payload 模态框和 Trace 结构的测试（v9）。
-v9 架构：
+"""验证 Payload 模态框和 Trace 结构的测试。
+
+架构：
 - 基于组件的 Jinja2 宏（sdp、sdt）替代内联 HTML。
 - 工具调用通过 session_detail_timeline.html 中的 sdt.tool_batch 宏渲染。
 - Payload 模态框在 base.html 中统一处理所有 payload 查看。
@@ -30,7 +31,7 @@ def _timeline_component():
     return (TEMPLATE_DIR / "components" / "session_detail_timeline.html").read_text(encoding="utf-8")
 
 
-# ── 工具渲染（v9 组件宏） ──────────────────────────
+# ── 工具渲染（组件宏） ──────────────────────────
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")
@@ -102,7 +103,7 @@ def test_capture_handler_sets_handled_flag():
     )
 
 
-# ── v9 组件使用 ────────────────────────────────────────────
+# ── 组件使用 ────────────────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-INTERACTION-006")

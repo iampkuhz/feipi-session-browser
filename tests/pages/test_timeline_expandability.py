@@ -413,13 +413,13 @@ class TestExpandCollapseUsesDataAction:
 
 
 class TestEventDelegationPresent:
-    """验证事件委托处理器覆盖 v9 trace 行和展开/折叠按钮。"""
+    """验证事件委托处理器覆盖 trace 行和展开/折叠按钮。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_trace_row(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        # v9：JS 在 session_detail_timeline.js 中，处理 data-action="toggle-round"
+        # JS 在 session_detail_timeline.js 中，处理 data-action="toggle-round"
         js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
@@ -435,7 +435,7 @@ class TestEventDelegationPresent:
     def test_delegation_handles_expand_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        # v9：使用 data-action="collapse-all"（没有单独的 expand-visible）
+        # 使用 data-action="collapse-all"（没有单独的 expand-visible）
         # 检查 timeline JS 中的 collapse-all
         js_path = (Path(__file__).resolve().parents[2]
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
@@ -443,7 +443,7 @@ class TestEventDelegationPresent:
             js = js_path.read_text(encoding="utf-8")
             has_collapse = "collapse-all" in js or "collapseAll" in js or "collapse_all" in js
             assert has_collapse, (
-                "v9：session_detail_timeline.js 必须处理 collapse-all"
+                "session_detail_timeline.js 必须处理 collapse-all"
             )
         else:
             pytest.skip("未找到 session_detail_timeline.js")
@@ -458,7 +458,7 @@ class TestEventDelegationPresent:
             js = js_path.read_text(encoding="utf-8")
             has_collapse = "collapse-all" in js or "collapseAll" in js or "collapse_all" in js
             assert has_collapse, (
-                "v9：session_detail_timeline.js 必须处理 collapse-all"
+                "session_detail_timeline.js 必须处理 collapse-all"
             )
         else:
             pytest.skip("未找到 session_detail_timeline.js")
@@ -468,25 +468,25 @@ class TestEventDelegationPresent:
         """阶段 1：必须存在 filter-status 操作以支持 All/Failed 过滤。"""
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        # v9：filter-status 在 timeline 组件中
+        # filter-status 在 timeline 组件中
         timeline_path = (Path(__file__).resolve().parents[2]
                         / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html")
         if timeline_path.exists():
             html = timeline_path.read_text(encoding="utf-8")
             has_filter = 'data-action="filter-status"' in html
             assert has_filter, (
-                "v9：timeline 组件中必须存在 [data-action=filter-status]"
+                "timeline 组件中必须存在 [data-action=filter-status]"
             )
             has_all = 'data-status="all"' in html
-            assert has_all, "v9：必须存在 [data-status=all] 过滤芯片"
+            assert has_all, "必须存在 [data-status=all] 过滤芯片"
             has_failed = 'data-status="failed"' in html
-            assert has_failed, "v9：必须存在 [data-status=failed] 过滤芯片"
+            assert has_failed, "必须存在 [data-status=failed] 过滤芯片"
         else:
             pytest.skip("未找到 timeline 组件")
 
 
 class TestAccordionBehavior:
-    """验证 v9 session_detail_timeline.js 中的手风琴逻辑。"""
+    """验证 session_detail_timeline.js 中的手风琴逻辑。"""
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_collapse_others_function_exists(self):
@@ -496,10 +496,10 @@ class TestAccordionBehavior:
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
-            # v9：toggleRound 处理手风琴行为
+            # toggleRound 处理手风琴行为
             has_toggle = "toggleRound" in js
             assert has_toggle, (
-                "v9：session_detail_timeline.js 必须有 toggleRound 函数"
+                "session_detail_timeline.js 必须有 toggleRound 函数"
             )
         else:
             pytest.skip("未找到 session_detail_timeline.js")
@@ -512,12 +512,12 @@ class TestAccordionBehavior:
                    / "src" / "session_browser" / "web" / "static" / "js" / "session_detail_timeline.js")
         if js_path.exists():
             js = js_path.read_text(encoding="utf-8")
-            # v9：toggleRound 应折叠其他 round
+            # toggleRound 应折叠其他 round
             has_toggle = "toggleRound" in js
             has_collapse_other = "is-open" in js or "collapseOther" in js or \
                 "classList.remove" in js or "aria-expanded" in js
             assert has_toggle and has_collapse_other, (
-                "v9：toggleRound 应处理手风琴行为（折叠其他 round）"
+                "toggleRound 应处理手风琴行为（折叠其他 round）"
             )
         else:
             pytest.skip("未找到 session_detail_timeline.js")

@@ -1,5 +1,6 @@
-"""v9 session detail 中 tool result 渲染的回归测试。
-v9 架构：
+"""Session detail 中 tool result 渲染的回归测试。
+
+架构：
 - Tool result 通过 timeline 组件宏（tool_batch）渲染
 - Tool result 按钮使用 sdp.button('Result', 'open-payload', ...)
 - Payload modal 显示 result 内容

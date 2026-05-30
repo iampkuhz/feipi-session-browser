@@ -1,4 +1,4 @@
-"""Session detail static template contract tests (v9+).
+"""Session detail static template contract tests.
 
 Covers:
 - base.html and session.html structural hooks

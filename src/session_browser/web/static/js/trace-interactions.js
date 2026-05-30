@@ -1,12 +1,11 @@
-// Session Browser UI v15 interactions.
+// Session Browser UI — payload interactions and conservative page interactions.
 // Scope: session detail payload interactions and conservative page interactions.
 // Required actions:
 // - toggle-round
 // - toggle-all
-// - filter-status
 // - jump-round
-// - open-payload  (delegated to session_detail_timeline.js v17)
-// - close-payload (delegated to session_detail_timeline.js v17)
+// - open-payload  (handled by session-detail.js)
+// - close-payload (handled by session-detail.js)
 (function(){
   "use strict";
 
@@ -37,18 +36,6 @@
     btn.dataset.state = allOpen ? "collapse" : "expand";
   }
 
-  function setFilter(page, status){
-    qsa(page, '[data-action="filter-status"]').forEach(btn => {
-      const on = (btn.dataset.status || "").toLowerCase() === status;
-      btn.classList.toggle("is-active", on);
-      btn.classList.toggle("active", on);
-    });
-    qsa(page, "[data-trace-round-row]").forEach(round => {
-      round.hidden = !(status === "all" || (round.dataset.status || "").toLowerCase() === status);
-    });
-    updateToggleAll(page);
-  }
-
   function jumpRound(page, roundId){
     const round = qs(page, '[data-trace-round-row][data-round="' + esc(roundId) + '"]');
     if(!round) return;
@@ -58,7 +45,7 @@
     updateToggleAll(page);
   }
 
-  /* open-payload / close-payload delegated to session_detail_timeline.js v17 */
+  /* open-payload / close-payload handled by session-detail.js */
 
   document.addEventListener("click", function(event){
     const actionEl = closest(event.target, "[data-action]");
@@ -75,18 +62,15 @@
       const shouldExpand = actionEl.dataset.state === "expand";
       qsa(page, "[data-trace-round-row]").filter(r => !r.hidden).forEach(r => setRoundOpen(r, shouldExpand));
       updateToggleAll(page);
-    } else if(action === "filter-status"){
-      event.preventDefault();
-      setFilter(page, (actionEl.dataset.status || "all").toLowerCase());
     } else if(action === "jump-round"){
       event.preventDefault();
       jumpRound(page, actionEl.dataset.round);
     }
-    /* open-payload / close-payload handled by session_detail_timeline.js v17 */
+    /* open-payload / close-payload handled by session-detail.js */
   });
 
   document.addEventListener("keydown", function(event){
-    /* Escape to close payload handled by session_detail_timeline.js v17 */
+    /* Escape to close payload handled by session-detail.js */
   });
 
   document.addEventListener("DOMContentLoaded", function(){

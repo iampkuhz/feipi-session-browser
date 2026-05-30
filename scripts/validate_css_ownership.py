@@ -72,7 +72,7 @@ PAGE_SPECIFIC_SELECTORS = [
 
 # Forbidden filename patterns
 FORBIDDEN_PATTERNS = [
-    re.compile(r"-v\d+\.css$"),      # dashboard-v16.css
+    re.compile(r"-v\d+\.css$"),      # versioned CSS like dashboard-v16.css
     re.compile(r"-patch\.css$"),      # session-patch.css
     re.compile(r"-fix\.css$"),        # something-fix.css
     re.compile(r"-overlay\.css$"),    # something-overlay.css

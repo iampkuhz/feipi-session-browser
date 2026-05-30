@@ -89,9 +89,9 @@ Contract 要求的 `format_compact_token` 尚未实现。
 2. **Session Detail（timeline 组件）**：通过 `sdp.payload_modal()` 宏或 `payload_modal()` 宏生成完整 modal。
 
 按钮元数据（`open-payload` 触发）：
-- `data-payload-id`：存在于 v12 timeline 和 primitives 宏中
-- `data-payload-title`：存在于 v12 timeline
-- `data-payload-kind`：存在于 v12 timeline（`context`/`response`），但 base.html legacy modal 按钮不含此属性
+- `data-payload-id`：存在于 timeline 和 primitives 宏中
+- `data-payload-title`：存在于 timeline
+- `data-payload-kind`：存在于 timeline（`context`/`response`），但 base.html legacy modal 按钮不含此属性
 
 API 端点 `/api/sessions/{agent}/{session_id}/payload/{payload_id}` 返回完整 payload dict，结构由 `_build_payload_lookup()` 构建，字段包括 `request_payload_raw`、`response_payload_raw`、`payload_missing_reason` 等。
 
@@ -110,6 +110,6 @@ JS 端（`payload_viewer.js`）消费模式：
 | 模板可访问 token formatter | 未注册为 Jinja2 filter | **需注册** |
 | `prev_url`/`next_url` 顶层变量 | 嵌套在 `actions` dict | 可通过模板适配，无阻塞 |
 | `page_input_url_pattern` | 不存在 | **需新建** |
-| Payload modal `data-payload-kind` | 仅 v12 timeline 有 | **需补齐** |
+| Payload modal `data-payload-kind` | 仅 timeline 有 | **需补齐** |
 | Payload modal `rendered_html`/`raw_text` 字段名 | JS 用 camelCase/snake_case 混合 | **需统一** |
 | Button `data-action` 全覆盖 | 16 个按钮缺失 | 已有 T012 记录 |

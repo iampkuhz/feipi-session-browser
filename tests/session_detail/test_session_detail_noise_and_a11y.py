@@ -1,5 +1,6 @@
-"""Tests for trace/issue noise reduction and accessibility (v9).
-v9 architecture:
+"""Tests for trace/issue noise reduction and accessibility.
+
+Architecture:
 - Issue strip in hero macro (capped at 4 issues)
 - Round toggles use data-action="toggle-round" with aria-expanded/aria-controls
 - Payload modal in base.html with tabs and close button
@@ -43,7 +44,7 @@ def test_issue_strip_exists():
 
 @pytest.mark.contract_case("UI-SD-029")
 def test_issue_cards_capped():
-    """Issue cards must be capped (v9 uses [:4])."""
+    """Issue cards must be capped (limited to 4)."""
     timeline = _timeline_component()
     assert "[:4]" in timeline, "Issue cards must be capped"
 
@@ -145,7 +146,7 @@ def test_raw_json_moved_to_script_tag():
 def test_filter_buttons_exist():
     """Filter status chips must exist."""
     timeline = _timeline_component()
-    # v18: uses status-all / status-failed actions (HIFI table migration)
+    # 使用 status-all / status-failed actions（HIFI 表格迁移）
     chips_all = re.findall(
         r'<button[^>]*data-action="status-all"[^>]*>',
         timeline
@@ -181,7 +182,7 @@ def test_payload_tabs_have_aria_selected():
         )
 
 
-# ── CSS for v9 features ────────────────────────────────────────────
+# ── CSS for session detail features ─────────────────────────────────
 
 
 @pytest.mark.contract_case("UI-SD-029")

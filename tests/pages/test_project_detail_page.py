@@ -659,7 +659,7 @@ class TestProjectDetailErrorState:
 # ── TestProjectDetailNoStalePatterns ──────────────────────────────
 
 class TestProjectDetailNoStalePatterns:
-    """验证不存在的 v15/v16 陈旧模式。"""
+    """验证不存在的陈旧模式。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_no_page_header_bem_class(self):

@@ -361,7 +361,7 @@ HIFI 规范要求 34 个按钮/交互元素 + 16 个图标。
 ### 生产环境结论：部分覆盖
 
 生产模板仅实现 Trace tab；Metrics 和 Payloads tab 未实现。
-HIFI 规范要求 29 个按钮（去重后）+ 30 个图标。生产 v12 timeline 基本合规。
+HIFI 规范要求 29 个按钮（去重后）+ 30 个图标。生产 timeline 基本合规。
 
 ### 按钮行为表（HIFI + 生产 摘要）
 
@@ -401,8 +401,8 @@ HIFI 规范要求 29 个按钮（去重后）+ 30 个图标。生产 v12 timelin
 
 | 合同要求 | session.html 状态 |
 |---|---|
-| 每个按钮有 data-action 或 href | HIFI 规范已覆盖（29 项）；v12 timeline 基本合规 |
-| 无 inline onclick | 合规（v12 timeline 无 inline onclick） |
+| 每个按钮有 data-action 或 href | HIFI 规范已覆盖（29 项）；timeline 基本合规 |
+| 无 inline onclick | 合规（timeline 无 inline onclick） |
 | 按钮行为表已记录 | 已补充（摘要）；完整表见 `behavior-session-detail.md` |
 | 图标行为表已记录 | 已补充（摘要）；完整表见 `behavior-session-detail.md` |
 

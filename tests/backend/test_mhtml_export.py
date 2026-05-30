@@ -45,7 +45,7 @@ class TestMhtmlTemplateContracts:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_trace_row_structure(self):
-        # v9 使用组件宏；trace_round 定义在 session_detail_timeline.html 中
+        # 使用组件宏；trace_round 定义在 session_detail_timeline.html 中
         html = self._read("session.html")
         assert "sdt.trace_round" in html, "missing sdt.trace_round macro call"
         component = self._read("components/session_detail_timeline.html")
@@ -54,7 +54,7 @@ class TestMhtmlTemplateContracts:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_toggle_round_detail_function_exists(self):
-        # v9 使用 session_detail_timeline.js 中的 toggleRound
+        # 使用 session_detail_timeline.js 中的 toggleRound
         js = (STATIC_JS / "session_detail_timeline.js").read_text(encoding="utf-8")
         assert "function toggleRound" in js, "missing toggleRound function"
 
@@ -119,7 +119,7 @@ class TestMhtmlSelfContained:
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_key_functions_present_in_template(self):
         """验证关键 JS 函数已引用以便 MHTML 包含。"""
-        # v9 使用 session_detail_timeline.js 中的 toggleRound
+        # 使用 session_detail_timeline.js 中的 toggleRound
         js = self._read_js("session_detail_timeline.js")
         assert "toggleRound" in js, "toggleRound missing from session_detail_timeline.js"
 
@@ -151,7 +151,7 @@ class TestPhase1SimplifiedStructure:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_issue_summary(self):
-        # v9 在组件宏中使用 data-issue-strip
+        # 在组件宏中使用 data-issue-strip
         component = self._read("components/session_detail_timeline.html")
         assert 'data-issue-strip' in component, "missing issue-strip section"
 
@@ -162,14 +162,14 @@ class TestPhase1SimplifiedStructure:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_expand_collapse_buttons(self):
-        # v19: 单个 toggle-all 按钮，无独立的 collapse-all
+        # 单个 toggle-all 按钮，无独立的 collapse-all
         component = self._read("components/session_detail_timeline.html")
         assert 'data-action="toggle-all"' in component, "missing toggle-all"
         assert 'data-action="collapse-all"' not in component, "collapse-all must be removed; use toggle-all only"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_all_failed_segmented_control(self):
-        # v18: 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
+        # 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
         component = self._read("components/session_detail_timeline.html")
         has_new = 'data-action="status-all"' in component and 'data-action="status-failed"' in component
         has_legacy = 'data-action="filter-status"' in component

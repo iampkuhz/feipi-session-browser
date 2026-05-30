@@ -1,6 +1,6 @@
 """Deterministic CSS contract tests: trace-table layout must prevent overlap.
 
-v18: Table-based layout uses .trace-table, .round-row, .expanded-row.
+Table-based layout uses .trace-table, .round-row, .expanded-row.
 Tests verify CSS rules exist in css/session-detail.css.
 """
 
@@ -33,7 +33,7 @@ def _extract_rule(css: str, selector: str) -> list[str]:
 
 
 class TestRoundRowLayout:
-    """v18: .round-row must have proper layout."""
+    """.round-row must have proper layout."""
 
     @pytest.mark.contract_case("UI-SD-018")
     def test_round_row_has_layout(self):
@@ -60,7 +60,7 @@ class TestRoundRowLayout:
 
 
 class TestTraceTable:
-    """v18 trace table must have proper structure."""
+    """Trace table must have proper structure."""
 
     @pytest.mark.contract_case("UI-SD-018")
     def test_trace_table_has_layout(self):
@@ -73,7 +73,7 @@ class TestTraceTable:
 
 
 class TestMixAndTimeCells:
-    """v18: token bar and metrics must have stable styles."""
+    """Token bar and metrics must have stable styles."""
 
     @pytest.mark.contract_case("UI-SD-018")
     def test_tokenbar_has_min_width(self):
@@ -89,7 +89,7 @@ class TestMixAndTimeCells:
 
 
 class TestTemplateStructure:
-    """Verify session.html has the expected v18 trace structure via component macros."""
+    """Verify session.html has the expected trace structure via component macros."""
 
     @pytest.mark.contract_case("UI-SD-018")
     def test_trace_row_has_trace_round(self):
@@ -98,7 +98,7 @@ class TestTemplateStructure:
             / "src" / "session_browser" / "web" / "templates" / "session.html"
         )
         content = template_path.read_text(encoding="utf-8")
-        # v18 使用 sdt.trace_round 宏渲染 <tr> 行
+        # 使用 sdt.trace_round 宏渲染 <tr> 行
         assert 'sdt.trace_round' in content, (
             "session.html must call sdt.trace_round macro"
         )
@@ -110,7 +110,7 @@ class TestTemplateStructure:
             / "src" / "session_browser" / "web" / "templates" / "session.html"
         )
         content = template_path.read_text(encoding="utf-8")
-        # v18 uses <table class="trace-table">
+        # 使用 <table class="trace-table">
         assert 'class="trace-table"' in content, (
             "session.html must have <table class=\"trace-table\">"
         )
@@ -118,7 +118,7 @@ class TestTemplateStructure:
     @pytest.mark.contract_case("UI-SD-018")
     def test_trace_row_has_token_mix(self):
         css = _read_css()
-        # v18 uses tokenbar in metric-cell
+        # 使用 tokenbar in metric-cell
         assert 'tokenbar' in css or 'sd-tokenbar' in css, (
             "CSS must include token bar styles"
         )

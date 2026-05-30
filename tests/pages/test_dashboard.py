@@ -364,37 +364,37 @@ class TestDashboardFloatingOverlays:
             "Dashboard 必须有 toast 元素"
 
 
-# ── TestDashboardNoHeroV16 ───────────────────────────────────────────
+# ── TestDashboardNoHero ──────────────────────────────────────────────
 
-class TestDashboardNoHeroV16:
-    """验证不包含旧的 v16 hero 区域。"""
+class TestDashboardNoHero:
+    """验证不包含旧的 hero 区域。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_section(self):
         content = _read_dashboard()
         assert 'class="hero"' not in content, \
-            "Dashboard 不得有 v16 hero 区域"
+            "Dashboard 不得有 hero 区域"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_title(self):
         content = _read_dashboard()
         assert 'class="hero-title"' not in content, \
-            "Dashboard 不得有 v16 hero-title"
+            "Dashboard 不得有 hero-title"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_kpis(self):
         content = _read_dashboard()
         assert 'class="hero-kpis"' not in content, \
-            "Dashboard 不得有 v16 hero-kpis"
+            "Dashboard 不得有 hero-kpis"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_hero_chips(self):
         content = _read_dashboard()
         assert 'class="hero-chips"' not in content, \
-            "Dashboard 不得有 v16 hero-chips"
+            "Dashboard 不得有 hero-chips"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_no_range_tabs(self):
         content = _read_dashboard()
         assert 'class="range-tabs"' not in content, \
-            "Dashboard 不得有 v16 range-tabs"
+            "Dashboard 不得有 range-tabs"

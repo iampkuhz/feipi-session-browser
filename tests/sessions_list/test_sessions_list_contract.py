@@ -1,4 +1,4 @@
-"""Sessions list v15 修复契约测试。
+"""Sessions list 修复契约测试。
 
 覆盖 8 项验证内容：
 1. /sessions 返回 HTTP 200（模板正常渲染）

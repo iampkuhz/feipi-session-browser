@@ -272,7 +272,7 @@ def check_session_shell_class_hook(session_text: str, result: StaticCheckResult)
 
     Accepts either:
     - Phase 1: phase1-shell + no-inspector
-    - v9: sd-shell (with session-detail-page or similar)
+    - Legacy: sd-shell (with session-detail-page or similar)
     """
     has_block = bool(re.search(r'\{%\s*block\s+shell_class\s*%\}', session_text))
     has_phase1 = "phase1-shell" in session_text
@@ -300,7 +300,7 @@ def check_session_shell_class_hook(session_text: str, result: StaticCheckResult)
             "MISSING_SESSION_SHELL_CLASS_HOOK",
             "session.html shell_class block lacks phase1-shell or sd-shell.",
             [
-                "Ensure session.html shell_class includes phase1-shell (or sd-shell for v9).",
+                "Ensure session.html shell_class includes phase1-shell (or sd-shell).",
             ],
         )
 

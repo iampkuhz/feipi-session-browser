@@ -1,5 +1,6 @@
-"""时间线预览用户输入测试 (v9)。
-v9 在视图模型 (routes.py) 中构建预览文本:
+"""时间线预览用户输入测试。
+
+视图模型 (routes.py) 中构建预览文本:
 - preview_title: 来自 round.preview_text 或 user_msg.content[:80]（已清洗）
 - preview_subtitle: 工具数量字符串
 - 用户输入指示已嵌入 preview_title，而非单独标签

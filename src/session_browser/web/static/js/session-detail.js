@@ -1,7 +1,7 @@
 // Session Detail — Canonical JS (T085)
 // Scope: .session-detail-page / data-trace-page only. No inline onclick.
 // Payload modal: single shell, ensurePayloadModal, diagnostic fallback.
-// Migrated from session_detail_timeline.js (v17).
+// Migrated from session_detail_timeline.js.
 
 (function () {
   function qs(root, sel) { return (root || document).querySelector(sel); }
@@ -61,10 +61,6 @@
   }
 
   function setFilter(page, status) {
-    // v18: support both legacy (filter-status + data-status) and new (status-all/status-failed) patterns
-    qsa(page, '[data-action="filter-status"]').forEach(function (b) {
-      b.classList.toggle('is-active', (b.getAttribute('data-status') || '').toLowerCase() === status);
-    });
     qsa(page, '[data-action="status-all"]').forEach(function (b) {
       b.classList.toggle('is-active', status === 'all');
     });
@@ -359,10 +355,6 @@
         var tabName = actionEl.getAttribute('data-tab');
         if (tabName) switchTab(document, tabName);
         return;
-      } else if (action === 'filter-status') {
-        event.preventDefault();
-        event.stopPropagation();
-        setFilter(page, (actionEl.getAttribute('data-status') || 'all').toLowerCase());
       } else if (action === 'status-all') {
         event.preventDefault();
         event.stopPropagation();

@@ -51,7 +51,7 @@ class TestFixtureDataAttributes:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_view_switch_buttons(self, hifi_fixture_session):
-        """v18: 无 data-switch 按钮用于 calls/hotspots；存在 toggle-all 和过滤控件。"""
+        """无 data-switch 按钮用于 calls/hotspots；存在 toggle-all 和过滤控件。"""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -60,7 +60,7 @@ class TestFixtureDataAttributes:
         for view in ("calls", "hotspots"):
             btn = soup.select_one(f'[data-switch="{view}"]')
             assert btn is None, f'unexpected button with data-switch="{view}" (should be removed)'
-        # v18: 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
+        # 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
         has_new = soup.select_one('[data-action="status-all"]') is not None or \
                   soup.select_one('[data-action="status-failed"]') is not None
         has_legacy = soup.select_one('[data-action="filter-status"]') is not None
@@ -70,13 +70,13 @@ class TestFixtureDataAttributes:
         assert btn is not None, '缺少 data-action="toggle-all" 按钮'
         btn_collapse = soup.select_one('[data-action="collapse-all"]')
         assert btn_collapse is None, 'collapse-all 按钮不得存在（仅使用 toggle-all）'
-        # expand-visible 在 v9 中已移除
+        # expand-visible 已移除
         btn = soup.select_one('[data-action="expand-visible"]')
-        assert btn is None, "expand-visible button should not exist in v9"
+        assert btn is None, "expand-visible button should not exist"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_view_panels(self, hifi_fixture_session):
-        """v9: trace-panel and issue-strip must exist; old views must not."""
+        """trace-panel and issue-strip must exist; old views must not."""
         base_url, agent, session_id = hifi_fixture_session
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
@@ -101,7 +101,7 @@ class TestFixtureRoundCount:
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        # v9：时间线行使用 [data-trace-round-row]
+        # 时间线行使用 [data-trace-round-row]
         timeline_rows = soup.select("[data-trace-round-row]")
         round_count = len(timeline_rows)
         assert round_count >= 3, f"Expected at least 3 rounds, found {round_count}"
@@ -113,7 +113,7 @@ class TestFixtureRoundCount:
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        # v9：工具组使用 [data-tool-batch-id]
+        # 工具组使用 [data-tool-batch-id]
         tool_elements = soup.select("[data-tool-batch-id]")
         assert len(tool_elements) > 0, "No tool batch elements found in rounds"
 
@@ -128,7 +128,7 @@ class TestFixtureTokenData:
         url = f"{base_url}/sessions/{agent}/{session_id}"
         html = get_html(url)
         soup = BeautifulSoup(html, "html.parser")
-        # v18: token bar uses .tokenbar class (table structure); v9 used .sd-tokenbar
+        # Token bar uses .tokenbar class (table structure); legacy used .sd-tokenbar
         token_bars = soup.select(".tokenbar") + soup.select(".sd-tokenbar")
         assert len(token_bars) > 0, "No token bar elements found in session HTML"
 
@@ -313,7 +313,7 @@ class TestHifiDomSelectors:
         el = soup.select_one("[data-session-overview-hero]")
         assert el is not None, "missing [data-session-overview-hero]"
 
-    # v9 不在会话详情中渲染异常横幅元素
+    # 不在会话详情中渲染异常横幅元素
     #（异常检测在仪表板中；轮次级状态通过 sd-round-status 显示）
 
     @pytest.mark.contract_case("UI-SD-030")

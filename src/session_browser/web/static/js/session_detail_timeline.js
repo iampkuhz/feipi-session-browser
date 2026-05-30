@@ -1,4 +1,4 @@
-// Session Detail Timeline v17 interactions.
+// Session Detail Timeline interactions.
 // Scope: data-trace-page only. No inline onclick.
 // Payload modal: single shell, ensurePayloadModal, diagnostic fallback.
 

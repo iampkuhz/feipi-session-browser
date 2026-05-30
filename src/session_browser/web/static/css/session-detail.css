@@ -13,7 +13,7 @@
 *
 * Do not globally override .card, .btn, .pill, .tabs, or sessions-list styles.
 *
-* Migrated from session-detail-timeline.css (v17).
+* Migrated from session-detail-timeline.css.
 * Legacy file kept temporarily for T181-T182 cleanup.
 * ─────────────────────────────────────────────────────────────── */
 /* Session-detail page CSS variables (scoped to .session-detail-page).
@@ -1310,7 +1310,7 @@ shift dot left to align with the container timeline line */
     grid-template-columns: 58px minmax(260px, 1fr) 140px 78px;
   }
 }
-/* ── v18: trace table (T089 HIFI migration) ── */
+/* ── Trace table (T089 HIFI migration) ── */
 .trace-table {
   width: 100%;
   border-collapse: collapse;
@@ -1639,8 +1639,8 @@ shift dot left to align with the container timeline line */
 }
 /* Badge variants moved to ui-primitives.css (.badge-manual, .badge-err, .badge-warn, .badge-info, .badge-model)
 Page CSS should not redefine global primitives. */
-/* ── v18: trace table (T089 HIFI migration) END ── */
-/* ── v17 consolidation: modal, truncation, tool tone, failed status, payload body ── */
+/* ── Trace table (T089 HIFI migration) END ── */
+/* ── Consolidation: modal, truncation, tool tone, failed status, payload body ── */
 /* CSS variables are already defined in .sd-shell, .session-detail-page above. */
 /* 1) Round grid: preserve metric columns under narrow widths. */
 .session-detail-page .sd-round-summary,
@@ -1659,7 +1659,7 @@ Page CSS should not redefine global primitives. */
 .sd-shell .sd-user-round .sd-round-summary {
   grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
 }
-/* ── v18: user-message round green/teal highlight (collapsed + expanded) ── */
+/* ── User-message round green/teal highlight (collapsed + expanded) ── */
 /* Collapsed user round: subtle green/teal background. */
 .session-detail-page .sd-user-round .sd-round-summary,
 .sd-page .sd-user-round .sd-round-summary,

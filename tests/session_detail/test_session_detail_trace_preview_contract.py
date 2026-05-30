@@ -215,7 +215,7 @@ class TestPreviewDoesNotRepeatText:
 
 
 class TestTraceRowDOMContract:
-    """验证 v9 模板使用组件宏渲染 trace 行。"""
+    """验证模板使用组件宏渲染 trace 行。"""
 
     @pytest.mark.contract_case("UI-SD-019")
     def test_template_uses_component_macros(self):
@@ -228,11 +228,11 @@ class TestTraceRowDOMContract:
         with open(template_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # v9 使用 sdt.trace_round 宏封装 preview + detail
+        # 使用 sdt.trace_round 宏封装 preview + detail
         assert "sdt.trace_round" in content, (
             "Template must use sdt.trace_round macro for trace rows"
         )
-        # v9 将 round 对象传递给宏；preview 在视图模型中计算
+        # 将 round 对象传递给宏；preview 在视图模型中计算
         assert "for row in trace_rows" in content, (
             "Template must iterate over trace_rows"
         )

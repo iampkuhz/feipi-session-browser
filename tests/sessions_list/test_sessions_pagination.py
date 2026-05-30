@@ -1,4 +1,4 @@
-"""Tests for sessions list pagination — HIFI v3 footer."""
+"""Tests for sessions list pagination — footer."""
 
 from __future__ import annotations
 
@@ -216,7 +216,7 @@ class TestFooterTemplate:
 
     @pytest.mark.contract_case("UI-SESSIONS-012")
     def test_no_page_size_select_in_footer(self):
-        """HIFI v4 footer 不包含页大小选择器。"""
+        """Footer 不包含页大小选择器。"""
         content = _read_sessions_templates()
         assert "sessions-footer-page-size__select" not in content
 

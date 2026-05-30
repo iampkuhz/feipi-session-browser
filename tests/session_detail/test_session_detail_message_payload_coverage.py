@@ -1,5 +1,6 @@
-"""Tests for session detail message payload coverage (v9).
-v9 architecture:
+"""Tests for session detail message payload coverage.
+
+Architecture:
 - User/assistant messages handled in the view model (routes.py)
 - Payload map built as Python dict in routes.py, not Jinja2
 - Round detail rendered via sdt macros, not inline message cards

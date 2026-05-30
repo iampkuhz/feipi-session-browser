@@ -1,5 +1,6 @@
-"""验证 Trace 面板 DOM 结构的测试（v9）。
-v9 使用基于组件的 Jinja2 宏：
+"""验证 Trace 面板 DOM 结构的测试。
+
+使用基于组件的 Jinja2 宏：
 - Round 通过 sdt.trace_round 宏渲染
 - 工具调用通过 sdt.tool_batch 宏渲染
 - 无内联 llm-call-detail 展开

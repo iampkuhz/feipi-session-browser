@@ -1,4 +1,4 @@
-"""验证 Sessions 页面网格的测试 — HIFI v4 组件化布局。"""
+"""验证 Sessions 页面网格的测试 — 组件化布局。"""
 
 from __future__ import annotations
 
@@ -539,7 +539,7 @@ class TestPaginationTemplate:
 
 
 class TestCSS:
-    """验证 HIFI v4 的 CSS 选择器。"""
+    """验证 CSS 选择器。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_sessions_grid_css(self):

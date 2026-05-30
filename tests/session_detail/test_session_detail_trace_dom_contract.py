@@ -1,6 +1,6 @@
-"""Static DOM contract tests for v18 trace row structure.
+"""Static DOM contract tests for trace row structure.
 
-v18 architecture (T089 HIFI table migration):
+Architecture (T089 HIFI table migration):
 - Trace rows use <table class="trace-table"> with <colgroup>/<thead>/<tbody>
 - Each round = two <tr> rows: <tr class="round-row"> + <tr class="expanded-row">
 - Toggle button: <button data-action="toggle-round"> in the Open column
@@ -43,7 +43,7 @@ class TestTraceRowNotButton:
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_trace_row_is_table_row(self, template_source):
-        """v18: trace-row should be a <tr class="round-row"> element."""
+        """Trace row should be a <tr class="round-row"> element."""
         pattern = re.compile(r'<tr\b[^>]*class="[^"]*round-row[^"]*"[^>]*data-trace-round-row')
         matches = pattern.findall(template_source)
         assert len(matches) > 0, "No <tr class=\"round-row\" data-trace-round-row> found"
@@ -109,7 +109,7 @@ class TestTraceDetailContract:
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_trace_detail_is_table_row(self, template_source):
-        """v18: Trace detail must be a <tr class="expanded-row"> element."""
+        """Trace detail must be a <tr class="expanded-row"> element."""
         pattern = re.compile(r'<tr\b[^>]*class="[^"]*expanded-row[^"]*"[^>]*data-trace-detail')
         matches = pattern.findall(template_source)
         assert len(matches) > 0, "No <tr class=\"expanded-row\" data-trace-detail> found"
@@ -165,7 +165,7 @@ class TestNoNestedButtonConflict:
     @pytest.mark.contract_case("UI-SD-017")
     def test_payload_buttons_in_detail(self, template_source):
         """Payload buttons should be invoked inside detail context (llm_call_card, tool_batch)."""
-        # v9 uses sdp.button() macro calls with 'open-payload' action; Request renamed from Context
+        # 使用 sdp.button() 宏调用，'open-payload' 操作；Request 由 Context 改名
         assert "sdp.button('Request'" in template_source or "'Request'" in template_source, (
             "Must have Request button in detail"
         )
@@ -175,14 +175,14 @@ class TestNoNestedButtonConflict:
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_row_clickable_for_toggle(self, template_source):
-        """v18: round rows must have data-trace-round-row for row-click toggle."""
+        """Round rows must have data-trace-round-row for row-click toggle."""
         pattern = re.compile(r'data-trace-round-row')
         matches = pattern.findall(template_source)
         assert len(matches) >= 1, f"Expected at least 1 data-trace-round-row for row-click toggle, found {len(matches)}"
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_no_open_column(self, template_source):
-        """v18: open column and toggle button removed; clicking row toggles detail."""
+        """Open column and toggle button removed; clicking row toggles detail."""
         # Ensure no col-open in colgroup
         assert "col-open" not in template_source, (
             "Open column should be removed from colgroup"
@@ -193,7 +193,7 @@ class TestNoNestedButtonConflict:
 
 
 class TestTraceRowGridStructure:
-    """v9 trace row must have the expected column structure."""
+    """Trace row must have the expected column structure."""
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_has_round_id_cell(self, template_source):
@@ -310,7 +310,7 @@ class TestJSEventDispatchOnDataAction:
 
 
 class TestCSSStyles:
-    """CSS must contain v18 trace table and row styles."""
+    """CSS must contain trace table and row styles."""
 
     def _css_source(self):
         if not CSS_FILE.exists():

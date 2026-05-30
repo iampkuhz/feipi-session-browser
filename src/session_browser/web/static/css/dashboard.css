@@ -267,15 +267,15 @@ no page override ── */
 .drawer__body ul {
   padding-left: 18px;
 }
-/* ── v16 Backward Compat (hero, legacy chart structure) =================== */
+/* ── Backward Compat (hero, legacy chart structure) =================== */
 /*
-* These styles support the current dashboard.html template (v16 hero +
+* These styles support the current dashboard.html template (hero +
 * chart structure). They coexist with the newer patterns above and will
 * be phased out when the template migrates to the canonical structure.
 *
 * NOTE: .chart-card, .legend, .legend-item, .dot rules are intentionally
 * not redefined here — they are either covered by ui-primitives.css or
-* by the newer canonical rules above. Only v16-unique patterns are listed.
+* by the newer canonical rules above. Only legacy-unique patterns are listed.
 */
 .hero {
   border: 1px solid var(--line);
@@ -336,7 +336,7 @@ no page override ── */
   letter-spacing: 0.08em;
   font-weight: 850;
 }
-/* v16 chart head with range tabs */
+/* Chart head with range tabs */
 .chart-head {
   display: flex;
   align-items: flex-start;
@@ -376,7 +376,7 @@ no page override ── */
   border-color: var(--purple);
   color: #fff;
 }
-/* v16 chart grid (y-axis + plot + x-axis) */
+/* Chart grid (y-axis + plot + x-axis) */
 .chart {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
@@ -474,7 +474,7 @@ no page override ── */
   left: var(--popover-left, 0px);
   top: var(--popover-top, 0px);
 }
-/* v16 tooltip (dark overlay on chart bars) */
+/* Tooltip (dark overlay on chart bars) */
 .dashboard-tooltip {
   position: absolute;
   left: 50%;
@@ -534,7 +534,7 @@ no page override ── */
   font-weight: 850;
   text-align: right;
 }
-/* v16 x-axis labels */
+/* X-axis labels */
 .x-axis {
   grid-column: 2;
   display: grid;
@@ -549,7 +549,7 @@ no page override ── */
   display: block;
   min-width: 0;
 }
-/* v16 responsive */
+/* Responsive */
 @media (max-width: 1400px) {
   .hero {
     grid-template-columns: 1fr;

@@ -190,7 +190,7 @@
 
 | 项目 | HIFI 状态 | 生产状态 | 差距 |
 |---|---|---|---|
-| data-action 覆盖 | 全部按钮有 data-action | 大部分按钮有 data-action（v12 timeline 合规） | 部分 v15 遗留模板缺失 |
+| data-action 覆盖 | 全部按钮有 data-action | 大部分按钮有 data-action（timeline 合规） | 部分遗留模板缺失 |
 | Tab 导航 | 3 tab（Trace/Metrics/Payloads） | 仅 Trace tab 实现 | Metrics/Payloads tab 未实现 |
 | Hero 结构 | agent-pill + URL + copy + chips + issue-row + KPIs + summary-strip | agent-pill + title + chips + KPIs + issue-strip | 基本对齐，URL copy 缺失 |
 | Round 展开 | 单按钮 toggle-round + chevron 翻转 | 单按钮 toggle-round + chevron 翻转 | 已对齐 |

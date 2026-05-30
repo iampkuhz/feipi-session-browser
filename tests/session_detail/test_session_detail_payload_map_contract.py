@@ -1,5 +1,6 @@
-"""Tests for the payload map contract in session detail (v9).
-v9 architecture:
+"""Tests for the payload map contract in session detail.
+
+Architecture:
 - Payload map built as Python dict in routes.py view model
 - Payload buttons use data-payload-id (from sdp.button macro)
 - No inline JSON script for payload map in template

@@ -656,7 +656,7 @@ class TestSessionPageMarkers:
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_no_content_modal(self, session):
-        """content-modal must NOT exist (removed in v9+)."""
+        """content-modal must NOT exist (已移除)."""
         assert 'id="content-modal"' not in session, \
             "content-modal must be removed"
 

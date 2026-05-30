@@ -29,12 +29,11 @@ src/session_browser/web/static/js/states.js
 
 ## 禁止新增
 
-- `*-v17.css`
-- `*-v18.css`
+- `*-v{N}.css`（版本化 CSS）
 - `*-patch.css`
 - `*-fix.css`
 - `*-overlay.css`
-- `session_browser_ui_vXX.js`
+- `session_browser_ui_v{N}.js`（版本化 JS）
 
 旧文件只能迁移、清理、停止引用，不能继续扩展。
 

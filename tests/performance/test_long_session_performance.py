@@ -54,7 +54,7 @@ class TestLongSessionRendering:
         """渲染的 HTML 应包含 100 个 trace 行对应 100 轮。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        # 使用 v9 data 属性统计 trace 行数
+        # 使用 data-trace-round-row 统计 trace 行数
         count = html.count('data-trace-round-row')
         assert count == 100, f"预期 100 个 trace 行，实际找到 {count}"
 
@@ -70,7 +70,7 @@ class TestLongSessionRendering:
         """所有 trace-detail div 初始应为隐藏状态。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        # 使用 v9 data 属性统计 trace-detail div 数量
+        # 使用 data-trace-detail 统计 trace-detail div 数量
         total = html.count('data-trace-detail')
         # 所有 div 都应带有 hidden 属性
         hidden = html.count('hidden>')
@@ -82,7 +82,7 @@ class TestLongSessionRendering:
         """Trace 行应使用紧凑的 preview_text，而非完整消息内容。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
-        # v18: 表结构使用 .summary-title 展示预览文本
+        # 表结构使用 .summary-title 展示预览文本
         assert "summary-title" in html or "sd-round-preview" in html or "sd-round-preview__title" in html, \
             "Trace 行应使用紧凑的预览元素"
 

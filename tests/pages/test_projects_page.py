@@ -771,7 +771,7 @@ class TestProjectsErrorState:
 # ── TestProjectsNoStalePatterns ───────────────────────────────────
 
 class TestProjectsNoStalePatterns:
-    """验证不存在的 v15/v16 陈旧模式。"""
+    """验证不存在的陈旧模式。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_no_cache_r_columns(self):

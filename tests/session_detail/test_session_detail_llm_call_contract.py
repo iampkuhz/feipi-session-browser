@@ -1,5 +1,6 @@
-"""会话详情追踪中 LLM 调用卡片契约测试 (v9)。
-v9 通过 session_detail_timeline.html 中的 sdt.llm_call_card 宏渲染 LLM 调用:
+"""会话详情追踪中 LLM 调用卡片契约测试。
+
+通过 session_detail_timeline.html 中的 sdt.llm_call_card 宏渲染 LLM 调用:
 - LLM 调用卡片: .sd-llm-card
 - 工具批次: .sd-tool-group
 - Payload 按钮: data-action="open-payload" 带 data-payload-id
@@ -25,7 +26,7 @@ def _primitives_component():
     return (COMPONENTS / "session_detail_primitives.html").read_text(encoding="utf-8")
 
 
-# ── LLM 调用卡片结构 (v9 组件) ──────────────────────────
+# ── LLM 调用卡片结构 ──────────────────────────
 
 
 @pytest.mark.contract_case("DATA-PRESENTER-009")
