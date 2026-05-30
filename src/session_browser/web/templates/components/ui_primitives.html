@@ -1149,6 +1149,28 @@
 {%- endmacro %}
 
 {# ============================================================================
+   AgentBadge (P1: agent_badge)
+   Renders a canonical agent badge with dot indicator for use in data table
+   agent columns. Replaces raw inline <span class="badge"> patterns across
+   sessions.html, sessions_table_body.html, etc.
+
+   Parameters:
+     agent_key: required — internal agent key (claude_code, qoder, codex)
+     extra_classes: additional CSS classes on the outer span
+     tooltip: optional tooltip text (auto-derived from agent_key if omitted)
+
+   Produces:
+     <span class="badge badge--has-dot cc|qd|cx" data-tooltip="...">CC|QD|CX</span>
+#}
+{% macro agent_badge(agent_key, extra_classes=None, tooltip=None) -%}
+  {%- set variant = 'cc' if agent_key == 'claude_code' else 'qd' if agent_key == 'qoder' else 'cx' if agent_key == 'codex' else agent_key -%}
+  {%- set dot_variant = 'claude' if agent_key == 'claude_code' else 'qoder' if agent_key == 'qoder' else 'codex' if agent_key == 'codex' else None -%}
+  {%- set label = 'CC' if agent_key == 'claude_code' else 'QD' if agent_key == 'qoder' else 'CX' if agent_key == 'codex' else agent_key -%}
+  {%- set effective_tooltip = tooltip if tooltip else ('Claude Code' if agent_key == 'claude_code' else 'Qoder' if agent_key == 'qoder' else 'Codex' if agent_key == 'codex' else agent_key) -%}
+  {{ badge_with_dot(label, variant, dot_variant, extra_classes=extra_classes, tooltip=effective_tooltip) }}
+{%- endmacro %}
+
+{# ============================================================================
    AgentCell (P1: agent_cell)
    Renders a canonical agent cell for data tables with avatar, agent name link,
    and optional description.

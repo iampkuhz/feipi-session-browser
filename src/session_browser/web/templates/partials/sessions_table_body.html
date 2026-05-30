@@ -12,10 +12,10 @@
     {% set cache_read = raw_cache_read if raw_cache_read is number else s.cached_input_tokens %}
     {% set cache_write = raw_cache_write if raw_cache_write is number else s.cached_output_tokens %}
     {% set output = s.output_tokens %}
-    {% set fresh_pct = (fresh_input / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-    {% set read_pct = (cache_read / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-    {% set write_pct = (cache_write / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-    {% set output_pct = (output / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+    {% set fresh_pct = (fresh_input / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
+    {% set read_pct = (cache_read / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
+    {% set write_pct = (cache_write / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
+    {% set output_pct = (output / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
     <tr class="sessions-row" data-action="row"
         data-agent="{{ s.agent }}"
         data-model="{{ s.model }}"
@@ -40,7 +40,7 @@
                 <span class="project-name"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | shorten_path }}">{{ s.project_name }}</a></span>
             </div>
         </td>
-        <td class="col-agent"><span class="badge {% if s.agent == 'claude_code' %}cc{% elif s.agent == 'codex' %}cx{% elif s.agent == 'qoder' %}qd{% endif %}" title="{{ 'Claude Code' if s.agent == 'claude_code' else 'Codex' if s.agent == 'codex' else 'Qoder' }} agent badge">{{ 'CC' if s.agent == 'claude_code' else 'CX' if s.agent == 'codex' else 'QD' if s.agent == 'qoder' else s.agent }}</span></td>
+        <td class="col-agent">{{ ui.agent_badge(s.agent) }}</td>
         <td class="mono col-model">{{ s.model }}</td>
         {{ ui.token_cell(
             total=total_tokens | format_compact_token,
