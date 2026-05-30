@@ -154,10 +154,17 @@
         infoHoverTooltip.setAttribute('aria-hidden', 'false');
 
         var rect = button.getBoundingClientRect();
-        // Center tooltip horizontally below the info button
+        var tooltipWidth = infoHoverTooltip.offsetWidth || 200;
+        var centerX = rect.left + rect.width / 2 + window.scrollX;
+        var leftPos = centerX - tooltipWidth / 2;
+        if (leftPos < 8) leftPos = 8;
+        if (leftPos + tooltipWidth > window.innerWidth - 8) {
+            leftPos = window.innerWidth - tooltipWidth - 8;
+        }
         infoHoverTooltip.style.setProperty('--tooltip-top', (rect.bottom + 6 + window.scrollY) + 'px');
+        infoHoverTooltip.style.setProperty('--tooltip-left', leftPos + 'px');
         infoHoverTooltip.setAttribute('data-positioned', 'true');
-        infoHoverTooltip.style.transform = 'translateX(-50%)';
+        infoHoverTooltip.style.transform = 'none';
     }
 
     function hideHoverTooltip() {
@@ -653,6 +660,7 @@
         var sliced = rawData.slice(-days);
         if (!sliced.length) return;
         sliced.forEach(function(d) {
+            d.input_tokens = d.fresh_input_tokens || d.input_tokens || 0;
             d.total_tokens = d.input_tokens + d.output_tokens + d.cache_read_tokens + d.cache_write_tokens;
             var tt = d.total_tokens, tc = d.total_count || 1;
             d.claude_tokens = Math.round(tt * d.claude_count / tc);

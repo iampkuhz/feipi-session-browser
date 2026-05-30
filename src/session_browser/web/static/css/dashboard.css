@@ -453,6 +453,7 @@ no page override ── */
 }
 .info-hover-tooltip[data-positioned="true"] {
   top: var(--tooltip-top, 0px);
+  left: var(--tooltip-left, 0px);
 }
 /* Info popover */
 #infoPopover {
