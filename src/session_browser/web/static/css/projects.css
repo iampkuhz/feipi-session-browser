@@ -111,9 +111,9 @@ th.sortable:hover {
   display: block;
 }
 /* Tokenbar segment colors now managed by ui-primitives.css (.tokenbar-seg.fresh/.read/.write/.out) */
-/* Tooltip inside token-cell — centered below tokenbar, arrow pointing up */
+/* Tooltip inside tokenbar — centered below bar, arrow pointing up */
 .token-cell .token-tooltip {
-  left: 66px;
+  left: 50%;
   top: calc(100% + 8px);
   transform: translateX(-50%);
   background: var(--surface);
@@ -130,7 +130,7 @@ th.sortable:hover {
   content: '';
   position: absolute;
   top: -8px;
-  left: 66px;
+  left: 50%;
   transform: translateX(-50%) rotate(45deg);
   width: 14px;
   height: 14px;
@@ -138,8 +138,8 @@ th.sortable:hover {
   border-left: 1px solid var(--line);
   border-top: 1px solid var(--line);
 }
-.token-cell .token-total:hover .token-tooltip,
-.token-cell .token-total:focus-within .token-tooltip {
+.token-cell .tokenbar:hover .token-tooltip,
+.token-cell .tokenbar:focus-within .token-tooltip {
   display: block;
 }
 .token-tooltip__title {

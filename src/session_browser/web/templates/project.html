@@ -107,7 +107,7 @@
     {% set sessions_pagination %}
     {{ ui.pagination(current_page | default(1), total_pages | default(1), total_items=total_count | default(sessions | length)) }}
     {% endset %}
-    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="info-icon" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">&#x2139;&#xFE0F;</button>', pagination_html=sessions_pagination) %}
+    {% call ui.table_card('Sessions', subtitle='All indexed sessions in this project', search_placeholder='🔎 Search by title or session ID...', toolbar_extra='<button class="icon-button icon-button--info" data-action="info" aria-label="Session 列表说明" title="说明：本 Project 下的所有已索引 Session 列表">&#x2139;&#xFE0F;</button>', pagination_html=sessions_pagination) %}
             <table id="project-sessions-table" class="data-table project-sessions-table" data-table-enhanced>
             <colgroup>
                 <col class="col-title">
@@ -149,8 +149,8 @@
                         {% set _agent_key = 'claude' if s.agent == 'claude_code' else 'qoder' if s.agent == 'qoder' else 'codex' %}
                         {% set _agent_label = 'CC' if s.agent == 'claude_code' else 'QD' if s.agent == 'qoder' else 'CX' %}
                         {% set _agent_badge_variant = 'cc' if s.agent == 'claude_code' else 'qd' if s.agent == 'qoder' else 'cx' %}
-                        {{ ui.badge_with_dot(_agent_label, _agent_badge_variant, _agent_key) }}
-                        {{ 'Claude Code' if s.agent == 'claude_code' else 'Qoder' if s.agent == 'qoder' else 'Codex' }}
+                        {% set _agent_full_name = 'Claude Code' if s.agent == 'claude_code' else 'Qoder' if s.agent == 'qoder' else 'Codex' %}
+                        {{ ui.badge_with_dot(_agent_label, _agent_badge_variant, _agent_key, tooltip=_agent_full_name) }}
                     </td>
                     <td class="mono">{{ s.model or '—' }}</td>
                     {% set s_total = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}

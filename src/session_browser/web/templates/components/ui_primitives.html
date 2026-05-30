@@ -330,34 +330,34 @@
       <span class="tokenbar-seg read" style="--segment-width:{{ read_pct }}%"></span>
       <span class="tokenbar-seg write" style="--segment-width:{{ write_pct }}%"></span>
       <span class="tokenbar-seg out" style="--segment-width:{{ out_pct }}%"></span>
+      <div class="token-tooltip" aria-hidden="true">
+        <div class="token-tooltip__title">{{ title }}</div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh input</span></span>
+          <span class="token-tooltip__value">{{ fresh_val }}</span>
+          <span class="token-tooltip__pct">{{ fresh_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
+          <span class="token-tooltip__value">{{ read_val }}</span>
+          <span class="token-tooltip__pct">{{ read_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
+          <span class="token-tooltip__value">{{ write_val }}</span>
+          <span class="token-tooltip__pct">{{ write_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span>
+          <span class="token-tooltip__value">{{ out_val }}</span>
+          <span class="token-tooltip__pct">{{ out_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__sep"></div>
+        <div class="token-tooltip__row token-tooltip__total">
+          <span>Total</span><span class="token-tooltip__value">{{ total }}</span>
+        </div>
+      </div>
     </span>
-    <div class="token-tooltip" aria-hidden="true">
-      <div class="token-tooltip__title">{{ title }}</div>
-      <div class="token-tooltip__row">
-        <span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh input</span></span>
-        <span class="token-tooltip__value">{{ fresh_val }}</span>
-        <span class="token-tooltip__pct">{{ fresh_pct_val }}%</span>
-      </div>
-      <div class="token-tooltip__row">
-        <span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
-        <span class="token-tooltip__value">{{ read_val }}</span>
-        <span class="token-tooltip__pct">{{ read_pct_val }}%</span>
-      </div>
-      <div class="token-tooltip__row">
-        <span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
-        <span class="token-tooltip__value">{{ write_val }}</span>
-        <span class="token-tooltip__pct">{{ write_pct_val }}%</span>
-      </div>
-      <div class="token-tooltip__row">
-        <span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span>
-        <span class="token-tooltip__value">{{ out_val }}</span>
-        <span class="token-tooltip__pct">{{ out_pct_val }}%</span>
-      </div>
-      <div class="token-tooltip__sep"></div>
-      <div class="token-tooltip__row token-tooltip__total">
-        <span>Total</span><span class="token-tooltip__value">{{ total }}</span>
-      </div>
-    </div>
   </div>
 </td>
 {%- endmacro %}
@@ -578,7 +578,7 @@
     <input class="input search" data-action="search" placeholder="{{ search_placeholder }}" aria-label="Search" />
     {%- endif %}
     {%- if toolbar_extra %}
-    {{ toolbar_extra }}
+    {{ toolbar_extra | safe }}
     {%- endif %}
     {%- if insight %}
     <span class="insight">{{ insight }}</span>
@@ -931,7 +931,7 @@
     {{ stat_pills }}
     {%- endif %}
     {%- if extra_content %}
-    {{ extra_content }}
+    {{ extra_content | safe }}
     {%- endif %}
   </div>
   {%- endif %}
@@ -982,7 +982,7 @@
   <input class="input search" data-action="search" placeholder="{{ search_placeholder }}" aria-label="Search" />
   {%- endif %}
   {%- if extra_content %}
-  {{ extra_content }}
+  {{ extra_content | safe }}
   {%- endif %}
   {%- endif %}
 </div>
