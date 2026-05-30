@@ -20,8 +20,6 @@
 
 详见 `src/session_browser/web/templates/base.html:28-42`。
 
-> `style.css` 已于 v8 sprint 删除。其原有内容由 MHTML 导出时通过 `mhtml.py` 的 `get_css()` 拼接 modular CSS 文件获得。
-
 ### 页面专用 CSS（通过 head_extra）
 
 | 页面模板 | CSS 文件 |
@@ -46,13 +44,13 @@
 
 4. **primitives 必须早于 page CSS**：`ui-primitives.css` 中的原子组件必须在页面专用 CSS 之前加载，以确保页面 CSS 可以覆写 primitive 样式。
 
-4. **legacy-aliases.css 只允许作为迁移兼容层**：后续迁移完成后删除。
+4. **legacy-aliases.css 作为组件别名层**：包含旧变量映射和组件样式。
 
 5. **page CSS 必须通过 head_extra 在 base CSS 之后加载**：禁止在 `head_extra` 之外加载页面专用 CSS。
 
 6. **不允许页面重复加载 base 已加载过的 CSS**：base.html 已加载 `tokens.css`、`base.css`、`shell.css`、`ui-primitives.css`、`legacy-aliases.css`，页面不得在 `head_extra` 中重复加载。**BLOCK**。
 
-7. **payload-modal 裸定义应收敛至 ui-primitives.css**：在 `session-detail.css`、`legacy-aliases.css` 等处出现裸 `.payload-modal` 或 `#payload-modal` 定义时输出 **WARN**，不 BLOCK。
+7. **payload-modal 裸定义应收敛至 ui-primitives.css**：在 `session-detail.css` 等处出现裸 `.payload-modal` 或 `#payload-modal` 定义时输出 **WARN**，不 BLOCK。
 
 8. **shell 级选择器不应出现在页面 CSS**：`.app-shell`、`.shell`、`body.hide-left` 等选择器应归属 `shell.css`，页面 CSS 出现时输出 **WARN**，不 BLOCK。
 

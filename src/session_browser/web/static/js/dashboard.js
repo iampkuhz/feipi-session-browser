@@ -314,7 +314,7 @@
         }
         rangeBtn.classList.add('active');
 
-        // Update data attribute for compatibility with existing code
+        // Update data attribute on chart container
         var chartContainer = rangeBtn.closest('[data-dashboard-chart]')
             || (chartCard ? chartCard.querySelector('[data-dashboard-chart]') : null);
         if (chartContainer) {
@@ -344,7 +344,6 @@
     document.addEventListener('click', function (event) {
         var target = event.target;
         var button = target.closest ? target.closest('button') : null;
-        // Fallback for older browsers
         if (!button) {
             var el = target;
             while (el && el.nodeType === 1) {
@@ -393,7 +392,7 @@
             case 'chart-export':
             case 'chart-detail':
             case 'chart-copy-link':
-                // Legacy menu item actions — show toast and close
+                // Menu item actions — show toast and close
                 var chartType = button.getAttribute('data-chart') || 'chart';
                 var labels = {
                     'chart-export': 'Export PNG preview',
@@ -437,10 +436,6 @@
     }
 
     /* ── Range button delegation ───────────────────────────────── */
-
-    // Range buttons may have onclick in legacy templates;
-    // we intercept via document-level click and prevent default inline behavior
-    // when the button has data-range or data-dashboard-range attribute.
 
     /* ── Settings drawer backdrop click ────────────────────────── */
 

@@ -26,10 +26,12 @@ Layer 3 — 页面特定 CSS（按页面加载）
 
 加载顺序（base.html）：
 ```
-1. style.css              → Layer 1（令牌 + Shell）
-2. ui-primitives.css      → Layer 2（原子组件）
-3. legacy-aliases.css     → Layer 2b（向后兼容别名）
-4. {% block head_extra %} → Layer 3（页面特定）
+1. tokens.css             → Layer 0（设计令牌）
+2. base.css               → Layer 0（重置 + 基础）
+3. shell.css              → Layer 1（布局骨架）
+4. ui-primitives.css      → Layer 2（原子组件）
+5. legacy-aliases.css     → Layer 2b（组件别名）
+6. {% block head_extra %} → Layer 3（页面特定）
 ```
 
 ---
@@ -64,6 +66,8 @@ Layer 3 — 页面特定 CSS（按页面加载）
 - 页面特定样式
 
 ### Layer 2b: `css/legacy-aliases.css`
+
+旧变量名到新变量名的映射，以及旧组件样式的兼容层。
 
 向后兼容别名层。仅包含旧 class 到新 class 的映射和 additive 补充（如 link hover 颜色、badge variant 颜色、text utility）。
 

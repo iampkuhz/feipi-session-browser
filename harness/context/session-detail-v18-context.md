@@ -12,7 +12,7 @@ src/session_browser/web/templates/components/session_detail_timeline.html
 ```text
 src/session_browser/web/static/css/session-detail.css     # session detail 页面专属样式
 src/session_browser/web/static/css/ui-primitives.css      # 共享原子组件
-src/session_browser/web/static/css/legacy-aliases.css     # 向后兼容别名
+src/session_browser/web/static/css/legacy-aliases.css     # 旧组件样式映射
 ```
 
 当前观察结果：

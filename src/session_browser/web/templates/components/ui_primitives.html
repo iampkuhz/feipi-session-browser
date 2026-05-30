@@ -1,7 +1,7 @@
 {#
   UI primitives — canonical Jinja2 macros for Feipi Session Browser.
   Uses HIFI class names (btn, icon-btn, badge, metric-card, metric-grid).
-  Preserves legacy macros (btn, select_control, stat_pill, th_static, th_sort, legacy_sessions_token_total)
+  Preserves compatibility macros (btn, select_control, stat_pill, th_static, th_sort)
   for pages that still import them.
 
   Usage:
@@ -752,8 +752,7 @@
 {%- endmacro %}
 
 {# ============================================================================
-   FilterBar (legacy — deprecated, use filter_card + filter_search/filter_select)
-   Kept for backward compatibility.
+   FilterBar — use filter_card + filter_search/filter_select for new code
 #}
 {% macro filter_bar(filters, action_url=None, extra_classes=None) -%}
   {%- set classes = ['filter-card'] -%}
@@ -1530,11 +1529,11 @@
 {%- endmacro %}
 
 {# ============================================================================
-   Legacy macros (preserved for existing pages)
+   Compatibility macros (preserved for existing pages)
    ============================================================================ #}
 
-{# Legacy btn — updated to use canonical HIFI class names (btn, btn primary, btn sm)
-   Signature kept compatible: btn(label, variant, size, type, href, extra_class)
+{# Legacy btn — uses canonical HIFI class names (btn, btn primary, btn sm)
+   Signature: btn(label, variant, size, type, href, extra_class)
    Additionally supports: data_action, disabled, icon, aria_label
 #}
 {% macro btn(label, variant='secondary', size='md', type='button', href=None, extra_class='', data_action=None, disabled=False, icon=None, aria_label=None) -%}
@@ -1590,20 +1589,4 @@
   {%- else -%}
   <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}>{{ label }} <button type="submit" name="sort" value="{{ key }}" class="sessions-th__sort-btn" data-sort-key="{{ key }}"><span class="{{ icon_cls }}" aria-hidden="true"></span></button></div>
   {%- endif -%}
-{%- endmacro %}
-
-{# --- Legacy sessions token total (backward compat) ---
-   Uses 'sessions-token-total' prefixed class names for the sessions grid.
-   New code should use the canonical token_total macro above instead.
-   Kept here to avoid breaking any templates that may import it directly.
-#}
-{% macro legacy_sessions_token_total(total, fresh_pct=0, cache_pct=0, output_pct=0) -%}
-  <div class="sessions-token-total">
-    <span class="sessions-token-total__value">{{ total }}</span>
-    <span class="sessions-token-bar" aria-hidden="true">
-      <span class="sessions-token-bar__fresh" style="--segment-width:{{ fresh_pct|default(0) }}%"></span>
-      <span class="sessions-token-bar__cache" style="--segment-width:{{ cache_pct|default(0) }}%"></span>
-      <span class="sessions-token-bar__out" style="--segment-width:{{ output_pct|default(0) }}%"></span>
-    </span>
-  </div>
 {%- endmacro %}

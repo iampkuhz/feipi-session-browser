@@ -193,11 +193,6 @@
 </tr>
 {%- endmacro %}
 
-{% macro round_detail(row) -%}
-  {# Backward-compatible alias: calls expanded_row for table structure #}
-  {{ expanded_row(row) }}
-{%- endmacro %}
-
 {% macro trace_round(row) -%}
   {{ round_row(row) }}
   {{ expanded_row(row) }}

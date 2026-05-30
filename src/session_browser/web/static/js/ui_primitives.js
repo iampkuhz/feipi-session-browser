@@ -84,7 +84,6 @@
   document.addEventListener('click', function (event) {
     var target = event.target;
     var actionEl = target.closest ? target.closest('[data-action]') : null;
-    // Fallback for older browsers
     if (!actionEl) {
       var el = target;
       while (el && el.nodeType === 1) {
@@ -181,12 +180,6 @@
       if (modal) {
         modal.classList.remove('is-visible');
         modal.setAttribute('aria-hidden', 'true');
-        event.preventDefault();
-      }
-      // Close legacy <dialog> payload-modal
-      var dialog = document.querySelector('.payload-modal[open]');
-      if (dialog && typeof dialog.close === 'function') {
-        dialog.close();
         event.preventDefault();
       }
       // Close any visible popover
@@ -371,12 +364,6 @@
     if (backdrop) {
       backdrop.classList.remove('is-visible');
       backdrop.setAttribute('aria-hidden', 'true');
-      return;
-    }
-    // Also handle legacy <dialog> payload-modal
-    var dialog = document.querySelector('.payload-modal');
-    if (dialog && typeof dialog.close === 'function') {
-      dialog.close();
     }
   }
 
@@ -415,13 +402,9 @@
     if (modal && modal.getAttribute('data-modal') !== null) {
       // Canonical overlay modal
       dialogEl = modal.querySelector('.modal-body');
-    } else if (modal && modal.tagName === 'DIALOG') {
-      // Legacy <dialog> payload-modal
-      dialogEl = modal;
     } else {
       // Fallback: search entire document
-      dialogEl = document.querySelector('.modal-backdrop.is-visible .modal-body')
-        || document.querySelector('.payload-modal');
+      dialogEl = document.querySelector('.modal-backdrop.is-visible .modal-body');
     }
 
     if (!dialogEl) return;
@@ -434,7 +417,7 @@
       panels[j].hidden = !show;
     }
 
-    // Toggle legacy class-based panels
+    // Toggle class-based panels (rendered vs raw)
     var renderedPanel = dialogEl.querySelector('.payload-modal__rendered');
     var rawPanel = dialogEl.querySelector('.payload-modal__raw');
 
@@ -476,15 +459,6 @@
     var backdrop = document.querySelector('.modal-backdrop[data-modal]');
 
     if (!backdrop) {
-      // Fallback: try legacy dialog
-      var dialog = document.querySelector('.payload-modal');
-      if (dialog && typeof dialog.showModal === 'function') {
-        dialog.showModal();
-        if (title) {
-          var titleEl = dialog.querySelector('.payload-modal__title');
-          if (titleEl) titleEl.textContent = title;
-        }
-      }
       return;
     }
 
@@ -533,16 +507,12 @@
 
   // ── Copy handler ────────────────────────────────────────────────────────
   /**
-   * handleCopy: Unified copy handler supporting both canonical and legacy
-   * data attributes.
+   * handleCopy: Unified copy handler.
    *
    * Attribute resolution priority:
    *   1. data-copy-text       (canonical)
-   *   2. data-clipboard-text   (legacy)
-   *   3. data-project-path     (legacy — project path buttons)
-   *   4. data-session-id       (legacy — session ID buttons / rows)
-   *   5. title attribute       (fallback — tooltip text)
-   *   6. button.textContent    (last resort)
+   *   2. title attribute       (fallback — tooltip text)
+   *   3. button.textContent    (last resort)
    *
    * Clipboard fallback:
    *   - If navigator.clipboard is unavailable, shows toast-only (no write).
@@ -550,9 +520,6 @@
    */
   function handleCopy(buttonEl) {
     var text = buttonEl.getAttribute('data-copy-text')
-      || buttonEl.getAttribute('data-clipboard-text')
-      || buttonEl.getAttribute('data-project-path')
-      || buttonEl.getAttribute('data-session-id')
       || buttonEl.getAttribute('title')
       || buttonEl.textContent
       || '';

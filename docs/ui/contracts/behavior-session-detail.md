@@ -61,7 +61,7 @@
 | 28 | `[data-action="close-modal"]` / `[data-action="close-payload"]` | Close | Modal head, right | `data-action="close-modal"` | 关闭 payload modal。 | Modal 消失。 |
 | 29 | Modal backdrop click | — | Modal backdrop (outside panel) | 点击背景 | 关闭 payload modal（ESC 键同效）。 | Modal 消失。 |
 
-### 6. 生产模板按钮（session_detail_timeline_v12.html）
+### 6. 生产模板按钮（session_detail_timeline.html）
 
 | # | Selector | Label | Location | data-action / href | Expected Behavior | Validation |
 |---|---|---|---|---|---|---|
@@ -141,7 +141,7 @@
 |---|---|---|---|---|---|---|
 | 37 | `✖️` | Modal close button | 关闭 modal | Action | 关闭 payload modal。 | `--hifi-icon-inline` (16px) |
 
-### 6. 生产模板图标（session_detail_timeline_v12.html + primitives_v12.html）
+### 6. 生产模板图标（session_detail_timeline.html + session_detail_primitives.html）
 
 | # | Icon | Location | Semantic Meaning | Decorative or Action | Expected Behavior | Size Class |
 |---|---|---|---|---|---|---|

@@ -50,18 +50,6 @@
       "snippet": "<span class=\"t-out\" style=\"width:{{ s_out_pct }}%\"></span>"
     },
     {
-      "file": "src/session_browser/web/templates/components/session_detail_timeline.html",
-      "line": 83,
-      "source": "html",
-      "snippet": "<button type=\"button\" class=\"sd-btn sd-btn--secondary sd-btn--md sd-toggle-all-btn\" data-action=\"toggle-all\" data-state=\"collapse\" style=\"mi"
-    },
-    {
-      "file": "src/session_browser/web/templates/components/session_detail_timeline.html",
-      "line": 84,
-      "source": "html",
-      "snippet": "<button type=\"button\" class=\"sd-btn sd-btn--secondary sd-btn--md sd-collapse-all-btn\" data-action=\"collapse-all\" style=\"min-width:100px\">Col"
-    },
-    {
       "file": "src/session_browser/web/static/js/agents.js",
       "line": 268,
       "source": "js",
@@ -110,23 +98,11 @@
       "snippet": "ta.style.left = '-9999px';"
     },
     {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 117,
-      "source": "js",
-      "snippet": "infoPopover.style.left = Math.min(window.innerWidth - 320, rect.left) + 'px';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 118,
-      "source": "js",
-      "snippet": "infoPopover.style.top = (rect.bottom + 10) + 'px';"
-    },
-    {
       "file": "src/session_browser/web/static/js/ui_primitives.js",
-      "line": 654,
+      "line": 621,
       "source": "js",
       "snippet": "els[i].style.maxHeight = els[i].dataset.scrollMax;"
     }
   ],
-  "count": 21
+  "count": 17
 }

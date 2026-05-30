@@ -35,7 +35,7 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
         document.querySelectorAll('.wb-head [data-switch]').forEach(function(btn) {
             btn.classList.toggle('active', btn.dataset.switch === name);
         });
-        // Persist like switchTab does (per-session, backward compat)
+        // Persist per-session view selection
         if (window._sessionId && typeof arpStorage !== 'undefined') {
             arpStorage.set('session_view_' + window._sessionId, name);
         }
@@ -52,31 +52,20 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
         }
     };
 
-    /* ─── Tab switching (session detail) ───────────────────────── */
+    /* ─── Tab switching (session detail) — name bridge ─────────── */
     window.switchTab = function(tabId) {
-        // Bridge: old tab names -> new workbench views
-        // Use variable references to avoid embedding view names as literals
-        var _traceView = 'trace';
-        var _profileView = 'c' + 'alls';
-        var _hotspotsView = 'hots' + 'pots';
+        // Map old tab names to workbench views
         var viewBridge = {
-            'timeline': _traceView,
-            'profile': _profileView,
-            'hotspots': _hotspotsView,
-            'conversation': _traceView
+            'timeline': 'trace',
+            'profile': 'calls',
+            'hotspots': 'hotspots',
+            'conversation': 'trace'
         };
         if (viewBridge[tabId] !== undefined) {
-            // If workbench exists, use switchView
-            if (document.querySelector('.wb-body')) {
-                window.switchView(viewBridge[tabId]);
-                // Still persist old key for backward compat
-                if (window._sessionId) {
-                    arpStorage.set('session_tab_' + window._sessionId, tabId);
-                }
-                return;
-            }
+            window.switchView(viewBridge[tabId]);
+            return;
         }
-        // Legacy path: original tab switching
+        // Fallback: original tab switching for non-workbench pages
         var tabs = document.querySelectorAll('.tab');
         var contents = document.querySelectorAll('.tab-pane, .tab-detail, [data-tab-content]');
         tabs.forEach(function(t) { t.classList.remove('active'); });
@@ -85,7 +74,6 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
         if (target) { target.classList.add('active'); }
         var content = document.getElementById(tabId);
         if (content) {
-            // Lazy-load profile tab from <template> on first access
             if (tabId === 'profile' && !content.dataset.loaded) {
                 var tpl = document.getElementById('profile-template');
                 if (tpl) {
@@ -97,10 +85,6 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
                 }
             }
             content.classList.add('active');
-        }
-        // Persist active tab
-        if (window._sessionId) {
-            arpStorage.set('session_tab_' + window._sessionId, tabId);
         }
     };
 
@@ -141,7 +125,7 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
         }
     }
 
-    /* ─── Compatible closest helper (polyfill for older WebViews) ─ */
+    /* ─── Closest helper (polyfill for older WebViews) ─────────── */
     function _arpClosest(el, selector) {
         while (el && el.nodeType === 1) {
             if (el.matches && el.matches(selector)) return el;
@@ -204,17 +188,12 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
     }, true);
 
 
-    /* ─── Restore session tab / view on load ───────────────────── */
+    /* ─── Restore session view on load ───────────────────────────── */
     if (window._sessionId) {
-        // Restore workbench view (new)
+        // Restore workbench view
         var savedView = arpStorage.get('session_view_' + window._sessionId);
         if (savedView && document.querySelector('.wb-body')) {
             setTimeout(function() { switchView(savedView); }, 0);
-        }
-        // Restore old session tab (legacy compat)
-        var savedTab = arpStorage.get('session_tab_' + window._sessionId);
-        if (savedTab && !document.querySelector('.wb-body')) {
-            setTimeout(function() { switchTab(savedTab); }, 0);
         }
         /* Restore expanded rounds (.trace-row structure) */
         var savedRounds = arpStorage.get('rounds_' + window._sessionId);
@@ -223,10 +202,6 @@ if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
                 var traceRow = document.querySelector('.trace-row[data-round-idx="' + idx + '"]');
                 if (traceRow && window.toggleRoundDetail) {
                     toggleRoundDetail(traceRow);
-                } else {
-                    // Fallback for old .round structure
-                    var oldRound = document.querySelector('.round[data-round-idx="' + idx + '"]');
-                    if (oldRound) oldRound.classList.add('expanded');
                 }
             });
         }

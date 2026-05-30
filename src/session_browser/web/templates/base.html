@@ -24,8 +24,8 @@
            css/dashboard.css, css/sessions-list.css, css/session-detail.css,
            css/projects.css, css/agents.css, css/glossary.css, css/states.css
 
-         Layer 4 — Legacy aliases (backward-compat only, no versioned files remain):
-           legacy-aliases.css
+         Layer 4 — Component aliases (legacy-aliases.css):
+           旧变量名 → 新变量名映射 + 组件样式
 
          禁止新增: 版本化或补丁 CSS 文件
          ============================================================ -->
@@ -150,10 +150,7 @@
            js/dashboard.js, js/sessions-list.js, js/session-detail.js,
            js/projects.js, js/agents.js, js/glossary.js, js/states.js
 
-         Layer 4 — Legacy (compatibility aliases, to be removed once all templates migrated):
-           trace-interactions.js (trace round toggle), legacy-aliases.css
-
-         加载顺序: 原语 → 工具 → 页面专用 → 遗留
+         加载顺序: 原语 → 工具 → 页面专用
          ============================================================ -->
     <script src="/static/js/ui_primitives.js"></script>
     <script src="/static/js/view-state.js"></script>
@@ -170,7 +167,7 @@
     {% endif %}
 
 {% if not hide_payload_modal %}
-{% block legacy_payload_modal %}
+{% block payload_modal %}
 <!-- ── Payload Modal (always available) ────────────────────── -->
 <dialog id="payload-modal" class="payload-modal" aria-labelledby="payload-modal-title" aria-label="Payload viewer">
   <div class="payload-modal__panel">

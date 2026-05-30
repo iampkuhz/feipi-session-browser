@@ -67,7 +67,7 @@ icon / location / semantic meaning / decorative-or-action / expected behavior / 
 | 文件 | 按钮数 |
 |---|---|
 | `components/viewer.html` | 8 |
-| `components/session_detail_timeline_v12.html` | 6 |
+| `components/session_detail_timeline.html` | 6 |
 | `dashboard.html` | 4 |
 | `components/session_detail_timeline.html` | 4 |
 | `base.html` | 3 |
@@ -76,7 +76,7 @@ icon / location / semantic meaning / decorative-or-action / expected behavior / 
 | `projects.html` | 1 |
 | `project.html` | 1 |
 | `components/ui_primitives.html` | 1 |
-| `components/session_detail_payload_v15.html` | 1 |
+| `components/session_detail_payload.html` | 1 |
 | `components/data_table.html` | 1 |
 
 ### 需要修复的生产按钮

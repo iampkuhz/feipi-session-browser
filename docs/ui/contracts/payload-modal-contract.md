@@ -42,10 +42,10 @@
 
 ### legacy-aliases.css
 
-保留轻量兼容层，标注 `@deprecated`：
-- `.payload-modal` — 对齐 primitive 的容器定义（不再独立布局）
+容器别名层：
+- `.payload-modal` — 对齐 primitive 的容器定义
 - `.sd-payload-modal` — 对齐 primitive 的容器定义
-- `.sd-payload-modal__*` 子元素 — 向后兼容的样式别名
+- `.sd-payload-modal__*` 子元素 — 样式别名
 - `dialog.payload-modal` / `dialog.sd-payload-modal` — 原生 dialog 元素适配
 
 ---
@@ -94,6 +94,5 @@
 | CSS 文件 | 角色 |
 |---|---|
 | `ui-primitives.css` | **权威来源** — 完整 payload-modal primitive + --sd modifier |
-| `style.css` | 不再包含 payload-modal 定义 |
 | `session-detail.css` | sd-modal-* 结构类 + 诊断状态 |
-| `legacy-aliases.css` | 轻量兼容层（@deprecated），容器对齐 primitive |
+| `legacy-aliases.css` | 容器别名层，对齐 primitive |

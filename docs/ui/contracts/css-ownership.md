@@ -14,7 +14,7 @@
 | `session-detail.css` | `.sd-*`、`.session-detail-*` 选择器 | shell grid 规则、原语根组件（如 `.btn` 裸定义） |
 | `dashboard.css` | `.dashboard-page` 及其后代选择器 | shell grid、原语根组件 |
 | `sessions-list.css` | `.sessions-page` 及其后代选择器 | shell grid、原语根组件 |
-| `legacy-aliases.css` | 当前遗留变量别名（仅 `:root` 中的 `--old: var(--new)`） | 新组件定义、非变量映射规则 |
+| `legacy-aliases.css` | 旧变量别名（`:root` 中的 `--old: var(--new)`） + 旧组件样式映射 | 新组件定义 |
 
 ## 阻断规则
 

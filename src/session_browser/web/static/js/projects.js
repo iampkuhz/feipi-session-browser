@@ -28,10 +28,8 @@
     window.showToast = showToast;
 
     /* ── Copy project path — REMOVED (T044) ───────────────────
-     * Legacy click handler removed. Copy behavior now handled
-     * exclusively by the unified handler in ui_primitives.js,
-     * which supports both canonical data-copy-text and legacy
-     * fallback attributes.
+     * Copy behavior now handled exclusively by the unified
+     * handler in ui_primitives.js via data-copy-text.
      * ─────────────────────────────────────────────────────────── */
 
     /* ===========================================================
@@ -304,8 +302,8 @@
         }
 
         /* ── Detail: copy session ID — REMOVED (T044) ────────────
-         * Legacy click handler removed. Copy behavior now handled
-         * exclusively by the unified handler in ui_primitives.js.
+         * Copy behavior now handled exclusively by the unified
+         * handler in ui_primitives.js.
          * ─────────────────────────────────────────────────────────── */
 
         /* ── Detail: row click navigation ────────────────────── */
@@ -331,7 +329,7 @@
         var detailSortableThs = detailTable.querySelectorAll('th.sortable');
         var detailSortState = { key: null, ascending: false };
 
-        // Button-based sortable headers (legacy pattern)
+        // Button-based sortable headers
         detailSortBtns.forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
