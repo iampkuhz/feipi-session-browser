@@ -155,23 +155,28 @@
                     <td class="mono">{{ s.model or '—' }}</td>
                     {% set s_total = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
                     {% if s.agent == 'qoder' %}
-                        {% set s_fresh_pct = (s.input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
-                        {% set s_out_pct = (s.output_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_fresh = s.fresh_input_tokens if s.fresh_input_tokens is number else s.input_tokens %}
+                        {% set s_read = s.cache_read_tokens if s.cache_read_tokens is number else s.cached_input_tokens %}
+                        {% set s_write = s.cache_write_tokens if s.cache_write_tokens is number else s.cached_output_tokens %}
+                        {% set s_out = s.output_tokens %}
+                        {% set s_fresh_pct = (s_fresh / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_read_pct = (s_read / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_write_pct = (s_write / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                        {% set s_out_pct = (s_out / s_total * 100) | round(1) if s_total > 0 else 0 %}
                         {{ ui.token_cell(
                             total=s_total | format_compact_token,
                             fresh_pct=s_fresh_pct,
-                            read_pct=0,
-                            write_pct=0,
+                            read_pct=s_read_pct,
+                            write_pct=s_write_pct,
                             out_pct=s_out_pct,
-                            fresh_val=s.input_tokens | format_compact_token,
-                            read_val='~',
-                            write_val='~',
-                            out_val=s.output_tokens | format_compact_token,
+                            fresh_val=s_fresh | format_compact_token,
+                            read_val=s_read | format_compact_token,
+                            write_val=s_write | format_compact_token,
+                            out_val=s_out | format_compact_token,
                             fresh_pct_val=s_fresh_pct,
-                            read_pct_val='~',
-                            write_pct_val='~',
-                            out_pct_val=s_out_pct,
-                            profile='qoder'
+                            read_pct_val=s_read_pct,
+                            write_pct_val=s_write_pct,
+                            out_pct_val=s_out_pct
                         ) }}
                     {% else %}
                         {% set s_fresh_pct = (s.input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
