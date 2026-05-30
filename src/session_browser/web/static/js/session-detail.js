@@ -425,7 +425,7 @@
 
   /* ── Token tooltip dynamic positioning ── */
 
-  var TOOLTIP_FLIP_THRESHOLD = 120; // px from bottom of viewport to trigger flip
+  var TOOLTIP_FLIP_THRESHOLD = 180; // px from bottom of viewport to trigger flip
 
   function positionTokenTooltip(tokenbar) {
     var tooltip = qs(tokenbar, '.token-tooltip');

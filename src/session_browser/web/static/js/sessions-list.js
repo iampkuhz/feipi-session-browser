@@ -168,6 +168,31 @@
   // Module-level variable to store initial form state snapshot
   var _initialFormState = '';
 
+  // ── Token tooltip dynamic positioning ──────────────────────────────
+
+  var TOOLTIP_FLIP_THRESHOLD = 180; // px from bottom of viewport to trigger flip
+
+  function positionTokenTooltip(bar) {
+    var tooltip = bar.querySelector('.token-tooltip');
+    if (!tooltip) return;
+    var rect = bar.getBoundingClientRect();
+    var vpBottom = window.innerHeight || document.documentElement.clientHeight;
+    var spaceBelow = vpBottom - rect.bottom;
+    var shouldFlip = spaceBelow < TOOLTIP_FLIP_THRESHOLD;
+    tooltip.classList.toggle('token-tooltip--flip', shouldFlip);
+  }
+
+  function setupTokenTooltips() {
+    document.querySelectorAll('.data-table .token-total, .tokenbar-wrap').forEach(function (bar) {
+      bar.addEventListener('mouseenter', function () {
+        positionTokenTooltip(bar);
+      });
+      bar.addEventListener('focusin', function () {
+        positionTokenTooltip(bar);
+      });
+    });
+  }
+
   // ── Initialization: augment DOM for data-action delegation ──────────────
 
   function init() {
@@ -178,6 +203,7 @@
     bindFilterClear();
     bindPagination();
     bindApplyDirtyState();
+    setupTokenTooltips();
 
     // Expose public API
     window.SessionsList = {
@@ -402,6 +428,9 @@
 
       // Sync hidden page_size with the new select from AJAX response
       syncPageSizeHidden();
+
+      // Re-bind token tooltip positioning for new rows
+      setupTokenTooltips();
     })
     .catch(function (err) {
       console.error('AJAX pagination fallback:', err.message || err);

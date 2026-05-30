@@ -864,3 +864,20 @@ table-layout:fixed scales proportionally
 .sessions-page .card.filter-card .btn[data-action="apply"].is-dirty:hover {
   filter: brightness(1.02);
 }
+
+/* ── Token tooltip dynamic flip (T085) ──
+   Base positioning comes from ui-primitives.css (.token-tooltip).
+   This adds the flip class so tooltip appears above the bar when
+   viewport space below is limited (e.g. bottom rows in table). */
+
+.sessions-page .data-table .token-tooltip.token-tooltip--flip {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+}
+
+.sessions-page .data-table .token-tooltip.token-tooltip--flip::before {
+  top: auto;
+  bottom: -7px;
+  transform: translateX(-50%) rotate(225deg);
+}
