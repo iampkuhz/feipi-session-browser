@@ -326,6 +326,17 @@ def full_scan(
 
         conn.commit()
 
+    # ── Normalize Qoder cache project keys ─────────────────────────
+    # Qoder cache sessions (from ~/.qoder/cache/projects/) have no cwd
+    # and use a hash-stripped directory name as project_key (e.g.
+    # "openspec-research-blockchain").  This diverges from Claude Code
+    # and Codex which use the full filesystem path as project_key.
+    # After all agents are scanned, look up matching project paths from
+    # non-Qoder sessions and update Qoder cache sessions so the same
+    # repo is grouped under a single project_key.
+    if scan_qoder:
+        _normalize_qoder_cache_projects(conn)
+
     # Update log
     conn.execute(
         "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, qoder_count=?, status='done' WHERE id=?",
@@ -793,6 +804,10 @@ def incremental_scan(
 
         conn.commit()
 
+    # ── Normalize Qoder cache project keys (same as full_scan) ─────
+    if scan_qoder:
+        _normalize_qoder_cache_projects(conn)
+
     # Update log
     conn.execute(
         "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, qoder_count=?, status='done' WHERE id=?",
@@ -808,6 +823,65 @@ def incremental_scan(
         "new_count": new_count,
         "skipped": skipped_count,
     }
+
+
+# ─── Qoder cache project key normalization ─────────────────────────────
+
+
+def _normalize_qoder_cache_projects(conn: sqlite3.Connection) -> None:
+    """Fix Qoder cache session project_keys to match other agents.
+
+    Qoder cache sessions (from ~/.qoder/cache/projects/) have no ``cwd``
+    and use a hash-stripped directory name as ``project_key`` (e.g.
+    ``"openspec-research-blockchain"``).  Claude Code and Codex use the
+    full filesystem path (e.g.
+    ``"/Users/zhehan/Documents/tools/llm/openspec/openspec-research-blockchain"``).
+
+    When a Qoder cache session's ``cwd`` is empty and its ``project_key``
+    does **not** start with ``/`` (i.e. it's a cache directory name), look
+    up a matching project path from sessions that already have an absolute
+    ``project_key`` (Claude Code, Codex, or Qoder CLI) by ``project_name``.
+    If exactly one match exists, update the session's ``project_key`` so
+    the same repo is grouped under a single project.
+    """
+    rows = conn.execute(
+        "SELECT session_key, project_key, project_name "
+        "FROM sessions "
+        "WHERE agent = 'qoder' AND cwd = '' "
+        "AND project_key NOT LIKE '/%'"
+    ).fetchall()
+
+    if not rows:
+        return
+
+    resolved_cache: dict[str, str | None] = {}
+
+    for row in rows:
+        project_name = row["project_name"]
+        if project_name in resolved_cache:
+            resolved = resolved_cache[project_name]
+        else:
+            # Look for a unique absolute project_key from sessions
+            # that already have proper paths. Priority: Claude Code + Codex
+            # first, then Qoder CLI (which has cwd != '').
+            matches = conn.execute(
+                "SELECT DISTINCT project_key FROM sessions "
+                "WHERE project_name = ? "
+                "AND (agent IN ('claude_code', 'codex') "
+                "     OR (agent = 'qoder' AND cwd != '')) "
+                "AND project_key LIKE '/%'",
+                (project_name,),
+            ).fetchall()
+            resolved = matches[0]["project_key"] if len(matches) == 1 else None
+            resolved_cache[project_name] = resolved
+
+        if resolved is not None:
+            conn.execute(
+                "UPDATE sessions SET project_key = ? WHERE session_key = ?",
+                (resolved, row["session_key"]),
+            )
+
+    conn.commit()
 
 
 # ─── Query interface ───────────────────────────────────────────────────────
