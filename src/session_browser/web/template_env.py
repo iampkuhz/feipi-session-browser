@@ -287,4 +287,24 @@ env.filters["normalize_llm_content"] = normalize_llm_content
 env.filters["content_parts"] = _content_parts_to_blocks
 env.filters["parts_mode_from_raw"] = _parts_mode_from_raw
 env.filters["tojson_repo"] = _tojson_repo_html
+_PRECISION_LABEL_MAP = {
+    "provider_reported": "provider",
+    "transcript_exact": "内容精确",
+    "exact": "精确",
+    "estimated": "估算",
+    "heuristic": "启发式",
+    "residual": "差额",
+    "unavailable": "不可用",
+}
+
+
+def _precision_label(precision: str | None) -> str:
+    """Map raw precision key to a short display label."""
+    if not precision:
+        return "不可用"
+    return _PRECISION_LABEL_MAP.get(precision, precision)
+
+
 env.filters["display_path"] = _display_path
+env.filters["precision_label"] = _precision_label
+env.globals["precision_label"] = _precision_label

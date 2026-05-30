@@ -3334,3 +3334,138 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   flex-wrap: wrap;
 }
 
+/* Attribution modal layout */
+.session-detail-page .sd-payload-shell--attribution {
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+/* Precision tag pills */
+.session-detail-page .sd-precision-tag {
+  font-size: 10px;
+  font-weight: 760;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  margin-left: 4px;
+}
+.session-detail-page .sd-precision-tag--provider_reported { background: #dcfce7; color: #15803d; }
+.session-detail-page .sd-precision-tag--exact { background: #dbeafe; color: #1d4ed8; }
+.session-detail-page .sd-precision-tag--estimated { background: #fef3c7; color: #92400e; }
+.session-detail-page .sd-precision-tag--heuristic { background: #eef2ff; color: #4f46e5; }
+.session-detail-page .sd-precision-tag--residual { background: #fce7f3; color: #be185d; }
+.session-detail-page .sd-precision-tag--unavailable { background: #f1f5f9; color: #64748b; }
+
+/* Availability table */
+.session-detail-page .sd-attrib-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.session-detail-page .sd-attrib-table th {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #94a3b8;
+  text-align: left;
+  border-bottom: 1px solid var(--sd-line-soft, #e2e8f0);
+  background: #fbfcff;
+}
+.session-detail-page .sd-attrib-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--sd-line-soft, #e2e8f0);
+  vertical-align: top;
+  color: #475569;
+}
+.session-detail-page .sd-attrib-table td:first-child {
+  font-family: var(--sd-mono, ui-monospace, monospace);
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Attribution banner */
+.session-detail-page .sd-attribution-banner {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 12px;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+.session-detail-page .sd-attribution-banner--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+/* Usage grid */
+.session-detail-page .sd-usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.session-detail-page .sd-usage-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.session-detail-page .sd-usage-label { color: #64748b; }
+.session-detail-page .sd-usage-value { font-weight: 600; color: #1e293b; }
+
+/* Attribution chip */
+.session-detail-page .sd-chip--attrib {
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+}
+
+/* Context preview */
+.session-detail-page .sd-context-preview {
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+/* Notes list */
+.session-detail-page .sd-notes-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #475569;
+}
+.session-detail-page .sd-notes-list li { margin-bottom: 4px; }
+
+/* Error shell */
+.session-detail-page .sd-payload-shell--error .sd-payload-meta {
+  border-left: 3px solid #dc2626;
+}
+
+/* Responsive: collapse to single column */
+@media (max-width: 1360px) {
+  .session-detail-page .sd-payload-shell--attribution {
+    grid-template-columns: 1fr;
+  }
+}

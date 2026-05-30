@@ -2324,10 +2324,16 @@ def _build_v11_view_model(
                 note_text = f"上下文为 {source_status}，由用户输入和前置 tool results 重建"
                 note_tone_val = "warn" if source_status == "reconstructed" else "err"
 
+            # ── Attribution payload IDs (always emitted; UI gate via
+            # `call.request_attribution_id` / `call.response_attribution_id`) ──
+            request_attribution_id = f"llm-R{rid}-IX{iix}-request-attribution"
+            response_attribution_id = f"llm-R{rid}-IX{iix}-response-attribution"
+
             llm_item = {
                 "type": "llm_call",
                 "call_id": call_id,
                 "title": f"LLM Call #{iix}",
+                "call_index": iix,
                 "model": model_short,
                 "lane": lane,
                 "status_label": ix_status_label,
@@ -2342,6 +2348,8 @@ def _build_v11_view_model(
                 "context_payload_title": f"R{rid} · LLM Call #{iix} · Context",
                 "response_payload_id": response_payload_id,
                 "response_payload_title": f"R{rid} · LLM Call #{iix} · Response",
+                "request_attribution_id": request_attribution_id,
+                "response_attribution_id": response_attribution_id,
                 "note": note_text,
                 "note_tone": note_tone_val,
                 "finish_reason": finish_r,
