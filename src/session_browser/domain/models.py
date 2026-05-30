@@ -103,57 +103,6 @@ class NormalizedTokenBreakdown:
         }
 
 
-@dataclass
-class TokenBreakdown:
-    """Per-round or per-session token usage breakdown.
-
-    All fields are in tokens. Missing fields are None, not 0.
-    """
-
-    # Input-side
-    input_fresh: Optional[int] = None
-    input_cache_read: Optional[int] = None
-    input_cache_write: Optional[int] = None
-
-    # Output-side
-    output_visible: Optional[int] = None
-    output_reasoning: Optional[int] = None
-    output_thinking: Optional[int] = None
-
-    # Tool-related
-    tool_definition_input: Optional[int] = None
-    tool_call_output: Optional[int] = None
-    tool_result_input: Optional[int] = None
-
-    # Computed totals
-    total_input: Optional[int] = None
-    total_output: Optional[int] = None
-
-    precision: str = TokenPrecision.UNKNOWN
-    provider: Optional[str] = None
-    raw_fields: dict = field(default_factory=dict)
-
-    def compute_totals(self) -> None:
-        """Compute total_input and total_output from breakdown fields."""
-        # total_input = input_fresh + input_cache_read + input_cache_write
-        input_parts = [
-            self.input_fresh or 0,
-            self.input_cache_read or 0,
-            self.input_cache_write or 0,
-        ]
-        if any(p is not None for p in [self.input_fresh, self.input_cache_read, self.input_cache_write]):
-            self.total_input = sum(input_parts)
-
-        # total_output = output_visible + output_reasoning + output_thinking
-        output_parts = [
-            self.output_visible or 0,
-            self.output_reasoning or 0,
-            self.output_thinking or 0,
-        ]
-        if any(p is not None for p in [self.output_visible, self.output_reasoning, self.output_thinking]):
-            self.total_output = sum(output_parts)
-
-
 # ─── Session / Message / Tool models ──────────────────────────────────────
 
 
@@ -218,7 +167,6 @@ class ChatMessage:
     usage: Optional[dict] = None  # token usage for assistant messages
     content_html: str = ""  # pre-rendered markdown HTML
     token_ratio: float = 0  # proportion of session tokens used in this message
-    token_breakdown: Optional[TokenBreakdown] = None  # per-message token breakdown
     llm_call_id: str = ""  # provider/Claude message id, one logical LLM call
     llm_status: str = "ok"  # "ok" | "error"
     request_full: str = ""  # logged request context preceding this assistant response
@@ -324,7 +272,6 @@ class ConversationRound:
     # Preview fields — keep separate to avoid duplication in template
     preview_text: str = ""           # text-only: user message or assistant response, NO tool badges
     tool_summary_html: str = ""      # structured tool chips: <span class="preview-tool">Read</span>×2
-    preview_text_legacy: str = ""    # backward compat: old HTML-embedded preview_text
 
     @staticmethod
     def _compact_preview_text(text: str, limit: int = 120) -> str:
@@ -359,7 +306,6 @@ class ConversationRound:
         Splits preview into two orthogonal parts:
         - preview_text: text-only summary (user msg or assistant response), NO tool badges
         - tool_summary_html: structured tool count chips
-        - preview_text_legacy: backward-compat HTML with tools embedded (for old templates)
         """
         # Use round.tool_calls (authoritative), not interactions[].tool_calls
         # to avoid double-counting when multiple interactions exist in one round.
@@ -395,13 +341,6 @@ class ConversationRound:
         # Text-only summary for template
         self.preview_text = preview
         self.tool_summary_html = tool_summary_html
-        # Legacy: old HTML-embedded format (backward compat)
-        if tool_summary_html and preview:
-            self.preview_text_legacy = f"{preview} · {tool_summary_html}"
-        elif tool_summary_html:
-            self.preview_text_legacy = tool_summary_html
-        else:
-            self.preview_text_legacy = preview
 
     @property
     def input_tokens(self) -> int:

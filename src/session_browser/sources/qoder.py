@@ -22,8 +22,8 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from session_browser.config import QODER_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, NormalizedTokenBreakdown, TokenPrecision, TokenSourceKind
-from session_browser.domain.token_normalizer import normalize_tokens, normalize_tokens_unified, normalize_qoder_sqlite_unified, TokenPrecision as TP, TokenProvider
+from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
+from session_browser.domain.token_normalizer import normalize_qoder_sqlite_unified, TokenPrecision as TP, TokenProvider
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -1360,12 +1360,6 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                 else:
                     final_usage = None
 
-                token_bd = normalize_tokens(final_usage, model=model) if final_usage else None
-                # Override precision and provider for estimated usage
-                if final_usage and final_usage.get("estimated") and token_bd:
-                    token_bd.precision = TokenPrecision.ESTIMATED
-                    token_bd.provider = TokenProvider.QODER
-
                 request_full = "\n\n".join(p for p in pending_request_parts if p)
                 pending_request_parts = []
 
@@ -1376,7 +1370,6 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                     model=model,
                     tool_calls=tool_calls,
                     usage=final_usage,
-                    token_breakdown=token_bd,
                     llm_call_id=rec.get("id", ""),
                     request_full=request_full,
                     stop_reason=rec.get("stop_reason", ""),

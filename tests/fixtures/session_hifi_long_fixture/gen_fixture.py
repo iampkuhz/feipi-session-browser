@@ -26,7 +26,7 @@ TOPICS = [
     "Implement dark mode toggle for the settings page",
     "Optimize the SQL queries for the report generation",
     "Add retry logic for flaky third-party API calls",
-    "Review and update the API documentation for v2",
+    "Review and update the API documentation for the new release",
     "Implement file upload with progress indicator",
     "Add comprehensive error handling to the payment flow",
     "Refactor the notification system to use async workers",

@@ -160,8 +160,8 @@ class TestToolCountNoDuplication:
         assert r.tool_summary_html == ""
 
     @pytest.mark.contract_case("UI-SD-019")
-    def test_legacy_format_preserved(self):
-        """preview_text_legacy 应保留旧的 HTML 嵌入格式。"""
+    def test_preview_and_tool_summary_separated(self):
+        """preview_text 是纯文本，tool_summary_html 包含工具 chips。"""
         r = ConversationRound(
             user_msg=ChatMessage(role="user", content="Test", timestamp=""),
             assistant_msg=ChatMessage(
@@ -172,9 +172,10 @@ class TestToolCountNoDuplication:
         r.interactions = [_llm_call(tool_calls=[_tool("Read"), _tool("Read")])]
         r.compute_preview()
 
-        assert "Response text" in r.preview_text_legacy
-        assert "preview-tool" in r.preview_text_legacy  # 旧版包含 HTML
-        assert "×2" in r.preview_text_legacy
+        assert "Response text" in r.preview_text
+        assert "preview-tool" not in r.preview_text  # preview_text 是纯文本
+        assert "preview-tool" in r.tool_summary_html  # tool_summary_html 包含 HTML
+        assert "×2" in r.tool_summary_html
 
 
 class TestPreviewDoesNotRepeatText:

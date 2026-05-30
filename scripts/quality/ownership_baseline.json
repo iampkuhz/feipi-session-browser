@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "V9 CSS/JS ownership historical debt baseline. Violations listed here are WARN (technical debt). New violations are BLOCK.",
+  "description": "CSS/JS ownership historical debt baseline. Violations listed here are WARN (technical debt). New violations are BLOCK.",
   "created": "2026-05-26",
   "component_override_violations": [
     "web/static/css/agents.css:.metric-card,.metric-grid,.page-head,.section,.section-head,.tooltip",

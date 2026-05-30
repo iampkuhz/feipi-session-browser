@@ -410,7 +410,7 @@ class TestActualRepoState:
         assert not path.exists(), "session-detail-timeline.css should be deleted"
 
 
-# ── V9 新增门禁：bad-fixture 测试 ──
+# ── CSS/JS ownership gates：bad-fixture 测试 ──
 
 
 # ── check_css_ownership_gate ──────────────────────────────────────────

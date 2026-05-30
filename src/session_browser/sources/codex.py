@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Iterator
 
 from session_browser.config import CODEX_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, NormalizedTokenBreakdown, TokenPrecision, TokenSourceKind, TokenTotalSemantics
-from session_browser.domain.token_normalizer import normalize_tokens_unified
+from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenPrecision
+from session_browser.domain.token_normalizer import normalize_tokens
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -294,14 +294,14 @@ def _build_summary_from_events(
                             cur_val = _get_int_safe(cumulative_usage, key)
                             prev_val = _get_int_safe(prev_cumulative, key)
                             delta[key] = max(cur_val - prev_val, 0)
-                        bd = normalize_tokens_unified(delta, provider="codex")
+                        bd = normalize_tokens(delta, provider="codex")
                         bd.precision = TokenPrecision.PROVIDER_REPORTED_DELTA
                         sum_fresh += bd.fresh_input_tokens
                         sum_cache_read += bd.cache_read_tokens
                         sum_output += bd.output_tokens
                     else:
                         # First cumulative snapshot — treat as-is
-                        bd = normalize_tokens_unified(cumulative_usage, provider="codex")
+                        bd = normalize_tokens(cumulative_usage, provider="codex")
                         sum_fresh += bd.fresh_input_tokens
                         sum_cache_read += bd.cache_read_tokens
                         sum_output += bd.output_tokens

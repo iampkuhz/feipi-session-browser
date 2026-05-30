@@ -1,6 +1,0 @@
-- [ ] Create openspec/specs/ directory with 4 current-behavior specs
-- [ ] Create openspec/changes/archive/.gitkeep
-- [ ] Create docs/ui/hifi/README.md
-- [ ] Extract hifi reference HTML set from seed reference zip
-- [ ] Verify no destructive overwrites of CLAUDE.md, AGENTS.md, or .claude/settings.*
-- [ ] Validate harness structure

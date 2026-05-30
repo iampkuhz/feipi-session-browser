@@ -1,7 +1,7 @@
 """Token usage normalizer for session-browser.
 
-Maps provider-specific usage fields into a canonical TokenBreakdown (legacy)
-and NormalizedTokenBreakdown (unified 5-field breakdown).
+Maps provider-specific usage fields into a unified NormalizedTokenBreakdown
+with a canonical 5-field breakdown.
 
 Provider mappings:
 - Claude Code: input_tokens=fresh, cache_read/cache_creation=separate buckets, total=sum of 4
@@ -22,7 +22,6 @@ import math
 from typing import Optional
 
 from session_browser.domain.models import (
-    TokenBreakdown,
     NormalizedTokenBreakdown,
     TokenPrecision,
     TokenProvider,
@@ -31,51 +30,32 @@ from session_browser.domain.models import (
 )
 
 
-# ─── Legacy: TokenBreakdown normalizer (backward compat) ─────────────────
+# ─── Provider inference ──────────────────────────────────────────────────
+
+
+def _infer_provider(model: Optional[str]) -> str:
+    """Infer provider from model string."""
+    if model is None:
+        return TokenProvider.UNKNOWN
+
+    model_lower = model.lower()
+
+    if "qwen" in model_lower:
+        return TokenProvider.QWEN_ANTHROPIC_COMPATIBLE
+
+    if "claude" in model_lower:
+        return TokenProvider.ANTHROPIC
+
+    if any(x in model_lower for x in ["gpt-", "o1", "o3", "davinci", "curie", "babbage", "ada"]):
+        return TokenProvider.OPENAI
+
+    return TokenProvider.UNKNOWN
+
+
+# ─── Alias extraction helpers ────────────────────────────────────────────
 
 
 def normalize_tokens(
-    usage: dict,
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
-) -> TokenBreakdown:
-    """Normalize provider usage fields into TokenBreakdown (legacy).
-
-    Args:
-        usage: Raw usage dict from the provider.
-        provider: Provider hint ("anthropic", "openai", "codex", "qwen-anthropic-compatible", "qoder").
-        model: Model string for provider inference.
-
-    Returns:
-        TokenBreakdown with canonical fields.
-    """
-    if not usage or not isinstance(usage, dict):
-        if provider == TokenProvider.QODER:
-            return TokenBreakdown(precision=TokenPrecision.ESTIMATED, provider=TokenProvider.QODER)
-        return TokenBreakdown(precision=TokenPrecision.UNKNOWN)
-
-    if provider is None:
-        provider = _infer_provider(model)
-
-    if provider == TokenProvider.ANTHROPIC or provider == TokenProvider.QWEN_ANTHROPIC_COMPATIBLE:
-        result = _normalize_anthropic(usage, provider)
-    elif provider == TokenProvider.OPENAI:
-        result = _normalize_openai(usage)
-    elif provider == TokenProvider.CODEX:
-        result = _normalize_codex_legacy(usage)
-    elif provider == TokenProvider.QODER:
-        result = _normalize_qoder_legacy(usage)
-    else:
-        result = _normalize_generic(usage)
-
-    result.compute_totals()
-    return result
-
-
-# ─── New: Unified NormalizedTokenBreakdown normalizer ────────────────────
-
-
-def normalize_tokens_unified(
     usage: dict,
     provider: Optional[str] = None,
     model: Optional[str] = None,
@@ -101,15 +81,15 @@ def normalize_tokens_unified(
         provider = _infer_provider(model)
 
     if provider in (TokenProvider.ANTHROPIC, TokenProvider.QWEN_ANTHROPIC_COMPATIBLE):
-        return _normalize_claude_code_unified(usage)
+        return _normalize_claude_code(usage)
     elif provider == TokenProvider.CODEX:
-        return _normalize_codex_unified(usage)
+        return _normalize_codex(usage)
     elif provider == TokenProvider.QODER:
-        return _normalize_qoder_unified(usage)
+        return _normalize_qoder(usage)
     elif provider == TokenProvider.OPENAI:
-        return _normalize_openai_unified(usage)
+        return _normalize_openai(usage)
 
-    return _normalize_generic_unified(usage)
+    return _normalize_generic(usage)
 
 
 # ─── Alias extraction helpers ────────────────────────────────────────────
@@ -161,7 +141,7 @@ def _estimate_tokens(text: str) -> int:
 # ─── Claude Code unified normalizer ──────────────────────────────────────
 
 
-def _normalize_claude_code_unified(usage: dict) -> NormalizedTokenBreakdown:
+def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
     """Claude Code: input_tokens = fresh; cache buckets are separate.
 
     total = fresh + cache_read + cache_write + output (exclusive_components_sum).
@@ -188,7 +168,7 @@ def _normalize_claude_code_unified(usage: dict) -> NormalizedTokenBreakdown:
 # ─── Codex unified normalizer ────────────────────────────────────────────
 
 
-def _normalize_codex_unified(usage: dict) -> NormalizedTokenBreakdown:
+def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
     """Codex: input_tokens is inclusive total; cached_input_tokens is a subset.
 
     fresh = raw_input_total - cache_read
@@ -237,7 +217,7 @@ def _normalize_codex_unified(usage: dict) -> NormalizedTokenBreakdown:
     )
 
 
-def _normalize_codex_unified_from_delta(
+def _normalize_codex_from_delta(
     current: dict,
     previous: Optional[dict] = None,
 ) -> NormalizedTokenBreakdown:
@@ -256,18 +236,18 @@ def _normalize_codex_unified_from_delta(
             prev_val = _get_int(previous, key)
             delta[key] = max(cur_val - prev_val, 0)
 
-        result = _normalize_codex_unified(delta)
+        result = _normalize_codex(delta)
         result.precision = TokenPrecision.PROVIDER_REPORTED_DELTA
         result.total_semantics = TokenTotalSemantics.REPORTED_CUMULATIVE_DELTA
         return result
 
-    return _normalize_codex_unified(current)
+    return _normalize_codex(current)
 
 
 # ─── Qoder unified normalizer ────────────────────────────────────────────
 
 
-def _normalize_qoder_unified(usage: dict) -> NormalizedTokenBreakdown:
+def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
     """Qoder structured logs: input_tokens is often inclusive total.
 
     fresh = raw_input - cache_read - cache_write (if raw_input >= cache_read + cache_write)
@@ -347,13 +327,13 @@ def normalize_qoder_sqlite_unified(token_info: dict) -> NormalizedTokenBreakdown
     )
 
 
-def _normalize_qoder_unified_with_text(
+def _normalize_qoder_with_text(
     usage: dict,
     assistant_text: str = "",
     request_text: str = "",
 ) -> NormalizedTokenBreakdown:
     """Qoder fallback: use text estimation for missing fields."""
-    bd = _normalize_qoder_unified(usage)
+    bd = _normalize_qoder(usage)
 
     # Fill output from text if missing
     if bd.output_tokens == 0 and assistant_text:
@@ -377,7 +357,7 @@ def _normalize_qoder_unified_with_text(
 # ─── OpenAI unified normalizer ───────────────────────────────────────────
 
 
-def _normalize_openai_unified(usage: dict) -> NormalizedTokenBreakdown:
+def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
     """OpenAI: prompt_tokens is inclusive; cached_tokens is a subset."""
     input_tokens = _get_int(usage, "input_tokens") or _get_int(usage, "prompt_tokens")
     output_tokens = _get_int(usage, "output_tokens") or _get_int(usage, "completion_tokens")
@@ -410,7 +390,7 @@ def _normalize_openai_unified(usage: dict) -> NormalizedTokenBreakdown:
 # ─── Generic unified normalizer ──────────────────────────────────────────
 
 
-def _normalize_generic_unified(usage: dict) -> NormalizedTokenBreakdown:
+def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
     """Generic fallback for unknown providers."""
     total_only = _get_int(usage, "total_tokens", "total_token_usage", "tokens_used")
 
@@ -456,151 +436,6 @@ def _normalize_generic_unified(usage: dict) -> NormalizedTokenBreakdown:
         source_kind=TokenSourceKind.UNKNOWN,
         notes=["No token source available."],
     )
-
-
-# ─── Legacy normalizers (kept for backward compat) ───────────────────────
-
-
-def _infer_provider(model: Optional[str]) -> str:
-    """Infer provider from model string."""
-    if model is None:
-        return TokenProvider.UNKNOWN
-
-    model_lower = model.lower()
-
-    if "qwen" in model_lower:
-        return TokenProvider.QWEN_ANTHROPIC_COMPATIBLE
-
-    if "claude" in model_lower:
-        return TokenProvider.ANTHROPIC
-
-    if any(x in model_lower for x in ["gpt-", "o1", "o3", "davinci", "curie", "babbage", "ada"]):
-        return TokenProvider.OPENAI
-
-    return TokenProvider.UNKNOWN
-
-
-def _normalize_anthropic(usage: dict, provider: str) -> TokenBreakdown:
-    """Normalize Anthropic (or Anthropic-compatible) usage."""
-    input_tokens = _get_int(usage, "input_tokens")
-    cache_read = _get_int(usage, "cache_read_input_tokens")
-    cache_write = _get_int(usage, "cache_creation_input_tokens")
-    output_tokens = _get_int(usage, "output_tokens")
-
-    # Only use None for fields that are truly absent (not explicitly 0)
-    has_cache_read = "cache_read_input_tokens" in usage
-    has_cache_write = "cache_creation_input_tokens" in usage
-    has_output = "output_tokens" in usage
-
-    breakdown = TokenBreakdown(
-        input_fresh=input_tokens,
-        input_cache_read=cache_read if has_cache_read else None,
-        input_cache_write=cache_write if has_cache_write else None,
-        output_visible=output_tokens if has_output else None,
-        precision=TokenPrecision.PROVIDER_REPORTED,
-        provider=provider,
-        raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
-    )
-
-    breakdown.compute_totals()
-    return breakdown
-
-
-def _normalize_openai(usage: dict) -> TokenBreakdown:
-    """Normalize OpenAI usage."""
-    input_tokens = _get_int(usage, "input_tokens") or _get_int(usage, "prompt_tokens") or None
-    output_tokens = _get_int(usage, "output_tokens") or _get_int(usage, "completion_tokens") or None
-
-    cached = _get_int(usage, "cached_tokens") or None
-    if cached is None:
-        cached = _get_nested_int(usage, "input_tokens_details", "cached_tokens") or None
-        if cached is None:
-            cached = _get_nested_int(usage, "prompt_tokens_details", "cached_tokens") or None
-
-    reasoning = _get_int(usage, "reasoning_tokens") or None
-    if reasoning is None:
-        reasoning = _get_nested_int(usage, "output_tokens_details", "reasoning_tokens") or None
-        if reasoning is None:
-            reasoning = _get_nested_int(usage, "completion_tokens_details", "reasoning_tokens") or None
-
-    input_fresh = None
-    if input_tokens is not None and cached is not None:
-        input_fresh = input_tokens - cached
-    elif input_tokens is not None:
-        input_fresh = input_tokens
-
-    output_visible = None
-    if output_tokens is not None and reasoning is not None:
-        output_visible = output_tokens - reasoning
-    elif output_tokens is not None:
-        output_visible = output_tokens
-
-    breakdown = TokenBreakdown(
-        input_fresh=input_fresh,
-        input_cache_read=cached,
-        output_visible=output_visible,
-        output_reasoning=reasoning,
-        precision=TokenPrecision.PROVIDER_REPORTED,
-        provider=TokenProvider.OPENAI,
-        raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
-    )
-
-    breakdown.compute_totals()
-    return breakdown
-
-
-def _normalize_codex_legacy(usage: dict) -> TokenBreakdown:
-    """Codex usage — legacy, typically only total."""
-    tokens_used = _get_int_or_none(usage, "tokens_used", "total_tokens")
-    precision = TokenPrecision.PROVIDER_REPORTED if tokens_used is not None else TokenPrecision.ESTIMATED
-
-    return TokenBreakdown(
-        total_input=tokens_used,
-        precision=precision,
-        provider=TokenProvider.CODEX,
-        raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
-    )
-
-
-def _normalize_qoder_legacy(usage: dict) -> TokenBreakdown:
-    """Qoder usage — legacy, estimated."""
-    input_tokens = _get_int_or_none(usage, "input_tokens")
-    output_tokens = _get_int_or_none(usage, "output_tokens")
-    cache_read = _get_int_or_none(usage, "cache_read_input_tokens")
-    cache_write = _get_int_or_none(usage, "cache_creation_input_tokens")
-
-    return TokenBreakdown(
-        input_fresh=input_tokens,
-        input_cache_read=cache_read,
-        input_cache_write=cache_write,
-        output_visible=output_tokens,
-        precision=TokenPrecision.ESTIMATED,
-        provider=TokenProvider.QODER,
-        raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
-    )
-
-
-def _normalize_generic(usage: dict) -> TokenBreakdown:
-    """Generic extraction for unknown providers."""
-    input_tokens = _get_int_or_none(usage, "input_tokens", "prompt_tokens")
-    output_tokens = _get_int_or_none(usage, "output_tokens", "completion_tokens")
-    cache_read = _get_int_or_none(usage, "cache_read_input_tokens", "cached_tokens")
-    cache_write = _get_int_or_none(usage, "cache_creation_input_tokens")
-    reasoning = _get_int_or_none(usage, "reasoning_tokens")
-
-    breakdown = TokenBreakdown(
-        input_fresh=input_tokens,
-        input_cache_read=cache_read,
-        input_cache_write=cache_write,
-        output_visible=output_tokens,
-        output_reasoning=reasoning,
-        precision=TokenPrecision.ESTIMATED,
-        provider=TokenProvider.UNKNOWN,
-        raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
-    )
-
-    breakdown.compute_totals()
-    return breakdown
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────

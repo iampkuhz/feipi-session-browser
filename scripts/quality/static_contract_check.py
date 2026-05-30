@@ -231,7 +231,7 @@ def check_innerhtml_safety(js_files: list[Path]) -> list[str]:
     return warnings
 
 
-# ── NEW V9 gates ───────────────────────────────────────────────────────
+# ── CSS/JS ownership gates ─────────────────────────────────────────────
 
 # CSS 自定义属性白名单（允许 inline style 中使用）
 INLINE_CUSTOM_PROP_WHITELIST = re.compile(
@@ -640,9 +640,9 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         if "eval(" in text:
             errors.append(f"{rel}: 禁止 eval。")
 
-    # ── V9 NEW gates ───────────────────────────────────────────────
+    # ── CSS/JS ownership gates ─────────────────────────────────────
     # 加载历史债务 baseline，存量违规 = WARN，新增 = BLOCK
-    baseline = _load_v9_ownership_baseline(repo_root)
+    baseline = _load_ownership_baseline(repo_root)
 
     # BLOCK: css-ownership-gate (shell selector ownership)
     _apply_baseline_gate(errors, warnings, check_css_ownership_gate(css_files),
@@ -677,10 +677,10 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
-def _load_v9_ownership_baseline(repo_root: Path) -> dict:
-    """加载 V9 ownership baseline JSON。"""
+def _load_ownership_baseline(repo_root: Path) -> dict:
+    """加载 ownership baseline JSON。"""
     import json
-    baseline_path = Path(__file__).parent / "v9_ownership_baseline.json"
+    baseline_path = Path(__file__).parent / "ownership_baseline.json"
     if baseline_path.exists():
         try:
             return json.loads(baseline_path.read_text(encoding="utf-8"))

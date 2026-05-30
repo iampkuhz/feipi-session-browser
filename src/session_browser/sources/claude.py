@@ -14,8 +14,8 @@ from collections import Counter
 from pathlib import Path
 
 from session_browser.config import CLAUDE_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenBreakdown, NormalizedTokenBreakdown
-from session_browser.domain.token_normalizer import normalize_tokens, normalize_tokens_unified, TokenPrecision
+from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
+from session_browser.domain.token_normalizer import normalize_tokens
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -686,8 +686,6 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
             usage = rec.get("usage", {})
             model = rec.get("model", "")
             if text_parts or tool_calls or content_blocks:
-                token_bd = normalize_tokens(usage, model=model) if usage else None
-
                 request_full = "\n\n".join(p for p in pending_request_parts if p)
                 pending_request_parts = []
 
@@ -698,7 +696,6 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                     model=model,
                     tool_calls=tool_calls,
                     usage=usage if usage else None,
-                    token_breakdown=token_bd,
                     llm_call_id=rec.get("id", ""),
                     request_full=request_full,
                     stop_reason=rec.get("stop_reason", ""),
