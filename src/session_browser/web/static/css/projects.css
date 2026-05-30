@@ -106,6 +106,10 @@ th.sortable:hover {
   cursor: help;
   border: 1px solid var(--line-soft);
 }
+/* Disable legacy tooltip (legacy-aliases.css .tokenbar::after) */
+.token-cell .tokenbar::after {
+  display: none;
+}
 .token-cell .tokenbar .tokenbar-seg {
   height: 100%;
   display: block;
