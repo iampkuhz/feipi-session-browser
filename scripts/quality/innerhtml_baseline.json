@@ -153,25 +153,25 @@
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 336,
+      "line": 362,
       "isClear": false,
       "snippet": "tbody.innerHTML = '<tr><td colspan=\"9\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td><"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 380,
+      "line": 406,
       "isClear": false,
       "snippet": "tbody.innerHTML = newTbody.innerHTML;"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 385,
+      "line": 411,
       "isClear": false,
       "snippet": "oldPagination.innerHTML = newPagination.innerHTML;"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 392,
+      "line": 418,
       "isClear": false,
       "snippet": "paginationDiv.innerHTML = newPagination.innerHTML;"
     },
