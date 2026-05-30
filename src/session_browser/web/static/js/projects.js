@@ -232,15 +232,6 @@
             });
         });
 
-        // Apply button: re-apply current filters
-        var applyBtn = document.querySelector('[data-action="apply-search"]');
-        if (applyBtn) {
-            applyBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                filterProjects();
-            });
-        }
-
         // Clear button: reset all filters
         var clearBtns = document.querySelectorAll('[data-action="clear-search"]');
         clearBtns.forEach(function(btn) {
