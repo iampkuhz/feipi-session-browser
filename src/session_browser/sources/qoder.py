@@ -1363,9 +1363,17 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                 request_full = "\n\n".join(p for p in pending_request_parts if p)
                 pending_request_parts = []
 
+                # For tool-only responses, include a summary so response_full is not empty
+                content_text = "\n".join(text_parts)
+                if not content_text and tool_calls:
+                    content_text = "\n".join(
+                        f"[tool_use: {tc.get('name', 'unknown')}] {json.dumps(tc.get('parameters', {}), ensure_ascii=False)[:200]}"
+                        for tc in tool_calls
+                    )
+
                 messages.append(ChatMessage(
                     role="assistant",
-                    content="\n".join(text_parts),
+                    content=content_text,
                     timestamp=normalize_timestamp(rec.get("timestamp", "")),
                     model=model,
                     tool_calls=tool_calls,

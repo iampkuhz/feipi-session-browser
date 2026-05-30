@@ -2240,7 +2240,7 @@ def _build_v11_view_model(
 
                 rsp_diagnostic = ""
                 finish_r = getattr(ix, "finish_reason", "") or getattr(ix, "status", "unknown")
-                if finish_r and finish_r not in ("end_turn", "stop", "ok", ""):
+                if finish_r and finish_r not in ("end_turn", "stop", "ok", "tool_use", ""):
                     rsp_diagnostic = f"finish_reason: {finish_r}"
 
                 add_payload(
@@ -2272,7 +2272,13 @@ def _build_v11_view_model(
                     })
 
                 finish_r = getattr(ix, "finish_reason", "") or getattr(ix, "status", "unknown")
-                rsp_diagnostic = f"响应内容缺失；finish_reason: {finish_r}" if finish_r else "响应内容缺失"
+                # If tool_call blocks exist, the response has valid content (tool-only response)
+                if rsp_blocks:
+                    rsp_diagnostic = ""
+                elif finish_r:
+                    rsp_diagnostic = f"响应内容缺失；finish_reason: {finish_r}"
+                else:
+                    rsp_diagnostic = "响应内容缺失"
 
                 add_payload(
                     payload_id=response_payload_id,
@@ -2281,7 +2287,6 @@ def _build_v11_view_model(
                     text="",
                     warning=rsp_diagnostic,
                     response_blocks=rsp_blocks,
-                    response_diagnostics=rsp_diagnostic,
                     source_status=rsp_source_status,
                 )
 
