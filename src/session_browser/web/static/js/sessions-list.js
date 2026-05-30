@@ -117,7 +117,7 @@
       var sessionId = (row.dataset.sessionId || '').toLowerCase();
       var title = (row.dataset.title || '').toLowerCase();
       var show = !q || sessionId.indexOf(q) >= 0 || title.indexOf(q) >= 0;
-      row.style.display = show ? '' : 'none';
+      row.classList.toggle('is-hidden', !show);
       if (show) visibleCount++;
     }
     // Update matching count in filter footer
