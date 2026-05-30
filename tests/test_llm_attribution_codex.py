@@ -116,5 +116,7 @@ def test_codex_availability_notes_cache_unknown():
     result = builder.build_request()
 
     for row in result.availability_rows:
-        if row["field"] in ("fresh_input", "cache_read", "cache_write"):
-            assert row["available"] is False
+        field_val = row.field if hasattr(row, "field") else row["field"]
+        avail_val = row.available if hasattr(row, "available") else row["available"]
+        if field_val in ("fresh_input", "cache_read", "cache_write"):
+            assert avail_val is False

@@ -132,42 +132,40 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         user_msg_content = ro.user_msg.content if ro.user_msg else ""
         current_user_msg_tokens = estimate_tokens_from_text(user_msg_content)
 
-        # Tool results from this round
-        tool_result_texts = []
-        for tc in ro.tool_calls:
-            if tc.result and not tc.subagent_id:
-                tool_result_texts.append(tc.result)
+        # Tool results: ONLY preceding ones from session_context, NOT the
+        # entire round's tool_calls.  Tool results typically feed the NEXT
+        # LLM call, not the current one.
+        tool_result_texts = self._get_preceding_tool_result_texts()
         tool_results_tokens = estimate_tokens_from_text("\n".join(tool_result_texts))
 
         # History messages: extract prior messages from session_context
         prior_messages = self._extract_prior_messages()
+        prior_message_texts = []
+        for pm in prior_messages:
+            if isinstance(pm, dict):
+                prior_message_texts.append(pm.get("content", ""))
+            else:
+                prior_message_texts.append(str(pm))
         history_msg_count = len(prior_messages)
         history_visible_tokens = 0
         if prior_messages:
-            prior_texts = []
-            for pm in prior_messages:
-                if isinstance(pm, dict):
-                    prior_texts.append(pm.get("content", ""))
-                else:
-                    prior_texts.append(str(pm))
-            history_visible_tokens = estimate_tokens_from_text("\n".join(prior_texts))
+            history_visible_tokens = estimate_tokens_from_text("\n".join(prior_message_texts))
 
         # Captured context fragment: request_full content that is NOT
-        # classified as prior messages or current user message.
-        # Only generate this when request_full exists but we have no
-        # explicit prior messages (so we cannot safely call it history).
+        # classified as prior messages, current user message, or preceding
+        # tool results.  Deduplicate to avoid double-counting.
         captured_context_tokens = 0
         captured_context_text = ""
-        if lc.request_full and not prior_messages:
-            # The request_full contains some context but we cannot reliably
-            # classify it as history. Use captured_context_fragment instead.
-            captured_context_text = lc.request_full[:3000]
-            captured_context_tokens = estimate_tokens_from_text(captured_context_text)
-        elif lc.request_full and prior_messages:
-            # We have prior messages but request_full may contain additional
-            # context that we didn't classify (e.g. system prompts, injected rules).
-            # Keep it minimal — do not double-count.
-            captured_context_tokens = 0
+        if lc.request_full:
+            known_fragments = [
+                user_msg_content,
+                *prior_message_texts,
+                *tool_result_texts,
+            ]
+            deduped = self._remove_known_fragments(lc.request_full, known_fragments)
+            if deduped:
+                captured_context_text = deduped[:3000]
+                captured_context_tokens = estimate_tokens_from_text(captured_context_text)
 
         # Tool schemas: ONLY from available_tools list, NOT from observed
         # tool_calls.  Tool schemas refers to the list of tools available to
@@ -362,7 +360,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="estimated from text"),
             self._avail("tool_results_content", "Tool results content",
                         bool(tool_result_texts), exact=True,
-                        precision=ValuePrecision.ESTIMATED if tool_result_texts else ValuePrecision.UNAVAILABLE,
+                        precision=ValuePrecision.TRANSCRIPT_EXACT if tool_result_texts else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TOOL_LOGS,
                         fill_strategy="from tool result text"),
             self._avail("tool_results_tokens", "Tool results tokens",
@@ -423,7 +421,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 fill_strategy="total - sum(known_buckets)",
             ),
             buckets=buckets,
-            captured_context_preview=lc.request_preview or "",
+            captured_context_preview=captured_context_text[:500] if captured_context_text else "",
             attribution_notes=notes,
             availability_rows=avail_rows,
         )
@@ -566,7 +564,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="provider output_tokens" if lc.output_tokens > 0 else "sum of visible content"),
             self._avail("assistant_text_content", "Assistant text content", bool(response_text),
                         exact=True,
-                        precision=ValuePrecision.EXACT if response_text else ValuePrecision.UNAVAILABLE,
+                        precision=ValuePrecision.TRANSCRIPT_EXACT if response_text else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TRANSCRIPT,
                         fill_strategy="direct from response_full"),
             self._avail("assistant_text_tokens", "Assistant text tokens", True,
@@ -576,7 +574,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="estimated from text"),
             self._avail("tool_use_structure", "Tool use structure",
                         bool(lc.content_blocks or lc.tool_calls_raw), exact=True,
-                        precision=ValuePrecision.ESTIMATED,
+                        precision=ValuePrecision.TRANSCRIPT_EXACT,
                         source=ValueSource.TRANSCRIPT,
                         fill_strategy="from content_blocks or tool_calls_raw"),
             self._avail("tool_use_tokens", "Tool use tokens", True,

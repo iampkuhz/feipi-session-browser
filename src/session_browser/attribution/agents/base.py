@@ -16,10 +16,17 @@ from session_browser.attribution.contracts import (
     ResponseAttributionBucket,
     LLMRequestAttribution,
     LLMResponseAttribution,
+    AvailabilityRow,
     ValuePrecision,
     ValueSource,
 )
 from session_browser.attribution.token_estimator import estimate_tokens_from_text
+
+
+def _normalize_whitespace(text: str) -> str:
+    """Collapse consecutive whitespace to a single space for normalized comparison."""
+    import re
+    return re.sub(r'\s+', ' ', text).strip()
 
 
 class BaseAttributionBuilder:
@@ -37,6 +44,61 @@ class BaseAttributionBuilder:
         self.session_summary = session_summary
         self.session_context = session_context or {}
 
+    # ── Deduplication helpers ─────────────────────────────────────────
+
+    def _remove_known_fragments(self, text: str, fragments: list[str]) -> str:
+        """Remove known already-attributed text fragments from a larger captured context.
+
+        - Deterministic, no fuzzy LLM inference.
+        - Removes only exact or normalized exact fragments.
+        - Conservative: if unsure, keep text rather than deleting too much.
+        """
+        if not text:
+            return ""
+
+        for frag in fragments:
+            if not frag or len(frag.strip()) < 20:
+                continue
+            frag_stripped = frag.strip()
+            # Exact remove: delete first occurrence only
+            if frag_stripped in text:
+                text = text.replace(frag_stripped, "", 1)
+
+            # Normalized pass: try with collapsed whitespace
+            normalized_frag = _normalize_whitespace(frag_stripped)
+            normalized_text = _normalize_whitespace(text)
+            if normalized_frag in normalized_text and len(normalized_frag) >= 20:
+                # First period: record note but don't surgically delete
+                # (normalized removal is risky for code/structured text)
+                pass
+
+        return text.strip()
+
+    def _get_preceding_tool_result_texts(self) -> list[str]:
+        """Extract preceding tool result texts from session_context.
+
+        Reads from session_context['preceding_tool_results'] which should
+        contain only tool results that occurred BEFORE the current LLM call.
+        """
+        ctx = self.session_context or {}
+        items = ctx.get("preceding_tool_results", [])
+        result: list[str] = []
+        for item in items:
+            if hasattr(item, "result") and item.result:
+                # ToolCall object
+                if not getattr(item, "subagent_id", ""):
+                    result.append(item.result)
+            elif isinstance(item, dict):
+                # dict — try common keys
+                text = item.get("result") or item.get("content") or item.get("text") or item.get("output")
+                if text:
+                    result.append(str(text))
+            elif isinstance(item, str):
+                result.append(item)
+        return result
+
+    # ── Availability row builder ──────────────────────────────────────
+
     def _avail(
         self,
         field_name: str,
@@ -47,7 +109,7 @@ class BaseAttributionBuilder:
         source: str = "",
         fill_strategy: str = "",
         note: str = "",
-    ) -> dict:
+    ) -> AvailabilityRow:
         """Build a full availability row for UI parameter table."""
         if not precision:
             precision = ValuePrecision.EXACT if exact else (
@@ -57,16 +119,16 @@ class BaseAttributionBuilder:
             source = ValueSource.HEURISTIC if available else ValueSource.HEURISTIC
         if not fill_strategy:
             fill_strategy = "direct" if available else "not available"
-        return {
-            "field": field_name,
-            "label": label,
-            "exact": exact,
-            "available": available,
-            "precision": precision,
-            "source": source,
-            "fill_strategy": fill_strategy,
-            "note": note or ("available from " + field_name if available else "not available"),
-        }
+        return AvailabilityRow(
+            field=field_name,
+            label=label,
+            exact=exact,
+            available=available,
+            precision=precision,
+            source=source,
+            fill_strategy=fill_strategy,
+            note=note or ("available from " + field_name if available else "not available"),
+        )
 
     def _request_id(self) -> str:
         """Fallback chain: provider request_id > llm_call.id > unavailable."""

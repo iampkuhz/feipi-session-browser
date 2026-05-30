@@ -106,30 +106,36 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         user_msg_content = ro.user_msg.content if ro.user_msg else ""
         current_user_msg_tokens = estimate_tokens_from_text(user_msg_content)
 
-        # Tool results
-        tool_result_texts = []
-        for tc in ro.tool_calls:
-            if tc.result and not tc.subagent_id:
-                tool_result_texts.append(tc.result)
+        # Tool results: ONLY preceding ones from session_context
+        tool_result_texts = self._get_preceding_tool_result_texts()
         tool_results_tokens = estimate_tokens_from_text("\n".join(tool_result_texts))
 
         # History messages: ONLY from explicit prior_messages
         prior_messages = self._extract_prior_messages()
+        prior_message_texts = []
+        for pm in prior_messages:
+            if isinstance(pm, dict):
+                prior_message_texts.append(pm.get("content", ""))
+            else:
+                prior_message_texts.append(str(pm))
         history_msg_count = len(prior_messages)
         history_tokens = 0
         if prior_messages:
-            prior_texts = []
-            for pm in prior_messages:
-                if isinstance(pm, dict):
-                    prior_texts.append(pm.get("content", ""))
-                else:
-                    prior_texts.append(str(pm))
-            history_tokens = estimate_tokens_from_text("\n".join(prior_texts))
+            history_tokens = estimate_tokens_from_text("\n".join(prior_message_texts))
 
-        # Captured context fragment: request_full without classifiable prior messages
+        # Captured context fragment: deduped against known content
         captured_context_tokens = 0
-        if lc.request_full and not prior_messages:
-            captured_context_tokens = estimate_tokens_from_text(lc.request_full[:3000])
+        captured_context_text = ""
+        if lc.request_full:
+            known_fragments = [
+                user_msg_content,
+                *prior_message_texts,
+                *tool_result_texts,
+            ]
+            deduped = self._remove_known_fragments(lc.request_full, known_fragments)
+            if deduped:
+                captured_context_text = deduped[:3000]
+                captured_context_tokens = estimate_tokens_from_text(captured_context_text)
 
         # Tool schemas: ONLY from available_tools, NOT from observed tool_calls
         available_tools = self._get_available_tools()
@@ -187,7 +193,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="低",
                 summary="request_full 中存在但无法分类为历史消息的上下文片段。",
-                content_preview=lc.request_preview[:120] if lc.request_preview else "",
+                content_preview=captured_context_text[:120] if captured_context_text else "",
             ))
 
         if tool_results_tokens > 0:
@@ -313,7 +319,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="estimated from text"),
             self._avail("tool_results_content", "Tool results content",
                         bool(tool_result_texts), exact=True,
-                        precision=ValuePrecision.ESTIMATED if tool_result_texts else ValuePrecision.UNAVAILABLE,
+                        precision=ValuePrecision.TRANSCRIPT_EXACT if tool_result_texts else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TOOL_LOGS,
                         fill_strategy="from tool result text"),
             self._avail("tool_results_tokens", "Tool results tokens",
@@ -371,7 +377,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 fill_strategy="total - sum(known_buckets)",
             ),
             buckets=buckets,
-            captured_context_preview=lc.request_preview or "",
+            captured_context_preview=captured_context_text[:500] if captured_context_text else "",
             attribution_notes=notes,
             availability_rows=avail_rows,
         )
@@ -491,7 +497,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="provider output_tokens" if lc.output_tokens > 0 else "estimated"),
             self._avail("assistant_text_content", "Assistant text content", bool(response_text),
                         exact=True,
-                        precision=ValuePrecision.ESTIMATED,
+                        precision=ValuePrecision.TRANSCRIPT_EXACT if response_text else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TRANSCRIPT,
                         fill_strategy="direct from response_full"),
             self._avail("assistant_text_tokens", "Assistant text tokens", True,
@@ -501,9 +507,9 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="estimated"),
             self._avail("tool_use_structure", "Tool use structure",
                         bool(lc.content_blocks or lc.tool_calls_raw), exact=True,
-                        precision=ValuePrecision.ESTIMATED,
+                        precision=ValuePrecision.TRANSCRIPT_EXACT,
                         source=ValueSource.TRANSCRIPT,
-                        fill_strategy="estimated from JSON"),
+                        fill_strategy="from content_blocks or tool_calls_raw"),
             self._avail("tool_use_tokens", "Tool use tokens", True,
                         exact=False,
                         precision=ValuePrecision.ESTIMATED,

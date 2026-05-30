@@ -6,8 +6,11 @@ This avoids duplicating dict-construction logic in the route handler.
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from session_browser.attribution.contracts import (
     AttributedValue,
+    AvailabilityRow,
     RequestAttributionBucket,
     ResponseAttributionBucket,
     LLMRequestAttribution,
@@ -66,6 +69,13 @@ def _response_bucket_to_dict(b: ResponseAttributionBucket) -> dict:
     }
 
 
+def availability_row_to_dict(row: AvailabilityRow | dict) -> dict:
+    """Convert an AvailabilityRow or legacy dict row to a serializable dict."""
+    if isinstance(row, dict):
+        return row
+    return asdict(row)
+
+
 def request_attribution_to_payload(attr: LLMRequestAttribution) -> dict:
     """Serialize a full LLMRequestAttribution to a route-ready payload dict."""
     return {
@@ -88,7 +98,7 @@ def request_attribution_to_payload(attr: LLMRequestAttribution) -> dict:
         "buckets": [_request_bucket_to_dict(b) for b in attr.buckets],
         "captured_context_preview": attr.captured_context_preview,
         "attribution_notes": list(attr.attribution_notes),
-        "availability_rows": [dict(r) for r in attr.availability_rows],
+        "availability_rows": [availability_row_to_dict(r) for r in attr.availability_rows],
     }
 
 
@@ -116,7 +126,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution) -> dict:
         "blocks": list(attr.blocks),
         "captured_output_preview": attr.captured_output_preview,
         "attribution_notes": list(attr.attribution_notes),
-        "availability_rows": [dict(r) for r in attr.availability_rows],
+        "availability_rows": [availability_row_to_dict(r) for r in attr.availability_rows],
     }
 
 

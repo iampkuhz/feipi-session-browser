@@ -127,7 +127,7 @@ class LLMRequestAttribution:
     buckets: list[RequestAttributionBucket]
     captured_context_preview: str
     attribution_notes: list[str]
-    availability_rows: list[dict]
+    availability_rows: list[AvailabilityRow | dict]
 
 
 # ─── Response attribution result ───────────────────────────────────────
@@ -156,4 +156,4 @@ class LLMResponseAttribution:
     blocks: list[dict]
     captured_output_preview: str
     attribution_notes: list[str]
-    availability_rows: list[dict]
+    availability_rows: list[AvailabilityRow | dict]

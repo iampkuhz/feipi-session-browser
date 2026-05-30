@@ -140,7 +140,10 @@ def test_claude_code_availability_rows():
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    fields = {r["field"] for r in result.availability_rows}
+    fields = {
+        r.field if hasattr(r, "field") else r["field"]
+        for r in result.availability_rows
+    }
     assert "total_input" in fields
     assert "fresh_input" in fields
     assert "cache_read" in fields

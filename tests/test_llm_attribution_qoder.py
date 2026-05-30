@@ -102,12 +102,17 @@ def test_qoder_availability_notes_cache_unknown():
     builder = QoderAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    fields = {r["field"] for r in result.availability_rows}
+    fields = {
+        r.field if hasattr(r, "field") else r["field"]
+        for r in result.availability_rows
+    }
     assert "fresh_input" in fields
     assert "cache_read" in fields
     assert "cache_write" in fields
 
     # Check availability rows for these fields show unavailable
     for row in result.availability_rows:
-        if row["field"] in ("fresh_input", "cache_read", "cache_write"):
-            assert row["available"] is False
+        field_val = row.field if hasattr(row, "field") else row["field"]
+        avail_val = row.available if hasattr(row, "available") else row["available"]
+        if field_val in ("fresh_input", "cache_read", "cache_write"):
+            assert avail_val is False

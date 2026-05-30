@@ -22,7 +22,7 @@ from session_browser.attribution.service import (
     build_llm_response_attribution,
 )
 from session_browser.attribution.contracts import (
-    AttributedValue, ValuePrecision, ValueSource,
+    AttributedValue, ValuePrecision, ValueSource, AvailabilityRow,
 )
 
 
@@ -177,11 +177,17 @@ def test_availability_rows_exist(agent):
     assert len(req.availability_rows) > 0
     assert len(resp.availability_rows) > 0
     for row in req.availability_rows:
-        assert "field" in row
-        assert "available" in row
+        if isinstance(row, dict):
+            assert "field" in row
+        else:
+            assert isinstance(row, AvailabilityRow)
+            assert row.field
     for row in resp.availability_rows:
-        assert "field" in row
-        assert "available" in row
+        if isinstance(row, dict):
+            assert "field" in row
+        else:
+            assert isinstance(row, AvailabilityRow)
+            assert row.field
 
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])

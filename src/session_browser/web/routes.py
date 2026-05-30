@@ -85,6 +85,9 @@ from session_browser.attribution.service import (
     build_llm_request_attribution,
     build_llm_response_attribution,
 )
+from session_browser.attribution.context import (
+    build_attribution_session_context,
+)
 from session_browser.attribution.contracts import (
     LLMRequestAttribution,
     LLMResponseAttribution,
@@ -2351,22 +2354,26 @@ def _build_v11_view_model(
             # Build request/response attribution and add to payload_sources
             # so UI can render them without re-computing.
             round_id_str = str(rid)
+
+            # Build call-scoped session context for attribution builders
+            attrib_ctx = build_attribution_session_context(
+                session=session,
+                round_obj=r,
+                interaction_index=ix_idx,
+                interactions=r.interactions,
+                round_tool_calls=r.tool_calls,
+            )
+
+            # Request attribution — independent try so response failure
+            # does not wipe out a successful request attribution.
             try:
                 req_attr = build_llm_request_attribution(
                     agent=session.agent,
                     llm_call=ix,
                     round_obj=r,
                     session_summary=session,
-                    session_context=None,
+                    session_context=attrib_ctx,
                 )
-                resp_attr = build_llm_response_attribution(
-                    agent=session.agent,
-                    llm_call=ix,
-                    round_obj=r,
-                    session_summary=session,
-                    session_context=None,
-                )
-                # Register request attribution payload via serializer
                 req_payload = request_attribution_to_payload(req_attr)
                 add_payload(
                     payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
@@ -2375,8 +2382,39 @@ def _build_v11_view_model(
                     text="",
                 )
                 payload_sources[-1]["data"] = req_payload
+            except Exception as exc:
+                import logging
+                logging.getLogger("session_browser.web").debug(
+                    "Failed to build request attribution for LLM call %s: %s",
+                    ix.id, exc, exc_info=True,
+                )
+                error_type = type(exc).__name__
+                short_msg = str(exc)[:200] if str(exc) else "request attribution failed"
+                err_payload = attribution_error_to_payload(
+                    agent=session.agent,
+                    call_id=ix.id or "",
+                    round_id=round_id_str,
+                    error_type=error_type,
+                    message=short_msg,
+                )
+                add_payload(
+                    payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
+                    kind="llm.attribution_error",
+                    title=f"R{rid} · LLM Call #{iix} · Request Attribution (error)",
+                    text="",
+                )
+                payload_sources[-1]["data"] = err_payload
 
-                # Register response attribution payload via serializer
+            # Response attribution — independent try so request failure
+            # does not wipe out a successful response attribution.
+            try:
+                resp_attr = build_llm_response_attribution(
+                    agent=session.agent,
+                    llm_call=ix,
+                    round_obj=r,
+                    session_summary=session,
+                    session_context=attrib_ctx,
+                )
                 resp_payload = response_attribution_to_payload(resp_attr)
                 add_payload(
                     payload_id=f"llm-R{rid}-IX{iix}-response-attribution",
@@ -2386,16 +2424,13 @@ def _build_v11_view_model(
                 )
                 payload_sources[-1]["data"] = resp_payload
             except Exception as exc:
-                # Attribution should never block the page; generate
-                # a diagnostic error payload instead of silently swallowing.
                 import logging
-                import traceback as _tb
                 logging.getLogger("session_browser.web").debug(
-                    "Failed to build attribution for LLM call %s: %s",
+                    "Failed to build response attribution for LLM call %s: %s",
                     ix.id, exc, exc_info=True,
                 )
                 error_type = type(exc).__name__
-                short_msg = str(exc)[:200] if str(exc) else "attribution failed"
+                short_msg = str(exc)[:200] if str(exc) else "response attribution failed"
                 err_payload = attribution_error_to_payload(
                     agent=session.agent,
                     call_id=ix.id or "",
@@ -2403,21 +2438,13 @@ def _build_v11_view_model(
                     error_type=error_type,
                     message=short_msg,
                 )
-                # Register error payloads for both request and response
-                add_payload(
-                    payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
-                    kind="llm.attribution_error",
-                    title=f"R{rid} · LLM Call #{iix} · Request Attribution (error)",
-                    text="",
-                )
-                payload_sources[-1]["data"] = err_payload
                 add_payload(
                     payload_id=f"llm-R{rid}-IX{iix}-response-attribution",
                     kind="llm.attribution_error",
                     title=f"R{rid} · LLM Call #{iix} · Response Attribution (error)",
                     text="",
                 )
-                payload_sources[-1]["data"] = dict(err_payload)
+                payload_sources[-1]["data"] = err_payload
 
             items.append(llm_item)
             items.extend(parallel_batches)
