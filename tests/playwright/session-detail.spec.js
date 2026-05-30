@@ -142,7 +142,6 @@ test.describe('会话详情 — Phase 1', () => {
       'status-all',
       'status-failed',
       'tab-metrics',
-      'tab-payloads',
       'tab-trace',
       'toggle-all',
     ]);
@@ -486,33 +485,6 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(metricsPanel).toBeVisible({ timeout: 5000 });
 
     // trace 面板应隐藏
-    await expect(tracePanel).toBeHidden({ timeout: 5000 });
-  });
-
-  test('[UI-SD-011] 点击 payloads tab 后 payloads 面板可见', async ({ page }) => {
-    if (!sessionUrl) {
-      console.log('无测试会话 URL；跳过 payloads tab 测试。');
-      test.skip();
-    }
-
-    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
-
-    // 点击 payloads tab
-    const payloadsTab = page.locator('[data-tab="payloads"]');
-    await expect(payloadsTab).toBeVisible({ timeout: 5000 });
-    await payloadsTab.click();
-    await page.waitForTimeout(200);
-
-    // payloads tab 应激活
-    await expect(payloadsTab).toHaveClass(/is-active/);
-
-    // payloads 面板应可见
-    const payloadsPanel = page.locator('[data-tab-panel="payloads"]');
-    await expect(payloadsPanel).toBeVisible({ timeout: 5000 });
-
-    // trace 面板应隐藏
-    const tracePanel = page.locator('[data-tab-panel="trace"]');
     await expect(tracePanel).toBeHidden({ timeout: 5000 });
   });
 

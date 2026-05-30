@@ -51,9 +51,6 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
     <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace">
       <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
     </a>
-    <a class="sd-tab" href="#" data-action="tab-payloads" data-tab="payloads">
-      <span class="sd-tab-icon" aria-hidden="true">&#x1F4E6;</span>Payloads
-    </a>
   </nav>
 
   <section class="sd-trace-panel" data-trace-panel data-tab-panel="trace">
@@ -92,36 +89,6 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
       </tbody>
     </table>
     {% endif %}
-  </section>
-
-  {# ── Payloads panel ── #}
-  <section class="sd-payloads-panel" data-payloads-panel data-tab-panel="payloads" hidden>
-    <div class="sd-payloads-panel__head">
-      <h2>Payloads</h2>
-    </div>
-    <div class="sd-payloads-panel__body">
-      {% if payload_sources and payload_sources|length > 0 %}
-      <p class="sd-payloads-panel__desc">Payloads grouped by LLM call. Click Request / Response / Result to view in modal.</p>
-      <div class="sd-payload-index-list">
-        {% for p in payload_sources %}
-        <div class="sd-payload-index-item">
-          <span class="sd-payload-index-kind">{{ p.kind|default('unknown') }}</span>
-          <span class="sd-payload-index-status sd-status--{{ p.status|default('available') }}">{{ p.status|default('available') }}</span>
-          <span class="sd-payload-index-size">{{ p.size|default('—') }}</span>
-          {% if p.payload_id %}
-          <button type="button" class="sd-btn sd-btn--primary sd-btn--sm" data-action="open-payload" data-payload-id="{{ p.payload_id }}" data-payload-kind="{{ p.kind|default('unknown') }}" data-payload-title="{{ p.kind|default('Payload') }}">
-            View
-          </button>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="sd-empty-state">
-        <p>No payload sources collected for this session.</p>
-      </div>
-      {% endif %}
-    </div>
   </section>
 
   {{ sdt.payload_sources(payload_sources | default([])) }}

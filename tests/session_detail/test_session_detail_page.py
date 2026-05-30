@@ -175,14 +175,6 @@ class TestTabNavigation:
             "Missing data-tab=\"metrics\""
 
     @pytest.mark.contract_case("UI-SD-001")
-    def test_payloads_tab_exists(self, session):
-        """Payloads tab must exist with data-action=\"tab-payloads\"."""
-        assert 'data-action="tab-payloads"' in session, \
-            "Missing Payloads tab"
-        assert 'data-tab="payloads"' in session, \
-            "Missing data-tab=\"payloads\""
-
-    @pytest.mark.contract_case("UI-SD-001")
     def test_trace_tab_is_active(self, session):
         """Trace tab should be the default active tab (is-active class)."""
         # The first tab (Trace) should have is-active
