@@ -181,7 +181,10 @@ def parse_session_detail(
     summary = _build_summary_from_events(
         events, session_id, thread_info, session_meta
     )
-    messages = _extract_messages(events)
+    model_from_db = thread_info.get("model", "")
+    if not model_from_db:
+        model_from_db = session_meta.get("model_provider", "")
+    messages = _extract_messages(events, model=model_from_db)
     tool_calls = _extract_tool_calls(events)
 
     # Attach parse diagnostics from JSONL reader
@@ -391,19 +394,20 @@ def _get_int_safe(d: dict, key: str) -> int:
         return 0
 
 
-def _extract_messages(events: list[dict]) -> list[ChatMessage]:
+def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
     """Extract user and agent messages from Codex events.
 
     Uses event_msg with type=user_message and type=agent_message.
     Tracks pending request parts for subsequent assistant messages.
     Attaches per-turn token usage from token_count events and tool call IDs
-    from function_call response_items to each assistant message.
+    from function_call and custom_tool_call response_items to each assistant message.
 
     Note: Each agent_message is followed by multiple token_count events (one per
     LLM call including tool follow-ups). All token_counts between two
     agent_messages are aggregated to form the per-turn usage for the preceding
-    agent_message. Similarly, function_call IDs between agent_messages are
-    collected to populate assistant_msg.tool_calls for round matching.
+    agent_message. Similarly, function_call and custom_tool_call IDs between
+    agent_messages are collected to populate assistant_msg.tool_calls for round
+    matching.
     """
     messages = []
     pending_request_parts: list[str] = []
@@ -418,8 +422,8 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                 and payload.get("phase", "") in ("commentary", "final")):
             agent_msg_indices.append(i)
 
-    # For each agent_message, collect token_counts and function_call IDs
-    # between it and the next agent_message.
+    # For each agent_message, collect token_counts and tool call IDs
+    # (function_call + custom_tool_call) between it and the next agent_message.
     agent_usage: dict[int, dict] = {}  # agent_msg_index -> aggregated usage
     agent_tool_ids: dict[int, list[dict]] = {}  # agent_msg_index -> [{id, name}, ...]
     for ai, start_idx in enumerate(agent_msg_indices):
@@ -450,7 +454,8 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                         usage["total_tokens"] += last_usage.get("total_tokens", 0) or 0
             elif ev.get("type") == "response_item":
                 payload = ev.get("payload", {})
-                if payload.get("type") == "function_call":
+                rtype = payload.get("type", "")
+                if rtype in ("function_call", "custom_tool_call"):
                     call_id = payload.get("call_id", "")
                     tool_name = payload.get("name", "")
                     if call_id:
@@ -495,6 +500,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                         role="assistant",
                         content=str(content),
                         timestamp=ts,
+                        model=model,
                         request_full=request_full,
                         usage=usage,
                         tool_calls=tool_calls_list,
@@ -508,13 +514,14 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
 
     Each function_call has a call_id (used as tool_use_id) and a matching
     function_call_output with the result and exit status.
+    custom_tool_call (e.g. apply_patch) is also handled the same way.
     """
-    # Pre-index function_call_output by call_id
+    # Pre-index outputs by call_id (both function_call_output and custom_tool_call_output)
     outputs_by_id: dict[str, dict] = {}
     for ev in events:
         if ev.get("type") == "response_item":
             payload = ev.get("payload", {})
-            if payload.get("type") == "function_call_output":
+            if payload.get("type") in ("function_call_output", "custom_tool_call_output"):
                 call_id = payload.get("call_id", "")
                 if call_id:
                     outputs_by_id[call_id] = payload
@@ -527,9 +534,14 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
 
         if etype == "response_item":
             rtype = payload.get("type", "")
-            if rtype == "function_call":
+            if rtype in ("function_call", "custom_tool_call"):
                 name = payload.get("name", "")
+                # custom_tool_call uses "input" for args; function_call uses "arguments"
                 args = payload.get("arguments", {})
+                if rtype == "custom_tool_call" and not args:
+                    args_raw = payload.get("input", "")
+                    if isinstance(args_raw, str):
+                        args = {"patch": args_raw}
                 if isinstance(args, str):
                     try:
                         import json
@@ -538,7 +550,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                         args = {"raw": args[:200]}
                 call_id = payload.get("call_id", "")
 
-                # Match with function_call_output for status/result
+                # Match with output for status/result
                 status = "completed"
                 result = ""
                 exit_code: int | None = None
@@ -546,9 +558,11 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                 if output_ev:
                     output_text = str(output_ev.get("output", ""))
                     result = output_text
-                    # Extract exit code from output (e.g. "Process exited with code 1")
+                    # Extract exit code from output (e.g. "Process exited with code 1" or "Exit code: 1")
                     import re
                     exit_match = re.search(r"exited with code (\d+)", output_text)
+                    if not exit_match:
+                        exit_match = re.search(r"Exit code[:\s]*(\d+)", output_text)
                     if exit_match:
                         exit_code = int(exit_match.group(1))
                         if exit_code != 0:
