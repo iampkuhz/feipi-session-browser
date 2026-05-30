@@ -102,7 +102,7 @@ th.sortable:hover {
   background: var(--surface-soft);
   border-radius: 999px;
   display: flex;
-  overflow: hidden;
+  overflow: visible;
   cursor: help;
   border: 1px solid var(--line-soft);
 }
