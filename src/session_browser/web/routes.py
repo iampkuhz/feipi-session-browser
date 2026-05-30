@@ -2275,8 +2275,12 @@ def _build_v11_view_model(
                 # If tool_call blocks exist, the response has valid content (tool-only response)
                 if rsp_blocks:
                     rsp_diagnostic = ""
-                elif finish_r:
+                elif finish_r and finish_r not in ("tool_use",):
+                    # tool_use is a valid finish reason — model only returned tool calls,
+                    # no text response. Don't flag it as missing content.
                     rsp_diagnostic = f"响应内容缺失；finish_reason: {finish_r}"
+                elif finish_r == "tool_use":
+                    rsp_diagnostic = ""
                 else:
                     rsp_diagnostic = "响应内容缺失"
 
