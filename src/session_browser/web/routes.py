@@ -81,6 +81,15 @@ from session_browser.web.template_env import (
 )
 from session_browser.web.renderers.markdown import render_markdown as _md_filter
 from session_browser.web import template_env as _template_mod
+from session_browser.attribution.service import (
+    build_llm_request_attribution,
+    build_llm_response_attribution,
+)
+from session_browser.attribution.contracts import (
+    LLMRequestAttribution,
+    LLMResponseAttribution,
+)
+from dataclasses import asdict
 
 logger = logging.getLogger("session_browser.web")
 
@@ -2332,6 +2341,114 @@ def _build_v11_view_model(
                 "tool_call_count": len(ix_tool_calls_for_llm),
                 "failed_tool_count": sum(1 for tc in ix_tool_calls_for_llm if getattr(tc, "is_failed", False)),
             }
+
+            # ── LLM attribution payloads ──────────────────────────────
+            # Build request/response attribution and add to payload_sources
+            # so UI can render them without re-computing.
+            try:
+                req_attr = build_llm_request_attribution(
+                    agent=session.agent,
+                    llm_call=ix,
+                    round_obj=r,
+                    session_summary=session,
+                    session_context=None,
+                )
+                resp_attr = build_llm_response_attribution(
+                    agent=session.agent,
+                    llm_call=ix,
+                    round_obj=r,
+                    session_summary=session,
+                    session_context=None,
+                )
+                # Register request attribution payload
+                add_payload(
+                    payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
+                    kind="llm.request_attribution",
+                    title=f"R{rid} · LLM Call #{iix} · Request Attribution",
+                    text="",
+                )
+                payload_sources[-1]["data"] = {
+                    "kind": "llm.request_attribution",
+                    "agent": req_attr.agent,
+                    "model": req_attr.model,
+                    "source_label": req_attr.source_label,
+                    "confidence_label": req_attr.confidence_label,
+                    "raw_body_available": req_attr.raw_body_available,
+                    "usage": {
+                        "total_input": {"value": req_attr.total_input.value, "unit": req_attr.total_input.unit,
+                                        "precision": req_attr.total_input.precision, "source": req_attr.total_input.source,
+                                        "fill_strategy": req_attr.total_input.fill_strategy},
+                        "fresh_input": {"value": req_attr.fresh_input.value, "unit": req_attr.fresh_input.unit,
+                                        "precision": req_attr.fresh_input.precision, "source": req_attr.fresh_input.source,
+                                        "fill_strategy": req_attr.fresh_input.fill_strategy},
+                        "cache_read": {"value": req_attr.cache_read.value, "unit": req_attr.cache_read.unit,
+                                       "precision": req_attr.cache_read.precision, "source": req_attr.cache_read.source,
+                                       "fill_strategy": req_attr.cache_read.fill_strategy},
+                        "cache_write": {"value": req_attr.cache_write.value, "unit": req_attr.cache_write.unit,
+                                        "precision": req_attr.cache_write.precision, "source": req_attr.cache_write.source,
+                                        "fill_strategy": req_attr.cache_write.fill_strategy},
+                    },
+                    "buckets": [
+                        {
+                            "key": b.key, "label": b.label, "tokens": b.tokens,
+                            "percent": b.percent, "count_label": b.count_label,
+                            "precision": b.precision, "source": b.source,
+                            "confidence_label": b.confidence_label, "summary": b.summary,
+                        }
+                        for b in req_attr.buckets
+                    ],
+                    "availability_rows": req_attr.availability_rows,
+                    "attribution_notes": req_attr.attribution_notes,
+                }
+                # Register response attribution payload
+                add_payload(
+                    payload_id=f"llm-R{rid}-IX{iix}-response-attribution",
+                    kind="llm.response_attribution",
+                    title=f"R{rid} · LLM Call #{iix} · Response Attribution",
+                    text="",
+                )
+                payload_sources[-1]["data"] = {
+                    "kind": "llm.response_attribution",
+                    "agent": resp_attr.agent,
+                    "model": resp_attr.model,
+                    "source_label": resp_attr.source_label,
+                    "confidence_label": resp_attr.confidence_label,
+                    "raw_body_available": resp_attr.raw_body_available,
+                    "usage": {
+                        "total_output": {"value": resp_attr.total_output.value, "unit": resp_attr.total_output.unit,
+                                         "precision": resp_attr.total_output.precision, "source": resp_attr.total_output.source,
+                                         "fill_strategy": resp_attr.total_output.fill_strategy},
+                        "visible_text": {"value": resp_attr.visible_text.value, "unit": resp_attr.visible_text.unit,
+                                         "precision": resp_attr.visible_text.precision, "source": resp_attr.visible_text.source,
+                                         "fill_strategy": resp_attr.visible_text.fill_strategy},
+                        "tool_use": {"value": resp_attr.tool_use.value, "unit": resp_attr.tool_use.unit,
+                                     "precision": resp_attr.tool_use.precision, "source": resp_attr.tool_use.source,
+                                     "fill_strategy": resp_attr.tool_use.fill_strategy},
+                        "metadata": {"value": resp_attr.metadata.value, "unit": resp_attr.metadata.unit,
+                                     "precision": resp_attr.metadata.precision, "source": resp_attr.metadata.source,
+                                     "fill_strategy": resp_attr.metadata.fill_strategy},
+                        "finish_reason": {"value": resp_attr.finish_reason.value, "unit": resp_attr.finish_reason.unit,
+                                          "precision": resp_attr.finish_reason.precision, "source": resp_attr.finish_reason.source,
+                                          "fill_strategy": resp_attr.finish_reason.fill_strategy},
+                    },
+                    "buckets": [
+                        {
+                            "key": b.key, "label": b.label, "tokens": b.tokens,
+                            "percent": b.percent, "count_label": b.count_label,
+                            "precision": b.precision, "source": b.source,
+                            "confidence_label": b.confidence_label, "summary": b.summary,
+                        }
+                        for b in resp_attr.buckets
+                    ],
+                    "availability_rows": resp_attr.availability_rows,
+                    "attribution_notes": resp_attr.attribution_notes,
+                }
+            except Exception:
+                # Attribution should never block the page; degrade gracefully.
+                import logging
+                logging.getLogger("session_browser.web").debug(
+                    "Failed to build attribution for LLM call %s", ix.id, exc_info=True)
+
             items.append(llm_item)
             items.extend(parallel_batches)
 
