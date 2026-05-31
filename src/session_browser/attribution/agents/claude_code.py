@@ -27,6 +27,91 @@ from session_browser.attribution.contracts import (
 from session_browser.attribution.token_estimator import estimate_tokens_from_text
 from session_browser.attribution.agents.base import BaseAttributionBuilder
 
+# Built-in tool descriptions for Claude Code common tools.
+_TOOL_DESCRIPTIONS = {
+    "Read": "读取文件内容。",
+    "Write": "写入文件内容，创建新文件。",
+    "Edit": "对文件进行精确的局部修改。",
+    "Bash": "执行 shell 命令。",
+    "Grep": "在文件中搜索文本。",
+    "Glob": "按模式匹配查找文件。",
+    "LS": "列出目录内容。",
+    "Agent": "启动子 agent 执行任务。",
+    "TodoWrite": "创建/更新任务列表。",
+    "WebFetch": "获取网页内容。",
+}
+
+_DEFAULT_CC_TOOLS = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "LS", "Agent"]
+
+
+def _tool_description(name: str) -> str:
+    """Return built-in description for a known tool; fallback for unknown."""
+    return _TOOL_DESCRIPTIONS.get(name, "工具说明未知。")
+
+
+def _estimate_tool_schema_tokens(name: str) -> int:
+    """Estimate schema token count for a tool.
+
+    Uses per-tool heuristic; most tools are ~240 tokens in schema form.
+    """
+    # Larger tools like Bash/Edit may have bigger schemas
+    large_tools = {"Bash", "Edit", "Write", "Read"}
+    if name in large_tools:
+        return 320
+    return _DEFAULT_SCHEMA_TOKENS_PER_TOOL
+
+
+def _extract_tool_name(result_text: str) -> str:
+    """Attempt to extract tool name from a tool result text.
+
+    Looks for common patterns like 'Tool Call: Name', '### Name', etc.
+    Falls back to first word or 'unknown'.
+    """
+    if not result_text:
+        return "unknown"
+    # Try common header patterns
+    import re as _re
+    m = _re.search(r'(?:Tool|tool)[\s_]*(?:Call|Result|Output)?[:\s]+(\w+)', result_text)
+    if m:
+        return m.group(1)
+    m = _re.search(r'^###\s+(\w+)', result_text, _re.MULTILINE)
+    if m:
+        return m.group(1)
+    # Fallback: first word
+    first = result_text.split()[0] if result_text.split() else "unknown"
+    return first[:30]  # cap length
+
+
+def _mask_sensitive_keys(text: str) -> str:
+    """Mask sensitive key values in text for safe display."""
+    # Inline implementation to avoid circular import from context.py
+    sensitive_keys = frozenset({
+        "api_key", "apikey", "token", "secret", "password",
+        "authorization", "bearer", "credential", "env",
+    })
+    if not text:
+        return ""
+    result = text
+    for key in sensitive_keys:
+        # Match "key": "value" or key: value patterns
+        import re as _re2
+        pattern = _re2.compile(
+            r'(["\']?' + _re2.escape(key) + r'["\']?\s*[:=]\s*)'
+            r'(["][^"]*["]|[\'"][^\']*[\'"]|[^\n,}]+)',
+            _re2.IGNORECASE,
+        )
+        result = pattern.sub(lambda m: m.group(1) + '***MASKED***', result)
+    return result
+
+
+def _truncate_preview(text: str, max_len: int = 200) -> str:
+    """Truncate text to max_len characters with ellipsis."""
+    if not text:
+        return ""
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "…"
+
 
 # Default schema token estimate per tool when we can only count tools.
 _DEFAULT_SCHEMA_TOKENS_PER_TOOL = 240
@@ -281,8 +366,9 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         if prior_messages:
             prior_conversation_tokens = estimate_tokens_from_text("\n".join(prior_message_texts))
 
-        # Tool schemas: ONLY from available_tools list, NOT from observed
-        # tool_calls.
+        # Tool schemas: use real JSON Schema definitions extracted from
+        # Claude Code npm package (sdk-tools.d.ts) for accurate token
+        # counting, instead of the old per-tool heuristic.
         available_tools = self._get_available_tools()
         tool_schema_tokens = 0
         tool_schemas_availability = ValuePrecision.UNAVAILABLE
@@ -291,11 +377,18 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             "无法从本地日志获取可用工具定义列表；不能用实际 tool calls 代替 tool schemas。"
         )
         if available_tools:
-            tool_schema_tokens = len(available_tools) * _DEFAULT_SCHEMA_TOKENS_PER_TOOL
-            tool_schemas_availability = ValuePrecision.HEURISTIC
+            # Import here to avoid circular dependency at module load time.
+            from session_browser.attribution.agents.claude_code_tool_schemas import (
+                get_all_tool_schema_tokens,
+                get_cached_schemas,
+            )
+            schemas = get_cached_schemas()
+            tool_schema_tokens = get_all_tool_schema_tokens(available_tools, schemas)
+            tool_schemas_availability = ValuePrecision.ESTIMATED
             tool_schemas_source = ValueSource.TOOL_LIST
             tool_schemas_summary = (
-                f"按 {len(available_tools)} 个可用工具 × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens/tool 估算。"
+                f"基于 Claude Code SDK 真实 tool schema 定义，"
+                f"{len(available_tools)} 个工具共 {tool_schema_tokens} tokens。"
             )
 
         # Local instruction context: look for system-reminder content in
@@ -392,6 +485,12 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
 
         # 1. current_user_message — 当前用户输入
         if current_user_msg_tokens > 0:
+            masked_user_content = _mask_sensitive_keys(user_msg_content or "")
+            current_user_details = {
+                "kind": "current_user_message",
+                "preview": _truncate_preview(masked_user_content, 1000),
+                "tokens": current_user_msg_tokens,
+            }
             buckets.append(RequestAttributionBucket(
                 key="current_user_message",
                 label="当前用户输入",
@@ -402,10 +501,25 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 confidence_label="中高",
                 summary="用户消息内容完整可用，token 通过文本估算。",
                 content_preview=(user_msg_content or "")[:120],
+                details=current_user_details,
             ))
 
         # 2. preceding_tool_results — 前序工具结果
         if tool_results_tokens > 0:
+            preceding_tool_details = {
+                "kind": "tool_results",
+                "items": [
+                    {
+                        "tool_name": _extract_tool_name(rt),
+                        "summary": _truncate_preview(_mask_sensitive_keys(rt), 180),
+                        "exit_status": 0,  # unknown from text
+                        "tokens": estimate_tokens_from_text(rt),
+                    }
+                    for rt in tool_result_texts
+                ],
+                "total_items": len(tool_result_texts),
+                "truncated": False,
+            }
             buckets.append(RequestAttributionBucket(
                 key="preceding_tool_results",
                 label="前序工具结果",
@@ -416,10 +530,28 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 source=ValueSource.TOOL_LOGS,
                 confidence_label="中",
                 summary="前序 Tool result 内容可从 tool logs 获取，token 通过文本估算。",
+                details=preceding_tool_details,
             ))
 
         # 3. prior_conversation_messages — 前序对话消息
         if prior_conversation_tokens > 0 and prior_messages:
+            prior_details = {
+                "kind": "message_history",
+                "items": [
+                    {
+                        "round_id": i + 1,
+                        "role": pm.get("role", "unknown"),
+                        "summary": _truncate_preview(
+                            pm.get("content_preview", pm.get("content", "")), 180,
+                        ),
+                        "timestamp": "",  # not available from context
+                        "tokens": pm.get("content_token_estimate", 0),
+                    }
+                    for i, pm in enumerate(prior_messages)
+                ],
+                "total_items": len(prior_messages),
+                "truncated": False,
+            }
             buckets.append(RequestAttributionBucket(
                 key="prior_conversation_messages",
                 label="前序对话消息",
@@ -431,9 +563,33 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 confidence_label="中",
                 summary="前序对话消息从 prior messages 列表获取，token 通过文本估算。",
                 content_preview=lc.request_preview[:120] if lc.request_preview else "",
+                details=prior_details,
             ))
 
         # 4. tool_schemas — 工具定义
+        # Import schema extractor for per-tool token counts
+        from session_browser.attribution.agents.claude_code_tool_schemas import (
+            get_cached_schemas,
+            get_tool_schema_tokens as _real_schema_tokens,
+        )
+        _schemas_for_detail = get_cached_schemas()
+
+        tool_schemas_details = {
+            "kind": "tools",
+            "items": [
+                {
+                    "name": tool_name,
+                    "source": "available_tools" if available_tools else "default_fallback",
+                    "enabled": True,
+                    "description_preview": _tool_description(tool_name),
+                    "estimated_tokens": _real_schema_tokens(tool_name, _schemas_for_detail),
+                    "precision": "extracted_from_sdk",
+                }
+                for tool_name in (available_tools or _DEFAULT_CC_TOOLS)
+            ],
+            "total_items": len(available_tools or _DEFAULT_CC_TOOLS),
+            "truncated": False,
+        }
         buckets.append(RequestAttributionBucket(
             key="tool_schemas",
             label="工具定义",
@@ -444,9 +600,29 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             source=tool_schemas_source,
             confidence_label="中低" if tool_schema_tokens > 0 else "低",
             summary=tool_schemas_summary,
+            details=tool_schemas_details,
         ))
 
         # 5. local_instruction_context — 本地指令上下文
+        local_instruction_details = {"kind": "system_sources", "items": []}
+        if ctx.get("local_instructions"):
+            masked_text = _mask_sensitive_keys(ctx["local_instructions"])
+            local_instruction_details["items"].append({
+                "file_path": "CLAUDE.md",
+                "source_type": "project_instructions",
+                "preview": _truncate_preview(masked_text, 500),
+                "tokens": local_instruction_tokens,
+                "precision": "heuristic",
+            })
+        if ctx.get("system_reminder_content"):
+            masked_reminder = _mask_sensitive_keys(ctx["system_reminder_content"])
+            local_instruction_details["items"].append({
+                "file_path": "system-reminder",
+                "source_type": "transcript_system_reminder",
+                "preview": _truncate_preview(masked_reminder, 500),
+                "tokens": estimate_tokens_from_text(ctx["system_reminder_content"]),
+                "precision": "heuristic",
+            })
         buckets.append(RequestAttributionBucket(
             key="local_instruction_context",
             label="本地指令上下文",
@@ -457,9 +633,28 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             confidence_label="中低" if local_instruction_tokens > 0 else "低",
             summary=local_instruction_summary,
             content_preview=local_instruction_text[:120] if local_instruction_text else "",
+            details=local_instruction_details,
         ))
 
         # 6. agent_subagent_prompt — Agent/Subagent 提示
+        agent_subagent_details = {"kind": "system_sources", "items": []}
+        if ctx.get("agent_prompt_file") and ctx.get("subagent_prompt"):
+            agent_name_for_path = ""
+            if hasattr(self.round_obj, "agent_name"):
+                agent_name_for_path = getattr(self.round_obj, "agent_name", "")
+            if not agent_name_for_path:
+                # Try to extract from prompt file path
+                prompt_file = ctx.get("agent_prompt_file", "")
+                if prompt_file:
+                    agent_name_for_path = prompt_file.rsplit("/", 1)[-1].replace(".md", "")
+            masked_agent = _mask_sensitive_keys(ctx["subagent_prompt"])
+            agent_subagent_details["items"].append({
+                "file_path": f".claude/agents/{agent_name_for_path or 'unknown'}.md",
+                "source_type": "agent_prompt",
+                "preview": _truncate_preview(masked_agent, 500),
+                "tokens": agent_subagent_tokens,
+                "precision": "heuristic",
+            })
         buckets.append(RequestAttributionBucket(
             key="agent_subagent_prompt",
             label="Agent/Subagent 提示",
@@ -470,9 +665,17 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             confidence_label="中低" if agent_subagent_tokens > 0 else "低",
             summary=agent_subagent_summary,
             content_preview=agent_subagent_text[:120] if agent_subagent_text else "",
+            details=agent_subagent_details,
         ))
 
         # 7. mcp_tool_metadata — MCP 工具元数据
+        mcp_details = {"kind": "mcp_metadata", "items": []}
+        if isinstance(mcp_tools, list) and mcp_tools:
+            mcp_details["items"] = [
+                {"name": str(t), "estimated_tokens": 50, "precision": "heuristic"}
+                for t in mcp_tools
+            ]
+            mcp_details["total_items"] = len(mcp_tools)
         buckets.append(RequestAttributionBucket(
             key="mcp_tool_metadata",
             label="MCP 工具元数据",
@@ -482,10 +685,19 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             source=ValueSource.SESSION_METADATA,
             confidence_label="中低" if mcp_metadata_tokens > 0 else "低",
             summary=mcp_metadata_summary,
+            details=mcp_details,
         ))
 
         # 8. top_level_system_estimate — 顶层系统提示估算
         if top_level_system_tokens > 0:
+            top_level_details = {
+                "kind": "hidden_estimate",
+                "explanation": [
+                    f"cache_read ({cache_read_val} tokens) 大于前序消息总量，"
+                    f"部分缓存 token 可能来自顶层系统提示。",
+                    "通过 cache_read 分析启发式估算。",
+                ],
+            }
             buckets.append(RequestAttributionBucket(
                 key="top_level_system_estimate",
                 label="顶层系统提示估算",
@@ -495,9 +707,17 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 source=ValueSource.HEURISTIC,
                 confidence_label="低",
                 summary="根据 cache_read 和前序消息量估算的顶层系统提示。",
+                details=top_level_details,
             ))
 
         # 9. hidden_builtin_system_estimate — 内置系统提示估算
+        hidden_builtin_details = {
+            "kind": "hidden_estimate",
+            "explanation": [
+                "Claude Code 内置隐藏 system prompt 不可见",
+                "按 300-800 tokens 典型值估算",
+            ],
+        }
         buckets.append(RequestAttributionBucket(
             key="hidden_builtin_system_estimate",
             label="内置系统提示估算",
@@ -510,9 +730,17 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 "Claude Code 内置 prompt 不公开，此处为 300-800 tokens 典型值估算，"
                 "非真实内容。"
             ),
+            details=hidden_builtin_details,
         ))
 
         # 10. provider_wrapper_estimate — Provider 包装层估算
+        provider_wrapper_details = {
+            "kind": "hidden_estimate",
+            "explanation": [
+                "Provider 元数据/thinking/output_config 等包装字段不可见",
+                "按 ~50-200 tokens 典型值估算",
+            ],
+        }
         buckets.append(RequestAttributionBucket(
             key="provider_wrapper_estimate",
             label="Provider 包装层估算",
@@ -522,9 +750,20 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             source=ValueSource.HEURISTIC,
             confidence_label="低",
             summary="Provider 元数据/thinking/output_config 等包装层开销估算。",
+            details=provider_wrapper_details,
         ))
 
         # 11. unlocated_residual — 未定位 (always LAST)
+        unlocated_details = {
+            "kind": "unlocated",
+            "explanation": [
+                "Claude Code 隐藏内置 prompt 不公开",
+                "Provider 包装字段不可见",
+                "Tokenizer overhead 未计入",
+                "未能安全读取的本地配置",
+                "raw HTTP 不可见字段",
+            ],
+        }
         buckets.append(RequestAttributionBucket(
             key="unlocated_residual",
             label="未定位",
@@ -534,6 +773,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             source=ValueSource.RESIDUAL,
             confidence_label="中",
             summary="Total input 减去已知所有 bucket 后的剩余部分。",
+            details=unlocated_details,
         ))
 
         # ── Step 3b: normalize heuristic buckets ─────────────────────
@@ -605,7 +845,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         bool(available_tools), exact=False,
                         precision=tool_schemas_availability,
                         source=tool_schemas_source,
-                        fill_strategy="available_tools count × constant" if available_tools else "no available_tools list"),
+                        fill_strategy="available_tools count × real SDK schema tokens" if available_tools else "no available_tools list"),
             self._avail("local_instruction_tokens", "Local instruction tokens",
                         local_instruction_tokens > 0, exact=False,
                         precision=local_instruction_availability,
@@ -631,7 +871,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         if cache_read_val > 0:
             notes.append(f"Cache read {cache_read_val:,} tokens — 主要来自历史消息和系统提示，但无法逐块确认。")
         if available_tools:
-            notes.append(f"Tool schemas 按 {len(available_tools)} available tools × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens 估算。")
+            notes.append(f"Tool schemas 基于 Claude Code SDK 真实定义，{len(available_tools)} 个工具共 {tool_schema_tokens} tokens。")
         else:
             notes.append("Tool schemas: 无法从本地日志获取可用工具定义列表，tool_schemas 标记为 unavailable。")
         notes.append(
