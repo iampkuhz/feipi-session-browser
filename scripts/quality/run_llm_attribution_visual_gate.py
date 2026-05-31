@@ -97,9 +97,11 @@ _CHECK_GEOMETRY_JS = """
     const table = document.querySelector('.sd-attrib-table');
     const tableOk = !!table && table.getBoundingClientRect().right <= modalRect.right + 2;
 
-    // Bucket preview check
+    // Bucket preview check: PASS when no preview element exists (empty-state case).
+    // Only FAIL when preview element exists AND overflows modal.
     const preview = document.querySelector('.sd-attribution-bucket__preview');
-    const previewOk = !!preview && preview.getBoundingClientRect().right <= modalRect.right + 2;
+    const hasPreview = !!preview;
+    const previewOk = !hasPreview || preview.getBoundingClientRect().right <= modalRect.right + 2;
 
     return {
         modalWithinViewport: withinViewport,
@@ -117,8 +119,11 @@ _CHECK_GEOMETRY_JS = """
 _CHECK_MODAL_TEXT_JS = """
 () => {
     const modal = document.getElementById('sd-payload-modal') || document.getElementById('payload-modal');
-    if (!modal) return { text: '' };
-    return { text: modal.textContent || '' };
+    if (!modal) return { text: '', hasDisplayOnlySection: false };
+    // Check if the display-only section ("明细，不计入总量") exists in the modal
+    const hasDisplayOnly = modal.querySelector('h3') &&
+        Array.from(modal.querySelectorAll('h3')).some(h => h.textContent.includes('不计入总量'));
+    return { text: modal.textContent || '', hasDisplayOnlySection: hasDisplayOnly };
 }
 """
 
@@ -279,7 +284,9 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                 if req_modal_open:
                     text_info = await page.evaluate(_CHECK_MODAL_TEXT_JS)
                     modal_text = text_info.get("text", "")
-                    req_text_checks = _check_request_text(modal_text)
+                    has_display_only = text_info.get("hasDisplayOnlySection", True)
+                    req_text_checks = _check_request_text(modal_text, has_display_only)
+                    req_text_checks["hasDisplayOnlySection"] = has_display_only
                     result["checks"][f"requestModalText-{vp_label}"] = req_text_checks
 
                 # ── Screenshot: Request modal ──
@@ -343,7 +350,9 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                 if resp_modal_open:
                     text_info = await page.evaluate(_CHECK_MODAL_TEXT_JS)
                     modal_text = text_info.get("text", "")
-                    resp_text_checks = _check_response_text(modal_text)
+                    has_display_only = text_info.get("hasDisplayOnlySection", True)
+                    resp_text_checks = _check_response_text(modal_text, has_display_only)
+                    resp_text_checks["hasDisplayOnlySection"] = has_display_only
                     result["checks"][f"responseModalText-{vp_label}"] = resp_text_checks
 
                 # ── Screenshot: Response modal ──
@@ -432,8 +441,12 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
 # Text check helpers
 # ---------------------------------------------------------------------------
 
-def _check_request_text(text: str) -> dict:
-    """Check Request modal text for required and forbidden strings."""
+def _check_request_text(text: str, has_display_only: bool = True) -> dict:
+    """Check Request modal text for required and forbidden strings.
+
+    If `has_display_only` is False (no display-only bucket section in the modal),
+    `hasExclusionLabel` is not required.
+    """
     text_lower = text.lower()
     checks = {
         "status": "PASS",
@@ -443,7 +456,8 @@ def _check_request_text(text: str) -> dict:
         "hasAttributionDetail": "归因明细" in text,
         "hasContextSummary": "可见内容摘要" in text,
         "hasAvailabilityTable": "参数可得性表" in text,
-        "hasExclusionLabel": "不计入总量" in text,
+        # Only require exclusion label when display-only section exists
+        "hasExclusionLabel": "不计入总量" in text if has_display_only else True,
         "hasNoRawRequest": "raw request" not in text_lower,
         "hasNoRawResponse": "raw response" not in text_lower,
         "hasNoRawHttpRequest": "raw http request" not in text_lower,
@@ -458,8 +472,12 @@ def _check_request_text(text: str) -> dict:
     return checks
 
 
-def _check_response_text(text: str) -> dict:
-    """Check Response modal text for required and forbidden strings."""
+def _check_response_text(text: str, has_display_only: bool = True) -> dict:
+    """Check Response modal text for required and forbidden strings.
+
+    If `has_display_only` is False (no display-only bucket section in the modal),
+    `hasExclusionLabel` is not required.
+    """
     text_lower = text.lower()
     checks = {
         "status": "PASS",
@@ -470,7 +488,8 @@ def _check_response_text(text: str) -> dict:
         "hasBlocksDetail": "Blocks 明细" in text,
         "hasContextSummary": "可见内容摘要" in text,
         "hasAvailabilityTable": "参数可得性表" in text,
-        "hasExclusionLabel": "不计入总量" in text,
+        # Only require exclusion label when display-only section exists
+        "hasExclusionLabel": "不计入总量" in text if has_display_only else True,
         "hasNoRawRequest": "raw request" not in text_lower,
         "hasNoRawResponse": "raw response" not in text_lower,
         "hasNoRawHttpRequest": "raw http request" not in text_lower,

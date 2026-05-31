@@ -222,6 +222,27 @@ class TestTextCheckHelpers:
         assert result["status"] == "FAIL"
         assert "hasExclusionLabel" in result["failed"]
 
+    def test_request_exclusion_label_relaxed_when_no_display_only_section(self):
+        """When display-only section is absent, missing exclusion label should not fail."""
+        text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 可见内容摘要 参数可得性表"
+        result = self._check_request_text(text, has_display_only=False)
+        assert result["status"] == "PASS"
+        assert result["hasExclusionLabel"] is True
+
+    def test_request_exclusion_label_still_required_with_display_only_section(self):
+        """When display-only section is present, exclusion label is still required."""
+        text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 可见内容摘要 参数可得性表"
+        result = self._check_request_text(text, has_display_only=True)
+        assert result["status"] == "FAIL"
+        assert "hasExclusionLabel" in result["failed"]
+
+    def test_response_exclusion_label_relaxed_when_no_display_only_section(self):
+        """When display-only section is absent, missing exclusion label should not fail for response."""
+        text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 Blocks 明细 可见内容摘要 参数可得性表"
+        result = self._check_response_text(text, has_display_only=False)
+        assert result["status"] == "PASS"
+        assert result["hasExclusionLabel"] is True
+
     # --- Response text tests ---
     def test_response_all_required_pass(self):
         text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 Blocks 明细 可见内容摘要 参数可得性表 不计入总量"
