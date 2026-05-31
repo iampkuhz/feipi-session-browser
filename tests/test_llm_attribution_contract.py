@@ -159,7 +159,7 @@ def test_unknown_equals_residual(agent):
     ro = _make_round(user_content="test user message content")
     req = build_llm_request_attribution(agent, lc, ro)
     total_req = req.total_input.value or 0
-    known_req = sum(b.tokens for b in req.buckets if b.key != "unknown_overhead")
+    known_req = sum(b.tokens for b in req.buckets if b.key not in ("unknown_overhead", "unlocated_residual"))
     assert req.unknown.value == total_req - known_req
 
     resp = build_llm_response_attribution(agent, lc, ro)

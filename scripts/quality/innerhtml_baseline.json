@@ -117,19 +117,43 @@
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
+      "line": 167,
+      "isClear": false,
+      "snippet": "body.innerHTML = '<div class=\"sd-payload-error\">' +"
+    },
+    {
+      "file": "src/session_browser/web/static/js/session-detail.js",
       "line": 186,
+      "isClear": false,
+      "snippet": "body.innerHTML = renderAttributionLoading(url.indexOf(\"/request\") !== -1 ? \"request\" : \"response\");"
+    },
+    {
+      "file": "src/session_browser/web/static/js/session-detail.js",
+      "line": 306,
+      "isClear": false,
+      "snippet": "body.innerHTML = html;"
+    },
+    {
+      "file": "src/session_browser/web/static/js/session-detail.js",
+      "line": 378,
+      "isClear": false,
+      "snippet": "if (body) body.innerHTML = renderAttributionLoading(apiKind);"
+    },
+    {
+      "file": "src/session_browser/web/static/js/session-detail.js",
+      "line": 468,
       "isClear": false,
       "snippet": "modal.innerHTML = ["
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 218,
+      "line": 504,
       "isClear": false,
       "snippet": "body.innerHTML = (source.tagName && source.tagName.toLowerCase() === \"template\")"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 222,
+      "line": 508,
       "isClear": false,
       "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title, kind);"
     },
@@ -182,5 +206,5 @@
       "snippet": "content.innerHTML = '';"
     }
   ],
-  "count": 30
+  "count": 34
 }

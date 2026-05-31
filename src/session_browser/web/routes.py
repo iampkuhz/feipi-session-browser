@@ -91,7 +91,7 @@ from session_browser.attribution.context import (
 from session_browser.attribution.contracts import (
     LLMRequestAttribution,
     LLMResponseAttribution,
-)
+)  # noqa: F401 — contracts referenced by serializers and service layer
 from session_browser.attribution.serializers import (
     request_attribution_to_payload,
     response_attribution_to_payload,
@@ -618,7 +618,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             elif path.startswith("/static/"):
                 self._serve_static(path[len("/static/"):])
             elif path.startswith("/api/sessions/"):
-                self._serve_api_payload_path(path)
+                if "/attribution/" in path:
+                    self._serve_api_attribution_path(path)
+                else:
+                    self._serve_api_payload_path(path)
             else:
                 self._send_404()
             elapsed_ms = (time.time() - started_at) * 1000
@@ -926,6 +929,184 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(payload)
+
+    def _serve_api_attribution_path(self, path: str) -> None:
+        """Dispatch /api/sessions/{source}/{session_id}/attribution/{round}/{call}/{kind}."""
+        # Pattern: /api/sessions/{source}/{session_id}/attribution/{round_index}/{call_index}/{kind}
+        parts = path.split("/")
+        # parts: ["", "api", "sessions", source, session_id, "attribution", round_idx, call_idx, kind]
+        if len(parts) != 9 or parts[5] != "attribution":
+            self._send_json({"error": "invalid API path", "expected": "/api/sessions/{source}/{session_id}/attribution/{round_index}/{call_index}/{kind}"}, status=400)
+            return
+
+        source = urllib.parse.unquote(parts[3])
+        session_id = urllib.parse.unquote(parts[4])
+        kind = urllib.parse.unquote(parts[8])
+
+        if kind not in ("request", "response"):
+            self._send_json({"error": f"invalid kind '{kind}', expected 'request' or 'response'"}, status=400)
+            return
+
+        # Parse round_index and call_index (1-based, must be positive integers)
+        try:
+            round_index = int(parts[6])
+            call_index = int(parts[7])
+            if round_index < 1 or call_index < 1:
+                raise ValueError("must be positive")
+        except (ValueError, IndexError):
+            self._send_json({
+                "error": f"invalid round_index='{parts[6]}' or call_index='{parts[7]}', must be positive integers",
+            }, status=400)
+            return
+
+        # Parse query param: detail=summary|full (default full)
+        parsed_qs = urllib.parse.urlparse(path).query
+        qs_params = urllib.parse.parse_qs(parsed_qs)
+        detail = qs_params.get("detail", ["full"])[0]
+        if detail not in ("summary", "full"):
+            detail = "full"
+
+        # Load session
+        session_key = f"{source}:{session_id}"
+        conn = _get_connection()
+        session = get_session(conn, session_key)
+        conn.close()
+
+        if session is None:
+            if source == "qoder":
+                resolved_id, err_msg = _resolve_qoder_short_id(session_id)
+                if resolved_id:
+                    session_key = f"{source}:{resolved_id}"
+                    conn = _get_connection()
+                    session = get_session(conn, session_key)
+                    conn.close()
+                    if session is not None:
+                        session_id = resolved_id
+                if session is None and err_msg:
+                    self._send_json(attribution_error_to_payload(
+                        agent=source, call_id="", round_id=str(round_index),
+                        error_type="NotFound", message=err_msg,
+                    ), status=404)
+                    return
+            if session is None:
+                self._send_json(attribution_error_to_payload(
+                    agent=source, call_id="", round_id=str(round_index),
+                    error_type="NotFound", message="session not found",
+                ), status=404)
+                return
+
+        # Parse session detail
+        if source == "claude_code":
+            from session_browser.sources.claude import parse_session_detail
+            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                session.project_key, session_id
+            )
+        elif source == "qoder":
+            from session_browser.sources.qoder import parse_session_detail
+            qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
+            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                session.project_key, session_id, session_file=qoder_file
+            )
+        else:
+            from session_browser.sources.codex import parse_session_detail
+            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+
+        # Build rounds and LLM calls
+        rounds = build_rounds(
+            messages,
+            tool_calls,
+            session.input_tokens,
+            session.output_tokens,
+            session.cached_input_tokens,
+            session.cached_output_tokens,
+            source,
+            md_filter=_md_filter,
+        )
+        llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, source)
+        assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
+
+        # Find the LLM call by round_index and call_index (1-based)
+        target_round_idx = round_index - 1  # convert to 0-based
+        target_call_idx = call_index - 1  # convert to 0-based
+
+        if target_round_idx < 0 or target_round_idx >= len(rounds):
+            self._send_json(attribution_error_to_payload(
+                agent=source, call_id="", round_id=str(round_index),
+                error_type="NotFound",
+                message=f"round_index {round_index} out of range (1-{len(rounds)})",
+            ), status=404)
+            return
+
+        r = rounds[target_round_idx]
+        if target_call_idx < 0 or target_call_idx >= len(r.interactions):
+            self._send_json(attribution_error_to_payload(
+                agent=source, call_id="", round_id=str(round_index),
+                error_type="NotFound",
+                message=f"call_index {call_index} out of range for round {round_index} (1-{len(r.interactions)})",
+            ), status=404)
+            return
+
+        ix = r.interactions[target_call_idx]
+
+        # Collect all messages and tool calls for context hydration
+        all_messages = messages or []
+        all_tool_calls = tool_calls or []
+
+        # Build call-scoped session context with hydration
+        attrib_ctx = build_attribution_session_context(
+            session=session,
+            round_obj=r,
+            interaction_index=target_call_idx,
+            interactions=r.interactions,
+            round_tool_calls=r.tool_calls,
+            all_messages=all_messages,
+            all_tool_calls=all_tool_calls,
+            project_dir=session.project_key or None,
+            agent_name=source,
+        )
+
+        # Build attribution
+        try:
+            if kind == "request":
+                attr = build_llm_request_attribution(
+                    agent=source,
+                    llm_call=ix,
+                    round_obj=r,
+                    session_summary=session,
+                    session_context=attrib_ctx,
+                )
+                data = request_attribution_to_payload(attr)
+            else:
+                attr = build_llm_response_attribution(
+                    agent=source,
+                    llm_call=ix,
+                    round_obj=r,
+                    session_summary=session,
+                    session_context=attrib_ctx,
+                )
+                data = response_attribution_to_payload(attr)
+        except Exception as exc:
+            logger.debug("Attribution builder exception: %s", exc, exc_info=True)
+            self._send_json(attribution_error_to_payload(
+                agent=source,
+                call_id=ix.id or "",
+                round_id=str(round_index),
+                error_type=type(exc).__name__,
+                message=str(exc)[:200] if str(exc) else "attribution builder failed",
+            ), status=500)
+            return
+
+        # Return API envelope
+        envelope = {
+            "kind": f"llm.{kind}_attribution",
+            "source": source,
+            "session_id": session_id,
+            "round_index": round_index,
+            "call_index": call_index,
+            "detail": detail,
+            "data": data,
+        }
+        self._send_json(envelope)
 
     def _serve_agent(self, agent: str) -> None:
         conn = _get_connection()
@@ -1549,7 +1730,8 @@ def _build_v11_view_model(
                     response_blocks: list = None, response_diagnostics: str = "",
                     user_input: str = "", preceding_tool_results: list = None,
                     tool_name: str = "", tool_command: str = "",
-                    tool_parameters: dict = None, tool_status: str = ""):
+                    tool_parameters: dict = None, tool_status: str = "",
+                    data: dict = None):
         entry = {
             "payload_id": payload_id,
             "kind": kind,
@@ -1587,6 +1769,8 @@ def _build_v11_view_model(
             entry["tool_parameters"] = tool_parameters
         if tool_status:
             entry["tool_status"] = tool_status
+        if data is not None:
+            entry["data"] = data
         payload_sources.append(entry)
 
     def tool_vm(tc, tool_id: str, payload_id: str = "", payload_title: str = "") -> dict:
@@ -2324,10 +2508,75 @@ def _build_v11_view_model(
                 note_text = f"上下文为 {source_status}，由用户输入和前置 tool results 重建"
                 note_tone_val = "warn" if source_status == "reconstructed" else "err"
 
-            # ── Attribution payload IDs (always emitted; UI gate via
-            # `call.request_attribution_id` / `call.response_attribution_id`) ──
+            # ── LLM attribution payloads: default path is API fetch via
+            # /api/sessions/{source}/{session_id}/attribution/{rid}/{iix}/{kind}.
+            # Embedded attribution is also added to payload_sources as a fallback
+            # for clients that cannot reach the API endpoint.
             request_attribution_id = f"llm-R{rid}-IX{iix}-request-attribution"
             response_attribution_id = f"llm-R{rid}-IX{iix}-response-attribution"
+
+            try:
+                # Build call-scoped session context for attribution
+                attrib_ctx = build_attribution_session_context(
+                    session=session,
+                    round_obj=r,
+                    interaction_index=ix_idx,
+                    interactions=r.interactions,
+                    round_tool_calls=r.tool_calls,
+                    all_messages=None,  # not available in view model context
+                    all_tool_calls=tool_calls,
+                    project_dir=session.project_key or None,
+                    agent_name=session.agent,
+                )
+                req_attr = build_llm_request_attribution(
+                    agent=session.agent,
+                    llm_call=ix,
+                    round_obj=r,
+                    session_summary=session,
+                    session_context=attrib_ctx,
+                )
+                req_payload = request_attribution_to_payload(req_attr)
+                add_payload(
+                    payload_id=request_attribution_id,
+                    kind="llm.request_attribution",
+                    title=f"R{rid} · LLM Call #{iix} · Request Attribution",
+                    text="",
+                    warning="Attribution data is embedded; for live data use API endpoint.",
+                    **{"data": req_payload},
+                )
+                resp_attr = build_llm_response_attribution(
+                    agent=session.agent,
+                    llm_call=ix,
+                    round_obj=r,
+                    session_summary=session,
+                    session_context=attrib_ctx,
+                )
+                resp_payload = response_attribution_to_payload(resp_attr)
+                add_payload(
+                    payload_id=response_attribution_id,
+                    kind="llm.response_attribution",
+                    title=f"R{rid} · LLM Call #{iix} · Response Attribution",
+                    text="",
+                    warning="Attribution data is embedded; for live data use API endpoint.",
+                    **{"data": resp_payload},
+                )
+            except Exception:
+                # Fallback: register attribution IDs but mark as unavailable
+                logger.debug("Embedded attribution build failed for R%s-IX%s", rid, iix, exc_info=True)
+                add_payload(
+                    payload_id=request_attribution_id,
+                    kind="llm.request_attribution",
+                    title=f"R{rid} · LLM Call #{iix} · Request Attribution",
+                    text="",
+                    warning="Attribution data unavailable; use API endpoint.",
+                )
+                add_payload(
+                    payload_id=response_attribution_id,
+                    kind="llm.response_attribution",
+                    title=f"R{rid} · LLM Call #{iix} · Response Attribution",
+                    text="",
+                    warning="Attribution data unavailable; use API endpoint.",
+                )
 
             llm_item = {
                 "type": "llm_call",
@@ -2350,6 +2599,16 @@ def _build_v11_view_model(
                 "response_payload_title": f"R{rid} · LLM Call #{iix} · Response",
                 "request_attribution_id": request_attribution_id,
                 "response_attribution_id": response_attribution_id,
+                "attribution_source": session.agent,
+                "attribution_session_id": session.session_id,
+                "attribution_api_url_request": (
+                    f"/api/sessions/{session.agent}/{session.session_id}"
+                    f"/attribution/{rid}/{iix}/request"
+                ),
+                "attribution_api_url_response": (
+                    f"/api/sessions/{session.agent}/{session.session_id}"
+                    f"/attribution/{rid}/{iix}/response"
+                ),
                 "note": note_text,
                 "note_tone": note_tone_val,
                 "finish_reason": finish_r,
@@ -2357,102 +2616,6 @@ def _build_v11_view_model(
                 "tool_call_count": len(ix_tool_calls_for_llm),
                 "failed_tool_count": sum(1 for tc in ix_tool_calls_for_llm if getattr(tc, "is_failed", False)),
             }
-
-            # ── LLM attribution payloads ──────────────────────────────
-            # Build request/response attribution and add to payload_sources
-            # so UI can render them without re-computing.
-            round_id_str = str(rid)
-
-            # Build call-scoped session context for attribution builders
-            attrib_ctx = build_attribution_session_context(
-                session=session,
-                round_obj=r,
-                interaction_index=ix_idx,
-                interactions=r.interactions,
-                round_tool_calls=r.tool_calls,
-            )
-
-            # Request attribution — independent try so response failure
-            # does not wipe out a successful request attribution.
-            try:
-                req_attr = build_llm_request_attribution(
-                    agent=session.agent,
-                    llm_call=ix,
-                    round_obj=r,
-                    session_summary=session,
-                    session_context=attrib_ctx,
-                )
-                req_payload = request_attribution_to_payload(req_attr)
-                add_payload(
-                    payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
-                    kind="llm.request_attribution",
-                    title=f"R{rid} · LLM Call #{iix} · Request Attribution",
-                    text="",
-                )
-                payload_sources[-1]["data"] = req_payload
-            except Exception as exc:
-                import logging
-                logging.getLogger("session_browser.web").debug(
-                    "Failed to build request attribution for LLM call %s: %s",
-                    ix.id, exc, exc_info=True,
-                )
-                error_type = type(exc).__name__
-                short_msg = str(exc)[:200] if str(exc) else "request attribution failed"
-                err_payload = attribution_error_to_payload(
-                    agent=session.agent,
-                    call_id=ix.id or "",
-                    round_id=round_id_str,
-                    error_type=error_type,
-                    message=short_msg,
-                )
-                add_payload(
-                    payload_id=f"llm-R{rid}-IX{iix}-request-attribution",
-                    kind="llm.attribution_error",
-                    title=f"R{rid} · LLM Call #{iix} · Request Attribution (error)",
-                    text="",
-                )
-                payload_sources[-1]["data"] = err_payload
-
-            # Response attribution — independent try so request failure
-            # does not wipe out a successful response attribution.
-            try:
-                resp_attr = build_llm_response_attribution(
-                    agent=session.agent,
-                    llm_call=ix,
-                    round_obj=r,
-                    session_summary=session,
-                    session_context=attrib_ctx,
-                )
-                resp_payload = response_attribution_to_payload(resp_attr)
-                add_payload(
-                    payload_id=f"llm-R{rid}-IX{iix}-response-attribution",
-                    kind="llm.response_attribution",
-                    title=f"R{rid} · LLM Call #{iix} · Response Attribution",
-                    text="",
-                )
-                payload_sources[-1]["data"] = resp_payload
-            except Exception as exc:
-                import logging
-                logging.getLogger("session_browser.web").debug(
-                    "Failed to build response attribution for LLM call %s: %s",
-                    ix.id, exc, exc_info=True,
-                )
-                error_type = type(exc).__name__
-                short_msg = str(exc)[:200] if str(exc) else "response attribution failed"
-                err_payload = attribution_error_to_payload(
-                    agent=session.agent,
-                    call_id=ix.id or "",
-                    round_id=round_id_str,
-                    error_type=error_type,
-                    message=short_msg,
-                )
-                add_payload(
-                    payload_id=f"llm-R{rid}-IX{iix}-response-attribution",
-                    kind="llm.attribution_error",
-                    title=f"R{rid} · LLM Call #{iix} · Response Attribution (error)",
-                    text="",
-                )
-                payload_sources[-1]["data"] = err_payload
 
             items.append(llm_item)
             items.extend(parallel_batches)

@@ -1,13 +1,12 @@
 """Tests for attribution error diagnostics.
 
-Verifies:
-1. When build_llm_request_attribution raises, payload_sources contains llm.attribution_error.
-2. When build_llm_response_attribution raises, payload_sources contains llm.attribution_error.
-3. Original llm.context / llm.output payloads are preserved even on attribution failure.
-4. Error payload does NOT include full traceback in the page-visible message.
+After Task 03a, attribution is built on-demand via API rather than in
+_build_v11_view_model.  Error handling is now tested by
+test_llm_attribution_api.py.  This file retains a regression test that
+base payloads (llm.context / llm.output) are still produced even when
+attribution is no longer built server-side.
 """
 
-import json
 import pytest
 from unittest.mock import patch
 
@@ -95,88 +94,20 @@ def _make_round_with_llm_call():
     return ro, llm_call
 
 
-def test_request_attribution_error_generates_diagnostic_payload():
-    """When build_llm_request_attribution raises, payload_sources should
-    contain llm.attribution_error for the request."""
+def test_base_payloads_and_attribution_fallback_present():
+    """After 03a, _build_v11_view_model still builds attribution as fallback.
+    Original llm.context / llm.output + attribution payloads should all be present."""
     session = _FakeSession()
     ro, lc = _make_round_with_llm_call()
 
-    with patch(
-        "session_browser.web.routes.build_llm_request_attribution",
-        side_effect=ValueError("simulated attribution failure"),
-    ):
-        vm = _build_v11_view_model(
-            session=session,
-            rounds=[ro],
-            llm_calls=[lc],
-            tool_calls=ro.tool_calls,
-            subagent_runs=[],
-            session_anomalies=_FakeAnomalies(),
-        )
-
-    kinds = {p.get("kind") for p in vm["payload_sources"]}
-    # Should have error payload for request
-    error_payloads = [p for p in vm["payload_sources"] if p.get("kind") == "llm.attribution_error"]
-    assert len(error_payloads) >= 1, (
-        f"Expected at least 1 llm.attribution_error payload, got kinds: {kinds}"
+    vm = _build_v11_view_model(
+        session=session,
+        rounds=[ro],
+        llm_calls=[lc],
+        tool_calls=ro.tool_calls,
+        subagent_runs=[],
+        session_anomalies=_FakeAnomalies(),
     )
-
-    # Check error payload structure
-    err = error_payloads[0]
-    data = err.get("data", err)
-    assert data.get("error_type") == "ValueError"
-    assert "simulated attribution failure" in data.get("message", "")
-    assert "fallback" in data
-
-
-def test_response_attribution_error_generates_diagnostic_payload():
-    """When build_llm_response_attribution raises, payload_sources should
-    contain llm.attribution_error for the response."""
-    session = _FakeSession()
-    ro, lc = _make_round_with_llm_call()
-
-    with patch(
-        "session_browser.web.routes.build_llm_response_attribution",
-        side_effect=RuntimeError("response attribution failed"),
-    ):
-        vm = _build_v11_view_model(
-            session=session,
-            rounds=[ro],
-            llm_calls=[lc],
-            tool_calls=ro.tool_calls,
-            subagent_runs=[],
-            session_anomalies=_FakeAnomalies(),
-        )
-
-    error_payloads = [p for p in vm["payload_sources"] if p.get("kind") == "llm.attribution_error"]
-    assert len(error_payloads) >= 1
-
-    err = error_payloads[0]
-    data = err.get("data", err)
-    assert data.get("error_type") == "RuntimeError"
-
-
-def test_base_payloads_preserved_on_attribution_error():
-    """Original llm.context / llm.output payloads should still be present
-    even when attribution fails."""
-    session = _FakeSession()
-    ro, lc = _make_round_with_llm_call()
-
-    with patch(
-        "session_browser.web.routes.build_llm_request_attribution",
-        side_effect=ValueError("attribution error"),
-    ), patch(
-        "session_browser.web.routes.build_llm_response_attribution",
-        side_effect=ValueError("attribution error"),
-    ):
-        vm = _build_v11_view_model(
-            session=session,
-            rounds=[ro],
-            llm_calls=[lc],
-            tool_calls=ro.tool_calls,
-            subagent_runs=[],
-            session_anomalies=_FakeAnomalies(),
-        )
 
     kinds = {p.get("kind") for p in vm["payload_sources"]}
     # Original payloads should still be there
@@ -184,36 +115,41 @@ def test_base_payloads_preserved_on_attribution_error():
     assert "llm.output" in kinds
     assert "message.user" in kinds
     assert "tool.result" in kinds
-    # Error payloads should also exist
-    assert "llm.attribution_error" in kinds
+    # Attribution fallback payloads should also be present
+    assert "llm.request_attribution" in kinds
+    assert "llm.response_attribution" in kinds
 
 
-def test_error_payload_no_full_traceback():
-    """Error payload message should NOT include full traceback — only
-    error type and short message."""
+def test_llm_call_has_attribution_ids_and_api_url():
+    """LLM call items should have attribution IDs and API URLs for
+    frontend fetch-based rendering."""
     session = _FakeSession()
     ro, lc = _make_round_with_llm_call()
 
-    with patch(
-        "session_browser.web.routes.build_llm_request_attribution",
-        side_effect=ValueError("short error message"),
-    ):
-        vm = _build_v11_view_model(
-            session=session,
-            rounds=[ro],
-            llm_calls=[lc],
-            tool_calls=ro.tool_calls,
-            subagent_runs=[],
-            session_anomalies=_FakeAnomalies(),
-        )
+    vm = _build_v11_view_model(
+        session=session,
+        rounds=[ro],
+        llm_calls=[lc],
+        tool_calls=ro.tool_calls,
+        subagent_runs=[],
+        session_anomalies=_FakeAnomalies(),
+    )
 
-    error_payloads = [p for p in vm["payload_sources"] if p.get("kind") == "llm.attribution_error"]
-    assert len(error_payloads) >= 1
+    # Find LLM call items in trace_rows
+    llm_items = []
+    for row in vm["trace_rows"]:
+        for item in row.get("timeline_items", []):
+            if item.get("type") == "llm_call":
+                llm_items.append(item)
 
-    data = error_payloads[0].get("data", error_payloads[0])
-    msg = data.get("message", "")
-    # Should be short (routes.py truncates to 200 chars)
-    assert len(msg) <= 200
-    # Should NOT contain traceback patterns
-    assert "Traceback" not in msg
-    assert "File \"" not in msg
+    assert len(llm_items) >= 1
+    item = llm_items[0]
+    assert item.get("request_attribution_id")
+    assert item.get("response_attribution_id")
+    assert item.get("attribution_api_url_request")
+    assert item.get("attribution_api_url_response")
+    assert item.get("attribution_source") == "claude_code"
+    assert item.get("attribution_session_id") == "test-session-001"
+    # Verify API URL pattern
+    assert "/attribution/1/1/request" in item["attribution_api_url_request"]
+    assert "/attribution/1/1/response" in item["attribution_api_url_response"]

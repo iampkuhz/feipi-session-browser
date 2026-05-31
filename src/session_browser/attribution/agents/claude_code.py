@@ -31,6 +31,134 @@ from session_browser.attribution.agents.base import BaseAttributionBuilder
 # Default schema token estimate per tool when we can only count tools.
 _DEFAULT_SCHEMA_TOKENS_PER_TOOL = 240
 
+# Bucket classification keys for normalization.
+_MEASURED_BUCKET_KEYS = {
+    "current_user_message",
+    "preceding_tool_results",
+    "prior_conversation_messages",
+}
+_ESTIMATED_BUCKET_KEYS = {
+    "tool_schemas",
+    "local_instruction_context",
+    "agent_subagent_prompt",
+    "mcp_tool_metadata",
+}
+_HEURISTIC_FIXED_KEYS = {
+    "hidden_builtin_system_estimate",
+    "provider_wrapper_estimate",
+}
+_HEURISTIC_SCALED_KEYS = {
+    "top_level_system_estimate",
+}
+_NORMALIZATION_NOTE = (
+    "定位率包含推断 bucket；不是 raw request 精确还原。"
+)
+
+
+def normalize_request_reconstruction_buckets(
+    buckets: list["RequestAttributionBucket"],
+    *,
+    total_input: int,
+    fresh_input: int,
+) -> list["RequestAttributionBucket"]:
+    """Normalize heuristic buckets so they cannot inflate located_rate beyond total_input.
+
+    Rules:
+    1. Classify buckets into measured, estimated, heuristic_fixed, heuristic_scaled.
+    2. measured_sum = sum(measured buckets)
+    3. estimated_sum = sum(estimated buckets)
+    4. heuristic_budget = max(0, fresh_input - measured_sum - estimated_sum)
+    5. If heuristic_fixed_sum > heuristic_budget, scale heuristic_fixed proportionally.
+    6. If estimated_sum > (fresh_input - measured_sum), scale estimated proportionally.
+    7. Recompute unlocated_residual = max(total_input - known_sum, 0).
+    8. Recompute coverage = min(known_sum / total_input, 1.0).
+    9. Never scale measured buckets down.
+    10. Add note to attribution_notes if normalization was applied.
+
+    The function modifies bucket tokens/percent in place and returns the list.
+    """
+    if not buckets or fresh_input <= 0:
+        return buckets
+
+    measured_sum = 0
+    estimated_sum = 0
+    heuristic_fixed_sum = 0
+    heuristic_scaled_sum = 0
+    residual_tokens = 0
+
+    measured_buckets = []
+    estimated_buckets = []
+    heuristic_fixed_buckets = []
+    heuristic_scaled_buckets = []
+    residual_bucket = None
+
+    for b in buckets:
+        if b.key in _MEASURED_BUCKET_KEYS:
+            measured_sum += b.tokens
+            measured_buckets.append(b)
+        elif b.key in _ESTIMATED_BUCKET_KEYS:
+            estimated_sum += b.tokens
+            estimated_buckets.append(b)
+        elif b.key in _HEURISTIC_FIXED_KEYS:
+            heuristic_fixed_sum += b.tokens
+            heuristic_fixed_buckets.append(b)
+        elif b.key in _HEURISTIC_SCALED_KEYS:
+            heuristic_scaled_sum += b.tokens
+            heuristic_scaled_buckets.append(b)
+        elif b.key in ("unlocated_residual", "unknown_overhead", "unknown"):
+            residual_tokens = b.tokens
+            residual_bucket = b
+
+    normalization_applied = False
+
+    # Step 5: Scale heuristic_fixed if they exceed budget
+    heuristic_budget = max(0, fresh_input - measured_sum - estimated_sum)
+    if heuristic_fixed_sum > heuristic_budget and heuristic_budget > 0:
+        scale = heuristic_budget / heuristic_fixed_sum
+        for b in heuristic_fixed_buckets:
+            b.tokens = max(0, int(b.tokens * scale))
+        heuristic_fixed_sum = sum(b.tokens for b in heuristic_fixed_buckets)
+        normalization_applied = True
+    elif heuristic_fixed_sum > heuristic_budget and heuristic_budget <= 0:
+        # No budget left — zero out heuristic fixed
+        for b in heuristic_fixed_buckets:
+            b.tokens = 0
+        heuristic_fixed_sum = 0
+        normalization_applied = True
+
+    # Step 6: Scale estimated if they exceed remaining budget
+    remaining_for_estimated = max(0, fresh_input - measured_sum)
+    if estimated_sum > remaining_for_estimated and remaining_for_estimated > 0:
+        scale = remaining_for_estimated / estimated_sum
+        for b in estimated_buckets:
+            b.tokens = max(0, int(b.tokens * scale))
+        estimated_sum = sum(b.tokens for b in estimated_buckets)
+        normalization_applied = True
+    elif estimated_sum > remaining_for_estimated and remaining_for_estimated <= 0:
+        for b in estimated_buckets:
+            b.tokens = 0
+        estimated_sum = 0
+        normalization_applied = True
+
+    # Step 7: Recompute unlocated_residual
+    known_sum = (
+        measured_sum + estimated_sum + heuristic_fixed_sum + heuristic_scaled_sum
+    )
+    new_residual = max(total_input - known_sum, 0) if total_input > 0 else 0
+    if residual_bucket:
+        residual_bucket.tokens = new_residual
+
+    # Recompute percentages for all buckets
+    for b in buckets:
+        b.percent = _pct(b.tokens, total_input)
+
+    # Step 10: Add normalization note
+    if normalization_applied:
+        # The caller should add this to attribution_notes
+        pass  # note is added by the builder
+
+    return buckets
+
 
 class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
     """Request / response attribution for Claude Code sessions."""
@@ -408,6 +536,13 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             summary="Total input 减去已知所有 bucket 后的剩余部分。",
         ))
 
+        # ── Step 3b: normalize heuristic buckets ─────────────────────
+        buckets = normalize_request_reconstruction_buckets(
+            buckets,
+            total_input=total_call_input,
+            fresh_input=fresh_input_val,
+        )
+
         # ── Step 4: coverage ───────────────────────────────────────────
         known_bucket_sum = sum(
             b.tokens for b in buckets
@@ -504,6 +639,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             "包括本地指令、Agent 提示、MCP 元数据、系统提示估算、Provider 包装层等。"
             "heuristic/hidden bucket 不含真实内容，仅解释 token 来源。"
         )
+        notes.append(_NORMALIZATION_NOTE)
 
         # Timing extraction from llm_call.timestamp
         timing = {

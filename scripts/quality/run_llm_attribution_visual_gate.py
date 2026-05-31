@@ -74,6 +74,15 @@ _CLOSE_MODAL_JS = """
 }
 """
 
+_CHECK_ATTRIBUTION_STATE_JS = """
+() => {
+    const modal = document.getElementById('sd-payload-modal') || document.getElementById('payload-modal');
+    if (!modal) return { state: 'no_modal' };
+    const state = modal.getAttribute('data-attribution-state') || 'idle';
+    return { state: state };
+}
+"""
+
 _CHECK_GEOMETRY_JS = """
 () => {
     const rect = (sel) => {
@@ -179,6 +188,28 @@ _EXPAND_ROUNDS_WITH_ATTRIBUTION_JS = """
 
 
 # ---------------------------------------------------------------------------
+# Attribution state polling helper
+# ---------------------------------------------------------------------------
+
+async def wait_for_attribution_state(page, target_state='success', timeout=10.0):
+    """Poll page.evaluate until the attribution modal reaches target_state.
+
+    Returns True if state reached, False if error or timeout.
+    """
+    import time as _time
+    start = _time.time()
+    while _time.time() - start < timeout:
+        state_info = await page.evaluate(_CHECK_ATTRIBUTION_STATE_JS)
+        state = state_info.get("state", "idle")
+        if state == target_state:
+            return True
+        if state == "error":
+            return False
+        await asyncio.sleep(0.2)
+    return False  # timeout
+
+
+# ---------------------------------------------------------------------------
 # Browser gate runner
 # ---------------------------------------------------------------------------
 
@@ -265,7 +296,11 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                         return '';
                     }}
                 """)
-                await page.wait_for_timeout(800)
+
+                # Wait for attribution fetch to complete
+                attr_ok = await wait_for_attribution_state(page, target_state="success", timeout=10.0)
+                state_info = await page.evaluate(_CHECK_ATTRIBUTION_STATE_JS)
+                attr_state = state_info.get("state", "idle")
 
                 modal_visible = await page.evaluate(_CHECK_MODAL_VISIBLE_JS)
                 req_modal_open = modal_visible["visible"]
@@ -273,12 +308,24 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                     "status": "PASS" if req_modal_open else "FAIL",
                     "payloadId": req_payload_id,
                     "modalId": modal_visible.get("id", ""),
+                    "attributionState": attr_state,
                 }
                 if not req_modal_open:
                     result["diagnostics"].append({
                         "code": "REQUEST_MODAL_NOT_OPEN",
                         "message": "Request attribution modal did not open",
                     })
+                elif not attr_ok:
+                    if attr_state == "error":
+                        result["diagnostics"].append({
+                            "code": "API_ATTRIBUTION_ERROR",
+                            "message": "Request attribution API returned error or fetch failed",
+                        })
+                    else:
+                        result["diagnostics"].append({
+                            "code": "ATTRIBUTION_FETCH_TIMEOUT",
+                            "message": f"Request attribution fetch did not reach success state (state={attr_state})",
+                        })
 
                 # ── Request modal text checks ──
                 if req_modal_open:
@@ -331,7 +378,11 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                         return '';
                     }}
                 """)
-                await page.wait_for_timeout(800)
+
+                # Wait for attribution fetch to complete
+                attr_ok = await wait_for_attribution_state(page, target_state="success", timeout=10.0)
+                state_info = await page.evaluate(_CHECK_ATTRIBUTION_STATE_JS)
+                attr_state = state_info.get("state", "idle")
 
                 modal_visible = await page.evaluate(_CHECK_MODAL_VISIBLE_JS)
                 resp_modal_open = modal_visible["visible"]
@@ -339,12 +390,24 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                     "status": "PASS" if resp_modal_open else "FAIL",
                     "payloadId": resp_payload_id,
                     "modalId": modal_visible.get("id", ""),
+                    "attributionState": attr_state,
                 }
                 if not resp_modal_open:
                     result["diagnostics"].append({
                         "code": "RESPONSE_MODAL_NOT_OPEN",
                         "message": "Response attribution modal did not open",
                     })
+                elif not attr_ok:
+                    if attr_state == "error":
+                        result["diagnostics"].append({
+                            "code": "API_ATTRIBUTION_ERROR",
+                            "message": "Response attribution API returned error or fetch failed",
+                        })
+                    else:
+                        result["diagnostics"].append({
+                            "code": "ATTRIBUTION_FETCH_TIMEOUT",
+                            "message": f"Response attribution fetch did not reach success state (state={attr_state})",
+                        })
 
                 # ── Response modal text checks ──
                 if resp_modal_open:

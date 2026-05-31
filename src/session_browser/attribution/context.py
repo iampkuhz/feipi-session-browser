@@ -2,9 +2,11 @@
 
 Provides ``build_attribution_session_context`` which constructs a call-scoped
 context dict that attribution builders use to determine:
-- preceding_tool_results: tool results that occurred before the current LLM call
+- preceding_tool_results: tool results that occur before the current LLM call
 - prior_messages: conversation history before this call
 - available_tools: tool schemas available to the model
+- local_instructions: CLAUDE.md and agent prompt files
+- mcp_tools / mcp_servers: from .mcp.json (no credentials)
 
 This avoids passing session_context=None and enables proper call-scoped
 attribution rather than attributing the entire round's tool results to
@@ -13,6 +15,10 @@ every LLM call.
 
 from __future__ import annotations
 
+import json
+import logging
+from pathlib import Path
+
 from session_browser.domain.models import (
     ConversationRound,
     LLMCall,
@@ -20,14 +26,24 @@ from session_browser.domain.models import (
     ToolCall,
 )
 
+logger = logging.getLogger(__name__)
+
+_DEFAULT_CC_TOOLS = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "LS", "Agent"]
+_TRUNCATE_CONTENT_PREVIEW = 200
+_TRUNCATE_LOCAL_INSTRUCTIONS = 2048  # 2KB
+
 
 def build_attribution_session_context(
     *,
-    session: SessionSummary,
+    session: SessionSummary | None,
     round_obj: ConversationRound,
     interaction_index: int,
     interactions: list[LLMCall],
     round_tool_calls: list[ToolCall],
+    all_messages: list | None = None,
+    all_tool_calls: list | None = None,
+    project_dir: str | None = None,
+    agent_name: str | None = None,
     existing_context: dict | None = None,
 ) -> dict:
     """Build a call-scoped session context for attribution builders.
@@ -38,15 +54,29 @@ def build_attribution_session_context(
         interaction_index: 0-based index of the current LLM interaction within the round.
         interactions: List of LLM interactions in the current round.
         round_tool_calls: All tool calls associated with this round.
-        existing_context: Optional pre-existing context to extend (unused in v1).
+        all_messages: All messages from the session transcript (optional).
+            Used to build prior_messages.
+        all_tool_calls: All tool calls from the entire session (optional).
+            Used to build available_tools.
+        project_dir: Path to the project root (optional).
+            Used to read CLAUDE.md, .mcp.json, etc.
+        agent_name: Agent name like "claude_code", "qoder", "codex".
+            Used to locate agent-specific prompt files.
+        existing_context: Optional pre-existing context to extend.
 
     Returns:
         A dict with at least:
         - interaction_index: the 0-based index
         - preceding_tool_results: list of tool result texts from interactions
           that occurred BEFORE the current one
-        - prior_messages: reserved for future use (currently [])
-        - available_tools: reserved for future use (currently [])
+        - prior_messages: messages before the current LLM call, each with
+          role, content_preview (truncated to 200 chars), content_token_estimate
+        - available_tools: unique tool names from observed tool calls, or
+          default Claude Code tool list as heuristic fallback
+        - local_instructions: CLAUDE.md content (truncated to 2KB)
+        - system_reminder_content: from transcript system-reminder (if any)
+        - agent_prompt_file / subagent_prompt: from .claude/agents/ if found
+        - mcp_tools / mcp_servers: from .mcp.json (names only, no credentials)
     """
     preceding_tool_results: list[str] = []
 
@@ -59,11 +89,186 @@ def build_attribution_session_context(
                         preceding_tool_results.append(tc.result)
     # else: first LLM call — no preceding tool results
 
-    return {
+    # -- prior_messages --
+    prior_messages = _build_prior_messages(all_messages, interaction_index)
+
+    # -- available_tools --
+    available_tools = _build_available_tools(all_tool_calls)
+
+    # -- local_instructions, agent_prompt, mcp metadata --
+    local_instructions = ""
+    agent_prompt_file = ""
+    subagent_prompt = ""
+    system_reminder_content = ""
+    mcp_tools: list[str] = []
+    mcp_servers: list[str] = []
+
+    if project_dir:
+        project_path = Path(project_dir)
+        local_instructions = _read_local_instructions(project_path, agent_name)
+        agent_prompt_file, subagent_prompt = _read_agent_prompt(project_path, agent_name)
+        mcp_tools, mcp_servers = _read_mcp_metadata(project_path)
+
+    base = {
         "interaction_index": interaction_index,
         "preceding_tool_results": preceding_tool_results,
-        # TODO: populate prior_messages from session transcript when source parser exposes it.
-        "prior_messages": [],
-        # TODO: populate available_tools from agent source metadata when parser exposes it.
-        "available_tools": [],
+        "prior_messages": prior_messages,
+        "available_tools": available_tools,
+        "local_instructions": local_instructions,
+        "system_reminder_content": system_reminder_content,
+        "agent_prompt_file": agent_prompt_file,
+        "subagent_prompt": subagent_prompt,
+        "mcp_tools": mcp_tools,
+        "mcp_servers": mcp_servers,
     }
+
+    if existing_context:
+        # Merge: new keys override existing only if non-empty
+        for k, v in base.items():
+            if v or k in ("prior_messages", "available_tools", "mcp_tools", "mcp_servers"):
+                existing_context[k] = v
+        return existing_context
+
+    return base
+
+
+# -- Internal helpers --
+
+
+def _build_prior_messages(
+    all_messages: list | None,
+    interaction_index: int,
+) -> list[dict]:
+    """Build prior_messages from all session messages before the current call.
+
+    Each entry has: role, content_preview (truncated to 200 chars),
+    content_token_estimate (rough estimate).
+    """
+    if not all_messages:
+        return []
+
+    result = []
+    for msg in all_messages:
+        role = ""
+        content = ""
+        if isinstance(msg, dict):
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+        elif hasattr(msg, "role"):
+            role = getattr(msg, "role", "")
+            content = getattr(msg, "content", "") or ""
+
+        if not role:
+            continue
+
+        content_str = str(content) if content else ""
+        preview = content_str[:_TRUNCATE_CONTENT_PREVIEW]
+        # Rough token estimate: ~4 chars per token for English
+        token_estimate = max(1, len(content_str) // 4) if content_str else 0
+
+        result.append({
+            "role": role,
+            "content_preview": preview,
+            "content_token_estimate": token_estimate,
+        })
+
+    return result
+
+
+def _build_available_tools(all_tool_calls: list | None) -> list[str]:
+    """Collect unique tool names from observed tool calls.
+
+    Falls back to default Claude Code tool list when no observed tools.
+    """
+    if not all_tool_calls:
+        return list(_DEFAULT_CC_TOOLS)
+
+    seen: set[str] = set()
+    for tc in all_tool_calls:
+        name = ""
+        if isinstance(tc, dict):
+            name = tc.get("name", tc.get("tool_name", ""))
+        elif hasattr(tc, "name"):
+            name = getattr(tc, "name", "")
+        if name:
+            seen.add(name)
+
+    if not seen:
+        return list(_DEFAULT_CC_TOOLS)
+
+    return sorted(seen)
+
+
+def _read_local_instructions(project_path: Path, agent_name: str | None) -> str:
+    """Read CLAUDE.md from project_dir, truncated to 2KB."""
+    candidates = [
+        project_path / "CLAUDE.md",
+        project_path / ".claude" / "CLAUDE.md",
+    ]
+    for path in candidates:
+        try:
+            if path.exists() and path.is_file():
+                text = path.read_text(encoding="utf-8", errors="replace")
+                return text[:_TRUNCATE_LOCAL_INSTRUCTIONS]
+        except (OSError, PermissionError) as exc:
+            logger.debug("Cannot read local instructions %s: %s", path, exc)
+    return ""
+
+
+def _read_agent_prompt(
+    project_path: Path, agent_name: str | None,
+) -> tuple[str, str]:
+    """Read agent prompt file from .claude/agents/ if agent_name is known.
+
+    Returns (agent_prompt_file_path, subagent_prompt_text).
+    """
+    if not agent_name:
+        return "", ""
+
+    agents_dir = project_path / ".claude" / "agents"
+    candidate = agents_dir / f"{agent_name}.md"
+    try:
+        if candidate.exists() and candidate.is_file():
+            text = candidate.read_text(encoding="utf-8", errors="replace")
+            return str(candidate), text[:_TRUNCATE_LOCAL_INSTRUCTIONS]
+    except (OSError, PermissionError) as exc:
+        logger.debug("Cannot read agent prompt %s: %s", candidate, exc)
+    return "", ""
+
+
+def _read_mcp_metadata(project_path: Path) -> tuple[list[str], list[str]]:
+    """Read .mcp.json from project_dir. Extract server names and tool names only.
+
+    Returns (mcp_tools, mcp_servers). NO credentials/values are returned.
+    """
+    mcp_path = project_path / ".mcp.json"
+    if not mcp_path.exists() or not mcp_path.is_file():
+        return [], []
+
+    try:
+        text = mcp_path.read_text(encoding="utf-8", errors="replace")
+        data = json.loads(text)
+    except (OSError, PermissionError, json.JSONDecodeError) as exc:
+        logger.debug("Cannot read MCP metadata %s: %s", mcp_path, exc)
+        return [], []
+
+    servers: list[str] = []
+    tools: list[str] = []
+
+    # .mcp.json typically has "mcpServers" key with server objects
+    mcp_servers_dict = data.get("mcpServers", data.get("mcp_servers", {}))
+    if isinstance(mcp_servers_dict, dict):
+        for server_name, server_config in mcp_servers_dict.items():
+            servers.append(server_name)
+            if isinstance(server_config, dict):
+                # Some configs have explicit tool lists
+                server_tools = server_config.get("tools", server_config.get("allowedTools", []))
+                if isinstance(server_tools, list):
+                    for t in server_tools:
+                        if isinstance(t, str):
+                            tools.append(f"{server_name}:{t}")
+                # If no explicit tool list, the server name itself indicates availability
+                if not server_tools:
+                    tools.append(f"{server_name}:*")
+
+    return tools, servers

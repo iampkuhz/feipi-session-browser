@@ -136,6 +136,288 @@
     });
   }
 
+  /* ── Attribution API fetch support ── */
+
+  var _attributionCache = new Map();
+
+  function _getPageSourceAndSessionId() {
+    var path = window.location.pathname;
+    var m = path.match(/^\/sessions\/([^\/]+)\/([^\/]+)/);
+    if (!m) return { source: "", sessionId: "" };
+    return { source: m[1], sessionId: m[2] };
+  }
+
+  function attributionApiUrl(button, kind) {
+    var payloadId = button.getAttribute("data-payload-id") || "";
+    var m = payloadId.match(/^llm-R(\d+)-IX(\d+)-/);
+    if (!m) return "";
+    var pageInfo = _getPageSourceAndSessionId();
+    if (!pageInfo.source || !pageInfo.sessionId) return "";
+    return "/api/sessions/" + encodeURIComponent(pageInfo.source) + "/" + encodeURIComponent(pageInfo.sessionId) + "/attribution/" + m[1] + "/" + m[2] + "/" + kind;
+  }
+
+  function renderAttributionLoading(kind) {
+    var label = kind === "request" ? "Request" : "Response";
+    return '<div class="sd-payload-loading">' +
+      '<p>Loading ' + label + ' attribution...</p>' +
+      '</div>';
+  }
+
+  function renderAttributionError(body, errorPayload, url) {
+    body.innerHTML = '<div class="sd-payload-error">' +
+      '<h3>Attribution Load Failed</h3>' +
+      '<div class="sd-error-meta">' +
+      '<div class="sd-kv"><span>error_type</span><span>' + escapeHtml(errorPayload.error_type || "Unknown") + '</span></div>' +
+      '<div class="sd-kv"><span>message</span><span>' + escapeHtml(errorPayload.message || "") + '</span></div>' +
+      '</div>' +
+      '<p>' + escapeHtml(errorPayload.fallback || "") + '</p>' +
+      '<button type="button" class="sd-btn sd-btn--primary" data-action="retry-attribution">Retry</button>' +
+      '</div>';
+    var retryBtn = body.querySelector('[data-action="retry-attribution"]');
+    if (retryBtn) {
+      retryBtn.addEventListener("click", function () {
+        _attributionCache.delete(url);
+        retryAttributionFetch(url, body);
+      });
+    }
+  }
+
+  function retryAttributionFetch(url, body) {
+    body.innerHTML = renderAttributionLoading(url.indexOf("/request") !== -1 ? "request" : "response");
+    fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (resp) {
+        if (!resp.ok) return resp.json().then(function (d) { throw { status: resp.status, data: d }; });
+        return resp.json();
+      })
+      .then(function (payload) {
+        if (payload.kind === "llm.attribution_error") {
+          renderAttributionError(body, payload, url);
+        } else {
+          var kind = url.indexOf("/request") !== -1 ? "request" : "response";
+          renderAttributionSuccess(body, payload, kind, url);
+        }
+      })
+      .catch(function (err) {
+        renderAttributionError(body, {
+          error_type: err.status ? "HTTP_" + err.status : "NetworkError",
+          message: err.data && err.data.message ? err.data.message : "Failed to load attribution data",
+          fallback: "Attribution unavailable; base LLM call metadata is still available.",
+        }, url);
+      });
+  }
+
+  function renderAttributionSuccess(body, payload, kind, cacheKey) {
+    var data = payload.data || payload;
+    var html = "";
+
+    html += '<div class="sd-attribution-disclaimer">Based on local log reconstruction; not equivalent to real provider request/response body.</div>';
+
+    var usage = data.usage || {};
+    html += '<section class="sd-attribution-summary"><h3>' + (kind === "request" ? "Request Summary" : "Response Summary") + '</h3>';
+    html += '<div class="sd-attrib-summary-grid">';
+    if (kind === "request") {
+      html += '<div class="sd-kv"><span>Total input</span><span>' + formatTokenValue(usage.total_input) + '</span></div>';
+      html += '<div class="sd-kv"><span>Fresh input</span><span>' + formatTokenValue(usage.fresh_input) + '</span></div>';
+      html += '<div class="sd-kv"><span>Cache read</span><span>' + formatTokenValue(usage.cache_read) + '</span></div>';
+      html += '<div class="sd-kv"><span>Cache write</span><span>' + formatTokenValue(usage.cache_write) + '</span></div>';
+      html += '<div class="sd-kv"><span>Coverage</span><span>' + formatRatioValue(usage.coverage) + '</span></div>';
+      html += '<div class="sd-kv"><span>Unlocated</span><span>' + formatTokenValue(usage.unknown) + '</span></div>';
+    } else {
+      html += '<div class="sd-kv"><span>Total output</span><span>' + formatTokenValue(usage.total_output) + '</span></div>';
+      html += '<div class="sd-kv"><span>Visible text</span><span>' + formatTokenValue(usage.visible_text) + '</span></div>';
+      html += '<div class="sd-kv"><span>Tool use</span><span>' + formatTokenValue(usage.tool_use) + '</span></div>';
+      html += '<div class="sd-kv"><span>Metadata</span><span>' + formatTokenValue(usage.metadata) + '</span></div>';
+      html += '<div class="sd-kv"><span>Coverage</span><span>' + formatRatioValue(usage.coverage) + '</span></div>';
+      html += '<div class="sd-kv"><span>Unlocated</span><span>' + formatTokenValue(usage.unknown) + '</span></div>';
+      if (usage.finish_reason && usage.finish_reason.value) {
+        html += '<div class="sd-kv"><span>Finish reason</span><span>' + escapeHtml(String(usage.finish_reason.value)) + '</span></div>';
+      }
+    }
+    html += '</div></section>';
+
+    var buckets = data.buckets || [];
+    if (buckets.length > 0) {
+      html += '<section class="sd-attribution-distribution"><h3>Distribution</h3>';
+      html += '<div class="sd-attribution-distribution__bar">';
+      var contributingBuckets = buckets.filter(function (b) { return b.contributes_to_total !== false && b.key !== "unlocated_residual" && b.key !== "unknown_overhead" && b.key !== "unknown"; });
+      var totalForPct = 0;
+      contributingBuckets.forEach(function (b) { totalForPct += (b.tokens || 0); });
+      contributingBuckets.forEach(function (b) {
+        var pct = totalForPct > 0 ? (b.tokens / totalForPct * 100) : 0;
+        var colorClass = getBucketColorClass(b.key);
+        html += '<div class="sd-attribution-distribution__segment ' + colorClass + '" style="width:' + pct.toFixed(1) + '%" title="' + escapeHtml(b.label) + ': ' + b.tokens + ' tokens"></div>';
+      });
+      var residualBucket = buckets.find(function (b) { return b.key === "unlocated_residual" || b.key === "unknown_overhead" || b.key === "unknown"; });
+      if (residualBucket && residualBucket.tokens > 0) {
+        var unkPct = totalForPct > 0 ? (residualBucket.tokens / (totalForPct + residualBucket.tokens) * 100) : 0;
+        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--unknown" style="width:' + unkPct.toFixed(1) + '%" title="' + escapeHtml(residualBucket.label) + ': ' + residualBucket.tokens + ' tokens"></div>';
+      }
+      html += '</div></section>';
+
+      html += '<section class="sd-attribution-buckets"><h3>Attribution Buckets</h3>';
+      html += '<table class="sd-attrib-table"><thead><tr><th>Bucket</th><th>Tokens</th><th>%</th><th>Precision</th><th>Confidence</th><th>Summary</th></tr></thead><tbody>';
+      buckets.forEach(function (b) {
+        html += '<tr>';
+        html += '<td><span class="sd-attribution-bucket__preview">' + escapeHtml(b.label || b.key) + '</span></td>';
+        html += '<td>' + formatCompactToken(b.tokens) + '</td>';
+        html += '<td>' + (b.percent || 0).toFixed(1) + '%</td>';
+        html += '<td><span class="sd-precision-tag sd-precision-tag--' + escapeHtml(b.precision || "") + '">' + translatePrecision(b.precision) + '</span></td>';
+        html += '<td>' + escapeHtml(b.confidence_label || b.confidenceLabel || "") + '</td>';
+        html += '<td>' + escapeHtml(b.summary || "") + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></section>';
+    }
+
+    var availRows = data.availability_rows || [];
+    if (availRows.length > 0) {
+      html += '<section class="sd-attribution-availability"><h3>Parameter Availability</h3>';
+      html += '<table class="sd-attrib-table"><thead><tr><th>Field</th><th>Available</th><th>Precision</th><th>Source</th><th>Fill Strategy</th></tr></thead><tbody>';
+      availRows.forEach(function (r) {
+        var availLabel = r.exact ? "Yes" : (r.available ? "Partial" : "No");
+        var pillClass = r.exact ? "ok" : (r.available ? "warn" : "err");
+        html += '<tr>';
+        html += '<td>' + escapeHtml(r.label || r.field) + '</td>';
+        html += '<td><span class="sd-pill sd-pill--' + pillClass + '">' + availLabel + '</span></td>';
+        html += '<td><span class="sd-precision-tag sd-precision-tag--' + escapeHtml(r.precision || "") + '">' + translatePrecision(r.precision) + '</span></td>';
+        html += '<td>' + escapeHtml(r.source || "") + '</td>';
+        html += '<td>' + escapeHtml(r.fill_strategy || r.fillStrategy || "") + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></section>';
+    }
+
+    var notes = data.attribution_notes || [];
+    if (notes.length > 0) {
+      html += '<section class="sd-attribution-notes"><h3>Attribution Notes</h3><ul>';
+      notes.forEach(function (n) { html += '<li>' + escapeHtml(n) + '</li>'; });
+      html += '</ul></section>';
+    }
+
+    var timing = data.timing || {};
+    if (timing.request_at && timing.request_at !== "—") {
+      html += '<section class="sd-attribution-timing"><h3>Timing</h3>';
+      html += '<div class="sd-kv"><span>Request at</span><span>' + escapeHtml(timing.request_at) + '</span></div>';
+      html += '<div class="sd-kv"><span>Response at</span><span>' + escapeHtml(timing.response_at || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>Duration</span><span>' + escapeHtml(timing.duration || "—") + '</span></div>';
+      html += '</section>';
+    }
+
+    body.innerHTML = html;
+  }
+
+  function formatTokenValue(v) {
+    if (!v || v.value == null) return "—";
+    var val = v.value;
+    if (typeof val === "number" && val >= 1000) return (val / 1000).toFixed(1) + "K";
+    return String(val);
+  }
+
+  function formatRatioValue(v) {
+    if (!v || v.value == null) return "—";
+    var val = v.value;
+    if (typeof val === "number" && val <= 1) return (val * 100).toFixed(1) + "%";
+    return String(val);
+  }
+
+  function formatCompactToken(val) {
+    if (val == null) return "—";
+    if (typeof val === "number" && val >= 1000) return (val / 1000).toFixed(1) + "K";
+    return String(val);
+  }
+
+  function translatePrecision(p) {
+    var map = {
+      "exact": "Exact",
+      "provider_reported": "Provider",
+      "transcript_exact": "Transcript",
+      "estimated": "Estimated",
+      "heuristic": "Heuristic",
+      "residual": "Residual",
+      "unavailable": "N/A"
+    };
+    return map[p] || p || "—";
+  }
+
+  function getBucketColorClass(key) {
+    var map = {
+      "current_user_message": "sd-attribution-segment--user",
+      "preceding_tool_results": "sd-attribution-segment--tool",
+      "prior_conversation_messages": "sd-attribution-segment--prior",
+      "tool_schemas": "sd-attribution-segment--schema",
+      "local_instruction_context": "sd-attribution-segment--local",
+      "agent_subagent_prompt": "sd-attribution-segment--agent",
+      "mcp_tool_metadata": "sd-attribution-segment--mcp",
+      "top_level_system_estimate": "sd-attribution-segment--system",
+      "hidden_builtin_system_estimate": "sd-attribution-segment--hidden",
+      "provider_wrapper_estimate": "sd-attribution-segment--provider"
+    };
+    return map[key] || "sd-attribution-segment--default";
+  }
+
+  async function openAttributionModal(button) {
+    var kind = button.getAttribute("data-payload-kind") || "";
+    var isRequest = kind === "llm.request_attribution";
+    var isResponse = kind === "llm.response_attribution";
+    if (!isRequest && !isResponse) return false;
+
+    var apiKind = isRequest ? "request" : "response";
+    var url = attributionApiUrl(button, apiKind);
+    if (!url) return false;
+
+    var cacheKey = url;
+    var modal = ensurePayloadModal();
+    var title = button.getAttribute("data-payload-title") || button.textContent.trim() || "Attribution";
+    var titleEl = qs(modal, "[data-payload-title]");
+    var subtitleEl = qs(modal, "[data-payload-subtitle]");
+    var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
+
+    if (titleEl) titleEl.textContent = title;
+    if (subtitleEl) subtitleEl.textContent = "loading...";
+
+    if (body) body.innerHTML = renderAttributionLoading(apiKind);
+    modal.setAttribute("data-attribution-state", "fetching");
+    modal.setAttribute("data-attribution-url", url);
+
+    if (typeof modal.showModal === "function") modal.showModal();
+    else modal.setAttribute("open", "");
+
+    try {
+      var payload;
+      if (_attributionCache.has(cacheKey)) {
+        payload = _attributionCache.get(cacheKey);
+      } else {
+        var resp = await fetch(url, { headers: { "Accept": "application/json" } });
+        if (!resp.ok) {
+          var errData = await resp.json().catch(function () { return null; });
+          throw { status: resp.status, data: errData };
+        }
+        payload = await resp.json();
+        _attributionCache.set(cacheKey, payload);
+      }
+
+      if (payload.kind === "llm.attribution_error") {
+        renderAttributionError(body, payload, url);
+        modal.setAttribute("data-attribution-state", "error");
+        if (subtitleEl) subtitleEl.textContent = "error";
+      } else {
+        renderAttributionSuccess(body, payload, apiKind, cacheKey);
+        modal.setAttribute("data-attribution-state", "success");
+        if (subtitleEl) subtitleEl.textContent = payload.data.call_id || payload.data.request_id || "";
+      }
+    } catch (err) {
+      var errorPayload = {
+        error_type: err.status ? "HTTP_" + err.status : "NetworkError",
+        message: err.data && err.data.message ? err.data.message : "Failed to load attribution data",
+        fallback: "Attribution unavailable; base LLM call metadata is still available.",
+      };
+      renderAttributionError(body, errorPayload, url);
+      modal.setAttribute("data-attribution-state", "error");
+    }
+
+    return true;
+  }
+
   /* ── Payload modal: single shell ── */
 
   function escapeHtml(value) {
@@ -198,6 +480,10 @@
   }
 
   function openPayload(button) {
+    // Try attribution fetch path first
+    var handled = openAttributionModal(button);
+    if (handled) return;
+
     var modal = ensurePayloadModal();
     var payloadId = button.getAttribute("data-payload-id") || "";
     var title = button.getAttribute("data-payload-title") || button.textContent.trim() || "Payload";
@@ -390,6 +676,18 @@
         event.preventDefault();
         event.stopPropagation();
         closePayload();
+      } else if (action === 'retry-attribution') {
+        event.preventDefault();
+        event.stopPropagation();
+        var modal = document.getElementById("sd-payload-modal") || document.getElementById("payload-modal");
+        if (modal) {
+          var url = modal.getAttribute("data-attribution-url");
+          if (url) {
+            _attributionCache.delete(url);
+            var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
+            if (body) retryAttributionFetch(url, body);
+          }
+        }
       }
       return;
     }
