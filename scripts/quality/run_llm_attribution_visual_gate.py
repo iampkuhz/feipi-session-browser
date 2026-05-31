@@ -91,15 +91,15 @@ _CHECK_GEOMETRY_JS = """
 
     // Distribution bar check
     const distBar = document.querySelector('.sd-attribution-distribution__bar');
-    const distOk = distBar ? distBar.getBoundingClientRect().right <= modalRect.right + 2 : true;
+    const distOk = !!distBar && distBar.getBoundingClientRect().right <= modalRect.right + 2;
 
     // Availability table check
     const table = document.querySelector('.sd-attrib-table');
-    const tableOk = table ? table.getBoundingClientRect().right <= modalRect.right + 2 : true;
+    const tableOk = !!table && table.getBoundingClientRect().right <= modalRect.right + 2;
 
     // Bucket preview check
     const preview = document.querySelector('.sd-attribution-bucket__preview');
-    const previewOk = preview ? preview.getBoundingClientRect().right <= modalRect.right + 2 : true;
+    const previewOk = !!preview && preview.getBoundingClientRect().right <= modalRect.right + 2;
 
     return {
         modalWithinViewport: withinViewport,
@@ -192,6 +192,7 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
         "checks": {},
         "screenshots": [],
         "diagnostics": [],
+        "summary": None,
     }
 
     browser = None
@@ -289,7 +290,13 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                 # ── Geometry checks (request modal) ──
                 geo = await page.evaluate(_CHECK_GEOMETRY_JS)
                 result["checks"][f"requestGeometry-{vp_label}"] = {
-                    "status": "PASS" if all([geo.get("noHorizontalOverflow"), geo.get("modalWithinViewport")]) else "FAIL",
+                    "status": "PASS" if all([
+                        geo.get("noHorizontalOverflow"),
+                        geo.get("modalWithinViewport"),
+                        geo.get("distributionVisible"),
+                        geo.get("tableWithinModal"),
+                        geo.get("previewWithinModal"),
+                    ]) else "FAIL",
                     "noHorizontalOverflow": geo.get("noHorizontalOverflow"),
                     "modalWithinViewport": geo.get("modalWithinViewport"),
                     "distributionVisible": geo.get("distributionVisible"),
@@ -347,7 +354,13 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
                 # ── Geometry checks (response modal) ──
                 geo = await page.evaluate(_CHECK_GEOMETRY_JS)
                 result["checks"][f"responseGeometry-{vp_label}"] = {
-                    "status": "PASS" if all([geo.get("noHorizontalOverflow"), geo.get("modalWithinViewport")]) else "FAIL",
+                    "status": "PASS" if all([
+                        geo.get("noHorizontalOverflow"),
+                        geo.get("modalWithinViewport"),
+                        geo.get("distributionVisible"),
+                        geo.get("tableWithinModal"),
+                        geo.get("previewWithinModal"),
+                    ]) else "FAIL",
                     "noHorizontalOverflow": geo.get("noHorizontalOverflow"),
                     "modalWithinViewport": geo.get("modalWithinViewport"),
                     "distributionVisible": geo.get("distributionVisible"),
@@ -402,6 +415,16 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
     else:
         result["status"] = "PASS"
 
+    # Compute summary
+    statuses = [c.get("status", "PASS") for c in result["checks"].values()]
+    result["summary"] = {
+        "total": len(statuses),
+        "passed": statuses.count("PASS"),
+        "failed": statuses.count("FAIL"),
+        "blocked": statuses.count("BLOCKED"),
+        "notRun": statuses.count("NOT_RUN_ENV_LIMITED"),
+    }
+
     return result
 
 
@@ -411,17 +434,22 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:
 
 def _check_request_text(text: str) -> dict:
     """Check Request modal text for required and forbidden strings."""
+    text_lower = text.lower()
     checks = {
         "status": "PASS",
         "hasRebuiltBanner": "基于本地日志重建" in text,
+        "hasProviderDisclaimer": "不等同于真实 provider" in text,
         "hasDistribution": "用量分布" in text,
         "hasAttributionDetail": "归因明细" in text,
         "hasContextSummary": "可见内容摘要" in text,
         "hasAvailabilityTable": "参数可得性表" in text,
-        "hasNoRawRequest": "Raw request" not in text,
-        "hasNoRawResponse": "Raw response" not in text,
-        "hasNoNoRendered": "(No rendered content)" not in text,
-        "hasNoNoRaw": "(No raw content)" not in text,
+        "hasExclusionLabel": "不计入总量" in text,
+        "hasNoRawRequest": "raw request" not in text_lower,
+        "hasNoRawResponse": "raw response" not in text_lower,
+        "hasNoRawHttpRequest": "raw http request" not in text_lower,
+        "hasNoRawHttpResponse": "raw http response" not in text_lower,
+        "hasNoNoRendered": "(no rendered content)" not in text_lower,
+        "hasNoNoRaw": "(no raw content)" not in text_lower,
     }
     failures = [k for k, v in checks.items() if k != "status" and not v]
     if failures:
@@ -432,18 +460,23 @@ def _check_request_text(text: str) -> dict:
 
 def _check_response_text(text: str) -> dict:
     """Check Response modal text for required and forbidden strings."""
+    text_lower = text.lower()
     checks = {
         "status": "PASS",
         "hasRebuiltBanner": "基于本地日志重建" in text,
+        "hasProviderDisclaimer": "不等同于真实 provider" in text,
         "hasDistribution": "用量分布" in text,
         "hasAttributionDetail": "归因明细" in text,
         "hasBlocksDetail": "Blocks 明细" in text,
         "hasContextSummary": "可见内容摘要" in text,
         "hasAvailabilityTable": "参数可得性表" in text,
-        "hasNoRawRequest": "Raw request" not in text,
-        "hasNoRawResponse": "Raw response" not in text,
-        "hasNoNoRendered": "(No rendered content)" not in text,
-        "hasNoNoRaw": "(No raw content)" not in text,
+        "hasExclusionLabel": "不计入总量" in text,
+        "hasNoRawRequest": "raw request" not in text_lower,
+        "hasNoRawResponse": "raw response" not in text_lower,
+        "hasNoRawHttpRequest": "raw http request" not in text_lower,
+        "hasNoRawHttpResponse": "raw http response" not in text_lower,
+        "hasNoNoRendered": "(no rendered content)" not in text_lower,
+        "hasNoNoRaw": "(no raw content)" not in text_lower,
     }
     failures = [k for k, v in checks.items() if k != "status" and not v]
     if failures:
@@ -482,6 +515,202 @@ def _fail_unreachable(result, url, exc):
     })
 
 
+def _write_blocked_url_file_missing(out_dir: Path, url_file_path: str):
+    """Write BLOCKED result when --url-file points to a non-existent file."""
+    result = {
+        "schemaVersion": 1,
+        "status": "BLOCKED",
+        "gate": "llm-attribution-visual",
+        "url": None,
+        "viewports": [vp["label"] for vp in VIEWPORTS],
+        "startedAt": _now_iso(),
+        "finishedAt": _now_iso(),
+        "checks": {
+            "navigation": {
+                "status": "BLOCKED",
+                "message": f"URL file not found: {url_file_path}",
+            },
+        },
+        "screenshots": [],
+        "diagnostics": [{
+            "code": "URL_FILE_NOT_FOUND",
+            "message": f"The file specified by --url-file does not exist: {url_file_path}",
+            "nextInspection": ["Create the file with a valid session detail URL.",
+                               "Run: python3 " + " ".join(sys.argv) + " --url http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001"],
+        }],
+        "summary": {"total": 1, "passed": 0, "failed": 0, "blocked": 1, "notRun": 0},
+    }
+    result_path = out_dir / "result.json"
+    result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    sys.exit(2)
+
+
+def _write_blocked_url_file_empty(out_dir: Path, url_file_path: str):
+    """Write BLOCKED result when --url-file is empty or has only comments."""
+    result = {
+        "schemaVersion": 1,
+        "status": "BLOCKED",
+        "gate": "llm-attribution-visual",
+        "url": None,
+        "viewports": [vp["label"] for vp in VIEWPORTS],
+        "startedAt": _now_iso(),
+        "finishedAt": _now_iso(),
+        "checks": {
+            "navigation": {
+                "status": "BLOCKED",
+                "message": f"URL file contains no valid URLs: {url_file_path}",
+            },
+        },
+        "screenshots": [],
+        "diagnostics": [{
+            "code": "URL_FILE_EMPTY",
+            "message": f"The URL file contains no non-comment, non-blank lines: {url_file_path}",
+            "nextInspection": ["Add a valid session detail URL to the file.",
+                               "Run: python3 " + " ".join(sys.argv) + " --url http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001"],
+        }],
+        "summary": {"total": 1, "passed": 0, "failed": 0, "blocked": 1, "notRun": 0},
+    }
+    result_path = out_dir / "result.json"
+    result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    sys.exit(2)
+
+
+def _write_blocked_url_file_multi(out_dir: Path, url_file_path: str):
+    """Write BLOCKED result when --url-file contains multiple URLs (not yet supported)."""
+    result = {
+        "schemaVersion": 1,
+        "status": "BLOCKED",
+        "gate": "llm-attribution-visual",
+        "url": None,
+        "viewports": [vp["label"] for vp in VIEWPORTS],
+        "startedAt": _now_iso(),
+        "finishedAt": _now_iso(),
+        "checks": {
+            "navigation": {
+                "status": "BLOCKED",
+                "message": f"URL file contains multiple URLs (only single URL supported): {url_file_path}",
+            },
+        },
+        "screenshots": [],
+        "diagnostics": [{
+            "code": "URL_FILE_MULTI",
+            "message": f"The URL file contains more than one URL. Only single-URL files are currently supported.",
+            "nextInspection": ["Reduce the file to a single session detail URL."],
+        }],
+        "summary": {"total": 1, "passed": 0, "failed": 0, "blocked": 1, "notRun": 0},
+    }
+    result_path = out_dir / "result.json"
+    result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    sys.exit(2)
+
+
+def _write_blocked_url_file_invalid(out_dir: Path, url_file_path: str, url: str):
+    """Write BLOCKED result when URL in file does not start with http/https."""
+    result = {
+        "schemaVersion": 1,
+        "status": "BLOCKED",
+        "gate": "llm-attribution-visual",
+        "url": None,
+        "viewports": [vp["label"] for vp in VIEWPORTS],
+        "startedAt": _now_iso(),
+        "finishedAt": _now_iso(),
+        "checks": {
+            "navigation": {
+                "status": "BLOCKED",
+                "message": f"Invalid URL in file {url_file_path}: {url}",
+            },
+        },
+        "screenshots": [],
+        "diagnostics": [{
+            "code": "URL_FILE_INVALID",
+            "message": f"The URL does not start with http:// or https://: {url}",
+            "nextInspection": ["Provide a valid HTTP(S) session detail URL."],
+        }],
+        "summary": {"total": 1, "passed": 0, "failed": 0, "blocked": 1, "notRun": 0},
+    }
+    result_path = out_dir / "result.json"
+    result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    sys.exit(2)
+
+
+def _generate_markdown_report(result: dict, out_dir: Path) -> Path:
+    """Generate a human-readable markdown report from gate results."""
+    status = result.get("status", "UNKNOWN")
+    url = result.get("url", "N/A")
+    viewports = result.get("viewports", [])
+    screenshots = result.get("screenshots", [])
+    checks = result.get("checks", {})
+    diagnostics = result.get("diagnostics", [])
+    summary = result.get("summary", {})
+
+    lines = []
+    lines.append("# LLM Attribution Visual Gate Report")
+    lines.append("")
+    lines.append(f"| Field | Value |")
+    lines.append(f"|---|---|")
+    lines.append(f"| **Status** | **{status}** |")
+    lines.append(f"| URL | `{url}` |")
+    lines.append(f"| Started | {result.get('startedAt', 'N/A')} |")
+    lines.append(f"| Finished | {result.get('finishedAt', 'N/A')} |")
+    lines.append(f"| Viewports | {', '.join(viewports) if viewports else 'N/A'} |")
+    lines.append("")
+
+    if summary:
+        lines.append("## Summary")
+        lines.append("")
+        lines.append(f"| | Count |")
+        lines.append(f"|---|---|")
+        for k, v in summary.items():
+            lines.append(f"| {k} | {v} |")
+        lines.append("")
+
+    lines.append("## Checks")
+    lines.append("")
+    for check_name, check_data in checks.items():
+        c_status = check_data.get("status", "UNKNOWN")
+        c_msg = check_data.get("message", "")
+        lines.append(f"### {check_name}")
+        lines.append(f"- **Status**: {c_status}")
+        if c_msg:
+            lines.append(f"- **Message**: {c_msg}")
+        for k, v in check_data.items():
+            if k not in ("status", "message"):
+                lines.append(f"- **{k}**: {v}")
+        lines.append("")
+
+    if diagnostics:
+        lines.append("## Diagnostics")
+        lines.append("")
+        for d in diagnostics:
+            code = d.get("code", "UNKNOWN")
+            msg = d.get("message", "")
+            lines.append(f"- **[{code}]** {msg}")
+        lines.append("")
+
+    if screenshots:
+        lines.append("## Screenshots")
+        lines.append("")
+        for s in screenshots:
+            lines.append(f"- `{s}`")
+        lines.append("")
+
+    if status == "FAIL" or status == "BLOCKED":
+        lines.append("## Next actions")
+        lines.append("")
+        lines.append("- Review diagnostics above")
+        lines.append("- Check screenshots for visual issues")
+        lines.append("- Verify session has proper attribution data")
+        lines.append("")
+
+    report_path = out_dir / "report.md"
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report_path
+
+
 # ---------------------------------------------------------------------------
 # Self-test
 # ---------------------------------------------------------------------------
@@ -499,12 +728,12 @@ def _self_test():
             print(f"  FAIL: {name} {msg}")
 
     # Text checks for request modal
-    good_req_text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 可见内容摘要 参数可得性表"
+    good_req_text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 可见内容摘要 参数可得性表 不计入总量"
     req_checks = _check_request_text(good_req_text)
     _assert("request text checks pass", req_checks["status"] == "PASS", str(req_checks))
 
     # Text checks for response modal
-    good_resp_text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 Blocks 明细 可见内容摘要 参数可得性表"
+    good_resp_text = "基于本地日志重建，不等同于真实 provider request/response body。用量分布 归因明细 Blocks 明细 可见内容摘要 参数可得性表 不计入总量"
     resp_checks = _check_response_text(good_resp_text)
     _assert("response text checks pass", resp_checks["status"] == "PASS", str(resp_checks))
 
@@ -517,6 +746,14 @@ def _self_test():
     bad_resp_text = "Raw response (No raw content)"
     resp_bad = _check_response_text(bad_resp_text)
     _assert("response text checks detect forbidden", resp_bad["status"] == "FAIL", str(resp_bad))
+
+    # Case-insensitive forbidden detection: RAW REQUEST
+    raw_upper_req = _check_request_text("RAW REQUEST is bad")
+    _assert("request text case-insensitive RAW REQUEST detection", raw_upper_req["status"] == "FAIL", str(raw_upper_req))
+
+    # Case-insensitive forbidden detection: raw HTTP response
+    raw_http_resp = _check_response_text("raw http response here")
+    _assert("response text case-insensitive raw http response detection", raw_http_resp["status"] == "FAIL", str(raw_http_resp))
 
     # Display-only bucket text
     display_only_text = "明细，不计入总量"
@@ -543,8 +780,8 @@ def _self_test():
     source = Path(__file__).read_text()
     _assert("source checks request modal", "llm.request_attribution" in source)
     _assert("source checks response modal", "llm.response_attribution" in source)
-    _assert("source checks no raw request", '"Raw request"' in source or "'Raw request'" in source)
-    _assert("source checks no raw response", '"Raw response"' in source or "'Raw response'" in source)
+    _assert("source checks no raw request", '"raw request"' in source or "'raw request'" in source)
+    _assert("source checks no raw response", '"raw response"' in source or "'raw response'" in source)
     _assert("source checks horizontal overflow", "scrollWidth" in source)
 
     if failures:
@@ -572,6 +809,10 @@ def main():
         help="Output directory for result.json and screenshots",
     )
     parser.add_argument(
+        "--url-file", default=None,
+        help="Path to a file containing a single session detail URL",
+    )
+    parser.add_argument(
         "--self-test", action="store_true",
         help="Run self-tests without browser",
     )
@@ -584,7 +825,28 @@ def main():
     out_dir = Path(args.out) if args.out else DEFAULT_OUT
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if not args.url:
+    # Resolve URL: --url takes priority, then --url-file
+    url = args.url
+    if not url and args.url_file:
+        url_file = Path(args.url_file)
+        if not url_file.exists():
+            _write_blocked_url_file_missing(out_dir, str(url_file))
+            return
+        content = url_file.read_text(encoding="utf-8").strip()
+        lines = [l.strip() for l in content.splitlines() if l.strip() and not l.strip().startswith("#")]
+        if not lines:
+            _write_blocked_url_file_empty(out_dir, str(url_file))
+            return
+        if len(lines) > 1:
+            _write_blocked_url_file_multi(out_dir, str(url_file))
+            return
+        url = lines[0]
+        # Basic URL validation
+        if not url.startswith("http://") and not url.startswith("https://"):
+            _write_blocked_url_file_invalid(out_dir, str(url_file), url)
+            return
+
+    if not url:
         print(
             "BLOCKED: No --url provided.\n"
             "\n"
@@ -622,13 +884,14 @@ def main():
                     "Run: python3 " + " ".join(sys.argv) + " --url http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001",
                 ],
             }],
+            "summary": {"total": 1, "passed": 0, "failed": 0, "blocked": 1, "notRun": 0},
         }
         result_path = out_dir / "result.json"
         result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _generate_markdown_report(result, out_dir)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         sys.exit(2)
 
-    url = args.url
     print(f"LLM Call Attribution Visual Gate")
     print(f"URL: {url}")
     print(f"Output: {out_dir}")
@@ -644,6 +907,9 @@ def main():
     # Write artifact
     result_path = out_dir / "result.json"
     result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # Generate markdown report
+    _generate_markdown_report(result, out_dir)
 
     # Print summary
     print(json.dumps(result, ensure_ascii=False, indent=2))
