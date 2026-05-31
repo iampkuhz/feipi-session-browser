@@ -456,16 +456,101 @@
               </div>
             </section>
             {% endif %}
+            {# ── Distribution bar ── #}
             {% if payload.data.buckets %}
-            <section class="sd-payload-section payload-section"><h3>主要归因类型</h3>
-              {% for b in payload.data.buckets if b.contributes_to_total %}
-                <span class="sd-chip sd-chip--attrib">{{ b.label }} · {{ b.tokens|format_compact_token }}</span>
-              {% endfor %}
+            <section class="sd-payload-section payload-section"><h3>用量分布</h3>
+              <div class="sd-attribution-distribution" data-attribution-distribution>
+                <div class="sd-attribution-distribution__bar">
+                  {% for b in payload.data.buckets if b.contributes_to_total %}
+                    <span class="sd-attribution-segment sd-attribution-segment--{{ loop.index0 % 8 }}"
+                          style="--seg-w: {{ b.percent|default(0) }}%;"
+                          title="{{ b.label }} {{ b.tokens|format_compact_token }} ({{ b.percent|default(0) }}%)">
+                      {% if b.percent|default(0) > 8 %}{{ b.label }}{% endif %}
+                    </span>
+                  {% endfor %}
+                  {% set bar_buckets = payload.data.buckets | selectattr('contributes_to_total') | list %}
+                  {% if not bar_buckets %}
+                    <div class="sd-empty-state">暂无可用于总览图归因的 bucket。</div>
+                  {% endif %}
+                </div>
+                <div class="sd-attribution-legend">
+                  {% for b in payload.data.buckets if b.contributes_to_total %}
+                    <span class="sd-attribution-legend-item">
+                      <span class="sd-attribution-legend__dot sd-attribution-legend__dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-legend__label">{{ b.label }}</span>
+                      <span class="sd-attribution-legend__pct">{{ b.percent|default(0) }}%</span>
+                      <span class="sd-attribution-legend__tokens">{{ b.tokens|format_compact_token }}</span>
+                    </span>
+                  {% endfor %}
+                </div>
+              </div>
             </section>
             {% endif %}
+            {# ── Bucket detail cards ── #}
+            {% if payload.data.buckets %}
+            <section class="sd-payload-section payload-section"><h3>归因明细</h3>
+              <div class="sd-attribution-bucket-list">
+                {% for b in payload.data.buckets if b.contributes_to_total %}
+                  <div class="sd-attribution-bucket" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket__head">
+                      <div class="sd-attribution-bucket__title">
+                        <span class="sd-attribution-bucket__dot sd-attribution-bucket__dot--{{ loop.index0 % 8 }}"></span>
+                        <span>{{ b.label|default(b.key|default('—')) }}</span>
+                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      </div>
+                      <div class="sd-attribution-bucket__meta">
+                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
+                        <span class="sd-attribution-bucket__pct">{{ b.percent|default(0) }}%</span>
+                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
+                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
+                        {% if b.confidence_label %}<span class="sd-chip">{{ b.confidence_label }}</span>{% endif %}
+                      </div>
+                    </div>
+                    {% if b.summary %}
+                    <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
+                    {% endif %}
+                    {% if b.content_preview %}
+                    <pre class="sd-attribution-bucket__preview">{{ b.content_preview }}</pre>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
+            {% endif %}
+            {# ── Display-only buckets ── #}
+            {% set req_display_buckets = payload.data.buckets | selectattr("contributes_to_total", "equalto", false) | list %}
+            {% if req_display_buckets %}
+            <section class="sd-payload-section payload-section"><h3>明细，不计入总量</h3>
+              <div class="sd-attribution-bucket-list">
+                {% for b in req_display_buckets %}
+                  <div class="sd-attribution-bucket sd-attribution-bucket--display-only" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket__head">
+                      <div class="sd-attribution-bucket__title">
+                        <span>{{ b.label|default(b.key|default('—')) }}</span>
+                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      </div>
+                      <div class="sd-attribution-bucket__meta">
+                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
+                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
+                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
+                      </div>
+                    </div>
+                    {% if b.summary %}
+                    <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
+            {% endif %}
+            {# ── Captured context preview with empty fallback ── #}
             {% if payload.data.captured_context_preview %}
             <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
               <pre class="sd-context-preview">{{ payload.data.captured_context_preview }}</pre>
+            </section>
+            {% else %}
+            <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
+              <div class="sd-empty-state">无额外 captured context；当前可见内容已归入具体分类。</div>
             </section>
             {% endif %}
             {% if payload.data.availability_rows %}
@@ -541,13 +626,94 @@
               </div>
             </section>
             {% endif %}
+            {# ── Distribution bar ── #}
             {% if payload.data.buckets %}
-            <section class="sd-payload-section payload-section"><h3>主要归因类型</h3>
-              {% for b in payload.data.buckets if b.contributes_to_total %}
-                <span class="sd-chip sd-chip--attrib">{{ b.label }} · {{ b.tokens|format_compact_token }}</span>
-              {% endfor %}
+            <section class="sd-payload-section payload-section"><h3>用量分布</h3>
+              <div class="sd-attribution-distribution" data-attribution-distribution>
+                <div class="sd-attribution-distribution__bar">
+                  {% for b in payload.data.buckets if b.contributes_to_total %}
+                    <span class="sd-attribution-segment sd-attribution-segment--{{ loop.index0 % 8 }}"
+                          style="--seg-w: {{ b.percent|default(0) }}%;"
+                          title="{{ b.label }} {{ b.tokens|format_compact_token }} ({{ b.percent|default(0) }}%)">
+                      {% if b.percent|default(0) > 8 %}{{ b.label }}{% endif %}
+                    </span>
+                  {% endfor %}
+                  {% set bar_buckets = payload.data.buckets | selectattr('contributes_to_total') | list %}
+                  {% if not bar_buckets %}
+                    <div class="sd-empty-state">暂无可用于总览图归因的 bucket。</div>
+                  {% endif %}
+                </div>
+                <div class="sd-attribution-legend">
+                  {% for b in payload.data.buckets if b.contributes_to_total %}
+                    <span class="sd-attribution-legend-item">
+                      <span class="sd-attribution-legend__dot sd-attribution-legend__dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-legend__label">{{ b.label }}</span>
+                      <span class="sd-attribution-legend__pct">{{ b.percent|default(0) }}%</span>
+                      <span class="sd-attribution-legend__tokens">{{ b.tokens|format_compact_token }}</span>
+                    </span>
+                  {% endfor %}
+                </div>
+              </div>
             </section>
             {% endif %}
+            {# ── Bucket detail cards ── #}
+            {% if payload.data.buckets %}
+            <section class="sd-payload-section payload-section"><h3>归因明细</h3>
+              <div class="sd-attribution-bucket-list">
+                {% for b in payload.data.buckets if b.contributes_to_total %}
+                  <div class="sd-attribution-bucket" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket__head">
+                      <div class="sd-attribution-bucket__title">
+                        <span class="sd-attribution-bucket__dot sd-attribution-bucket__dot--{{ loop.index0 % 8 }}"></span>
+                        <span>{{ b.label|default(b.key|default('—')) }}</span>
+                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      </div>
+                      <div class="sd-attribution-bucket__meta">
+                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
+                        <span class="sd-attribution-bucket__pct">{{ b.percent|default(0) }}%</span>
+                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
+                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
+                        {% if b.confidence_label %}<span class="sd-chip">{{ b.confidence_label }}</span>{% endif %}
+                      </div>
+                    </div>
+                    {% if b.summary %}
+                    <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
+                    {% endif %}
+                    {% if b.content_preview %}
+                    <pre class="sd-attribution-bucket__preview">{{ b.content_preview }}</pre>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
+            {% endif %}
+            {# ── Display-only buckets ── #}
+            {% set resp_display_buckets = payload.data.buckets | selectattr("contributes_to_total", "equalto", false) | list %}
+            {% if resp_display_buckets %}
+            <section class="sd-payload-section payload-section"><h3>明细，不计入总量</h3>
+              <div class="sd-attribution-bucket-list">
+                {% for b in resp_display_buckets %}
+                  <div class="sd-attribution-bucket sd-attribution-bucket--display-only" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket__head">
+                      <div class="sd-attribution-bucket__title">
+                        <span>{{ b.label|default(b.key|default('—')) }}</span>
+                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      </div>
+                      <div class="sd-attribution-bucket__meta">
+                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
+                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
+                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
+                      </div>
+                    </div>
+                    {% if b.summary %}
+                    <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
+            {% endif %}
+            {# ── Blocks with empty fallback ── #}
             {% if payload.data.blocks %}
             <section class="sd-payload-section payload-section"><h3>Blocks 明细</h3>
               {% for block in payload.data.blocks %}
@@ -582,10 +748,19 @@
                 {% endif %}
               {% endfor %}
             </section>
+            {% else %}
+            <section class="sd-payload-section payload-section"><h3>Blocks 明细</h3>
+              <div class="sd-empty-state">无可见 response blocks。</div>
+            </section>
             {% endif %}
+            {# ── Captured output preview with empty fallback ── #}
             {% if payload.data.captured_output_preview %}
             <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
               <pre class="sd-context-preview">{{ payload.data.captured_output_preview }}</pre>
+            </section>
+            {% else %}
+            <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
+              <div class="sd-empty-state">没有可展示的输出摘要。</div>
             </section>
             {% endif %}
             {% if payload.data.availability_rows %}

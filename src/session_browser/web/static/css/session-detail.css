@@ -3463,6 +3463,194 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   border-left: 3px solid #dc2626;
 }
 
+/* ── Missing precision tag: transcript_exact ── */
+.session-detail-page .sd-precision-tag--transcript_exact { background: #dbeafe; color: #1d4ed8; }
+
+/* ── Attribution distribution stacked bar ── */
+.session-detail-page .sd-attribution-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.session-detail-page .sd-attribution-distribution__bar {
+  height: 28px;
+  border-radius: 8px;
+  background: #e8eef6;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--sd-line-soft, #e2e8f0);
+}
+.session-detail-page .sd-attribution-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  transition: opacity 120ms ease;
+  width: var(--seg-w, 0%);
+}
+.session-detail-page .sd-attribution-segment:hover { opacity: 0.85; }
+.session-detail-page .sd-attribution-segment--0 { background: #2563eb; }
+.session-detail-page .sd-attribution-segment--1 { background: #059669; }
+.session-detail-page .sd-attribution-segment--2 { background: #d97706; }
+.session-detail-page .sd-attribution-segment--3 { background: #7c3aed; }
+.session-detail-page .sd-attribution-segment--4 { background: #0891b2; }
+.session-detail-page .sd-attribution-segment--5 { background: #dc2626; }
+.session-detail-page .sd-attribution-segment--6 { background: #4f46e5; }
+.session-detail-page .sd-attribution-segment--7 { background: #64748b; }
+
+/* Legend */
+.session-detail-page .sd-attribution-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.session-detail-page .sd-attribution-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+}
+.session-detail-page .sd-attribution-legend__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.session-detail-page .sd-attribution-legend__dot--0 { background: #2563eb; }
+.session-detail-page .sd-attribution-legend__dot--1 { background: #059669; }
+.session-detail-page .sd-attribution-legend__dot--2 { background: #d97706; }
+.session-detail-page .sd-attribution-legend__dot--3 { background: #7c3aed; }
+.session-detail-page .sd-attribution-legend__dot--4 { background: #0891b2; }
+.session-detail-page .sd-attribution-legend__dot--5 { background: #dc2626; }
+.session-detail-page .sd-attribution-legend__dot--6 { background: #4f46e5; }
+.session-detail-page .sd-attribution-legend__dot--7 { background: #64748b; }
+.session-detail-page .sd-attribution-legend__label { font-weight: 700; color: #1e293b; }
+.session-detail-page .sd-attribution-legend__pct { font-family: var(--sd-mono, ui-monospace, monospace); color: #94a3b8; }
+.session-detail-page .sd-attribution-legend__tokens { font-family: var(--sd-mono, ui-monospace, monospace); font-weight: 600; color: #475569; }
+
+/* Bucket cards */
+.session-detail-page .sd-attribution-bucket-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-detail-page .sd-attribution-bucket {
+  border: 1px solid var(--sd-line-soft, #e2e8f0);
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-detail-page .sd-attribution-bucket__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.session-detail-page .sd-attribution-bucket__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 760;
+  font-size: 12px;
+  color: #1e293b;
+}
+.session-detail-page .sd-attribution-bucket__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.session-detail-page .sd-attribution-bucket__dot--0 { background: #2563eb; }
+.session-detail-page .sd-attribution-bucket__dot--1 { background: #059669; }
+.session-detail-page .sd-attribution-bucket__dot--2 { background: #d97706; }
+.session-detail-page .sd-attribution-bucket__dot--3 { background: #7c3aed; }
+.session-detail-page .sd-attribution-bucket__dot--4 { background: #0891b2; }
+.session-detail-page .sd-attribution-bucket__dot--5 { background: #dc2626; }
+.session-detail-page .sd-attribution-bucket__dot--6 { background: #4f46e5; }
+.session-detail-page .sd-attribution-bucket__dot--7 { background: #64748b; }
+.session-detail-page .sd-attribution-bucket__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.session-detail-page .sd-attribution-bucket__tokens {
+  font-family: var(--sd-mono, ui-monospace, monospace);
+  font-weight: 700;
+  font-size: 12px;
+  color: #1e293b;
+}
+.session-detail-page .sd-attribution-bucket__pct {
+  font-family: var(--sd-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: #94a3b8;
+}
+.session-detail-page .sd-attribution-bucket__source {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+}
+.session-detail-page .sd-attribution-bucket__summary {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
+  padding: 4px 0 0;
+}
+.session-detail-page .sd-attribution-bucket__preview {
+  max-height: 120px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+  margin: 0;
+  border: 1px solid var(--sd-line-soft, #e2e8f0);
+}
+
+/* Display-only bucket */
+.session-detail-page .sd-attribution-bucket--display-only {
+  background: #fafbfc;
+  border-color: var(--sd-line-soft, #e2e8f0);
+  border-left: 3px solid #e2e8f0;
+  opacity: 0.78;
+}
+.session-detail-page .sd-attribution-bucket--display-only .sd-attribution-bucket__title {
+  color: #64748b;
+  font-weight: 600;
+}
+.session-detail-page .sd-attribution-bucket--display-only .sd-attribution-bucket__tokens {
+  color: #64748b;
+}
+
+/* Empty state in attribution payload */
+.session-detail-page .sd-payload-shell--attribution .sd-empty-state {
+  padding: 14px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #f8fafc;
+  border: 1px dashed var(--sd-line-soft, #e2e8f0);
+  border-radius: 8px;
+}
+
 /* Responsive: collapse to single column */
 @media (max-width: 1360px) {
   .session-detail-page .sd-payload-shell--attribution {

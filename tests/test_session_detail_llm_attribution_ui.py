@@ -299,27 +299,35 @@ class TestAttributionTemplateRendering:
         assert "provider_response" in html
         assert "从文件名推断" in html
 
-    def test_attribution_renders_buckets_as_chips(self):
+    def test_attribution_renders_buckets_as_distribution_bar(self):
         req_data = _make_req_data(
             buckets=[
                 {
                     "key": "messages", "label": "messages", "tokens": 3000,
                     "percent": 60.0, "contributes_to_total": True,
+                    "precision": "provider_reported",
                 },
                 {
                     "key": "tools", "label": "tool definitions", "tokens": 1000,
                     "percent": 20.0, "contributes_to_total": True,
+                    "precision": "heuristic",
                 },
                 {
                     "key": "internal", "label": "internal", "tokens": 1000,
                     "percent": 20.0, "contributes_to_total": False,
+                    "precision": "residual",
                 },
             ],
         )
         html = _render_payload_sources([req_data])
-        assert "sd-chip--attrib" in html
+        assert "sd-attribution-distribution" in html
+        assert "sd-attribution-segment" in html
+        assert "sd-attribution-legend" in html
+        assert "sd-attribution-bucket" in html
         assert "messages" in html
         assert "tool definitions" in html
+        # Old chip pattern should not be used anymore
+        assert "sd-chip--attrib" not in html
 
     def test_attribution_renders_notes(self):
         req_data = _make_req_data(
@@ -392,3 +400,298 @@ class TestPrecisionLabelFilter:
 
     def test_empty_string_returns_default(self):
         assert _precision_label("") == "不可用"
+
+
+# ─── Distribution bar tests ───────────────────────────────────────────
+
+class TestDistributionBar:
+    """Verify distribution bar renders correctly for both request and response."""
+
+    def _make_req_with_buckets(self, **overrides):
+        return _make_req_data(
+            buckets=[
+                {
+                    "key": "messages", "label": "messages", "tokens": 3000,
+                    "percent": 60.0, "contributes_to_total": True,
+                    "precision": "provider_reported",
+                },
+                {
+                    "key": "tools", "label": "tool definitions", "tokens": 1000,
+                    "percent": 20.0, "contributes_to_total": True,
+                    "precision": "heuristic",
+                },
+                {
+                    "key": "internal", "label": "internal overhead", "tokens": 1000,
+                    "percent": 20.0, "contributes_to_total": False,
+                    "precision": "residual",
+                },
+            ],
+            **overrides,
+        )
+
+    def _make_resp_with_buckets(self, **overrides):
+        return _make_resp_data(
+            buckets=[
+                {
+                    "key": "visible_text", "label": "visible text", "tokens": 1500,
+                    "percent": 75.0, "contributes_to_total": True,
+                    "precision": "provider_reported",
+                },
+                {
+                    "key": "tool_use", "label": "tool use", "tokens": 400,
+                    "percent": 20.0, "contributes_to_total": True,
+                    "precision": "heuristic",
+                },
+                {
+                    "key": "metadata", "label": "metadata", "tokens": 100,
+                    "percent": 5.0, "contributes_to_total": False,
+                    "precision": "estimated",
+                },
+            ],
+            **overrides,
+        )
+
+    def test_request_attribution_has_distribution_bar(self):
+        html = _render_payload_sources([self._make_req_with_buckets()])
+        assert "sd-attribution-distribution" in html
+        assert "data-attribution-distribution" in html
+        assert "用量分布" in html
+
+    def test_response_attribution_has_distribution_bar(self):
+        html = _render_payload_sources([self._make_resp_with_buckets()])
+        assert "sd-attribution-distribution" in html
+        assert "data-attribution-distribution" in html
+        assert "用量分布" in html
+
+    def test_bar_segments_count_matches_contributes_true(self):
+        req = self._make_req_with_buckets()
+        html = _render_payload_sources([req])
+        # 2 buckets with contributes_to_total=True -> 2 segments
+        assert html.count("sd-attribution-segment--") == 2
+
+    def test_legend_items_count_matches_contributes_true(self):
+        req = self._make_req_with_buckets()
+        html = _render_payload_sources([req])
+        assert html.count("sd-attribution-legend-item") == 2
+
+    def test_display_only_bucket_not_in_bar(self):
+        """contributes_to_total=false bucket labels must not appear in bar segments."""
+        html = _render_payload_sources([self._make_req_with_buckets()])
+        # The bar container should only contain segments for contributes_to_total=True
+        # Extract the bar portion and verify "internal overhead" is not in any segment title
+        # The bar segment title attribute only includes contributes_to_total=True buckets
+        assert "internal overhead" not in html.split("sd-attribution-legend")[0]
+
+    def test_display_only_bucket_not_in_legend(self):
+        """contributes_to_total=false bucket must not appear in legend items."""
+        resp = self._make_resp_with_buckets()
+        html = _render_payload_sources([resp])
+        # Legend items count should be 2, not 3
+        assert html.count("sd-attribution-legend-item") == 2
+        # "metadata" (contributes_to_total=False) should appear only later
+        legend_section = html.split("sd-attribution-legend")[0]
+        assert "metadata" not in legend_section
+
+
+# ─── Bucket detail tests ──────────────────────────────────────────────
+
+class TestBucketDetails:
+    """Verify bucket detail cards render correctly."""
+
+    def _make_req_with_full_buckets(self):
+        return _make_req_data(
+            buckets=[
+                {
+                    "key": "messages", "label": "messages", "tokens": 3000,
+                    "percent": 60.0, "contributes_to_total": True,
+                    "precision": "transcript_exact",
+                    "source": "transcript",
+                    "count_label": "12 items",
+                    "confidence_label": "高",
+                    "summary": "All conversation messages including system prompts.",
+                    "content_preview": "system\nYou are a helpful assistant.",
+                },
+            ],
+        )
+
+    def _make_resp_with_full_buckets(self):
+        return _make_resp_data(
+            buckets=[
+                {
+                    "key": "visible_text", "label": "visible text", "tokens": 1500,
+                    "percent": 75.0, "contributes_to_total": True,
+                    "precision": "provider_reported",
+                    "source": "provider_response",
+                    "summary": "Visible assistant text in the response.",
+                    "content_preview": "Sure, let me analyze the code.",
+                },
+            ],
+        )
+
+    def test_bucket_card_elements_exist(self):
+        html = _render_payload_sources([self._make_req_with_full_buckets()])
+        assert "sd-attribution-bucket" in html
+        assert "sd-attribution-bucket-list" in html
+        assert "sd-attribution-bucket__head" in html
+        assert "sd-attribution-bucket__title" in html
+        assert "sd-attribution-bucket__meta" in html
+        assert "data-bucket-label" in html
+
+    def test_bucket_percent_visible(self):
+        html = _render_payload_sources([self._make_req_with_full_buckets()])
+        assert "60.0%" in html
+        assert "sd-attribution-bucket__pct" in html
+
+    def test_bucket_precision_tag_visible(self):
+        html = _render_payload_sources([self._make_req_with_full_buckets()])
+        assert "sd-precision-tag--transcript_exact" in html
+        assert "内容精确" in html
+
+    def test_bucket_source_visible(self):
+        html = _render_payload_sources([self._make_req_with_full_buckets()])
+        assert "sd-attribution-bucket__source" in html
+        assert "transcript" in html
+
+    def test_bucket_summary_visible(self):
+        html = _render_payload_sources([self._make_req_with_full_buckets()])
+        assert "sd-attribution-bucket__summary" in html
+        assert "All conversation messages" in html
+
+    def test_bucket_content_preview_visible(self):
+        html = _render_payload_sources([self._make_req_with_full_buckets()])
+        assert "sd-attribution-bucket__preview" in html
+        assert "You are a helpful assistant" in html
+
+    def test_bucket_tokens_and_pct_in_meta(self):
+        html = _render_payload_sources([self._make_resp_with_full_buckets()])
+        assert "sd-attribution-bucket__tokens" in html
+        assert "sd-attribution-bucket__pct" in html
+        assert "75.0%" in html
+
+
+# ─── Display-only bucket tests ────────────────────────────────────────
+
+class TestDisplayOnlyBuckets:
+    """Verify contributes_to_total=false buckets appear in display-only section."""
+
+    def _make_payload_with_display_only(self):
+        return _make_req_data(
+            buckets=[
+                {
+                    "key": "messages", "label": "messages", "tokens": 3000,
+                    "percent": 60.0, "contributes_to_total": True,
+                    "precision": "provider_reported",
+                },
+                {
+                    "key": "internal", "label": "internal overhead", "tokens": 1000,
+                    "percent": 20.0, "contributes_to_total": False,
+                    "precision": "residual",
+                },
+            ],
+        )
+
+    def test_display_only_bucket_in_not_counted_section(self):
+        html = _render_payload_sources([self._make_payload_with_display_only()])
+        assert "明细，不计入总量" in html
+
+    def test_display_only_bucket_has_display_only_class(self):
+        html = _render_payload_sources([self._make_payload_with_display_only()])
+        assert "sd-attribution-bucket--display-only" in html
+
+    def test_display_only_bucket_not_in_distribution_bar(self):
+        """The display-only bucket should not appear in the distribution bar section."""
+        html = _render_payload_sources([self._make_payload_with_display_only()])
+        # Find the distribution bar section
+        dist_start = html.find("sd-attribution-distribution__bar")
+        dist_end = html.find("sd-attribution-legend", dist_start)
+        bar_section = html[dist_start:dist_end]
+        assert "internal overhead" not in bar_section
+
+
+# ─── Empty fallback tests ─────────────────────────────────────────────
+
+class TestEmptyFallback:
+    """Verify empty fallback messages appear when optional content is missing."""
+
+    def test_request_empty_captured_context_shows_fallback(self):
+        """When captured_context_preview is empty, show fallback."""
+        req = _make_req_data(captured_context_preview="")
+        html = _render_payload_sources([req])
+        assert "无额外 captured context" in html
+
+    def test_response_empty_captured_output_shows_fallback(self):
+        """When captured_output_preview is empty, show fallback."""
+        resp = _make_resp_data(captured_output_preview="")
+        html = _render_payload_sources([resp])
+        assert "没有可展示的输出摘要" in html
+
+    def test_empty_response_blocks_shows_fallback(self):
+        """When blocks is empty or missing, show fallback."""
+        resp = _make_resp_data(blocks=[])
+        html = _render_payload_sources([resp])
+        assert "无可见 response blocks" in html
+
+    def test_non_empty_context_preview_shows_content_not_fallback(self):
+        """When captured_context_preview has content, show it, not fallback."""
+        req = _make_req_data(captured_context_preview="system\nYou are helpful.")
+        html = _render_payload_sources([req])
+        assert "You are helpful" in html
+        # The fallback text should not appear alongside real content
+        # (only the content preview section, not the empty state)
+        assert "无额外 captured context" not in html
+
+
+# ─── Transcript exact CSS test ────────────────────────────────────────
+
+class TestTranscriptExactCSS:
+    """Verify transcript_exact precision CSS exists."""
+
+    def test_transcript_exact_css_in_file(self):
+        import pathlib
+        css_path = pathlib.Path(__file__).resolve().parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
+        css = css_path.read_text()
+        assert "sd-precision-tag--transcript_exact" in css
+
+
+# ─── Regression tests ─────────────────────────────────────────────────
+
+class TestAttributionRegression:
+    """Verify old patterns are removed."""
+
+    def test_no_raw_request_button_in_attribution_modal(self):
+        """Attribution modal should not have a Raw request main button."""
+        req = _make_req_data(buckets=[
+            {"key": "messages", "label": "messages", "tokens": 3000,
+             "percent": 60.0, "contributes_to_total": True, "precision": "provider_reported"},
+        ])
+        html = _render_payload_sources([req])
+        assert "Raw request" not in html
+
+    def test_no_raw_response_button_in_attribution_modal(self):
+        """Attribution modal should not have a Raw response main button."""
+        resp = _make_resp_data(buckets=[
+            {"key": "visible_text", "label": "visible text", "tokens": 1500,
+             "percent": 75.0, "contributes_to_total": True, "precision": "provider_reported"},
+        ])
+        html = _render_payload_sources([resp])
+        assert "Raw response" not in html
+
+    def test_no_no_rendered_content(self):
+        """No '(No rendered content)' fallback in attribution."""
+        html = _render_payload_sources([_make_req_data()])
+        assert "No rendered content" not in html
+
+    def test_no_no_raw_content(self):
+        """No '(No raw content)' fallback in attribution."""
+        html = _render_payload_sources([_make_resp_data()])
+        assert "No raw content" not in html
+
+    def test_old_chip_pattern_not_used_for_contributes_true(self):
+        """Old sd-chip--attrib pattern should not be used for contributes_to_total=true in attribution sections."""
+        req = _make_req_data(buckets=[
+            {"key": "messages", "label": "messages", "tokens": 3000,
+             "percent": 60.0, "contributes_to_total": True, "precision": "provider_reported"},
+        ])
+        html = _render_payload_sources([req])
+        # sd-chip--attrib should not appear in the new attribution sections
+        assert "sd-chip--attrib" not in html
