@@ -268,7 +268,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
         buckets.append(RequestAttributionBucket(
             key="unknown_overhead",
-            label="Unknown / wrapper",
+            label="未定位",
             tokens=unknown_val,
             percent=_pct(unknown_val, total_input_val),
             precision=ValuePrecision.RESIDUAL,

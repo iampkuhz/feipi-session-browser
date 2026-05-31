@@ -40,6 +40,8 @@ class TestAttributionModalContract:
                 },
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
             },
         }
         html = _render_payload_sources([req_data])
@@ -99,6 +101,7 @@ class TestAttributionModalContract:
                 },
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
             },
         }
         html = _render_payload_sources([req_data])
@@ -122,6 +125,7 @@ class TestAttributionModalContract:
                           "unknown": {"value": 500, "precision": "residual"}},
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
             },
         }
         html = _render_payload_sources([req_data])
@@ -144,6 +148,7 @@ class TestAttributionModalContract:
                           "unknown": {"value": 500, "precision": "residual"}},
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
             },
         }
         html = _render_payload_sources([req_data])
@@ -165,6 +170,7 @@ class TestAttributionModalContract:
                           "unknown": {"value": 500, "precision": "residual"}},
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
             },
         }
         html = _render_payload_sources([req_data])
@@ -226,6 +232,7 @@ class TestAttributionModalContract:
                               "unknown": {"value": 500, "precision": "residual"}},
                     "buckets": [], "availability_rows": [],
                     "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
                 },
             },
             {
@@ -281,8 +288,25 @@ class TestAttributionModalContract:
                     "coverage": {"value": 3000, "precision": "heuristic"},
                     "unknown": {"value": 2000, "precision": "residual"},
                 },
-                "buckets": [], "availability_rows": [],
+                "buckets": [
+                    {
+                        "key": "current_user_message", "label": "当前用户输入",
+                        "tokens": 2000, "percent": 40.0, "contributes_to_total": True,
+                        "precision": "estimated", "source": "transcript",
+                        "confidence_label": "中高", "summary": "用户输入",
+                        "content_preview": "",
+                    },
+                    {
+                        "key": "tool_schemas", "label": "工具定义",
+                        "tokens": 500, "percent": 10.0, "contributes_to_total": True,
+                        "precision": "heuristic", "source": "tool_list",
+                        "confidence_label": "中低", "summary": "工具定义估算",
+                        "content_preview": "",
+                    },
+                ],
+                "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
             },
         }
         html = _render_payload_sources([req_data])
@@ -308,6 +332,7 @@ class TestAttributionModalContract:
                 "buckets": [],
                 "captured_context_preview": "",
                 "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
                 "availability_rows": [
                     {
                         "field": "input_tokens", "label": "input_tokens",

@@ -138,7 +138,9 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         tool_result_texts = self._get_preceding_tool_result_texts()
         tool_results_tokens = estimate_tokens_from_text("\n".join(tool_result_texts))
 
-        # History messages: extract prior messages from session_context
+        # Prior conversation messages: extract from session_context.
+        # NOTE: this replaces the old history_messages bucket to avoid
+        # double-counting with current_user_message.
         prior_messages = self._extract_prior_messages()
         prior_message_texts = []
         for pm in prior_messages:
@@ -146,30 +148,13 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 prior_message_texts.append(pm.get("content", ""))
             else:
                 prior_message_texts.append(str(pm))
-        history_msg_count = len(prior_messages)
-        history_visible_tokens = 0
+        prior_msg_count = len(prior_messages)
+        prior_conversation_tokens = 0
         if prior_messages:
-            history_visible_tokens = estimate_tokens_from_text("\n".join(prior_message_texts))
-
-        # Captured context fragment: request_full content that is NOT
-        # classified as prior messages, current user message, or preceding
-        # tool results.  Deduplicate to avoid double-counting.
-        captured_context_tokens = 0
-        captured_context_text = ""
-        if lc.request_full:
-            known_fragments = [
-                user_msg_content,
-                *prior_message_texts,
-                *tool_result_texts,
-            ]
-            deduped = self._remove_known_fragments(lc.request_full, known_fragments)
-            if deduped:
-                captured_context_text = deduped[:3000]
-                captured_context_tokens = estimate_tokens_from_text(captured_context_text)
+            prior_conversation_tokens = estimate_tokens_from_text("\n".join(prior_message_texts))
 
         # Tool schemas: ONLY from available_tools list, NOT from observed
-        # tool_calls.  Tool schemas refers to the list of tools available to
-        # the model, not the tools actually called this round.
+        # tool_calls.
         available_tools = self._get_available_tools()
         tool_schema_tokens = 0
         tool_schemas_availability = ValuePrecision.UNAVAILABLE
@@ -184,72 +169,104 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             tool_schemas_summary = (
                 f"按 {len(available_tools)} 个可用工具 × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens/tool 估算。"
             )
-        # Note: when available_tools is empty, tool_schema_tokens stays 0
-        # and we do NOT generate a tool_schemas bucket.
 
-        # System/developer rules: unknown for now (heuristic low)
-        system_rules_tokens = 0  # would need CLAUDE.md / AGENTS.md analysis
+        # Local instruction context: look for system-reminder content in
+        # session_context or round user_msg.
+        local_instruction_tokens = 0
+        local_instruction_text = ""
+        local_instruction_availability = ValuePrecision.UNAVAILABLE
+        local_instruction_summary = "未检测到本地指令上下文。"
+        ctx = self.session_context or {}
+        local_text = (
+            ctx.get("local_instructions")
+            or ctx.get("system_reminder_content")
+            or ""
+        )
+        if local_text:
+            local_instruction_text = local_text[:3000]
+            local_instruction_tokens = estimate_tokens_from_text(local_instruction_text)
+            local_instruction_availability = ValuePrecision.HEURISTIC
+            local_instruction_summary = (
+                f"从 session_context 中提取本地指令，{len(local_text)} 字符估算。"
+            )
+
+        # Agent/Subagent prompt: check session_context for prompt file or text.
+        agent_subagent_tokens = 0
+        agent_subagent_text = ""
+        agent_subagent_availability = ValuePrecision.UNAVAILABLE
+        agent_subagent_summary = "未检测到 Agent/Subagent 提示。"
+        agent_prompt = (
+            ctx.get("agent_prompt_file")
+            or ctx.get("subagent_prompt")
+            or ""
+        )
+        if agent_prompt:
+            agent_subagent_text = agent_prompt[:3000]
+            agent_subagent_tokens = estimate_tokens_from_text(agent_subagent_text)
+            agent_subagent_availability = ValuePrecision.HEURISTIC
+            agent_subagent_summary = (
+                f"从 session_context 中提取 Agent 提示，{len(agent_prompt)} 字符估算。"
+            )
+
+        # MCP tool metadata: count items * ~50 tokens each.
+        mcp_metadata_tokens = 0
+        mcp_metadata_availability = ValuePrecision.UNAVAILABLE
+        mcp_metadata_summary = "未检测到 MCP 工具元数据。"
+        mcp_tools = ctx.get("mcp_tools", ctx.get("mcp_servers", []))
+        if isinstance(mcp_tools, list) and mcp_tools:
+            mcp_metadata_tokens = len(mcp_tools) * 50
+            mcp_metadata_availability = ValuePrecision.HEURISTIC
+            mcp_metadata_summary = (
+                f"按 {len(mcp_tools)} 个 MCP 工具/服务器 × 50 tokens 估算。"
+            )
+
+        # Top-level system estimate: if cache_read > 0 and prior messages are
+        # small, some tokens are likely system-level.
+        top_level_system_tokens = 0
+        if cache_read_val > 0 and prior_conversation_tokens < cache_read_val:
+            # Some cache tokens are likely system-level content.
+            known_before_system = (
+                current_user_msg_tokens + tool_results_tokens
+                + prior_conversation_tokens + tool_schema_tokens
+                + local_instruction_tokens + agent_subagent_tokens
+                + mcp_metadata_tokens
+            )
+            top_level_system_tokens = min(500, max(0, total_call_input - known_before_system))
+            # Clamp: don't exceed cache_read
+            top_level_system_tokens = min(top_level_system_tokens, cache_read_val)
+        if top_level_system_tokens > 0:
+            pass  # heuristic estimate
+        else:
+            top_level_system_tokens = 0
+
+        # Hidden builtin system estimate: Claude Code builtin prompt not public.
+        hidden_builtin_tokens = 0
+        # Typical range: 300-800 tokens for Claude Code wrapper.
+        hidden_builtin_tokens = 500  # midpoint heuristic
+        # This is always a heuristic; mark as such.
+
+        # Provider wrapper estimate: ~50-200 tokens for framing.
+        provider_wrapper_tokens = 100  # midpoint heuristic
 
         # ── Step 3: assemble buckets and normalize ─────────────────────
-        known_sum = (current_user_msg_tokens + tool_results_tokens
-                     + history_visible_tokens + captured_context_tokens
-                     + tool_schema_tokens + system_rules_tokens)
+        # Sum of all known buckets EXCEPT unlocated_residual
+        known_sum = (
+            current_user_msg_tokens + tool_results_tokens
+            + prior_conversation_tokens + tool_schema_tokens
+            + local_instruction_tokens + agent_subagent_tokens
+            + mcp_metadata_tokens + top_level_system_tokens
+            + hidden_builtin_tokens + provider_wrapper_tokens
+        )
 
-        if total_call_input > 0:
-            unknown_val = max(total_call_input - known_sum, 0)
-        else:
-            unknown_val = 0
+        unlocated_residual = max(total_call_input - known_sum, 0) if total_call_input > 0 else 0
 
         buckets = []
 
-        # History messages — ONLY if we have explicit prior messages
-        if history_visible_tokens > 0 and prior_messages:
-            buckets.append(RequestAttributionBucket(
-                key="history_messages",
-                label="History messages",
-                tokens=history_visible_tokens,
-                percent=_pct(history_visible_tokens, total_call_input),
-                count_label=f"{history_msg_count} messages",
-                precision=ValuePrecision.ESTIMATED,
-                source=ValueSource.TRANSCRIPT,
-                confidence_label="中",
-                summary="历史消息从 prior messages 列表获取，token 通过文本估算。",
-                content_preview=lc.request_preview[:120] if lc.request_preview else "",
-            ))
-
-        # Captured context fragment — when request_full exists but cannot be classified
-        if captured_context_tokens > 0:
-            buckets.append(RequestAttributionBucket(
-                key="captured_context_fragment",
-                label="Captured context / unknown",
-                tokens=captured_context_tokens,
-                percent=_pct(captured_context_tokens, total_call_input),
-                precision=ValuePrecision.ESTIMATED,
-                source=ValueSource.TRANSCRIPT,
-                confidence_label="低",
-                summary="request_full 中存在但无法分类为历史消息的上下文片段。",
-                content_preview=captured_context_text[:120] if captured_context_text else "",
-            ))
-
-        # Tool results
-        if tool_results_tokens > 0:
-            buckets.append(RequestAttributionBucket(
-                key="tool_results",
-                label="Tool results",
-                tokens=tool_results_tokens,
-                percent=_pct(tool_results_tokens, total_call_input),
-                count_label=f"{len(tool_result_texts)} results" if tool_result_texts else "",
-                precision=ValuePrecision.ESTIMATED,
-                source=ValueSource.TOOL_LOGS,
-                confidence_label="中",
-                summary="Tool result 内容可从 tool logs 获取，token 通过文本估算。",
-            ))
-
-        # Current user message
+        # 1. current_user_message — 当前用户输入
         if current_user_msg_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="current_user_message",
-                label="Current user message",
+                label="当前用户输入",
                 tokens=current_user_msg_tokens,
                 percent=_pct(current_user_msg_tokens, total_call_input),
                 precision=ValuePrecision.ESTIMATED,
@@ -259,61 +276,142 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 content_preview=(user_msg_content or "")[:120],
             ))
 
-        # Tool schemas — ONLY when we have available_tools (not observed calls)
-        if tool_schema_tokens > 0:
+        # 2. preceding_tool_results — 前序工具结果
+        if tool_results_tokens > 0:
             buckets.append(RequestAttributionBucket(
-                key="tool_schemas",
-                label="Tool schemas",
-                tokens=tool_schema_tokens,
-                percent=_pct(tool_schema_tokens, total_call_input),
-                count_label=f"{len(available_tools)} tools",
-                precision=tool_schemas_availability,
-                source=tool_schemas_source,
-                confidence_label="中低",
-                summary=tool_schemas_summary,
+                key="preceding_tool_results",
+                label="前序工具结果",
+                tokens=tool_results_tokens,
+                percent=_pct(tool_results_tokens, total_call_input),
+                count_label=f"{len(tool_result_texts)} results" if tool_result_texts else "",
+                precision=ValuePrecision.ESTIMATED,
+                source=ValueSource.TOOL_LOGS,
+                confidence_label="中",
+                summary="前序 Tool result 内容可从 tool logs 获取，token 通过文本估算。",
             ))
-        elif not available_tools:
-            # Generate a zero-token bucket so UI can show "unavailable"
+
+        # 3. prior_conversation_messages — 前序对话消息
+        if prior_conversation_tokens > 0 and prior_messages:
             buckets.append(RequestAttributionBucket(
-                key="tool_schemas",
-                label="Tool schemas",
-                tokens=0,
-                percent=0.0,
-                precision=ValuePrecision.UNAVAILABLE,
+                key="prior_conversation_messages",
+                label="前序对话消息",
+                tokens=prior_conversation_tokens,
+                percent=_pct(prior_conversation_tokens, total_call_input),
+                count_label=f"{prior_msg_count} messages",
+                precision=ValuePrecision.ESTIMATED,
+                source=ValueSource.TRANSCRIPT,
+                confidence_label="中",
+                summary="前序对话消息从 prior messages 列表获取，token 通过文本估算。",
+                content_preview=lc.request_preview[:120] if lc.request_preview else "",
+            ))
+
+        # 4. tool_schemas — 工具定义
+        buckets.append(RequestAttributionBucket(
+            key="tool_schemas",
+            label="工具定义",
+            tokens=tool_schema_tokens,
+            percent=_pct(tool_schema_tokens, total_call_input),
+            count_label=f"{len(available_tools)} tools" if available_tools else "",
+            precision=tool_schemas_availability if tool_schema_tokens > 0 else ValuePrecision.UNAVAILABLE,
+            source=tool_schemas_source,
+            confidence_label="中低" if tool_schema_tokens > 0 else "低",
+            summary=tool_schemas_summary,
+        ))
+
+        # 5. local_instruction_context — 本地指令上下文
+        buckets.append(RequestAttributionBucket(
+            key="local_instruction_context",
+            label="本地指令上下文",
+            tokens=local_instruction_tokens,
+            percent=_pct(local_instruction_tokens, total_call_input),
+            precision=local_instruction_availability,
+            source=ValueSource.LOCAL_RULES,
+            confidence_label="中低" if local_instruction_tokens > 0 else "低",
+            summary=local_instruction_summary,
+            content_preview=local_instruction_text[:120] if local_instruction_text else "",
+        ))
+
+        # 6. agent_subagent_prompt — Agent/Subagent 提示
+        buckets.append(RequestAttributionBucket(
+            key="agent_subagent_prompt",
+            label="Agent/Subagent 提示",
+            tokens=agent_subagent_tokens,
+            percent=_pct(agent_subagent_tokens, total_call_input),
+            precision=agent_subagent_availability,
+            source=ValueSource.LOCAL_RULES,
+            confidence_label="中低" if agent_subagent_tokens > 0 else "低",
+            summary=agent_subagent_summary,
+            content_preview=agent_subagent_text[:120] if agent_subagent_text else "",
+        ))
+
+        # 7. mcp_tool_metadata — MCP 工具元数据
+        buckets.append(RequestAttributionBucket(
+            key="mcp_tool_metadata",
+            label="MCP 工具元数据",
+            tokens=mcp_metadata_tokens,
+            percent=_pct(mcp_metadata_tokens, total_call_input),
+            precision=mcp_metadata_availability,
+            source=ValueSource.SESSION_METADATA,
+            confidence_label="中低" if mcp_metadata_tokens > 0 else "低",
+            summary=mcp_metadata_summary,
+        ))
+
+        # 8. top_level_system_estimate — 顶层系统提示估算
+        if top_level_system_tokens > 0:
+            buckets.append(RequestAttributionBucket(
+                key="top_level_system_estimate",
+                label="顶层系统提示估算",
+                tokens=top_level_system_tokens,
+                percent=_pct(top_level_system_tokens, total_call_input),
+                precision=ValuePrecision.HEURISTIC,
                 source=ValueSource.HEURISTIC,
                 confidence_label="低",
-                summary=tool_schemas_summary,
+                summary="根据 cache_read 和前序消息量估算的顶层系统提示。",
             ))
 
-        # System / developer rules
-        if system_rules_tokens > 0:
-            buckets.append(RequestAttributionBucket(
-                key="system_developer_rules",
-                label="System / Developer rules",
-                tokens=system_rules_tokens,
-                percent=_pct(system_rules_tokens, total_call_input),
-                precision=ValuePrecision.HEURISTIC,
-                source=ValueSource.LOCAL_RULES,
-                confidence_label="低",
-                summary="系统/开发者规则 token 估算，置信度低。",
-            ))
-
-        # Unknown / overhead
+        # 9. hidden_builtin_system_estimate — 内置系统提示估算
         buckets.append(RequestAttributionBucket(
-            key="unknown_overhead",
-            label="Unknown / unattributed",
-            tokens=unknown_val,
-            percent=_pct(unknown_val, total_call_input),
+            key="hidden_builtin_system_estimate",
+            label="内置系统提示估算",
+            tokens=hidden_builtin_tokens,
+            percent=_pct(hidden_builtin_tokens, total_call_input),
+            precision=ValuePrecision.HEURISTIC,
+            source=ValueSource.HEURISTIC,
+            confidence_label="低",
+            summary=(
+                "Claude Code 内置 prompt 不公开，此处为 300-800 tokens 典型值估算，"
+                "非真实内容。"
+            ),
+        ))
+
+        # 10. provider_wrapper_estimate — Provider 包装层估算
+        buckets.append(RequestAttributionBucket(
+            key="provider_wrapper_estimate",
+            label="Provider 包装层估算",
+            tokens=provider_wrapper_tokens,
+            percent=_pct(provider_wrapper_tokens, total_call_input),
+            precision=ValuePrecision.HEURISTIC,
+            source=ValueSource.HEURISTIC,
+            confidence_label="低",
+            summary="Provider 元数据/thinking/output_config 等包装层开销估算。",
+        ))
+
+        # 11. unlocated_residual — 未定位 (always LAST)
+        buckets.append(RequestAttributionBucket(
+            key="unlocated_residual",
+            label="未定位",
+            tokens=unlocated_residual,
+            percent=_pct(unlocated_residual, total_call_input),
             precision=ValuePrecision.RESIDUAL,
             source=ValueSource.RESIDUAL,
             confidence_label="中",
-            summary="Total input 减去已知 bucket 后的剩余部分。",
+            summary="Total input 减去已知所有 bucket 后的剩余部分。",
         ))
 
         # ── Step 4: coverage ───────────────────────────────────────────
         known_bucket_sum = sum(
             b.tokens for b in buckets
-            if b.key not in ("unknown_overhead",) and b.contributes_to_total
+            if b.key not in ("unlocated_residual",) and b.contributes_to_total
         )
         if total_call_input > 0:
             coverage_val = min(known_bucket_sum / total_call_input, 1.0)
@@ -338,16 +436,16 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         precision=ValuePrecision.PROVIDER_REPORTED,
                         source=ValueSource.PROVIDER_USAGE,
                         fill_strategy="cache_creation_input_tokens"),
-            self._avail("history_messages_count", "History message count",
-                        history_msg_count > 0, exact=False,
-                        precision=ValuePrecision.ESTIMATED if history_msg_count > 0 else ValuePrecision.UNAVAILABLE,
-                        source=ValueSource.TRANSCRIPT if history_msg_count > 0 else ValueSource.HEURISTIC,
-                        fill_strategy="count of prior messages" if history_msg_count > 0 else "no prior messages"),
-            self._avail("history_messages_tokens", "History message tokens",
-                        history_visible_tokens > 0, exact=False,
-                        precision=ValuePrecision.ESTIMATED if history_visible_tokens > 0 else ValuePrecision.UNAVAILABLE,
-                        source=ValueSource.TRANSCRIPT if history_visible_tokens > 0 else ValueSource.HEURISTIC,
-                        fill_strategy="estimated from prior message text" if history_visible_tokens > 0 else "no prior messages"),
+            self._avail("prior_conversation_count", "Prior conversation message count",
+                        prior_msg_count > 0, exact=False,
+                        precision=ValuePrecision.ESTIMATED if prior_msg_count > 0 else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.TRANSCRIPT if prior_msg_count > 0 else ValueSource.HEURISTIC,
+                        fill_strategy="count of prior messages" if prior_msg_count > 0 else "no prior messages"),
+            self._avail("prior_conversation_tokens", "Prior conversation tokens",
+                        prior_conversation_tokens > 0, exact=False,
+                        precision=ValuePrecision.ESTIMATED if prior_conversation_tokens > 0 else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.TRANSCRIPT if prior_conversation_tokens > 0 else ValueSource.HEURISTIC,
+                        fill_strategy="estimated from prior message text" if prior_conversation_tokens > 0 else "no prior messages"),
             self._avail("current_user_message_content", "Current user message content",
                         bool(user_msg_content), exact=True,
                         precision=ValuePrecision.EXACT if user_msg_content else ValuePrecision.UNAVAILABLE,
@@ -373,26 +471,46 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         precision=tool_schemas_availability,
                         source=tool_schemas_source,
                         fill_strategy="available_tools count × constant" if available_tools else "no available_tools list"),
-            self._avail("system_developer_rules_tokens", "System/developer rules tokens",
-                        False,
-                        precision=ValuePrecision.UNAVAILABLE,
-                        source=ValueSource.HEURISTIC,
-                        fill_strategy="not parsed from local rules"),
+            self._avail("local_instruction_tokens", "Local instruction tokens",
+                        local_instruction_tokens > 0, exact=False,
+                        precision=local_instruction_availability,
+                        source=ValueSource.LOCAL_RULES,
+                        fill_strategy="from local_instructions or system_reminder_content"),
+            self._avail("agent_subagent_tokens", "Agent/Subagent prompt tokens",
+                        agent_subagent_tokens > 0, exact=False,
+                        precision=agent_subagent_availability,
+                        source=ValueSource.LOCAL_RULES,
+                        fill_strategy="from agent_prompt_file or subagent_prompt"),
+            self._avail("mcp_metadata_tokens", "MCP metadata tokens",
+                        mcp_metadata_tokens > 0, exact=False,
+                        precision=mcp_metadata_availability,
+                        source=ValueSource.SESSION_METADATA,
+                        fill_strategy="mcp_tools count × 50"),
             self._avail("unknown", "Unknown / residual", True, exact=False,
                         precision=ValuePrecision.RESIDUAL,
                         source=ValueSource.RESIDUAL,
-                        fill_strategy="residual = total - known"),
+                        fill_strategy="residual = total - all_known"),
         ]
 
         notes = []
         if cache_read_val > 0:
-            notes.append(f"Cache read {cache_read_val:,} tokens — 主要来自历史消息，但无法逐块确认。")
+            notes.append(f"Cache read {cache_read_val:,} tokens — 主要来自历史消息和系统提示，但无法逐块确认。")
         if available_tools:
             notes.append(f"Tool schemas 按 {len(available_tools)} available tools × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens 估算。")
         else:
-            notes.append("Tool schemas: 无法从本地日志获取可用工具定义列表，未生成正数 tool_schemas bucket。")
-        if not prior_messages and lc.request_full:
-            notes.append("History messages: 无明确 prior messages，request_full 内容归入 captured_context_fragment。")
+            notes.append("Tool schemas: 无法从本地日志获取可用工具定义列表，tool_schemas 标记为 unavailable。")
+        notes.append(
+            "采用 request reconstruction 方法：将原先归入 unknown 的 token 拆分为多个解释性 bucket，"
+            "包括本地指令、Agent 提示、MCP 元数据、系统提示估算、Provider 包装层等。"
+            "heuristic/hidden bucket 不含真实内容，仅解释 token 来源。"
+        )
+
+        # Timing extraction from llm_call.timestamp
+        timing = {
+            "request_at": lc.timestamp or "—",
+            "response_at": "—",
+            "duration": "—",
+        }
 
         return LLMRequestAttribution(
             agent="claude_code",
@@ -414,16 +532,17 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 fill_strategy="known_buckets / total_input",
             ),
             unknown=AttributedValue(
-                value=unknown_val,
+                value=unlocated_residual,
                 unit="tokens",
                 precision=ValuePrecision.RESIDUAL,
                 source=ValueSource.RESIDUAL,
-                fill_strategy="total - sum(known_buckets)",
+                fill_strategy="total - sum(all_known_buckets)",
             ),
             buckets=buckets,
-            captured_context_preview=captured_context_text[:500] if captured_context_text else "",
+            captured_context_preview="",
             attribution_notes=notes,
             availability_rows=avail_rows,
+            timing=timing,
         )
 
     def build_response(self) -> LLMResponseAttribution:

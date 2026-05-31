@@ -127,6 +127,11 @@ def _make_req_data(**overrides):
             "availability_rows": [],
             "captured_context_preview": "",
             "attribution_notes": [],
+            "timing": {
+                "request_at": "2025-01-01T00:00:01Z",
+                "response_at": "—",
+                "duration": "—",
+            },
         },
     }
     data["data"].update(overrides)
@@ -372,7 +377,7 @@ class TestPrecisionLabelFilter:
         assert "precision_label" in env.globals
 
     def test_provider_reported(self):
-        assert _precision_label("provider_reported") == "provider"
+        assert _precision_label("provider_reported") == "实报"
 
     def test_exact(self):
         assert _precision_label("exact") == "精确"
@@ -381,10 +386,10 @@ class TestPrecisionLabelFilter:
         assert _precision_label("estimated") == "估算"
 
     def test_heuristic(self):
-        assert _precision_label("heuristic") == "启发式"
+        assert _precision_label("heuristic") == "推断"
 
     def test_residual(self):
-        assert _precision_label("residual") == "差额"
+        assert _precision_label("residual") == "未定位"
 
     def test_unavailable(self):
         assert _precision_label("unavailable") == "不可用"
@@ -695,3 +700,70 @@ class TestAttributionRegression:
         html = _render_payload_sources([req])
         # sd-chip--attrib should not appear in the new attribution sections
         assert "sd-chip--attrib" not in html
+
+
+# ─── New format and label tests (task-02d) ────────────────────────────
+
+class TestFormatAndLabelUpdates:
+    """Verify new Chinese labels and format helpers."""
+
+    def test_token_compact_formatting(self):
+        """Token compact formatting: 29131 -> 29.1K."""
+        from session_browser.web.template_env import _format_compact_token
+        assert _format_compact_token(29131) == "29.1K"
+        assert _format_compact_token(1500000) == "1.5M"
+        assert _format_compact_token(500) == "500"
+
+    def test_coverage_format(self):
+        """Coverage should use format_coverage filter for percentage format."""
+        from session_browser.web.template_env import _format_coverage
+        assert _format_coverage(0.75) == "75%"
+        assert _format_coverage(0.456) == "46%"
+        assert _format_coverage(None) == "—"
+
+    def test_provider_reported_label_is_shibao(self):
+        """provider_reported precision should map to 实报."""
+        assert _precision_label("provider_reported") == "实报"
+
+    def test_residual_label_is_weidingwei(self):
+        """residual precision should map to 未定位."""
+        assert _precision_label("residual") == "未定位"
+
+    def test_heuristic_label_is_tuiduan(self):
+        """heuristic precision should map to 推断."""
+        assert _precision_label("heuristic") == "推断"
+
+    def test_request_overview_no_sd_usage_grid(self):
+        """Request overview should no longer have sd-usage-grid."""
+        html = _render_payload_sources([_make_req_data()])
+        assert "sd-usage-grid" not in html
+
+    def test_timing_fields_in_payload(self):
+        """Request attribution should include timing fields."""
+        req_data = _make_req_data(
+            timing={
+                "request_at": "2025-01-01T00:00:01Z",
+                "response_at": "2025-01-01T00:00:05Z",
+                "duration": "4s",
+            },
+        )
+        html = _render_payload_sources([req_data])
+        assert "请求发起" in html
+        assert "响应返回" in html
+        assert "耗时" in html
+
+    def test_dingwei_rate_label_present(self):
+        """定位率 label should appear in summary section."""
+        html = _render_payload_sources([_make_req_data()])
+        assert "定位率" in html
+
+    def test_weidingwei_label_present(self):
+        """未定位 label should appear in summary section."""
+        html = _render_payload_sources([_make_req_data()])
+        assert "未定位" in html
+
+    def test_shibao_precision_tag(self):
+        """实报 precision label should render in template."""
+        html = _render_payload_sources([_make_req_data()])
+        # The precision_label filter is used via template; verify the label is mapped
+        assert _precision_label("provider_reported") == "实报"

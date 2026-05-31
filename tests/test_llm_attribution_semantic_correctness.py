@@ -108,7 +108,9 @@ def test_no_history_without_prior_messages(agent):
     result = build_llm_request_attribution(agent, lc, ro)
 
     history_bucket = next(
-        (b for b in result.buckets if b.key in ("history_messages", "conversation_history")),
+        (b for b in result.buckets if b.key in (
+            "prior_conversation_messages", "history_messages", "conversation_history"
+        )),
         None,
     )
     if history_bucket is not None:
@@ -146,8 +148,9 @@ def test_current_user_message_not_double_counted(agent):
 
     # Check that user message tokens are in current_user_message bucket
     user_bucket = next(
-        (b for b in result.buckets if b.key == "current_user_message"
-         or b.key == "current_user_instruction"),
+        (b for b in result.buckets if b.key in (
+            "current_user_message", "current_user_instruction"
+        )),
         None,
     )
     assert user_bucket is not None

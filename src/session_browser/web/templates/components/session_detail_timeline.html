@@ -433,26 +433,35 @@
             <div class="sd-kv"><span>可信度</span><span>{{ payload.data.confidence_label|default('—') }}</span></div>
             <div class="sd-kv"><span>request_id</span><span class="sd-mono">{{ payload.data.request_id|default('—') }}</span></div>
             <div class="sd-kv"><span>call_id</span><span class="sd-mono">{{ payload.data.call_id|default('—') }}</span></div>
+            <div class="sd-kv"><span>请求发起</span><span>{{ payload.data.timing.request_at|default('—') }}</span></div>
+            <div class="sd-kv"><span>响应返回</span><span>{{ payload.data.timing.response_at|default('—') }}</span></div>
+            <div class="sd-kv"><span>耗时</span><span>{{ payload.data.timing.duration|default('—') }}</span></div>
             <div class="sd-kv"><span>重建方式</span><span>本地日志归因</span></div>
             <div class="sd-kv"><span>raw body</span><span>不可用</span></div>
             <div class="sd-kv"><span>Total input</span><span>{{ payload.data.usage.total_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.total_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.total_input.precision) }}</span></span></div>
             <div class="sd-kv"><span>Fresh input</span><span>{{ payload.data.usage.fresh_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.fresh_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.fresh_input.precision) }}</span></span></div>
             <div class="sd-kv"><span>Cache read</span><span>{{ payload.data.usage.cache_read.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_read.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_read.precision) }}</span></span></div>
             <div class="sd-kv"><span>Cache write</span><span>{{ payload.data.usage.cache_write.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_write.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_write.precision) }}</span></span></div>
-            <div class="sd-kv"><span>Coverage</span><span>{{ payload.data.usage.coverage.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.coverage.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.coverage.precision) }}</span></span></div>
-            <div class="sd-kv"><span>Unknown</span><span>{{ payload.data.usage.unknown.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>
+            <div class="sd-kv"><span>定位率</span><span>{{ payload.data.usage.coverage.value|format_coverage }}</span></div>
+            <div class="sd-kv"><span>未定位</span><span>{{ payload.data.usage.unknown.value|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>
           </aside>
           <main class="sd-payload-main payload-main">
             <div class="sd-attribution-banner">基于本地日志重建，不等同于真实 provider request/response body。</div>
             {% if payload.data.usage %}
             <section class="sd-payload-section payload-section"><h3>请求总览</h3>
-              <div class="sd-usage-grid">
-                <div class="sd-usage-item"><span class="sd-usage-label">Total input</span><span class="sd-usage-value">{{ payload.data.usage.total_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.total_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.total_input.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Fresh input</span><span class="sd-usage-value">{{ payload.data.usage.fresh_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.fresh_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.fresh_input.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Cache read</span><span class="sd-usage-value">{{ payload.data.usage.cache_read.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_read.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_read.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Cache write</span><span class="sd-usage-value">{{ payload.data.usage.cache_write.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_write.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_write.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Coverage</span><span class="sd-usage-value">{{ payload.data.usage.coverage.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.coverage.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.coverage.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Unknown</span><span class="sd-usage-value">{{ payload.data.usage.unknown.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>
+              <div class="sd-attribution-overview">
+                <div class="sd-attribution-overview__conclusion">
+                  <div class="sd-attribution-overview__rate">
+                    <span class="sd-attribution-overview__rate-value">{{ payload.data.usage.coverage.value|format_coverage }}</span>
+                    <span class="sd-attribution-overview__rate-label">定位率</span>
+                  </div>
+                  <div class="sd-attribution-overview__unlocated">
+                    未定位 {{ payload.data.usage.unknown.value|format_compact_token }}。
+                    {% set top_buckets = payload.data.buckets | selectattr('contributes_to_total') | sort(attribute='tokens', reverse=true) | list %}
+                    {% if top_buckets %}当前请求的大头主要来自
+                    {% for b in top_buckets[:3] %}{{ b.label }}{% if not loop.last %} / {% endif %}{% endfor %}。{% endif %}
+                  </div>
+                </div>
               </div>
             </section>
             {% endif %}

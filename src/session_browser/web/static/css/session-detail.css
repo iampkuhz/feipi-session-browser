@@ -3657,3 +3657,32 @@ These use .sd- page prefix only, not bare .payload-modal references. */
     grid-template-columns: 1fr;
   }
 }
+
+/* Attribution overview section */
+.sd-attribution-overview {
+  padding: 8px 0;
+}
+.sd-attribution-overview__conclusion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sd-attribution-overview__rate {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.sd-attribution-overview__rate-value {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.sd-attribution-overview__rate-label {
+  font-size: 13px;
+  color: var(--sd-muted);
+}
+.sd-attribution-overview__unlocated {
+  font-size: 13px;
+  color: var(--sd-muted);
+  line-height: 1.5;
+}

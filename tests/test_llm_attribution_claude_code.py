@@ -114,6 +114,17 @@ def test_claude_code_tool_schema_estimation_no_available_tools():
     assert schema_bucket.precision == ValuePrecision.UNAVAILABLE
 
 
+def test_claude_code_unlocated_residual_is_last_bucket():
+    """unlocated_residual should always be the last bucket."""
+    lc = _make_lc(input_tokens=10000)
+    ro = _make_ro(user_content="hello")
+    ctx = {"available_tools": ["Read", "Bash"]}
+    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
+    result = builder.build_request()
+
+    assert result.buckets[-1].key == "unlocated_residual"
+
+
 def test_claude_code_tool_schema_from_available_tools():
     """When available_tools is provided, tool_schemas should use that count."""
     tc1 = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="result1")

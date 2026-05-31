@@ -128,6 +128,7 @@ class LLMRequestAttribution:
     captured_context_preview: str
     attribution_notes: list[str]
     availability_rows: list[AvailabilityRow | dict]
+    timing: dict = field(default_factory=dict)
 
 
 # ─── Response attribution result ───────────────────────────────────────

@@ -152,13 +152,13 @@ class BaseAttributionBuilder:
         if total > 0:
             buckets.append(RequestAttributionBucket(
                 key="unknown_overhead",
-                label="Unknown / unattributed",
+                label="未定位",
                 tokens=total,
                 percent=100.0,
                 precision=ValuePrecision.HEURISTIC,
                 source=ValueSource.HEURISTIC,
                 confidence_label="低",
-                summary="未区分 agent 时，所有 token 归入 unknown。",
+                summary="未区分 agent 时，所有 token 归入未定位。",
             ))
 
         return LLMRequestAttribution(

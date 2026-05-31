@@ -99,6 +99,11 @@ def request_attribution_to_payload(attr: LLMRequestAttribution) -> dict:
         "captured_context_preview": attr.captured_context_preview,
         "attribution_notes": list(attr.attribution_notes),
         "availability_rows": [availability_row_to_dict(r) for r in attr.availability_rows],
+        "timing": {
+            "request_at": attr.timing.get("request_at", "—") if hasattr(attr, "timing") and attr.timing else "—",
+            "response_at": attr.timing.get("response_at", "—") if hasattr(attr, "timing") and attr.timing else "—",
+            "duration": attr.timing.get("duration", "—") if hasattr(attr, "timing") and attr.timing else "—",
+        },
     }
 
 
