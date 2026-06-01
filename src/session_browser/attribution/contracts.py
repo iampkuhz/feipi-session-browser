@@ -67,6 +67,7 @@ class RequestAttributionBucket:
     contributes_to_total: bool = True
     parent_key: str = ""
     display_group: str = ""
+    details: dict = field(default_factory=dict)
 
 
 # ─── Response bucket ───────────────────────────────────────────────────
@@ -88,6 +89,7 @@ class ResponseAttributionBucket:
     contributes_to_total: bool = True
     parent_key: str = ""
     display_group: str = ""
+    details: dict = field(default_factory=dict)
 
 
 @dataclass

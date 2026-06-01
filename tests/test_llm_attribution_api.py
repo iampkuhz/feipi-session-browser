@@ -349,3 +349,46 @@ def test_bucket_tokens_sum_not_exceed_total_input():
         if b.key != "unlocated_residual" and b.contributes_to_total
     )
     assert contributing_sum <= total_input
+
+
+# ── Details field in serialized buckets ──────────────────────────────
+
+
+def test_request_bucket_serialization_includes_details():
+    """Serialized request bucket should include details field."""
+    lc = _make_lc(input_tokens=10000, cache_read_tokens=5000, cache_write_tokens=1000)
+    ro = _make_ro()
+    ctx = {
+        "available_tools": ["Read", "Write", "Bash"],
+        "prior_messages": [
+            {"role": "user", "content": "Hello", "content_preview": "Hello", "content_token_estimate": 2},
+        ],
+        "preceding_tool_results": [],
+        "local_instructions": "Project rules here.",
+    }
+    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
+    result = builder.build_request()
+    payload = request_attribution_to_payload(result)
+
+    buckets = payload["buckets"]
+    assert len(buckets) > 0
+
+    # Check that details is present on buckets
+    tool_schemas = next((b for b in buckets if b["key"] == "tool_schemas"), None)
+    assert tool_schemas is not None
+    assert "details" in tool_schemas
+    assert tool_schemas["details"].get("kind") == "tools"
+    assert len(tool_schemas["details"].get("items", [])) > 0
+
+
+def test_response_bucket_serialization_includes_details():
+    """Serialized response bucket should include details field."""
+    lc = _make_lc()
+    ro = _make_ro()
+    builder = ClaudeCodeAttributionBuilder(lc, ro)
+    result = builder.build_response()
+    payload = response_attribution_to_payload(result)
+
+    buckets = payload["buckets"]
+    for b in buckets:
+        assert "details" in b

@@ -129,7 +129,7 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([req_data])
-        assert '<aside class="sd-payload-meta payload-meta">' in html
+        assert 'class="sd-attribution-rail"' in html
         assert "摘要" in html
 
     def test_right_main_area_present(self):
@@ -152,7 +152,7 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([req_data])
-        assert '<main class="sd-payload-main payload-main">' in html
+        assert 'class="sd-attribution-canvas"' in html
 
     def test_request_modal_has_request_specific_sections(self):
         """Request attribution should have '请求总览' section."""
@@ -359,9 +359,8 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([req_data])
-        assert "sd-pill--ok" in html  # exact -> 是
-        assert "sd-pill--warn" in html  # available but not exact -> 部分
-        assert "sd-pill--err" in html  # not available -> 否
+        assert "sd-attribution-avail--ok" in html  # available -> 可用
+        assert "sd-attribution-avail--no" in html  # not available -> 不可用
 
     def test_response_attribution_meta_has_response_fields(self):
         """Response attribution meta rail should show total_output, visible_text, etc."""

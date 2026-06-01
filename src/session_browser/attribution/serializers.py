@@ -47,6 +47,7 @@ def _request_bucket_to_dict(b: RequestAttributionBucket) -> dict:
         "display_group": b.display_group,
         "expandable": b.expandable,
         "content_preview": b.content_preview,
+        "details": b.details,
     }
 
 
@@ -66,6 +67,7 @@ def _response_bucket_to_dict(b: ResponseAttributionBucket) -> dict:
         "parent_key": b.parent_key,
         "display_group": b.display_group,
         "block_refs": b.block_refs,
+        "details": b.details,
     }
 
 

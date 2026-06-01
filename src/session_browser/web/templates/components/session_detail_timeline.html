@@ -425,27 +425,38 @@
       {# ── Request attribution ── #}
       {% elif payload.kind == 'llm.request_attribution' and payload.data %}
         <div class="sd-payload-shell sd-payload-shell--attribution">
-          <aside class="sd-payload-meta payload-meta">
-            <h3>摘要</h3>
+          <div class="sd-attribution-layout">
+          <aside class="sd-attribution-rail">
+            <div class="sd-attribution-rail__card">
+            <h3>请求摘要</h3>
             <div class="sd-kv"><span>agent</span><span>{{ payload.data.agent|default('—') }}</span></div>
             <div class="sd-kv"><span>model</span><span>{{ payload.data.model|default('—') }}</span></div>
             <div class="sd-kv"><span>来源</span><span>{{ payload.data.source_label|default('—') }}</span></div>
-            <div class="sd-kv"><span>可信度</span><span>{{ payload.data.confidence_label|default('—') }}</span></div>
             <div class="sd-kv"><span>request_id</span><span class="sd-mono">{{ payload.data.request_id|default('—') }}</span></div>
             <div class="sd-kv"><span>call_id</span><span class="sd-mono">{{ payload.data.call_id|default('—') }}</span></div>
+            <div class="sd-kv"><span>总输入</span><span>{{ payload.data.usage.total_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.total_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.total_input.precision) }}</span></span></div>
+            {% if payload.data.usage.fresh_input %}<div class="sd-kv"><span>Fresh input</span><span>{{ payload.data.usage.fresh_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.fresh_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.fresh_input.precision) }}</span></span></div>{% endif %}
+            {% if payload.data.usage.cache_read %}<div class="sd-kv"><span>Cache read</span><span>{{ payload.data.usage.cache_read.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_read.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_read.precision) }}</span></span></div>{% endif %}
+            {% if payload.data.usage.cache_write %}<div class="sd-kv"><span>Cache write</span><span>{{ payload.data.usage.cache_write.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_write.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_write.precision) }}</span></span></div>{% endif %}
+            {% if payload.data.usage.unknown %}<div class="sd-kv"><span>Unknown</span><span>{{ payload.data.usage.unknown.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>{% endif %}
+            <div class="sd-kv"><span>覆盖率</span><span>{{ payload.data.usage.coverage.value|format_coverage }}</span></div>
+            </div>
+            <div class="sd-attribution-rail__card">
+            <h3>时间线</h3>
             <div class="sd-kv"><span>请求发起</span><span>{{ payload.data.timing.request_at|default('—') }}</span></div>
             <div class="sd-kv"><span>响应返回</span><span>{{ payload.data.timing.response_at|default('—') }}</span></div>
             <div class="sd-kv"><span>耗时</span><span>{{ payload.data.timing.duration|default('—') }}</span></div>
-            <div class="sd-kv"><span>重建方式</span><span>本地日志归因</span></div>
-            <div class="sd-kv"><span>raw body</span><span>不可用</span></div>
-            <div class="sd-kv"><span>Total input</span><span>{{ payload.data.usage.total_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.total_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.total_input.precision) }}</span></span></div>
-            <div class="sd-kv"><span>Fresh input</span><span>{{ payload.data.usage.fresh_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.fresh_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.fresh_input.precision) }}</span></span></div>
-            <div class="sd-kv"><span>Cache read</span><span>{{ payload.data.usage.cache_read.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_read.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_read.precision) }}</span></span></div>
-            <div class="sd-kv"><span>Cache write</span><span>{{ payload.data.usage.cache_write.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_write.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_write.precision) }}</span></span></div>
-            <div class="sd-kv"><span>定位率</span><span>{{ payload.data.usage.coverage.value|format_coverage }}</span></div>
-            <div class="sd-kv"><span>未定位</span><span>{{ payload.data.usage.unknown.value|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>
+            </div>
+            {% if payload.data.attribution_notes %}
+            <div class="sd-attribution-rail__card">
+            <h3>归因备注</h3>
+            {% for note in payload.data.attribution_notes %}
+            <div class="sd-attribution-rail__note">{{ note }}</div>
+            {% endfor %}
+            </div>
+            {% endif %}
           </aside>
-          <main class="sd-payload-main payload-main">
+          <main class="sd-attribution-canvas">
             <div class="sd-attribution-banner">基于本地日志重建，不等同于真实 provider request/response body。</div>
             {% if payload.data.usage %}
             <section class="sd-payload-section payload-section"><h3>请求总览</h3>
@@ -500,27 +511,80 @@
             <section class="sd-payload-section payload-section"><h3>归因明细</h3>
               <div class="sd-attribution-bucket-list">
                 {% for b in payload.data.buckets if b.contributes_to_total %}
-                  <div class="sd-attribution-bucket" data-bucket-label="{{ b.label|default('') }}">
-                    <div class="sd-attribution-bucket__head">
-                      <div class="sd-attribution-bucket__title">
-                        <span class="sd-attribution-bucket__dot sd-attribution-bucket__dot--{{ loop.index0 % 8 }}"></span>
-                        <span>{{ b.label|default(b.key|default('—')) }}</span>
-                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
-                      </div>
-                      <div class="sd-attribution-bucket__meta">
-                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
-                        <span class="sd-attribution-bucket__pct">{{ b.percent|default(0) }}%</span>
-                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
-                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
-                        {% if b.confidence_label %}<span class="sd-chip">{{ b.confidence_label }}</span>{% endif %}
-                      </div>
+                  <div class="sd-attribution-bucket-card{% if b.details %} is-expandable{% endif %}" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket-head" data-bucket-toggle>
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
+                      <span class="sd-attribution-bucket-chevron">▸</span>
                     </div>
-                    {% if b.summary %}
-                    <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
-                    {% endif %}
-                    {% if b.content_preview %}
-                    <pre class="sd-attribution-bucket__preview">{{ b.content_preview }}</pre>
-                    {% endif %}
+                    <div class="sd-attribution-bucket-body" hidden>
+                      {% if b.details %}
+                        {% if b.details.kind == 'tools' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'][:10] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.name }}</span>
+                            <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'unlocated' %}
+                        <ul class="sd-bucket-detail-explanation">
+                          {% for line in b.details.explanation %}
+                          <li>{{ line }}</li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'current_user_message' %}
+                        <div class="sd-bucket-detail-preview">{{ b.details.preview|default('') }}</div>
+                        <div class="sd-bucket-detail-meta">{{ b.details.tokens|default(0) }} tokens</div>
+                        {% elif b.details.kind == 'message_history' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'][:20] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.role }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.summary|default(item.content_preview|default('')) }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.tokens|default(0) }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'system_sources' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.file_path|default('') }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.preview|default('') }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.tokens|default(0) }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'tool_results' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'][:10] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.name }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.result_preview|default('') }}</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'hidden_estimate' %}
+                        <ul class="sd-bucket-detail-explanation">
+                          {% for line in b.details.explanation %}
+                          <li>{{ line }}</li>
+                          {% endfor %}
+                        </ul>
+                        {% endif %}
+                      {% endif %}
+                      {% if b.summary %}
+                      <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
+                      {% endif %}
+                      {% if b.content_preview %}
+                      <pre class="sd-attribution-bucket__preview">{{ b.content_preview }}</pre>
+                      {% endif %}
+                    </div>
                   </div>
                 {% endfor %}
               </div>
@@ -532,17 +596,12 @@
             <section class="sd-payload-section payload-section"><h3>明细，不计入总量</h3>
               <div class="sd-attribution-bucket-list">
                 {% for b in req_display_buckets %}
-                  <div class="sd-attribution-bucket sd-attribution-bucket--display-only" data-bucket-label="{{ b.label|default('') }}">
-                    <div class="sd-attribution-bucket__head">
-                      <div class="sd-attribution-bucket__title">
-                        <span>{{ b.label|default(b.key|default('—')) }}</span>
-                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
-                      </div>
-                      <div class="sd-attribution-bucket__meta">
-                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
-                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
-                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
-                      </div>
+                  <div class="sd-attribution-bucket-card sd-attribution-bucket-card--display-only" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket-head">
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}</span>
                     </div>
                     {% if b.summary %}
                     <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
@@ -552,86 +611,75 @@
               </div>
             </section>
             {% endif %}
-            {# ── Captured context preview with empty fallback ── #}
-            {% if payload.data.captured_context_preview %}
-            <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
-              <pre class="sd-context-preview">{{ payload.data.captured_context_preview }}</pre>
-            </section>
-            {% else %}
-            <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
-              <div class="sd-empty-state">无额外 captured context；当前可见内容已归入具体分类。</div>
-            </section>
-            {% endif %}
             {% if payload.data.availability_rows %}
-            <section class="sd-payload-section payload-section"><h3>参数可得性表</h3>
-              <table class="sd-attrib-table">
-                <thead><tr>
-                  <th>参数</th>
-                  <th>是否能精确拿到</th>
-                  <th>来源</th>
-                  <th>拿不到时如何填充</th>
-                </tr></thead>
-                <tbody>
+            <section class="sd-payload-section payload-section"><h3>参数可用性</h3>
+              <div class="sd-attribution-avail-table">
                 {% for row in payload.data.availability_rows %}
-                  <tr>
-                    <td>{{ row.label|default(row.field|default('—')) }}</td>
-                    <td>
-                      {% if row.exact %}<span class="sd-pill sd-pill--ok">是</span>{% elif row.available %}<span class="sd-pill sd-pill--warn">部分</span>{% else %}<span class="sd-pill sd-pill--err">否</span>{% endif %}
-                      <span class="sd-precision-tag sd-precision-tag--{{ row.precision|default('unavailable') }}">{{ precision_label(row.precision) }}</span>
-                    </td>
-                    <td>{{ row.source|default('—') }}</td>
-                    <td>{{ row.fill_strategy|default('—') }}</td>
-                  </tr>
+                <div class="sd-attribution-avail-row">
+                  <span>{{ row.label }}</span>
+                  <span class="sd-attribution-avail-status {{ 'sd-attribution-avail--ok' if row.available else 'sd-attribution-avail--no' }}">{{ '可用' if row.available else '不可用' }}</span>
+                  {% if row.fill_strategy %}<span class="sd-attribution-avail-fill">{{ row.fill_strategy }}</span>{% endif %}
+                </div>
                 {% endfor %}
-                </tbody>
-              </table>
+              </div>
             </section>
             {% endif %}
-            {% if payload.data.attribution_notes %}
-            <section class="sd-payload-section payload-section"><h3>Notes</h3>
-              <ul class="sd-notes-list">
-              {% for note in payload.data.attribution_notes %}
-                <li>{{ note }}</li>
-              {% endfor %}
-              </ul>
+            {% if payload.data.captured_context_preview %}
+            <section class="sd-payload-section payload-section"><h3>重建上下文预览</h3>
+              <pre class="sd-attribution-captured-preview">{{ payload.data.captured_context_preview }}</pre>
             </section>
             {% endif %}
+            <div class="sd-attribution-disclaimer">以上 token 分布为基于本地日志的重建估算，不等同于 provider 真实请求体。</div>
           </main>
+          </div>
         </div>
       {# ── Response attribution ── #}
       {% elif payload.kind == 'llm.response_attribution' and payload.data %}
         <div class="sd-payload-shell sd-payload-shell--attribution">
-          <aside class="sd-payload-meta payload-meta">
-            <h3>摘要</h3>
+          <div class="sd-attribution-layout">
+          <aside class="sd-attribution-rail">
+            <div class="sd-attribution-rail__card">
+            <h3>响应摘要</h3>
             <div class="sd-kv"><span>agent</span><span>{{ payload.data.agent|default('—') }}</span></div>
             <div class="sd-kv"><span>model</span><span>{{ payload.data.model|default('—') }}</span></div>
             <div class="sd-kv"><span>来源</span><span>{{ payload.data.source_label|default('—') }}</span></div>
-            <div class="sd-kv"><span>可信度</span><span>{{ payload.data.confidence_label|default('—') }}</span></div>
             <div class="sd-kv"><span>request_id</span><span class="sd-mono">{{ payload.data.request_id|default('—') }}</span></div>
             <div class="sd-kv"><span>call_id</span><span class="sd-mono">{{ payload.data.call_id|default('—') }}</span></div>
-            <div class="sd-kv"><span>重建方式</span><span>本地日志归因</span></div>
-            <div class="sd-kv"><span>raw body</span><span>不可用</span></div>
             <div class="sd-kv"><span>Total output</span><span>{{ payload.data.usage.total_output.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.total_output.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.total_output.precision) }}</span></span></div>
             <div class="sd-kv"><span>Visible text</span><span>{{ payload.data.usage.visible_text.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.visible_text.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.visible_text.precision) }}</span></span></div>
             <div class="sd-kv"><span>Tool use</span><span>{{ payload.data.usage.tool_use.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.tool_use.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.tool_use.precision) }}</span></span></div>
             <div class="sd-kv"><span>Metadata</span><span>{{ payload.data.usage.metadata.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.metadata.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.metadata.precision) }}</span></span></div>
-            <div class="sd-kv"><span>Coverage</span><span>{{ payload.data.usage.coverage.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.coverage.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.coverage.precision) }}</span></span></div>
-            <div class="sd-kv"><span>Unknown</span><span>{{ payload.data.usage.unknown.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>
+            <div class="sd-kv"><span>覆盖率</span><span>{{ payload.data.usage.coverage.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.coverage.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.coverage.precision) }}</span></span></div>
             {% if payload.data.usage.finish_reason %}
             <div class="sd-kv"><span>Finish reason</span><span>{{ payload.data.usage.finish_reason.value|default('—') }}</span></div>
             {% endif %}
+            </div>
+            {% if payload.data.attribution_notes %}
+            <div class="sd-attribution-rail__card">
+            <h3>归因备注</h3>
+            {% for note in payload.data.attribution_notes %}
+            <div class="sd-attribution-rail__note">{{ note }}</div>
+            {% endfor %}
+            </div>
+            {% endif %}
           </aside>
-          <main class="sd-payload-main payload-main">
+          <main class="sd-attribution-canvas">
             <div class="sd-attribution-banner">基于本地日志重建，不等同于真实 provider request/response body。</div>
             {% if payload.data.usage %}
             <section class="sd-payload-section payload-section"><h3>响应总览</h3>
-              <div class="sd-usage-grid">
-                <div class="sd-usage-item"><span class="sd-usage-label">Total output</span><span class="sd-usage-value">{{ payload.data.usage.total_output.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.total_output.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.total_output.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Visible text</span><span class="sd-usage-value">{{ payload.data.usage.visible_text.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.visible_text.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.visible_text.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Tool use</span><span class="sd-usage-value">{{ payload.data.usage.tool_use.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.tool_use.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.tool_use.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Metadata</span><span class="sd-usage-value">{{ payload.data.usage.metadata.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.metadata.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.metadata.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Coverage</span><span class="sd-usage-value">{{ payload.data.usage.coverage.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.coverage.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.coverage.precision) }}</span></span></div>
-                <div class="sd-usage-item"><span class="sd-usage-label">Unknown</span><span class="sd-usage-value">{{ payload.data.usage.unknown.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>
+              <div class="sd-attribution-overview">
+                <div class="sd-attribution-overview__conclusion">
+                  <div class="sd-attribution-overview__rate">
+                    <span class="sd-attribution-overview__rate-value">{{ payload.data.usage.coverage.value|default('—') }}</span>
+                    <span class="sd-attribution-overview__rate-label">定位率</span>
+                  </div>
+                  <div class="sd-attribution-overview__unlocated">
+                    未定位 {{ payload.data.usage.unknown.value|format_compact_token }}。
+                    {% set top_buckets = payload.data.buckets | selectattr('contributes_to_total') | sort(attribute='tokens', reverse=true) | list %}
+                    {% if top_buckets %}当前请求的大头主要来自
+                    {% for b in top_buckets[:3] %}{{ b.label }}{% if not loop.last %} / {% endif %}{% endfor %}。{% endif %}
+                  </div>
+                </div>
               </div>
             </section>
             {% endif %}
@@ -670,27 +718,80 @@
             <section class="sd-payload-section payload-section"><h3>归因明细</h3>
               <div class="sd-attribution-bucket-list">
                 {% for b in payload.data.buckets if b.contributes_to_total %}
-                  <div class="sd-attribution-bucket" data-bucket-label="{{ b.label|default('') }}">
-                    <div class="sd-attribution-bucket__head">
-                      <div class="sd-attribution-bucket__title">
-                        <span class="sd-attribution-bucket__dot sd-attribution-bucket__dot--{{ loop.index0 % 8 }}"></span>
-                        <span>{{ b.label|default(b.key|default('—')) }}</span>
-                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
-                      </div>
-                      <div class="sd-attribution-bucket__meta">
-                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
-                        <span class="sd-attribution-bucket__pct">{{ b.percent|default(0) }}%</span>
-                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
-                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
-                        {% if b.confidence_label %}<span class="sd-chip">{{ b.confidence_label }}</span>{% endif %}
-                      </div>
+                  <div class="sd-attribution-bucket-card{% if b.details %} is-expandable{% endif %}" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket-head" data-bucket-toggle>
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
+                      <span class="sd-attribution-bucket-chevron">▸</span>
                     </div>
-                    {% if b.summary %}
-                    <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
-                    {% endif %}
-                    {% if b.content_preview %}
-                    <pre class="sd-attribution-bucket__preview">{{ b.content_preview }}</pre>
-                    {% endif %}
+                    <div class="sd-attribution-bucket-body" hidden>
+                      {% if b.details %}
+                        {% if b.details.kind == 'tools' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'][:10] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.name }}</span>
+                            <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'unlocated' %}
+                        <ul class="sd-bucket-detail-explanation">
+                          {% for line in b.details.explanation %}
+                          <li>{{ line }}</li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'current_user_message' %}
+                        <div class="sd-bucket-detail-preview">{{ b.details.preview|default('') }}</div>
+                        <div class="sd-bucket-detail-meta">{{ b.details.tokens|default(0) }} tokens</div>
+                        {% elif b.details.kind == 'message_history' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'][:20] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.role }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.summary|default(item.content_preview|default('')) }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.tokens|default(0) }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'system_sources' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.file_path|default('') }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.preview|default('') }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.tokens|default(0) }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'tool_results' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'][:10] %}
+                          <li class="sd-bucket-detail-item">
+                            <span class="sd-bucket-detail-name">{{ item.name }}</span>
+                            <span class="sd-bucket-detail-desc">{{ item.result_preview|default('') }}</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'hidden_estimate' %}
+                        <ul class="sd-bucket-detail-explanation">
+                          {% for line in b.details.explanation %}
+                          <li>{{ line }}</li>
+                          {% endfor %}
+                        </ul>
+                        {% endif %}
+                      {% endif %}
+                      {% if b.summary %}
+                      <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
+                      {% endif %}
+                      {% if b.content_preview %}
+                      <pre class="sd-attribution-bucket__preview">{{ b.content_preview }}</pre>
+                      {% endif %}
+                    </div>
                   </div>
                 {% endfor %}
               </div>
@@ -702,17 +803,12 @@
             <section class="sd-payload-section payload-section"><h3>明细，不计入总量</h3>
               <div class="sd-attribution-bucket-list">
                 {% for b in resp_display_buckets %}
-                  <div class="sd-attribution-bucket sd-attribution-bucket--display-only" data-bucket-label="{{ b.label|default('') }}">
-                    <div class="sd-attribution-bucket__head">
-                      <div class="sd-attribution-bucket__title">
-                        <span>{{ b.label|default(b.key|default('—')) }}</span>
-                        <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
-                      </div>
-                      <div class="sd-attribution-bucket__meta">
-                        <span class="sd-attribution-bucket__tokens">{{ b.tokens|format_compact_token }}</span>
-                        {% if b.count_label %}<span class="sd-chip">{{ b.count_label }}</span>{% endif %}
-                        {% if b.source %}<span class="sd-attribution-bucket__source">{{ b.source }}</span>{% endif %}
-                      </div>
+                  <div class="sd-attribution-bucket-card sd-attribution-bucket-card--display-only" data-bucket-label="{{ b.label|default('') }}">
+                    <div class="sd-attribution-bucket-head">
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
+                      <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}</span>
                     </div>
                     {% if b.summary %}
                     <div class="sd-attribution-bucket__summary">{{ b.summary }}</div>
@@ -765,7 +861,7 @@
             {# ── Captured output preview with empty fallback ── #}
             {% if payload.data.captured_output_preview %}
             <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
-              <pre class="sd-context-preview">{{ payload.data.captured_output_preview }}</pre>
+              <pre class="sd-attribution-captured-preview">{{ payload.data.captured_output_preview }}</pre>
             </section>
             {% else %}
             <section class="sd-payload-section payload-section"><h3>可见内容摘要</h3>
@@ -773,40 +869,22 @@
             </section>
             {% endif %}
             {% if payload.data.availability_rows %}
-            <section class="sd-payload-section payload-section"><h3>参数可得性表</h3>
-              <table class="sd-attrib-table">
-                <thead><tr>
-                  <th>参数</th>
-                  <th>是否能精确拿到</th>
-                  <th>来源</th>
-                  <th>拿不到时如何填充</th>
-                </tr></thead>
-                <tbody>
+            <section class="sd-payload-section payload-section"><h3>参数可得性</h3>
+              <div class="sd-attribution-availability">
                 {% for row in payload.data.availability_rows %}
-                  <tr>
-                    <td>{{ row.label|default(row.field|default('—')) }}</td>
-                    <td>
-                      {% if row.exact %}<span class="sd-pill sd-pill--ok">是</span>{% elif row.available %}<span class="sd-pill sd-pill--warn">部分</span>{% else %}<span class="sd-pill sd-pill--err">否</span>{% endif %}
-                      <span class="sd-precision-tag sd-precision-tag--{{ row.precision|default('unavailable') }}">{{ precision_label(row.precision) }}</span>
-                    </td>
-                    <td>{{ row.source|default('—') }}</td>
-                    <td>{{ row.fill_strategy|default('—') }}</td>
-                  </tr>
+                <div class="sd-attribution-avail-row">
+                  <span class="sd-attribution-avail-label">{{ row.label|default(row.field|default('—')) }}</span>
+                  <span class="sd-attribution-avail sd-attribution-avail--{% if row.available %}ok{% else %}no{% endif %}">{% if row.available %}可用{% else %}不可用{% endif %}</span>
+                  <span class="sd-precision-tag sd-precision-tag--{{ row.precision|default('unavailable') }}">{{ precision_label(row.precision) }}</span>
+                  <span class="sd-attribution-avail-source">{{ row.source|default('—') }}</span>
+                </div>
                 {% endfor %}
-                </tbody>
-              </table>
+              </div>
             </section>
             {% endif %}
-            {% if payload.data.attribution_notes %}
-            <section class="sd-payload-section payload-section"><h3>Notes</h3>
-              <ul class="sd-notes-list">
-              {% for note in payload.data.attribution_notes %}
-                <li>{{ note }}</li>
-              {% endfor %}
-              </ul>
-            </section>
-            {% endif %}
+            <div class="sd-attribution-disclaimer">以上 token 分布为基于本地日志的重建估算，不等同于 provider 真实请求体。</div>
           </main>
+          </div>
         </div>
       {# ── Attribution error ── #}
       {% elif payload.kind == 'llm.attribution_error' and payload.data %}

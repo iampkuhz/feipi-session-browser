@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from session_browser.domain.models import (
@@ -31,6 +32,52 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CC_TOOLS = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "LS", "Agent"]
 _TRUNCATE_CONTENT_PREVIEW = 200
 _TRUNCATE_LOCAL_INSTRUCTIONS = 2048  # 2KB
+
+# Sensitive key patterns for masking in bucket content extraction.
+_SENSITIVE_KEYS = frozenset({
+    "api_key", "apikey", "api-key",
+    "token", "auth_token", "access_token", "refresh_token",
+    "secret", "secret_key",
+    "password", "passwd",
+    "authorization", "bearer",
+    "credential", "credentials",
+    "env", "environment",
+})
+_SENSITIVE_KEY_RE = re.compile(
+    r'(?:"|\'|)([A-Za-z0-9_\-]*'
+    + r'(?:api_key|apikey|api-key|token|secret|password|passwd|authorization|credential|bearer|env)'
+    + r'[A-Za-z0-9_\-]*)\s*(?:"|\'|)?\s*(?::|=)\s*'
+    r'("([^"]*)"|\'([^\']*)\'|([^\n,}]+))',
+    re.IGNORECASE,
+)
+
+
+def _mask_sensitive_keys(text: str) -> str:
+    """Mask values for sensitive keys like api_key, token, secret, password, etc.
+
+    Replaces the value portion with "***MASKED***" while preserving the key name.
+    """
+    if not text:
+        return ""
+
+    def _replacer(m: re.Match) -> str:
+        key_part = m.group(1)
+        # Reconstruct with masked value
+        quote_open = m.group(2)[0] if m.group(2) else ""
+        if quote_open in ('"', "'"):
+            return f'{key_part}: {quote_open}***MASKED***{quote_open}'
+        return f'{key_part}: ***MASKED***'
+
+    return _SENSITIVE_KEY_RE.sub(_replacer, text)
+
+
+def _truncate_preview(text: str, max_len: int = 200) -> str:
+    """Truncate text to max_len characters, appending '…' if truncated."""
+    if not text:
+        return ""
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "…"
 
 
 def build_attribution_session_context(
