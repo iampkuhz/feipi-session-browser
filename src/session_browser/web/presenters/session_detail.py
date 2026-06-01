@@ -144,25 +144,66 @@ def _derive_prompt_preview(
     return ""
 
 
-def _normalize_codex_usage(usage: dict) -> dict:
+def _normalize_codex_usage(
+    usage: dict,
+    cumulative_state: dict | None = None,
+) -> dict:
     """Normalize Codex per-turn usage from cumulative totals to deltas.
 
     Codex msg.usage contains cumulative sums of last_token_usage across events
-    between agent_messages. For display, we need per-turn delta values:
-    fresh = input_tokens - cached_input_tokens.
+    between agent_messages. For display, we need per-turn delta values.
+
+    Args:
+        usage: Raw cumulative usage from Codex source.
+        cumulative_state: Mutable dict tracking previous cumulative values.
+            Pass the same dict for each call to compute deltas. If None,
+            returns raw values with no delta computation (backward compat).
+
+    Returns:
+        Dict with per-turn delta values for input_tokens, cache_read_input_tokens,
+        cache_creation_input_tokens, and output_tokens.
     """
     raw_input = usage.get("input_tokens", 0) or 0
     cached = usage.get("cached_input_tokens", 0) or 0
     output = usage.get("output_tokens", 0) or 0
+    cache_write = usage.get("cache_creation_input_tokens", 0) or 0
 
-    # Codex: input_tokens is inclusive; cached is a subset
-    fresh = max(raw_input - cached, 0)
+    if cumulative_state is None:
+        # Backward compat: no state tracking, compute fresh only
+        fresh = max(raw_input - cached, 0)
+        return {
+            "input_tokens": fresh,
+            "cache_read_input_tokens": cached,
+            "cache_creation_input_tokens": cache_write,
+            "output_tokens": output,
+        }
+
+    # Get previous cumulative values
+    prev_input = cumulative_state.get("input_tokens", 0)
+    prev_cached = cumulative_state.get("cached_input_tokens", 0)
+    prev_output = cumulative_state.get("output_tokens", 0)
+    prev_cache_write = cumulative_state.get("cache_creation_input_tokens", 0)
+
+    # Compute deltas (values should be non-decreasing, but guard against resets)
+    delta_input = max(raw_input - prev_input, 0)
+    delta_cached = max(cached - prev_cached, 0)
+    delta_output = max(output - prev_output, 0)
+    delta_cache_write = max(cache_write - prev_cache_write, 0)
+
+    # Fresh input = delta_input - delta_cached (cached is part of input)
+    delta_fresh = max(delta_input - delta_cached, 0)
+
+    # Update cumulative state for next call
+    cumulative_state["input_tokens"] = raw_input
+    cumulative_state["cached_input_tokens"] = cached
+    cumulative_state["output_tokens"] = output
+    cumulative_state["cache_creation_input_tokens"] = cache_write
 
     return {
-        "input_tokens": fresh,
-        "cache_read_input_tokens": cached,
-        "cache_creation_input_tokens": 0,
-        "output_tokens": output,
+        "input_tokens": delta_fresh,
+        "cache_read_input_tokens": delta_cached,
+        "cache_creation_input_tokens": delta_cache_write,
+        "output_tokens": delta_output,
     }
 
 
@@ -209,6 +250,10 @@ def build_llm_calls(
                 msg_idx_to_round[msg_idx] = round_cursor
                 round_cursor += 1
 
+    # Shared cumulative state for Codex usage normalization (Issue 2: first call
+    # should never show cache reads — deltas are computed from cumulative totals)
+    codex_cumulative: dict = {}
+
     # Main agent calls - track prior call's tools for prompt context
     main_calls_in_round: dict[int, list[LLMCall]] = {}
     for msg_idx, msg in enumerate(messages):
@@ -226,7 +271,7 @@ def build_llm_calls(
         usage = msg.usage or {}
         # Codex: usage contains cumulative sums, normalize to per-turn deltas
         if agent == "codex" and usage:
-            usage = _normalize_codex_usage(usage)
+            usage = _normalize_codex_usage(usage, codex_cumulative)
         round_tools = rounds[r_idx].tool_calls if r_idx < len(rounds) else []
         round_obj = rounds[r_idx] if r_idx < len(rounds) else None
 
@@ -305,8 +350,14 @@ def build_llm_calls(
                 continue
             usage = msg.usage or {}
             # Codex: normalize cumulative sums to per-turn deltas
+            # Each subagent run has its own cumulative sequence
             if agent == "codex" and usage:
-                usage = _normalize_codex_usage(usage)
+                if "subagent_cumulative" not in codex_cumulative:
+                    codex_cumulative["subagent_cumulative"] = {}
+                sub_cum = codex_cumulative["subagent_cumulative"]
+                if agent_id not in sub_cum:
+                    sub_cum[agent_id] = {}
+                usage = _normalize_codex_usage(usage, sub_cum[agent_id])
 
             request_full = msg.request_full if msg.request_full else ""
             request_preview = request_full[:200] if request_full else ""
@@ -434,8 +485,9 @@ def assign_interactions_to_rounds(
     """Populate round.interactions.
 
     Main agent: individual calls stay as individual interactions.
-    Subagent: replaced by one aggregated interaction per run (so round expand
-    shows it as a single nested block, not repeated for every internal turn).
+    Subagent: NOT added to r.interactions directly. Instead, they will be
+    attached to their parent LLM call in the view model, so the round expand
+    shows them as nested items under the Agent tool call that spawned them.
     """
     # Group main-agent calls by round
     main_by_round: dict[int, list[LLMCall]] = {}
@@ -443,17 +495,10 @@ def assign_interactions_to_rounds(
         if call.scope == "main":
             main_by_round.setdefault(call.round_index, []).append(call)
 
-    # Build aggregated subagent interactions
-    subagent_interactions = _build_subagent_interactions(llm_calls, subagent_runs, tool_calls)
-    sub_by_round: dict[int, list[LLMCall]] = {}
-    for ix in subagent_interactions:
-        sub_by_round.setdefault(ix.round_index, []).append(ix)
-
     for r_idx, r in enumerate(rounds):
         main_calls = main_by_round.get(r_idx, [])
-        sub_calls = sub_by_round.get(r_idx, [])
-        # Main calls first, then subagent interactions
-        r.interactions = main_calls + sub_calls
+        # Only main calls in r.interactions; subagents are nested in view model
+        r.interactions = main_calls
 
 
 def build_rounds(

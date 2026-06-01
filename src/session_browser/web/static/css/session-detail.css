@@ -925,7 +925,7 @@
 }
 .sd-tool-row {
   display: grid;
-  grid-template-columns: 58px minmax(360px, 1fr) minmax(160px, .55fr) 78px;
+  grid-template-columns: 58px minmax(400px, 1.2fr) minmax(200px, .6fr) 78px;
   gap: 8px;
   align-items: center;
   min-height: 34px;
@@ -977,6 +977,23 @@
   border-radius: var(--sd-radius-card);
   overflow: visible;
 }
+/* Nested subagent under parent LLM call (Issues 3, 4) */
+.sd-subagent-nested {
+  margin-left: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  position: relative;
+}
+.sd-subagent-nested::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #bae6fd;
+  border-radius: 1px;
+}
 .sd-subagent__head {
   height: 36px;
   display: flex;
@@ -1021,7 +1038,7 @@
 .sd-sub-round__summary {
   height: 32px;
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) auto 84px;
+  grid-template-columns: 60px minmax(0, 1.5fr) auto 84px;
   gap: 8px;
   align-items: center;
   padding: 0 9px;
@@ -1290,12 +1307,13 @@ shift dot left to align with the container timeline line */
 }
 .trace-table col.col-summary {
   width: auto;
+  min-width: 320px;
 }
 .trace-table col.col-metrics {
-  width: 180px;
+  width: 220px;
 }
 .trace-table col.col-status {
-  width: 110px;
+  width: 130px;
 }
 .trace-table col.col-time {
   width: 90px;
@@ -3235,7 +3253,7 @@ body:not(.density-comfortable) .trace-row > div {
 }
 
 .sd-payload-modal__panel {
-  width: min(92vw, 1600px);
+  width: min(96vw, 2000px);
   max-height: 90vh;
   background: var(--sd-surface);
   border-radius: 16px;
@@ -4033,6 +4051,35 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   font-style: italic;
   text-align: center;
   padding: 8px;
+}
+
+.sd-bucket-detail-fetch-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-subtle);
+  transition: background 0.15s, border-color 0.15s;
+}
+.sd-bucket-detail-fetch-trigger:hover {
+  background: var(--sd-surface-hover);
+  border-color: var(--sd-accent);
+  color: var(--text);
+}
+.sd-bucket-detail-fetch-trigger[data-loaded="1"] {
+  cursor: default;
+  border-style: solid;
+  border-color: var(--line);
+}
+.sd-bucket-detail-loading {
+  text-align: center;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-subtle);
 }
 
 /* ── Attribution disclaimer ── */

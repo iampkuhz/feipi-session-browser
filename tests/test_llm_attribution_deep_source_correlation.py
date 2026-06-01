@@ -480,7 +480,8 @@ class TestBucketDetailsHiddenEstimates:
         assert bucket.details.get("kind") == "hidden_estimate"
         assert len(bucket.details.get("explanation", [])) > 0
 
-    def test_provider_wrapper_has_explanation(self):
+    def test_provider_wrapper_noted_in_attribution_notes(self):
+        """Provider wrapper is no longer a separate bucket — noted in attribution_notes instead."""
         ctx = {
             "prior_messages": [],
             "preceding_tool_results": [],
@@ -489,15 +490,13 @@ class TestBucketDetailsHiddenEstimates:
         builder = self._make_builder(ctx)
         result = builder.build_request()
 
-        bucket = None
-        for b in result.buckets:
-            if b.key == "provider_wrapper_estimate":
-                bucket = b
-                break
+        # No provider_wrapper_estimate bucket
+        provider_buckets = [b for b in result.buckets if b.key == "provider_wrapper_estimate"]
+        assert len(provider_buckets) == 0
 
-        assert bucket is not None
-        assert bucket.details.get("kind") == "hidden_estimate"
-        assert len(bucket.details.get("explanation", [])) > 0
+        # But the note should be in attribution_notes
+        notes_text = " ".join(result.attribution_notes)
+        assert "Provider 包装层" in notes_text or "provider" in notes_text.lower()
 
 
 class TestBucketDetailsCurrentUserMessage:

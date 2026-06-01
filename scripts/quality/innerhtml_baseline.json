@@ -117,45 +117,27 @@
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 167,
+      "line": 182,
       "isClear": false,
       "snippet": "body.innerHTML = '<div class=\"sd-payload-error\">' +"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 186,
+      "line": 201,
       "isClear": false,
       "snippet": "body.innerHTML = renderAttributionLoading(url.indexOf(\"/request\") !== -1 ? \"request\" : \"response\");"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 306,
+      "line": 544,
       "isClear": false,
-      "snippet": "body.innerHTML = html;"
+      "snippet": "bodyEl.innerHTML = '<div class=\"sd-bucket-detail-loading\">加载中…</div>';"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 378,
+      "line": 996,
       "isClear": false,
-      "snippet": "if (body) body.innerHTML = renderAttributionLoading(apiKind);"
-    },
-    {
-      "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 468,
-      "isClear": false,
-      "snippet": "modal.innerHTML = ["
-    },
-    {
-      "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 504,
-      "isClear": false,
-      "snippet": "body.innerHTML = (source.tagName && source.tagName.toLowerCase() === \"template\")"
-    },
-    {
-      "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 508,
-      "isClear": false,
-      "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title, kind);"
+      "snippet": "fetchTrigger.innerHTML = '<span class=\"sd-bucket-detail-loading\">加载中…</span>';"
     },
     {
       "file": "src/session_browser/web/static/js/session_detail_timeline.js",
@@ -206,5 +188,5 @@
       "snippet": "content.innerHTML = '';"
     }
   ],
-  "count": 34
+  "count": 31
 }

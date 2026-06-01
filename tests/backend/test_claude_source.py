@@ -246,7 +246,7 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert summary.assistant_message_count == 1
     assert summary.tool_call_count == 3
     assert summary.failed_tool_count == 1
-    assert summary.input_tokens == 306  # 父 100 + 子 max(200,5) + 子 6
+    assert summary.input_tokens == 111  # 父 100 + 子 final snapshot 5 + 子 6
     assert summary.cached_input_tokens == 300
     assert summary.cached_output_tokens == 300
 
@@ -262,6 +262,71 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert agent_call.subagent_tool_call_count == 2
     assert agent_call.subagent_summary["tool_counts"] == {"Read": 2}
     assert all(tc.scope == "subagent" for tc in tool_calls[1:])
+
+
+@pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")
+def test_same_message_usage_fragments_keep_whole_provider_snapshot():
+    """同一 assistant message 的 usage 片段不能按字段取 max 拼接。"""
+    from session_browser.sources.claude import _assistant_records
+
+    events = [
+        {
+            "type": "assistant",
+            "message": {
+                "id": "msg-fragmented",
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "thinking", "thinking": "plan"}],
+                "usage": {"input_tokens": 26029, "output_tokens": 0},
+            },
+            "timestamp": "2026-06-01T08:26:11.000Z",
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "id": "msg-fragmented",
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "reading file"}],
+                "usage": {"input_tokens": 26029, "output_tokens": 0},
+            },
+            "timestamp": "2026-06-01T08:26:11.100Z",
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "id": "msg-fragmented",
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_read",
+                        "name": "Read",
+                        "input": {"file_path": "plugin-treesitter.lua"},
+                    }
+                ],
+                "usage": {
+                    "input_tokens": 6,
+                    "cache_creation_input_tokens": 3672,
+                    "cache_read_input_tokens": 23985,
+                    "output_tokens": 75,
+                },
+                "stop_reason": "tool_use",
+            },
+            "timestamp": "2026-06-01T08:26:11.300Z",
+        },
+    ]
+
+    records = _assistant_records(events)
+
+    assert len(records) == 1
+    assert records[0]["usage"] == {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 3672,
+        "cache_read_input_tokens": 23985,
+        "output_tokens": 75,
+    }
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001", "DATA-SOURCE-002", "DATA-SOURCE-003", "DATA-SOURCE-004")

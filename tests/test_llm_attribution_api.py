@@ -212,7 +212,6 @@ def test_normalization_heuristic_buckets_not_exceed_fresh():
         RequestAttributionBucket(key="current_user_message", label="User", tokens=1000, percent=0),
         RequestAttributionBucket(key="tool_schemas", label="Schemas", tokens=500, percent=0),
         RequestAttributionBucket(key="hidden_builtin_system_estimate", label="Hidden", tokens=500, percent=0),
-        RequestAttributionBucket(key="provider_wrapper_estimate", label="Provider", tokens=500, percent=0),
         RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
     ]
 
@@ -225,7 +224,7 @@ def test_normalization_heuristic_buckets_not_exceed_fresh():
 
     measured = sum(b.tokens for b in result if b.key == "current_user_message")
     estimated = sum(b.tokens for b in result if b.key == "tool_schemas")
-    heuristic = sum(b.tokens for b in result if b.key in ("hidden_builtin_system_estimate", "provider_wrapper_estimate"))
+    heuristic = sum(b.tokens for b in result if b.key == "hidden_builtin_system_estimate")
 
     # measured + estimated + heuristic should not exceed fresh_input
     assert measured + estimated + heuristic <= fresh_input

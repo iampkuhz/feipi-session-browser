@@ -512,6 +512,11 @@ a.btn:focus-visible {
   color: var(--purple);
   border: 1px solid #ddd6fe;
 }
+.badge-subagent {
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
 /* ── Badge with dot ───────────────────────────────────────── */
 .badge--has-dot {
   gap: 4px;
@@ -1990,8 +1995,8 @@ header treatment). Layout properties come from the base definition. */
   background: rgba(15, 23, 42, 0.36);
 }
 .payload-modal--sd .payload-modal__panel {
-  width: min(92vw, 1600px);
-  max-width: min(92vw, 1600px);
+  width: min(96vw, 2000px);
+  max-width: min(96vw, 2000px);
   min-width: min(720px, 92vw);
   max-height: 82vh;
   border-radius: 18px;

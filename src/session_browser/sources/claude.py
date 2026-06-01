@@ -75,32 +75,46 @@ def _assistant_message_key(ev: dict) -> str:
     return str(ev.get("uuid") or ev.get("parentUuid") or id(ev))
 
 
+def _usage_int(usage: dict, key: str) -> int:
+    value = usage.get(key, 0)
+    if isinstance(value, (int, float)):
+        return int(value)
+    return 0
+
+
 def _merge_usage_dicts(usages: list[dict]) -> dict:
-    """Merge duplicated Claude usage snapshots for one logical response.
+    """Choose the best Claude usage snapshot for one logical response.
 
     Claude Code may persist one assistant response as several JSONL rows
-    (thinking/text/tool_use fragments). The same usage snapshot can repeat
-    once per fragment or once per parallel tool_use. Taking the max per token
-    field preserves the logical response footprint without multiplying it by
-    the number of fragments.
+    (thinking/text/tool_use fragments). Usage rows are whole provider
+    snapshots, not per-field deltas.  Mixing the maximum value per token field
+    can combine ``input_tokens`` from a thinking fragment with cache fields
+    from a later tool fragment, producing a token total that never existed in
+    the raw log.  Prefer the most complete whole snapshot instead.
     """
     if not usages:
         return {}
 
-    merged: dict = {}
     numeric_keys = {
         "input_tokens",
         "output_tokens",
         "cache_read_input_tokens",
         "cache_creation_input_tokens",
     }
-    for usage in usages:
-        for key, value in usage.items():
-            if key in numeric_keys and isinstance(value, (int, float)):
-                merged[key] = max(int(value), int(merged.get(key, 0)))
-            elif key not in merged:
-                merged[key] = value
-    return merged
+
+    def score(index_and_usage: tuple[int, dict]) -> tuple[int, int, int, int]:
+        index, usage = index_and_usage
+        cache_field_count = sum(
+            1
+            for key in ("cache_read_input_tokens", "cache_creation_input_tokens")
+            if _usage_int(usage, key) > 0
+        )
+        output_present = 1 if _usage_int(usage, "output_tokens") > 0 else 0
+        token_total = sum(_usage_int(usage, key) for key in numeric_keys)
+        return (output_present, cache_field_count, token_total, index)
+
+    _, best_usage = max(enumerate(usages), key=score)
+    return dict(best_usage)
 
 
 def _assistant_records(events: list[dict]) -> list[dict]:

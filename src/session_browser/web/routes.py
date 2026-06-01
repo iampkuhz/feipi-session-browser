@@ -620,7 +620,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             elif path.startswith("/api/sessions/"):
                 if "/attribution/" in path:
                     self._serve_api_attribution_path(path)
-                else:
+                elif "/bucket-detail/" in path:
+                    self._serve_api_bucket_detail_path(path)
+                elif "/payload/" in path:
                     self._serve_api_payload_path(path)
             else:
                 self._send_404()
@@ -931,42 +933,138 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._send_json(payload)
 
     def _serve_api_attribution_path(self, path: str) -> None:
-        """Dispatch /api/sessions/{source}/{session_id}/attribution/{round}/{call}/{kind}."""
-        # Pattern: /api/sessions/{source}/{session_id}/attribution/{round_index}/{call_index}/{kind}
+        """Dispatch /api/sessions/{source}/{session_id}/attribution/{...}.
+
+        Supports two URL patterns:
+        - Main LLM call: /api/sessions/{source}/{session_id}/attribution/{round}/{call}/{kind}
+        - Subagent LLM call: /api/sessions/{source}/{session_id}/attribution/subagent/{sa_id}/{call_idx}/{kind}
+        """
         parts = path.split("/")
-        # parts: ["", "api", "sessions", source, session_id, "attribution", round_idx, call_idx, kind]
-        if len(parts) != 9 or parts[5] != "attribution":
-            self._send_json({"error": "invalid API path", "expected": "/api/sessions/{source}/{session_id}/attribution/{round_index}/{call_index}/{kind}"}, status=400)
+
+        # Detect subagent pattern: parts[5] == "subagent"
+        # sub-agent: ["", "api", "sessions", source, session_id, "attribution", "subagent", sa_id, call_idx, kind]
+        if len(parts) == 10 and parts[5] == "attribution" and parts[6] == "subagent":
+            source = urllib.parse.unquote(parts[3])
+            session_id = urllib.parse.unquote(parts[4])
+            sa_id = urllib.parse.unquote(parts[7])
+            call_idx_str = parts[8]
+            kind = urllib.parse.unquote(parts[9])
+            if kind not in ("request", "response"):
+                self._send_json({"error": f"invalid kind '{kind}', expected 'request' or 'response'"}, status=400)
+                return
+            try:
+                call_idx = int(call_idx_str)
+                if call_idx < 1:
+                    raise ValueError("must be positive")
+            except (ValueError, IndexError):
+                self._send_json({
+                    "error": f"invalid call_index='{call_idx_str}', must be positive integer",
+                }, status=400)
+                return
+            self._serve_api_attribution_subagent(source, session_id, sa_id, call_idx, kind)
             return
 
-        source = urllib.parse.unquote(parts[3])
-        session_id = urllib.parse.unquote(parts[4])
-        kind = urllib.parse.unquote(parts[8])
-
-        if kind not in ("request", "response"):
-            self._send_json({"error": f"invalid kind '{kind}', expected 'request' or 'response'"}, status=400)
+        # Main LLM call pattern: parts: ["", "api", "sessions", source, session_id, "attribution", round_idx, call_idx, kind]
+        if len(parts) == 9 and parts[5] == "attribution":
+            source = urllib.parse.unquote(parts[3])
+            session_id = urllib.parse.unquote(parts[4])
+            kind = urllib.parse.unquote(parts[8])
+            if kind not in ("request", "response"):
+                self._send_json({"error": f"invalid kind '{kind}', expected 'request' or 'response'"}, status=400)
+                return
+            try:
+                round_index = int(parts[6])
+                call_index = int(parts[7])
+                if round_index < 1 or call_index < 1:
+                    raise ValueError("must be positive")
+            except (ValueError, IndexError):
+                self._send_json({
+                    "error": f"invalid round_index='{parts[6]}' or call_index='{parts[7]}', must be positive integers",
+                }, status=400)
+                return
+            self._serve_api_attribution_main(source, session_id, round_index, call_index, kind)
             return
 
-        # Parse round_index and call_index (1-based, must be positive integers)
-        try:
-            round_index = int(parts[6])
-            call_index = int(parts[7])
-            if round_index < 1 or call_index < 1:
-                raise ValueError("must be positive")
-        except (ValueError, IndexError):
-            self._send_json({
-                "error": f"invalid round_index='{parts[6]}' or call_index='{parts[7]}', must be positive integers",
-            }, status=400)
+        self._send_json({"error": "invalid API path", "expected": "/api/sessions/{source}/{session_id}/attribution/{round_index}/{call_index}/{kind} or /api/sessions/{source}/{session_id}/attribution/subagent/{sa_id}/{call_idx}/{kind}"}, status=400)
+
+    def _serve_api_attribution_main(self, source: str, session_id: str, round_index: int, call_index: int, kind: str) -> None:
+        """Handle attribution for main-agent LLM calls."""
+        session, messages, tool_calls, subagent_runs, llm_calls, rounds = \
+            self._load_session_and_build_rounds(source, session_id)
+        if session is None:
+            return  # Error already sent by helper
+
+        target_round_idx = round_index - 1
+        target_call_idx = call_index - 1
+
+        if target_round_idx < 0 or target_round_idx >= len(rounds):
+            self._send_json(attribution_error_to_payload(
+                agent=source, call_id="", round_id=str(round_index),
+                error_type="NotFound",
+                message=f"round_index {round_index} out of range (1-{len(rounds)})",
+            ), status=404)
             return
 
-        # Parse query param: detail=summary|full (default full)
-        parsed_qs = urllib.parse.urlparse(path).query
-        qs_params = urllib.parse.parse_qs(parsed_qs)
-        detail = qs_params.get("detail", ["full"])[0]
-        if detail not in ("summary", "full"):
-            detail = "full"
+        r = rounds[target_round_idx]
+        if target_call_idx < 0 or target_call_idx >= len(r.interactions):
+            self._send_json(attribution_error_to_payload(
+                agent=source, call_id="", round_id=str(round_index),
+                error_type="NotFound",
+                message=f"call_index {call_index} out of range for round {round_index} (1-{len(r.interactions)})",
+            ), status=404)
+            return
 
-        # Load session
+        ix = r.interactions[target_call_idx]
+        self._build_and_send_attribution(source, session_id, session, r, ix, target_call_idx, round_index, kind, llm_calls, messages, tool_calls)
+
+    def _serve_api_attribution_subagent(self, source: str, session_id: str, sa_id: str, call_idx: int, kind: str) -> None:
+        """Handle attribution for subagent LLM calls."""
+        session, messages, tool_calls, subagent_runs, llm_calls, rounds = \
+            self._load_session_and_build_rounds(source, session_id)
+        if session is None:
+            return  # Error already sent by helper
+
+        # Find subagent LLM calls matching sa_id
+        sa_llm_calls = [c for c in llm_calls if c.scope == "subagent" and c.subagent_id == sa_id]
+        if not sa_llm_calls:
+            self._send_json(attribution_error_to_payload(
+                agent=source, call_id="", round_id="",
+                error_type="NotFound",
+                message=f"subagent '{sa_id}' LLM calls not found",
+            ), status=404)
+            return
+
+        # call_idx is 1-based per-subagent index; find the matching call
+        # The per-subagent index maps to position in sa_llm_calls list
+        if call_idx < 1 or call_idx > len(sa_llm_calls):
+            self._send_json(attribution_error_to_payload(
+                agent=source, call_id="", round_id="",
+                error_type="NotFound",
+                message=f"call_index {call_idx} out of range for subagent '{sa_id}' (1-{len(sa_llm_calls)})",
+            ), status=404)
+            return
+
+        ix = sa_llm_calls[call_idx - 1]
+
+        # Find the parent round for this subagent call
+        parent_round_idx = ix.round_index
+        if parent_round_idx < 0 or parent_round_idx >= len(rounds):
+            parent_round_idx = 0
+
+        r = rounds[parent_round_idx]
+
+        # For subagent, we don't have a meaningful interaction_index within
+        # the round's interactions list. Use 0 as a safe default so that
+        # preceding_tool_results is empty (subagent calls don't have local
+        # preceding tool results in the same way).
+        self._build_and_send_attribution(source, session_id, session, r, ix, 0, parent_round_idx + 1, kind, llm_calls, messages, tool_calls)
+
+    def _load_session_and_build_rounds(self, source: str, session_id: str):
+        """Load session, parse data, build rounds and LLM calls.
+
+        Returns (session, messages, tool_calls, subagent_runs, llm_calls, rounds)
+        or (None, ...) on error (error response already sent).
+        """
         session_key = f"{source}:{session_id}"
         conn = _get_connection()
         session = get_session(conn, session_key)
@@ -984,16 +1082,16 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                         session_id = resolved_id
                 if session is None and err_msg:
                     self._send_json(attribution_error_to_payload(
-                        agent=source, call_id="", round_id=str(round_index),
+                        agent=source, call_id="", round_id="",
                         error_type="NotFound", message=err_msg,
                     ), status=404)
-                    return
+                    return (None, [], [], [], [], [])
             if session is None:
                 self._send_json(attribution_error_to_payload(
-                    agent=source, call_id="", round_id=str(round_index),
+                    agent=source, call_id="", round_id="",
                     error_type="NotFound", message="session not found",
                 ), status=404)
-                return
+                return (None, [], [], [], [], [])
 
         # Parse session detail
         if source == "claude_code":
@@ -1025,30 +1123,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, source)
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
-        # Find the LLM call by round_index and call_index (1-based)
-        target_round_idx = round_index - 1  # convert to 0-based
-        target_call_idx = call_index - 1  # convert to 0-based
+        return (session, messages, tool_calls, subagent_runs, llm_calls, rounds)
 
-        if target_round_idx < 0 or target_round_idx >= len(rounds):
-            self._send_json(attribution_error_to_payload(
-                agent=source, call_id="", round_id=str(round_index),
-                error_type="NotFound",
-                message=f"round_index {round_index} out of range (1-{len(rounds)})",
-            ), status=404)
-            return
-
-        r = rounds[target_round_idx]
-        if target_call_idx < 0 or target_call_idx >= len(r.interactions):
-            self._send_json(attribution_error_to_payload(
-                agent=source, call_id="", round_id=str(round_index),
-                error_type="NotFound",
-                message=f"call_index {call_index} out of range for round {round_index} (1-{len(r.interactions)})",
-            ), status=404)
-            return
-
-        ix = r.interactions[target_call_idx]
-
-        # Collect all messages and tool calls for context hydration
+    def _build_and_send_attribution(self, source, session_id, session, r, ix, interaction_index, round_index, kind, llm_calls, messages, tool_calls):
+        """Build attribution for an LLM call and send JSON response."""
         all_messages = messages or []
         all_tool_calls = tool_calls or []
 
@@ -1056,13 +1134,14 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         attrib_ctx = build_attribution_session_context(
             session=session,
             round_obj=r,
-            interaction_index=target_call_idx,
-            interactions=r.interactions,
+            interaction_index=interaction_index,
+            interactions=r.interactions if hasattr(r, 'interactions') else [],
             round_tool_calls=r.tool_calls,
             all_messages=all_messages,
             all_tool_calls=all_tool_calls,
             project_dir=session.project_key or None,
             agent_name=source,
+            all_llm_calls=llm_calls,
         )
 
         # Build attribution
@@ -1102,11 +1181,134 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             "source": source,
             "session_id": session_id,
             "round_index": round_index,
-            "call_index": call_index,
-            "detail": detail,
+            "call_index": getattr(ix, "round_index", 0) + 1,
             "data": data,
         }
         self._send_json(envelope)
+
+    def _serve_api_bucket_detail_path(self, path: str) -> None:
+        """Dispatch /api/sessions/{source}/{session_id}/bucket-detail/{round_index}/{bucket_key}.
+
+        Supports dynamic loading of bucket detail content:
+        - current_user_message: full user message text for a given round
+        - local_instruction_context: full CLAUDE.md content for the project
+        """
+        parts = path.split("/")
+        # parts: ["", "api", "sessions", source, session_id, "bucket-detail", round_index, bucket_key]
+        if len(parts) == 8 and parts[5] == "bucket-detail":
+            source = urllib.parse.unquote(parts[3])
+            session_id = urllib.parse.unquote(parts[4])
+            round_index_str = parts[6]
+            bucket_key = urllib.parse.unquote(parts[7])
+            try:
+                round_index = int(round_index_str)
+            except (ValueError, IndexError):
+                self._send_json({"error": f"invalid round_index='{round_index_str}'"}, status=400)
+                return
+            self._serve_api_bucket_detail(source, session_id, round_index, bucket_key)
+        else:
+            self._send_json({"error": "invalid API path", "expected": "/api/sessions/{source}/{session_id}/bucket-detail/{round_index}/{bucket_key}"}, status=400)
+
+    def _serve_api_bucket_detail(self, source: str, session_id: str, round_index: int, bucket_key: str) -> None:
+        """Return full, untruncated bucket detail content for dynamic loading."""
+        session_key = f"{source}:{session_id}"
+        conn = _get_connection()
+        session = get_session(conn, session_key)
+        conn.close()
+
+        if session is None:
+            if source == "qoder":
+                resolved_id, err_msg = _resolve_qoder_short_id(session_id)
+                if resolved_id:
+                    session_key = f"{source}:{resolved_id}"
+                    conn = _get_connection()
+                    session = get_session(conn, session_key)
+                    conn.close()
+                    if session is not None:
+                        session_id = resolved_id
+                if session is None and err_msg:
+                    self._send_json({"error": err_msg}, status=404)
+                    return
+            if session is None:
+                self._send_json({"error": "session not found"}, status=404)
+                return
+
+        if bucket_key == "current_user_message":
+            # Fetch the user message for the given round
+            if source == "claude_code":
+                from session_browser.sources.claude import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id
+                )
+            elif source == "qoder":
+                from session_browser.sources.qoder import parse_session_detail
+                qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id, session_file=qoder_file
+                )
+            else:
+                from session_browser.sources.codex import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+
+            rounds = build_rounds(
+                messages, tool_calls,
+                session.input_tokens, session.output_tokens,
+                session.cached_input_tokens, session.cached_output_tokens,
+                source, md_filter=_md_filter,
+            )
+            target_idx = round_index - 1
+            if target_idx < 0 or target_idx >= len(rounds):
+                self._send_json({"error": f"round_index {round_index} out of range (1-{len(rounds)})"}, status=404)
+                return
+
+            r = rounds[target_idx]
+            content = r.user_msg.content if r.user_msg else ""
+            from session_browser.attribution.agents.claude_code import _mask_sensitive_keys
+            from session_browser.attribution.token_estimator import estimate_tokens_from_text
+            masked = _mask_sensitive_keys(content or "")
+            self._send_json({
+                "kind": "bucket_detail",
+                "bucket_key": bucket_key,
+                "round_index": round_index,
+                "text": masked,
+                "tokens": estimate_tokens_from_text(content or ""),
+            })
+            return
+
+        elif bucket_key == "local_instruction_context":
+            # Read CLAUDE.md from project directory
+            project_dir = session.project_key
+            if not project_dir:
+                self._send_json({"error": "project directory unknown", "text": ""}, status=404)
+                return
+
+            from session_browser.attribution.context import _read_local_instructions
+            from pathlib import Path as _Path
+            local_text = _read_local_instructions(_Path(project_dir), source)
+
+            if not local_text:
+                self._send_json({
+                    "kind": "bucket_detail",
+                    "bucket_key": bucket_key,
+                    "text": "",
+                    "note": "未检测到本地指令上下文。",
+                })
+                return
+
+            from session_browser.attribution.agents.claude_code import _mask_sensitive_keys
+            from session_browser.attribution.token_estimator import estimate_tokens_from_text
+            masked = _mask_sensitive_keys(local_text)
+            self._send_json({
+                "kind": "bucket_detail",
+                "bucket_key": bucket_key,
+                "text": masked,
+                "tokens": estimate_tokens_from_text(local_text),
+                "source_file": "CLAUDE.md",
+            })
+            return
+
+        else:
+            self._send_json({"error": f"bucket_key '{bucket_key}' not supported for dynamic loading"}, status=400)
 
     def _serve_agent(self, agent: str) -> None:
         conn = _get_connection()
@@ -1132,7 +1334,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             return
 
         content_type = "text/css" if filename.endswith(".css") else (
-            "application/javascript" if filename.endswith(".js") else "text/plain"
+            "application/javascript" if filename.endswith(".js") else (
+                "image/svg+xml" if filename.endswith(".svg") else "text/plain"
+            )
         )
         self.send_response(200)
         self.send_header("Content-Type", content_type)
@@ -1942,11 +2146,18 @@ def _build_v11_view_model(
                     sa_note_tone = "warn"
 
                 # Inner card title: LLM Call #N (SR title keeps thinking preview)
-                sa_inner_title = f"LLM Call #{m_idx + 1}"
+                # Use per-subagent global numbering
+                sa_call_index = m_idx + 1
+                sa_inner_title = f"LLM Call #{sa_call_index}"
+
+                # Attribution payload IDs for subagent (Issue 3)
+                sa_req_attr_id = f"sub-{sa_id}-IX{m_idx + 1}-request-attribution"
+                sa_rsp_attr_id = f"sub-{sa_id}-IX{m_idx + 1}-response-attribution"
 
                 steps = [{
                     "type": "llm_call",
                     "call_id": call_ref,
+                    "call_index": sa_call_index,
                     "title": sa_inner_title,
                     "model": (m.model or "unknown")[:40],
                     "status_label": "OK",
@@ -1961,10 +2172,28 @@ def _build_v11_view_model(
                     "context_payload_title": f"Subagent · Request ({call_ref})",
                     "response_payload_id": rsp_payload_id,
                     "response_payload_title": f"Subagent · Response ({call_ref})",
+                    "request_attribution_id": sa_req_attr_id,
+                    "response_attribution_id": sa_rsp_attr_id,
                     "note": sa_note_text,
                     "note_tone": sa_note_tone,
                     "finish_reason": getattr(m, "stop_reason", "") or "",
                 }]
+
+                # Register subagent attribution payloads as fallback (Issue 3)
+                add_payload(
+                    payload_id=sa_req_attr_id,
+                    kind="llm.request_attribution",
+                    title=f"Subagent · Request Attribution ({call_ref})",
+                    text="",
+                    warning="Subagent attribution: use API endpoint for live data.",
+                )
+                add_payload(
+                    payload_id=sa_rsp_attr_id,
+                    kind="llm.response_attribution",
+                    title=f"Subagent · Response Attribution ({call_ref})",
+                    text="",
+                    warning="Subagent attribution: use API endpoint for live data.",
+                )
 
                 # Match tool calls belonging to this specific round
                 round_tool_tcs = []
@@ -2137,6 +2366,28 @@ def _build_v11_view_model(
 
     # -- Trace rows --
     trace_rows = []
+    # Global main LLM call counter across all rounds (Issue 5)
+    global_main_call_num = 0
+    # Pre-build subagent→parent mapping: subagent_id → {round_index, parent_tool_use_id}
+    sa_parent_map: dict[str, dict] = {}
+    for run in subagent_runs:
+        sa_id = run["summary"]["agent_id"]
+        parent_tc = next(
+            (tc for tc in tool_calls if tc.name == "Agent" and tc.subagent_summary.get("agent_id") == sa_id),
+            None,
+        )
+        if parent_tc:
+            # Find which round this parent tool call belongs to
+            parent_round_idx = 0
+            for ri, rr in enumerate(rounds):
+                if any(tc.tool_use_id == parent_tc.tool_use_id for tc in rr.tool_calls):
+                    parent_round_idx = ri
+                    break
+            sa_parent_map[sa_id] = {
+                "round_index": parent_round_idx,
+                "parent_tool_use_id": parent_tc.tool_use_id,
+            }
+
     for r_idx, r in enumerate(rounds):
         rid = r_idx + 1
         rb = r.token_breakdown()
@@ -2162,9 +2413,9 @@ def _build_v11_view_model(
         # Round summary: user input first if available
         start_time = _to_local_time_hms(r.user_msg.timestamp or r.assistant_msg.timestamp or "")
         if r.user_msg.content:
-            preview_title = (r.user_msg.content or "")[:120]
+            preview_title = (r.user_msg.content or "")[:300]
         else:
-            preview_title = (r.preview_text or "")[:120]
+            preview_title = (r.preview_text or "")[:300]
         for _fw in ["Map", "Inspector", "Focus", "Open selected", "Calls", "Hotspots", "High token", "Jump input"]:
             preview_title = preview_title.replace(_fw, "***")
         preview_subtitle = f"{len(r.tool_calls)} tool{'s' if len(r.tool_calls) != 1 else ''}" if r.tool_calls else "no tools"
@@ -2235,23 +2486,13 @@ def _build_v11_view_model(
                 "payload_title": f"R{rid} · User request",
             })
 
-        for ix_idx, ix in enumerate(r.interactions):
-            iix = ix_idx + 1
+        # Track whether this round has subagents (Issue 7)
+        round_has_subagent = False
 
-            # Subagent interaction
-            if ix.scope == "subagent" and ix.subagent_id:
-                sa_info = subagent_lookup.get(ix.subagent_id)
-                if sa_info:
-                    items.append({
-                        "type": "subagent",
-                        "subagent_id": ix.subagent_id,
-                        "name": sa_info["name"],
-                        "status_label": sa_info["status_label"],
-                        "status_tone": sa_info["status_tone"],
-                        "meta": sa_info["meta"],
-                        "sub_rounds": sa_info["sub_rounds"],
-                    })
-                continue
+        for ix_idx, ix in enumerate(r.interactions):
+            # Global main LLM call numbering across all rounds (Issue 5)
+            global_main_call_num += 1
+            iix = global_main_call_num
 
             # LLM call interaction
             call_id = f"R{rid}-IX{iix}"
@@ -2527,6 +2768,7 @@ def _build_v11_view_model(
                     all_tool_calls=tool_calls,
                     project_dir=session.project_key or None,
                     agent_name=session.agent,
+                    all_llm_calls=llm_calls,
                 )
                 req_attr = build_llm_request_attribution(
                     agent=session.agent,
@@ -2620,6 +2862,27 @@ def _build_v11_view_model(
             items.append(llm_item)
             items.extend(parallel_batches)
 
+            # ── Attach subagent items to parent LLM call (Issues 3, 4) ──
+            # Check if any tool call in this LLM call is an Agent tool that spawned a subagent.
+            for tc in ix_tool_calls_for_llm:
+                if tc.name == "Agent" and tc.subagent_id:
+                    sa_id = tc.subagent_id
+                    sa_info = subagent_lookup.get(sa_id)
+                    if sa_info:
+                        round_has_subagent = True
+                        items.append({
+                            "type": "subagent",
+                            "subagent_id": sa_id,
+                            "name": sa_info["name"],
+                            "status_label": sa_info["status_label"],
+                            "status_tone": sa_info["status_tone"],
+                            "meta": sa_info["meta"],
+                            "sub_rounds": sa_info["sub_rounds"],
+                            # Attach to parent LLM call for nesting (Issue 4)
+                            "parent_call_id": call_id,
+                            "parent_call_index": iix,
+                        })
+
         # If no interactions but round has tool_calls, render them standalone
         if not items and r.tool_calls:
             batch_tools = []
@@ -2686,6 +2949,7 @@ def _build_v11_view_model(
             "tool_count": tool_total,
             "tool_count_label": tool_count_label,
             "has_user_input": bool(r.user_msg.content),
+            "has_subagent": round_has_subagent,
             "start_time": start_time,
             "is_open": False,
             "timeline_items": items,

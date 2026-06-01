@@ -35,7 +35,6 @@ def test_heuristic_buckets_sum_cannot_exceed_total_input():
         _make_bucket("tool_schemas", 500),
         _make_bucket("local_instruction_context", 300),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("provider_wrapper_estimate", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -48,17 +47,16 @@ def test_heuristic_buckets_sum_cannot_exceed_total_input():
 
     measured = sum(b.tokens for b in buckets if b.key in ("current_user_message",))
     estimated = sum(b.tokens for b in buckets if b.key in ("tool_schemas", "local_instruction_context"))
-    heuristic = sum(b.tokens for b in buckets if b.key in ("hidden_builtin_system_estimate", "provider_wrapper_estimate"))
+    heuristic = sum(b.tokens for b in buckets if b.key == "hidden_builtin_system_estimate")
 
     assert measured + estimated + heuristic <= fresh_input
 
 
-def test_hidden_builtin_provider_wrapper_scaled_down_for_small_total():
+def test_hidden_builtin_scaled_down_for_small_total():
     """When fresh_input is very small, heuristic_fixed should be scaled down."""
     buckets = [
         _make_bucket("current_user_message", 1000),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("provider_wrapper_estimate", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -70,11 +68,9 @@ def test_hidden_builtin_provider_wrapper_scaled_down_for_small_total():
     )
 
     hidden = next(b for b in buckets if b.key == "hidden_builtin_system_estimate")
-    provider = next(b for b in buckets if b.key == "provider_wrapper_estimate")
 
-    # Both should be scaled down from 500
+    # Should be scaled down from 500
     assert hidden.tokens < 500
-    assert provider.tokens < 500
 
 
 def test_heuristic_scaled_to_zero_when_no_budget():
@@ -83,7 +79,6 @@ def test_heuristic_scaled_to_zero_when_no_budget():
         _make_bucket("current_user_message", 1000),
         _make_bucket("preceding_tool_results", 500),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("provider_wrapper_estimate", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -95,10 +90,8 @@ def test_heuristic_scaled_to_zero_when_no_budget():
     )
 
     hidden = next(b for b in buckets if b.key == "hidden_builtin_system_estimate")
-    provider = next(b for b in buckets if b.key == "provider_wrapper_estimate")
 
     assert hidden.tokens == 0
-    assert provider.tokens == 0
 
 
 # ── Unlocated residual ───────────────────────────────────────────────
@@ -179,7 +172,6 @@ def test_measured_buckets_never_scaled_down():
     buckets = [
         _make_bucket("current_user_message", original_measured),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("provider_wrapper_estimate", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -199,7 +191,6 @@ def test_measured_bucket_preceding_tool_results_preserved():
     buckets = [
         _make_bucket("preceding_tool_results", 1500),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("provider_wrapper_estimate", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -222,7 +213,6 @@ def test_normalization_with_zero_total_input():
     buckets = [
         _make_bucket("current_user_message", 0),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("provider_wrapper_estimate", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -262,7 +252,6 @@ def test_percentages_valid_range():
         _make_bucket("tool_schemas", 500),
         _make_bucket("local_instruction_context", 300),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("provider_wrapper_estimate", 200),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -353,5 +342,5 @@ def test_all_bucket_keys_classified():
     assert "tool_schemas" in _ESTIMATED_BUCKET_KEYS
     assert "local_instruction_context" in _ESTIMATED_BUCKET_KEYS
     assert "hidden_builtin_system_estimate" in _HEURISTIC_FIXED_KEYS
-    assert "provider_wrapper_estimate" in _HEURISTIC_FIXED_KEYS
+    # provider_wrapper_estimate removed — now noted in attribution_notes instead
     assert "top_level_system_estimate" in _HEURISTIC_SCALED_KEYS

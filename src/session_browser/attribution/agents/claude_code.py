@@ -115,7 +115,6 @@ _ESTIMATED_BUCKET_KEYS = {
 }
 _HEURISTIC_FIXED_KEYS = {
     "hidden_builtin_system_estimate",
-    "provider_wrapper_estimate",
 }
 _HEURISTIC_SCALED_KEYS = {
     "top_level_system_estimate",
@@ -446,22 +445,30 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             top_level_system_tokens = 0
 
         # Hidden builtin system estimate: Claude Code builtin prompt not public.
+        # If system_reminder_content is available in session_context, use actual token count.
         hidden_builtin_tokens = 0
-        # Typical range: 300-800 tokens for Claude Code wrapper.
-        hidden_builtin_tokens = 500  # midpoint heuristic
+        system_reminder_text = ctx.get("system_reminder_content", "")
+        if system_reminder_text:
+            hidden_builtin_tokens = estimate_tokens_from_text(system_reminder_text)
+            hidden_builtin_tokens = max(hidden_builtin_tokens, 100)  # floor
+        else:
+            # Typical range: 300-800 tokens for Claude Code wrapper.
+            hidden_builtin_tokens = 500  # midpoint heuristic
         # This is always a heuristic; mark as such.
 
         # Provider wrapper estimate: ~50-200 tokens for framing.
+        # Not shown as a separate bucket — noted in attribution_notes instead.
         provider_wrapper_tokens = 100  # midpoint heuristic
 
         # ── Step 3: assemble buckets and normalize ─────────────────────
-        # Sum of all known buckets EXCEPT unlocated_residual
+        # Sum of all known buckets EXCEPT unlocated_residual.
+        # Note: provider_wrapper_tokens is NOT included — it's absorbed into residual.
         known_sum = (
             current_user_msg_tokens + tool_results_tokens
             + prior_conversation_tokens + tool_schema_tokens
             + local_instruction_tokens + agent_subagent_tokens
             + mcp_metadata_tokens + top_level_system_tokens
-            + hidden_builtin_tokens + provider_wrapper_tokens
+            + hidden_builtin_tokens
         )
 
         unlocated_residual = max(total_call_input - known_sum, 0) if total_call_input > 0 else 0
@@ -569,6 +576,11 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                     "description_preview": _tool_description(tool_name),
                     "estimated_tokens": _real_schema_tokens(tool_name, _schemas_for_detail),
                     "precision": "extracted_from_sdk",
+                    "description": _tool_description(tool_name),
+                    "input_schema": json.dumps(
+                        _schemas_for_detail.get(tool_name, {}).get("input_schema", {}),
+                        ensure_ascii=False, indent=2,
+                    ) if tool_name in _schemas_for_detail else "",
                 }
                 for tool_name in (available_tools or _DEFAULT_CC_TOOLS)
             ],
@@ -695,17 +707,26 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 details=top_level_details,
             ))
 
-        # 9. hidden_builtin_system_estimate — 内置系统提示估算
-        hidden_builtin_details = {
-            "kind": "hidden_estimate",
-            "explanation": [
-                "Claude Code 内置隐藏 system prompt 不可见",
-                "按 300-800 tokens 典型值估算",
-            ],
-        }
+        # 9. hidden_builtin_system_estimate — 内置系统提示
+        if system_reminder_text:
+            hidden_builtin_details = {
+                "kind": "hidden_estimate",
+                "explanation": [
+                    f"从会话 transcript 中提取 <system-reminder> 内容，共 {len(system_reminder_text)} 字符",
+                    f"token 数 {hidden_builtin_tokens} 通过文本估算",
+                ],
+            }
+        else:
+            hidden_builtin_details = {
+                "kind": "hidden_estimate",
+                "explanation": [
+                    "Claude Code 内置隐藏 system prompt 不可见",
+                    "按 300-800 tokens 典型值估算",
+                ],
+            }
         buckets.append(RequestAttributionBucket(
             key="hidden_builtin_system_estimate",
-            label="内置系统提示估算",
+            label="内置系统提示",
             tokens=hidden_builtin_tokens,
             percent=_pct(hidden_builtin_tokens, total_call_input),
             precision=ValuePrecision.HEURISTIC,
@@ -718,25 +739,8 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             details=hidden_builtin_details,
         ))
 
-        # 10. provider_wrapper_estimate — Provider 包装层估算
-        provider_wrapper_details = {
-            "kind": "hidden_estimate",
-            "explanation": [
-                "Provider 元数据/thinking/output_config 等包装字段不可见",
-                "按 ~50-200 tokens 典型值估算",
-            ],
-        }
-        buckets.append(RequestAttributionBucket(
-            key="provider_wrapper_estimate",
-            label="Provider 包装层估算",
-            tokens=provider_wrapper_tokens,
-            percent=_pct(provider_wrapper_tokens, total_call_input),
-            precision=ValuePrecision.HEURISTIC,
-            source=ValueSource.HEURISTIC,
-            confidence_label="低",
-            summary="Provider 元数据/thinking/output_config 等包装层开销估算。",
-            details=provider_wrapper_details,
-        ))
+        # 10. provider_wrapper_estimate — absorbed into unlocated_residual,
+        # noted in attribution_notes instead of shown as a separate bucket.
 
         # 11. unlocated_residual — 未定位 (always LAST)
         unlocated_details = {
@@ -861,8 +865,12 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             notes.append("Tool schemas: 无法从本地日志获取可用工具定义列表，tool_schemas 标记为 unavailable。")
         notes.append(
             "采用 request reconstruction 方法：将原先归入 unknown 的 token 拆分为多个解释性 bucket，"
-            "包括本地指令、Agent 提示、MCP 元数据、系统提示估算、Provider 包装层等。"
+            "包括本地指令、Agent 提示、MCP 元数据、系统提示估算等。"
             "heuristic/hidden bucket 不含真实内容，仅解释 token 来源。"
+        )
+        notes.append(
+            "Provider 包装层（元数据/thinking/output_config 等）约 50-200 tokens，"
+            "不计入单独 bucket，已包含在未定位余项中。"
         )
         notes.append(_NORMALIZATION_NOTE)
 

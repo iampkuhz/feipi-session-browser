@@ -92,6 +92,7 @@ def build_attribution_session_context(
     project_dir: str | None = None,
     agent_name: str | None = None,
     existing_context: dict | None = None,
+    all_llm_calls: list[LLMCall] | None = None,
 ) -> dict:
     """Build a call-scoped session context for attribution builders.
 
@@ -140,7 +141,7 @@ def build_attribution_session_context(
     prior_messages = _build_prior_messages(all_messages, interaction_index)
 
     # -- available_tools --
-    available_tools = _build_available_tools(all_tool_calls, agent_name)
+    available_tools = _build_available_tools(all_tool_calls, agent_name, llm_calls=all_llm_calls)
 
     # -- local_instructions, agent_prompt, mcp metadata --
     local_instructions = ""
@@ -155,6 +156,10 @@ def build_attribution_session_context(
         local_instructions = _read_local_instructions(project_path, agent_name)
         agent_prompt_file, subagent_prompt = _read_agent_prompt(project_path, agent_name)
         mcp_tools, mcp_servers = _read_mcp_metadata(project_path)
+
+    # -- Extract system-reminder from first assistant request_full --
+    if not system_reminder_content and all_messages:
+        system_reminder_content = _extract_system_reminder(all_messages)
 
     base = {
         "interaction_index": interaction_index,
@@ -222,34 +227,59 @@ def _build_prior_messages(
     return result
 
 
-def _build_available_tools(all_tool_calls: list | None, agent_name: str | None = None) -> list[str]:
-    """Collect unique tool names from observed tool calls.
+def _build_available_tools(
+    all_tool_calls: list | None,
+    agent_name: str | None = None,
+    llm_calls: list | None = None,
+) -> list[str]:
+    """Collect unique tool names from observed tool calls AND LLM tool definitions.
 
-    For Codex, returns empty list when no observed tools (do NOT fall back
-    to Claude Code default tool list). For other agents, falls back to
-    default Claude Code tool list when no observed tools.
+    For agents without agent restrictions (e.g. default Claude Code sessions),
+    the LLM request contains ALL available tool schemas, not just the observed
+    tool calls. We parse ``tool_calls_raw`` from LLMCall objects to extract the
+    full tool list that was actually sent to the LLM.
+
+    Falls back to observed tool calls, then to default Claude Code tool list
+    (except for codex which returns empty when no tools found).
     """
-    if not all_tool_calls:
-        if agent_name == "codex":
-            return []
-        return list(_DEFAULT_CC_TOOLS)
+    # First pass: try to extract ALL tools from LLM tool_calls_raw (tool definitions sent to LLM)
+    if llm_calls:
+        all_tools_from_llm: set[str] = set()
+        for lc in llm_calls:
+            raw = getattr(lc, "tool_calls_raw", "") or ""
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    for item in parsed:
+                        if isinstance(item, dict):
+                            tname = item.get("name", "")
+                            if tname:
+                                all_tools_from_llm.add(tname)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if all_tools_from_llm:
+            return sorted(all_tools_from_llm)
 
-    seen: set[str] = set()
-    for tc in all_tool_calls:
-        name = ""
-        if isinstance(tc, dict):
-            name = tc.get("name", tc.get("tool_name", ""))
-        elif hasattr(tc, "name"):
-            name = getattr(tc, "name", "")
-        if name:
-            seen.add(name)
+    # Second pass: fallback to observed tool calls
+    if all_tool_calls:
+        seen: set[str] = set()
+        for tc in all_tool_calls:
+            name = ""
+            if isinstance(tc, dict):
+                name = tc.get("name", tc.get("tool_name", ""))
+            elif hasattr(tc, "name"):
+                name = getattr(tc, "name", "")
+            if name:
+                seen.add(name)
+        if seen:
+            return sorted(seen)
 
-    if not seen:
-        if agent_name == "codex":
-            return []
-        return list(_DEFAULT_CC_TOOLS)
-
-    return sorted(seen)
+    # Final fallback: default Claude Code tools (except codex)
+    if agent_name == "codex":
+        return []
+    return list(_DEFAULT_CC_TOOLS)
 
 
 def _read_local_instructions(project_path: Path, agent_name: str | None) -> str:
@@ -345,3 +375,49 @@ def _read_mcp_metadata(project_path: Path) -> tuple[list[str], list[str]]:
                     tools.append(f"{server_name}:*")
 
     return tools, servers
+
+
+_SYSTEM_REMINDER_PATTERN = re.compile(
+    r'<system-reminder>(.*?)</system-reminder>',
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _extract_system_reminder(messages: list) -> str:
+    """Extract <system-reminder> content from the first assistant message's request_full.
+
+    Claude Code injects the built-in system prompt (CLAUDE.md + MEMORY.md + config)
+    as a <system-reminder> block in the first API request. This function extracts
+    that content so attribution builders can use actual token counts instead of
+    heuristics.
+
+    Returns the extracted system-reminder text, or empty string if not found.
+    """
+    for msg in messages:
+        # Check assistant message request_full
+        request_full = ""
+        if isinstance(msg, dict):
+            request_full = msg.get("request_full", "") or msg.get("content", "")
+        elif hasattr(msg, "request_full"):
+            request_full = getattr(msg, "request_full", "") or ""
+
+        if not request_full:
+            continue
+
+        m = _SYSTEM_REMINDER_PATTERN.search(request_full)
+        if m:
+            return m.group(1).strip()
+
+        # Also check if the content itself has system-reminder tags
+        content = ""
+        if isinstance(msg, dict):
+            content = msg.get("content", "")
+        elif hasattr(msg, "content"):
+            content = getattr(msg, "content", "") or ""
+
+        if content:
+            m2 = _SYSTEM_REMINDER_PATTERN.search(str(content))
+            if m2:
+                return m2.group(1).strip()
+
+    return ""

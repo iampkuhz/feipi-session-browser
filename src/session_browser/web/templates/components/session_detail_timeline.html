@@ -168,6 +168,9 @@
     {% elif 'fail' in row.status_key|default('') %}
       <span class="badge badge-err">Failed</span>
     {% endif %}
+    {% if row.has_subagent %}
+      <span class="badge badge-subagent"><span aria-hidden="true">&#x1F916;</span> Subagent</span>
+    {% endif %}
   </td>
   <td>
     <span class="round-time">{{ row.start_time|default('—') }}</span>
@@ -185,7 +188,10 @@
         {% elif item.type == 'tool_batch' %}
           {{ tool_batch(item) }}
         {% elif item.type == 'subagent' %}
-          {{ subagent_block(item) }}
+          {# Nested subagent under parent LLM call (Issues 3, 4) #}
+          <div class="sd-subagent-nested">
+            {{ subagent_block(item) }}
+          </div>
         {% endif %}
       {% endfor %}
     </div>
@@ -203,7 +209,7 @@
     {{ sdp.timeline_dot('llm') }}
     <section class="sd-card sd-llm-card" data-inline-call-card data-call-id="{{ call.call_id }}">
       <div class="sd-card-head">
-        <span class="sd-card-title">{{ call.title|default('LLM Call') }}</span>
+        <span class="sd-card-title">LLM Call #{{ call.call_index|default('?') }}</span>
         {{ sdp.pill(call.model|default('—'), 'model') }}
         {% if call.lane %}{{ sdp.pill(call.lane, 'main') }}{% endif %}
         {{ sdp.pill(call.status_label|default('OK'), call.status_tone|default('ok')) }}
@@ -217,16 +223,16 @@
         </div>
         <div class="sd-llm-action-group">
           {% if call.context_payload_id %}
-          {{ sdp.button('Request', 'open-payload', 'primary', 'sm', call.context_payload_id, attrs='data-payload-kind="context" data-payload-title="' ~ (call.context_payload_title|default(call.title ~ ' · Request')) ~ '"') }}
+          {{ sdp.button('Request', 'open-payload', 'primary', 'sm', call.context_payload_id, attrs='data-payload-kind="context" data-payload-title="' ~ (call.context_payload_title|default('LLM Call #' ~ call.call_index ~ ' · Request')) ~ '"') }}
           {% elif call.request_payload_missing_reason %}
-          <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-kind="context" data-payload-title="{{ call.title|default('') }} · Request" title="{{ call.request_payload_missing_reason }}">
+          <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-kind="context" data-payload-title="LLM Call #{{ call.call_index|default('?') }} · Request" title="{{ call.request_payload_missing_reason }}">
             Request <span aria-hidden="true">&#x26A0;</span>
           </button>
           {% endif %}
           {% if call.response_payload_id %}
-          {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id, attrs='data-payload-kind="response" data-payload-title="' ~ (call.response_payload_title|default(call.title ~ ' · Response')) ~ '"') }}
+          {{ sdp.button('Response', 'open-payload', 'primary', 'sm', call.response_payload_id, attrs='data-payload-kind="response" data-payload-title="' ~ (call.response_payload_title|default('LLM Call #' ~ call.call_index ~ ' · Response')) ~ '"') }}
           {% elif call.response_payload_missing_reason %}
-          <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-kind="response" data-payload-title="{{ call.title|default('') }} · Response" title="{{ call.response_payload_missing_reason }}">
+          <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-kind="response" data-payload-title="LLM Call #{{ call.call_index|default('?') }} · Response" title="{{ call.response_payload_missing_reason }}">
             Response <span aria-hidden="true">&#x26A0;</span>
           </button>
           {% endif %}
@@ -437,7 +443,7 @@
             {% set cr = payload.data.usage.cache_read %}
             {% set cw = payload.data.usage.cache_write %}
             {% set un = payload.data.usage.unknown %}
-            <div class="sd-kv"><span>总输入</span><span>{{ ti.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ ti.precision|default('unavailable') }}">{{ precision_label(ti.precision) }}</span></span></div>
+            <div class="sd-kv"><span>总 token 消耗</span><span>{{ ti.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ ti.precision|default('unavailable') }}">{{ precision_label(ti.precision) }}</span></span></div>
             {% if fi %}<div class="sd-kv"><span>新鲜输入</span><span>{{ fi.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision) }}</span></span></div>{% endif %}
             {% if cr %}<div class="sd-kv"><span>缓存读取</span><span>{{ cr.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ cr.precision|default('unavailable') }}">{{ precision_label(cr.precision) }}</span></span></div>{% endif %}
             {% if cw %}<div class="sd-kv"><span>缓存写入</span><span>{{ cw.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ cw.precision|default('unavailable') }}">{{ precision_label(cw.precision) }}</span></span></div>{% endif %}
@@ -514,13 +520,13 @@
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
                       <span class="sd-attribution-bucket-chevron">▸</span>
                     </div>
-                    <div class="sd-attribution-bucket-body" hidden>
+                    <div class="sd-attribution-bucket-body" hidden{% if b.details and b.details.kind %} data-bucket-detail-kind="{{ b.details.kind }}"{% endif %}>
                       {% if b.details %}
                         {% if b.details.kind == 'tools' %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
-                            <span class="sd-bucket-detail-name">{{ item.name }}</span>
+                            <span class="sd-bucket-detail-name">{{ item.name }} <b>{{ item.estimated_tokens }}t</b></span>
                             <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
                             <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
                             <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
@@ -542,8 +548,10 @@
                           {% endfor %}
                         </ul>
                         {% elif b.details.kind == 'current_user_message' %}
-                        <div class="sd-bucket-detail-preview">{{ b.details.preview|default('') }}</div>
-                        <div class="sd-bucket-detail-meta">{{ b.details.tokens|default(0) }} tokens</div>
+                        <div class="sd-bucket-detail-fetch-trigger" data-bucket-dynamic-load>
+                          <span>点击加载完整用户输入内容</span>
+                          <span class="sd-bucket-detail-meta">{{ b.details.tokens|default(0) }} tokens</span>
+                        </div>
                         {% elif b.details.kind == 'message_history' %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'][:20] %}
@@ -729,13 +737,13 @@
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
                       <span class="sd-attribution-bucket-chevron">▸</span>
                     </div>
-                    <div class="sd-attribution-bucket-body" hidden>
+                    <div class="sd-attribution-bucket-body" hidden{% if b.details and b.details.kind %} data-bucket-detail-kind="{{ b.details.kind }}"{% endif %}>
                       {% if b.details %}
                         {% if b.details.kind == 'tools' %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
-                            <span class="sd-bucket-detail-name">{{ item.name }}</span>
+                            <span class="sd-bucket-detail-name">{{ item.name }} <b>{{ item.estimated_tokens }}t</b></span>
                             <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
                             <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
                             <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
@@ -757,8 +765,10 @@
                           {% endfor %}
                         </ul>
                         {% elif b.details.kind == 'current_user_message' %}
-                        <div class="sd-bucket-detail-preview">{{ b.details.preview|default('') }}</div>
-                        <div class="sd-bucket-detail-meta">{{ b.details.tokens|default(0) }} tokens</div>
+                        <div class="sd-bucket-detail-fetch-trigger" data-bucket-dynamic-load>
+                          <span>点击加载完整用户输入内容</span>
+                          <span class="sd-bucket-detail-meta">{{ b.details.tokens|default(0) }} tokens</span>
+                        </div>
                         {% elif b.details.kind == 'message_history' %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'][:20] %}

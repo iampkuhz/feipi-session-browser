@@ -149,11 +149,26 @@
 
   function attributionApiUrl(button, kind) {
     var payloadId = button.getAttribute("data-payload-id") || "";
+
+    // Try main LLM call pattern: llm-R{round}-IX{call}-...
     var m = payloadId.match(/^llm-R(\d+)-IX(\d+)-/);
-    if (!m) return "";
-    var pageInfo = _getPageSourceAndSessionId();
-    if (!pageInfo.source || !pageInfo.sessionId) return "";
-    return "/api/sessions/" + encodeURIComponent(pageInfo.source) + "/" + encodeURIComponent(pageInfo.sessionId) + "/attribution/" + m[1] + "/" + m[2] + "/" + kind;
+    if (m) {
+      var pageInfo = _getPageSourceAndSessionId();
+      if (!pageInfo.source || !pageInfo.sessionId) return "";
+      return "/api/sessions/" + encodeURIComponent(pageInfo.source) + "/" + encodeURIComponent(pageInfo.sessionId) + "/attribution/" + m[1] + "/" + m[2] + "/" + kind;
+    }
+
+    // Try subagent pattern: sub-{sa_id}-IX{n}-request-attribution / sub-{sa_id}-IX{n}-response-attribution
+    var sa_m = payloadId.match(/^sub-([^-]+(?:-[^-]+)*)-IX(\d+)-(request|response)-attribution$/);
+    if (sa_m) {
+      var saId = sa_m[1];
+      var saCallIdx = sa_m[2];
+      var pageInfo2 = _getPageSourceAndSessionId();
+      if (!pageInfo2.source || !pageInfo2.sessionId) return "";
+      return "/api/sessions/" + encodeURIComponent(pageInfo2.source) + "/" + encodeURIComponent(pageInfo2.sessionId) + "/attribution/subagent/" + encodeURIComponent(saId) + "/" + saCallIdx + "/" + kind;
+    }
+
+    return "";
   }
 
   function renderAttributionLoading(kind) {
@@ -228,7 +243,7 @@
     html += '<div class="sd-attribution-rail__card">';
     html += '<h3>' + (kind === "request" ? "请求摘要" : "响应摘要") + '</h3>';
     if (kind === "request") {
-      html += '<div class="sd-kv"><span>总输入</span><span title="' + kvTitleAttr(usage.total_input) + '">' + formatTokenValue(usage.total_input) + '</span></div>';
+      html += '<div class="sd-kv"><span>总 token 消耗</span><span title="' + kvTitleAttr(usage.total_input) + '">' + formatTokenValue(usage.total_input) + '</span></div>';
       html += '<div class="sd-kv"><span>新鲜输入</span><span title="' + kvTitleAttr(usage.fresh_input) + '">' + formatTokenValue(usage.fresh_input) + '</span></div>';
       html += '<div class="sd-kv"><span>缓存读取</span><span title="' + kvTitleAttr(usage.cache_read) + '">' + formatTokenValue(usage.cache_read) + '</span></div>';
       html += '<div class="sd-kv"><span>缓存写入</span><span title="' + kvTitleAttr(usage.cache_write) + '">' + formatTokenValue(usage.cache_write) + '</span></div>';
@@ -343,7 +358,9 @@
         html += '</div>'; // end bucket-head
 
         if (hasDetails) {
-          html += '<div class="sd-attribution-bucket-body" hidden>';
+          var detailKind = (b.details && b.details.kind) ? b.details.kind : "";
+          html += '<div class="sd-attribution-bucket-body" hidden' +
+            (detailKind ? ' data-bucket-detail-kind="' + escapeHtml(detailKind) + '"' : '') + '>';
           html += renderBucketDetails(b);
           html += '</div>'; // end bucket-body
         }
@@ -369,7 +386,7 @@
       html += '<div class="sd-bucket-detail-list">';
       d.items.forEach(function (item) {
         html += '<div class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle>';
-        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.name) + '</div>';
+        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.name) + ' <b>' + formatCompactToken(item.estimated_tokens || 0) + 't</b></div>';
         html += '<div class="sd-bucket-detail-desc">' + escapeHtml(item.description_preview || "") + '</div>';
         html += '<div class="sd-bucket-detail-meta">';
         html += '<span>来源: ' + escapeHtml(item.source || "") + '</span>';
@@ -498,11 +515,55 @@
       "current_user_message", "preceding_tool_results", "prior_conversation_messages",
       "tool_schemas", "local_instruction_context", "agent_subagent_prompt",
       "mcp_tool_metadata", "top_level_system_estimate",
-      "hidden_builtin_system_estimate", "provider_wrapper_estimate",
+      "hidden_builtin_system_estimate",
       "unlocated_residual", "unknown_overhead", "unknown",
     ];
     var idx = order.indexOf(key);
-    return idx >= 0 ? idx : 0;
+    return idx >= 0 ? (idx % 8) : 0;
+  }
+
+  /** Dynamically load bucket detail content from backend API. */
+  function loadBucketDetailDynamic(modal, bodyEl, roundIdx, bucketKey) {
+    // Skip if already loaded
+    if (bodyEl.getAttribute("data-bucket-detail-loaded") === "1") return;
+
+    var pageInfo = _getPageSourceAndSessionId();
+    var source = pageInfo.source;
+    var sessionId = pageInfo.sessionId;
+
+    // Use modal-stored values as fallback
+    if (!source && modal) source = modal.getAttribute("data-bucket-detail-source") || "";
+    if (!sessionId && modal) sessionId = modal.getAttribute("data-bucket-detail-session-id") || "";
+
+    if (!source || !sessionId) return;
+
+    var apiUrl = "/api/sessions/" + encodeURIComponent(source) + "/" +
+      encodeURIComponent(sessionId) + "/bucket-detail/" + roundIdx + "/" + bucketKey;
+
+    // Show loading state
+    bodyEl.innerHTML = '<div class="sd-bucket-detail-loading">加载中…</div>';
+
+    fetch(apiUrl, { headers: { "Accept": "application/json" } })
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (data) {
+        if (data.kind === "bucket_detail" && data.text) {
+          var html = '<pre class="sd-bucket-detail-preview sd-bucket-detail-preview--full">' +
+            escapeHtml(data.text) + '</pre>' +
+            '<div class="sd-bucket-detail-meta">~' + formatCompactToken(data.tokens) + ' tokens</div>';
+          setHtml(bodyEl, html);
+          bodyEl.setAttribute("data-bucket-detail-loaded", "1");
+        } else if (data.note) {
+          setHtml(bodyEl, '<div class="sd-bucket-detail-empty">' + escapeHtml(data.note) + '</div>');
+        } else {
+          setHtml(bodyEl, '<div class="sd-bucket-detail-empty">无详细内容</div>');
+        }
+      })
+      .catch(function (err) {
+        setHtml(bodyEl, '<div class="sd-bucket-detail-empty">加载失败: ' + escapeHtml(err.message) + '</div>');
+      });
   }
 
   function kvTitleAttr(v) {
@@ -561,7 +622,6 @@
       "mcp_tool_metadata": "sd-attribution-segment--mcp",
       "top_level_system_estimate": "sd-attribution-segment--system",
       "hidden_builtin_system_estimate": "sd-attribution-segment--hidden",
-      "provider_wrapper_estimate": "sd-attribution-segment--provider"
     };
     return map[key] || "sd-attribution-segment--default";
   }
@@ -576,8 +636,20 @@
     var url = attributionApiUrl(button, apiKind);
     if (!url) return false;
 
+    // Extract round_index from payloadId for bucket-detail API
+    var payloadId = button.getAttribute("data-payload-id") || "";
+    var roundIdx = "";
+    var rm = payloadId.match(/^llm-R(\d+)-IX(\d+)-/);
+    if (rm) roundIdx = rm[1];
+
     var cacheKey = url;
     var modal = ensurePayloadModal();
+    if (roundIdx) modal.setAttribute("data-bucket-detail-round", roundIdx);
+
+    // Store session source for bucket-detail API
+    var pageInfo = _getPageSourceAndSessionId();
+    if (pageInfo.source) modal.setAttribute("data-bucket-detail-source", pageInfo.source);
+    if (pageInfo.sessionId) modal.setAttribute("data-bucket-detail-session-id", pageInfo.sessionId);
     var title = button.getAttribute("data-payload-title") || button.textContent.trim() || "Attribution";
     var titleEl = qs(modal, "[data-payload-title]");
     var subtitleEl = qs(modal, "[data-payload-subtitle]");
@@ -875,9 +947,88 @@
         var body = qs(card, '.sd-attribution-bucket-body');
         if (body) {
           var isExpanded = body.hasAttribute('hidden');
+          if (isExpanded) {
+            // Check if this bucket needs dynamic loading
+            var modal = document.getElementById("sd-payload-modal") || document.getElementById("payload-modal");
+            var roundIdx = modal ? modal.getAttribute("data-bucket-detail-round") : "";
+            var bucketLabel = card.getAttribute("data-bucket-label") || "";
+            var bucketKey = card.getAttribute("data-bucket-key") || "";
+            var detailKind = body.getAttribute("data-bucket-detail-kind") || "";
+
+            if (roundIdx && (detailKind === "current_user_message" || bucketKey === "current_user_message")) {
+              loadBucketDetailDynamic(modal, body, roundIdx, "current_user_message");
+            } else if (roundIdx && (detailKind === "system_sources" && bucketKey === "local_instruction_context")) {
+              loadBucketDetailDynamic(modal, body, roundIdx, "local_instruction_context");
+            }
+          }
           body.hidden = !isExpanded;
           card.classList.toggle('is-expanded', isExpanded);
         }
+      }
+      return;
+    }
+
+    // ── Bucket dynamic content fetch trigger (template-rendered) ──
+    var fetchTrigger = closest(event.target, '[data-bucket-dynamic-load]');
+    if (fetchTrigger && fetchTrigger.getAttribute("data-loaded") !== "1") {
+      event.preventDefault();
+      event.stopPropagation();
+      var card = closest(fetchTrigger, '.sd-attribution-bucket-card');
+      var bucketKey = card ? (card.getAttribute("data-bucket-key") || "") : "";
+      // Fallback to bucket label if key not available
+      if (!bucketKey) {
+        var bucketLabel = card ? (card.getAttribute("data-bucket-label") || "") : "";
+        if (bucketLabel.indexOf("当前用户输入") >= 0) bucketKey = "current_user_message";
+        else if (bucketLabel.indexOf("本地指令") >= 0) bucketKey = "local_instruction_context";
+      }
+      var modal = document.getElementById("sd-payload-modal") || document.getElementById("payload-modal");
+      var roundIdx = modal ? modal.getAttribute("data-bucket-detail-round") : "";
+      var pageSource = modal ? modal.getAttribute("data-bucket-detail-source") : "";
+
+      if (!pageSource) {
+        // Fallback: try to extract from page meta
+        var metaSource = document.querySelector('meta[name="session-source"]');
+        pageSource = metaSource ? metaSource.getAttribute("content") : "";
+      }
+
+      if (roundIdx && bucketKey && pageSource) {
+        // Show loading on the trigger itself
+        fetchTrigger.innerHTML = '<span class="sd-bucket-detail-loading">加载中…</span>';
+        fetchTrigger.setAttribute("data-loading", "1");
+
+        var apiUrl = "/api/sessions/" + encodeURIComponent(pageSource) + "/" +
+          encodeURIComponent(_getPageSourceAndSessionId().sessionId || "") + "/bucket-detail/" + roundIdx + "/" + bucketKey;
+
+        // If sessionId not from modal, try to get from page
+        var sid = _getPageSourceAndSessionId().sessionId;
+        if (!sid) {
+          var metaSid = document.querySelector('meta[name="session-id"]');
+          sid = metaSid ? metaSid.getAttribute("content") : "";
+        }
+        apiUrl = "/api/sessions/" + encodeURIComponent(pageSource) + "/" + encodeURIComponent(sid) + "/bucket-detail/" + roundIdx + "/" + bucketKey;
+
+        fetch(apiUrl, { headers: { "Accept": "application/json" } })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            if (data.kind === "bucket_detail" && data.text) {
+              var html = '<pre class="sd-bucket-detail-preview sd-bucket-detail-preview--full">' +
+                escapeHtml(data.text) + '</pre>' +
+                '<div class="sd-bucket-detail-meta">~' + formatCompactToken(data.tokens) + ' tokens</div>';
+              setHtml(fetchTrigger, html);
+              fetchTrigger.setAttribute("data-loaded", "1");
+              fetchTrigger.removeAttribute("data-bucket-dynamic-load");
+            } else if (data.note) {
+              setHtml(fetchTrigger, '<div class="sd-bucket-detail-empty">' + escapeHtml(data.note) + '</div>');
+            } else {
+              setHtml(fetchTrigger, '<div class="sd-bucket-detail-empty">无详细内容</div>');
+            }
+          })
+          .catch(function (err) {
+            setHtml(fetchTrigger, '<div class="sd-bucket-detail-empty">加载失败: ' + escapeHtml(err.message) + '</div>');
+          });
       }
       return;
     }
