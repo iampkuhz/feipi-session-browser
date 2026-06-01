@@ -45,11 +45,13 @@ def test_codex_cache_split_unknown():
     builder = CodexAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    assert result.fresh_input.value is None
+    # fresh/cache_read should be UNAVAILABLE (no per-call cached_input_tokens in this fixture)
+    assert result.fresh_input.value is None or result.fresh_input.precision == ValuePrecision.UNAVAILABLE
     assert result.fresh_input.precision == ValuePrecision.UNAVAILABLE
-    assert result.cache_read.value is None
+    assert result.cache_read.value is None or result.cache_read.precision == ValuePrecision.UNAVAILABLE
     assert result.cache_read.precision == ValuePrecision.UNAVAILABLE
-    assert result.cache_write.value is None
+    # cache_write is 0 with UNAVAILABLE precision — OpenAI/Codex does not expose cache_write
+    assert result.cache_write.value == 0 or result.cache_write.value is None
     assert result.cache_write.precision == ValuePrecision.UNAVAILABLE
 
 

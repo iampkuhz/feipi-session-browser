@@ -20,6 +20,120 @@ from session_browser.domain.token_normalizer import normalize_tokens
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
+def _as_dict(value):
+    """Return value if it is a dict, else empty dict."""
+    return value if isinstance(value, dict) else {}
+
+
+def _int_or_zero(value):
+    """Safely convert value to int, returning 0 on failure."""
+    try:
+        if value is None:
+            return 0
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _nested_int(d, outer, inner):
+    """Safely extract nested int from d[outer][inner]."""
+    child = d.get(outer)
+    if isinstance(child, dict):
+        return _int_or_zero(child.get(inner))
+    return 0
+
+
+def _extract_codex_usage(raw: dict) -> dict:
+    """Extract OpenAI/Codex usage from various structures into a flat dict.
+
+    Supports:
+    - Direct usage dict (input_tokens, output_tokens, etc.)
+    - raw["usage"]
+    - raw["response"]["usage"]
+    - raw["data"]["usage"]
+    - raw["payload"]["usage"]
+    - raw["payload"]["info"]["last_token_usage"]
+    - raw["payload"]["info"]["total_token_usage"] (marked as cumulative)
+    - OpenAI nested: input_tokens_details.cached_tokens, output_tokens_details.reasoning_tokens
+    - Chat-compatible fallback: prompt_tokens, completion_tokens, etc.
+
+    Returns:
+        Flat dict with keys: input_tokens, cached_input_tokens, output_tokens,
+        reasoning_output_tokens, total_tokens, _usage_source.
+    """
+    if not isinstance(raw, dict):
+        return {}
+
+    candidates = []
+    candidates.append((raw, "direct"))
+    if isinstance(raw.get("usage"), dict):
+        candidates.append((raw["usage"], "usage"))
+    if isinstance(raw.get("response"), dict) and isinstance(raw["response"].get("usage"), dict):
+        candidates.append((raw["response"]["usage"], "response.usage"))
+    if isinstance(raw.get("data"), dict) and isinstance(raw["data"].get("usage"), dict):
+        candidates.append((raw["data"]["usage"], "data.usage"))
+
+    payload = raw.get("payload")
+    if isinstance(payload, dict):
+        if isinstance(payload.get("usage"), dict):
+            candidates.append((payload["usage"], "payload.usage"))
+        info = payload.get("info")
+        if isinstance(info, dict):
+            if isinstance(info.get("last_token_usage"), dict):
+                candidates.append((info["last_token_usage"], "payload.info.last_token_usage"))
+            if isinstance(info.get("total_token_usage"), dict):
+                candidates.append((info["total_token_usage"], "payload.info.total_token_usage"))
+
+    # Prefer per-call usage over cumulative; last_token_usage before total_token_usage
+    # (candidates are already in priority order due to insertion order)
+    for usage, source in candidates:
+        if not isinstance(usage, dict):
+            continue
+        has_any = any(k in usage for k in (
+            "input_tokens", "prompt_tokens", "output_tokens", "completion_tokens",
+            "cached_input_tokens", "cached_tokens", "total_tokens",
+            "input_tokens_details", "output_tokens_details",
+        ))
+        if not has_any:
+            continue
+        input_tokens = _int_or_zero(usage.get("input_tokens") or usage.get("prompt_tokens"))
+        cached = (
+            _int_or_zero(usage.get("cached_input_tokens"))
+            or _int_or_zero(usage.get("cache_read_input_tokens"))
+            or _int_or_zero(usage.get("cached_tokens"))
+            or _nested_int(usage, "input_tokens_details", "cached_tokens")
+            or _nested_int(usage, "prompt_tokens_details", "cached_tokens")
+        )
+        output_tokens = _int_or_zero(usage.get("output_tokens") or usage.get("completion_tokens"))
+        reasoning = (
+            _int_or_zero(usage.get("reasoning_output_tokens"))
+            or _int_or_zero(usage.get("reasoning_tokens"))
+            or _int_or_zero(usage.get("thinking_tokens"))
+            or _nested_int(usage, "output_tokens_details", "reasoning_tokens")
+            or _nested_int(usage, "completion_tokens_details", "reasoning_tokens")
+        )
+        total = (
+            _int_or_zero(usage.get("total_tokens"))
+            or _int_or_zero(usage.get("total_token_usage"))
+            or _int_or_zero(usage.get("tokens_used"))
+        )
+        result = {
+            "input_tokens": input_tokens,
+            "cached_input_tokens": min(cached, input_tokens) if input_tokens else cached,
+            "output_tokens": output_tokens if output_tokens else reasoning,
+            "reasoning_output_tokens": reasoning,
+            "total_tokens": total,
+            "_usage_source": source,
+        }
+        if "total_token_usage" in source:
+            result["_is_cumulative"] = True
+        return result
+    return {}
+from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenPrecision
+from session_browser.domain.token_normalizer import normalize_tokens
+from session_browser.sources.jsonl_reader import parse_jsonl_events
+
+
 def parse_session_index() -> list[dict]:
     """Parse ~/.codex/session_index.jsonl.
 
@@ -285,14 +399,20 @@ def _build_summary_from_events(
                 cumulative_usage = info.get("total_token_usage") or payload.get("total_token_usage")
 
                 if cumulative_usage and isinstance(cumulative_usage, dict):
+                    # Use _extract_codex_usage for proper alias handling
+                    extracted = _extract_codex_usage(cumulative_usage)
+                    usage_for_delta = extracted if extracted else cumulative_usage
                     if prev_cumulative:
+                        prev_extracted = _extract_codex_usage(prev_cumulative)
+                        prev_for_delta = prev_extracted if prev_extracted else prev_cumulative
                         # Compute per-turn delta from cumulative
                         delta = {}
                         for key in ("input_tokens", "prompt_tokens", "cached_input_tokens",
                                      "cache_read_input_tokens", "cached_tokens",
-                                     "output_tokens", "completion_tokens"):
-                            cur_val = _get_int_safe(cumulative_usage, key)
-                            prev_val = _get_int_safe(prev_cumulative, key)
+                                     "output_tokens", "completion_tokens",
+                                     "reasoning_output_tokens", "reasoning_tokens", "thinking_tokens"):
+                            cur_val = _get_int_safe(usage_for_delta, key)
+                            prev_val = _get_int_safe(prev_for_delta, key)
                             delta[key] = max(cur_val - prev_val, 0)
                         bd = normalize_tokens(delta, provider="codex")
                         bd.precision = TokenPrecision.PROVIDER_REPORTED_DELTA
@@ -301,7 +421,7 @@ def _build_summary_from_events(
                         sum_output += bd.output_tokens
                     else:
                         # First cumulative snapshot — treat as-is
-                        bd = normalize_tokens(cumulative_usage, provider="codex")
+                        bd = normalize_tokens(usage_for_delta, provider="codex")
                         sum_fresh += bd.fresh_input_tokens
                         sum_cache_read += bd.cache_read_tokens
                         sum_output += bd.output_tokens
@@ -437,6 +557,7 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
             "input_tokens": 0,
             "cached_input_tokens": 0,
             "output_tokens": 0,
+            "reasoning_output_tokens": 0,
             "total_tokens": 0,
         }
         tool_ids: list[dict] = []
@@ -448,10 +569,21 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
                     info = payload.get("info") or {}
                     last_usage = info.get("last_token_usage") or payload.get("last_token_usage")
                     if last_usage and isinstance(last_usage, dict):
-                        usage["input_tokens"] += last_usage.get("input_tokens", 0) or 0
-                        usage["cached_input_tokens"] += last_usage.get("cached_input_tokens", 0) or 0
-                        usage["output_tokens"] += last_usage.get("output_tokens", 0) or 0
-                        usage["total_tokens"] += last_usage.get("total_tokens", 0) or 0
+                        # Use _extract_codex_usage to handle flat + nested aliases
+                        extracted = _extract_codex_usage(last_usage)
+                        if extracted:
+                            usage["input_tokens"] += extracted.get("input_tokens", 0)
+                            usage["cached_input_tokens"] += extracted.get("cached_input_tokens", 0)
+                            usage["output_tokens"] += extracted.get("output_tokens", 0)
+                            usage["reasoning_output_tokens"] += extracted.get("reasoning_output_tokens", 0)
+                            usage["total_tokens"] += extracted.get("total_tokens", 0)
+                        else:
+                            # Fallback: direct field access
+                            usage["input_tokens"] += last_usage.get("input_tokens", 0) or 0
+                            usage["cached_input_tokens"] += last_usage.get("cached_input_tokens", 0) or 0
+                            usage["output_tokens"] += last_usage.get("output_tokens", 0) or 0
+                            usage["reasoning_output_tokens"] += last_usage.get("reasoning_output_tokens", 0) or 0
+                            usage["total_tokens"] += last_usage.get("total_tokens", 0) or 0
             elif ev.get("type") == "response_item":
                 payload = ev.get("payload", {})
                 rtype = payload.get("type", "")

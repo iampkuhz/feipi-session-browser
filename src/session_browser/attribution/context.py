@@ -140,7 +140,7 @@ def build_attribution_session_context(
     prior_messages = _build_prior_messages(all_messages, interaction_index)
 
     # -- available_tools --
-    available_tools = _build_available_tools(all_tool_calls)
+    available_tools = _build_available_tools(all_tool_calls, agent_name)
 
     # -- local_instructions, agent_prompt, mcp metadata --
     local_instructions = ""
@@ -222,12 +222,16 @@ def _build_prior_messages(
     return result
 
 
-def _build_available_tools(all_tool_calls: list | None) -> list[str]:
+def _build_available_tools(all_tool_calls: list | None, agent_name: str | None = None) -> list[str]:
     """Collect unique tool names from observed tool calls.
 
-    Falls back to default Claude Code tool list when no observed tools.
+    For Codex, returns empty list when no observed tools (do NOT fall back
+    to Claude Code default tool list). For other agents, falls back to
+    default Claude Code tool list when no observed tools.
     """
     if not all_tool_calls:
+        if agent_name == "codex":
+            return []
         return list(_DEFAULT_CC_TOOLS)
 
     seen: set[str] = set()
@@ -241,17 +245,30 @@ def _build_available_tools(all_tool_calls: list | None) -> list[str]:
             seen.add(name)
 
     if not seen:
+        if agent_name == "codex":
+            return []
         return list(_DEFAULT_CC_TOOLS)
 
     return sorted(seen)
 
 
 def _read_local_instructions(project_path: Path, agent_name: str | None) -> str:
-    """Read CLAUDE.md from project_dir, truncated to 2KB."""
-    candidates = [
-        project_path / "CLAUDE.md",
-        project_path / ".claude" / "CLAUDE.md",
-    ]
+    """Read local instructions from project_dir, truncated to 2KB.
+
+    For Codex, prefers AGENTS.md / .codex/AGENTS.md over CLAUDE.md.
+    """
+    if agent_name == "codex":
+        candidates = [
+            project_path / "AGENTS.md",
+            project_path / ".codex" / "AGENTS.md",
+            project_path / "CLAUDE.md",
+            project_path / ".claude" / "CLAUDE.md",
+        ]
+    else:
+        candidates = [
+            project_path / "CLAUDE.md",
+            project_path / ".claude" / "CLAUDE.md",
+        ]
     for path in candidates:
         try:
             if path.exists() and path.is_file():
@@ -265,21 +282,30 @@ def _read_local_instructions(project_path: Path, agent_name: str | None) -> str:
 def _read_agent_prompt(
     project_path: Path, agent_name: str | None,
 ) -> tuple[str, str]:
-    """Read agent prompt file from .claude/agents/ if agent_name is known.
+    """Read agent prompt file if agent_name is known.
 
-    Returns (agent_prompt_file_path, subagent_prompt_text).
+    For Codex, checks .codex/agents/ first, then falls back to .claude/agents/.
     """
     if not agent_name:
         return "", ""
 
-    agents_dir = project_path / ".claude" / "agents"
-    candidate = agents_dir / f"{agent_name}.md"
-    try:
-        if candidate.exists() and candidate.is_file():
-            text = candidate.read_text(encoding="utf-8", errors="replace")
-            return str(candidate), text[:_TRUNCATE_LOCAL_INSTRUCTIONS]
-    except (OSError, PermissionError) as exc:
-        logger.debug("Cannot read agent prompt %s: %s", candidate, exc)
+    # Try agent-specific directory first
+    if agent_name == "codex":
+        agents_dirs = [
+            project_path / ".codex" / "agents",
+            project_path / ".claude" / "agents",
+        ]
+    else:
+        agents_dirs = [project_path / ".claude" / "agents"]
+
+    for agents_dir_path in agents_dirs:
+        candidate = agents_dir_path / f"{agent_name}.md"
+        try:
+            if candidate.exists() and candidate.is_file():
+                text = candidate.read_text(encoding="utf-8", errors="replace")
+                return str(candidate), text[:_TRUNCATE_LOCAL_INSTRUCTIONS]
+        except (OSError, PermissionError) as exc:
+            logger.debug("Cannot read agent prompt %s: %s", candidate, exc)
     return "", ""
 
 

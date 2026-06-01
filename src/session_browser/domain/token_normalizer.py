@@ -171,20 +171,33 @@ def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
 def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
     """Codex: input_tokens is inclusive total; cached_input_tokens is a subset.
 
+    Supports both flat Codex aliases and OpenAI Responses nested aliases.
     fresh = raw_input_total - cache_read
     total = raw_total if > 0 else raw_input_total + output
     Cache Write always 0.
     """
     raw_input_total = _get_int(usage, "input_tokens", "prompt_tokens", "input")
-    raw_cache_read = _get_int(usage, "cached_input_tokens", "cache_read_input_tokens", "cached_tokens")
+    raw_cache_read = (
+        _get_int(usage, "cached_input_tokens", "cache_read_input_tokens", "cached_tokens")
+        or _get_nested_int(usage, "input_tokens_details", "cached_tokens")
+        or _get_nested_int(usage, "prompt_tokens_details", "cached_tokens")
+    )
     raw_output = _get_int(usage, "output_tokens", "completion_tokens", "output")
     raw_total = _get_int(usage, "total_tokens", "total_token_usage", "tokens_used")
-    raw_reasoning = _get_int(usage, "reasoning_output_tokens", "reasoning_tokens", "thinking_tokens")
+    raw_reasoning = (
+        _get_int(usage, "reasoning_output_tokens", "reasoning_tokens", "thinking_tokens")
+        or _get_nested_int(usage, "output_tokens_details", "reasoning_tokens")
+        or _get_nested_int(usage, "completion_tokens_details", "reasoning_tokens")
+    )
 
     cache_read = min(raw_cache_read, raw_input_total)
     fresh = max(raw_input_total - cache_read, 0)
     cache_write = 0
+
+    # If only reasoning tokens and no output tokens, use reasoning as output fallback
     output = raw_output
+    if raw_output == 0 and raw_reasoning > 0:
+        output = raw_reasoning
 
     if raw_total > 0:
         total = raw_total
@@ -382,7 +395,7 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
         total_tokens=total,
         precision=TokenPrecision.PROVIDER_REPORTED,
         total_semantics=TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM,
-        source_kind=TokenSourceKind.CLAUDE_CODE_JSONL_USAGE,  # reuse; not OpenAI-specific yet
+        source_kind=TokenSourceKind.OPENAI_RESPONSES_USAGE,
         raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
     )
 

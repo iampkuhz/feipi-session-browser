@@ -39,6 +39,7 @@ class TokenSourceKind:
     """Enumerates the source of token data."""
     CLAUDE_CODE_JSONL_USAGE = "claude_code_jsonl_usage"
     CODEX_ROLLOUT_TOKEN_COUNT = "codex_rollout_token_count"
+    OPENAI_RESPONSES_USAGE = "openai_responses_usage"
     QODER_SEGMENT_MODEL_RESPONSE_COMPLETED = "qoder_segment_model_response_completed"
     QODER_SQLITE_TOKEN_INFO = "qoder_sqlite_token_info"
     QODER_TURN_FINISHED_FALLBACK = "qoder_turn_finished_fallback"
