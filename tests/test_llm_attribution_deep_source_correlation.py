@@ -17,11 +17,13 @@ import pytest
 
 from session_browser.attribution.agents.claude_code import (
     _tool_description,
-    _estimate_tool_schema_tokens,
     _extract_tool_name,
     _mask_sensitive_keys,
     _truncate_preview,
     ClaudeCodeAttributionBuilder,
+)
+from session_browser.attribution.agents.claude_code_tool_schemas import (
+    get_tool_schema_tokens,
 )
 from session_browser.attribution.context import (
     _mask_sensitive_keys as context_mask_sensitive_keys,
@@ -73,13 +75,13 @@ class TestToolDescriptions:
 
 class TestToolSchemaTokens:
     def test_large_tool_has_more_tokens(self):
-        # Large tools like Bash should have higher estimate
-        bash_tokens = _estimate_tool_schema_tokens("Bash")
+        # Bash has a large description + input schema
+        bash_tokens = get_tool_schema_tokens("Bash")
         assert bash_tokens >= 240
 
-    def test_small_tool_has_default_tokens(self):
-        # Small tools should use default
-        tokens = _estimate_tool_schema_tokens("Agent")
+    def test_small_tool_has_tokens(self):
+        # Even small tools like Agent have schema tokens
+        tokens = get_tool_schema_tokens("Agent")
         assert tokens >= 200
 
 

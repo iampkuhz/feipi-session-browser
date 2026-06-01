@@ -401,6 +401,30 @@
         html += '</div>';
       });
       html += '</div>';
+    } else if (d.kind === "tool_use" && d.items) {
+      html += '<div class="sd-bucket-detail-section">';
+      html += '<div class="sd-bucket-detail-meta" style="margin-bottom:8px">';
+      html += '<span>定义总计: ~' + formatCompactToken(d.total_schema_tokens || 0) + ' tokens</span>';
+      html += '<span>调用总计: ~' + formatCompactToken(d.total_call_tokens || 0) + ' tokens</span>';
+      html += '<span>共 ' + (d.total_items || 0) + ' 个调用</span>';
+      html += '</div>';
+      html += '</div>';
+      html += '<div class="sd-bucket-detail-list">';
+      d.items.forEach(function (item) {
+        html += '<div class="sd-bucket-detail-item">';
+        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.name) + '</div>';
+        html += '<div class="sd-bucket-detail-desc">' + escapeHtml(item.description_preview || "") + '</div>';
+        html += '<div class="sd-bucket-detail-meta">';
+        html += '<span>定义: ' + formatCompactToken(item.schema_tokens || 0) + ' tokens</span>';
+        html += '<span>调用: ' + formatCompactToken(item.call_tokens || 0) + ' tokens</span>';
+        html += '<span>合计: ' + formatCompactToken(item.total_tokens || 0) + ' tokens</span>';
+        html += '</div>';
+        if (item.input_schema_properties) {
+          html += '<div class="sd-bucket-detail-desc" style="opacity:0.7">输入参数: ' + escapeHtml(item.input_schema_properties) + '</div>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
     } else if (d.kind === "system_sources" && d.items) {
       html += '<div class="sd-bucket-detail-list">';
       d.items.forEach(function (item) {

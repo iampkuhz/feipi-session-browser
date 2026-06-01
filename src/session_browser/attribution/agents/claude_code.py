@@ -49,18 +49,6 @@ def _tool_description(name: str) -> str:
     return _TOOL_DESCRIPTIONS.get(name, "工具说明未知。")
 
 
-def _estimate_tool_schema_tokens(name: str) -> int:
-    """Estimate schema token count for a tool.
-
-    Uses per-tool heuristic; most tools are ~240 tokens in schema form.
-    """
-    # Larger tools like Bash/Edit may have bigger schemas
-    large_tools = {"Bash", "Edit", "Write", "Read"}
-    if name in large_tools:
-        return 320
-    return _DEFAULT_SCHEMA_TOKENS_PER_TOOL
-
-
 def _extract_tool_name(result_text: str) -> str:
     """Attempt to extract tool name from a tool result text.
 
@@ -112,9 +100,6 @@ def _truncate_preview(text: str, max_len: int = 200) -> str:
         return text
     return text[:max_len] + "…"
 
-
-# Default schema token estimate per tool when we can only count tools.
-_DEFAULT_SCHEMA_TOKENS_PER_TOOL = 240
 
 # Bucket classification keys for normalization.
 _MEASURED_BUCKET_KEYS = {
@@ -930,16 +915,60 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         response_text = lc.response_full or ""
         visible_text_tokens = estimate_tokens_from_text(response_text)
 
-        # Tool use blocks
-        tool_use_tokens = 0
+        # Tool use blocks — include both tool definition (description + input_schema)
+        # and actual call (tool_use content block) for accurate token accounting.
+        from session_browser.attribution.agents.claude_code_tool_schemas import (
+            get_cached_schemas,
+        )
+
+        schemas = get_cached_schemas()
+        tool_use_schema_tokens = 0      # definition (description + input_schema)
+        tool_use_call_tokens = 0        # actual tool_use block (name + input)
         tool_use_json_parts = []
+        tool_use_detail_items = []
+
         for cb in (lc.content_blocks or []):
             if cb.get("type") == "tool_use":
-                tool_use_json_parts.append(json.dumps(cb, ensure_ascii=False))
-        if tool_use_json_parts:
-            tool_use_tokens = estimate_tokens_from_text("\n".join(tool_use_json_parts))
-        elif lc.tool_calls_raw:
-            tool_use_tokens = estimate_tokens_from_text(lc.tool_calls_raw)
+                tname = cb.get("name", "unknown")
+                # 1. Tool definition tokens (schema: description + input_schema)
+                schema_text = json.dumps(schemas.get(tname, {}), ensure_ascii=False) if tname in schemas else ""
+                schema_tok = estimate_tokens_from_text(schema_text) if schema_text else 0
+                tool_use_schema_tokens += schema_tok
+
+                # 2. Tool call tokens (actual tool_use content block)
+                call_text = json.dumps(cb, ensure_ascii=False)
+                call_tok = estimate_tokens_from_text(call_text)
+                tool_use_call_tokens += call_tok
+                tool_use_json_parts.append(call_text)
+
+                # 3. Per-tool detail for bucket display
+                tool_def = schemas.get(tname, {})
+                desc_preview = tool_def.get("description", _tool_description(tname))[:200]
+                input_props = tool_def.get("input_schema", {}).get("properties", {})
+                input_schema_preview = ""
+                if input_props:
+                    input_schema_preview = ", ".join(list(input_props.keys())[:5])
+                    if len(input_props) > 5:
+                        input_schema_preview += f", ...(+{len(input_props) - 5})"
+
+                tool_use_detail_items.append({
+                    "name": tname,
+                    "tool_use_id": cb.get("id", ""),
+                    "schema_tokens": schema_tok,
+                    "call_tokens": call_tok,
+                    "total_tokens": schema_tok + call_tok,
+                    "description_preview": desc_preview,
+                    "input_schema_properties": input_schema_preview,
+                    "call_input_preview": _truncate_preview(
+                        json.dumps(cb.get("input", {}), ensure_ascii=False)[:200], 120,
+                    ),
+                })
+
+        # Fallback: use tool_calls_raw if content_blocks unavailable
+        if not tool_use_json_parts and lc.tool_calls_raw:
+            tool_use_call_tokens = estimate_tokens_from_text(lc.tool_calls_raw)
+
+        tool_use_tokens = tool_use_schema_tokens + tool_use_call_tokens
 
         # Metadata tokens: small heuristic value for non-content fields
         metadata_tokens = 0
@@ -990,24 +1019,32 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         if tool_use_tokens > 0:
             # Per-tool breakdown (children, contributes_to_total=False)
             block_refs = []
-            for cb in (lc.content_blocks or []):
-                if cb.get("type") == "tool_use":
-                    tname = cb.get("name", "unknown")
-                    buckets.append(ResponseAttributionBucket(
-                        key=f"tool_use:{tname}",
-                        label=f"tool_use: {tname}",
-                        tokens=estimate_tokens_from_text(json.dumps(cb, ensure_ascii=False)),
-                        percent=0.0,  # computed per-call
-                        precision=ValuePrecision.ESTIMATED,
-                        source=ValueSource.TRANSCRIPT,
-                        confidence_label="中",
-                        summary=f"Tool use block 结构可从 content_blocks 获取。",
-                        contributes_to_total=False,
-                        parent_key="tool_use",
-                        display_group="tool_use",
-                    ))
-                    block_refs.append(cb.get("id", ""))
+            for item in tool_use_detail_items:
+                buckets.append(ResponseAttributionBucket(
+                    key=f"tool_use:{item['name']}",
+                    label=f"tool_use: {item['name']}",
+                    tokens=item['total_tokens'],
+                    percent=0.0,
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.TRANSCRIPT,
+                    confidence_label="中",
+                    summary=(
+                        f"工具定义 {item['schema_tokens']} tokens + "
+                        f"调用参数 {item['call_tokens']} tokens"
+                    ),
+                    contributes_to_total=False,
+                    parent_key="tool_use",
+                    display_group="tool_use",
+                ))
+                block_refs.append(item['tool_use_id'])
 
+            tool_use_details = {
+                "kind": "tool_use",
+                "total_schema_tokens": tool_use_schema_tokens,
+                "total_call_tokens": tool_use_call_tokens,
+                "total_items": len(tool_use_detail_items),
+                "items": tool_use_detail_items,
+            }
             buckets.append(ResponseAttributionBucket(
                 key="tool_use",
                 label="Tool use (total)",
@@ -1016,9 +1053,14 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="中",
-                summary="Tool use 结构可从 content_blocks 获取，token 通过 JSON 序列化估算。",
+                summary=(
+                    f"工具使用：{tool_use_schema_tokens} tokens 定义 + "
+                    f"{tool_use_call_tokens} tokens 调用参数，"
+                    f"共 {len(tool_use_detail_items)} 个工具调用。"
+                ),
                 block_refs=block_refs,
                 contributes_to_total=True,
+                details=tool_use_details,
             ))
 
         if metadata_tokens > 0:
