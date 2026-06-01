@@ -66,7 +66,7 @@ def test_tool_schemas_zero_without_available_tools(agent):
 
 
 def test_claude_code_tool_schemas_from_available_tools():
-    """Claude Code: with available_tools, tool_schemas uses that count."""
+    """Claude Code: with available_tools, tool_schemas uses real SDK token counts."""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="test", tool_calls=[tc])
@@ -76,7 +76,10 @@ def test_claude_code_tool_schemas_from_available_tools():
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None
-    assert schema_bucket.tokens == 3 * 240
+    # Now uses real SDK schema tokens instead of 240/tool heuristic
+    assert schema_bucket.tokens > 3 * 240, (
+        f"Expected real SDK tokens > {3 * 240}, got {schema_bucket.tokens}"
+    )
     assert "3 tools" in schema_bucket.count_label
 
 
@@ -92,7 +95,10 @@ def test_tool_schemas_count_label_from_available_not_observed():
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None
-    assert schema_bucket.tokens == 5 * 240
+    # Now uses real SDK schema tokens instead of 240/tool heuristic
+    assert schema_bucket.tokens > 5 * 240, (
+        f"Expected real SDK tokens > {5 * 240}, got {schema_bucket.tokens}"
+    )
     assert "5 tools" in schema_bucket.count_label
 
 

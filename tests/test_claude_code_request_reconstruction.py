@@ -124,14 +124,15 @@ def test_tool_schemas_nonzero_with_available_tools():
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None
-    assert schema_bucket.tokens == 4 * 240
+    # Uses real SDK schema tokens now, not 240/tool heuristic
+    assert schema_bucket.tokens > 0
     assert "4 tools" in schema_bucket.count_label
 
 
-# ── 5. tool_schemas precision=heuristic when no raw schema ─────────────
+# ── 5. tool_schemas precision=estimated when using real SDK schemas ────
 
 def test_tool_schemas_precision_heuristic():
-    """tool_schemas should be heuristic precision when using count-based estimate."""
+    """tool_schemas should be estimated precision when using real SDK schemas."""
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="hello")
     ctx = {"available_tools": ["Read", "Bash"]}
@@ -140,7 +141,8 @@ def test_tool_schemas_precision_heuristic():
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None
-    assert schema_bucket.precision == ValuePrecision.HEURISTIC
+    # Now uses real SDK schemas, so precision is 'estimated' not 'heuristic'
+    assert schema_bucket.precision == ValuePrecision.ESTIMATED
     assert schema_bucket.source == ValueSource.TOOL_LIST
 
 

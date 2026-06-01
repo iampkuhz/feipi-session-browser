@@ -323,24 +323,79 @@ _BINARY_TOOL_DESCRIPTIONS: dict[str, str] = {
         "Fast file pattern matching tool that works with any codebase size.\n\n"
         "Supports glob patterns like \"**/*.js\" or \"src/**/*.ts\". "
         "Returns matching file paths sorted by modification time. "
-        "Results limited to 100 files."
+        "Results limited to 100 files.\n\n"
+        "- When you are doing an open ended search that may require multiple rounds of "
+        "globbing and grepping, use the Agent tool instead"
     ),
     "Agent": (
         "Launch a new agent to handle complex, multi-step tasks. Each agent type has "
         "specific capabilities and tools available to it.\n\n"
         "Available agent types and the tools they have access to:\n"
         "- implementer: For executing a scoped implementation task. Only use when the main "
-        "agent has明确 defined Goal, Task id, Allowed files/directories, Forbidden "
+        "agent has clearly defined Goal, Task id, Allowed files/directories, Forbidden "
         "files/directories, Required context files, Expected output, Validation command, "
-        "and Failure policy.\n"
+        "and Failure policy. Do not use for broad exploration, OpenSpec planning, "
+        "QA-only verification, UI design analysis, repository mapping, or task slicing.\n"
         "- mhtml-export-specialist: For scoped implementation or analysis of single-file "
-        "HTML/MHTML export, asset inlining, offline interaction, and session tab export issues."
+        "HTML/MHTML export, asset inlining, offline interaction, and session tab export issues. "
+        "Do not use for unrelated UI redesign.\n\n"
+        "## When not to use\n\n"
+        "If the target is already known, use the direct tool: Read for a known path, "
+        "`grep` via the Bash tool for a specific symbol or string. Reserve this tool for "
+        "open-ended questions that span the codebase, or tasks that match an available agent type.\n\n"
+        "## Usage notes\n\n"
+        "- Always include a short description summarizing what the agent will do\n"
+        "- When you launch multiple agents for independent work, send them in a single "
+        "message with multiple tool use content blocks so they run concurrently\n"
+        "- When the agent is done, it will return a single message back to you. The result "
+        "returned by the agent is not visible to the user. To show the user the result, "
+        "you should send a text message back to the user with a concise summary of the result.\n"
+        "- Trust but verify: an agent's summary describes what it intended to do, not "
+        "necessarily what it did. When an agent writes or edits code, check the actual "
+        "changes before reporting the work as done.\n"
+        "- You can optionally run agents in the background using the run_in_background "
+        "parameter. When an agent runs in the background, you will be automatically "
+        "notified when it completes — do NOT sleep, poll, or proactively check on its "
+        "progress. Continue with other work or respond to the user instead.\n"
+        "- **Foreground vs background**: Use foreground (default) when you need the agent's "
+        "results before you can proceed — e.g., research agents whose findings inform your "
+        "next steps. Use background when you have genuinely independent work to do in parallel.\n"
+        "- To continue a previously spawned agent, use SendMessage with the agent's ID or "
+        "name as the `to` field — that resumes it with full context. A new Agent call "
+        "starts a fresh agent with no memory of prior runs, so the prompt must be self-contained.\n"
+        "- Clearly tell the agent whether you expect it to write code or just to do research "
+        "(search, file reads, web fetches, etc.), since it is not aware of the user's intent\n"
+        "- If the agent description mentions that it should be used proactively, then you "
+        "should try your best to use it without the user having to ask for it first.\n"
+        "- If the user specifies that they want you to run agents \"in parallel\", you MUST "
+        "send a single message with multiple Agent tool use content blocks.\n\n"
+        "## Writing the prompt\n\n"
+        "Brief the agent like a smart colleague who just walked into the room — it hasn't "
+        "seen this conversation, doesn't know what you've tried, doesn't understand why this "
+        "task matters.\n"
+        "- Explain what you're trying to accomplish and why.\n"
+        "- Describe what you've already learned or ruled out.\n"
+        "- Give enough context about the surrounding problem that the agent can make "
+        "judgment calls rather than just following a narrow instruction.\n"
+        "- If you need a short response, say so (\"report in under 200 words\").\n"
+        "- Lookups: hand over the exact command. Investigations: hand over the question — "
+        "prescribed steps become dead weight when the premise is wrong.\n\n"
+        "Terse command-style prompts produce shallow, generic work."
     ),
     "EnterPlanMode": (
         "Enters plan mode. Use this when the user's request is unclear or when you need "
         "to explore the codebase before proposing a solution. In plan mode, you can read "
         "files and run commands but cannot make edits. Exit plan mode when you have a "
-        "clear plan and the user has approved it."
+        "clear plan and the user has approved it.\n\n"
+        "## When to use\n\n"
+        "- The user's request is ambiguous or has multiple valid interpretations\n"
+        "- You need to understand the codebase structure before proposing changes\n"
+        "- The task involves architectural decisions that need discussion\n"
+        "- You're unsure about the user's intent and want to confirm before acting\n\n"
+        "## When NOT to use\n\n"
+        "- The task is clear and straightforward — just do it\n"
+        "- You already know the file paths and changes needed\n"
+        "- The user has explicitly asked you to implement something directly"
     ),
     "ExitPlanMode": (
         "Exits plan mode. Use this after you have explored the codebase and have a clear "
@@ -363,99 +418,210 @@ _BINARY_TOOL_DESCRIPTIONS: dict[str, str] = {
         "- After receiving new instructions - Immediately capture user requirements as tasks\n"
         "- When you start working on a task - Mark it as in_progress BEFORE beginning work\n"
         "- After completing a task - Mark it as completed and add any new follow-up tasks "
-        "discovered during implementation"
+        "discovered during implementation\n\n"
+        "## When NOT to Use This Tool\n\n"
+        "Skip using this tool when:\n"
+        "- There is only a single, straightforward task\n"
+        "- The task is trivial and tracking it provides no organizational benefit\n"
+        "- The task can be completed in less than 3 trivial steps\n"
+        "- The task is purely conversational or informational\n\n"
+        "## Tips\n\n"
+        "- Create tasks with clear, specific subjects that describe the outcome\n"
+        "- After creating tasks, use TaskUpdate to set up dependencies (blocks/blockedBy) if needed\n"
+        "- Check TaskList first to avoid creating duplicate tasks"
     ),
     "WebFetch": (
-        "Fetches the contents of a URL. Useful for reading web pages, API responses, or "
-        "other remote resources. Supports HTTP and HTTPS.\n\n"
-        "Usage:\n"
-        "- The url parameter must be a valid HTTP or HTTPS URL\n"
-        "- For web pages, only the <body> content is returned (scripts, styles, and other "
-        "non-body content are excluded)\n"
-        "- If the response is larger than 10KB, it will be truncated\n"
-        "- The raw response headers are available in the output"
+        "- Fetches content from a specified URL and processes it using an AI model\n"
+        "- Takes a URL and a prompt as input\n"
+        "- Fetches the URL content, converts HTML to markdown\n"
+        "- Processes the content with the prompt using a small, fast model\n"
+        "- Returns the model's response about the content\n"
+        "- Use this tool when you need to retrieve and analyze web content\n\n"
+        "Usage notes:\n"
+        "  - IMPORTANT: If an MCP-provided web fetch tool is available, prefer using "
+        "that tool instead of this one, as it may have fewer restrictions.\n"
+        "  - The URL must be a fully-formed valid URL\n"
+        "  - HTTP URLs will be automatically upgraded to HTTPS\n"
+        "  - The prompt should describe what information you want to extract from the page\n"
+        "  - This tool is read-only and does not modify any files\n"
+        "  - Results may be summarized if the content is very large\n"
+        "  - Includes a self-cleaning 15-minute cache for faster responses when repeatedly "
+        "accessing the same URL\n"
+        "  - When a URL redirects to a different host, the tool will inform you and provide "
+        "the redirect URL in a special format. You should then make a new WebFetch request "
+        "with the redirect URL to fetch the content.\n"
+        "  - For GitHub URLs, prefer using the gh CLI via Bash instead (e.g., gh pr view, "
+        "gh issue view, gh api)."
     ),
     "WebSearch": (
-        "Searches the web. Useful for finding current information, news, documentation, "
-        "or answers to questions. Uses a search engine API.\n\n"
-        "Usage:\n"
-        "- The query parameter should be a search query string\n"
-        "- Results include titles, URLs, and snippets\n"
-        "- Results are limited to 10 per search"
+        "- Returns search result information formatted as search result blocks, including "
+        "links as markdown hyperlinks\n"
+        "- Use this tool for accessing information beyond Claude's knowledge cutoff\n"
+        "- Searches are performed automatically within a single API call\n\n"
+        "CRITICAL REQUIREMENT - You MUST follow this:\n"
+        "  - After answering the user's question, you MUST include a \"Sources:\" section "
+        "at the end of your response\n"
+        "  - In the Sources section, list all relevant URLs from the search results as "
+        "markdown hyperlinks: [Title](URL)\n"
+        "  - This is MANDATORY - never skip including sources in your response\n"
+        "  - Example format:\n\n"
+        "    [Your answer here]\n\n"
+        "    Sources:\n"
+        "    - [Source Title 1](https://example.com/1)\n"
+        "    - [Source Title 2](https://example.com/2)\n\n"
+        "Usage notes:\n"
+        "  - Domain filtering is supported to include or block specific websites\n"
+        "  - Web search is only available in the US\n\n"
+        "IMPORTANT - Use the correct year in search queries:\n"
+        "  - The current month is"
     ),
     "TaskCreate": (
         "Creates a new task. Tasks are tracked in the session and can be managed via the "
-        "TaskUpdate, TaskGet, and TaskList tools."
+        "TaskUpdate, TaskGet, and TaskList tools.\n\n"
+        "## Task Fields\n\n"
+        "- **subject**: A brief, actionable title in imperative form (e.g., \"Fix authentication bug in login flow\")\n"
+        "- **description**: What needs to be done\n"
+        "- **activeForm** (optional): Present continuous form shown in the spinner when in_progress (e.g., \"Fixing authentication bug\")\n\n"
+        "All tasks are created with status `pending`."
     ),
     "TaskUpdate": (
         "Updates an existing task. Can change status, subject, description, owner, and "
-        "dependencies between tasks."
+        "dependencies between tasks.\n\n"
+        "## When to Use This Tool\n\n"
+        "**Mark tasks as resolved:**\n"
+        "- When you have completed the work described in a task\n"
+        "- When a task is no longer needed or has been superseded\n"
+        "- IMPORTANT: Always mark your assigned tasks as resolved when you finish them\n"
+        "- After resolving, call TaskList to find your next task\n\n"
+        "- ONLY mark a task as completed when you have FULLY accomplished it\n"
+        "- If you encounter errors, blockers, or cannot finish, keep the task as in_progress\n"
+        "- When blocked, create a new task describing what needs to be resolved\n"
+        "- Never mark a task as completed if:\n"
+        "  - Tests are failing\n"
+        "  - Implementation is partial\n"
+        "  - You encountered unresolved errors\n"
+        "  - You couldn't find necessary files or dependencies\n\n"
+        "**Delete tasks:**\n"
+        "- When a task is no longer relevant or was created in error\n"
+        "- Setting status to `deleted` permanently removes the task\n\n"
+        "**Update task details:**\n"
+        "- When requirements change or become clearer\n"
+        "- When establishing dependencies between tasks\n\n"
+        "## Status Workflow\n\n"
+        "Status progresses: `pending` → `in_progress` → `completed`\n\n"
+        "Use `deleted` to permanently remove a task."
+    ),
+    "TaskList": (
+        "Lists all tasks. Returns a summary of each task.\n\n"
+        "## When to Use This Tool\n\n"
+        "- To see what tasks are available to work on (status: 'pending', no owner, not blocked)\n"
+        "- To check overall progress on the project\n"
+        "- To find tasks that are blocked and need dependencies resolved\n"
+        "- After completing a task, to check for newly unblocked work or claim the next available task\n"
+        "- **Prefer working on tasks in ID order** (lowest ID first) when multiple tasks are "
+        "available, as earlier tasks often set up context for later ones"
     ),
     "TaskGet": (
         "Gets task details by task ID. Returns the task's subject, description, status, "
-        "and any metadata."
-    ),
-    "TaskList": (
-        "Lists all tasks. Returns a summary of each task."
+        "and any metadata.\n\n"
+        "## When to Use This Tool\n\n"
+        "- When you need the full description and context before starting work on a task\n"
+        "- To understand task dependencies (what it blocks, what blocks it)\n"
+        "- After being assigned a task, to get complete requirements\n\n"
+        "## Tips\n\n"
+        "- After fetching a task, verify its blockedBy list is empty before beginning work.\n"
+        "- Use TaskList to see all tasks in summary form."
     ),
     "TaskStop": (
-        "Stops a running background task by its ID. The task must have been started with "
-        "run_in_background=true."
+        "- Stops a running background task by its ID\n"
+        "- Takes a task_id parameter identifying the task to stop\n"
+        "- Returns a success or failure status\n"
+        "- Use this tool when you need to terminate a long-running task"
     ),
     "TaskOutput": (
         "Gets output from a background task. Waits for new output if the task is still "
-        "running."
+        "running.\n\n"
+        "Use this to monitor the progress of a background agent or retrieve its results. "
+        "If the task has completed, returns all accumulated output immediately."
     ),
     "NotebookEdit": (
         "Edits a Jupyter notebook (.ipynb) cell. Replaces the source of a specific cell "
-        "or inserts a new cell."
+        "or inserts a new cell.\n\n"
+        "Usage:\n"
+        "- Specify the cell index or cell ID to edit\n"
+        "- Provide the new source code for the cell\n"
+        "- Can insert a new cell at a specific position"
     ),
     "REPL": (
         "Executes JavaScript code in a Read-Eval-Print Loop (REPL) environment. Useful "
-        "for testing JavaScript snippets."
+        "for testing JavaScript snippets.\n\n"
+        "The REPL maintains state between calls, so variables and functions defined in "
+        "previous calls are available in subsequent calls."
     ),
     "Workflow": (
-        "Runs a workflow script. Executes a predefined sequence of actions."
+        "Runs a workflow script. Executes a predefined sequence of actions.\n\n"
+        "Used to run automated workflows within the Claude Code environment."
     ),
     "AskUserQuestion": (
-        "Asks the user a multiple-choice question. Use this when you need clarification "
-        "or the user needs to make a choice. Returns the user's selected option."
+        "Asks the user multiple choice questions to gather information, clarify ambiguity, "
+        "understand preferences, make decisions or offer them choices."
     ),
     "CronCreate": (
-        "Creates a scheduled cron job that runs a command at specified intervals."
+        "Creates a scheduled cron job that runs a command at specified intervals.\n\n"
+        "Usage:\n"
+        "- Provide a cron schedule string (e.g., \"0 9 * * *\" for 9 AM daily)\n"
+        "- Provide the command to run\n"
+        "- Optionally set a description for the job"
     ),
     "CronDelete": (
-        "Deletes a scheduled cron job."
+        "Deletes a scheduled cron job.\n\n"
+        "Provide the cron job ID to delete. The job will be permanently removed from the schedule."
     ),
     "CronList": (
-        "Lists all scheduled cron jobs."
+        "Lists all scheduled cron jobs.\n\n"
+        "Returns the ID, schedule, command, and description for each active cron job."
     ),
     "ScheduleWakeup": (
-        "Schedules a wakeup event to resume the agent at a specified time."
+        "Schedule when to resume work in /loop dynamic mode (always pass the `prompt` arg). "
+        "Call before ending the turn to keep the loop alive; omit the call to end it."
     ),
     "RemoteTrigger": (
-        "Triggers a remote action on a connected service."
+        "Triggers a remote action on a connected service.\n\n"
+        "Used to invoke external service endpoints or webhook actions configured in "
+        "the Claude Code environment."
     ),
     "Monitor": (
-        "Monitors a command's output in real time. Useful for long-running processes."
+        "Monitors a command's output in real time. Useful for long-running processes.\n\n"
+        "Each stdout line is a notification. For one-shot \"wait until done,\" use Bash "
+        "with run_in_background instead."
     ),
     "PushNotification": (
-        "Sends a push notification to the user's device."
+        "Send a notification to the user via their terminal and, when Remote Control is "
+        "connected, also push to their mobile device"
     ),
     "EnterWorktree": (
-        "Enters a git worktree. Creates a separate working directory for a branch."
+        "Enters a git worktree. Creates a separate working directory for a branch.\n\n"
+        "Useful for working on a different branch without stashing or committing current work."
     ),
     "ExitWorktree": (
         "Exits a git worktree. Cleans up the temporary worktree directory."
     ),
     "ListMcpResources": (
-        "Lists available MCP (Model Context Protocol) server resources."
+        "Lists available MCP (Model Context Protocol) server resources.\n\n"
+        "MCP servers provide tools and resources that extend Claude Code's capabilities."
     ),
     "ReadMcpResource": (
-        "Reads a specific resource from an MCP server."
+        "Reads a specific resource from an MCP server.\n"
+        "- server: The name of the MCP server to read from\n"
+        "- uri: The URI of the resource to read\n\n"
+        "Usage examples:\n"
+        "- Read a resource from a server: `readMcpResource({ server: \"myserver\", "
+        "uri: \"my-resource-uri\" })`"
     ),
     "Mcp": (
-        "Generic MCP (Model Context Protocol) tool invocation."
+        "Generic MCP (Model Context Protocol) tool invocation.\n\n"
+        "Invoke a tool provided by a connected MCP server. Specify the server name, "
+        "tool name, and arguments."
     ),
 }
 
@@ -555,6 +721,7 @@ def _parse_ts_interface(
     """
     result: dict[str, dict[str, Any]] = {}
 
+    # Match export interface blocks, handling nested braces for type literals.
     interface_pattern = r'export interface (\w+Input) \{((?:[^{}]|\{[^{}]*\})*)\}'
 
     for match in re.finditer(interface_pattern, content, re.DOTALL):
@@ -562,12 +729,29 @@ def _parse_ts_interface(
         body = match.group(2)
         props: dict[str, Any] = {}
 
+        # Match JSDoc blocks of the form:
+        #   /**
+        #    * Description text (may span multiple lines)
+        #    */
+        #   propertyName?: Type;
+        #
+        # The description is captured non-greedily up to the closing */,
+        # avoiding bleed into subsequent JSDoc blocks or TS code.
         prop_pattern = (
-            r'/\*\*\s*\n\s*\*\s*([^\*][\s\S]*?)\s*\*/\s*'
-            r'\n\s*(\w+)(\?)?:\s*([^;]+);'
+            r'/\*\*\s*\n'           # opening /**
+            r'(?:\s*\*[^\n]*\n)*?'  # zero or more intermediate * lines
+            r'\s*\*\s+'             # final * followed by whitespace
+            r'((?:(?!\*/).)*?)'     # description: everything until */
+            r'\s*\*/'               # closing */
+            r'\s*\n\s*'             # whitespace/newline
+            r'("?\??-?[\w.-]+"?)'   # property name (may be quoted or contain -)
+            r'(\?)?:\s*'            # optional marker
+            r'([^;]+);'             # type until ;
         )
         for jsdoc, prop_name, optional, prop_type in re.findall(prop_pattern, body):
             desc = re.sub(r'\n\s*\*\s*', ' ', jsdoc).strip()
+            # Clean up property name: strip surrounding quotes if present
+            prop_name = prop_name.strip('"')
             props[prop_name] = {
                 "description": desc[:300],
                 "type": _map_ts_type(prop_type.strip()),

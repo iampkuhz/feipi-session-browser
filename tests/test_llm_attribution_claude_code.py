@@ -139,8 +139,8 @@ def test_claude_code_tool_schema_from_available_tools():
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None
-    # 3 available tools × 240 tokens/tool = 720
-    assert schema_bucket.tokens == 3 * 240
+    # Uses real SDK schema tokens now (Read+Bash+Edit ~4035 tokens)
+    assert schema_bucket.tokens > 3 * 240
     assert "3 tools" in schema_bucket.count_label
 
 
