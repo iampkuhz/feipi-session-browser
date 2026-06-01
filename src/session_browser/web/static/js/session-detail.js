@@ -224,85 +224,61 @@
     // ── Left rail ──
     html += '<aside class="sd-payload-meta sd-attribution-rail">';
 
-    // Card 1: Summary
+    // Card 1: Summary (use ~ for estimated values)
     html += '<div class="sd-attribution-rail__card">';
     html += '<h3>' + (kind === "request" ? "请求摘要" : "响应摘要") + '</h3>';
     if (kind === "request") {
-      html += '<div class="sd-kv"><span>总输入</span><span>' + formatTokenValue(usage.total_input) + '</span></div>';
-      html += '<div class="sd-kv"><span>新鲜输入</span><span>' + formatTokenValue(usage.fresh_input) + '</span></div>';
-      html += '<div class="sd-kv"><span>缓存读取</span><span>' + formatTokenValue(usage.cache_read) + '</span></div>';
-      html += '<div class="sd-kv"><span>缓存写入</span><span>' + formatTokenValue(usage.cache_write) + '</span></div>';
-      html += '<div class="sd-kv"><span>覆盖率</span><span>' + formatRatioValue(usage.coverage) + '</span></div>';
+      html += '<div class="sd-kv"><span>总输入</span><span title="' + kvTitleAttr(usage.total_input) + '">' + formatTokenValue(usage.total_input) + '</span></div>';
+      html += '<div class="sd-kv"><span>新鲜输入</span><span title="' + kvTitleAttr(usage.fresh_input) + '">' + formatTokenValue(usage.fresh_input) + '</span></div>';
+      html += '<div class="sd-kv"><span>缓存读取</span><span title="' + kvTitleAttr(usage.cache_read) + '">' + formatTokenValue(usage.cache_read) + '</span></div>';
+      html += '<div class="sd-kv"><span>缓存写入</span><span title="' + kvTitleAttr(usage.cache_write) + '">' + formatTokenValue(usage.cache_write) + '</span></div>';
+      html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
       var unkVal = (usage.unknown && usage.unknown.value) || 0;
       var totVal = (usage.total_input && usage.total_input.value) || 1;
       var unkPct = ((unkVal / totVal) * 100).toFixed(1);
-      html += '<div class="sd-kv"><span>未定位</span><span>' + formatCompactToken(unkVal) + '（' + unkPct + '%）</span></div>';
+      html += '<div class="sd-kv"><span>未定位</span><span title="' + formatCompactToken(unkVal) + '（' + unkPct + '%）">' + formatCompactToken(unkVal) + '（' + unkPct + '%）</span></div>';
     } else {
-      html += '<div class="sd-kv"><span>总输出</span><span>' + formatTokenValue(usage.total_output) + '</span></div>';
-      html += '<div class="sd-kv"><span>可见文本</span><span>' + formatTokenValue(usage.visible_text) + '</span></div>';
-      html += '<div class="sd-kv"><span>工具使用</span><span>' + formatTokenValue(usage.tool_use) + '</span></div>';
-      html += '<div class="sd-kv"><span>元数据</span><span>' + formatTokenValue(usage.metadata) + '</span></div>';
-      html += '<div class="sd-kv"><span>覆盖率</span><span>' + formatRatioValue(usage.coverage) + '</span></div>';
-      html += '<div class="sd-kv"><span>未定位</span><span>' + formatTokenValue(usage.unknown) + '</span></div>';
+      html += '<div class="sd-kv"><span>总输出</span><span title="' + kvTitleAttr(usage.total_output) + '">' + formatTokenValue(usage.total_output) + '</span></div>';
+      html += '<div class="sd-kv"><span>可见文本</span><span title="' + kvTitleAttr(usage.visible_text) + '">' + formatTokenValue(usage.visible_text) + '</span></div>';
+      html += '<div class="sd-kv"><span>工具使用</span><span title="' + kvTitleAttr(usage.tool_use) + '">' + formatTokenValue(usage.tool_use) + '</span></div>';
+      html += '<div class="sd-kv"><span>元数据</span><span title="' + kvTitleAttr(usage.metadata) + '">' + formatTokenValue(usage.metadata) + '</span></div>';
+      html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
+      html += '<div class="sd-kv"><span>未定位</span><span title="' + kvTitleAttr(usage.unknown) + '">' + formatTokenValue(usage.unknown) + '</span></div>';
       if (usage.finish_reason && usage.finish_reason.value) {
-        html += '<div class="sd-kv"><span>完成原因</span><span>' + escapeHtml(String(usage.finish_reason.value)) + '</span></div>';
+        var frVal = String(usage.finish_reason.value);
+        html += '<div class="sd-kv"><span>完成原因</span><span title="' + escapeHtml(frVal) + '">' + escapeHtml(frVal) + '</span></div>';
       }
     }
     html += '</div>'; // end summary card
 
-    // Card 2: Timing (merged with notes)
+    // Card 2: Timing
     if (timing.request_at && timing.request_at !== "—") {
       html += '<div class="sd-attribution-rail__card">';
       html += '<h3>时间线</h3>';
-      html += '<div class="sd-kv"><span>请求发起</span><span>' + escapeHtml(timing.request_at) + '</span></div>';
-      html += '<div class="sd-kv"><span>响应返回</span><span>' + escapeHtml(timing.response_at || "—") + '</span></div>';
-      html += '<div class="sd-kv"><span>耗时</span><span>' + escapeHtml(timing.duration || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>请求发起</span><span title="' + escapeHtml(timing.request_at) + '">' + escapeHtml(timing.request_at) + '</span></div>';
+      html += '<div class="sd-kv"><span>响应返回</span><span title="' + escapeHtml(timing.response_at || "—") + '">' + escapeHtml(timing.response_at || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>耗时</span><span title="' + escapeHtml(timing.duration || "—") + '">' + escapeHtml(timing.duration || "—") + '</span></div>';
       html += '</div>'; // end timing card
     }
 
-    // Card 3: Model
+    // Card 3: Model + params
     if (model && model !== "unknown") {
       html += '<div class="sd-attribution-rail__card">';
       html += '<h3>模型信息</h3>';
-      html += '<div class="sd-kv"><span>模型</span><span>' + escapeHtml(model) + '</span></div>';
+      html += '<div class="sd-kv"><span>模型</span><span title="' + escapeHtml(model) + '">' + escapeHtml(model) + '</span></div>';
+      if (kind === "request") {
+        var srcLabel = data.source_label || "local logs";
+        html += '<div class="sd-kv"><span>来源</span><span title="' + escapeHtml(srcLabel) + '">' + escapeHtml(srcLabel) + '</span></div>';
+      }
       html += '</div>';
     }
 
-    // Card 4: Params (request only)
+    // Card 4: Request params (request only)
     if (kind === "request") {
       html += '<div class="sd-attribution-rail__card">';
       html += '<h3>请求参数</h3>';
-      html += '<div class="sd-kv"><span>模型</span><span>' + escapeHtml(model) + '</span></div>';
-      html += '<div class="sd-kv"><span>来源</span><span>' + escapeHtml(data.source_label || "local logs") + '</span></div>';
-      html += '<div class="sd-kv"><span>Call ID</span><span>' + escapeHtml(data.call_id || "") + '</span></div>';
-      html += '</div>';
-    }
-
-    // Card 5: Availability (compact) + Notes
-    var availRows = data.availability_rows || [];
-    if (availRows.length > 0) {
-      html += '<div class="sd-attribution-rail__card">';
-      html += '<h3>参数可用性</h3>';
-      availRows.forEach(function (r) {
-        var availLabel = r.exact ? "是" : (r.available ? "部分" : "否");
-        var pillClass = r.exact ? "ok" : (r.available ? "warn" : "err");
-        html += '<div class="sd-attribution-avail-row">';
-        html += '<span>' + escapeHtml(r.label || r.field) + '</span>';
-        html += '<span><span class="sd-pill sd-pill--' + pillClass + '">' + availLabel + '</span></span>';
-        html += '</div>';
-      });
-      html += '</div>'; // end availability card
-    }
-
-    // Notes card: only if notes exist and not already merged
-    if (notes.length > 0) {
-      html += '<div class="sd-attribution-rail__card">';
-      html += '<h3>归因备注</h3>';
-      html += '<div class="sd-attribution-rail__notes">';
-      notes.forEach(function (n) {
-        html += '<div class="sd-attribution-rail__note">' + escapeHtml(n) + '</div>';
-      });
-      html += '</div>';
+      var callIdVal = data.call_id || "";
+      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(callIdVal) + '">' + escapeHtml(callIdVal) + '</span></div>';
       html += '</div>';
     }
 
@@ -319,15 +295,16 @@
       var contributingBuckets = buckets.filter(function (b) { return b.contributes_to_total !== false && b.key !== "unlocated_residual" && b.key !== "unknown_overhead" && b.key !== "unknown"; });
       var totalForPct = 0;
       contributingBuckets.forEach(function (b) { totalForPct += (b.tokens || 0); });
-      contributingBuckets.forEach(function (b) {
-        var pct = totalForPct > 0 ? (b.tokens / totalForPct * 100) : 0;
-        var colorClass = getBucketColorClass(b.key);
-        html += '<div class="sd-attribution-distribution__segment ' + colorClass + '" style="width:' + pct.toFixed(1) + '%" title="' + escapeHtml(b.label) + ': ' + b.tokens + ' tokens"></div>';
-      });
       var residualBucket = buckets.find(function (b) { return b.key === "unlocated_residual" || b.key === "unknown_overhead" || b.key === "unknown"; });
+      var grandTotal = totalForPct + (residualBucket ? (residualBucket.tokens || 0) : 0);
+      contributingBuckets.forEach(function (b) {
+        var pct = grandTotal > 0 ? (b.tokens / grandTotal * 100) : 0;
+        var colorIdx = getBucketColorIndex(b.key);
+        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--' + colorIdx + '" style="width:' + pct.toFixed(1) + '%" title="' + escapeHtml(b.label) + ': ' + b.tokens + ' tokens"></div>';
+      });
       if (residualBucket && residualBucket.tokens > 0) {
-        var unkPct2 = totalForPct > 0 ? (residualBucket.tokens / (totalForPct + residualBucket.tokens) * 100) : 0;
-        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--unknown" style="width:' + unkPct2.toFixed(1) + '%" title="' + escapeHtml(residualBucket.label) + ': ' + residualBucket.tokens + ' tokens"></div>';
+        var unkPct2 = grandTotal > 0 ? (residualBucket.tokens / grandTotal * 100) : 0;
+        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--7" style="width:' + unkPct2.toFixed(1) + '%" title="' + escapeHtml(residualBucket.label) + ': ' + residualBucket.tokens + ' tokens"></div>';
       }
       html += '</div>';
 
@@ -391,12 +368,22 @@
     if (d.kind === "tools" && d.items) {
       html += '<div class="sd-bucket-detail-list">';
       d.items.forEach(function (item) {
-        html += '<div class="sd-bucket-detail-item">';
+        html += '<div class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle>';
         html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.name) + '</div>';
         html += '<div class="sd-bucket-detail-desc">' + escapeHtml(item.description_preview || "") + '</div>';
         html += '<div class="sd-bucket-detail-meta">';
         html += '<span>来源: ' + escapeHtml(item.source || "") + '</span>';
         html += '<span>~' + formatCompactToken(item.estimated_tokens || 0) + ' tokens</span>';
+        html += '<span class="sd-bucket-detail-chevron">▸</span>';
+        html += '</div>';
+        // Expanded detail (hidden by default)
+        html += '<div class="sd-bucket-detail-expanded" hidden>';
+        if (item.input_schema) {
+          html += '<pre class="sd-bucket-detail-schema">' + escapeHtml(item.input_schema) + '</pre>';
+        }
+        if (item.description) {
+          html += '<div class="sd-bucket-detail-full-desc">' + escapeHtml(item.description) + '</div>';
+        }
         html += '</div>';
         html += '</div>';
       });
@@ -469,7 +456,7 @@
       html += '<div class="sd-bucket-detail-item">';
       if (d.tokens) html += '<div class="sd-bucket-detail-meta"><span>~' + formatCompactToken(d.tokens) + ' tokens</span></div>';
       if (d.preview) {
-        html += '<pre class="sd-bucket-detail-preview">' + escapeHtml(d.preview) + '</pre>';
+        html += '<pre class="sd-bucket-detail-preview sd-bucket-detail-preview--full">' + escapeHtml(d.preview) + '</pre>';
       }
       html += '</div>';
     } else if (d.kind === "mcp_metadata" && d.items) {
@@ -518,11 +505,22 @@
     return idx >= 0 ? idx : 0;
   }
 
+  function kvTitleAttr(v) {
+    if (!v || v.value == null) return "—";
+    var val = v.value;
+    var formatted = typeof val === "number" && val >= 1000 ? (val / 1000).toFixed(1) + "K" : String(val);
+    var prec = v.precision || "";
+    var prefix = (prec === "estimated" || prec === "heuristic" || prec === "residual") ? "~" : "";
+    return escapeHtml(prefix + formatted);
+  }
+
   function formatTokenValue(v) {
     if (!v || v.value == null) return "—";
     var val = v.value;
-    if (typeof val === "number" && val >= 1000) return (val / 1000).toFixed(1) + "K";
-    return String(val);
+    var formatted = typeof val === "number" && val >= 1000 ? (val / 1000).toFixed(1) + "K" : String(val);
+    var prec = v.precision || "";
+    if (prec === "estimated" || prec === "heuristic" || prec === "residual") return "~" + formatted;
+    return formatted;
   }
 
   function formatRatioValue(v) {
@@ -532,10 +530,11 @@
     return String(val);
   }
 
-  function formatCompactToken(val) {
+  function formatCompactToken(val, precision) {
     if (val == null) return "—";
-    if (typeof val === "number" && val >= 1000) return (val / 1000).toFixed(1) + "K";
-    return String(val);
+    var formatted = typeof val === "number" && val >= 1000 ? (val / 1000).toFixed(1) + "K" : String(val);
+    if (precision === "estimated" || precision === "heuristic" || precision === "residual") return "~" + formatted;
+    return formatted;
   }
 
   function translatePrecision(p) {
@@ -644,18 +643,6 @@
     el["innerHTML"] = html || "";
   }
 
-  // Safe HTML setter — uses bracket notation to avoid static pattern scan.
-  // All HTML passed here must have dynamic values escaped via escapeHtml().
-  function setHtml(el, html) {
-    el["innerHTML"] = html || "";
-  }
-
-  /** Safe HTML setter — uses bracket notation to avoid static pattern scan.
-   *  All HTML passed here must have dynamic values escaped via escapeHtml(). */
-  function setHtml(el, html) {
-    el["innerHTML"] = html;
-  }
-
   function diagnosticPayloadHtml(payloadId, title, kind) {
     var kindLabel = kind || "unknown";
     var idDisplay = payloadId || "(未提供)";
@@ -731,41 +718,42 @@
 
   function openPayload(button) {
     // Try attribution fetch path first
-    var handled = openAttributionModal(button);
-    if (handled) return;
+    openAttributionModal(button).then(function(handled) {
+      if (handled) return;
 
-    var modal = ensurePayloadModal();
-    var payloadId = button.getAttribute("data-payload-id") || "";
-    var title = button.getAttribute("data-payload-title") || button.textContent.trim() || "Payload";
-    var kind = button.getAttribute("data-payload-kind") || "";
-    var source = payloadId
-      ? qs(document, 'template[data-payload-source="' + cssEscape(payloadId) + '"], [data-payload-source="' + cssEscape(payloadId) + '"]')
-      : null;
+      var modal = ensurePayloadModal();
+      var payloadId = button.getAttribute("data-payload-id") || "";
+      var title = button.getAttribute("data-payload-title") || button.textContent.trim() || "Payload";
+      var kind = button.getAttribute("data-payload-kind") || "";
+      var source = payloadId
+        ? qs(document, 'template[data-payload-source="' + cssEscape(payloadId) + '"], [data-payload-source="' + cssEscape(payloadId) + '"]')
+        : null;
 
-    var titleEl = qs(modal, "[data-payload-title]");
-    var subtitleEl = qs(modal, "[data-payload-subtitle]");
-    var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
+      var titleEl = qs(modal, "[data-payload-title]");
+      var subtitleEl = qs(modal, "[data-payload-subtitle]");
+      var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
 
-    if (titleEl) titleEl.textContent = title;
-    if (subtitleEl) subtitleEl.textContent = payloadId || "diagnostic";
+      if (titleEl) titleEl.textContent = title;
+      if (subtitleEl) subtitleEl.textContent = payloadId || "diagnostic";
 
-    if (body) {
-      if (source) {
-        var htmlContent = (source.tagName && source.tagName.toLowerCase() === "template")
-          ? source.innerHTML
-          : source.innerHTML;
-        setHtml(body, htmlContent);
-      } else {
-        setHtml(body, diagnosticPayloadHtml(payloadId, title, kind));
+      if (body) {
+        if (source) {
+          var htmlContent = (source.tagName && source.tagName.toLowerCase() === "template")
+            ? source.innerHTML
+            : source.innerHTML;
+          setHtml(body, htmlContent);
+        } else {
+          setHtml(body, diagnosticPayloadHtml(payloadId, title, kind));
+        }
       }
-    }
 
-    if (typeof modal.showModal === "function") modal.showModal();
-    else modal.setAttribute("open", "");
+      if (typeof modal.showModal === "function") modal.showModal();
+      else modal.setAttribute("open", "");
 
-    if (shouldHydrateFullPayload(kind, source)) {
-      hydrateFullPayload(modal, payloadId);
-    }
+      if (shouldHydrateFullPayload(kind, source)) {
+        hydrateFullPayload(modal, payloadId);
+      }
+    });
   }
 
   function closePayload() {
@@ -892,6 +880,34 @@
         }
       }
       return;
+    }
+
+    // ── Tool detail toggle handler ──
+    var toolToggleEl = closest(event.target, '[data-tool-detail-toggle]');
+    if (toolToggleEl) {
+      event.preventDefault();
+      event.stopPropagation();
+      var item = closest(toolToggleEl, '.sd-bucket-detail-item--expandable');
+      if (item) {
+        var expanded = qs(item, '.sd-bucket-detail-expanded');
+        if (expanded) {
+          var isOpen = !expanded.hasAttribute('hidden');
+          expanded.hidden = isOpen;
+          item.classList.toggle('is-expanded', !isOpen);
+        }
+      }
+      return;
+    }
+
+    // ── KV value click-to-copy handler (non-blocking, text still selectable) ──
+    var kvValueEl = closest(event.target, '.sd-attribution-rail__card .sd-kv > span:last-child');
+    if (kvValueEl && kvValueEl.textContent && kvValueEl.textContent !== "—" && kvValueEl.textContent !== "" && navigator.clipboard && navigator.clipboard.writeText) {
+      var fullText = kvValueEl.getAttribute('title') || kvValueEl.textContent;
+      navigator.clipboard.writeText(fullText).then(function() {
+        var orig = kvValueEl.style.color;
+        kvValueEl.style.color = '#059669';
+        setTimeout(function() { kvValueEl.style.color = orig; }, 600);
+      }).catch(function() {});
     }
 
     // Handle data-action elements

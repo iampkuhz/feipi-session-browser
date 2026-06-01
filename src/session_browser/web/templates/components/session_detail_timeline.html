@@ -432,13 +432,16 @@
             <div class="sd-kv"><span>agent</span><span>{{ payload.data.agent|default('—') }}</span></div>
             <div class="sd-kv"><span>model</span><span>{{ payload.data.model|default('—') }}</span></div>
             <div class="sd-kv"><span>来源</span><span>{{ payload.data.source_label|default('—') }}</span></div>
-            <div class="sd-kv"><span>request_id</span><span class="sd-mono">{{ payload.data.request_id|default('—') }}</span></div>
-            <div class="sd-kv"><span>call_id</span><span class="sd-mono">{{ payload.data.call_id|default('—') }}</span></div>
-            <div class="sd-kv"><span>总输入</span><span>{{ payload.data.usage.total_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.total_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.total_input.precision) }}</span></span></div>
-            {% if payload.data.usage.fresh_input %}<div class="sd-kv"><span>Fresh input</span><span>{{ payload.data.usage.fresh_input.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.fresh_input.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.fresh_input.precision) }}</span></span></div>{% endif %}
-            {% if payload.data.usage.cache_read %}<div class="sd-kv"><span>Cache read</span><span>{{ payload.data.usage.cache_read.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_read.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_read.precision) }}</span></span></div>{% endif %}
-            {% if payload.data.usage.cache_write %}<div class="sd-kv"><span>Cache write</span><span>{{ payload.data.usage.cache_write.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.cache_write.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.cache_write.precision) }}</span></span></div>{% endif %}
-            {% if payload.data.usage.unknown %}<div class="sd-kv"><span>Unknown</span><span>{{ payload.data.usage.unknown.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ payload.data.usage.unknown.precision|default('unavailable') }}">{{ precision_label(payload.data.usage.unknown.precision) }}</span></span></div>{% endif %}
+            {% set ti = payload.data.usage.total_input %}
+            {% set fi = payload.data.usage.fresh_input %}
+            {% set cr = payload.data.usage.cache_read %}
+            {% set cw = payload.data.usage.cache_write %}
+            {% set un = payload.data.usage.unknown %}
+            <div class="sd-kv"><span>总输入</span><span>{{ ti.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ ti.precision|default('unavailable') }}">{{ precision_label(ti.precision) }}</span></span></div>
+            {% if fi %}<div class="sd-kv"><span>新鲜输入</span><span>{{ fi.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision) }}</span></span></div>{% endif %}
+            {% if cr %}<div class="sd-kv"><span>缓存读取</span><span>{{ cr.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ cr.precision|default('unavailable') }}">{{ precision_label(cr.precision) }}</span></span></div>{% endif %}
+            {% if cw %}<div class="sd-kv"><span>缓存写入</span><span>{{ cw.value|default('—') }} <span class="sd-precision-tag sd-precision-tag--{{ cw.precision|default('unavailable') }}">{{ precision_label(cw.precision) }}</span></span></div>{% endif %}
+            {% if un and un.value %}<div class="sd-kv"><span>未定位</span><span>{{ un.value|format_compact_token }}</span></div>{% endif %}
             <div class="sd-kv"><span>覆盖率</span><span>{{ payload.data.usage.coverage.value|format_coverage }}</span></div>
             </div>
             <div class="sd-attribution-rail__card">
@@ -447,14 +450,6 @@
             <div class="sd-kv"><span>响应返回</span><span>{{ payload.data.timing.response_at|default('—') }}</span></div>
             <div class="sd-kv"><span>耗时</span><span>{{ payload.data.timing.duration|default('—') }}</span></div>
             </div>
-            {% if payload.data.attribution_notes %}
-            <div class="sd-attribution-rail__card">
-            <h3>归因备注</h3>
-            {% for note in payload.data.attribution_notes %}
-            <div class="sd-attribution-rail__note">{{ note }}</div>
-            {% endfor %}
-            </div>
-            {% endif %}
           </aside>
           <main class="sd-attribution-canvas">
             <div class="sd-attribution-banner">基于本地日志重建，不等同于真实 provider request/response body。</div>
@@ -523,12 +518,20 @@
                       {% if b.details %}
                         {% if b.details.kind == 'tools' %}
                         <ul class="sd-bucket-detail-list">
-                          {% for item in b.details['items'][:10] %}
-                          <li class="sd-bucket-detail-item">
+                          {% for item in b.details['items'] %}
+                          <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
                             <span class="sd-bucket-detail-name">{{ item.name }}</span>
                             <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
                             <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
-                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens</span>
+                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
+                            <div class="sd-bucket-detail-expanded" hidden>
+                              {% if item.input_schema %}
+                              <pre class="sd-bucket-detail-schema">{{ item.input_schema }}</pre>
+                              {% endif %}
+                              {% if item.description %}
+                              <div class="sd-bucket-detail-full-desc">{{ item.description }}</div>
+                              {% endif %}
+                            </div>
                           </li>
                           {% endfor %}
                         </ul>
@@ -730,12 +733,20 @@
                       {% if b.details %}
                         {% if b.details.kind == 'tools' %}
                         <ul class="sd-bucket-detail-list">
-                          {% for item in b.details['items'][:10] %}
-                          <li class="sd-bucket-detail-item">
+                          {% for item in b.details['items'] %}
+                          <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
                             <span class="sd-bucket-detail-name">{{ item.name }}</span>
                             <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
                             <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
-                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens</span>
+                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
+                            <div class="sd-bucket-detail-expanded" hidden>
+                              {% if item.input_schema %}
+                              <pre class="sd-bucket-detail-schema">{{ item.input_schema }}</pre>
+                              {% endif %}
+                              {% if item.description %}
+                              <div class="sd-bucket-detail-full-desc">{{ item.description }}</div>
+                              {% endif %}
+                            </div>
                           </li>
                           {% endfor %}
                         </ul>

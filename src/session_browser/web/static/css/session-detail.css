@@ -3716,6 +3716,72 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  position: relative;
+  cursor: text;
+}
+
+/* KV value: horizontal scroll on hover for long content */
+.sd-attribution-rail__card .sd-kv > span:last-child:hover {
+  overflow-x: auto;
+  white-space: nowrap;
+  text-overflow: clip;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sd-line-soft) transparent;
+}
+
+.sd-attribution-rail__card .sd-kv > span:last-child::-webkit-scrollbar {
+  height: 3px;
+}
+.sd-attribution-rail__card .sd-kv > span:last-child::-webkit-scrollbar-thumb {
+  background: var(--sd-line-soft);
+  border-radius: 2px;
+}
+
+/* KV value: copy button on hover */
+.sd-kv-value-wrapper {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sd-kv-value-wrapper .sd-kv-copy-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 4px;
+  background: var(--sd-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  color: var(--sd-muted);
+  transition: opacity 120ms ease;
+  z-index: 2;
+  flex-shrink: 0;
+}
+.sd-kv-value-wrapper:hover .sd-kv-copy-btn {
+  opacity: 1;
+}
+.sd-kv-value-wrapper .sd-kv-copy-btn:hover {
+  background: var(--sd-panel);
+  border-color: var(--sd-line);
+}
+.sd-kv-value-wrapper .sd-kv-value-text {
+  display: inline-block;
+  max-width: calc(100% - 28px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 /* Availability compact rows in rail */
@@ -3856,6 +3922,57 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   font-size: 12px;
 }
 
+/* Expandable tool detail item */
+.sd-bucket-detail-item--expandable {
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.sd-bucket-detail-item--expandable:hover {
+  background: #f8fafc;
+}
+.sd-bucket-detail-item--expandable .sd-bucket-detail-chevron {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--sd-muted);
+  transition: transform 150ms ease;
+  margin-left: 4px;
+}
+.sd-bucket-detail-item--expandable.is-expanded .sd-bucket-detail-chevron {
+  transform: rotate(90deg);
+}
+.sd-bucket-detail-expanded {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 6px;
+}
+.sd-bucket-detail-expanded[hidden] {
+  display: none;
+}
+.sd-bucket-detail-schema {
+  margin: 0;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 4px;
+  font: 11px/1.45 var(--sd-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow: auto;
+  color: var(--sd-text-2);
+}
+.sd-bucket-detail-full-desc {
+  font-size: 12px;
+  color: var(--sd-text-2);
+  line-height: 1.55;
+  margin-top: 6px;
+  padding: 6px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .sd-bucket-detail-name {
   font-weight: 700;
   font-size: 12px;
@@ -3889,6 +4006,17 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   max-height: 200px;
   overflow-y: auto;
   color: var(--sd-text-2);
+}
+
+/* Full preview variant: no max-height, shows all content with local scroll */
+.sd-bucket-detail-preview--full {
+  max-height: none;
+  max-height: 480px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+  font-size: 12px;
 }
 
 .sd-bucket-detail-explanation {
