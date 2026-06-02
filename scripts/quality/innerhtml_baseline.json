@@ -117,25 +117,25 @@
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 182,
+      "line": 327,
       "isClear": false,
       "snippet": "body.innerHTML = '<div class=\"sd-payload-error\">' +"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 201,
+      "line": 346,
       "isClear": false,
       "snippet": "body.innerHTML = renderAttributionLoading(url.indexOf(\"/request\") !== -1 ? \"request\" : \"response\");"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 544,
+      "line": 689,
       "isClear": false,
       "snippet": "bodyEl.innerHTML = '<div class=\"sd-bucket-detail-loading\">加载中…</div>';"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 996,
+      "line": 1156,
       "isClear": false,
       "snippet": "fetchTrigger.innerHTML = '<span class=\"sd-bucket-detail-loading\">加载中…</span>';"
     },
