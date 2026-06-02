@@ -220,7 +220,26 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
     if gate == "pytest":
         test_candidates = {
             "session-detail": ["tests/ui/test_web_template_contract.py", "tests/ui/test_web_static_contract.py"],
-            "python-src": ["tests/backend"],
+            "python-src": [
+                "tests/backend",
+                "tests/test_llm_attribution_api.py",
+                "tests/test_llm_attribution_bucket_normalization.py",
+                "tests/test_llm_attribution_call_scoped_correctness.py",
+                "tests/test_llm_attribution_claude_code.py",
+                "tests/test_llm_attribution_codex.py",
+                "tests/test_llm_attribution_context_builder.py",
+                "tests/test_llm_attribution_context_hydration.py",
+                "tests/test_llm_attribution_contract.py",
+                "tests/test_llm_attribution_deep_source_correlation.py",
+                "tests/test_llm_attribution_error_isolation.py",
+                "tests/test_llm_attribution_error_payload.py",
+                "tests/test_llm_attribution_qoder.py",
+                "tests/test_llm_attribution_semantic_correctness.py",
+                "tests/test_llm_attribution_serializers.py",
+                "tests/test_llm_attribution_token_estimator.py",
+                "tests/test_llm_attribution_visual_gate.py",
+                "tests/test_codex_openai_attribution.py",
+            ],
             "hook-runtime": [
                 "tests/hooks/test_claude_hooks_hook_io.py",
                 "tests/hooks/test_claude_hooks_classify.py",

@@ -36,34 +36,35 @@ from session_browser.attribution.context import (
 
 class TestToolDescriptions:
     def test_known_tool_read(self):
-        assert "读取文件" in _tool_description("Read")
+        assert "file" in _tool_description("Read")
 
     def test_known_tool_write(self):
-        assert "写入文件" in _tool_description("Write")
+        assert "file" in _tool_description("Write")
 
     def test_known_tool_edit(self):
-        assert "精确" in _tool_description("Edit")
+        assert "replacements" in _tool_description("Edit")
 
     def test_known_tool_bash(self):
-        assert "shell" in _tool_description("Bash")
+        assert "command" in _tool_description("Bash")
 
     def test_known_tool_grep(self):
-        assert "搜索" in _tool_description("Grep")
+        assert "regular" in _tool_description("Grep")
 
     def test_known_tool_glob(self):
-        assert "查找文件" in _tool_description("Glob")
+        assert "pattern" in _tool_description("Glob")
 
     def test_known_tool_ls(self):
+        # LS is not in _BINARY_TOOL_DESCRIPTIONS, falls back to Chinese
         assert "目录" in _tool_description("LS")
 
     def test_known_tool_agent(self):
-        assert "子 agent" in _tool_description("Agent")
+        assert "agent" in _tool_description("Agent").lower()
 
     def test_known_tool_todo_write(self):
-        assert "任务列表" in _tool_description("TodoWrite")
+        assert "task" in _tool_description("TodoWrite").lower()
 
     def test_known_tool_web_fetch(self):
-        assert "网页" in _tool_description("WebFetch")
+        assert "URL" in _tool_description("WebFetch")
 
     def test_unknown_tool_fallback(self):
         desc = _tool_description("SomeUnknownTool")

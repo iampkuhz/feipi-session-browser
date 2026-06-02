@@ -26,6 +26,9 @@ from session_browser.attribution.contracts import (
 )
 from session_browser.attribution.token_estimator import estimate_tokens_from_text
 from session_browser.attribution.agents.base import BaseAttributionBuilder
+from session_browser.attribution.agents.claude_code_tool_schemas import (
+    _BINARY_TOOL_DESCRIPTIONS,
+)
 
 # Built-in tool descriptions for Claude Code common tools.
 _TOOL_DESCRIPTIONS = {
