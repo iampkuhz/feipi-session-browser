@@ -61,8 +61,10 @@
       setRoundOpen(row, false);
       return;
     }
-    // Check if detail is already loaded
-    if (row.getAttribute('data-detail-loaded') === 'true') {
+    var roundId = row.getAttribute('data-round');
+    var detailEl = roundId ? document.getElementById('round-' + roundId + '-detail') : null;
+    // Check if detail is already loaded (via lazy load) or pre-rendered in DOM
+    if (row.getAttribute('data-detail-loaded') === 'true' || detailEl) {
       setRoundOpen(row, true);
       return;
     }
@@ -101,7 +103,12 @@
 
     fetch(url, { headers: { 'Accept': 'application/json' } })
       .then(function (resp) {
-        if (!resp.ok) return resp.json().then(function (d) { throw { status: resp.status, data: d }; });
+        if (!resp.ok) {
+          var status = resp.status;
+          return resp.json().then(function (d) { throw { status: status, data: d }; }).catch(function () {
+            throw { status: status, data: null };
+          });
+        }
         return resp.json();
       })
       .then(function (data) {
@@ -129,7 +136,14 @@
       })
       .catch(function (err) {
         if (loadingRow && loadingRow.parentNode) {
-          var msg = err.data && err.data.error ? err.data.error : 'Failed to load round detail';
+          var msg;
+          if (err.data && err.data.error) {
+            msg = err.data.error;
+          } else if (err.status) {
+            msg = 'Failed to load round detail (HTTP ' + err.status + ')';
+          } else {
+            msg = 'Failed to load round detail';
+          }
           // Replace loading row content with error state using DOM APIs
           while (loadingRow.firstChild) loadingRow.removeChild(loadingRow.firstChild);
           var tdError = document.createElement('td');
@@ -253,8 +267,9 @@
     if (!round) return;
     round.classList.remove('is-filtered-out');
     round.hidden = false;
-    // If detail not loaded, trigger lazy load then scroll after load
-    if (round.getAttribute('data-detail-loaded') !== 'true') {
+    var detailEl = document.getElementById('round-' + roundId + '-detail');
+    // If detail not loaded and not pre-rendered, trigger lazy load then scroll after load
+    if (round.getAttribute('data-detail-loaded') !== 'true' && !detailEl) {
       lazyLoadRoundDetail(round);
       // Scroll after a short delay (detail will be injected by fetch)
       setTimeout(function () {
@@ -346,22 +361,33 @@
     body.innerHTML = renderAttributionLoading(url.indexOf("/request") !== -1 ? "request" : "response");
     fetch(url, { headers: { "Accept": "application/json" } })
       .then(function (resp) {
-        if (!resp.ok) return resp.json().then(function (d) { throw { status: resp.status, data: d }; });
+        if (!resp.ok) {
+          return resp.json().then(function (d) {
+            // Structured attribution error from server — render directly.
+            if (d && d.kind === "llm.attribution_error") {
+              renderAttributionError(body, d, url);
+              return;
+            }
+            throw { status: resp.status, data: d };
+          });
+        }
         return resp.json();
       })
       .then(function (payload) {
-        if (payload.kind === "llm.attribution_error") {
+        if (payload && payload.kind === "llm.attribution_error") {
           renderAttributionError(body, payload, url);
-        } else {
+        } else if (payload) {
           var kind = url.indexOf("/request") !== -1 ? "request" : "response";
           renderAttributionSuccess(body, payload, kind, url);
         }
       })
       .catch(function (err) {
+        var message = err.data && err.data.message ? err.data.message : "Failed to load attribution data";
+        var fallback = err.data && err.data.fallback ? err.data.fallback : "Attribution unavailable; base LLM call metadata is still available.";
         renderAttributionError(body, {
           error_type: err.status ? "HTTP_" + err.status : "NetworkError",
-          message: err.data && err.data.message ? err.data.message : "Failed to load attribution data",
-          fallback: "Attribution unavailable; base LLM call metadata is still available.",
+          message: message,
+          fallback: fallback,
         }, url);
       });
   }
@@ -818,6 +844,26 @@
         var resp = await fetch(url, { headers: { "Accept": "application/json" } });
         if (!resp.ok) {
           var errData = await resp.json().catch(function () { return null; });
+          // If the server returned a structured attribution error payload,
+          // render it directly instead of falling through to the generic catch.
+          if (errData && errData.kind === "llm.attribution_error") {
+            renderAttributionError(body, errData, url);
+            modal.setAttribute("data-attribution-state", "error");
+            if (subtitleEl) subtitleEl.textContent = "error";
+            return true;
+          }
+          // For other server errors (NotFound, etc.), also try to surface the message.
+          if (errData && errData.message) {
+            var genericPayload = {
+              error_type: "HTTP_" + resp.status,
+              message: errData.message,
+              fallback: errData.fallback || "Failed to load attribution data",
+            };
+            renderAttributionError(body, genericPayload, url);
+            modal.setAttribute("data-attribution-state", "error");
+            if (subtitleEl) subtitleEl.textContent = "error";
+            return true;
+          }
           throw { status: resp.status, data: errData };
         }
         payload = await resp.json();
