@@ -2624,6 +2624,8 @@ def _build_v11_view_model(
             # Global main LLM call numbering across all rounds (Issue 5)
             global_main_call_num += 1
             iix = global_main_call_num
+            # Per-round 1-based call index for attribution API URLs
+            call_ix = ix_idx + 1
 
             # LLM call interaction
             call_id = f"R{rid}-IX{iix}"
@@ -2881,11 +2883,11 @@ def _build_v11_view_model(
                 note_tone_val = "warn" if source_status == "reconstructed" else "err"
 
             # ── LLM attribution payloads: default path is API fetch via
-            # /api/sessions/{source}/{session_id}/attribution/{rid}/{iix}/{kind}.
+            # /api/sessions/{source}/{session_id}/attribution/{rid}/{call_ix}/{kind}.
             # Embedded attribution is also added to payload_sources as a fallback
             # for clients that cannot reach the API endpoint.
-            request_attribution_id = f"llm-R{rid}-IX{iix}-request-attribution"
-            response_attribution_id = f"llm-R{rid}-IX{iix}-response-attribution"
+            request_attribution_id = f"llm-R{rid}-IX{call_ix}-request-attribution"
+            response_attribution_id = f"llm-R{rid}-IX{call_ix}-response-attribution"
 
             try:
                 # Build call-scoped session context for attribution
@@ -2976,11 +2978,11 @@ def _build_v11_view_model(
                 "attribution_session_id": session.session_id,
                 "attribution_api_url_request": (
                     f"/api/sessions/{session.agent}/{session.session_id}"
-                    f"/attribution/{rid}/{iix}/request"
+                    f"/attribution/{rid}/{call_ix}/request"
                 ),
                 "attribution_api_url_response": (
                     f"/api/sessions/{session.agent}/{session.session_id}"
-                    f"/attribution/{rid}/{iix}/response"
+                    f"/attribution/{rid}/{call_ix}/response"
                 ),
                 "note": note_text,
                 "note_tone": note_tone_val,
