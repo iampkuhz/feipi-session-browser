@@ -108,14 +108,19 @@ class TestFixtureRoundCount:
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_rounds_have_tool_calls(self, hifi_fixture_session):
-        """At least some rounds should contain tool calls."""
+        """At least some rounds should contain tool calls (via round detail API)."""
+        import json
+        import urllib.request
         base_url, agent, session_id = hifi_fixture_session
-        url = f"{base_url}/sessions/{agent}/{session_id}"
-        html = get_html(url)
-        soup = BeautifulSoup(html, "html.parser")
-        # 工具组使用 [data-tool-batch-id]
-        tool_elements = soup.select("[data-tool-batch-id]")
-        assert len(tool_elements) > 0, "No tool batch elements found in rounds"
+        # In slim mode, tool batches are loaded lazily via the round detail API.
+        # Fetch round 1 detail to verify tool calls exist.
+        round_url = f"{base_url}/api/sessions/{agent}/{session_id}/round/1"
+        resp = urllib.request.urlopen(round_url, timeout=10)
+        data = json.loads(resp.read().decode("utf-8"))
+        assert "html" in data, "Round API should return HTML"
+        # Check for tool batch elements in the returned HTML
+        assert "data-tool-batch-id" in data["html"] or "sd-tool-group" in data["html"], \
+            "Round 1 should contain tool batch elements"
 
 
 class TestFixtureTokenData:

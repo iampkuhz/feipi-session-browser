@@ -67,15 +67,13 @@ class TestLongSessionRendering:
 
     @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
     def test_trace_detail_hidden_by_default(self, long_session_url):
-        """所有 trace-detail div 初始应为隐藏状态。"""
+        """渐进式加载：初始 HTML 不应包含 trace-detail 元素（按需加载）。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         html = resp.read().decode("utf-8")
         # 使用 data-trace-detail 统计 trace-detail div 数量
         total = html.count('data-trace-detail')
-        # 所有 div 都应带有 hidden 属性
-        hidden = html.count('hidden>')
-        assert total == 100, f"预期 100 个 trace-detail div，实际找到 {total}"
-        assert hidden >= total, f"{total} 个 detail div 中仅 {hidden} 个为隐藏状态"
+        # 渐进式加载：初始 HTML 不应包含展开的详情行
+        assert total == 0, f"渐进式加载模式下，初始 HTML 不应包含 data-trace-detail 元素，实际找到 {total}"
 
     @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
     def test_preview_text_not_full_content(self, long_session_url):

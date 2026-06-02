@@ -620,6 +620,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             elif path.startswith("/api/sessions/"):
                 if "/attribution/" in path:
                     self._serve_api_attribution_path(path)
+                elif "/round/" in path:
+                    self._serve_api_round_path(path)
                 elif "/bucket-detail/" in path:
                     self._serve_api_bucket_detail_path(path)
                 elif "/payload/" in path:
@@ -816,8 +818,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         # Set repo root to session's project directory for relative path rendering
         _template_mod._SESSION_REPO_ROOT = _template_mod._get_repo_root(session.project_key) if session.project_key else None
 
-        # Build timeline view model
-        v11_vm = _build_v11_view_model(session, rounds, llm_calls, tool_calls, subagent_runs, sa)
+        # Build timeline view model (slim for normal page load, full for MHTML export)
+        slim_mode = not export_mhtml
+        v11_vm = _build_v11_view_model(session, rounds, llm_calls, tool_calls, subagent_runs, sa, slim=slim_mode)
 
         # MHTML context
         if export_mhtml:
@@ -839,6 +842,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             session_anomalies=sa,
             active_page="session",
             session_url=f"/sessions/{agent}/{session_id}",
+            slim_mode=slim_mode,
             session_rounds=[
                 {"idx": i + 1, "name": r.preview_text or f"Round {i + 1}",
                  "status": getattr(r, "status", ""), "is_current": False}
@@ -1124,6 +1128,92 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
         return (session, messages, tool_calls, subagent_runs, llm_calls, rounds)
+
+    def _serve_api_round_path(self, path: str) -> None:
+        """Dispatch /api/sessions/{agent}/{session_id}/round/{round_index}."""
+        parts = path.split("/")
+        # parts: ["", "api", "sessions", agent, session_id, "round", round_index]
+        if len(parts) == 7 and parts[5] == "round":
+            try:
+                round_index = int(parts[6])
+                if round_index < 1:
+                    raise ValueError("must be positive")
+            except (ValueError, IndexError):
+                self._send_json({
+                    "error": f"invalid round_index='{parts[6]}', must be a positive integer",
+                }, status=400)
+                return
+            agent = urllib.parse.unquote(parts[3])
+            session_id = urllib.parse.unquote(parts[4])
+            self._serve_api_round(agent, session_id, round_index)
+        else:
+            self._send_json({
+                "error": "invalid API path",
+                "expected": "/api/sessions/{agent}/{session_id}/round/{round_index}",
+            }, status=400)
+
+    def _serve_api_round(self, agent: str, session_id: str, round_index: int) -> None:
+        """Return the expanded round detail HTML for a given round_index (1-based)."""
+        result = self._load_session_and_build_rounds(agent, session_id)
+        if result[0] is None:
+            return  # Error already sent
+
+        _session, _messages, _tool_calls, _subagent_runs, llm_calls, rounds = result
+
+        # Validate round_index
+        target_idx = round_index - 1  # convert to 0-based
+        if target_idx < 0 or target_idx >= len(rounds):
+            self._send_json({
+                "error": f"round_index {round_index} out of range (1-{len(rounds)})",
+            }, status=404)
+            return
+
+        # Compute preview text for rounds if not already done
+        for r in rounds:
+            if not getattr(r, "preview_text", ""):
+                r.compute_preview()
+
+        # Compute signals for the target round
+        r = rounds[target_idx]
+        signals = compute_round_signals(
+            r, round_index,
+            _session.input_tokens + _session.cached_input_tokens + _session.cached_output_tokens,
+        )
+
+        # Build slim view model for just this one round
+        vm = _build_v11_view_model(
+            _session, rounds, llm_calls, _tool_calls, _subagent_runs,
+            session_anomalies=type("FA", (), {"anomalies": []})(),
+            slim=False,
+            round_filter={target_idx},
+        )
+
+        # Find the trace row for the target round
+        trace_row = None
+        for tr in vm["trace_rows"]:
+            if tr["round_id"] == round_index:
+                trace_row = tr
+                break
+
+        if trace_row is None:
+            self._send_json({"error": "round detail not found"}, status=404)
+            return
+
+        # Render the expanded row HTML using Jinja template
+        template = _template_env.get_template("components/session_detail_timeline.html")
+        expanded_html = template.module.expanded_row(trace_row)
+        # Strip <tr>/<td> wrapper tags — JS creates its own <tr><td> and injects inner content
+        expanded_html = re.sub(r'^<tr[^>]*>\s*<td[^>]*>', '', expanded_html)
+        expanded_html = re.sub(r'</td>\s*</tr>\s*$', '', expanded_html)
+
+        self._send_json({
+            "html": expanded_html,
+            "round_id": round_index,
+            "has_user_input": trace_row.get("has_user_input", False),
+            "has_subagent": trace_row.get("has_subagent", False),
+            "signals": signals,
+            "payload_sources": vm.get("payload_sources", []),
+        })
 
     def _build_and_send_attribution(self, source, session_id, session, r, ix, interaction_index, round_index, kind, llm_calls, messages, tool_calls):
         """Build attribution for an LLM call and send JSON response."""
@@ -1886,8 +1976,17 @@ def _build_v11_view_model(
     tool_calls: list,
     subagent_runs: list,
     session_anomalies,
+    slim: bool = False,
+    round_filter: set[int] | None = None,
 ) -> dict:
     """Build the timeline view model for session.html template.
+
+    When ``slim=True``, skip payload_sources building and timeline_items embedding.
+    Only summary row data is produced for fast initial page render.
+
+    When ``round_filter`` is provided (set of 0-based round indices), only build
+    full detail for those rounds; other rounds get empty ``timeline_items``.
+    This is used by the round detail API endpoint.
 
     Returns dict with: session_summary, hero_metrics, issue_links, trace_rows, payload_sources.
 
@@ -2461,6 +2560,38 @@ def _build_v11_view_model(
             token_mix["out"] = round(total_output / rt_sum * 100, 1)
 
         # Build items for round detail
+        # In slim mode or when round_filter excludes this round, skip detail building
+        # but still increment global_main_call_num so numbering stays correct
+        is_detail_active = not slim and (round_filter is None or r_idx in round_filter)
+        if not is_detail_active:
+            # Still increment counter for skipped rounds to maintain numbering consistency
+            for _ix_skip in r.interactions:
+                global_main_call_num += 1
+            trace_rows.append({
+                "round_id": rid,
+                "round_label": f"R{rid}",
+                "status_key": status_key,
+                "status_label": status_label,
+                "status_tone": status_tone,
+                "preview_title": preview_title or f"Round {rid}",
+                "preview_subtitle": preview_subtitle,
+                "token_total": token_total,
+                "token_total_raw": rt_sum,
+                "token_mix": token_mix,
+                "token_input": total_input,
+                "token_cache_read": total_cache_read,
+                "token_cache_write": total_cache_write,
+                "token_output": total_output,
+                "tool_count": tool_total,
+                "tool_count_label": tool_count_label,
+                "has_user_input": bool(r.user_msg.content),
+                "has_subagent": False,
+                "start_time": start_time,
+                "is_open": False,
+                "timeline_items": [],
+            })
+            continue
+
         items = []
 
         # 1. User message item — highlights user input rounds
@@ -3012,7 +3143,8 @@ def _build_v11_view_model(
         },
         "issue_links": issue_links,
         "trace_rows": trace_rows,
-        "payload_sources": payload_sources,
+        "payload_sources": payload_sources if not slim else [],
+        "_slim": slim,
     }
 
 

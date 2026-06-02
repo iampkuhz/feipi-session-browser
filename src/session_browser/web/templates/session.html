@@ -18,6 +18,7 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
 {% block head_extra %}
 <meta name="payload-api-base" content="/api/sessions/{{ current_agent }}/{{ session.session_id }}">
 <meta name="session-id" content="{{ session.session_id }}">
+<meta name="slim-mode" content="{{ 'true' if slim_mode else 'false' }}">
 {% if export_mhtml %}
 <style>{{ mhtml_page_css | safe }}</style>
 {% else %}
@@ -84,14 +85,16 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
       </thead>
       <tbody>
       {% for row in trace_rows %}
-        {{ sdt.trace_round(row) }}
+        {{ sdt.trace_round(row, slim=slim_mode | default(false)) }}
       {% endfor %}
       </tbody>
     </table>
     {% endif %}
   </section>
 
+  {% if not slim_mode | default(false) %}
   {{ sdt.payload_sources(payload_sources | default([])) }}
+  {% endif %}
   {{ sdt.payload_modal() }}
 {% endif %}
 

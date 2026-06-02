@@ -199,9 +199,11 @@
 </tr>
 {%- endmacro %}
 
-{% macro trace_round(row) -%}
+{% macro trace_round(row, slim=False) -%}
   {{ round_row(row) }}
+  {% if not slim %}
   {{ expanded_row(row) }}
+  {% endif %}
 {%- endmacro %}
 
 {% macro llm_call_card(call) -%}
