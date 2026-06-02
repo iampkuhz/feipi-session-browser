@@ -682,12 +682,12 @@
   }
 
   function getBucketColorIndex(key) {
+    if (key === "unlocated_residual" || key === "unknown_overhead" || key === "unknown") return 7;
     var order = [
       "current_user_message", "preceding_tool_results", "prior_conversation_messages",
       "tool_schemas", "local_instruction_context", "agent_subagent_prompt",
       "mcp_tool_metadata", "top_level_system_estimate",
       "hidden_builtin_system_estimate",
-      "unlocated_residual", "unknown_overhead", "unknown",
     ];
     var idx = order.indexOf(key);
     return idx >= 0 ? (idx % 8) : 0;

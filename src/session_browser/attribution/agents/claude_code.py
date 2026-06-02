@@ -43,8 +43,15 @@ _TOOL_DESCRIPTIONS = {
 
 
 def _tool_description(name: str) -> str:
-    """Return built-in description for a known tool; fallback for unknown."""
-    return _TOOL_DESCRIPTIONS.get(name, "工具说明未知。")
+    """Return description for a tool.
+
+    Uses _BINARY_TOOL_DESCRIPTIONS (full descriptions from Claude Code binary)
+    as primary source, then falls back to _TOOL_DESCRIPTIONS (short Chinese),
+    then to a generic fallback.
+    """
+    return _BINARY_TOOL_DESCRIPTIONS.get(
+        name, _TOOL_DESCRIPTIONS.get(name, "工具说明未知。")
+    )
 
 
 def _extract_tool_name(result_text: str) -> str:

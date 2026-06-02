@@ -484,22 +484,24 @@
             <section class="sd-payload-section payload-section"><h3>用量分布</h3>
               <div class="sd-attribution-distribution" data-attribution-distribution>
                 <div class="sd-attribution-distribution__bar">
-                  {% for b in payload.data.buckets if b.contributes_to_total %}
-                    <span class="sd-attribution-segment sd-attribution-segment--{{ loop.index0 % 8 }}"
+                  {% set req_buckets = payload.data.buckets | selectattr('contributes_to_total') | list %}
+                  {% for b in req_buckets %}
+                    {% set color_idx = 7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8 %}
+                    <span class="sd-attribution-segment sd-attribution-segment--{{ color_idx }}"
                           style="--seg-w: {{ b.percent|default(0) }}%;"
                           title="{{ b.label }} {{ b.tokens|format_compact_token }} ({{ b.percent|default(0) }}%)">
                       {% if b.percent|default(0) > 8 %}{{ b.label }}{% endif %}
                     </span>
                   {% endfor %}
-                  {% set bar_buckets = payload.data.buckets | selectattr('contributes_to_total') | list %}
-                  {% if not bar_buckets %}
+                  {% if not req_buckets %}
                     <div class="sd-empty-state">暂无可用于总览图归因的 bucket。</div>
                   {% endif %}
                 </div>
                 <div class="sd-attribution-legend">
                   {% for b in payload.data.buckets if b.contributes_to_total %}
+                    {% set legend_color_idx = 7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8 %}
                     <span class="sd-attribution-legend-item">
-                      <span class="sd-attribution-legend__dot sd-attribution-legend__dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-legend__dot sd-attribution-legend__dot--{{ legend_color_idx }}"></span>
                       <span class="sd-attribution-legend__label">{{ b.label }}</span>
                       <span class="sd-attribution-legend__pct">{{ b.percent|default(0) }}%</span>
                       <span class="sd-attribution-legend__tokens">{{ b.tokens|format_compact_token }}</span>
@@ -516,7 +518,7 @@
                 {% for b in payload.data.buckets if b.contributes_to_total %}
                   <div class="sd-attribution-bucket-card{% if b.details %} is-expandable{% endif %}" data-bucket-label="{{ b.label|default('') }}">
                     <div class="sd-attribution-bucket-head" data-bucket-toggle>
-                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
@@ -611,7 +613,7 @@
                 {% for b in req_display_buckets %}
                   <div class="sd-attribution-bucket-card sd-attribution-bucket-card--display-only" data-bucket-label="{{ b.label|default('') }}">
                     <div class="sd-attribution-bucket-head">
-                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}</span>
@@ -701,22 +703,24 @@
             <section class="sd-payload-section payload-section"><h3>用量分布</h3>
               <div class="sd-attribution-distribution" data-attribution-distribution>
                 <div class="sd-attribution-distribution__bar">
-                  {% for b in payload.data.buckets if b.contributes_to_total %}
-                    <span class="sd-attribution-segment sd-attribution-segment--{{ loop.index0 % 8 }}"
+                  {% set req_buckets = payload.data.buckets | selectattr('contributes_to_total') | list %}
+                  {% for b in req_buckets %}
+                    {% set color_idx = 7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8 %}
+                    <span class="sd-attribution-segment sd-attribution-segment--{{ color_idx }}"
                           style="--seg-w: {{ b.percent|default(0) }}%;"
                           title="{{ b.label }} {{ b.tokens|format_compact_token }} ({{ b.percent|default(0) }}%)">
                       {% if b.percent|default(0) > 8 %}{{ b.label }}{% endif %}
                     </span>
                   {% endfor %}
-                  {% set bar_buckets = payload.data.buckets | selectattr('contributes_to_total') | list %}
-                  {% if not bar_buckets %}
+                  {% if not req_buckets %}
                     <div class="sd-empty-state">暂无可用于总览图归因的 bucket。</div>
                   {% endif %}
                 </div>
                 <div class="sd-attribution-legend">
                   {% for b in payload.data.buckets if b.contributes_to_total %}
+                    {% set legend_color_idx = 7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8 %}
                     <span class="sd-attribution-legend-item">
-                      <span class="sd-attribution-legend__dot sd-attribution-legend__dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-legend__dot sd-attribution-legend__dot--{{ legend_color_idx }}"></span>
                       <span class="sd-attribution-legend__label">{{ b.label }}</span>
                       <span class="sd-attribution-legend__pct">{{ b.percent|default(0) }}%</span>
                       <span class="sd-attribution-legend__tokens">{{ b.tokens|format_compact_token }}</span>
@@ -733,7 +737,7 @@
                 {% for b in payload.data.buckets if b.contributes_to_total %}
                   <div class="sd-attribution-bucket-card{% if b.details %} is-expandable{% endif %}" data-bucket-label="{{ b.label|default('') }}">
                     <div class="sd-attribution-bucket-head" data-bucket-toggle>
-                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
@@ -828,7 +832,7 @@
                 {% for b in resp_display_buckets %}
                   <div class="sd-attribution-bucket-card sd-attribution-bucket-card--display-only" data-bucket-label="{{ b.label|default('') }}">
                     <div class="sd-attribution-bucket-head">
-                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ loop.index0 % 8 }}"></span>
+                      <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}</span>
