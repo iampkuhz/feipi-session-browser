@@ -94,11 +94,12 @@ def test_claude_code_response_attribution():
 
 
 def test_claude_code_tool_schema_estimation_no_available_tools():
-    """Without available_tools list, tool_schemas tokens must be 0.
+    """Without available_tools list, tool_schemas uses default CC tools for tokens.
 
-    Tool schemas refers to available tool definitions, NOT observed tool calls.
-    When local logs don't provide available_tools, we cannot generate positive
-    tool_schemas tokens.
+    When local logs don't provide available_tools, we fall back to the default
+    Claude Code tool list so that the token count matches the displayed detail
+    items (which also use the default list).  The precision is marked as
+    UNAVAILABLE since we don't know the real available tools.
     """
     tc1 = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="result1")
     tc2 = ToolCall(name="Bash", parameters={"command": "echo hello"}, result="done")
@@ -107,10 +108,10 @@ def test_claude_code_tool_schema_estimation_no_available_tools():
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    # Should have a tool_schemas bucket but with 0 tokens (unavailable)
+    # Should have a tool_schemas bucket with non-zero tokens (default CC tools)
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None
-    assert schema_bucket.tokens == 0
+    assert schema_bucket.tokens > 0
     assert schema_bucket.precision == ValuePrecision.UNAVAILABLE
 
 

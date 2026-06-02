@@ -52,7 +52,7 @@ def _make_ro(user_content="hello", tool_calls=None, interactions=None):
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_tool_schemas_zero_without_available_tools(agent):
     """When only actual tool_calls exist without available_tools,
-    tool_schemas tokens must be 0."""
+    tool_schemas tokens depend on agent fallback behavior."""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="test", tool_calls=[tc])
@@ -60,9 +60,16 @@ def test_tool_schemas_zero_without_available_tools(agent):
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None, f"Missing tool_schemas bucket for {agent}"
-    assert schema_bucket.tokens == 0, (
-        f"tool_schemas tokens should be 0 without available_tools for {agent}"
-    )
+    if agent == "claude_code":
+        # Claude Code falls back to default CC tools when available_tools is empty
+        assert schema_bucket.tokens > 0, (
+            f"tool_schemas tokens should use default CC tools fallback for {agent}"
+        )
+    else:
+        # Qoder and Codex still return 0 without available_tools
+        assert schema_bucket.tokens == 0, (
+            f"tool_schemas tokens should be 0 without available_tools for {agent}"
+        )
 
 
 def test_claude_code_tool_schemas_from_available_tools():

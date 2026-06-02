@@ -41,8 +41,6 @@ _TOOL_DESCRIPTIONS = {
     "WebFetch": "获取网页内容。",
 }
 
-_DEFAULT_CC_TOOLS = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "LS", "Agent"]
-
 
 def _tool_description(name: str) -> str:
     """Return built-in description for a known tool; fallback for unknown."""
@@ -354,26 +352,33 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         # Claude Code npm package (sdk-tools.d.ts) for accurate token
         # counting, instead of the old per-tool heuristic.
         available_tools = self._get_available_tools()
+        # When available_tools is empty (e.g. tool_calls_raw not parseable),
+        # fall back to the full Claude Code SDK tool registry so that the
+        # token count and bucket details use the same comprehensive list.
+        from session_browser.attribution.agents.claude_code_tool_schemas import (
+            ALL_CLAUDE_CODE_TOOLS,
+        )
+        tools_for_schema = available_tools if available_tools else ALL_CLAUDE_CODE_TOOLS
         tool_schema_tokens = 0
         tool_schemas_availability = ValuePrecision.UNAVAILABLE
         tool_schemas_source = ValueSource.HEURISTIC
         tool_schemas_summary = (
             "无法从本地日志获取可用工具定义列表；不能用实际 tool calls 代替 tool schemas。"
         )
+        # Always compute tokens against the list that will be displayed.
+        from session_browser.attribution.agents.claude_code_tool_schemas import (
+            get_all_tool_schema_tokens,
+            get_cached_schemas,
+        )
+        schemas = get_cached_schemas()
+        tool_schema_tokens = get_all_tool_schema_tokens(tools_for_schema, schemas)
         if available_tools:
-            # Import here to avoid circular dependency at module load time.
-            from session_browser.attribution.agents.claude_code_tool_schemas import (
-                get_all_tool_schema_tokens,
-                get_cached_schemas,
-            )
-            schemas = get_cached_schemas()
-            tool_schema_tokens = get_all_tool_schema_tokens(available_tools, schemas)
             tool_schemas_availability = ValuePrecision.ESTIMATED
             tool_schemas_source = ValueSource.TOOL_LIST
-            tool_schemas_summary = (
-                f"基于 Claude Code SDK 真实 tool schema 定义，"
-                f"{len(available_tools)} 个工具共 {tool_schema_tokens} tokens。"
-            )
+        tool_schemas_summary = (
+            f"基于 Claude Code SDK 真实 tool schema 定义，"
+            f"{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。"
+        )
 
         # Local instruction context: look for system-reminder content in
         # session_context or round user_msg.
@@ -582,9 +587,9 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         ensure_ascii=False, indent=2,
                     ) if tool_name in _schemas_for_detail else "",
                 }
-                for tool_name in (available_tools or _DEFAULT_CC_TOOLS)
+                for tool_name in (available_tools or ALL_CLAUDE_CODE_TOOLS)
             ],
-            "total_items": len(available_tools or _DEFAULT_CC_TOOLS),
+            "total_items": len(available_tools or ALL_CLAUDE_CODE_TOOLS),
             "truncated": False,
         }
         buckets.append(RequestAttributionBucket(
@@ -592,7 +597,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             label="工具定义",
             tokens=tool_schema_tokens,
             percent=_pct(tool_schema_tokens, total_call_input),
-            count_label=f"{len(available_tools)} tools" if available_tools else "",
+            count_label=f"{len(tools_for_schema)} tools",
             precision=tool_schemas_availability if tool_schema_tokens > 0 else ValuePrecision.UNAVAILABLE,
             source=tool_schemas_source,
             confidence_label="中低" if tool_schema_tokens > 0 else "低",
@@ -772,6 +777,12 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
             fresh_input=fresh_input_val,
         )
 
+        # Extract normalized residual for unknown value.
+        normalized_residual = next(
+            (b.tokens for b in buckets if b.key == "unlocated_residual"),
+            unlocated_residual,
+        )
+
         # ── Step 4: coverage ───────────────────────────────────────────
         known_bucket_sum = sum(
             b.tokens for b in buckets
@@ -831,10 +842,10 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         source=ValueSource.TOOL_LOGS,
                         fill_strategy="estimated from text"),
             self._avail("tool_schemas_tokens", "Tool schemas tokens",
-                        bool(available_tools), exact=False,
+                        True, exact=False,
                         precision=tool_schemas_availability,
                         source=tool_schemas_source,
-                        fill_strategy="available_tools count × real SDK schema tokens" if available_tools else "no available_tools list"),
+                        fill_strategy="available_tools count × real SDK schema tokens" if available_tools else "fallback to default Claude Code tool list"),
             self._avail("local_instruction_tokens", "Local instruction tokens",
                         local_instruction_tokens > 0, exact=False,
                         precision=local_instruction_availability,
@@ -859,10 +870,9 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         notes = []
         if cache_read_val > 0:
             notes.append(f"Cache read {cache_read_val:,} tokens — 主要来自历史消息和系统提示，但无法逐块确认。")
-        if available_tools:
-            notes.append(f"Tool schemas 基于 Claude Code SDK 真实定义，{len(available_tools)} 个工具共 {tool_schema_tokens} tokens。")
-        else:
-            notes.append("Tool schemas: 无法从本地日志获取可用工具定义列表，tool_schemas 标记为 unavailable。")
+        notes.append(f"Tool schemas 基于 Claude Code SDK 真实定义，{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。")
+        if not available_tools:
+            notes.append("注意：无法从本地日志获取可用工具定义列表，使用默认工具列表代替。")
         notes.append(
             "采用 request reconstruction 方法：将原先归入 unknown 的 token 拆分为多个解释性 bucket，"
             "包括本地指令、Agent 提示、MCP 元数据、系统提示估算等。"
@@ -901,7 +911,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 fill_strategy="known_buckets / total_input",
             ),
             unknown=AttributedValue(
-                value=unlocated_residual,
+                value=normalized_residual,
                 unit="tokens",
                 precision=ValuePrecision.RESIDUAL,
                 source=ValueSource.RESIDUAL,

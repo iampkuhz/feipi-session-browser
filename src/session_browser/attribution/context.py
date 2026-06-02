@@ -29,7 +29,6 @@ from session_browser.domain.models import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CC_TOOLS = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "LS", "Agent"]
 _TRUNCATE_CONTENT_PREVIEW = 200
 _TRUNCATE_LOCAL_INSTRUCTIONS = 2048  # 2KB
 
@@ -276,10 +275,16 @@ def _build_available_tools(
         if seen:
             return sorted(seen)
 
-    # Final fallback: default Claude Code tools (except codex)
+    # Final fallback: full Claude Code tool registry (except codex).
+    # The Claude Code JSONL event format does NOT persist the `tools` array
+    # (tool definitions sent to the API), so we use the authoritative tool
+    # list from the Claude Code SDK as the best available approximation.
     if agent_name == "codex":
         return []
-    return list(_DEFAULT_CC_TOOLS)
+    from session_browser.attribution.agents.claude_code_tool_schemas import (
+        ALL_CLAUDE_CODE_TOOLS,
+    )
+    return list(ALL_CLAUDE_CODE_TOOLS)
 
 
 def _read_local_instructions(project_path: Path, agent_name: str | None) -> str:
