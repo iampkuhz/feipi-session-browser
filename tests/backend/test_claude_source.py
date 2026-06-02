@@ -257,6 +257,7 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert [tc.name for tc in tool_calls] == ["Agent", "Read", "Read"]
     agent_call = tool_calls[0]
     assert agent_call.tool_use_id == "toolu_agent"
+    assert agent_call.subagent_id == "child"
     assert agent_call.is_failed
     assert agent_call.llm_call_count == 2
     assert agent_call.subagent_tool_call_count == 2

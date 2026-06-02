@@ -947,6 +947,7 @@ def _attach_subagents_to_agent_tools(
 
         run = remaining.pop(match_index)
         summary = run["summary"]
+        tc.subagent_id = summary.get("agent_id", "")
         tc.subagent_summary = summary
         tc.llm_call_count = summary.get("llm_call_count", 0)
         tc.llm_error_count = summary.get("llm_error_count", 0)
