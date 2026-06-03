@@ -10,13 +10,25 @@ from pathlib import Path
 import re
 
 CSS_PATH = Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "ui-primitives.css"
+CSS_DIR = CSS_PATH.parent / "ui-primitives"
+
+
+def _read_source_with_splits(main_file, split_dir):
+    """Read main file and all split subdirectory files (if they exist)."""
+    parts = []
+    if main_file.exists():
+        parts.append(main_file.read_text(encoding="utf-8"))
+    if split_dir.is_dir():
+        for f in sorted(split_dir.glob("*.css")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 @pytest.fixture(scope="module")
 def css_text():
     if not CSS_PATH.exists():
         pytest.skip(f"ui-primitives.css not found at {CSS_PATH}")
-    return CSS_PATH.read_text(encoding="utf-8")
+    return _read_source_with_splits(CSS_PATH, CSS_DIR)
 
 
 def _extract_canonical_card_sub_block(css_text: str) -> str:

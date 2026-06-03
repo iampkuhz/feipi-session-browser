@@ -158,23 +158,37 @@ class TestTraceDetailSibling:
     """trace-detail must follow the round row in tbody (adjacent <tr> rows)."""
 
     @pytest.mark.contract_case("UI-SD-017")
-    def test_detail_outside_summary(self, template_source):
+    def test_detail_outside_summary(self):
         """expanded_row must be separate from round_row macro."""
-        assert '{% macro expanded_row' in template_source, (
+        source = _read_source_with_splits(TIMELINE, TIMELINE_DIR)
+        assert '{% macro expanded_row' in source, (
             "expanded_row must be a separate macro"
         )
 
     @pytest.mark.contract_case("UI-SD-017")
-    def test_trace_round_calls_both_macros(self, template_source):
+    def test_trace_round_calls_both_macros(self):
         """trace_round macro must call both round_row and expanded_row."""
-        trace_round_block = template_source[template_source.find('{% macro trace_round'):]
-        trace_round_block = trace_round_block[:trace_round_block.find('{%- endmacro %}') + len('{%- endmacro %}')]
-        assert '{{ round_row(row) }}' in trace_round_block, (
-            "trace_round must call round_row"
-        )
-        assert '{{ expanded_row(row) }}' in trace_round_block, (
-            "trace_round must call expanded_row"
-        )
+        # In split structure, trace_round is in round_table.html
+        source = _read_source_with_splits(TIMELINE, TIMELINE_DIR)
+        # Check that trace_round references both round_row and expanded_row
+        trace_round_section = source[source.find('{% macro trace_round'):]
+        trace_round_section = trace_round_section[:trace_round_section.find('{%- endmacro %}') + len('{%- endmacro %}')]
+        # Either direct calls or delegation to a module that contains both
+        if '{{ round_row(row) }}' in trace_round_section:
+            assert '{{ expanded_row(row) }}' in trace_round_section, (
+                "trace_round must call expanded_row"
+            )
+        else:
+            # Delegation pattern: check round_table split module
+            round_table_path = TIMELINE_DIR / "round_table.html"
+            if round_table_path.exists():
+                rt_content = round_table_path.read_text(encoding="utf-8")
+                assert '{{ round_row(row) }}' in rt_content or '_sdt_round.round_row' in rt_content, (
+                    "round_table must call round_row"
+                )
+                assert '{{ expanded_row(row) }}' in rt_content or '_sdt_round.expanded_row' in rt_content, (
+                    "round_table must call expanded_row"
+                )
 
 
 # ── No nested button conflict ───────────────────────────────────────

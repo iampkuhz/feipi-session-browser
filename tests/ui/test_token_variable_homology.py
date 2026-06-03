@@ -45,9 +45,24 @@ LEGACY_AGENT_VARS = ["--claude", "--codex", "--qoder", "--output"]
 
 
 def _read_css(path: pathlib.Path) -> str:
-    """读取 CSS 文件并返回其文本内容。"""
+    """读取 CSS 文件并返回其文本内容（含 split-aware 扫描）。"""
     assert path.exists(), f"CSS file not found: {path}"
-    return path.read_text(encoding="utf-8")
+    parts = [path.read_text(encoding="utf-8")]
+    # Also scan split subdirectory if it exists
+    split_dir = path.parent / path.stem.replace("-", "_")
+    if not split_dir.exists():
+        # Try with hyphen
+        split_dir = path.parent / path.stem
+    if split_dir.is_dir():
+        for f in sorted(split_dir.glob("*.css")):
+            parts.append(f.read_text(encoding="utf-8"))
+    # Also check for ui-primitives split
+    if path.name == "ui-primitives.css":
+        ui_split = path.parent / "ui-primitives"
+        if ui_split.is_dir():
+            for f in sorted(ui_split.glob("*.css")):
+                parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def _extract_css_variables(css: str) -> set[str]:

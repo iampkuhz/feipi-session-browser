@@ -111,7 +111,7 @@ def _is_import_wrapper(text: str) -> bool:
     """Check if a CSS file only contains @import statements (no rule bodies)."""
     stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL).strip()
     if not stripped:
-        return True
+        return False  # Empty files are NOT import wrappers — they're dead CSS
     # If only @import lines and no { }, it's an import wrapper
     lines = [l.strip() for l in stripped.splitlines() if l.strip()]
     has_import = any(l.startswith("@import") for l in lines)
