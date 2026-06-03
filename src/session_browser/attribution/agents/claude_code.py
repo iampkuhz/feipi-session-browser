@@ -116,13 +116,13 @@ _MEASURED_BUCKET_KEYS = {
     "prior_conversation_messages",
 }
 _ESTIMATED_BUCKET_KEYS = {
-    "tool_schemas",
     "local_instruction_context",
     "agent_subagent_prompt",
     "mcp_tool_metadata",
 }
 _HEURISTIC_FIXED_KEYS = {
     "hidden_builtin_system_estimate",
+    "tool_schemas",
 }
 _HEURISTIC_SCALED_KEYS = {
     "top_level_system_estimate",
@@ -130,6 +130,47 @@ _HEURISTIC_SCALED_KEYS = {
 _NORMALIZATION_NOTE = (
     "定位率包含推断 bucket；不是 raw request 精确还原。"
 )
+
+
+def _scale_bucket_and_details(bucket: "RequestAttributionBucket", scale: float) -> None:
+    """Scale a bucket's tokens and its details.items tokens proportionally."""
+    original_tokens = bucket.tokens
+    bucket.tokens = max(0, int(bucket.tokens * scale))
+    if bucket.tokens == 0 and original_tokens > 0 and scale > 0:
+        # Preserve a floor of 1 token if the bucket had content but scale is very small
+        bucket.tokens = 1
+    # Scale inner detail items proportionally
+    if bucket.details and "items" in bucket.details:
+        for item in bucket.details["items"]:
+            if isinstance(item, dict) and "tokens" in item:
+                item_tokens = item.get("tokens", 0)
+                item["tokens"] = max(0, int(item_tokens * scale))
+                # Preserve floor for items too
+                if item["tokens"] == 0 and item_tokens > 0 and scale > 0:
+                    item["tokens"] = 1
+
+
+def _zero_bucket_preserve_floor(bucket: "RequestAttributionBucket") -> None:
+    """Zero out a bucket but preserve a floor token if it has actual content."""
+    original_tokens = bucket.tokens
+    has_content = bool(
+        bucket.content_preview
+        or (bucket.details and bucket.details.get("items"))
+    )
+    if has_content and original_tokens > 0:
+        # Preserve 1 token minimum for buckets with actual content
+        bucket.tokens = 1
+    else:
+        bucket.tokens = 0
+    # Also zero out detail items but preserve floor
+    if bucket.details and "items" in bucket.details:
+        for item in bucket.details["items"]:
+            if isinstance(item, dict) and "tokens" in item:
+                item_tokens = item.get("tokens", 0)
+                if item_tokens > 0 and has_content:
+                    item["tokens"] = 1
+                else:
+                    item["tokens"] = 0
 
 
 def normalize_request_reconstruction_buckets(
@@ -146,7 +187,10 @@ def normalize_request_reconstruction_buckets(
     3. estimated_sum = sum(estimated buckets)
     4. heuristic_budget = max(0, fresh_input - measured_sum - estimated_sum)
     5. If heuristic_fixed_sum > heuristic_budget, scale heuristic_fixed proportionally.
-    6. If estimated_sum > (fresh_input - measured_sum), scale estimated proportionally.
+    6. If estimated_sum > (total_input - measured_sum), scale estimated proportionally.
+       NOTE: estimated uses total_input (not fresh_input) because estimated buckets
+       represent content that cannot be cached — they should not be crushed when
+       fresh_input is small due to high cache hit rate.
     7. Recompute unlocated_residual = max(total_input - known_sum, 0).
     8. Recompute coverage = min(known_sum / total_input, 1.0).
     9. Never scale measured buckets down.
@@ -193,28 +237,31 @@ def normalize_request_reconstruction_buckets(
     if heuristic_fixed_sum > heuristic_budget and heuristic_budget > 0:
         scale = heuristic_budget / heuristic_fixed_sum
         for b in heuristic_fixed_buckets:
-            b.tokens = max(0, int(b.tokens * scale))
+            _scale_bucket_and_details(b, scale)
         heuristic_fixed_sum = sum(b.tokens for b in heuristic_fixed_buckets)
         normalization_applied = True
-    elif heuristic_fixed_sum > heuristic_budget and heuristic_budget <= 0:
-        # No budget left — zero out heuristic fixed
-        for b in heuristic_fixed_buckets:
-            b.tokens = 0
-        heuristic_fixed_sum = 0
-        normalization_applied = True
+    # NOTE: When heuristic_budget <= 0 (measured + estimated already exhausts
+    # fresh_input), we do NOT zero out heuristic_fixed buckets.  These
+    # represent real known token costs (e.g. tool_schemas from SDK definitions).
+    # Instead, let the unlocated_residual absorb the overflow by becoming 0.
 
-    # Step 6: Scale estimated if they exceed remaining budget
-    remaining_for_estimated = max(0, fresh_input - measured_sum)
+    # Step 6: Scale estimated if they exceed remaining budget.
+    # Use total_input (not fresh_input) as the budget because estimated buckets
+    # represent content that cannot be cached (CLAUDE.md, agent prompts, etc.).
+    # They are real token costs that should fit within total_input, not fresh_input.
+    # When cache hit rate is high, fresh_input can be much smaller than measured_sum,
+    # which would incorrectly zero out estimated buckets with actual content.
+    remaining_for_estimated = max(0, total_input - measured_sum)
     if estimated_sum > remaining_for_estimated and remaining_for_estimated > 0:
         scale = remaining_for_estimated / estimated_sum
         for b in estimated_buckets:
-            b.tokens = max(0, int(b.tokens * scale))
+            _scale_bucket_and_details(b, scale)
         estimated_sum = sum(b.tokens for b in estimated_buckets)
         normalization_applied = True
     elif estimated_sum > remaining_for_estimated and remaining_for_estimated <= 0:
-        for b in estimated_buckets:
-            b.tokens = 0
-        estimated_sum = 0
+        # When measured already fills/exceeds total_input, preserve estimated
+        # buckets at their original values — they represent real content.
+        # Let unlocated_residual absorb the overflow by becoming 0.
         normalization_applied = True
 
     # Step 7: Recompute unlocated_residual
@@ -597,7 +644,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                         ensure_ascii=False, indent=2,
                     ) if tool_name in _schemas_for_detail else "",
                 }
-                for tool_name in (available_tools or ALL_CLAUDE_CODE_TOOLS)
+                for tool_name in sorted(available_tools or ALL_CLAUDE_CODE_TOOLS)
             ],
             "total_items": len(available_tools or ALL_CLAUDE_CODE_TOOLS),
             "truncated": False,
