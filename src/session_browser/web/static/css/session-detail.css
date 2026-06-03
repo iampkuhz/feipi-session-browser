@@ -3881,14 +3881,15 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   flex-shrink: 0;
 }
 
-.sd-attribution-bucket-dot--0 { background: #7c3aed; }
-.sd-attribution-bucket-dot--1 { background: #2563eb; }
-.sd-attribution-bucket-dot--2 { background: #0891b2; }
-.sd-attribution-bucket-dot--3 { background: #059669; }
-.sd-attribution-bucket-dot--4 { background: #d97706; }
+/* Bucket dot colors must match distribution bar segment colors for consistency. */
+.sd-attribution-bucket-dot--0 { background: #2563eb; }
+.sd-attribution-bucket-dot--1 { background: #059669; }
+.sd-attribution-bucket-dot--2 { background: #d97706; }
+.sd-attribution-bucket-dot--3 { background: #7c3aed; }
+.sd-attribution-bucket-dot--4 { background: #0891b2; }
 .sd-attribution-bucket-dot--5 { background: #dc2626; }
-.sd-attribution-bucket-dot--6 { background: #ec4899; }
-.sd-attribution-bucket-dot--7 { background: #6366f1; }
+.sd-attribution-bucket-dot--6 { background: #4f46e5; }
+.sd-attribution-bucket-dot--7 { background: #64748b; }
 
 .sd-attribution-bucket-label {
   flex: 1;

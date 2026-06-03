@@ -140,7 +140,10 @@ def build_attribution_session_context(
     prior_messages = _build_prior_messages(all_messages, interaction_index)
 
     # -- available_tools --
-    available_tools = _build_available_tools(all_tool_calls, agent_name, llm_calls=all_llm_calls)
+    available_tools = _build_available_tools(
+        all_tool_calls, agent_name, llm_calls=all_llm_calls,
+        project_dir=project_dir,
+    )
 
     # -- local_instructions, agent_prompt, mcp metadata --
     local_instructions = ""
@@ -226,22 +229,107 @@ def _build_prior_messages(
     return result
 
 
+def _parse_agent_tools_from_frontmatter(text: str) -> list[str] | None:
+    """Parse YAML frontmatter and extract ``tools:`` field.
+
+    The tools field looks like:
+        tools: Agent(implementer, qa-verifier), Read, Glob, Grep, Bash
+
+    Returns a sorted list of tool names, or None if no ``tools:`` found.
+    """
+    m = re.match(r'---\s*\n(.*?)\n---\s*\n', text, re.DOTALL)
+    if not m:
+        return None
+
+    fm = m.group(1)
+    tools_match = re.search(r'^tools:\s*(.+)$', fm, re.MULTILINE)
+    if not tools_match:
+        return None
+
+    tools_str = tools_match.group(1).strip()
+    if not tools_str:
+        return None
+
+    # Extract parenthesized compound tools like "Agent(...)", "Mcp(...)"
+    paren_re = re.compile(r'(\w+)\([^)]*\)')
+    tools: list[str] = []
+    for pm in paren_re.finditer(tools_str):
+        tools.append(pm.group(1))
+
+    # Remove parenthesized parts, then split remaining by comma
+    remaining = paren_re.sub('', tools_str)
+    for part in remaining.split(','):
+        part = part.strip()
+        if part:
+            tools.append(part)
+
+    return sorted(set(tools)) if tools else None
+
+
+def _read_agent_tool_list(
+    project_path: Path,
+) -> list[str] | None:
+    """Scan .claude/agents/*.md for explicit tool lists in YAML frontmatter.
+
+    Returns the UNION of all found tools lists, or None if no agent files
+    have an explicit ``tools:`` field.  Using the union ensures we capture
+    all tools available to any agent in the project.
+    """
+    agents_dir = project_path / ".claude" / "agents"
+    if not agents_dir.is_dir():
+        return None
+
+    all_tools: set[str] = set()
+    found_any = False
+    for agent_file in sorted(agents_dir.glob("*.md")):
+        try:
+            text = agent_file.read_text(encoding="utf-8", errors="replace")
+            tools = _parse_agent_tools_from_frontmatter(text)
+            if tools:
+                found_any = True
+                all_tools.update(tools)
+        except (OSError, PermissionError):
+            continue
+
+    return sorted(all_tools) if found_any else None
+
+
 def _build_available_tools(
     all_tool_calls: list | None,
     agent_name: str | None = None,
     llm_calls: list | None = None,
+    project_dir: str | None = None,
 ) -> list[str]:
     """Collect unique tool names from observed tool calls AND LLM tool definitions.
 
-    For agents without agent restrictions (e.g. default Claude Code sessions),
-    the LLM request contains ALL available tool schemas, not just the observed
-    tool calls. We parse ``tool_calls_raw`` from LLMCall objects to extract the
-    full tool list that was actually sent to the LLM.
+    For Claude Code, the JSONL event format does NOT persist the ``tools``
+    array (tool definitions sent to the API).  ``tool_calls_raw`` contains
+    **invoked** tools (actual calls made by the LLM), not **available**
+    tools (all definitions sent to the API).
 
-    Falls back to observed tool calls, then to default Claude Code tool list
-    (except for codex which returns empty when no tools found).
+    Priority:
+    1. If the project has .claude/agents/*.md files with explicit ``tools:``
+       in their YAML frontmatter, use that list.
+    2. Try to extract tools from LLM tool_calls_raw (for agents that persist
+       the full tools array).
+    3. Fallback to observed tool calls.
+    4. Final fallback: full Claude Code tool registry (except codex).
     """
-    # First pass: try to extract ALL tools from LLM tool_calls_raw (tool definitions sent to LLM)
+    # Claude Code: try to read explicit tool list from agent definition files.
+    if agent_name == "claude_code" and project_dir:
+        agent_tools = _read_agent_tool_list(Path(project_dir))
+        if agent_tools:
+            # Validate: only keep tool names that exist in the SDK registry
+            from session_browser.attribution.agents.claude_code_tool_schemas import (
+                ALL_CLAUDE_CODE_TOOLS,
+            )
+            valid_tools = [t for t in agent_tools if t in ALL_CLAUDE_CODE_TOOLS]
+            if valid_tools:
+                return sorted(valid_tools)
+
+    # First pass: try to extract ALL tools from LLM tool_calls_raw (tool
+    # definitions sent to LLM).  This works for agents that persist the
+    # full tools array in their session data.
     if llm_calls:
         all_tools_from_llm: set[str] = set()
         for lc in llm_calls:
@@ -276,9 +364,6 @@ def _build_available_tools(
             return sorted(seen)
 
     # Final fallback: full Claude Code tool registry (except codex).
-    # The Claude Code JSONL event format does NOT persist the `tools` array
-    # (tool definitions sent to the API), so we use the authoritative tool
-    # list from the Claude Code SDK as the best available approximation.
     if agent_name == "codex":
         return []
     from session_browser.attribution.agents.claude_code_tool_schemas import (

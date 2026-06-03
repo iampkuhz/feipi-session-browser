@@ -7,6 +7,9 @@ Verifies:
 4. interaction_index is correctly set.
 """
 
+import json
+from pathlib import Path
+
 import pytest
 
 from session_browser.domain.models import (
@@ -128,3 +131,116 @@ def test_no_interactions_returns_empty():
     )
     assert ctx["preceding_tool_results"] == []
     assert ctx["interaction_index"] == 0
+
+
+def test_claude_code_available_tools_uses_agent_definition():
+    """Claude Code should use tools from .claude/agents/*.md frontmatter.
+
+    The JSONL event format does NOT persist the tools array. When a project
+    has agent definition files with explicit ``tools:`` in YAML frontmatter,
+    those tools should be used instead of the full SDK registry.
+
+    When no project_dir is provided (or no agent files found), falls back
+    to observed tools, then to the full SDK registry.
+    """
+    from session_browser.attribution.agents.claude_code_tool_schemas import (
+        ALL_CLAUDE_CODE_TOOLS,
+    )
+    from session_browser.attribution.context import _build_available_tools
+
+    # Without project_dir: falls back to observed tools
+    invoked_tools = ["Read", "Bash", "Edit", "Grep"]
+    all_tool_calls = [
+        ToolCall(name=name, parameters={}, result="ok")
+        for name in invoked_tools
+    ]
+
+    fake_lc = _make_lc(tool_calls_raw=json.dumps([
+        {"type": "tool_use", "name": name, "id": f"id-{name}"}
+        for name in invoked_tools
+    ]))
+
+    # Without project_dir, observed tools are used
+    result = _build_available_tools(
+        all_tool_calls=all_tool_calls,
+        agent_name="claude_code",
+        llm_calls=[fake_lc],
+    )
+    assert result == sorted(invoked_tools)
+
+    # Without observed tools but with project_dir, agent files are used
+    result = _build_available_tools(
+        all_tool_calls=[],
+        agent_name="claude_code",
+        llm_calls=[],
+        project_dir=".",
+    )
+    # Union of all .claude/agents/*.md tools: 11 tools
+    assert len(result) == 11
+    assert "Agent" in result
+    assert "Bash" in result
+    assert "Read" in result
+    assert "Write" in result
+
+    # Without project_dir and without observed tools, full registry
+    result = _build_available_tools(
+        all_tool_calls=[],
+        agent_name="claude_code",
+        llm_calls=[],
+    )
+    assert result == sorted(ALL_CLAUDE_CODE_TOOLS)
+    assert len(result) == len(ALL_CLAUDE_CODE_TOOLS)
+
+
+def test_qoder_available_tools_uses_observed():
+    """Qoder should use observed tool calls when available."""
+    from session_browser.attribution.context import _build_available_tools
+
+    all_tool_calls = [
+        ToolCall(name="ReadFile", parameters={}, result="ok"),
+        ToolCall(name="WriteFile", parameters={}, result="ok"),
+    ]
+
+    result = _build_available_tools(
+        all_tool_calls=all_tool_calls,
+        agent_name="qoder",
+    )
+    assert result == ["ReadFile", "WriteFile"]
+
+
+def test_codex_available_tools_empty():
+    """Codex should return empty when no tools are available."""
+    from session_browser.attribution.context import _build_available_tools
+
+    result = _build_available_tools(
+        all_tool_calls=None,
+        agent_name="codex",
+    )
+    assert result == []
+
+
+def test_parse_agent_tools_from_frontmatter():
+    """Parse tools field from YAML frontmatter."""
+    from session_browser.attribution.context import _parse_agent_tools_from_frontmatter
+
+    text = (
+        "---\n"
+        "name: test-agent\n"
+        "tools: Agent(implementer, qa-verifier), Read, Glob, Grep, Bash, Edit, Write\n"
+        "---\n\n"
+        "# Agent body\n"
+    )
+    tools = _parse_agent_tools_from_frontmatter(text)
+    assert tools == ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Write"]
+
+
+def test_read_agent_tool_list_union():
+    """_read_agent_tool_list should return the union of all agent tools."""
+    from session_browser.attribution.context import _read_agent_tool_list
+
+    tools = _read_agent_tool_list(Path("."))
+    assert tools is not None
+    assert len(tools) >= 10
+    assert "Agent" in tools
+    assert "Bash" in tools
+    assert "Read" in tools

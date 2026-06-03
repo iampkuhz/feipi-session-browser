@@ -564,14 +564,17 @@
         html += '<span>~' + formatCompactToken(item.estimated_tokens || 0) + ' tokens</span>';
         html += '<span class="sd-bucket-detail-chevron">▸</span>';
         html += '</div>';
-        // Expanded detail (hidden by default)
+        // Expanded detail (hidden by default) — JSON format
         html += '<div class="sd-bucket-detail-expanded" hidden>';
-        if (item.input_schema) {
-          html += '<pre class="sd-bucket-detail-schema">' + escapeHtml(item.input_schema) + '</pre>';
-        }
-        if (item.description) {
-          html += '<div class="sd-bucket-detail-full-desc">' + escapeHtml(item.description) + '</div>';
-        }
+        var jsonObj = {
+          name: item.name || "",
+          description: item.description || "",
+          input_schema: item.input_schema ? (function() {
+            try { return JSON.parse(item.input_schema); }
+            catch(e) { return item.input_schema; }
+          })() : {}
+        };
+        html += '<pre class="sd-bucket-detail-schema">' + escapeHtml(JSON.stringify(jsonObj, null, 2)) + '</pre>';
         html += '</div>';
         html += '</div>';
       });
@@ -712,7 +715,11 @@
       encodeURIComponent(sessionId) + "/bucket-detail/" + roundIdx + "/" + bucketKey;
 
     // Show loading state
-    bodyEl.innerHTML = '<div class="sd-bucket-detail-loading">加载中…</div>';
+    bodyEl.textContent = '';
+    var loadingDiv = document.createElement('div');
+    loadingDiv.className = 'sd-bucket-detail-loading';
+    loadingDiv.textContent = '加载中…';
+    bodyEl.appendChild(loadingDiv);
 
     fetch(apiUrl, { headers: { "Accept": "application/json" } })
       .then(function (resp) {
@@ -1199,7 +1206,11 @@
 
       if (roundIdx && bucketKey && pageSource) {
         // Show loading on the trigger itself
-        fetchTrigger.innerHTML = '<span class="sd-bucket-detail-loading">加载中…</span>';
+        fetchTrigger.textContent = '';
+        var loadingSpan = document.createElement('span');
+        loadingSpan.className = 'sd-bucket-detail-loading';
+        loadingSpan.textContent = '加载中…';
+        fetchTrigger.appendChild(loadingSpan);
         fetchTrigger.setAttribute("data-loading", "1");
 
         var apiUrl = "/api/sessions/" + encodeURIComponent(pageSource) + "/" +
