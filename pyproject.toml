@@ -32,7 +32,9 @@ where = ["src"]
 session_browser = [
   "web/templates/*.html",
   "web/templates/components/*.html",
+  "web/templates/components/**/*.html",
   "web/static/*.css",
+  "web/static/**/*.css",
   "web/static/js/*.js",
 ]
 

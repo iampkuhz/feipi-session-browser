@@ -1,0 +1,6 @@
+/* Responsive: collapse to single column */
+@media (max-width: 900px) {
+  .session-detail-page .sd-payload-shell--attribution {
+    grid-template-columns: 1fr;
+  }
+}

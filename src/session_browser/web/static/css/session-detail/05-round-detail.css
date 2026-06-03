@@ -1,0 +1,1604 @@
+/* ── Consolidation: modal, truncation, tool tone, failed status, payload body ── */
+/* CSS variables are already defined in .sd-shell, .session-detail-page above. */
+/* 1) Round grid: preserve metric columns under narrow widths. */
+.session-detail-page .sd-round-summary,
+.sd-page .sd-round-summary,
+.sd-shell .sd-round-summary {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
+  column-gap: 12px;
+  padding-inline: 12px;
+  align-items: center;
+}
+.session-detail-page .sd-user-round .sd-round-summary,
+.sd-page .sd-user-round .sd-round-summary,
+.sd-shell .sd-user-round .sd-round-summary {
+  grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
+}
+/* ── User-message round green/teal highlight (collapsed + expanded) ── */
+/* Collapsed user round: subtle green/teal background. */
+.session-detail-page .sd-user-round .sd-round-summary,
+.sd-page .sd-user-round .sd-round-summary,
+.sd-shell .sd-user-round .sd-round-summary {
+  background: linear-gradient(90deg, rgba(20, 184, 166, .05), #fff);
+}
+/* Expanded user round: stronger teal gradient + left accent border. */
+.session-detail-page .sd-user-round.is-open .sd-round-summary,
+.sd-page .sd-user-round.is-open .sd-round-summary,
+.sd-shell .sd-user-round.is-open .sd-round-summary {
+  background: linear-gradient(90deg, rgba(20, 184, 166, .11), rgba(255, 255, 255, .98));
+  border-left: 4px solid #14b8a6;
+}
+/* Expanded user round row: teal left border on the article itself. */
+.session-detail-page .sd-user-round.is-open,
+.sd-page .sd-user-round.is-open,
+.sd-shell .sd-user-round.is-open {
+  border-left: 4px solid #14b8a6;
+}
+/* Expanded inner User Message card: retain user-input teal tone. */
+.session-detail-page .sd-user-round.is-open .sd-user-card,
+.sd-page .sd-user-round.is-open .sd-user-card,
+.sd-shell .sd-user-round.is-open .sd-user-card {
+  border-color: #99f6e4;
+  background: linear-gradient(180deg, #f0fdfa, #fff);
+}
+.session-detail-page .sd-user-round .sd-round-preview,
+.session-detail-page .sd-round-preview__title,
+.session-detail-page .sd-round-preview__sub,
+.sd-page .sd-round-preview,
+.sd-page .sd-round-preview__title,
+.sd-page .sd-round-preview__sub,
+.sd-shell .sd-round-preview,
+.sd-shell .sd-round-preview__title,
+.sd-shell .sd-round-preview__sub {
+  min-width: 0;
+  max-width: 100%;
+}
+.session-detail-page .sd-round-preview,
+.sd-page .sd-round-preview,
+.sd-shell .sd-round-preview {
+  overflow: hidden;
+}
+.session-detail-page .sd-round-preview__title,
+.session-detail-page .sd-round-preview__sub,
+.sd-page .sd-round-preview__title,
+.sd-page .sd-round-preview__sub,
+.sd-shell .sd-round-preview__title,
+.sd-shell .sd-round-preview__sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-detail-page .sd-round-metric,
+.session-detail-page .sd-round-mix,
+.sd-page .sd-round-metric,
+.sd-page .sd-round-mix,
+.sd-shell .sd-round-metric,
+.sd-shell .sd-round-mix {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+/* 2) Failed status: visible error tone. */
+.session-detail-page .sd-round-status--failed,
+.session-detail-page .sd-round-status--fail,
+.session-detail-page .sd-round-status[data-status="failed"],
+.session-detail-page .sd-round-status[data-status="fail"],
+.sd-page .sd-round-status--failed,
+.sd-page .sd-round-status--fail,
+.sd-page .sd-round-status[data-status="failed"],
+.sd-page .sd-round-status[data-status="fail"],
+.sd-shell .sd-round-status--failed,
+.sd-shell .sd-round-status--fail,
+.sd-shell .sd-round-status[data-status="failed"],
+.sd-shell .sd-round-status[data-status="fail"] {
+  color: var(--sd-err);
+  background: var(--sd-err-bg);
+  border-color: var(--sd-err-line);
+}
+/* 3) Tool result tone: neutral by default;
+red only on failed rows. */
+.session-detail-page .sd-tool-result,
+.sd-page .sd-tool-result,
+.sd-shell .sd-tool-result {
+  color: var(--sd-muted);
+}
+.session-detail-page .sd-tool-row--failed,
+.session-detail-page .sd-tool-row--fail,
+.session-detail-page .sd-tool-row[data-status="failed"],
+.session-detail-page .sd-tool-row[data-status="fail"],
+.sd-page .sd-tool-row--failed,
+.sd-page .sd-tool-row--fail,
+.sd-page .sd-tool-row[data-status="failed"],
+.sd-page .sd-tool-row[data-status="fail"],
+.sd-shell .sd-tool-row--failed,
+.sd-shell .sd-tool-row--fail,
+.sd-shell .sd-tool-row[data-status="failed"],
+.sd-shell .sd-tool-row[data-status="fail"] {
+  background: #fff7f7;
+  border-color: var(--sd-err-line);
+}
+.session-detail-page .sd-tool-row--failed .sd-tool-result,
+.session-detail-page .sd-tool-row--fail .sd-tool-result,
+.session-detail-page .sd-tool-result--failed,
+.session-detail-page .sd-tool-result--fail,
+.session-detail-page .sd-tool-row[data-status="failed"] .sd-tool-result,
+.session-detail-page .sd-tool-row[data-status="fail"] .sd-tool-result,
+.sd-page .sd-tool-row--failed .sd-tool-result,
+.sd-page .sd-tool-row--fail .sd-tool-result,
+.sd-page .sd-tool-result--failed,
+.sd-page .sd-tool-result--fail,
+.sd-page .sd-tool-row[data-status="failed"] .sd-tool-result,
+.sd-page .sd-tool-row[data-status="fail"] .sd-tool-result,
+.sd-shell .sd-tool-row--failed .sd-tool-result,
+.sd-shell .sd-tool-row--fail .sd-tool-result,
+.sd-shell .sd-tool-result--failed,
+.sd-shell .sd-tool-result--fail,
+.sd-shell .sd-tool-row[data-status="failed"] .sd-tool-result,
+.sd-shell .sd-tool-row[data-status="fail"] .sd-tool-result {
+  color: var(--sd-err);
+}
+/* 5) Payload body layout. */
+.session-detail-page .sd-payload-shell,
+.session-detail-page .payload-shell,
+.sd-page .sd-payload-shell,
+.sd-page .payload-shell,
+.sd-shell .sd-payload-shell,
+.sd-shell .payload-shell {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.session-detail-page .sd-payload-meta,
+.session-detail-page .payload-meta,
+.session-detail-page .sd-payload-section,
+.session-detail-page .payload-section,
+.session-detail-page .sd-result-output,
+.session-detail-page .result-output,
+.sd-page .sd-payload-meta,
+.sd-page .payload-meta,
+.sd-page .sd-payload-section,
+.sd-page .payload-section,
+.sd-page .sd-result-output,
+.sd-page .result-output,
+.sd-shell .sd-payload-meta,
+.sd-shell .payload-meta,
+.sd-shell .sd-payload-section,
+.sd-shell .payload-section,
+.sd-shell .sd-result-output,
+.sd-shell .result-output {
+  border: 1px solid var(--sd-line);
+  border-radius: 13px;
+  background: #fff;
+  overflow: hidden;
+}
+.session-detail-page .sd-payload-meta h3,
+.session-detail-page .payload-meta h3,
+.session-detail-page .sd-payload-section h3,
+.session-detail-page .payload-section h3,
+.session-detail-page .sd-result-output h3,
+.session-detail-page .result-output h3,
+.sd-page .sd-payload-meta h3,
+.sd-page .payload-meta h3,
+.sd-page .sd-payload-section h3,
+.sd-page .payload-section h3,
+.sd-page .sd-result-output h3,
+.sd-page .result-output h3,
+.sd-shell .sd-payload-meta h3,
+.sd-shell .payload-meta h3,
+.sd-shell .sd-payload-section h3,
+.sd-shell .payload-section h3,
+.sd-shell .sd-result-output h3,
+.sd-shell .result-output h3 {
+  height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--sd-line-soft);
+  background: #fbfcff;
+  font-size: 12px;
+}
+/* 5b) Payload metadata key/value grid rail. */
+.session-detail-page .sd-kv,
+.session-detail-page .payload-kv,
+.session-detail-page .sd-payload-meta__row,
+.session-detail-page .payload-meta__row,
+.sd-page .sd-kv,
+.sd-page .payload-kv,
+.sd-page .sd-payload-meta__row,
+.sd-page .payload-meta__row,
+.sd-shell .sd-kv,
+.sd-shell .payload-kv,
+.sd-shell .sd-payload-meta__row,
+.sd-shell .payload-meta__row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  margin: 0;
+}
+.session-detail-page .sd-kv > span,
+.session-detail-page .payload-kv > span,
+.session-detail-page .sd-payload-meta__row > span,
+.session-detail-page .payload-meta__row > span,
+.sd-page .sd-kv > span,
+.sd-page .payload-kv > span,
+.sd-page .sd-payload-meta__row > span,
+.sd-page .payload-meta__row > span,
+.sd-shell .sd-kv > span,
+.sd-shell .payload-kv > span,
+.sd-shell .sd-payload-meta__row > span,
+.sd-shell .payload-meta__row > span {
+  min-width: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sd-line-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.session-detail-page .sd-kv > span:first-child,
+.session-detail-page .payload-kv > span:first-child,
+.session-detail-page .sd-payload-meta__row > span:first-child,
+.session-detail-page .payload-meta__row > span:first-child,
+.sd-page .sd-kv > span:first-child,
+.sd-page .payload-kv > span:first-child,
+.sd-page .sd-payload-meta__row > span:first-child,
+.sd-page .payload-meta__row > span:first-child,
+.sd-shell .sd-kv > span:first-child,
+.sd-shell .payload-kv > span:first-child,
+.sd-shell .sd-payload-meta__row > span:first-child,
+.sd-shell .payload-meta__row > span:first-child {
+  color: var(--sd-muted);
+  background: #fbfcff;
+  font-family: var(--sd-mono);
+  font-weight: 700;
+}
+.session-detail-page .sd-kv > span:last-child,
+.session-detail-page .payload-kv > span:last-child,
+.session-detail-page .sd-payload-meta__row > span:last-child,
+.session-detail-page .payload-meta__row > span:last-child,
+.sd-page .sd-kv > span:last-child,
+.sd-page .payload-kv > span:last-child,
+.sd-page .sd-payload-meta__row > span:last-child,
+.sd-page .payload-meta__row > span:last-child,
+.sd-shell .sd-kv > span:last-child,
+.sd-shell .payload-kv > span:last-child,
+.sd-shell .sd-payload-meta__row > span:last-child,
+.sd-shell .payload-meta__row > span:last-child {
+  color: var(--sd-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-detail-page .sd-payload-main,
+.session-detail-page .payload-main,
+.sd-page .sd-payload-main,
+.sd-page .payload-main,
+.sd-shell .sd-payload-main,
+.sd-shell .payload-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.session-detail-page .sd-payload-warning,
+.session-detail-page .payload-warning,
+.sd-page .sd-payload-warning,
+.sd-page .payload-warning,
+.sd-shell .sd-payload-warning,
+.sd-shell .payload-warning {
+  border: 1px solid var(--sd-warn-line);
+  background: var(--sd-warn-bg);
+  color: #92400e;
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 13px;
+}
+.session-detail-page .sd-context-tool-list,
+.session-detail-page .context-tool-list,
+.sd-page .sd-context-tool-list,
+.sd-page .context-tool-list,
+.sd-shell .sd-context-tool-list,
+.sd-shell .context-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+}
+.session-detail-page .sd-context-tool-row,
+.session-detail-page .context-tool-row,
+.sd-page .sd-context-tool-row,
+.sd-page .context-tool-row,
+.sd-shell .sd-context-tool-row,
+.sd-shell .context-tool-row {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 90px;
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 10px;
+  background: #fff;
+}
+.session-detail-page .sd-context-tool-row--failed,
+.session-detail-page .context-tool-row.failed,
+.sd-page .sd-context-tool-row--failed,
+.sd-page .context-tool-row.failed,
+.sd-shell .sd-context-tool-row--failed,
+.sd-shell .context-tool-row.failed {
+  border-color: var(--sd-err-line);
+  background: #fff7f7;
+}
+.session-detail-page .sd-context-tool-summary,
+.session-detail-page .sd-context-tool-excerpt,
+.sd-page .sd-context-tool-summary,
+.sd-page .sd-context-tool-excerpt,
+.sd-shell .sd-context-tool-summary,
+.sd-shell .sd-context-tool-excerpt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-detail-page .sd-context-tool-summary,
+.sd-page .sd-context-tool-summary,
+.sd-shell .sd-context-tool-summary {
+  color: var(--sd-text-2);
+  font-size: 12px;
+}
+.session-detail-page .sd-context-tool-excerpt,
+.sd-page .sd-context-tool-excerpt,
+.sd-shell .sd-context-tool-excerpt {
+  margin-top: 4px;
+  color: var(--sd-muted);
+  font: 11.5px/1.45 var(--sd-mono);
+}
+/* Response blocks. */
+.session-detail-page .sd-response-block-list,
+.session-detail-page .block-list,
+.sd-page .sd-response-block-list,
+.sd-page .block-list,
+.sd-shell .sd-response-block-list,
+.sd-shell .block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.session-detail-page .sd-response-block,
+.session-detail-page .content-block,
+.sd-page .sd-response-block,
+.sd-page .content-block,
+.sd-shell .sd-response-block,
+.sd-shell .content-block {
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.session-detail-page .sd-response-block--text,
+.session-detail-page .content-block.text,
+.sd-page .sd-response-block--text,
+.sd-page .content-block.text,
+.sd-shell .sd-response-block--text,
+.sd-shell .content-block.text {
+  border-color: #e9d5ff;
+  background: #fdfaff;
+}
+.session-detail-page .sd-response-block--tool,
+.session-detail-page .content-block.tool,
+.sd-page .sd-response-block--tool,
+.sd-page .content-block.tool,
+.sd-shell .sd-response-block--tool,
+.sd-shell .content-block.tool {
+  border-color: var(--sd-blue-line);
+  background: #f8fbff;
+}
+.session-detail-page .sd-response-block-head,
+.session-detail-page .block-head,
+.sd-page .sd-response-block-head,
+.sd-page .block-head,
+.sd-shell .sd-response-block-head,
+.sd-shell .block-head {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sd-line-soft);
+}
+.session-detail-page .sd-response-block-body,
+.session-detail-page .block-body,
+.sd-page .sd-response-block-body,
+.sd-page .block-body,
+.sd-shell .sd-response-block-body,
+.sd-shell .block-body {
+  padding: 9px 10px;
+}
+/* Result payload. */
+.session-detail-page .sd-result-status,
+.session-detail-page .result-status,
+.sd-page .sd-result-status,
+.sd-page .result-status,
+.sd-shell .sd-result-status,
+.sd-shell .result-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--sd-line);
+  border-radius: 12px;
+  background: #fbfcff;
+  padding: 10px;
+}
+.session-detail-page .sd-result-status--failed,
+.session-detail-page .result-status.failed,
+.sd-page .sd-result-status--failed,
+.sd-page .result-status.failed,
+.sd-shell .sd-result-status--failed,
+.sd-shell .result-status.failed {
+  border-color: var(--sd-err-line);
+  background: var(--sd-err-bg);
+}
+/* ── trace-row (moved from style.css) ────────────────────── */
+.trace-row.is-filtered-out {
+  display: none;
+}
+.trace-row {
+  display: grid;
+  grid-template-columns: 84px minmax(300px, 1.35fr) 190px 190px 92px;
+  align-items: center;
+  min-height: 44px;
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid var(--line2, var(--border-light));
+  cursor: default;
+  transition: background 150ms ease;
+  contain: layout style;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+.trace-row.selected {
+  background: linear-gradient(90deg, #f7f9ff, #fff 44%);
+  box-shadow: inset 3px 0 0 var(--brand, var(--accent));
+}
+.trace-row.keyboard-focus {
+  background: linear-gradient(90deg, #eef2ff, #fff 44%);
+  box-shadow: inset 3px 0 0 var(--purple, #7c3aed);
+  outline: 2px solid var(--purple, #7c3aed);
+  outline-offset: -2px;
+}
+.trace-row.is-jump-target {
+  background: linear-gradient(90deg, #fef3c7, #fff 60%);
+  box-shadow: inset 3px 0 0 var(--warn, #d97706);
+  animation: jump-target-fade 2.5s ease-out;
+}
+.trace-row > div {
+  padding: 8px 11px;
+  min-width: 0;
+}
+.trace-row {
+  min-height: 40px;
+}
+.trace-row > div {
+  padding: 6px 11px;
+}
+.trace-row {
+  display: grid;
+  grid-template-columns:
+  84px
+  minmax(0, 1fr)
+  minmax(120px, 180px)
+  minmax(120px, 180px)
+  minmax(80px, 120px);
+  align-items: stretch;
+  min-height: 44px;
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid var(--line2, var(--border-light));
+  transition: background 150ms ease;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+.trace-row > div {
+  padding: 8px 11px;
+  min-width: 0;
+}
+.trace-row {
+  grid-template-columns:
+  72px
+  minmax(0, 1fr)
+  minmax(100px, 150px)
+  minmax(80px, 120px);
+}
+.trace-row > .tcell {
+  display: none;
+}
+.trace-row {
+  grid-template-columns:
+  60px
+  minmax(0, 1fr)
+  minmax(80px, 120px);
+}
+.trace-row > .diags {
+  display: none;
+}
+/* ── wb-body (moved from style.css) ──────────────────────── */
+.wb-body {
+  padding: 10px;
+  background: #fff;
+}
+/* ── density trace-row (moved from style.css) ─────────────── */
+body:not(.density-comfortable) .trace-row {
+  min-height: 40px;
+}
+body:not(.density-comfortable) .trace-row > span,
+body:not(.density-comfortable) .trace-row > div {
+  padding: 6px 11px;
+}
+/* ── phase1 trace-row (moved from style.css) ──────────────── */
+.session-detail-phase1 .trace-row {
+  display: grid;
+  grid-template-columns:
+  84px
+  minmax(0, 1fr)
+  minmax(120px, 180px)
+  minmax(120px, 180px)
+  minmax(80px, 120px);
+  align-items: stretch;
+  min-height: 44px;
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid var(--line2, var(--border-light));
+  transition: background 150ms ease;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+.session-detail-phase1 .trace-row > * {
+  min-width: 0;
+}
+.session-detail-phase1 .trace-row > span,
+.session-detail-phase1 .trace-row > div {
+  padding: 8px 11px;
+  min-width: 0;
+}
+.session-detail-phase1 .trace-row__toggle-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 84px;
+  padding: 8px 4px;
+}
+.session-detail-phase1 .trace-row {
+  grid-template-columns:
+  72px
+  minmax(0, 1fr)
+  minmax(100px, 150px)
+  minmax(80px, 120px);
+}
+.session-detail-phase1 .trace-row > .tcell {
+  display: none;
+}
+.session-detail-phase1 .trace-row {
+  grid-template-columns:
+  60px
+  minmax(0, 1fr)
+  minmax(80px, 120px);
+}
+.session-detail-phase1 .trace-row > .diags {
+  display: none;
+}
+/* ── Migrated from style.css (post-mega-css-cleanup sprint) ── */
+/* Originally at style.css line 1883 */
+.run-profile-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+}
+/* Originally at style.css line 1893 */
+.run-profile-bar__stat {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  background: var(--surface);
+  flex: 1;
+  min-width: 100px;
+  gap: 2px;
+}
+/* Originally at style.css line 1902 */
+.run-profile-bar__label {
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+/* Originally at style.css line 1909 */
+.run-profile-bar__value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+/* Originally at style.css line 1922 */
+.hot-card {
+  border: 1px solid var(--line, #d8e2ef);
+  border-radius: 16px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07);
+  transition: box-shadow 0.15s ease;
+}
+/* Originally at style.css line 1931 */
+.hot-card:hover {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+/* Originally at style.css line 1935 */
+.hot-card[data-severity="err"] {
+  border-left: 3px solid var(--red100, #c5221f);
+}
+/* Originally at style.css line 1939 */
+.hot-card[data-severity="warn"] {
+  border-left: 3px solid var(--amber100, #b06000);
+}
+/* Originally at style.css line 1943 */
+.hot-card[data-severity="info"] {
+  border-left: 3px solid var(--blue600, #1a73e8);
+}
+/* Originally at style.css line 1948 */
+.hot-card--clickable {
+  cursor: pointer;
+  position: relative;
+}
+/* Originally at style.css line 1953 */
+.hot-card--clickable:hover {
+  box-shadow: 0 4px 14px rgba(91, 92, 226, 0.15);
+  background: linear-gradient(180deg, #fff, var(--brand50, #f0f2ff));
+}
+/* Originally at style.css line 1958 */
+.hot-card--clickable::after {
+  content: "\2192";
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-size: 14px;
+  color: var(--brand, #5b5ce2);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+/* Originally at style.css line 1969 */
+.hot-card--clickable:hover::after {
+  opacity: 1;
+}
+/* Originally at style.css line 1974 */
+.hot-card.selected {
+  outline: 2px solid var(--brand, #5b5ce2);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.15);
+}
+/* Originally at style.css line 2023 */
+.top-rounds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Originally at style.css line 2028 */
+.top-round__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+}
+/* Originally at style.css line 2034 */
+.top-round__idx {
+  min-width: 24px;
+  text-align: right;
+  color: var(--text-muted);
+}
+/* Originally at style.css line 2039 */
+.top-round__val {
+  min-width: 55px;
+  text-align: right;
+  font-weight: 500;
+}
+/* Originally at style.css line 2044 */
+.top-round__bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  height: 5px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+  gap: 1px;
+}
+/* Originally at style.css line 2055 */
+.top-round__bar--fresh {
+  background: var(--token-input-fresh);
+}
+/* Originally at style.css line 2056 */
+.top-round__bar--cr {
+  background: var(--token-cache-read);
+}
+/* Originally at style.css line 2057 */
+.top-round__bar--cw {
+  background: var(--token-cache-write);
+}
+/* Originally at style.css line 2058 */
+.top-round__bar--out {
+  background: var(--token-output-visible);
+}
+/* Originally at style.css line 2059 */
+.top-round__tools {
+  min-width: 24px;
+  text-align: right;
+}
+/* Originally at style.css line 2068 */
+.profile-table-wrap {
+  overflow-x: auto;
+}
+/* Originally at style.css line 2071 */
+.profile-table-wrap table {
+  min-width: 800px;
+}
+/* Originally at style.css line 2394 */
+.token-profile__section {
+  margin-bottom: var(--space-md);
+}
+/* Originally at style.css line 2397 */
+.token-profile__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+/* Originally at style.css line 2403 */
+.token-profile__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: var(--text-xs);
+}
+/* Originally at style.css line 2410 */
+.token-profile__name {
+  min-width: 120px;
+  color: var(--text-secondary);
+}
+/* Originally at style.css line 2414 */
+.token-profile__value {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+/* Originally at style.css line 2418 */
+.token-profile__pct {
+  color: var(--text-muted);
+  min-width: 50px;
+}
+/* Originally at style.css line 2422 */
+.token-profile__bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+/* Originally at style.css line 2429 */
+.token-profile__bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+/* Originally at style.css line 2941 */
+.run-profile-summary {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+/* Originally at style.css line 2946 */
+.run-profile-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 80px;
+}
+/* Originally at style.css line 2951 */
+.run-profile-stat__value {
+  font-size: var(--text-metric-sm);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+}
+/* Originally at style.css line 2957 */
+.run-profile-stat__label {
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+/* Originally at style.css line 3045 */
+.tool-hotspots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Originally at style.css line 3444 */
+.llm-call-detail td {
+  padding: 0;
+}
+/* Originally at style.css line 3447 */
+.llm-call-detail pre {
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* Originally at style.css line 3453 */
+.llm-call-detail__grid {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+/* Originally at style.css line 3459 */
+.llm-call-detail__pre-block {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+}
+/* Originally at style.css line 3469 */
+.llm-call-detail__tools {
+  margin-top: 4px;
+}
+/* Originally at style.css line 3472 */
+.llm-call-detail__no-tools {
+  margin-top: 4px;
+}
+/* Originally at style.css line 5632 */
+.timeline-node--llm-call {
+  border-left: 3px solid var(--token-input-fresh);
+}
+/* Originally at style.css line 5720 */
+.timeline-node--llm-call .timeline-node__dot {
+  background: var(--token-input-fresh);
+  border-color: var(--token-input-fresh);
+}
+/* Originally at style.css line 5804 */
+.timeline-node--llm-call .timeline-node__icon {
+  background: var(--token-input-fresh-bg);
+  color: var(--token-input-fresh);
+}
+/* Originally at style.css line 7121 */
+.session-detail-phase1 {
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: 24px;
+}
+/* Originally at style.css line 7127 */
+.session-detail-phase1 * {
+  box-sizing: border-box;
+}
+/* Originally at style.css line 7132 */
+.session-detail-phase1 .hero-main {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: stretch;
+  padding: 18px 18px 14px;
+  background: linear-gradient(120deg, rgba(91,92,226,.07), transparent 42%),
+  linear-gradient(180deg, #fff, var(--surface2, #fbfcff));
+  border-bottom: 1px solid var(--line2, var(--border-light));
+  border-radius: var(--radius-card);
+}
+/* Originally at style.css line 7144 */
+.session-detail-phase1 .hero-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.18;
+  letter-spacing: -.035em;
+  font-weight: 840;
+  color: var(--text);
+  overflow-wrap: break-word;
+  word-break: normal;
+  max-width: 72ch;
+}
+/* Originally at style.css line 7156 */
+.session-detail-phase1 .kpis {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+/* Originally at style.css line 7163 */
+.session-detail-phase1 .kpi {
+  min-width: 0;
+  min-height: 96px;
+}
+/* Originally at style.css line 7168 */
+.session-detail-phase1 .kpi .v {
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: normal;
+}
+/* Originally at style.css line 7175 */
+.session-detail-phase1 .issue-summary {
+  margin-top: 16px;
+  background: #fff;
+  border: 1px solid var(--line, var(--border));
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+}
+/* Originally at style.css line 7183 */
+.session-detail-phase1 .issue-summary__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+/* Originally at style.css line 7190 */
+.session-detail-phase1 .issue-summary__title {
+  font-weight: 820;
+  font-size: 14px;
+  color: var(--text);
+}
+/* Originally at style.css line 7196 */
+.session-detail-phase1 .issue-summary__count {
+  font-size: 12px;
+  color: var(--t3, var(--text-muted));
+}
+/* Originally at style.css line 7201 */
+.session-detail-phase1 .issue-summary__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 8px;
+}
+/* Originally at style.css line 7207 */
+.session-detail-phase1 .issue-card {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--line, var(--border));
+  background: #fff;
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+/* Originally at style.css line 7225 */
+.session-detail-phase1 .issue-card:hover {
+  background: #fbfcff;
+  border-color: var(--brand, #5b5ce2);
+}
+/* Originally at style.css line 7230 */
+.session-detail-phase1 .issue-card--failed {
+  border-left: 3px solid var(--danger, #dc2626);
+}
+/* Originally at style.css line 7234 */
+.session-detail-phase1 .issue-card--cost {
+  border-left: 3px solid var(--warn, #d97706);
+}
+/* Originally at style.css line 7238 */
+.session-detail-phase1 .issue-card__icon {
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 16px;
+}
+/* Originally at style.css line 7245 */
+.session-detail-phase1 .issue-card--failed .issue-card__icon {
+  color: var(--danger, #dc2626);
+}
+/* Originally at style.css line 7249 */
+.session-detail-phase1 .issue-card--cost .issue-card__icon {
+  color: var(--warn, #d97706);
+}
+/* Originally at style.css line 7253 */
+.session-detail-phase1 .issue-card__body {
+  min-width: 0;
+}
+/* Originally at style.css line 7257 */
+.session-detail-phase1 .issue-card__title {
+  font-weight: 770;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Originally at style.css line 7266 */
+.session-detail-phase1 .issue-card__sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--t3, var(--text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Originally at style.css line 7276 */
+.session-detail-phase1 .issue-summary__aggregate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+}
+/* Originally at style.css line 7287 */
+.session-detail-phase1 .issue-summary__agg-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #991b1b;
+}
+/* Originally at style.css line 7295 */
+.session-detail-phase1 .issue-summary__agg-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+/* Originally at style.css line 7309 */
+.session-detail-phase1 .issue-summary__agg-label strong {
+  font-weight: 700;
+}
+/* Originally at style.css line 7314 */
+.session-detail-phase1 .issue-summary__expand-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 14px;
+  border: 1px dashed var(--line, var(--border));
+  border-radius: 10px;
+  background: transparent;
+  color: var(--brand, #5b5ce2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+/* Originally at style.css line 7330 */
+.session-detail-phase1 .issue-summary__expand-btn:hover {
+  background: #f0f0ff;
+  border-color: var(--brand, #5b5ce2);
+}
+/* Originally at style.css line 7335 */
+.session-detail-phase1 .issue-summary__expand-btn[aria-expanded="true"] {
+  border-style: solid;
+  background: #f0f0ff;
+}
+/* Originally at style.css line 7341 */
+.session-detail-phase1 .trace-panel__chip[aria-pressed="true"] {
+  box-shadow: 0 0 0 1px var(--accent, var(--brand, #5b5ce2));
+}
+/* Originally at style.css line 7346 */
+.session-detail-phase1 .trace-panel {
+  margin-top: 16px;
+  background: #fff;
+  border: 1px solid var(--line, var(--border));
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+/* Originally at style.css line 7354 */
+.session-detail-phase1 .trace-panel__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line2, var(--border-light));
+}
+/* Originally at style.css line 7363 */
+.session-detail-phase1 .trace-panel__segmented {
+  display: flex;
+  gap: 4px;
+}
+/* Originally at style.css line 7369 */
+.session-detail-phase1 .trace-panel__btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 10px;
+  border: 1px solid var(--line, var(--border));
+  background: #fff;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--t2, var(--text-muted));
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  font: inherit;
+}
+/* Originally at style.css line 7385 */
+.session-detail-phase1 .trace-panel__btn:hover {
+  border-color: var(--brand, #5b5ce2);
+  color: var(--brand, #5b5ce2);
+}
+/* Originally at style.css line 7390 */
+.session-detail-phase1 .trace-panel__chip.active {
+  background: var(--accent, var(--brand, #5b5ce2));
+  color: #fff;
+  border-color: var(--accent, var(--brand, #5b5ce2));
+}
+/* Originally at style.css line 7396 */
+.session-detail-phase1 .trace-panel__actions {
+  display: flex;
+  gap: 4px;
+}
+/* Originally at style.css line 7404 */
+.session-detail-phase1 .trace-round-toggle {
+  width: 68px;
+  min-height: 32px;
+  display: inline-grid;
+  grid-template-columns: 14px 1fr;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid var(--line, var(--border));
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+  color: var(--t3, var(--text-muted));
+  font-family: var(--sans, sans-serif);
+  font-weight: 900;
+  font-size: 13px;
+  padding: 4px 6px;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+/* Originally at style.css line 7423 */
+.session-detail-phase1 .trace-round-toggle:hover {
+  background: #f0f4ff;
+  border-color: var(--brand, var(--accent));
+}
+/* Originally at style.css line 7427 */
+.session-detail-phase1 .trace-round-toggle__chevron {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+/* Originally at style.css line 7432 */
+.session-detail-phase1 .trace-round-toggle__label {
+  font-family: var(--mono, monospace);
+  font-weight: 780;
+  font-size: 12px;
+  color: var(--t2, var(--text-primary));
+}
+/* Originally at style.css line 7440 */
+.session-detail-phase1 .round-main {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Originally at style.css line 7449 */
+.session-detail-phase1 .round-main .d {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Originally at style.css line 7458 */
+.session-detail-phase1 .trace-detail {
+  background: linear-gradient(90deg, #fff 0, #fff 54px, #fbfcff 54px, #fbfcff 100%);
+  border-bottom: 1px solid var(--line2, var(--border-light));
+  padding: 8px 12px 10px 75px;
+}
+/* Originally at style.css line 7464 */
+.session-detail-phase1 .span-list {
+  position: relative;
+  padding-left: 28px;
+}
+/* Originally at style.css line 7469 */
+.session-detail-phase1 .span {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(60px, 86px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  min-height: 38px;
+  padding: 6px 8px 6px 0;
+}
+/* Originally at style.css line 7479 */
+.session-detail-phase1 .sm {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+/* Originally at style.css line 7487 */
+.session-detail-phase1 .sm .payload-btn {
+  white-space: nowrap;
+}
+/* Originally at style.css line 7500 */
+.llm-call-card {
+  border: 1px solid var(--line, var(--border));
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Originally at style.css line 7510 */
+.llm-call-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* Originally at style.css line 7517 */
+.llm-call-card__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, var(--text-primary));
+}
+/* Originally at style.css line 7523 */
+.llm-call-card__model {
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  color: var(--t2, var(--text-muted));
+  background: var(--accent-bg, #f0f4ff);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+/* Originally at style.css line 7532 */
+.llm-call-card__scope {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+}
+/* Originally at style.css line 7542 */
+.llm-call-card__scope.scope--main {
+  background: var(--purple, #7c3aed);
+}
+/* Originally at style.css line 7546 */
+.llm-call-card__scope.scope--subagent {
+  background: var(--cyan, #0891b2);
+}
+/* Originally at style.css line 7550 */
+.llm-call-card__status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+/* Originally at style.css line 7558 */
+.llm-call-card__status.status--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+/* Originally at style.css line 7563 */
+.llm-call-card__status.status--error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+/* Originally at style.css line 7568 */
+.llm-call-card__status.status--unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+/* Originally at style.css line 7574 */
+.llm-call-card__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Originally at style.css line 7580 */
+.llm-call-card__metric {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px;
+  background: var(--accent-bg, #f8fafc);
+  border-radius: 6px;
+  min-width: 70px;
+}
+/* Originally at style.css line 7589 */
+.llm-call-card__metric dt {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--t3, var(--text-secondary));
+  font-weight: 700;
+}
+/* Originally at style.css line 7597 */
+.llm-call-card__metric dd {
+  font-family: var(--mono, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text, var(--text-primary));
+  margin: 0;
+}
+/* Originally at style.css line 7606 */
+.llm-call-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+/* Originally at style.css line 7612 */
+.llm-call-card__action-btn {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--brand, #3b82f6);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand, #3b82f6);
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* Originally at style.css line 7627 */
+.llm-call-card__action-btn:hover {
+  background: var(--brand, #3b82f6);
+  color: #fff;
+}
+/* Originally at style.css line 7632 */
+.llm-call-card__action-btn--disabled {
+  border-color: var(--line, var(--border));
+  color: var(--t3, var(--text-secondary));
+  cursor: default;
+  opacity: 0.6;
+}
+/* Originally at style.css line 7639 */
+.llm-call-card__action-btn--disabled:hover {
+  background: transparent;
+  color: var(--t3, var(--text-secondary));
+}
+/* Originally at style.css line 7645 */
+.llm-call-card__tools {
+  border-top: 1px solid var(--line, var(--border));
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Originally at style.css line 7653 */
+.llm-call-card__tools-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t3, var(--text-secondary));
+  margin-bottom: 4px;
+}
+/* Originally at style.css line 7660 */
+.llm-call-card__no-tools {
+  font-size: 11px;
+  color: var(--t3, var(--text-secondary));
+  font-style: italic;
+  padding: 2px 0;
+}
+/* Originally at style.css line 7667 */
+.llm-call-card__empty {
+  text-align: center;
+  padding: 16px;
+  color: var(--t3, var(--text-secondary));
+  font-size: 12px;
+  font-style: italic;
+  background: var(--accent-bg, #f8fafc);
+  border-radius: 8px;
+  border: 1px dashed var(--line, var(--border));
+}
+/* Originally at style.css line 7678 */
+.llm-call-card__payload-unavailable {
+  font-size: 11px;
+  color: var(--t3, var(--text-muted));
+  font-style: italic;
+  padding: 4px 8px;
+  background: #f8f8f8;
+  border-radius: 6px;
+  border: 1px dashed var(--line, #e5e7eb);
+}
+/* Originally at style.css line 7689 */
+.llm-call-card__capture-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+/* Originally at style.css line 7719 */
+.tool-call-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 12px;
+}
+/* Originally at style.css line 7731 */
+.tool-call-row:hover {
+  background: #f0f4ff;
+}
+/* Originally at style.css line 7735 */
+.tool-call-row--error {
+  background: #fef2f2;
+}
+/* Originally at style.css line 7739 */
+.tool-call-row--error:hover {
+  background: #fee2e2;
+}
+/* Originally at style.css line 7743 */
+.tool-call-row--warn {
+  background: #fffbeb;
+}
+/* Originally at style.css line 7747 */
+.tool-call-row--warn:hover {
+  background: #fef3c7;
+}
+/* Originally at style.css line 7751 */
+.tool-call-row__type {
+  font-family: var(--mono, monospace);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--t3, var(--text-secondary));
+}
+/* Originally at style.css line 7758 */
+.tool-call-row__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text, var(--text-primary));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Originally at style.css line 7767 */
+.tool-call-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+/* Originally at style.css line 7774 */
+.tool-call-row__error {
+  font-size: 10px;
+  color: var(--danger, #dc2626);
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Originally at style.css line 7784 */
+.message-card {
+  border: 1px solid var(--line, var(--border));
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Originally at style.css line 7794 */
+.message-card__header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--t3, var(--text-secondary));
+}
+/* Originally at style.css line 7802 */
+.message-card--user {
+  border-left: 3px solid var(--brand, #3b82f6);
+}
+/* Originally at style.css line 7806 */
+.message-card--assistant {
+  border-left: 3px solid var(--purple, #7c3aed);
+}
+/* Originally at style.css line 7810 */
+.message-card__preview {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text, var(--text-primary));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* Originally at style.css line 7818 */
+.message-card__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+/* Originally at style.css line 7824 */
+.message-card__btn {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line, var(--border));
+  background: transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t2, var(--text-muted));
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* Originally at style.css line 7839 */
+.message-card__btn:hover {
+  border-color: var(--brand, #3b82f6);
+  color: var(--brand, #3b82f6);
+}
+/* Originally at style.css line 7852 */
+.quick-access-btn {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--line, var(--border));
+  background: var(--surface, #fff);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t2, var(--text-muted));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+/* Originally at style.css line 7868 */
+.quick-access-btn:hover {
+  border-color: var(--brand, #3b82f6);
+  color: var(--brand, #3b82f6);
+  background: var(--gray-50, #fafbfc);
+}
+/* ── Migrated from style.css (post-mega-css-cleanup sprint - round-detail & capture-warning) ── */
+/* Originally at style.css line 6876 (post-cleanup) */
+.round-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+/* Originally at style.css line 6867 */
+.capture-warning__icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  margin-top: 1px;
+}
+.capture-warning__text {
+  color: #92400e;
+}
+
