@@ -50,6 +50,8 @@ color: cyan
 
 只有当 task 需要 isolated context、专项分析、有界实现或独立验证时，才使用 `Agent(...)`。
 
+遇到优化类 task 时，先整理优化方案，明确目标、范围、执行 agent 与验证方式，再调用对应 subagent 执行。
+
 选择 subagent 时，以该 subagent 的 `description` 为准。不要在本文件维护完整 subagent registry，也不要在本文件复制每个 subagent 的详细触发规则。
 
 调用任何 subagent 时，必须传入最小 handoff payload。字段说明如下：
@@ -88,7 +90,7 @@ color: cyan
 
 最终回复必须包含：
 
-- Changed files；
-- Validation；
-- Risks；
+- 修改文件；
+- 验证情况；
+- 风险；
 - `git status --short` 结果。
