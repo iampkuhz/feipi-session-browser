@@ -1,0 +1,64 @@
+{# _badges.html — Badge, BadgeWithDot, AgentBadge macros #}
+
+{# --- Badge / Pill ---
+   Variants: info / err / warn / ok / manual / model / cc / cx / qd
+   HIFI class: badge badge-<kind>  (space-separated)
+#}
+{% macro badge(label, variant='info', extra_classes=None) -%}
+  {%- set classes = ['badge'] -%}
+  {%- if variant in ['err', 'warn', 'ok', 'manual', 'model', 'cc', 'cx', 'qd'] -%}
+    {%- set _ = classes.append(variant) -%}
+  {%- elif variant == 'info' -%}
+    {# 'info' is the default; badge alone or badge info #}
+    {%- set _ = classes.append('info') -%}
+  {%- else -%}
+    {%- set _ = classes.append(variant) -%}
+  {%- endif -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<span class="{{ cls }}" role="status">{{ label }}</span>
+{%- endmacro %}
+
+{# Badge with Dot — dot indicator + label with proper vertical alignment.
+   Uses .badge--has-dot on the outer wrapper and .badge-dot for the dot.
+   Dot is flex-shrink: 0 + align-self: center to guarantee vertical centering.
+
+   Usage:
+     {{ ui.badge_with_dot('123', variant='cc', dot_variant='claude') }}
+     {{ ui.badge_with_dot('5 failed', variant='err', dot_variant='err') }}
+#}
+{% macro badge_with_dot(label, variant='info', dot_variant=None, extra_classes=None, tooltip=None) -%}
+  {%- set classes = ['badge'] -%}
+  {%- if variant in ['err', 'warn', 'ok', 'info', 'cc', 'cx', 'qd'] -%}
+    {%- set _ = classes.append(variant) -%}
+  {%- endif -%}
+  {%- set _ = classes.append('badge--has-dot') -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set dot_cls = 'badge-dot' -%}
+  {%- if dot_variant in ['claude', 'codex', 'qoder', 'total', 'err', 'warn', 'ok'] -%}
+    {%- set dot_cls = dot_cls ~ ' badge-dot--' ~ dot_variant -%}
+  {%- endif -%}
+<span class="{{ cls }}"{% if tooltip %} data-tooltip="{{ tooltip }}"{% endif %} role="status"><span class="{{ dot_cls }}" aria-hidden="true"></span>{{ label }}</span>
+{%- endmacro %}
+
+{# ============================================================================
+   AgentBadge (P1: agent_badge)
+   Renders a canonical agent badge with dot indicator for use in data table
+   agent columns.
+#}
+{% macro agent_badge(agent_key, extra_classes=None, tooltip=None) -%}
+  {%- set variant = 'cc' if agent_key == 'claude_code' else 'qd' if agent_key == 'qoder' else 'cx' if agent_key == 'codex' else agent_key -%}
+  {%- set dot_variant = 'claude' if agent_key == 'claude_code' else 'qoder' if agent_key == 'qoder' else 'codex' if agent_key == 'codex' else None -%}
+  {%- set label = 'CC' if agent_key == 'claude_code' else 'QD' if agent_key == 'qoder' else 'CX' if agent_key == 'codex' else agent_key -%}
+  {%- set effective_tooltip = tooltip if tooltip else ('Claude Code' if agent_key == 'claude_code' else 'Qoder' if agent_key == 'qoder' else 'Codex' if agent_key == 'codex' else agent_key) -%}
+  {{ badge_with_dot(label, variant, dot_variant, extra_classes=extra_classes, tooltip=effective_tooltip) }}
+{%- endmacro %}

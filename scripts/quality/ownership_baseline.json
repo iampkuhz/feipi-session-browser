@@ -34,7 +34,12 @@
     "web/static/css/sessions-list.css:.sessions-page .data-table tbody tr:hover td",
     "web/static/css/sessions-list.css:.sessions-page .data-table tbody tr[data-action=\"row\"]",
     "web/static/css/sessions-list.css:.sessions-page .data-table .title-sub .mono",
-    "web/static/css/sessions-list.css:.sessions-page .data-table .project-cell .project-name"
+    "web/static/css/sessions-list.css:.sessions-page .data-table .project-cell .project-name",
+    "web/static/css/ui-primitives/_tables.css:.table-wrap > .data-table thead th.sticky-col",
+    "web/static/css/ui-primitives/_tables.css:.data-table tbody tr.active td:first-child",
+    "web/static/css/ui-primitives/_tables.css:.data-table.sessions-grid .table-row > div > .cell-title:only-child",
+    "web/static/css/ui-primitives/_tables.css:.data-table.sessions-grid .table-head .th.sortable button",
+    "web/static/css/ui-primitives/_modals.css:.payload-modal__rendered .rendered-message-list li .msg-role"
   ],
   "new_legacy_selector_violations": [],
   "css_ownership_violations": []

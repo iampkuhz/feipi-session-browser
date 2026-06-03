@@ -171,9 +171,20 @@ def check_supported_viewports_only(
 
 
 def _css_has_only_comments_or_empty(text: str) -> bool:
-    """去掉注释和空白后，判断是否没有有效 CSS rule。"""
+    """去掉注释和空白后，判断是否没有有效 CSS rule。
+
+    豁免：纯 @import wrapper 文件（如拆分后的 ui-primitives.css）。
+    """
     stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     stripped = stripped.strip()
+    if not stripped:
+        return True
+    # Check if file is an @import wrapper: has @import but no rule bodies
+    lines = [l.strip() for l in stripped.splitlines() if l.strip()]
+    has_import = any(l.startswith("@import") for l in lines)
+    has_rules = "{" in stripped and "}" in stripped
+    if has_import and not has_rules:
+        return False  # @import wrapper, intentional
     return not stripped or ("{" not in stripped and "}" not in stripped)
 
 

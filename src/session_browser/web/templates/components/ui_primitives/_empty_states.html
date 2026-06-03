@@ -1,0 +1,63 @@
+{# _empty_states.html — EmptyState and ErrorState macros #}
+
+{# ============================================================================
+   EmptyState
+   Renders an empty state message.
+   message: primary message text
+   action_button: optional HTML for a recovery/action button
+   extra_classes: additional CSS classes on the section
+   icon: emoji for the state icon (default: empty state emoji)
+#}
+{% macro empty_state(message, action_button=None, extra_classes=None, icon=None) -%}
+  {%- set classes = ['state-strip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set icon_html = icon | default('📭') -%}
+<section class="{{ cls }}" role="status" aria-live="polite">
+  <div class="state-icon" aria-hidden="true">{{ icon_html }}</div>
+  <div>
+    <div class="state-title">{{ message }}</div>
+    <div class="muted">Try adjusting your filters or search terms.</div>
+    {%- if action_button %}
+    <div class="state-actions">{{ action_button }}</div>
+    {%- endif %}
+  </div>
+</section>
+{%- endmacro %}
+
+{# ============================================================================
+   ErrorState
+   Renders an error state.
+   message: primary error message text
+   action_button: optional HTML for a recovery action button
+   extra_classes: additional CSS classes on the section
+   icon: emoji for the state icon (default: error emoji)
+#}
+{% macro error_state(message, action_button=None, extra_classes=None, icon=None, detail=None) -%}
+  {%- set classes = ['state-strip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set icon_html = icon | default('⚠️') -%}
+<section class="{{ cls }}" role="alert" aria-live="assertive">
+  <div class="state-icon" aria-hidden="true">{{ icon_html }}</div>
+  <div>
+    <div class="state-title">{{ message }}</div>
+    {%- if detail %}
+    <div class="muted">{{ detail }}</div>
+    {%- else %}
+    <div class="muted">An error occurred while loading data.</div>
+    {%- endif %}
+    {%- if action_button %}
+    <div class="state-actions">{{ action_button }}</div>
+    {%- endif %}
+  </div>
+</section>
+{%- endmacro %}

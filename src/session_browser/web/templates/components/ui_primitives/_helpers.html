@@ -1,0 +1,634 @@
+{# _helpers.html — Remaining UI primitive macros (pagination, tokens, filters,
+   modals, layout, navigation, compatibility aliases) #}
+
+{# --- Pagination ---
+   HIFI structure: [prev] [page-status] [page-input] [page-status] [spacer] [page-size] [next]
+   Both prev and next buttons are always rendered; disabled attribute controls interactivity.
+#}
+{% macro pagination(current_page, total_pages, total_items=None, page_size=None, page_size_options=None, custom_label=None) -%}
+  {%- set total_pages = total_pages if total_pages > 0 else 1 -%}
+  {%- set is_single_page = total_pages <= 1 -%}
+  {%- set is_first_page = current_page <= 1 -%}
+  {%- set is_last_page = current_page >= total_pages -%}
+  {%- set total_items_text = ('of ' ~ total_items) if total_items else '' -%}
+  {%- set effective_options = page_size_options if page_size_options else [20, 50, 100, 500] -%}
+  {%- set label = custom_label or 'Pagination' -%}
+<nav class="pagination unified-pagination" role="navigation" aria-label="{{ label }}">
+  <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>
+  <span class="page-status">Page</span>
+  <input class="page-input mono" data-action="page-input" value="{{ current_page }}" aria-label="Page number"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ total_pages }}"/>
+  <span class="page-status">of {{ total_pages }} {{ total_items_text }}</span>
+  <span class="spacer"></span>
+  {%- if page_size -%}
+  <label class="page-size-label" aria-label="每页条数">
+    <span class="page-status">每页</span>
+    <select class="page-size-select" data-action="page-size">
+      {%- for opt in effective_options %}
+      <option value="{{ opt }}"{% if opt == page_size %} selected{% endif %}>{{ opt }}</option>
+      {%- endfor %}
+    </select>
+  </label>
+  {%- endif %}
+  <button class="btn sm" data-action="next-page" aria-label="Next page"{% if is_last_page or is_single_page %} disabled{% endif %}>next &rsaquo;</button>
+</nav>
+{%- endmacro %}
+
+{# --- TokenBar ---
+   Renders a token bar with colored segments (fresh/cache-read/cache-write/output).
+#}
+{% macro token_bar(segments, total=None, variant='inline') -%}
+  {%- set computed_total = (total if total is not none else segments | map(attribute='value') | sum) -%}
+<div class="tokenbar{% if variant == 'standalone' %} tokenbar--standalone{% endif %}" role="progressbar" aria-valuenow="{{ computed_total | int }}" aria-valuemin="0" aria-valuemax="100" aria-label="Token usage">
+  {%- for seg in segments %}
+    {%- set pct = (seg.value / computed_total * 100) if computed_total > 0 else 0 -%}
+    {%- set seg_class = seg.kind if seg.kind in ['fresh', 'read', 'write', 'out'] else 'out' -%}
+  <div class="tokenbar-seg {{ seg_class }}" style="--segment-width:{{ pct | round(1) }}%"></div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# --- TokenTotal ---
+   Combines a formatted token total value with a token bar showing
+   fresh/cache-read/cache-write/output breakdown.
+#}
+{% macro token_total(total, fresh_pct=0, read_pct=0, write_pct=0, out_pct=0, extra_classes=None) -%}
+  {%- set classes = ['token-total'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<div class="{{ cls }}">
+  <span class="token-total__value">{{ total }}</span>
+  <span class="tokenbar" aria-hidden="true">
+    <span class="tokenbar-seg fresh" style="--segment-width:{{ fresh_pct | round(1) }}%"></span>
+    <span class="tokenbar-seg read" style="--segment-width:{{ read_pct | round(1) }}%"></span>
+    <span class="tokenbar-seg write" style="--segment-width:{{ write_pct | round(1) }}%"></span>
+    <span class="tokenbar-seg out" style="--segment-width:{{ out_pct | round(1) }}%"></span>
+  </span>
+</div>
+{%- endmacro %}
+
+{# --- TokenCell ---
+   Renders a complete token table cell with value, bar, and CSS hover tooltip
+   showing the 4-segment breakdown (Fresh / Cached Read / Cached Write / Output).
+#}
+{% macro token_cell(total, fresh_pct=0, read_pct=0, write_pct=0, out_pct=0,
+                    fresh_val='0', read_val='0', write_val='0', out_val='0',
+                    fresh_pct_val='0.0', read_pct_val='0.0', write_pct_val='0.0', out_pct_val='0.0',
+                    title='Token Breakdown', profile='standard') -%}
+<td class="token-cell">
+  <div class="token-total">
+    <span class="token-total__value">{{ total }}</span>
+    <span class="tokenbar" aria-hidden="true">
+      <span class="tokenbar-seg fresh" style="--segment-width:{{ fresh_pct }}%"></span>
+      <span class="tokenbar-seg read" style="--segment-width:{{ read_pct }}%"></span>
+      <span class="tokenbar-seg write" style="--segment-width:{{ write_pct }}%"></span>
+      <span class="tokenbar-seg out" style="--segment-width:{{ out_pct }}%"></span>
+      <div class="token-tooltip" aria-hidden="true">
+        <div class="token-tooltip__title">{{ title }}</div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh input</span></span>
+          <span class="token-tooltip__value">{{ fresh_val }}</span>
+          <span class="token-tooltip__pct">{{ fresh_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
+          <span class="token-tooltip__value">{{ read_val }}</span>
+          <span class="token-tooltip__pct">{{ read_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
+          <span class="token-tooltip__value">{{ write_val }}</span>
+          <span class="token-tooltip__pct">{{ write_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__row">
+          <span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span>
+          <span class="token-tooltip__value">{{ out_val }}</span>
+          <span class="token-tooltip__pct">{{ out_pct_val }}%</span>
+        </div>
+        <div class="token-tooltip__sep"></div>
+        <div class="token-tooltip__row token-tooltip__total">
+          <span>Total</span><span class="token-tooltip__value">{{ total }}</span>
+        </div>
+      </div>
+    </span>
+  </div>
+</td>
+{%- endmacro %}
+
+{# --- Tooltip ---
+   Renders a tooltip with trigger element.
+#}
+{% macro tooltip(content, trigger_text, title=None, extra_classes=None) -%}
+  {%- set classes = ['tooltip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set tooltip_id = 'tooltip-' ~ (title | default('info') | replace(' ', '-')) -%}
+<div class="tooltip-wrap">
+  <div class="tooltip-trigger" tabindex="0" aria-describedby="{{ tooltip_id }}" aria-haspopup="true">{{ trigger_text }}</div>
+  <div id="{{ tooltip_id }}" class="{{ cls }}" role="tooltip" aria-hidden="true">
+    {%- if title %}
+    <div class="tooltip__title">{{ title }}</div>
+    {%- endif %}
+    {%- for row in content %}
+    <div class="tooltip__row{% if row.is_total %} tooltip__total{% endif %}">
+      <span class="tooltip__label">{{ row.label }}</span>
+      <span>{{ row.value | default('') }}</span>
+    </div>
+    {%- endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+{# --- Popover ---
+   Renders a popover with a trigger button.
+#}
+{% macro popover(content, trigger_element, extra_classes=None) -%}
+  {%- set classes = ['popover'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set popover_id = 'popover-' ~ (content.title | default('menu') | replace(' ', '-')) -%}
+<div class="popover-wrap">
+  <button type="button" class="popover-trigger" data-action="toggle-popover" aria-expanded="false" aria-haspopup="true" aria-controls="{{ popover_id }}">{{ trigger_element }}</button>
+  <div id="{{ popover_id }}" class="{{ cls }}" role="dialog" aria-hidden="true">
+    {%- if content.title %}
+    <h4>{{ content.title }}</h4>
+    {%- endif %}
+    <p>{{ content.body }}</p>
+  </div>
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   Filter Components (unified filter card system)
+#}
+
+{# --- FilterCard — outer card wrapper --- #}
+{% macro filter_card(method='get', action=None, id=None, extra_classes=None) -%}
+  {%- set classes = ['card', 'filter-card'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<section class="{{ cls }}">
+  <form method="{{ method }}"{%- if action %} action="{{ action }}"{% endif %}{%- if id %} id="{{ id }}"{% endif %} class="filter-form">
+    {{ caller() }}
+  </form>
+</section>
+{%- endmacro %}
+
+{# --- FilterSearch — search input --- #}
+{% macro filter_search(name, placeholder='Search...', value='', id=None, extra_classes=None) -%}
+  {%- set classes = ['input', 'search'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set eid = id if id else (name ~ '-search') -%}
+<input type="search" class="{{ cls }}" id="{{ eid }}" name="{{ name }}" placeholder="{{ placeholder }}" value="{{ value }}" autocomplete="off" />
+{%- endmacro %}
+
+{# --- FilterSelect — labeled select dropdown --- #}
+{% macro filter_select(label, name, options=None, selected='', all_label=None, id=None, extra_classes=None) -%}
+  {%- set classes = ['ui-select'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set eid = id if id else ('filter-' ~ name) -%}
+  {%- set effective_all = all_label if all_label else ('All ' ~ label) -%}
+<label class="{{ cls }}">
+  <span class="ui-select__label">{{ label }}</span>
+  <select class="ui-select__control" id="{{ eid }}" name="{{ name }}">
+    <option value="">{{ effective_all }}</option>
+    {%- for opt in (options | default([])) %}
+      {%- set opt_value = opt.value if opt is mapping and opt.value is defined else (opt[0] if opt is sequence and opt is not string else opt) -%}
+      {%- set opt_label = opt.label if opt is mapping and opt.label is defined else (opt[1] if opt is sequence and opt is not string and opt | length > 1 else opt_value) -%}
+    <option value="{{ opt_value }}"{%- if opt_value == selected %} selected{% endif %}>{{ opt_label }}</option>
+    {%- endfor %}
+  </select>
+</label>
+{%- endmacro %}
+
+{# --- FilterFooter — active filters bar --- #}
+{% macro filter_footer(show_label=True, count=None) -%}
+<div class="filter-footer">
+  {%- if show_label %}
+  <span class="active-filters__label">Active Filters</span>
+  {%- endif %}
+  {{ caller() }}
+  {%- if count %}
+  <span class="active-filters__count">{{ count }}</span>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# --- FilterChip — single active filter chip with remove button --- #}
+{% macro filter_chip(label, remove_url='#', extra_classes=None) -%}
+  {%- set classes = ['filter-chip'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<span class="{{ cls }}">
+  {{ label }}
+  <a href="{{ remove_url }}" data-action="remove-filter" aria-label="Remove filter: {{ label }}">×</a>
+</span>
+{%- endmacro %}
+
+{# ============================================================================
+   FilterBar — use filter_card + filter_search/filter_select for new code
+#}
+{% macro filter_bar(filters, action_url=None, extra_classes=None) -%}
+  {%- set classes = ['filter-card'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<form class="{{ cls }}" method="get"{%- if action_url %} action="{{ action_url }}"{% endif %} role="search" aria-label="Filter options">
+  <div class="filter-row">
+    {%- for f in filters %}
+    <div class="field">
+      <label for="{{ f.name }}">{{ f.label }}</label>
+      {%- if f.type == 'select' %}
+      <select class="select" name="{{ f.name }}" id="{{ f.name }}">
+        {%- for opt in f.options | default([]) %}
+          {%- set opt_value = opt.value if opt.value is defined else opt -%}
+          {%- set opt_label = opt.label if opt.label is defined else opt -%}
+        <option value="{{ opt_value }}"{%- if f.value == opt_value %} selected{% endif %}>{{ opt_label }}</option>
+        {%- endfor %}
+      </select>
+      {%- else %}
+      <input class="input search" type="text" name="{{ f.name }}" id="{{ f.name }}" placeholder="{{ f.placeholder | default('') }}" value="{{ f.value | default('') }}" />
+      {%- endif %}
+    </div>
+    {%- endfor %}
+    <button type="submit" class="btn primary" data-action="filter">Apply</button>
+    <button type="button" class="btn" data-action="clear">Clear All</button>
+  </div>
+</form>
+{%- endmacro %}
+
+{# ============================================================================
+   PayloadModal
+   Renders a payload modal/dialog structure.
+#}
+{% macro payload_modal(payload_id=None, title=None, kind=None, rendered_html=None, raw_text=None, missing_reason=None, extra_classes=None) -%}
+  {%- set classes = ['modal-backdrop'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set modal_id = 'modal-' ~ (payload_id | default('payload')) -%}
+<div class="{{ cls }}" id="{{ modal_id }}" data-modal role="dialog" aria-modal="true" aria-label="{{ title | default('Payload') }}" aria-hidden="true">
+  <div class="modal">
+    <div class="modal-head">
+      {%- if kind %}
+      <span class="badge badge-info" data-modal-kind="{{ kind }}">{{ kind }}</span>
+      {%- endif %}
+      <div>
+        <b data-modal-title="{{ title | default('') }}">{{ title | default('Payload') }}</b>
+      </div>
+      <span class="spacer"></span>
+      <button type="button" class="btn sm" data-action="close-modal" aria-label="Close modal">x</button>
+    </div>
+    <div class="modal-body">
+      <div data-modal-meta></div>
+      <main data-modal-content aria-live="polite">
+        {%- if rendered_html %}
+        {{ rendered_html }}
+        {%- elif raw_text %}
+        <pre class="mono">{{ raw_text }}</pre>
+        {%- elif missing_reason %}
+        <div class="muted">{{ missing_reason }}</div>
+        {%- else %}
+        <div class="muted">No payload available.</div>
+        {%- endif %}
+      </main>
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   PageHead
+   Renders a canonical page header with title, optional subtitle, and
+   optional action area.
+#}
+{% macro page_head(title, subtitle=None, stat_pills=None, extra_content=None, extra_classes=None, leading_content=None) -%}
+  {%- set classes = ['page-head'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<section class="{{ cls }}">
+  {%- if leading_content %}
+  {{ leading_content }}
+  {%- endif %}
+  <div>
+    <h1>{{ title }}</h1>
+    {%- if subtitle %}
+    <p class="subtitle">{{ subtitle }}</p>
+    {%- endif %}
+  </div>
+  {%- if stat_pills or extra_content %}
+  <div class="page-head-actions">
+    {%- if stat_pills %}
+    {{ stat_pills }}
+    {%- endif %}
+    {%- if extra_content %}
+    {{ extra_content | safe }}
+    {%- endif %}
+  </div>
+  {%- endif %}
+</section>
+{%- endmacro %}
+
+{# ============================================================================
+   BackButton
+   Renders a back-button link with optional icon.
+#}
+{% macro back_button(href, label='Back', icon='←', extra_classes=None, title=None, data_action=None) -%}
+  {%- set classes = ['back-btn'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set effective_title = title if title else label -%}
+<a class="{{ cls }}" href="{{ href }}" aria-label="{{ label }}" title="{{ effective_title }}"{%- if data_action %} data-action="{{ data_action }}"{% endif %}>
+  {%- if icon.startswith('<') -%}
+  {{ icon }}
+  {%- else -%}
+  <span class="emoji" aria-hidden="true">{{ icon }}</span>
+  {%- endif %}
+</a>
+{%- endmacro %}
+
+{# ============================================================================
+   TitleSubtitle
+   Renders a two-line title pattern: primary title line + optional subtitle.
+#}
+{% macro title_subtitle(title, subtitle=None, mono=False, extra_classes=None, title_extra=None) -%}
+  {%- set classes = [] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<div{{ ' class="' ~ cls ~ '"' if cls else '' }}>
+  <div class="title-main">
+    {{ title }}
+    {%- if title_extra %}{{ title_extra }}{% endif %}
+  </div>
+  {%- if subtitle %}
+  <div class="title-sub{% if mono %} mono{% endif %}">{{ subtitle }}</div>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   ProjectCell
+   Renders a canonical project cell for data tables with project name link
+   and optional path row with copy button.
+#}
+{% macro project_cell(name, path, href, show_path=True, show_copy=True, extra_classes=None, name_data_action=None) -%}
+  {%- set classes = ['project-cell'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<td class="{{ cls }}">
+  <a href="{{ href }}" class="project-name-link" data-project="{{ name }}"{%- if name_data_action %} data-action="{{ name_data_action }}"{% endif %}>{{ name }}</a>
+  {%- if show_path and path %}
+  <div class="project-path-row">
+    <span class="path-text truncate" data-tooltip="{{ path }}">{{ path | shorten_path }}</span>
+    {%- if show_copy %}
+    <button class="path-copy-btn" data-action="copy" data-copy-text="{{ path }}" title="Copy full path" aria-label="Copy project path">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+    </button>
+    {%- endif %}
+  </div>
+  {%- endif %}
+</td>
+{%- endmacro %}
+
+{# ============================================================================
+   AgentCell
+   Renders a canonical agent cell for data tables with avatar, agent name link,
+   and optional description.
+#}
+{% macro agent_cell(name, agent_key, href='', description=None, abbrev='', avatar_class='', extra_classes=None) -%}
+  {%- set classes = ['agent-cell'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set effective_abbrev = abbrev if abbrev else name[:2]|upper -%}
+  {%- set effective_avatar = avatar_class if avatar_class else ('cc' if agent_key == 'claude_code' else 'qd' if agent_key == 'qoder' else 'cx') -%}
+  {%- set effective_href = href if href else '/agents/' ~ agent_key -%}
+<td class="{{ classes | join(' ') }}">
+  <span class="agent-main">
+    <a href="{{ effective_href }}" class="link" data-action="open-agent-link">
+      <div class="agent-avatar {{ effective_avatar }}">{{ effective_abbrev }}</div>
+    </a>
+    <div>
+      <div class="title-main">{{ name }}</div>
+      {%- if description %}
+      <div class="title-sub">{{ description }}</div>
+      {%- endif %}
+    </div>
+  </span>
+</td>
+{%- endmacro %}
+
+{# ============================================================================
+   MetricInfo
+   Renders the canonical info button used inside metric card label rows.
+#}
+{% macro metric_info(metric_name, label='指标说明', title=metric_name ~ ' 指标说明') -%}
+<button type="button" class="icon-button icon-button--info"
+        data-action="info-{{ metric_name }}"
+        data-info="{{ metric_name }}"
+        title="{{ title }}"
+        aria-label="{{ metric_name }} {{ label }}">
+  &#x2139;&#xFE0F;
+</button>
+{%- endmacro %}
+
+{# ============================================================================
+   MetricLabelRow
+   Renders a complete metric card label row combining label, optional icon,
+   and the info button.
+#}
+{% macro metric_label_row(label, metric_name, info_label='指标说明', info_title=metric_name ~ ' 指标说明', icon=None) -%}
+<div class="metric-card__label-row">
+  <span class="metric-card__label">{{ label }}</span>
+  {%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}
+  {{ metric_info(metric_name, label=info_label, title=info_title) }}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   PathRow
+   Renders a canonical path row with a mono chip and optional copy button.
+#}
+{% macro path_row(path, display=None, tooltip=None, show_copy=True, extra_classes=None) -%}
+  {%- set classes = ['path-row'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set effective_tooltip = tooltip if tooltip else path -%}
+  {%- set effective_display = display if display else path -%}
+<div class="{{ cls }}">
+  <span class="path-chip mono" data-tooltip="{{ effective_tooltip }}">{{ effective_display }}</span>
+  {%- if show_copy %}
+  <button class="btn small" data-action="copy" data-copy-text="{{ path }}" aria-label="Copy path" title="Copy full path">
+    <span class="emoji" aria-hidden="true">&#x1F4CB;</span>
+  </button>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   ProgressBar
+   Renders a canonical progress bar with proportional fill.
+#}
+{% macro progress_bar(fill_pct, title=None, extra_classes=None, color_class=None) -%}
+  {%- set classes = ['progress-bar'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set effective_title = title if title else 'Progress: ' ~ fill_pct|round(1) ~ '%' -%}
+<div class="{{ cls }}" style="--fill-width:{{ fill_pct|round(1) }}%" title="{{ effective_title }}">
+    <div class="progress-fill{% if color_class %} {{ color_class }}{% endif %}"></div>
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   ChartLegend
+   Renders a chart legend row with colored dots and labels.
+#}
+{% macro chart_legend(items=None, extra_classes=None) -%}
+  {%- set classes = ['legend-row'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set default_items = [
+    {'label': 'Claude Code', 'dot_class': 'legend-dot--claude'},
+    {'label': 'Codex', 'dot_class': 'legend-dot--codex'},
+    {'label': 'Qoder', 'dot_class': 'legend-dot--qoder'},
+  ] -%}
+  {%- set legend_items = items if items else default_items -%}
+<div class="{{ cls }}">
+  {%- for item in legend_items %}
+  <span class="legend-item" aria-hidden="true"><span class="legend-dot {{ item.dot_class }}"></span>{{ item.label }}</span>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   Breadcrumb
+   Renders a canonical breadcrumb navigation bar from a list of items.
+#}
+{% macro breadcrumb(items, extra_classes=None) -%}
+  {%- set classes = ['breadcrumb'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<div class="{{ cls }}" aria-label="页面导航">
+  {%- for item in items %}
+    {%- if not loop.last -%}
+      {%- if item.href -%}
+  <a href="{{ item.href }}">{{ item.label }}</a>
+      {%- else -%}
+  <span>{{ item.label }}</span>
+      {%- endif -%}
+  <span class="sep">/</span>
+    {%- else -%}
+      {%- if item.href -%}
+  <a href="{{ item.href }}">{{ item.label }}</a>
+      {%- else -%}
+  <span class="current">{{ item.label }}</span>
+      {%- endif -%}
+    {%- endif %}
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# ============================================================================
+   Compatibility macros (preserved for existing pages)
+   ============================================================================ #}
+
+{% macro select_control(label, name, options, selected='', extra_class='') -%}
+  <label class="ui-select {{ extra_class }}">
+    <span class="ui-select__label">{{ label }}</span>
+    <select class="ui-select__control" name="{{ name }}" aria-label="{{ label }}">
+      {%- for opt in options %}
+        {%- set opt_value = opt.value if opt.value is defined else opt[0] if opt is sequence and opt is not string else opt -%}
+        {%- set opt_label = opt.label if opt.label is defined else opt[1] if opt is sequence and opt is not string and opt|length > 1 else opt_value -%}
+        <option value="{{ opt_value }}" {% if opt_value == selected %}selected{% endif %}>{{ opt_label }}</option>
+      {%- endfor %}
+    </select>
+  </label>
+{%- endmacro %}
+
+{% macro stat_pill(value, label, id=None) -%}
+  <span class="ui-stat-pill" role="status"{% if id %} id="{{ id }}"{% endif %}><b>{{ value }}</b> {{ label }}</span>
+{%- endmacro %}
+
+{% macro th_static(label) -%}
+  <div class="sessions-th" role="columnheader">{{ label }}</div>
+{%- endmacro %}
+
+{% macro th_sort(label, key, sort_key='', sort_dir='desc', href='') -%}
+  {%- set active = (sort_key == key) -%}
+  {%- set aria = ' aria-sort="' ~ ('ascending' if sort_dir == 'asc' else 'descending') ~ '"' if active else '' -%}
+  {%- set icon_cls = 'sessions-sort-icon' ~ (' sessions-sort-icon--active' if active else '') -%}
+  {%- if href -%}
+  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}><a class="sessions-th__sort-btn" href="{{ href }}">{{ label }} <span class="{{ icon_cls }}" aria-hidden="true"></span></a></div>
+  {%- else -%}
+  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}>{{ label }} <button type="submit" name="sort" value="{{ key }}" class="sessions-th__sort-btn" data-sort-key="{{ key }}"><span class="{{ icon_cls }}" aria-hidden="true"></span></button></div>
+  {%- endif -%}
+{%- endmacro %}

@@ -1,0 +1,155 @@
+{# _tables.html — DataTable, SortHeader, SessionRow macros #}
+
+{# ============================================================================
+   DataTable
+   Renders a complete data table with thead and tbody.
+   headers: list of dicts with keys: label, key, sortable (bool), align (left|right), min_width (CSS value, e.g. '180px')
+   rows: list of dicts, keyed by header key; each value can be a string or dict with html/markup
+   sortable: global toggle for all headers (default None = per-header)
+   extra_classes: additional CSS classes on the <table>
+#}
+{% macro data_table(headers, rows, sortable=None, extra_classes=None) -%}
+  {%- set classes = ['data-table'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<table class="{{ cls }}">
+  <colgroup>
+    {%- for h in headers %}
+    <col{% if h.min_width %} style="--col-min-width:{{ h.min_width }}"{% endif %}>
+    {%- endfor %}
+  </colgroup>
+  <thead>
+    <tr>
+      {%- for h in headers %}
+        {%- set h_sortable = h.sortable if h.sortable is defined else (sortable if sortable is not none else false) -%}
+        {%- set h_align = h.align | default('left') -%}
+        {%- set col_classes = [] -%}
+        {%- if h_align == 'right' or h.align == 'numeric' -%}
+          {%- set _ = col_classes.append('col-num') -%}
+        {%- endif -%}
+        {%- if h_sortable -%}
+          {%- set _ = col_classes.append('sortable') -%}
+        {%- endif -%}
+        {%- if h.key -%}
+          {%- set _ = col_classes.append('col-' ~ h.key) -%}
+        {%- endif -%}
+      <th class="{{ col_classes | join(' ') }}"{%- if h_sortable %} data-action="sort" data-sort-key="{{ h.key }}" role="columnheader" aria-sort="none" tabindex="0"{% else %} role="columnheader"{% endif %}{% if h.min_width %} style="--col-min-width:{{ h.min_width }}"{% endif %} scope="col">
+        {{ h.label }}
+        {%- if h_sortable %} <span class="sort-mark" aria-hidden="true"></span>{% endif -%}
+      </th>
+      {%- endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {%- for row in rows %}
+    <tr>
+      {%- for h in headers %}
+        {%- set h_align = h.align | default('left') -%}
+        {%- set td_classes = [] -%}
+        {%- if h_align == 'right' or h.align == 'numeric' -%}
+          {%- set _ = td_classes.append('col-num mono') -%}
+        {%- endif -%}
+        {%- set cell = row[h.key] if h.key in row else '' -%}
+        {%- if cell is mapping and cell.html is defined -%}
+          {%- set cell_html = cell.html -%}
+        {%- else -%}
+          {%- set cell_html = cell -%}
+        {%- endif -%}
+      <td class="{{ td_classes | join(' ') }}"{% if h.min_width %} style="--col-min-width:{{ h.min_width }}"{% endif %}><div class="cell-scroll">{{ cell_html }}</div></td>
+      {%- endfor %}
+    </tr>
+    {%- endfor %}
+  </tbody>
+</table>
+{%- endmacro %}
+
+{# ============================================================================
+   SortHeader (P1: sort_header)
+   Renders a canonical sortable <th> with a consistent .sort-mark icon.
+   Supports both href (server-side sort) and button (client-side JS sort) modes.
+#}
+{% macro sort_header(label, sort_key, current_sort_key='', current_sort_dir='desc', href='', numeric=False, extra_classes=None) -%}
+  {%- set classes = ['sortable'] -%}
+  {%- if numeric -%}
+    {%- set _ = classes.append('numeric') -%}
+  {%- endif -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set is_active = (current_sort_key == sort_key) -%}
+  {%- set aria_sort = ' aria-sort="' ~ ('ascending' if current_sort_dir == 'asc' else 'descending') ~ '"' if is_active else '' -%}
+<th class="{{ cls }}" data-action="sort" data-sort-key="{{ sort_key }}"{{ aria_sort|safe }}>{{ label }}
+  {%- if href -%}
+  <a class="sort-button" href="{{ href }}" data-action="sort" data-sort-key="{{ sort_key }}">
+    <span class="sort-mark" aria-hidden="true"></span>
+  </a>
+  {%- else -%}
+  <button class="sort-button" type="button" data-action="sort" data-sort-key="{{ sort_key }}">
+    <span class="sort-mark" aria-hidden="true"></span>
+  </button>
+  {%- endif %}
+</th>
+{%- endmacro %}
+
+{# ============================================================================
+   SessionRow (P3: session_row)
+   Renders a complete session table row with configurable columns.
+#}
+{% macro session_row(session, show_project=True, show_agent=True, show_model=True, show_tokens=True, show_rounds=True, show_tools=True, show_failed=True, show_duration=True, show_updated=True, extra_classes=None) -%}
+  {%- set classes = ['session-row'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+<tr class="{{ cls }}"
+    data-session-id="{{ session.session_id }}"
+    data-agent="{{ session.agent }}"
+    data-title="{{ session.title | lower }}">
+  {%- if show_project %}
+  <td class="project-cell">
+    <a href="/projects/{{ session.project_key | urlencode }}">{{ session.project_name }}</a>
+  </td>
+  {%- endif %}
+  {%- if show_agent %}
+  <td>
+    <span class="badge {% if session.agent == 'claude_code' %}cc{% elif session.agent == 'codex' %}cx{% elif session.agent == 'qoder' %}qd{% endif %}">
+      {{ 'CC' if session.agent == 'claude_code' else 'CX' if session.agent == 'codex' else 'QD' if session.agent == 'qoder' else session.agent }}
+    </span>
+  </td>
+  {%- endif %}
+  {%- if show_model %}
+  <td class="mono">{{ session.model or '—' }}</td>
+  {%- endif %}
+  {%- if show_tokens %}
+  <td class="token-cell mono">{{ session.total_tokens | format_compact_token }}</td>
+  {%- endif %}
+  {%- if show_rounds %}
+  <td class="num mono">{{ session.assistant_message_count }}</td>
+  {%- endif %}
+  {%- if show_tools %}
+  <td class="num mono">{{ session.tool_call_count }}</td>
+  {%- endif %}
+  {%- if show_failed %}
+  <td>
+    {%- if session.failed_tool_count > 0 %}
+    <span class="badge err">{{ session.failed_tool_count }}</span>
+    {%- else %}—{% endif %}
+  </td>
+  {%- endif %}
+  {%- if show_duration %}
+  <td class="mono">{{ session.duration_seconds | format_duration }}</td>
+  {%- endif %}
+  {%- if show_updated %}
+  <td class="muted">{{ session.ended_at | relative_time }}</td>
+  {%- endif %}
+</tr>
+{%- endmacro %}

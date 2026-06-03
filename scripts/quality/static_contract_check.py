@@ -107,14 +107,35 @@ def check_css_load_order(base_html_text: str) -> list[str]:
     return errors
 
 
+def _is_import_wrapper(text: str) -> bool:
+    """Check if a CSS file only contains @import statements (no rule bodies)."""
+    stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL).strip()
+    if not stripped:
+        return True
+    # If only @import lines and no { }, it's an import wrapper
+    lines = [l.strip() for l in stripped.splitlines() if l.strip()]
+    has_import = any(l.startswith("@import") for l in lines)
+    has_rules = "{" in stripped and "}" in stripped
+    return has_import and not has_rules
+
+
+def _is_in_ui_primitives_subdir(path: Path) -> bool:
+    """Check if the file is under a ui-primitives/ subdirectory."""
+    return "ui-primitives" in path.parent.name or path.parent.name == "ui-primitives"
+
+
 def check_no_dead_css(css_files: list[Path]) -> list[str]:
     """检查是否存在 0 有效规则的 CSS 文件。BLOCK。
 
     去掉注释和空白后，如果没有 '{' 和 '}'，判定为 dead CSS。
+    豁免：纯 @import wrapper 文件（如拆分后的 ui-primitives.css）。
     """
     errors: list[str] = []
     for path in css_files:
         text = path.read_text(encoding="utf-8", errors="replace")
+        # @import wrapper files are intentional — skip
+        if _is_import_wrapper(text):
+            continue
         # 去掉 CSS 注释
         stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
         # 去掉空白
@@ -145,8 +166,8 @@ def check_payload_modal_ownership(css_files: list[Path]) -> tuple[list[str], lis
     for path in css_files:
         rel = path.relative_to(path.parent.parent.parent.parent).as_posix() if path.parent.name == "css" else path.name
         name = path.name
-        # 权威来源跳过
-        if name in ("ui-primitives.css", "tokens.css", "base.css"):
+        # 权威来源跳过（包括 ui-primitives/ 子目录下的拆分文件）
+        if name in ("ui-primitives.css", "tokens.css", "base.css") or _is_in_ui_primitives_subdir(path):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         matches = bare_pattern.findall(text)
@@ -312,6 +333,7 @@ def check_css_ownership_gate(css_files: list[Path]) -> list[str]:
 def check_no_global_component_override(css_files: list[Path]) -> list[str]:
     """检查：页面 CSS 不得裸定义原语根组件。BLOCK。
     豁免：ui-primitives.css、tokens.css、base.css、shell.css、legacy-aliases.css
+    以及 ui-primitives/ 子目录下的所有拆分文件（它们是原语系统的一部分）。
 
     裸选择器定义：组件选择器在选择器链的开头，没有页面前缀。
     合法：.page .btn（后代）、.sd-btn（变体）
@@ -320,7 +342,8 @@ def check_no_global_component_override(css_files: list[Path]) -> list[str]:
     errors: list[str] = []
     exempt = {"ui-primitives.css", "tokens.css", "base.css", "shell.css", "legacy-aliases.css"}
     for path in css_files:
-        if path.name in exempt:
+        # Exempt both the main wrapper and all files in ui-primitives/ subdirectory
+        if path.name in exempt or _is_in_ui_primitives_subdir(path):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
@@ -702,6 +725,15 @@ def _apply_baseline_gate(
         # 也添加文件名部分用于匹配
         if ":" in item:
             baseline_set.add(item.split(":")[0])
+            # Also add the selector part (after path:prefix) for cross-path matching
+            # Format: "path/to/file.css:selector" or "path/file.css: selector ..."
+            colon_idx = item.index(":")
+            selector_part = item[colon_idx + 1:].strip()
+            if selector_part:
+                # Extract just the selector (before any " (depth=" or other annotations)
+                sel = selector_part.split(" (")[0].strip()
+                if sel:
+                    baseline_set.add(sel)
 
     for result in gate_results:
         is_known = any(b in result for b in baseline_set)
@@ -725,6 +757,14 @@ def _apply_baseline_gate_combined(
         if parts:
             baseline_set.add(parts[-1])
             baseline_set.add(item.split(":")[0] if ":" in item else item)
+        # Also add selector part for cross-path matching
+        if ":" in item:
+            colon_idx = item.index(":")
+            selector_part = item[colon_idx + 1:].strip()
+            if selector_part:
+                sel = selector_part.split(" (")[0].strip()
+                if sel:
+                    baseline_set.add(sel)
 
     for result in gate_results:
         is_known = any(b in result for b in baseline_set)

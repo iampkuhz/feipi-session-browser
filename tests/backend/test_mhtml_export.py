@@ -1,5 +1,6 @@
 """MHTML 导出回归测试。"""
 import os
+import re
 import pytest
 import pathlib
 
@@ -7,6 +8,29 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT / "src" / "session_browser" / "web" / "templates"
 STATIC_JS = ROOT / "src" / "session_browser" / "web" / "static" / "js"
 STATIC_CSS_DIR = ROOT / "src" / "session_browser" / "web" / "static" / "css"
+
+
+def _read_split_component(rel_path: str) -> str:
+    """Read a template file, resolving {% include %} directives for split wrappers.
+
+    If the file is a thin wrapper with {% include %} statements (detected by
+    having includes but no actual macro/rule content), this returns the
+    concatenated content of all included files plus the wrapper itself.
+    """
+    wrapper_path = TEMPLATES / rel_path
+    text = wrapper_path.read_text(encoding="utf-8")
+
+    # Check if this is a split wrapper: has {% include %} but no data-* attributes
+    includes = re.findall(r'{%\s*include\s+"([^"]+)"\s*%}', text)
+    if includes and 'data-' not in text:
+        # Read all included files and concatenate their content
+        parts = [text]
+        for inc in includes:
+            inc_path = TEMPLATES / inc
+            if inc_path.exists():
+                parts.append(inc_path.read_text(encoding="utf-8"))
+        return "\n".join(parts)
+    return text
 
 # mhtml.py get_css() 捆绑的 CSS 文件
 MHTML_CSS_FILES = [
@@ -48,7 +72,7 @@ class TestMhtmlTemplateContracts:
         # 使用组件宏；trace_round 定义在 session_detail_timeline.html 中
         html = self._read("session.html")
         assert "sdt.trace_round" in html, "missing sdt.trace_round macro call"
-        component = self._read("components/session_detail_timeline.html")
+        component = _read_split_component("components/session_detail_timeline.html")
         assert 'data-trace-round-row' in component, 'missing trace-round-row'
         assert 'data-trace-detail' in component, 'missing trace-detail'
 
@@ -152,7 +176,7 @@ class TestPhase1SimplifiedStructure:
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_issue_summary(self):
         # 在组件宏中使用 data-issue-strip
-        component = self._read("components/session_detail_timeline.html")
+        component = _read_split_component("components/session_detail_timeline.html")
         assert 'data-issue-strip' in component, "missing issue-strip section"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
@@ -163,14 +187,14 @@ class TestPhase1SimplifiedStructure:
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_expand_collapse_buttons(self):
         # 单个 toggle-all 按钮，无独立的 collapse-all
-        component = self._read("components/session_detail_timeline.html")
+        component = _read_split_component("components/session_detail_timeline.html")
         assert 'data-action="toggle-all"' in component, "missing toggle-all"
         assert 'data-action="collapse-all"' not in component, "collapse-all must be removed; use toggle-all only"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_has_all_failed_segmented_control(self):
         # 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
-        component = self._read("components/session_detail_timeline.html")
+        component = _read_split_component("components/session_detail_timeline.html")
         has_new = 'data-action="status-all"' in component and 'data-action="status-failed"' in component
         has_legacy = 'data-action="filter-status"' in component
         assert has_new or has_legacy, "missing filter status buttons (status-all/status-failed or legacy filter-status)"
