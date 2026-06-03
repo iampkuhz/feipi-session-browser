@@ -362,7 +362,7 @@
     }
 
     // Show loading state
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-subtle);">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-subtle);">Loading...</td></tr>';
 
     fetch(url, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }

@@ -32,6 +32,7 @@ SORT_KEY_MAP = {
     "total-tokens": "total_tokens",
     "rounds": "assistant_message_count",
     "tools": "tool_call_count",
+    "subagents": "subagent_instance_count",
 }
 
 

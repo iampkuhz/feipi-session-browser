@@ -143,6 +143,7 @@ class SessionSummary:
     # New fields for token breakdown
     token_breakdown: Optional["NormalizedTokenBreakdown"] = None
     failed_tool_count: int = 0
+    subagent_instance_count: int = 0
     parse_diagnostics: Optional[dict] = None  # domain ParseDiagnostics.to_dict() payload, attached by adapters
     file_path: str = ""  # indexed source file path; used by detail parsers to avoid re-search
 

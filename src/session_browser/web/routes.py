@@ -325,7 +325,7 @@ def _build_view_actions(
         current["page_size"] = str(page_size)
 
     # Sort URLs: toggle dir on active column, set new column otherwise
-    sort_keys = ["tokens", "rounds", "tools", "duration", "updated"]
+    sort_keys = ["tokens", "rounds", "tools", "subagents", "duration", "updated"]
     sort_urls = {}
     for sk in sort_keys:
         new_dir = "asc" if (sk == sort_key and sort_dir == "asc") else "desc"
@@ -3091,11 +3091,7 @@ def _build_v11_view_model(
     # ── Summary strip ──
     manual_input_count = sum(1 for r in rounds if r.user_msg and r.user_msg.content)
 
-    subagent_count = 0
-    for tr in trace_rows:
-        for item in tr.get("timeline_items", []):
-            if item.get("type") == "subagent":
-                subagent_count += 1
+    subagent_count = len(subagent_runs)
 
     cache_write_pct = ""
     cwt = getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens

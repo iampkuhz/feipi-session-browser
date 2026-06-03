@@ -598,6 +598,10 @@ table-layout:fixed scales proportionally
   width: 100px;
 }
 
+.sessions-page .data-table .col-subagents {
+  width: 100px;
+}
+
 .sessions-page .data-table .col-duration {
   width: 150px;
 }

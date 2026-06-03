@@ -84,6 +84,7 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
             cache_write_tokens INTEGER NOT NULL DEFAULT 0,
             total_tokens INTEGER NOT NULL DEFAULT 0,
             failed_tool_count INTEGER NOT NULL DEFAULT 0,
+            subagent_instance_count INTEGER NOT NULL DEFAULT 0,
             indexed_at REAL NOT NULL DEFAULT 0,
             file_mtime REAL NOT NULL DEFAULT 0,
             file_path TEXT NOT NULL DEFAULT ''
@@ -126,9 +127,9 @@ def upsert_session(
             model, git_branch, source, user_message_count, assistant_message_count,
             tool_call_count, input_tokens, output_tokens, cached_input_tokens,
             cached_output_tokens, fresh_input_tokens, cache_read_tokens,
-            cache_write_tokens, total_tokens, failed_tool_count, indexed_at,
+            cache_write_tokens, total_tokens, failed_tool_count, subagent_instance_count, indexed_at,
             file_mtime, file_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_key) DO UPDATE SET
             title=excluded.title,
             project_key=excluded.project_key,
@@ -154,6 +155,7 @@ def upsert_session(
             cache_write_tokens=excluded.cache_write_tokens,
             total_tokens=excluded.total_tokens,
             failed_tool_count=excluded.failed_tool_count,
+            subagent_instance_count=excluded.subagent_instance_count,
             indexed_at=excluded.indexed_at,
             file_mtime=excluded.file_mtime,
             file_path=excluded.file_path
@@ -186,6 +188,7 @@ def upsert_session(
             summary.cache_write_tokens,
             summary.total_tokens,
             summary.failed_tool_count,
+            summary.subagent_instance_count,
             time.time(),
             file_mtime,
             file_path,
@@ -247,6 +250,7 @@ def full_scan(
             summary, _msgs, _tcs, _sa = claude_source.parse_session_detail(
                 project, sid, history_entry=entry, verbose=verbose
             )
+            summary.subagent_instance_count = len(_sa)
             if not summary.title and entry.get("display"):
                 summary.title = claude_source._extract_readable_title(entry["display"])
 
@@ -607,6 +611,7 @@ def incremental_scan(
             summary, _msgs, _tcs, _sa = claude_source.parse_session_detail(
                 project, sid, history_entry=entry
             )
+            summary.subagent_instance_count = len(_sa)
             if not summary.title and entry.get("display"):
                 summary.title = claude_source._extract_readable_title(entry["display"])
 
@@ -798,6 +803,7 @@ def incremental_scan(
                 summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
                     project_key, sid, session_file=fpath
                 )
+                summary.subagent_instance_count = len(_sa)
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
             qoder_count += 1
@@ -940,6 +946,7 @@ def list_sessions(
         "tool_call_count": "tool_call_count",
         "duration_seconds": "duration_seconds",
         "failed_tool_count": "failed_tool_count",
+        "subagent_instance_count": "subagent_instance_count",
     }
     order_expr = valid_orders.get(order_by, "ended_at")
     safe_dir = "ASC" if order_dir == "asc" else "DESC"
@@ -1332,5 +1339,6 @@ def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSu
         cache_write_tokens=row["cache_write_tokens"],
         total_tokens=row["total_tokens"],
         failed_tool_count=row["failed_tool_count"],
+        subagent_instance_count=row["subagent_instance_count"],
         file_path=row["file_path"],
     )

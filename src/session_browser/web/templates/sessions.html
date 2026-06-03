@@ -89,6 +89,9 @@
                     <th class="col-num sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
                         <a class="sort-button" href="{{ actions.sort_urls.tools }}" data-action="sort" data-sort-key="tools" title="按 tools 数量排序">Tools <span class="sort-mark" aria-hidden="true"></span></a>
                     </th>
+                    <th class="col-num sortable col-subagents" data-sort-key="subagents"{% if sort_by == 'subagents' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
+                        <a class="sort-button" href="{{ actions.sort_urls.subagents }}" data-action="sort" data-sort-key="subagents" title="按 subagent 实例数排序">Subagents <span class="sort-mark" aria-hidden="true"></span></a>
+                    </th>
                     <th class="sortable col-duration" data-sort-key="duration"{% if sort_by == 'duration' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
                         <a class="sort-button" href="{{ actions.sort_urls.duration }}" data-action="sort" data-sort-key="duration" title="按执行耗时排序">Duration <span class="sort-mark" aria-hidden="true"></span></a>
                     </th>
@@ -157,12 +160,13 @@
                     ) }}
                     <td class="num mono col-rounds">{{ s.assistant_message_count }}</td>
                     <td class="num mono col-tools">{{ s.tool_call_count }}</td>
+                    <td class="num mono col-subagents">{{ s.subagent_instance_count | default(0) }}</td>
                     <td class="mono col-duration" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>
                     <td class="muted col-updated">{{ s.ended_at | relative_time }}</td>
                 </tr>
                 {% endfor %}
                 {% else %}
-                <tr><td colspan="9">
+                <tr><td colspan="10">
                     {% set has_active_filter = filter_q or filter_agent or filter_model or filter_project %}
                     {% if has_active_filter %}
                     {{ ui.empty_state(
