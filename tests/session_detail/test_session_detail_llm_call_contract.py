@@ -12,6 +12,19 @@ from pathlib import Path
 
 TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 COMPONENTS = TEMPLATE_DIR / "components"
+TIMELINE_FILE = COMPONENTS / "session_detail_timeline.html"
+TIMELINE_DIR = COMPONENTS / "session_detail_timeline"
+
+
+def _read_template_with_splits(main_file, split_dir):
+    """Read main template file and all split subdirectory files (if they exist)."""
+    parts = []
+    if main_file.exists():
+        parts.append(main_file.read_text(encoding="utf-8"))
+    if split_dir.is_dir():
+        for f in sorted(split_dir.glob("*.html")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def _session_source():
@@ -19,7 +32,7 @@ def _session_source():
 
 
 def _timeline_component():
-    return (COMPONENTS / "session_detail_timeline.html").read_text(encoding="utf-8")
+    return _read_template_with_splits(TIMELINE_FILE, TIMELINE_DIR)
 
 
 def _primitives_component():
@@ -119,8 +132,8 @@ _TIMELINE_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / 
 _TIMELINE_CSS_DIR = _TIMELINE_CSS.parent / "session-detail"
 
 
-def _read_source_with_splits(main_file, split_dir):
-    """Read main file and all split subdirectory files (if they exist)."""
+def _read_css_with_splits(main_file, split_dir):
+    """Read main CSS file and all split subdirectory files (if they exist)."""
     parts = []
     if main_file.exists():
         parts.append(main_file.read_text(encoding="utf-8"))
@@ -131,7 +144,7 @@ def _read_source_with_splits(main_file, split_dir):
 
 
 def _read_timeline_css():
-    return _read_source_with_splits(_TIMELINE_CSS, _TIMELINE_CSS_DIR)
+    return _read_css_with_splits(_TIMELINE_CSS, _TIMELINE_CSS_DIR)
 
 
 @pytest.mark.contract_case("DATA-PRESENTER-009")

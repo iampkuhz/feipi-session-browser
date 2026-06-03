@@ -19,21 +19,23 @@ SESSION_TEMPLATE = TEMPLATE_DIR / "session.html"
 COMPONENTS = TEMPLATE_DIR / "components"
 CSS_PATH = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 CSS_DIR = CSS_PATH.parent / "session-detail"
+TIMELINE_FILE = COMPONENTS / "session_detail_timeline.html"
+TIMELINE_DIR = COMPONENTS / "session_detail_timeline"
 
 
-def _read_source_with_splits(main_file, split_dir):
+def _read_source_with_splits(main_file, split_dir, ext="*.css"):
     """Read main file and all split subdirectory files (if they exist)."""
     parts = []
     if main_file.exists():
         parts.append(main_file.read_text(encoding="utf-8"))
     if split_dir.is_dir():
-        for f in sorted(split_dir.glob("*.css")):
+        for f in sorted(split_dir.glob(ext)):
             parts.append(f.read_text(encoding="utf-8"))
     return "\n".join(parts)
 
 
 def _read_css():
-    return _read_source_with_splits(CSS_PATH, CSS_DIR)
+    return _read_source_with_splits(CSS_PATH, CSS_DIR, "*.css")
 
 
 def _session_source():
@@ -45,7 +47,7 @@ def _base_source():
 
 
 def _timeline_component():
-    return (COMPONENTS / "session_detail_timeline.html").read_text(encoding="utf-8")
+    return _read_source_with_splits(TIMELINE_FILE, TIMELINE_DIR, "*.html")
 
 
 # ── 问题条 ──────────────────────────────────────────────────────

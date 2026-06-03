@@ -1,0 +1,108 @@
+{% macro hero(summary, metrics, issues=[], session_url='') -%}
+  <section class="sd-hero" data-session-overview-hero>
+    <div class="sd-hero__top">
+      <div class="sd-hero__main">
+        <div class="sd-hero__id">
+          <span class="sd-agent-pill">{{ summary.agent_label|default('Claude') }}</span>
+          <h1 title="{{ summary.title }}">{{ summary.title }}</h1>
+        </div>
+        {% if session_url %}
+        <div class="sd-hero-url">
+          <span class="sd-hero-url-text" title="{{ session_url }}">{{ summary.session_id|default('') }}</span>
+          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy" data-copy-text="{{ summary.session_id|default('') }}" title="Copy session ID">
+            <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
+          </button>
+        </div>
+        {% endif %}
+        <div class="sd-hero__meta">
+          <span class="sd-chip sd-chip--mono">{{ summary.model|default('—') }}</span>
+          {% if summary.project_name %}<span class="sd-chip">{{ summary.project_name }}</span>{% endif %}
+          <span class="sd-chip">{{ summary.date|default('—') }}</span>
+        </div>
+        {% if issues %}
+        <div class="sd-issue-strip" data-issue-strip>
+          <span class="sd-issue-title">Issues</span>
+          {% for issue in issues[:4] %}
+            <a class="sd-issue-link sd-issue-link--{{ issue.tone|default('neutral') }}" href="#round-{{ issue.round_id }}" data-action="jump-round" data-round="{{ issue.round_id }}">{{ issue.label }}</a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="sd-issue-strip sd-issue-strip--ok" data-issue-strip>
+          <span class="sd-issue-title">No issues found</span>
+          <span class="sd-issue-ok-badge">All rounds completed successfully</span>
+        </div>
+        {% endif %}
+      </div>
+      <div class="sd-kpis">
+        <div class="sd-kpi-group sd-kpi-group--tokens" aria-label="Token analysis">
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div><div class="sd-kpi__label">Tokens</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.fresh|default('—') }}</div><div class="sd-kpi__label">Fresh</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.cache_read|default('—') }}</div><div class="sd-kpi__label">Cache R</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.cache_write|default('—') }}</div><div class="sd-kpi__label">Cache W</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.output|default('—') }}</div><div class="sd-kpi__label">Output</div></div>
+        </div>
+        <div class="sd-kpi-group sd-kpi-group--calls" aria-label="Call count analysis">
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div><div class="sd-kpi__label">Rounds</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div><div class="sd-kpi__label">Tools</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.failed|default('—') }}</div><div class="sd-kpi__label">Failed</div></div>
+          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.llm_calls|default('—') }}</div><div class="sd-kpi__label">LLM Calls</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="sd-summary-strip" data-summary-strip>
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon" aria-hidden="true">&#x270D;&#xFE0F;</span>
+        <b>User input 轮数</b>
+        <span>{{ summary.manual_input_count|default('0') }}</span>
+      </div>
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon" aria-hidden="true">&#x1F9F0;</span>
+        <b>Subagents</b>
+        <span>{{ summary.subagent_count|default('0') }} runs</span>
+      </div>
+      {% if summary.agent_key != "qoder" %}
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon" aria-hidden="true">&#x1F4BE;</span>
+        <b>Cache write</b>
+        <span>{{ summary.cache_write_pct|default('—') }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+{%- endmacro %}
+
+{% macro trace_header() -%}
+  <div class="sd-trace-head">
+    <div>
+      <div class="sd-trace-sub">Round 内按时间顺序纵向推进；并发 tool calls 作为一个 batch 分组显示。</div>
+    </div>
+    <div class="sd-trace-actions">
+      <div class="sd-seg" role="group" aria-label="Trace status filter">
+        <button type="button" class="sd-seg-btn is-active" data-action="status-all">All</button>
+        <button type="button" class="sd-seg-btn" data-action="status-failed">Failed</button>
+      </div>
+      <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-toggle-all-btn" data-action="toggle-all" data-state="collapse">Expand all</button>
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro round_summary(row) -%}
+  <button
+    type="button"
+    class="sd-round-summary"
+    data-action="toggle-round"
+    data-round="{{ row.round_id }}"
+    aria-expanded="{{ 'true' if row.is_open else 'false' }}"
+    aria-controls="round-{{ row.round_id }}-detail"
+  >
+    <span class="sd-round-id">R{{ row.round_id }}</span>
+    {{ sdp.round_status(row.status_label|default('ok'), row.status_tone|default('ok')) }}
+    <span class="sd-round-preview">
+      <span class="sd-round-preview__title">{{ row.preview_title }}</span>
+      <span class="sd-round-preview__sub">{{ row.preview_subtitle }}</span>
+    </span>
+    <span class="sd-round-metric">{{ row.token_total|default('—') }}</span>
+    <span class="sd-round-metric">{{ row.tool_count_label|default('0 tools') }}</span>
+    <span class="sd-round-mix">{{ sdp.token_bar(row.token_mix.fresh, row.token_mix.cache, row.token_mix.out) }}</span>
+  </button>
+{%- endmacro %}

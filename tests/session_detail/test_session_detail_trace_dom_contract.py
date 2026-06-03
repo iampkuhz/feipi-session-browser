@@ -22,6 +22,7 @@ CSS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "css" / "sessio
 
 JS_DIR = JS_FILE.parent / "session-detail"
 CSS_DIR = CSS_FILE.parent / "session-detail"
+TIMELINE_DIR = TIMELINE.parent / "session_detail_timeline"
 
 
 def _read_source_with_splits(main_file, split_dir):
@@ -30,7 +31,12 @@ def _read_source_with_splits(main_file, split_dir):
     if main_file.exists():
         parts.append(main_file.read_text(encoding="utf-8"))
     if split_dir.is_dir():
-        ext = "*.css" if "css" in str(main_file) else "*.js"
+        if "css" in str(main_file):
+            ext = "*.css"
+        elif "js" in str(main_file):
+            ext = "*.js"
+        else:
+            ext = "*.html"
         for f in sorted(split_dir.glob(ext)):
             parts.append(f.read_text(encoding="utf-8"))
     return "\n".join(parts)
@@ -38,10 +44,10 @@ def _read_source_with_splits(main_file, split_dir):
 
 @pytest.fixture(scope="module")
 def template_source():
-    """Load the timeline component template source."""
+    """Load the timeline component template source (with split-aware reading)."""
     if not TIMELINE.exists():
         pytest.skip(f"Template not found: {TIMELINE}")
-    return TIMELINE.read_text(encoding="utf-8")
+    return _read_source_with_splits(TIMELINE, TIMELINE_DIR)
 
 
 # ── 追踪行不是按钮 ────────────────────────────────────────
