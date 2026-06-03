@@ -101,6 +101,41 @@ from dataclasses import asdict
 
 logger = logging.getLogger("session_browser.web")
 
+# ── In-memory session data cache for round expansion performance ─────
+# Key: "{agent}:{session_id}" → value: dict with parsed session data.
+# Entries are added on first access and reused for subsequent API calls
+# (lazy-load round detail, payload fetch, attribution).
+_session_data_cache: dict[str, dict] = {}
+_SESSION_CACHE_TTL = 300  # 5 minutes
+_session_cache_timestamps: dict[str, float] = {}
+
+
+def _get_cached_session_data(agent: str, session_id: str) -> dict | None:
+    """Get parsed session data from in-memory cache if still valid."""
+    key = f"{agent}:{session_id}"
+    ts = _session_cache_timestamps.get(key, 0)
+    if ts and (time.time() - ts) < _SESSION_CACHE_TTL:
+        return _session_data_cache.get(key)
+    # Evict expired entry
+    if key in _session_data_cache:
+        del _session_data_cache[key]
+        del _session_cache_timestamps[key]
+    return None
+
+
+def _set_cached_session_data(agent: str, session_id: str, data: dict) -> None:
+    """Store parsed session data in in-memory cache."""
+    key = f"{agent}:{session_id}"
+    _session_data_cache[key] = data
+    _session_cache_timestamps[key] = time.time()
+
+    # Cap cache size — evict oldest entries if too many
+    if len(_session_data_cache) > 50:
+        oldest_keys = sorted(_session_cache_timestamps, key=_session_cache_timestamps.get)[:10]
+        for k in oldest_keys:
+            _session_data_cache.pop(k, None)
+            _session_cache_timestamps.pop(k, None)
+
 
 def _build_tool_command_summary(tool_name: str, params: dict) -> str:
     """Build a short command/summary string for a tool call.
@@ -839,22 +874,42 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 self._send_404()
                 return
 
-        # Get raw conversation data from source
-        if agent == "claude_code":
-            from session_browser.sources.claude import parse_session_detail
-            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
-                session.project_key, session_id
-            )
-        elif agent == "qoder":
-            from session_browser.sources.qoder import parse_session_detail
-            # Prefer DB file_path; fallback to search if missing/invalid
-            qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
-            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
-                session.project_key, session_id, session_file=qoder_file
-            )
+        # Try in-memory cache first (avoids re-parsing large JSONL files on
+        # every page refresh or round expansion).
+        cache_key = f"{agent}:{session_id}"
+        cached = _get_cached_session_data(agent, session_id)
+        if cached is not None:
+            raw_summary = cached["raw_summary"]
+            messages = cached["messages"]
+            tool_calls = cached["tool_calls"]
+            subagent_runs = cached["subagent_runs"]
+            logger.debug("Session data cache hit: %s", cache_key)
         else:
-            from session_browser.sources.codex import parse_session_detail
-            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+            # Get raw conversation data from source
+            if agent == "claude_code":
+                from session_browser.sources.claude import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id
+                )
+            elif agent == "qoder":
+                from session_browser.sources.qoder import parse_session_detail
+                # Prefer DB file_path; fallback to search if missing/invalid
+                qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id, session_file=qoder_file
+                )
+            else:
+                from session_browser.sources.codex import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+
+            # Cache parsed data for subsequent API calls (round lazy-load,
+            # payload fetch, attribution).
+            _set_cached_session_data(agent, session_id, {
+                "raw_summary": raw_summary,
+                "messages": messages,
+                "tool_calls": tool_calls,
+                "subagent_runs": subagent_runs,
+            })
 
         # DB summary is canonical. raw parse only supplements detail; it must
         # NOT overwrite confirmed fields (session_id, project_key, model,
@@ -862,6 +917,33 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         # is empty/null/zero, so that list-page and detail-page round counts
         # stay consistent (SD-14 fix).
         session = _merge_raw_into_db_summary(session, raw_summary)
+
+        # ── Subagent count consistency guard ─────────────────────────
+        # The sessions list page reads subagent_instance_count from the DB.
+        # The detail page counts len(subagent_runs) from source parsing.
+        # If source parsing finds 0 but DB has a non-zero count (e.g. sidechain
+        # files moved, parser regression), use the DB count to keep both pages
+        # consistent and avoid showing "Subagents 0 runs" in the hero.
+        if not subagent_runs and getattr(session, "subagent_instance_count", 0) > 0:
+            logger.debug(
+                "Source parsed 0 subagent runs but DB has %d; "
+                "using DB count for hero display (session=%s)",
+                session.subagent_instance_count, cache_key,
+            )
+            # Synthesize minimal subagent run entries so that
+            # _build_v11_view_model produces the correct count.
+            for _i in range(session.subagent_instance_count):
+                subagent_runs.append({
+                    "summary": {
+                        "agent_id": f"synthetic-{_i}",
+                        "agent_type": "",
+                        "description": "",
+                        "started_at": "",
+                        "ended_at": "",
+                    },
+                    "messages": [],
+                    "tool_calls": [],
+                })
 
         # Build conversation rounds with token data and markdown rendering
         rounds = build_rounds(
@@ -1183,6 +1265,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
     def _load_session_and_build_rounds(self, source: str, session_id: str):
         """Load session, parse data, build rounds and LLM calls.
 
+        Uses in-memory cache to avoid re-parsing large JSONL files on every
+        API call (round lazy-load, attribution, payload fetch).
+
         Returns (session, messages, tool_calls, subagent_runs, llm_calls, rounds)
         or (None, ...) on error (error response already sent).
         """
@@ -1214,21 +1299,38 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 ), status=404)
                 return (None, [], [], [], [], [])
 
-        # Parse session detail
-        if source == "claude_code":
-            from session_browser.sources.claude import parse_session_detail
-            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
-                session.project_key, session_id
-            )
-        elif source == "qoder":
-            from session_browser.sources.qoder import parse_session_detail
-            qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
-            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
-                session.project_key, session_id, session_file=qoder_file
-            )
+        # Try in-memory cache first
+        cached = _get_cached_session_data(source, session_id)
+        if cached is not None:
+            raw_summary = cached["raw_summary"]
+            messages = cached["messages"]
+            tool_calls = cached["tool_calls"]
+            subagent_runs = cached["subagent_runs"]
+            logger.debug("_load_session_and_build_rounds cache hit: %s", session_key)
         else:
-            from session_browser.sources.codex import parse_session_detail
-            raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+            # Parse session detail
+            if source == "claude_code":
+                from session_browser.sources.claude import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id
+                )
+            elif source == "qoder":
+                from session_browser.sources.qoder import parse_session_detail
+                qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id, session_file=qoder_file
+                )
+            else:
+                from session_browser.sources.codex import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+
+            # Cache for subsequent API calls
+            _set_cached_session_data(source, session_id, {
+                "raw_summary": raw_summary,
+                "messages": messages,
+                "tool_calls": tool_calls,
+                "subagent_runs": subagent_runs,
+            })
 
         # Build rounds and LLM calls
         rounds = build_rounds(
@@ -1297,12 +1399,17 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             _session.input_tokens + _session.cached_input_tokens + _session.cached_output_tokens,
         )
 
-        # Build slim view model for just this one round
+        # Build view model for just this one round. Use skip_attribution=True
+        # because the expanded row HTML only renders timeline items (LLM call
+        # cards, tool batches, subagent blocks) — it never uses payload_sources
+        # inline. Attribution data is fetched on-demand when the user clicks
+        # Request/Response attribution buttons.
         vm = _build_v11_view_model(
             _session, rounds, llm_calls, _tool_calls, _subagent_runs,
             session_anomalies=type("FA", (), {"anomalies": []})(),
             slim=False,
             round_filter={target_idx},
+            skip_attribution=True,
         )
 
         # Find the trace row for the target round
@@ -2184,6 +2291,7 @@ def _build_v11_view_model(
     session_anomalies,
     slim: bool = False,
     round_filter: set[int] | None = None,
+    skip_attribution: bool = False,
 ) -> dict:
     """Build the timeline view model for session.html template.
 
@@ -2193,6 +2301,10 @@ def _build_v11_view_model(
     When ``round_filter`` is provided (set of 0-based round indices), only build
     full detail for those rounds; other rounds get empty ``timeline_items``.
     This is used by the round detail API endpoint.
+
+    When ``skip_attribution=True``, skip the expensive attribution computation
+    (bucket analysis, token estimation). Used by the round detail API where
+    attribution is fetched on-demand via separate API endpoints.
 
     Returns dict with: session_summary, hero_metrics, issue_links, trace_rows, payload_sources.
 
@@ -2773,6 +2885,11 @@ def _build_v11_view_model(
             # Still increment counter for skipped rounds to maintain numbering consistency
             for _ix_skip in r.interactions:
                 global_main_call_num += 1
+            # Compute has_subagent even in slim mode so badge shows on initial page load
+            slim_has_subagent = any(
+                getattr(tc, "name", "") == "Agent" and getattr(tc, "subagent_id", "")
+                for tc in r.tool_calls
+            )
             trace_rows.append({
                 "round_id": rid,
                 "round_label": f"R{rid}",
@@ -2791,7 +2908,7 @@ def _build_v11_view_model(
                 "tool_count": tool_total,
                 "tool_count_label": tool_count_label,
                 "has_user_input": bool(r.user_msg.content),
-                "has_subagent": False,
+                "has_subagent": slim_has_subagent,
                 "start_time": start_time,
                 "is_open": False,
                 "timeline_items": [],
@@ -2838,10 +2955,14 @@ def _build_v11_view_model(
             model_short = (ix.model or "unknown")[:40]
             lane = "main" if ix.scope == "main" else ""
 
+            # ── Separate main-agent tool calls from subagent-internal ones.
+            # Agent tool calls (parent of a subagent) DO have subagent_id set,
+            # but they belong to the main interaction and must be included
+            # so that subagent detection and display logic works.
             ix_tools = []
             if hasattr(ix, 'tool_calls') and ix.tool_calls:
                 for tc in ix.tool_calls:
-                    if not tc.subagent_id:
+                    if tc.name == "Agent" or not tc.subagent_id:
                         ix_tools.append(tc)
 
             parallel_batches = []
@@ -2903,7 +3024,12 @@ def _build_v11_view_model(
             # ── Context payload: always created with typed structure ──
             # Contract: relevant user input + all preceding tool results + source status
             context_payload_id = f"llm-R{rid}-IX{iix}-context"
-            ix_tool_calls_for_llm = [tc for tc in (getattr(ix, "tool_calls", []) or []) if not getattr(tc, "subagent_id", "")]
+            # Include Agent tool calls (parent of subagent) + main-agent tool calls.
+            # Exclude tool calls that ran INSIDE a subagent (non-Agent tools with subagent_id).
+            ix_tool_calls_for_llm = [
+                tc for tc in (getattr(ix, "tool_calls", []) or [])
+                if tc.name == "Agent" or not getattr(tc, "subagent_id", "")
+            ]
 
             if ix.request_full:
                 source_status = "raw"
@@ -3095,69 +3221,87 @@ def _build_v11_view_model(
             request_attribution_id = f"llm-R{rid}-IX{call_ix}-request-attribution"
             response_attribution_id = f"llm-R{rid}-IX{call_ix}-response-attribution"
 
-            try:
-                # Build call-scoped session context for attribution
-                attrib_ctx = build_attribution_session_context(
-                    session=session,
-                    round_obj=r,
-                    interaction_index=ix_idx,
-                    interactions=r.interactions,
-                    round_tool_calls=r.tool_calls,
-                    all_messages=None,  # not available in view model context
-                    all_tool_calls=tool_calls,
-                    project_dir=session.project_key or None,
-                    agent_name=session.agent,
-                    all_llm_calls=llm_calls,
-                )
-                req_attr = build_llm_request_attribution(
-                    agent=session.agent,
-                    llm_call=ix,
-                    round_obj=r,
-                    session_summary=session,
-                    session_context=attrib_ctx,
-                )
-                req_payload = request_attribution_to_payload(req_attr)
+            if skip_attribution:
+                # Skip expensive attribution computation. Register attribution
+                # IDs with a hint that the API endpoint should be used.
                 add_payload(
                     payload_id=request_attribution_id,
                     kind="llm.request_attribution",
                     title=f"R{rid} · LLM Call #{iix} · Request Attribution",
                     text="",
-                    warning="Attribution data is embedded; for live data use API endpoint.",
-                    **{"data": req_payload},
-                )
-                resp_attr = build_llm_response_attribution(
-                    agent=session.agent,
-                    llm_call=ix,
-                    round_obj=r,
-                    session_summary=session,
-                    session_context=attrib_ctx,
-                )
-                resp_payload = response_attribution_to_payload(resp_attr)
-                add_payload(
-                    payload_id=response_attribution_id,
-                    kind="llm.response_attribution",
-                    title=f"R{rid} · LLM Call #{iix} · Response Attribution",
-                    text="",
-                    warning="Attribution data is embedded; for live data use API endpoint.",
-                    **{"data": resp_payload},
-                )
-            except Exception:
-                # Fallback: register attribution IDs but mark as unavailable
-                logger.debug("Embedded attribution build failed for R%s-IX%s", rid, iix, exc_info=True)
-                add_payload(
-                    payload_id=request_attribution_id,
-                    kind="llm.request_attribution",
-                    title=f"R{rid} · LLM Call #{iix} · Request Attribution",
-                    text="",
-                    warning="Attribution data unavailable; use API endpoint.",
+                    warning="Attribution deferred — click button to load on demand.",
                 )
                 add_payload(
                     payload_id=response_attribution_id,
                     kind="llm.response_attribution",
                     title=f"R{rid} · LLM Call #{iix} · Response Attribution",
                     text="",
-                    warning="Attribution data unavailable; use API endpoint.",
+                    warning="Attribution deferred — click button to load on demand.",
                 )
+            else:
+                try:
+                    # Build call-scoped session context for attribution
+                    attrib_ctx = build_attribution_session_context(
+                        session=session,
+                        round_obj=r,
+                        interaction_index=ix_idx,
+                        interactions=r.interactions,
+                        round_tool_calls=r.tool_calls,
+                        all_messages=None,  # not available in view model context
+                        all_tool_calls=tool_calls,
+                        project_dir=session.project_key or None,
+                        agent_name=session.agent,
+                        all_llm_calls=llm_calls,
+                    )
+                    req_attr = build_llm_request_attribution(
+                        agent=session.agent,
+                        llm_call=ix,
+                        round_obj=r,
+                        session_summary=session,
+                        session_context=attrib_ctx,
+                    )
+                    req_payload = request_attribution_to_payload(req_attr)
+                    add_payload(
+                        payload_id=request_attribution_id,
+                        kind="llm.request_attribution",
+                        title=f"R{rid} · LLM Call #{iix} · Request Attribution",
+                        text="",
+                        warning="Attribution data is embedded; for live data use API endpoint.",
+                        **{"data": req_payload},
+                    )
+                    resp_attr = build_llm_response_attribution(
+                        agent=session.agent,
+                        llm_call=ix,
+                        round_obj=r,
+                        session_summary=session,
+                        session_context=attrib_ctx,
+                    )
+                    resp_payload = response_attribution_to_payload(resp_attr)
+                    add_payload(
+                        payload_id=response_attribution_id,
+                        kind="llm.response_attribution",
+                        title=f"R{rid} · LLM Call #{iix} · Response Attribution",
+                        text="",
+                        warning="Attribution data is embedded; for live data use API endpoint.",
+                        **{"data": resp_payload},
+                    )
+                except Exception:
+                    # Fallback: register attribution IDs but mark as unavailable
+                    logger.debug("Embedded attribution build failed for R%s-IX%s", rid, iix, exc_info=True)
+                    add_payload(
+                        payload_id=request_attribution_id,
+                        kind="llm.request_attribution",
+                        title=f"R{rid} · LLM Call #{iix} · Request Attribution",
+                        text="",
+                        warning="Attribution data unavailable; use API endpoint.",
+                    )
+                    add_payload(
+                        payload_id=response_attribution_id,
+                        kind="llm.response_attribution",
+                        title=f"R{rid} · LLM Call #{iix} · Response Attribution",
+                        text="",
+                        warning="Attribution data unavailable; use API endpoint.",
+                    )
 
             llm_item = {
                 "type": "llm_call",
