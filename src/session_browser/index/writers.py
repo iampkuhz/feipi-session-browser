@@ -1,0 +1,131 @@
+"""Writer functions for persisting session data to the SQLite index."""
+
+from __future__ import annotations
+
+import sqlite3
+import time
+
+from session_browser.domain.models import SessionSummary
+from session_browser.domain.normalizer import sanitize_list_title
+
+
+def upsert_session(
+    conn: sqlite3.Connection,
+    summary: SessionSummary,
+    file_mtime: float = 0,
+    file_path: str = "",
+) -> None:
+    """Insert or update a single session in the index."""
+    conn.execute(
+        """
+        INSERT INTO sessions (
+            session_key, agent, session_id, title, project_key, project_name,
+            cwd, started_at, ended_at, duration_seconds, model_execution_seconds,
+            tool_execution_seconds,
+            model, git_branch, source, user_message_count, assistant_message_count,
+            tool_call_count, input_tokens, output_tokens, cached_input_tokens,
+            cached_output_tokens, fresh_input_tokens, cache_read_tokens,
+            cache_write_tokens, total_tokens, failed_tool_count, subagent_instance_count, indexed_at,
+            file_mtime, file_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_key) DO UPDATE SET
+            title=excluded.title,
+            project_key=excluded.project_key,
+            project_name=excluded.project_name,
+            cwd=excluded.cwd,
+            started_at=excluded.started_at,
+            ended_at=excluded.ended_at,
+            duration_seconds=excluded.duration_seconds,
+            model_execution_seconds=excluded.model_execution_seconds,
+            tool_execution_seconds=excluded.tool_execution_seconds,
+            model=excluded.model,
+            git_branch=excluded.git_branch,
+            source=excluded.source,
+            user_message_count=excluded.user_message_count,
+            assistant_message_count=excluded.assistant_message_count,
+            tool_call_count=excluded.tool_call_count,
+            input_tokens=excluded.input_tokens,
+            output_tokens=excluded.output_tokens,
+            cached_input_tokens=excluded.cached_input_tokens,
+            cached_output_tokens=excluded.cached_output_tokens,
+            fresh_input_tokens=excluded.fresh_input_tokens,
+            cache_read_tokens=excluded.cache_read_tokens,
+            cache_write_tokens=excluded.cache_write_tokens,
+            total_tokens=excluded.total_tokens,
+            failed_tool_count=excluded.failed_tool_count,
+            subagent_instance_count=excluded.subagent_instance_count,
+            indexed_at=excluded.indexed_at,
+            file_mtime=excluded.file_mtime,
+            file_path=excluded.file_path
+        """,
+        (
+            summary.session_key,
+            summary.agent,
+            summary.session_id,
+            summary.title,
+            summary.project_key,
+            summary.project_name,
+            summary.cwd,
+            summary.started_at,
+            summary.ended_at,
+            summary.duration_seconds,
+            summary.model_execution_seconds,
+            summary.tool_execution_seconds,
+            summary.model,
+            summary.git_branch,
+            summary.source,
+            summary.user_message_count,
+            summary.assistant_message_count,
+            summary.tool_call_count,
+            summary.input_tokens,
+            summary.output_tokens,
+            summary.cached_input_tokens,
+            summary.cached_output_tokens,
+            summary.fresh_input_tokens,
+            summary.cache_read_tokens,
+            summary.cache_write_tokens,
+            summary.total_tokens,
+            summary.failed_tool_count,
+            summary.subagent_instance_count,
+            time.time(),
+            file_mtime,
+            file_path,
+        ),
+    )
+
+
+def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSummary:
+    """Convert a DB row to SessionSummary."""
+    title = row["title"]
+    if truncate_title:
+        title = sanitize_list_title(title)
+    return SessionSummary(
+        agent=row["agent"],
+        session_id=row["session_id"],
+        title=title,
+        project_key=row["project_key"],
+        project_name=row["project_name"],
+        cwd=row["cwd"],
+        started_at=row["started_at"],
+        ended_at=row["ended_at"],
+        duration_seconds=row["duration_seconds"],
+        model_execution_seconds=row["model_execution_seconds"],
+        tool_execution_seconds=row["tool_execution_seconds"],
+        model=row["model"],
+        git_branch=row["git_branch"],
+        source=row["source"],
+        user_message_count=row["user_message_count"],
+        assistant_message_count=row["assistant_message_count"],
+        tool_call_count=row["tool_call_count"],
+        input_tokens=row["input_tokens"],
+        output_tokens=row["output_tokens"],
+        cached_input_tokens=row["cached_input_tokens"],
+        cached_output_tokens=row["cached_output_tokens"],
+        fresh_input_tokens=row["fresh_input_tokens"],
+        cache_read_tokens=row["cache_read_tokens"],
+        cache_write_tokens=row["cache_write_tokens"],
+        total_tokens=row["total_tokens"],
+        failed_tool_count=row["failed_tool_count"],
+        subagent_instance_count=row["subagent_instance_count"],
+        file_path=row["file_path"],
+    )
