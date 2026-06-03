@@ -27,7 +27,17 @@ Agent Run Profiler <span class="sep">/</span> Sessions <span class="sep">/</span
 {% endblock %}
 
 {% block script_extra %}
-<script src="/static/js/session-detail.js"></script>
+{# Session Detail JS — split modules loaded in dependency order #}
+<script src="/static/js/session-detail.js"></script> {# compat no-op #}
+<script src="/static/js/session-detail/namespace.js"></script>
+<script src="/static/js/session-detail/dom.js"></script>
+<script src="/static/js/session-detail/tabs.js"></script>
+<script src="/static/js/session-detail/filters.js"></script>
+<script src="/static/js/session-detail/payload.js"></script>
+<script src="/static/js/session-detail/lazy_rounds.js"></script>
+<script src="/static/js/session-detail/attribution.js"></script>
+<script src="/static/js/session-detail/events.js"></script>
+<script src="/static/js/session-detail/init.js"></script>
 {% endblock %}
 
 {% block content %}

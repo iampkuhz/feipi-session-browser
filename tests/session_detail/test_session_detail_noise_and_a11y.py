@@ -18,6 +18,22 @@ BASE_TEMPLATE = TEMPLATE_DIR / "base.html"
 SESSION_TEMPLATE = TEMPLATE_DIR / "session.html"
 COMPONENTS = TEMPLATE_DIR / "components"
 CSS_PATH = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
+CSS_DIR = CSS_PATH.parent / "session-detail"
+
+
+def _read_source_with_splits(main_file, split_dir):
+    """Read main file and all split subdirectory files (if they exist)."""
+    parts = []
+    if main_file.exists():
+        parts.append(main_file.read_text(encoding="utf-8"))
+    if split_dir.is_dir():
+        for f in sorted(split_dir.glob("*.css")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
+def _read_css():
+    return _read_source_with_splits(CSS_PATH, CSS_DIR)
 
 
 def _session_source():
@@ -188,7 +204,7 @@ def test_payload_tabs_have_aria_selected():
 @pytest.mark.contract_case("UI-SD-029")
 def test_css_has_issue_strip_styles():
     """CSS must define issue strip styles."""
-    css = CSS_PATH.read_text(encoding="utf-8")
+    css = _read_css()
     assert "sd-issue-strip" in css or "sd-issue-link" in css, (
         "CSS must include issue strip styles"
     )
@@ -197,7 +213,7 @@ def test_css_has_issue_strip_styles():
 @pytest.mark.contract_case("UI-SD-029")
 def test_css_has_aria_styles():
     """CSS must have aria-related styles for interactive states."""
-    css = CSS_PATH.read_text(encoding="utf-8")
+    css = _read_css()
     assert "aria-" in css or "is-active" in css or "is-open" in css, (
         "CSS must include interactive state styles"
     )

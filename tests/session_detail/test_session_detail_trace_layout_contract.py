@@ -14,10 +14,22 @@ CSS_PATH = (
     Path(__file__).parents[2]
     / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 )
+CSS_DIR = CSS_PATH.parent / "session-detail"
+
+
+def _read_source_with_splits(main_file, split_dir):
+    """Read main file and all split subdirectory files (if they exist)."""
+    parts = []
+    if main_file.exists():
+        parts.append(main_file.read_text(encoding="utf-8"))
+    if split_dir.is_dir():
+        for f in sorted(split_dir.glob("*.css")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def _read_css() -> str:
-    return CSS_PATH.read_text(encoding="utf-8")
+    return _read_source_with_splits(CSS_PATH, CSS_DIR)
 
 
 def _extract_rule(css: str, selector: str) -> list[str]:

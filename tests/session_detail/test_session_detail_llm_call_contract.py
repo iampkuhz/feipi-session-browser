@@ -116,10 +116,22 @@ def test_payload_keys_in_routes():
 # ── CSS classes ─────────────────────────────────────────────────────
 
 _TIMELINE_CSS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
+_TIMELINE_CSS_DIR = _TIMELINE_CSS.parent / "session-detail"
+
+
+def _read_source_with_splits(main_file, split_dir):
+    """Read main file and all split subdirectory files (if they exist)."""
+    parts = []
+    if main_file.exists():
+        parts.append(main_file.read_text(encoding="utf-8"))
+    if split_dir.is_dir():
+        for f in sorted(split_dir.glob("*.css")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def _read_timeline_css():
-    return _TIMELINE_CSS.read_text(encoding="utf-8")
+    return _read_source_with_splits(_TIMELINE_CSS, _TIMELINE_CSS_DIR)
 
 
 @pytest.mark.contract_case("DATA-PRESENTER-009")

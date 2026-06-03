@@ -20,6 +20,21 @@ TIMELINE = ROOT / "src" / "session_browser" / "web" / "templates" / "components"
 JS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "js" / "session-detail.js"
 CSS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
 
+JS_DIR = JS_FILE.parent / "session-detail"
+CSS_DIR = CSS_FILE.parent / "session-detail"
+
+
+def _read_source_with_splits(main_file, split_dir):
+    """Read main file and all split subdirectory files (if they exist)."""
+    parts = []
+    if main_file.exists():
+        parts.append(main_file.read_text(encoding="utf-8"))
+    if split_dir.is_dir():
+        ext = "*.css" if "css" in str(main_file) else "*.js"
+        for f in sorted(split_dir.glob(ext)):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
 
 @pytest.fixture(scope="module")
 def template_source():
@@ -279,9 +294,7 @@ class TestJSEventDispatchOnDataAction:
     """JS must dispatch toggle on data-action=\"toggle-round\"."""
 
     def _js_source(self):
-        if not JS_FILE.exists():
-            pytest.skip(f"JS file not found: {JS_FILE}")
-        return JS_FILE.read_text(encoding="utf-8")
+        return _read_source_with_splits(JS_FILE, JS_DIR)
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_toggle_round_action_in_js(self):
@@ -313,9 +326,7 @@ class TestCSSStyles:
     """CSS must contain trace table and row styles."""
 
     def _css_source(self):
-        if not CSS_FILE.exists():
-            pytest.skip(f"CSS not found: {CSS_FILE}")
-        return CSS_FILE.read_text(encoding="utf-8")
+        return _read_source_with_splits(CSS_FILE, CSS_DIR)
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_css_has_trace_table(self):
