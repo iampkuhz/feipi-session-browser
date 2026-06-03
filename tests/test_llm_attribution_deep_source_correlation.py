@@ -356,9 +356,9 @@ class TestBucketDetailsPriorMessages:
 
     def test_prior_messages_has_detail_items(self):
         ctx = {
-            "prior_messages": [
-                {"role": "user", "content": "First message", "content_preview": "First...", "content_token_estimate": 3},
-                {"role": "assistant", "content": "Second message", "content_preview": "Second...", "content_token_estimate": 4},
+            "full_messages_array": [
+                {"role": "user", "content_type": "user_text", "content_preview": "First...", "content_token_estimate": 3, "message_index": 0, "has_full_content": True, "tool_name": "", "tool_use_id": ""},
+                {"role": "assistant", "content_type": "assistant_text", "content_preview": "Second...", "content_token_estimate": 4, "message_index": 1, "has_full_content": True, "tool_name": "", "tool_use_id": ""},
             ],
             "preceding_tool_results": [],
             "available_tools": [],
@@ -369,18 +369,19 @@ class TestBucketDetailsPriorMessages:
 
         bucket = None
         for b in result.buckets:
-            if b.key == "prior_conversation_messages":
+            if b.key == "full_messages_array":
                 bucket = b
                 break
 
         assert bucket is not None
         details = bucket.details
-        assert details.get("kind") == "message_history"
+        assert details.get("kind") == "full_messages_array"
         items = details.get("items", [])
         assert len(items) == 2
         assert items[0]["role"] == "user"
         assert items[1]["role"] == "assistant"
-        assert "round_id" in items[0]
+        assert "message_index" in items[0]
+        assert "content_type" in items[0]
         assert "summary" in items[0]
         assert "tokens" in items[0]
 

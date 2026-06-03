@@ -113,7 +113,7 @@ def _truncate_preview(text: str, max_len: int = 200) -> str:
 _MEASURED_BUCKET_KEYS = {
     "current_user_message",
     "preceding_tool_results",
-    "prior_conversation_messages",
+    "full_messages_array",
 }
 _ESTIMATED_BUCKET_KEYS = {
     "local_instruction_context",
@@ -405,6 +405,18 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         if prior_messages:
             prior_conversation_tokens = estimate_tokens_from_text("\n".join(prior_message_texts))
 
+        # full_messages_array: Anthropic API-style messages (replaces prior_conversation_messages)
+        ctx = self.session_context or {}
+        full_messages_array = ctx.get("full_messages_array", [])
+        full_msg_count = len(full_messages_array) if full_messages_array else 0
+        full_msg_texts = []
+        for fm in (full_messages_array or []):
+            if isinstance(fm, dict):
+                full_msg_texts.append(fm.get("content_preview", ""))
+        full_messages_tokens = 0
+        if full_messages_array:
+            full_messages_tokens = estimate_tokens_from_text("\n".join(full_msg_texts))
+
         # Tool schemas: use real JSON Schema definitions extracted from
         # Claude Code npm package (sdk-tools.d.ts) for accurate token
         # counting, instead of the old per-tool heuristic.
@@ -443,7 +455,6 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         local_instruction_text = ""
         local_instruction_availability = ValuePrecision.UNAVAILABLE
         local_instruction_summary = "未检测到本地指令上下文。"
-        ctx = self.session_context or {}
         local_text = (
             ctx.get("local_instructions")
             or ctx.get("system_reminder_content")
@@ -487,14 +498,14 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 f"按 {len(mcp_tools)} 个 MCP 工具/服务器 × 50 tokens 估算。"
             )
 
-        # Top-level system estimate: if cache_read > 0 and prior messages are
+        # Top-level system estimate: if cache_read > 0 and full messages array is
         # small, some tokens are likely system-level.
         top_level_system_tokens = 0
-        if cache_read_val > 0 and prior_conversation_tokens < cache_read_val:
+        if cache_read_val > 0 and full_messages_tokens < cache_read_val:
             # Some cache tokens are likely system-level content.
             known_before_system = (
                 current_user_msg_tokens + tool_results_tokens
-                + prior_conversation_tokens + tool_schema_tokens
+                + full_messages_tokens + tool_schema_tokens
                 + local_instruction_tokens + agent_subagent_tokens
                 + mcp_metadata_tokens
             )
@@ -527,7 +538,7 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
         # Note: provider_wrapper_tokens is NOT included — it's absorbed into residual.
         known_sum = (
             current_user_msg_tokens + tool_results_tokens
-            + prior_conversation_tokens + tool_schema_tokens
+            + full_messages_tokens + tool_schema_tokens
             + local_instruction_tokens + agent_subagent_tokens
             + mcp_metadata_tokens + top_level_system_tokens
             + hidden_builtin_tokens
@@ -587,38 +598,45 @@ class ClaudeCodeAttributionBuilder(BaseAttributionBuilder):
                 details=preceding_tool_details,
             ))
 
-        # 3. prior_conversation_messages — 前序对话消息
-        if prior_conversation_tokens > 0 and prior_messages:
-            prior_details = {
-                "kind": "message_history",
-                "items": [
-                    {
-                        "round_id": i + 1,
-                        "role": pm.get("role", "unknown"),
-                        "summary": _truncate_preview(
-                            pm.get("content_preview", pm.get("content", "")), 180,
-                        ),
-                        "timestamp": "",  # not available from context
-                        "tokens": pm.get("content_token_estimate", 0),
-                    }
-                    for i, pm in enumerate(prior_messages)
-                ],
-                "total_items": len(prior_messages),
-                "truncated": False,
-            }
-            buckets.append(RequestAttributionBucket(
-                key="prior_conversation_messages",
-                label="前序对话消息",
-                tokens=prior_conversation_tokens,
-                percent=_pct(prior_conversation_tokens, total_call_input),
-                count_label=f"{prior_msg_count} messages",
-                precision=ValuePrecision.ESTIMATED,
-                source=ValueSource.TRANSCRIPT,
-                confidence_label="中",
-                summary="前序对话消息从 prior messages 列表获取，token 通过文本估算。",
-                content_preview=lc.request_preview[:120] if lc.request_preview else "",
-                details=prior_details,
-            ))
+        # 3. full_messages_array — Anthropic API 完整 messages 数组
+        # This replaces prior_conversation_messages with a structured array
+        # that mirrors the real Anthropic API messages field.
+        # (full_messages_array and full_messages_tokens already extracted from ctx above)
+        prior_details = {
+            "kind": "full_messages_array",
+            "items": [
+                {
+                    "message_index": fm.get("message_index", i),
+                    "role": fm.get("role", "unknown"),
+                    "content_type": fm.get("content_type", "unknown"),
+                    "tool_name": fm.get("tool_name", ""),
+                    "tool_use_id": fm.get("tool_use_id", ""),
+                    "summary": fm.get("content_preview", ""),
+                    "tokens": fm.get("content_token_estimate", 0),
+                    "has_full_content": fm.get("has_full_content", False),
+                }
+                for i, fm in enumerate(full_messages_array)
+            ],
+            "total_items": full_msg_count,
+            "truncated": False,
+        }
+        buckets.append(RequestAttributionBucket(
+            key="full_messages_array",
+            label="API messages 数组",
+            tokens=full_messages_tokens,
+            percent=_pct(full_messages_tokens, total_call_input),
+            count_label=f"{full_msg_count} messages" if full_messages_array else "",
+            precision=ValuePrecision.ESTIMATED,
+            source=ValueSource.TRANSCRIPT,
+            confidence_label="中",
+            summary=(
+                f"Anthropic API messages 数组完整结构，共 {full_msg_count} 条消息，"
+                f"包含 user_text、tool_result、assistant_text、tool_use 四种类型，"
+                f"token 通过文本估算。"
+            ),
+            content_preview="",
+            details=prior_details,
+        ))
 
         # 4. tool_schemas — 工具定义
         # Import schema extractor for per-tool token counts

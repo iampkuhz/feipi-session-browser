@@ -92,6 +92,7 @@ def build_attribution_session_context(
     agent_name: str | None = None,
     existing_context: dict | None = None,
     all_llm_calls: list[LLMCall] | None = None,
+    subagent_type: str | None = None,
 ) -> dict:
     """Build a call-scoped session context for attribution builders.
 
@@ -102,7 +103,7 @@ def build_attribution_session_context(
         interactions: List of LLM interactions in the current round.
         round_tool_calls: All tool calls associated with this round.
         all_messages: All messages from the session transcript (optional).
-            Used to build prior_messages.
+            Used to build prior_messages and full_messages_array.
         all_tool_calls: All tool calls from the entire session (optional).
             Used to build available_tools.
         project_dir: Path to the project root (optional).
@@ -110,6 +111,8 @@ def build_attribution_session_context(
         agent_name: Agent name like "claude_code", "qoder", "codex".
             Used to locate agent-specific prompt files.
         existing_context: Optional pre-existing context to extend.
+        subagent_type: Subagent type name (e.g. "implementer", "qa-verifier").
+            Used to read the correct subagent prompt file instead of the main agent prompt.
 
     Returns:
         A dict with at least:
@@ -118,6 +121,9 @@ def build_attribution_session_context(
           that occurred BEFORE the current one
         - prior_messages: messages before the current LLM call, each with
           role, content_preview (truncated to 200 chars), content_token_estimate
+        - full_messages_array: list of messages in Anthropic API format, each with
+          role, content_type (user_text/tool_result/assistant_text/tool_use),
+          content_preview, content_token_estimate, and message_index
         - available_tools: unique tool names from observed tool calls, or
           default Claude Code tool list as heuristic fallback
         - local_instructions: CLAUDE.md content (truncated to 2KB)
@@ -139,6 +145,11 @@ def build_attribution_session_context(
     # -- prior_messages --
     prior_messages = _build_prior_messages(all_messages, interaction_index)
 
+    # -- full_messages_array (Anthropic API messages format) --
+    full_messages_array = _build_full_messages_array(
+        all_messages, interaction_index, round_obj, interactions,
+    )
+
     # -- available_tools --
     available_tools = _build_available_tools(
         all_tool_calls, agent_name, llm_calls=all_llm_calls,
@@ -156,7 +167,9 @@ def build_attribution_session_context(
     if project_dir:
         project_path = Path(project_dir)
         local_instructions = _read_local_instructions(project_path, agent_name)
-        agent_prompt_file, subagent_prompt = _read_agent_prompt(project_path, agent_name)
+        agent_prompt_file, subagent_prompt = _read_agent_prompt(
+            project_path, agent_name, subagent_type=subagent_type,
+        )
         mcp_tools, mcp_servers = _read_mcp_metadata(project_path)
 
     # -- Extract system-reminder from first assistant request_full --
@@ -167,6 +180,7 @@ def build_attribution_session_context(
         "interaction_index": interaction_index,
         "preceding_tool_results": preceding_tool_results,
         "prior_messages": prior_messages,
+        "full_messages_array": full_messages_array,
         "available_tools": available_tools,
         "local_instructions": local_instructions,
         "system_reminder_content": system_reminder_content,
@@ -179,7 +193,7 @@ def build_attribution_session_context(
     if existing_context:
         # Merge: new keys override existing only if non-empty
         for k, v in base.items():
-            if v or k in ("prior_messages", "available_tools", "mcp_tools", "mcp_servers"):
+            if v or k in ("prior_messages", "full_messages_array", "available_tools", "mcp_tools", "mcp_servers"):
                 existing_context[k] = v
         return existing_context
 
@@ -227,6 +241,230 @@ def _build_prior_messages(
         })
 
     return result
+
+
+def _build_full_messages_array(
+    all_messages: list | None,
+    interaction_index: int,
+    round_obj,
+    interactions: list,
+) -> list[dict]:
+    """Build full_messages_array: Anthropic API-style messages for attribution.
+
+    Unlike _build_prior_messages (which only stores 200-char previews), this
+    builds a structured array that mirrors the real Anthropic API ``messages``
+    field sent to the model. Each entry contains:
+
+    - role: "user" or "assistant"
+    - content_type: "user_text" | "tool_result" | "assistant_text" | "tool_use"
+    - content_preview: truncated to 200 chars for summary display
+    - content_token_estimate: rough token count
+    - message_index: 0-based index in the messages array
+    - has_full_content: whether full text is available for dynamic loading
+    - tool_name: tool name for tool_result / tool_use entries
+    - tool_use_id: tool_use_id for tool_result entries
+
+    The array includes:
+    - All prior user messages (user_text entries)
+    - All preceding tool results (tool_result entries, from prior interactions)
+    - The current user message (user_text entry)
+    - Prior assistant responses (assistant_text + tool_use entries)
+
+    NOTE: The current assistant response is NOT included — it's the OUTPUT,
+    not part of the INPUT messages array.
+    """
+    if not all_messages:
+        return []
+
+    from session_browser.attribution.token_estimator import estimate_tokens_from_text
+
+    messages_array = []
+    msg_index = 0
+
+    # Gather preceding tool results for this interaction
+    preceding_tr_ids: set[str] = set()  # tool_use_ids already attributed
+    preceding_tool_texts: dict[str, str] = {}  # tool_use_id -> result_text
+    for ix_idx, ix in enumerate(interactions):
+        if ix_idx >= interaction_index:
+            break
+        if hasattr(ix, "tool_calls") and ix.tool_calls:
+            for tc in ix.tool_calls:
+                if tc.result and tc.tool_use_id and not getattr(tc, "subagent_id", ""):
+                    preceding_tool_texts[tc.tool_use_id] = tc.result
+                    preceding_tr_ids.add(tc.tool_use_id)
+
+    # Build a lookup: assistant msg's tool_calls -> tool_use_ids for that response
+    assistant_tool_use_ids: dict[int, set[str]] = {}  # msg_index -> set of tool_use_ids
+
+    for msg in all_messages:
+        role = ""
+        content = ""
+        tool_calls = []
+        request_full = ""
+
+        if isinstance(msg, dict):
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            tool_calls = msg.get("tool_calls", []) or []
+            request_full = msg.get("request_full", "") or ""
+        elif hasattr(msg, "role"):
+            role = getattr(msg, "role", "")
+            content = getattr(msg, "content", "") or ""
+            tool_calls = getattr(msg, "tool_calls", []) or []
+            request_full = getattr(msg, "request_full", "") or ""
+
+        if not role:
+            continue
+
+        content_str = str(content) if content else ""
+
+        if role == "user":
+            # Check if this user message contains tool_results
+            # Tool results appear as content blocks in the user message
+            # We detect them by checking request_full for tool_result patterns
+            # or by checking if this message follows assistant tool_calls
+
+            # Add user text as a separate entry
+            user_text = content_str.strip()
+            if user_text:
+                token_est = estimate_tokens_from_text(user_text)
+                messages_array.append({
+                    "role": "user",
+                    "content_type": "user_text",
+                    "content_preview": user_text[:_TRUNCATE_CONTENT_PREVIEW],
+                    "content_token_estimate": token_est,
+                    "message_index": msg_index,
+                    "has_full_content": True,
+                    "tool_name": "",
+                    "tool_use_id": "",
+                })
+                msg_index += 1
+
+            # Extract tool_result texts from request_full if available
+            # request_full contains tool results preceding this LLM call
+            if request_full and interaction_index == 0:
+                # For the first interaction, tool results are in request_full
+                # Split by "\n\n" to find tool result blocks
+                parts = [p.strip() for p in request_full.split("\n\n") if p.strip()]
+                for part in parts:
+                    # Detect tool result blocks (they start with "Tool result for"
+                    # or are long text that isn't the user message)
+                    if part.startswith("Tool result for "):
+                        # Extract tool_use_id from header
+                        tr_match = re.match(r"Tool result for (\S+):", part)
+                        tuid = tr_match.group(1) if tr_match else ""
+                        # Get the actual result text (after the header line)
+                        lines = part.split("\n", 1)
+                        result_text = lines[1] if len(lines) > 1 else part
+                        if tuid and result_text.strip() and tuid not in preceding_tr_ids:
+                            token_est = estimate_tokens_from_text(result_text)
+                            tool_name = _extract_tool_name_from_result(result_text)
+                            messages_array.append({
+                                "role": "user",
+                                "content_type": "tool_result",
+                                "content_preview": result_text.strip()[:_TRUNCATE_CONTENT_PREVIEW],
+                                "content_token_estimate": token_est,
+                                "message_index": msg_index,
+                                "has_full_content": True,
+                                "tool_name": tool_name,
+                                "tool_use_id": tuid,
+                            })
+                            msg_index += 1
+                            preceding_tr_ids.add(tuid)
+
+            # Also add preceding tool results from interactions
+            for tuid, tr_text in preceding_tool_texts.items():
+                if tuid not in preceding_tr_ids and tr_text.strip():
+                    token_est = estimate_tokens_from_text(tr_text)
+                    tool_name = _extract_tool_name_from_result(tr_text)
+                    messages_array.append({
+                        "role": "user",
+                        "content_type": "tool_result",
+                        "content_preview": tr_text.strip()[:_TRUNCATE_CONTENT_PREVIEW],
+                        "content_token_estimate": token_est,
+                        "message_index": msg_index,
+                        "has_full_content": True,
+                        "tool_name": tool_name,
+                        "tool_use_id": tuid,
+                    })
+                    msg_index += 1
+                    preceding_tr_ids.add(tuid)
+
+        elif role == "assistant":
+            # Skip the assistant message that corresponds to the current
+            # interaction — its response is the OUTPUT, not INPUT
+            if hasattr(round_obj, "interactions") and round_obj.interactions:
+                current_ix = round_obj.interactions[interaction_index] if interaction_index < len(round_obj.interactions) else None
+                if current_ix and getattr(current_ix, "id", "") == getattr(msg, "llm_call_id", ""):
+                    # This is the current assistant response — skip
+                    continue
+
+            # Add assistant text
+            if content_str.strip():
+                token_est = estimate_tokens_from_text(content_str)
+                messages_array.append({
+                    "role": "assistant",
+                    "content_type": "assistant_text",
+                    "content_preview": content_str[:_TRUNCATE_CONTENT_PREVIEW],
+                    "content_token_estimate": token_est,
+                    "message_index": msg_index,
+                    "has_full_content": True,
+                    "tool_name": "",
+                    "tool_use_id": "",
+                })
+                msg_index += 1
+
+            # Add tool_use entries from assistant's tool_calls
+            seen_tuids_in_msg = set()
+            for tc in tool_calls:
+                if isinstance(tc, dict):
+                    tuid = tc.get("id", "")
+                    tname = tc.get("name", "unknown")
+                    tparams = tc.get("parameters", {})
+                elif hasattr(tc, "tool_use_id"):
+                    tuid = getattr(tc, "tool_use_id", "")
+                    tname = getattr(tc, "name", "unknown")
+                    tparams = getattr(tc, "parameters", {})
+                else:
+                    continue
+
+                if tuid and tuid not in seen_tuids_in_msg:
+                    seen_tuids_in_msg.add(tuid)
+                    params_str = json.dumps(tparams, ensure_ascii=False)[:200] if tparams else ""
+                    tool_use_text = f"{tname}({params_str})" if params_str else tname
+                    token_est = estimate_tokens_from_text(tool_use_text)
+                    messages_array.append({
+                        "role": "assistant",
+                        "content_type": "tool_use",
+                        "content_preview": tool_use_text[:_TRUNCATE_CONTENT_PREVIEW],
+                        "content_token_estimate": token_est,
+                        "message_index": msg_index,
+                        "has_full_content": False,
+                        "tool_name": tname,
+                        "tool_use_id": tuid,
+                    })
+                    msg_index += 1
+
+    return messages_array
+
+
+def _extract_tool_name_from_result(result_text: str) -> str:
+    """Extract tool name from a tool result text.
+
+    Looks for patterns like 'Tool result for <tool_use_id>:\\n<tool_name>...'
+    or header patterns like 'Tool Call: Name'.
+    """
+    if not result_text:
+        return "unknown"
+    m = re.search(r'(?:Tool|tool)[\s_]*(?:Call|Result|Output)?[:\s]+(\w+)', result_text)
+    if m:
+        return m.group(1)
+    m = re.search(r'^###\s+(\w+)', result_text, re.MULTILINE)
+    if m:
+        return m.group(1)
+    # Fallback: first word
+    first = result_text.split()[0] if result_text.split() else "unknown"
+    return first[:30]
 
 
 def _parse_agent_tools_from_frontmatter(text: str) -> list[str] | None:
@@ -401,12 +639,28 @@ def _read_local_instructions(project_path: Path, agent_name: str | None) -> str:
 
 def _read_agent_prompt(
     project_path: Path, agent_name: str | None,
+    subagent_type: str | None = None,
 ) -> tuple[str, str]:
-    """Read agent prompt file if agent_name is known.
+    """Read agent prompt file if agent_name or subagent_type is known.
+
+    Priority:
+    1. If subagent_type is provided (e.g. "implementer", "qa-verifier"),
+       read .claude/agents/{subagent_type}.md — this is the subagent's own prompt.
+    2. Otherwise read .claude/agents/{agent_name}.md for the main agent prompt.
 
     For Codex, checks .codex/agents/ first, then falls back to .claude/agents/.
     """
-    if not agent_name:
+    if not agent_name and not subagent_type:
+        return "", ""
+
+    # Determine which agent file to read
+    if subagent_type:
+        # For subagent calls, read the subagent's own prompt file
+        target_name = subagent_type
+    elif agent_name:
+        # For main agent calls, read the main agent prompt file
+        target_name = agent_name
+    else:
         return "", ""
 
     # Try agent-specific directory first
@@ -419,7 +673,7 @@ def _read_agent_prompt(
         agents_dirs = [project_path / ".claude" / "agents"]
 
     for agents_dir_path in agents_dirs:
-        candidate = agents_dir_path / f"{agent_name}.md"
+        candidate = agents_dir_path / f"{target_name}.md"
         try:
             if candidate.exists() and candidate.is_file():
                 text = candidate.read_text(encoding="utf-8", errors="replace")

@@ -208,6 +208,106 @@ def _build_tool_command_summary(tool_name: str, params: dict) -> str:
     return name
 
 
+# ── Full messages array content reconstruction helpers ────────────────────
+
+
+def _find_user_message_content(all_messages, msg_array, target_index):
+    """Find the full text of a user_text message from all_messages.
+
+    Walks through all_messages and msg_array in parallel to find the
+    corresponding full content for the target message_index.
+    """
+    user_text_entries = [
+        m for m in msg_array
+        if m.get("content_type") == "user_text"
+    ]
+    if target_index >= len(user_text_entries):
+        return ""
+    target_entry = user_text_entries[target_index]
+    target_preview = target_entry.get("content_preview", "")
+
+    for msg in all_messages:
+        role = ""
+        content = ""
+        if isinstance(msg, dict):
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+        elif hasattr(msg, "role"):
+            role = getattr(msg, "role", "")
+            content = getattr(msg, "content", "") or ""
+
+        if role == "user" and content:
+            content_str = str(content).strip()
+            if content_str and content_str[:200] == target_preview:
+                return content_str
+    return target_preview
+
+
+def _find_tool_result_content(all_messages, msg_array, target_index):
+    """Find the full text of a tool_result message.
+
+    Tool results are embedded in user messages' request_full or in
+    preceding tool results. We reconstruct from tool_calls' results.
+    """
+    tr_entries = [
+        m for m in msg_array
+        if m.get("content_type") == "tool_result"
+    ]
+    if target_index >= len(tr_entries):
+        return ""
+    target_entry = tr_entries[target_index]
+    tuid = target_entry.get("tool_use_id", "")
+
+    # Try to find from all_messages' request_full
+    for msg in all_messages:
+        request_full = ""
+        if isinstance(msg, dict):
+            request_full = msg.get("request_full", "") or ""
+        elif hasattr(msg, "request_full"):
+            request_full = getattr(msg, "request_full", "") or ""
+
+        if request_full and tuid:
+            # Look for "Tool result for {tuid}:" pattern
+            pattern = f"Tool result for {tuid}:"
+            idx = request_full.find(pattern)
+            if idx >= 0:
+                # Extract from after the header to next "\n\n" or end
+                start = idx + len(pattern)
+                end = request_full.find("\n\n", start)
+                if end < 0:
+                    end = len(request_full)
+                return request_full[start:end].strip()
+    return target_entry.get("content_preview", "")
+
+
+def _find_assistant_message_content(all_messages, msg_array, target_index):
+    """Find the full text of an assistant_text message."""
+    assistant_entries = [
+        m for m in msg_array
+        if m.get("content_type") == "assistant_text"
+    ]
+    if target_index >= len(assistant_entries):
+        return ""
+    target_entry = assistant_entries[target_index]
+    target_preview = target_entry.get("content_preview", "")
+
+    for msg in all_messages:
+        role = ""
+        content = ""
+        if isinstance(msg, dict):
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+        elif hasattr(msg, "role"):
+            role = getattr(msg, "role", "")
+            content = getattr(msg, "content", "") or ""
+
+        if role == "assistant" and content:
+            content_str = str(content).strip()
+            if content_str and content_str[:200] == target_preview:
+                return content_str
+    return target_preview
+
+
 # ── Qoder short ID resolution ─────────────────────────────────────────────
 
 _UUID_PATTERN = re.compile(
@@ -1050,6 +1150,19 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         ix = sa_llm_calls[call_idx - 1]
 
+        # Determine subagent_type from subagent_runs or tool_calls
+        subagent_type = None
+        for run in subagent_runs:
+            if run["summary"]["agent_id"] == sa_id:
+                subagent_type = run["summary"].get("agent_type", "") or None
+                break
+        # Fallback: check parent Agent tool call's subagent_summary
+        if not subagent_type:
+            for tc in tool_calls:
+                if tc.name == "Agent" and tc.subagent_id == sa_id:
+                    subagent_type = tc.subagent_summary.get("agent_type", "") or None
+                    break
+
         # Find the parent round for this subagent call
         parent_round_idx = ix.round_index
         if parent_round_idx < 0 or parent_round_idx >= len(rounds):
@@ -1061,7 +1174,11 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         # the round's interactions list. Use 0 as a safe default so that
         # preceding_tool_results is empty (subagent calls don't have local
         # preceding tool results in the same way).
-        self._build_and_send_attribution(source, session_id, session, r, ix, 0, parent_round_idx + 1, kind, llm_calls, messages, tool_calls)
+        self._build_and_send_attribution(
+            source, session_id, session, r, ix, 0,
+            parent_round_idx + 1, kind, llm_calls, messages, tool_calls,
+            subagent_type=subagent_type,
+        )
 
     def _load_session_and_build_rounds(self, source: str, session_id: str):
         """Load session, parse data, build rounds and LLM calls.
@@ -1215,7 +1332,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             "payload_sources": vm.get("payload_sources", []),
         })
 
-    def _build_and_send_attribution(self, source, session_id, session, r, ix, interaction_index, round_index, kind, llm_calls, messages, tool_calls):
+    def _build_and_send_attribution(self, source, session_id, session, r, ix, interaction_index, round_index, kind, llm_calls, messages, tool_calls, subagent_type=None):
         """Build attribution for an LLM call and send JSON response."""
         all_messages = messages or []
         all_tool_calls = tool_calls or []
@@ -1232,6 +1349,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             project_dir=session.project_key or None,
             agent_name=source,
             all_llm_calls=llm_calls,
+            subagent_type=subagent_type,
         )
 
         # Build attribution
@@ -1394,6 +1512,94 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 "text": masked,
                 "tokens": estimate_tokens_from_text(local_text),
                 "source_file": "CLAUDE.md",
+            })
+            return
+
+        elif bucket_key.startswith("full_messages_array_item:"):
+            # Fetch a specific message item from the full_messages_array
+            try:
+                msg_index = int(bucket_key.split(":", 1)[1])
+            except (ValueError, IndexError):
+                self._send_json({"error": f"invalid message_index in bucket_key '{bucket_key}'"}, status=400)
+                return
+
+            if source == "claude_code":
+                from session_browser.sources.claude import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id
+                )
+            elif source == "qoder":
+                from session_browser.sources.qoder import parse_session_detail
+                qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
+                    session.project_key, session_id, session_file=qoder_file
+                )
+            else:
+                from session_browser.sources.codex import parse_session_detail
+                raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
+
+            rounds = build_rounds(
+                messages, tool_calls,
+                session.input_tokens, session.output_tokens,
+                session.cached_input_tokens, session.cached_output_tokens,
+                source, md_filter=_md_filter,
+            )
+            llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, source)
+            assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
+
+            from session_browser.attribution.context import build_attribution_session_context
+            from session_browser.attribution.agents.claude_code import _mask_sensitive_keys
+            from session_browser.attribution.token_estimator import estimate_tokens_from_text
+
+            # Build full_messages_array for the first interaction of the first round
+            # as a representative sample
+            target_idx = round_index - 1
+            if target_idx < 0 or target_idx >= len(rounds):
+                self._send_json({"error": f"round_index {round_index} out of range (1-{len(rounds)})"}, status=404)
+                return
+
+            r = rounds[target_idx]
+            attrib_ctx = build_attribution_session_context(
+                session=session,
+                round_obj=r,
+                interaction_index=0,
+                interactions=r.interactions if hasattr(r, 'interactions') else [],
+                round_tool_calls=r.tool_calls,
+                all_messages=messages,
+                all_tool_calls=tool_calls,
+                project_dir=session.project_key or None,
+                agent_name=source,
+                all_llm_calls=llm_calls,
+            )
+
+            msg_array = attrib_ctx.get("full_messages_array", [])
+            if msg_index < 0 or msg_index >= len(msg_array):
+                self._send_json({
+                    "error": f"message_index {msg_index} out of range (0-{len(msg_array) - 1})",
+                    "total_messages": len(msg_array),
+                }, status=404)
+                return
+
+            msg_entry = msg_array[msg_index]
+            # For full content, we need to reconstruct from the original messages
+            content_text = ""
+            if msg_entry.get("content_type") == "user_text":
+                content_text = self._find_user_message_content(messages, msg_array, msg_index)
+            elif msg_entry.get("content_type") == "tool_result":
+                content_text = self._find_tool_result_content(messages, msg_array, msg_index)
+            elif msg_entry.get("content_type") == "assistant_text":
+                content_text = self._find_assistant_message_content(messages, msg_array, msg_index)
+
+            masked = _mask_sensitive_keys(content_text or "")
+            self._send_json({
+                "kind": "bucket_detail",
+                "bucket_key": "full_messages_array_item",
+                "message_index": msg_index,
+                "role": msg_entry.get("role", ""),
+                "content_type": msg_entry.get("content_type", ""),
+                "tool_name": msg_entry.get("tool_name", ""),
+                "text": masked,
+                "tokens": estimate_tokens_from_text(content_text or ""),
             })
             return
 

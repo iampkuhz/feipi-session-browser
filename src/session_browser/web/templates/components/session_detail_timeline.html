@@ -566,6 +566,23 @@
                           </li>
                           {% endfor %}
                         </ul>
+                        {% elif b.details.kind == 'full_messages_array' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'] %}
+                          <li class="sd-bucket-detail-item{% if item.content_type == 'tool_result' %} sd-bucket-detail-item--tool-result{% elif item.content_type == 'tool_use' %} sd-bucket-detail-item--tool-use{% elif item.role == 'assistant' %} sd-bucket-detail-item--assistant{% endif %}">
+                            <span class="sd-bucket-detail-name">
+                              {% if item.content_type == 'user_text' %}<span class="sd-pill sd-pill--user">user</span>
+                              {% elif item.content_type == 'tool_result' %}<span class="sd-pill sd-pill--model">tool_result</span>
+                              {% elif item.content_type == 'assistant_text' %}<span class="sd-pill sd-pill--assistant">assistant</span>
+                              {% elif item.content_type == 'tool_use' %}<span class="sd-pill sd-pill--tool">tool_use</span>
+                              {% else %}{{ item.content_type }}{% endif %}
+                              {% if item.tool_name %} · {{ item.tool_name }}{% endif %}
+                            </span>
+                            <span class="sd-bucket-detail-desc">{{ item.summary|default('') }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.tokens|default(0) }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
                         {% elif b.details.kind == 'system_sources' %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
@@ -781,6 +798,23 @@
                           <li class="sd-bucket-detail-item">
                             <span class="sd-bucket-detail-name">{{ item.role }}</span>
                             <span class="sd-bucket-detail-desc">{{ item.summary|default(item.content_preview|default('')) }}</span>
+                            <span class="sd-bucket-detail-meta">{{ item.tokens|default(0) }} tokens</span>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                        {% elif b.details.kind == 'full_messages_array' %}
+                        <ul class="sd-bucket-detail-list">
+                          {% for item in b.details['items'] %}
+                          <li class="sd-bucket-detail-item{% if item.content_type == 'tool_result' %} sd-bucket-detail-item--tool-result{% elif item.content_type == 'tool_use' %} sd-bucket-detail-item--tool-use{% elif item.role == 'assistant' %} sd-bucket-detail-item--assistant{% endif %}">
+                            <span class="sd-bucket-detail-name">
+                              {% if item.content_type == 'user_text' %}<span class="sd-pill sd-pill--user">user</span>
+                              {% elif item.content_type == 'tool_result' %}<span class="sd-pill sd-pill--model">tool_result</span>
+                              {% elif item.content_type == 'assistant_text' %}<span class="sd-pill sd-pill--assistant">assistant</span>
+                              {% elif item.content_type == 'tool_use' %}<span class="sd-pill sd-pill--tool">tool_use</span>
+                              {% else %}{{ item.content_type }}{% endif %}
+                              {% if item.tool_name %} · {{ item.tool_name }}{% endif %}
+                            </span>
+                            <span class="sd-bucket-detail-desc">{{ item.summary|default('') }}</span>
                             <span class="sd-bucket-detail-meta">{{ item.tokens|default(0) }} tokens</span>
                           </li>
                           {% endfor %}
