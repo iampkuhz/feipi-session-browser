@@ -1,15 +1,12 @@
 {#
   Session Detail Timeline components — split wrapper.
 
-  This file re-exports all timeline macros via {% include %} so that
+  This file re-exports all timeline macros via delegation macros so that
   the existing import path continues to work:
 
     {% import "components/session_detail_timeline.html" as sdt %}
     {{ sdt.hero(...) }}
     {{ sdt.trace_round(...) }}
-
-  All macros share the same namespace after include; sdp primitives
-  are imported once at the top.
 
   Split modules:
     summary.html      — hero, trace_header, round_summary
@@ -19,9 +16,52 @@
     payload.html      — payload_sources, payload_modal
 #}
 {% import "components/session_detail_primitives.html" as sdp %}
+{% import "components/session_detail_timeline/summary.html" as _sdt_summary %}
+{% import "components/session_detail_timeline/round_table.html" as _sdt_round %}
+{% import "components/session_detail_timeline/llm_call.html" as _sdt_llm %}
+{% import "components/session_detail_timeline/subagent.html" as _sdt_sub %}
+{% import "components/session_detail_timeline/payload.html" as _sdt_payload %}
 
-{% include "components/session_detail_timeline/summary.html" %}
-{% include "components/session_detail_timeline/round_table.html" %}
-{% include "components/session_detail_timeline/llm_call.html" %}
-{% include "components/session_detail_timeline/subagent.html" %}
-{% include "components/session_detail_timeline/payload.html" %}
+{% macro hero(summary, metrics, issues=[], session_url='') -%}
+  {{ _sdt_summary.hero(summary, metrics, issues, session_url) }}
+{%- endmacro %}
+
+{% macro trace_header() -%}
+  {{ _sdt_summary.trace_header() }}
+{%- endmacro %}
+
+{% macro round_summary(row) -%}
+  {{ _sdt_summary.round_summary(row) }}
+{%- endmacro %}
+
+{% macro round_row(row) -%}
+  {{ _sdt_round.round_row(row) }}
+{%- endmacro %}
+
+{% macro expanded_row(row) -%}
+  {{ _sdt_round.expanded_row(row) }}
+{%- endmacro %}
+
+{% macro trace_round(row, slim=False) -%}
+  {{ _sdt_round.trace_round(row, slim) }}
+{%- endmacro %}
+
+{% macro llm_call_card(call) -%}
+  {{ _sdt_llm.llm_call_card(call) }}
+{%- endmacro %}
+
+{% macro tool_batch(batch) -%}
+  {{ _sdt_llm.tool_batch(batch) }}
+{%- endmacro %}
+
+{% macro subagent_block(block) -%}
+  {{ _sdt_sub.subagent_block(block) }}
+{%- endmacro %}
+
+{% macro payload_sources(sources=[]) -%}
+  {{ _sdt_payload.payload_sources(sources) }}
+{%- endmacro %}
+
+{% macro payload_modal() -%}
+  {{ _sdt_payload.payload_modal() }}
+{%- endmacro %}

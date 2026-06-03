@@ -549,7 +549,7 @@ class TestDeadButtonGate:
         "jump-round", "jump-anomaly", "md-toggle",
         "toggle-round", "toggle-issue-expand", "toggle-sub-round",
         "open-settings", "help", "shell",
-        "copy-session-id",
+        "copy-session-id", "copy",
     }
 
     # 侧边栏导航操作（nav-*）由侧边栏契约测试单独验证
