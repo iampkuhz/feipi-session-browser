@@ -104,10 +104,13 @@ def test_session_uses_trace_round_macro():
 
 @pytest.mark.contract_case("DATA-PRESENTER-009")
 def test_payload_keys_in_routes():
-    """routes.py view model must generate payload IDs for LLM calls."""
-    routes = (Path(__file__).parents[2] / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
-    assert "context_payload_id" in routes, "View model must generate context_payload_id"
-    assert "response_payload_id" in routes, "View model must generate response_payload_id"
+    """View model must generate payload IDs for LLM calls."""
+    base = Path(__file__).parents[2] / "src" / "session_browser" / "web"
+    routes = (base / "routes.py").read_text(encoding="utf-8")
+    view_model = (base / "session_detail" / "view_model.py").read_text(encoding="utf-8")
+    source = routes + "\n" + view_model
+    assert "context_payload_id" in source, "View model must generate context_payload_id"
+    assert "response_payload_id" in source, "View model must generate response_payload_id"
 
 
 # ── CSS classes ─────────────────────────────────────────────────────

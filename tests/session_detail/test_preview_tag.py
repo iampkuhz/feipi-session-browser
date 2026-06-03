@@ -12,6 +12,7 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROUTES = os.path.join(ROOT, "src", "session_browser", "web", "routes.py")
+VIEW_MODEL = os.path.join(ROOT, "src", "session_browser", "web", "session_detail", "view_model.py")
 
 
 def _read_routes():
@@ -19,26 +20,36 @@ def _read_routes():
         return f.read()
 
 
+def _read_view_model():
+    with open(VIEW_MODEL) as f:
+        return f.read()
+
+
+def _read_all_sources():
+    """Read both routes.py and view_model.py for source-level checks."""
+    return _read_routes() + "\n" + _read_view_model()
+
+
 class TestPreviewTextBuiltInViewmodel:
     """验证预览文本在 routes.py 中由 user_msg.content 构建。"""
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_title_uses_user_msg(self):
-        source = _read_routes()
+        source = _read_all_sources()
         assert "user_msg.content" in source
         assert "preview_title" in source
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_title_sanitized(self):
         """preview_title 应清洗禁止出现的框架词汇。"""
-        source = _read_routes()
+        source = _read_all_sources()
         # 应将禁止词汇替换为 ***
         assert "***" in source
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_subtitle_shows_tool_count(self):
         """preview_subtitle 应显示工具数量。"""
-        source = _read_routes()
+        source = _read_all_sources()
         assert "preview_subtitle" in source
         assert "tool" in source.lower()
 
@@ -77,6 +88,6 @@ class TestPreviewTextTruncation:
 
     @pytest.mark.contract_case("UI-SD-024")
     def test_truncation_in_routes(self):
-        source = _read_routes()
+        source = _read_all_sources()
         # preview_title 截断至 120 字符
         assert "[:120]" in source or "[:80]" in source
