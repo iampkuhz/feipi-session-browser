@@ -1,4 +1,18 @@
-:root {
+/* ── Legacy aliases and shared component rules ───────────────────────
+ *
+ * This file provides:
+ *   - CSS custom property aliases (→ canonical names in tokens.css)
+ *   - Legacy component class aliases → canonical primitives
+ *   - Shared page-level styles not yet migrated
+ *
+ * TODO (Phase 09): Audit and remove unused aliases.
+ *   1. Grep all templates/static JS/tests for each selector.
+ *   2. Remove aliases with zero hits.
+ *   3. Move remaining real styles to canonical files.
+ *   4. Keep only verified alias mappings here, or delete this file.
+ *
+ * This file is loaded by base.html on every page.
+ * ──────────────────────────────────────────────────────────────────── */
   --bg: #f6f8fb;
   --surface: #fff;
   --surface2: #fbfcff;
