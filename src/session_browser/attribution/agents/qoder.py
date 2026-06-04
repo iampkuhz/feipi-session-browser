@@ -1,7 +1,11 @@
 """Qoder attribution builder.
 
-Qoder defaults to transcript-level reconstruction.  Do NOT show raw body.
-Do NOT assume cache_read / cache_write availability.
+Qoder 是 broker/runtime。通过标准化后的 LLMCall 字段获取真实 usage 数据：
+- ``lc.input_tokens`` 经 normalizer 改写后为 fresh input
+- ``lc.cache_read_tokens`` 对应 cache_read_input_tokens
+- ``lc.cache_write_tokens`` 对应 cache_creation_input_tokens（provider-reported）
+- total = fresh + cache_read + cache_write
+- 0 是有效值，不能显示为 unavailable。
 """
 
 from __future__ import annotations
@@ -67,39 +71,56 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         lc = self.llm_call
         ro = self.round_obj
 
-        # ── Step 1: total input ────────────────────────────────────────
-        total_input_val = lc.input_tokens or 0
-        precision_total = (ValuePrecision.PROVIDER_REPORTED if total_input_val > 0
+        # ── Step 1: 从标准化后的 LLMCall 获取真实 usage ─────────────
+        # normalizer 已将 input_tokens 改写为 fresh，保留 cache 字段
+        fresh_input = lc.input_tokens or 0
+        cache_read = lc.cache_read_tokens or 0
+        cache_write = lc.cache_write_tokens or 0
+        total_input = fresh_input + cache_read + cache_write
+
+        # 也尝试从 session_context 或 round usage 获取 total marker
+        ctx = self.session_context or {}
+        qoder_total = ctx.get("qoder_input_tokens_total")
+        if qoder_total is not None:
+            total_input = int(qoder_total)
+        # 也检查 assistant_msg.usage 中是否有 total marker
+        elif ro and getattr(ro, "assistant_msg", None) and ro.assistant_msg.usage:
+            raw_usage = ro.assistant_msg.usage
+            marker = raw_usage.get("qoder_input_tokens_total")
+            if marker is not None:
+                total_input = int(marker)
+
+        precision_total = (ValuePrecision.PROVIDER_REPORTED if total_input > 0
                            else ValuePrecision.UNAVAILABLE)
-        source_total = (ValueSource.PROVIDER_USAGE if total_input_val > 0
+        source_total = (ValueSource.PROVIDER_USAGE if total_input > 0
                         else ValueSource.HEURISTIC)
 
-        total_input = AttributedValue(
-            value=total_input_val,
+        total_input_val = AttributedValue(
+            value=total_input if total_input > 0 else None,
             unit="tokens",
             precision=precision_total,
             source=source_total,
-            fill_strategy="from transcript/usage if available",
+            fill_strategy="from normalized usage (fresh + cache_read + cache_write)",
         )
 
-        # Qoder: cache split is unknown
-        fresh_input = AttributedValue(
-            value=None, unit="tokens",
-            precision=ValuePrecision.UNAVAILABLE,
-            source=ValueSource.HEURISTIC,
-            fill_strategy="Qoder does not provide fresh/cache split",
+        # Qoder: 使用真实 cache 数据，0 是有效值
+        fresh_input_val = AttributedValue(
+            value=fresh_input, unit="tokens",
+            precision=ValuePrecision.PROVIDER_REPORTED if total_input > 0 else ValuePrecision.UNAVAILABLE,
+            source=ValueSource.PROVIDER_USAGE if total_input > 0 else ValueSource.HEURISTIC,
+            fill_strategy="from normalized usage (input_tokens after normalization)",
         )
-        cache_read = AttributedValue(
-            value=None, unit="tokens",
-            precision=ValuePrecision.UNAVAILABLE,
-            source=ValueSource.HEURISTIC,
-            fill_strategy="Qoder does not provide cache_read",
+        cache_read_val = AttributedValue(
+            value=cache_read, unit="tokens",
+            precision=ValuePrecision.PROVIDER_REPORTED if total_input > 0 else ValuePrecision.UNAVAILABLE,
+            source=ValueSource.PROVIDER_USAGE if total_input > 0 else ValueSource.HEURISTIC,
+            fill_strategy="from normalized usage (cache_read_input_tokens)",
         )
-        cache_write = AttributedValue(
-            value=None, unit="tokens",
-            precision=ValuePrecision.UNAVAILABLE,
-            source=ValueSource.HEURISTIC,
-            fill_strategy="Qoder does not provide cache_write",
+        cache_write_val = AttributedValue(
+            value=cache_write, unit="tokens",
+            precision=ValuePrecision.PROVIDER_REPORTED if total_input > 0 else ValuePrecision.UNAVAILABLE,
+            source=ValueSource.PROVIDER_USAGE if total_input > 0 else ValueSource.HEURISTIC,
+            fill_strategy="from normalized usage (cache_creation_input_tokens)",
         )
 
         # ── Step 2: visible content estimation ─────────────────────────
@@ -147,13 +168,14 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         injected_context_tokens = 0  # heuristic placeholder
 
         # ── Step 3: normalize and assemble buckets ─────────────────────
+        total_input_raw = total_input if isinstance(total_input, int) else (total_input_val.value or 0)
         known_sum = (current_user_msg_tokens + tool_results_tokens
                      + history_tokens + captured_context_tokens
                      + tool_schema_tokens + injected_context_tokens)
 
-        if total_input_val > 0 and known_sum > total_input_val:
+        if total_input_raw > 0 and known_sum > total_input_raw:
             # Normalize: scale estimated buckets proportionally
-            scale = total_input_val / known_sum
+            scale = total_input_raw / known_sum
             history_tokens = max(0, int(history_tokens * scale))
             tool_results_tokens = max(0, int(tool_results_tokens * scale))
             tool_schema_tokens = max(0, int(tool_schema_tokens * scale))
@@ -163,7 +185,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                          + history_tokens + captured_context_tokens
                          + tool_schema_tokens + injected_context_tokens)
 
-        unknown_val = max(total_input_val - known_sum, 0) if total_input_val > 0 else 0
+        unknown_val = max(total_input_raw - known_sum, 0) if total_input_raw > 0 else 0
 
         buckets = []
 
@@ -173,7 +195,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 key="history_messages",
                 label="History messages",
                 tokens=history_tokens,
-                percent=_pct(history_tokens, total_input_val),
+                percent=_pct(history_tokens, total_input_raw),
                 count_label=f"{history_msg_count} messages",
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
@@ -188,7 +210,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 key="captured_context_fragment",
                 label="Captured context / unknown",
                 tokens=captured_context_tokens,
-                percent=_pct(captured_context_tokens, total_input_val),
+                percent=_pct(captured_context_tokens, total_input_raw),
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="低",
@@ -201,7 +223,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 key="tool_results",
                 label="Tool results",
                 tokens=tool_results_tokens,
-                percent=_pct(tool_results_tokens, total_input_val),
+                percent=_pct(tool_results_tokens, total_input_raw),
                 count_label=f"{len(tool_result_texts)} results" if tool_result_texts else "",
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TOOL_LOGS,
@@ -214,7 +236,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 key="current_user_message",
                 label="Current user prompt",
                 tokens=current_user_msg_tokens,
-                percent=_pct(current_user_msg_tokens, total_input_val),
+                percent=_pct(current_user_msg_tokens, total_input_raw),
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="中高",
@@ -227,7 +249,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 key="injected_context",
                 label="Injected context / rules",
                 tokens=injected_context_tokens,
-                percent=_pct(injected_context_tokens, total_input_val),
+                percent=_pct(injected_context_tokens, total_input_raw),
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.LOCAL_RULES,
                 confidence_label="低",
@@ -240,7 +262,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 key="tool_schemas",
                 label="Tool schemas",
                 tokens=tool_schema_tokens,
-                percent=_pct(tool_schema_tokens, total_input_val),
+                percent=_pct(tool_schema_tokens, total_input_raw),
                 count_label=f"{len(available_tools)} tools",
                 precision=ValuePrecision.HEURISTIC,
                 source=ValueSource.TOOL_LIST,
@@ -264,7 +286,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             key="unknown_overhead",
             label="未定位",
             tokens=unknown_val,
-            percent=_pct(unknown_val, total_input_val),
+            percent=_pct(unknown_val, total_input_raw),
             precision=ValuePrecision.RESIDUAL,
             source=ValueSource.RESIDUAL,
             confidence_label="中",
@@ -276,27 +298,28 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             b.tokens for b in buckets
             if b.key not in ("unknown_overhead",) and b.contributes_to_total
         )
-        coverage_val = (min(known_bucket_sum / total_input_val, 1.0)
-                        if total_input_val > 0 else 0.0)
+        coverage_val = (min(known_bucket_sum / total_input_raw, 1.0)
+                        if total_input_raw > 0 else 0.0)
 
         # ── Step 5: availability rows ──────────────────────────────────
+        has_usage = total_input_raw > 0
         avail_rows = [
-            self._avail("total_input", "Total input tokens", total_input_val > 0,
-                        precision=ValuePrecision.PROVIDER_REPORTED if total_input_val > 0 else ValuePrecision.UNAVAILABLE,
-                        source=ValueSource.PROVIDER_USAGE if total_input_val > 0 else ValueSource.HEURISTIC,
-                        fill_strategy="from transcript/usage if available"),
-            self._avail("fresh_input", "Fresh input tokens", False,
-                        precision=ValuePrecision.UNAVAILABLE,
-                        source=ValueSource.HEURISTIC,
-                        fill_strategy="Qoder does not provide fresh/cache split"),
-            self._avail("cache_read", "Cache read tokens", False,
-                        precision=ValuePrecision.UNAVAILABLE,
-                        source=ValueSource.HEURISTIC,
-                        fill_strategy="Qoder does not provide cache_read"),
-            self._avail("cache_write", "Cache write tokens", False,
-                        precision=ValuePrecision.UNAVAILABLE,
-                        source=ValueSource.HEURISTIC,
-                        fill_strategy="Qoder does not provide cache_write"),
+            self._avail("total_input", "Total input tokens", has_usage,
+                        precision=ValuePrecision.PROVIDER_REPORTED if has_usage else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.PROVIDER_USAGE if has_usage else ValueSource.HEURISTIC,
+                        fill_strategy="from normalized usage (fresh + cache_read + cache_write)"),
+            self._avail("fresh_input", "Fresh input tokens", has_usage,
+                        precision=ValuePrecision.PROVIDER_REPORTED if has_usage else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.PROVIDER_USAGE if has_usage else ValueSource.HEURISTIC,
+                        fill_strategy="from normalized usage (input_tokens after normalization)"),
+            self._avail("cache_read", "Cache read tokens", has_usage,
+                        precision=ValuePrecision.PROVIDER_REPORTED if has_usage else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.PROVIDER_USAGE if has_usage else ValueSource.HEURISTIC,
+                        fill_strategy="from normalized usage (cache_read_input_tokens)"),
+            self._avail("cache_write", "Cache write tokens", has_usage,
+                        precision=ValuePrecision.PROVIDER_REPORTED if has_usage else ValuePrecision.UNAVAILABLE,
+                        source=ValueSource.PROVIDER_USAGE if has_usage else ValueSource.HEURISTIC,
+                        fill_strategy="from normalized usage (cache_creation_input_tokens)"),
             self._avail("history_messages_count", "History message count",
                         history_msg_count > 0, exact=False,
                         precision=ValuePrecision.ESTIMATED if history_msg_count > 0 else ValuePrecision.UNAVAILABLE,
@@ -344,7 +367,13 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         ]
 
         notes = []
-        notes.append("Qoder 不提供 cache_read / cache_write 拆分，所有 fresh/cache 标记为 unknown。")
+        if has_usage:
+            notes.append(
+                f"Qoder broker-reported usage: total={total_input_raw}, "
+                f"fresh={fresh_input}, cache_read={cache_read}, cache_write={cache_write}"
+            )
+        else:
+            notes.append("Qoder 无 provider usage 数据，使用本地估算。")
         if available_tools:
             notes.append(f"Tool schemas 按 {len(available_tools)} available tools × {_DEFAULT_SCHEMA_TOKENS_PER_TOOL} tokens 估算。")
         else:
@@ -360,10 +389,10 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             source_label="transcript",
             confidence_label="中",
             raw_body_available=False,
-            total_input=total_input,
-            fresh_input=fresh_input,
-            cache_read=cache_read,
-            cache_write=cache_write,
+            total_input=total_input_val,
+            fresh_input=fresh_input_val,
+            cache_read=cache_read_val,
+            cache_write=cache_write_val,
             coverage=AttributedValue(
                 value=coverage_val, unit="ratio",
                 precision=ValuePrecision.ESTIMATED,

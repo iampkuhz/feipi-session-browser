@@ -1,5 +1,10 @@
   /* ── Attribution API fetch support ── */
 
+  /** 安全取回 primary 值，0 视为有效值，仅在 null/undefined 时 fallback。 */
+  function coalesceDefined(primary, fallback) {
+    return primary !== null && primary !== undefined ? primary : fallback;
+  }
+
   var _attributionCache = new Map();
 
   function _getPageSourceAndSessionId() {
@@ -140,10 +145,11 @@
 
     // Card 1: Summary (use ~ for estimated values)
     // Support both v2 usage_summary and old usage fields
-    var totalInput = usageSummary.total_input || usage.total_input;
-    var freshInput = usageSummary.fresh_input || usage.fresh_input;
-    var cacheRead = usageSummary.cache_read || usage.cache_read;
-    var cacheWrite = usageSummary.cache_write || usage.cache_write;
+    // 使用 coalesceDefined 避免 0 值被 || 跳过
+    var totalInput = coalesceDefined(usageSummary.total_input, usage.total_input);
+    var freshInput = coalesceDefined(usageSummary.fresh_input, usage.fresh_input);
+    var cacheRead = coalesceDefined(usageSummary.cache_read, usage.cache_read);
+    var cacheWrite = coalesceDefined(usageSummary.cache_write, usage.cache_write);
     html += '<div class="sd-attribution-rail__card">';
     html += '<h3>' + (kind === "request" ? "请求摘要" : "响应摘要") + '</h3>';
     if (kind === "request") {

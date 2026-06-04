@@ -87,20 +87,18 @@ def resolve_call_mapping(
     usage_shape = detect_usage_shape(usage)
 
     if agent_runtime == "qoder":
-        # Qoder: dynamic API family based on usage shape
+        # Qoder: 固定为 qoder_broker，不根据 usage shape 推断 underlying provider
         api_family = "qoder_broker"
+        underlying_provider = None  # Qoder 是 broker，不伪装为 Anthropic/OpenAI
         if usage_shape == "anthropic_messages_like":
-            underlying_provider = "anthropic"
-            reasons.append("qoder usage has Anthropic-like cache fields")
+            reasons.append("qoder usage has Anthropic-like cache fields (broker-reported)")
             confidence = 0.85
             usage_source = "provider_reported"
         elif usage_shape in ("openai_responses_like", "openai_chat_like"):
-            underlying_provider = "openai"
-            reasons.append(f"qoder usage has {usage_shape} fields")
+            reasons.append("qoder usage has OpenAI-like fields (broker-reported)")
             confidence = 0.85
             usage_source = "provider_reported"
         elif usage_shape == "token_reported_unknown_cache":
-            underlying_provider = None
             reasons.append("qoder usage has basic tokens but no cache info")
             confidence = 0.6
             usage_source = "provider_reported"

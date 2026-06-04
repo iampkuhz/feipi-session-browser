@@ -1,10 +1,15 @@
 """Qoder Broker usage parser.
 
-Qoder 是 broker，不是固定 provider。usage shape 决定 underlying family：
-- 有 cache_read_input_tokens/cache_creation_input_tokens -> Anthropic-like
-- 有 cached_tokens in input/prompt details -> OpenAI-like
-- 只有 input_tokens/output_tokens -> token_reported_unknown_cache
-- 无 usage -> estimate_only
+Qoder 是 broker/runtime，不是固定 provider。usage shape 仅作字段形态分类，
+不推断 underlying provider。
+
+Qoder broker-reported usage 的关键语义：
+- ``input_tokens`` 是 **inclusive total input**（包含缓存），不是 fresh。
+- ``cache_read_input_tokens`` 和 ``cache_creation_input_tokens`` 是 provider/broker-reported。
+- 如果存在 ``qoder_input_tokens_total``，说明该记录已被 normalizer 预处理过，
+  ``input_tokens`` 已被改写为 fresh，total 以 marker 为准。
+- fresh = total_input - cache_read - cache_write
+- 0 是有效值，不能变成 unavailable。
 """
 
 from __future__ import annotations
@@ -17,7 +22,10 @@ from session_browser.attribution.mapping.usage_shape_detector import (
 
 
 def parse_qoder_broker_usage(usage: dict | None) -> UsageBreakdown:
-    """解析 Qoder broker usage，按 shape 委托给对应 parser。
+    """解析 Qoder broker usage。
+
+    Qoder broker-reported usage 中 ``input_tokens`` 是 inclusive total input，
+    不是 Anthropic 语义下的 fresh input。
 
     Returns:
         UsageBreakdown，usage_source 包含 "qoder_broker" 标记。
@@ -32,20 +40,33 @@ def parse_qoder_broker_usage(usage: dict | None) -> UsageBreakdown:
     shape = detect_usage_shape(usage)
 
     if shape == "anthropic_messages_like":
+        # Qoder broker: input_tokens 是 inclusive total
         cache_read = get_nested_int(usage, "cache_read_input_tokens")
         cache_write = get_nested_int(usage, "cache_creation_input_tokens")
-        fresh = get_nested_int(usage, "input_tokens")
+
+        # 检查是否已被 normalizer 预处理（带有 qoder_input_tokens_total marker）
+        qoder_total = usage.get("qoder_input_tokens_total")
+        if qoder_total is not None:
+            # 已标准化：input_tokens 已被改写为 fresh，total 以 marker 为准
+            total_input = int(qoder_total)
+            # 使用当前的 input_tokens 作为 fresh（normalizer 已改写）
+            fresh = get_nested_int(usage, "input_tokens")
+        else:
+            # 原始 Qoder usage：input_tokens 是 inclusive total
+            total_input = get_nested_int(usage, "input_tokens")
+            fresh = max(0, total_input - cache_read - cache_write)
+
         output = get_nested_int(usage, "output_tokens")
-        total = cache_read + cache_write + fresh
+
         return UsageBreakdown(
-            total_input=total if total > 0 else None,
+            total_input=total_input if total_input > 0 else None,
             fresh_input=fresh,
             cache_read=cache_read,
             cache_write=cache_write,
             output=output if output > 0 else None,
             usage_source="qoder_broker_provider_reported",
             precision="provider_reported",
-            note="Qoder broker: Anthropic-like usage",
+            note="Qoder broker: inclusive input with cache fields",
         )
 
     elif shape in ("openai_responses_like", "openai_chat_like"):

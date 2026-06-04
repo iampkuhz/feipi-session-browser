@@ -1,4 +1,10 @@
-"""Qoder token distribution 测试。"""
+"""Qoder token distribution 测试。
+
+验证 Qoder mapping identity：
+- Qoder + Anthropic-like cache fields -> qoder_broker, underlying_provider=None
+- Qoder + OpenAI-like fields -> qoder_broker, underlying_provider=None
+- Qoder no usage -> estimate_only
+"""
 
 from __future__ import annotations
 
@@ -20,8 +26,9 @@ class TestQoderTokenDistribution:
             model="performance-tier",
         )
         assert decision.api_family == "qoder_broker"
-        assert decision.underlying_provider == "anthropic"
+        assert decision.underlying_provider is None  # Qoder 不伪装为 Anthropic
         assert decision.confidence >= 0.8
+        assert decision.provider_or_broker == "qoder"
 
     def test_openai_like_distribution(self):
         usage = {
@@ -35,7 +42,8 @@ class TestQoderTokenDistribution:
             model="standard-tier",
         )
         assert decision.api_family == "qoder_broker"
-        assert decision.underlying_provider == "openai"
+        assert decision.underlying_provider is None  # Qoder 不伪装为 OpenAI
+        assert decision.provider_or_broker == "qoder"
 
     def test_no_usage_estimate_only(self):
         decision = resolve_call_mapping(

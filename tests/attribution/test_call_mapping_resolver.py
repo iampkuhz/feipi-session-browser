@@ -3,8 +3,8 @@
 覆盖：
 - Claude Code + Anthropic usage -> anthropic_messages
 - Codex + OpenAI Responses usage -> openai_responses
-- Qoder + Anthropic-like usage -> qoder_broker + anthropic underlying
-- Qoder + OpenAI-like usage -> qoder_broker + openai underlying
+- Qoder + Anthropic-like usage -> qoder_broker, underlying_provider=None
+- Qoder + OpenAI-like usage -> qoder_broker, underlying_provider=None
 - Qoder no usage -> estimate_only
 - Unknown fallback
 """
@@ -161,7 +161,7 @@ class TestCallMappingQoder:
         assert decision.agent_runtime == "qoder"
         assert decision.api_family == "qoder_broker"
         assert decision.provider_or_broker == "qoder"
-        assert decision.underlying_provider == "anthropic"
+        assert decision.underlying_provider is None  # Qoder 不推断 underlying provider
         assert decision.confidence >= 0.8
         assert "tokens" in decision.billing_units
         assert "credits" in decision.billing_units
@@ -174,7 +174,7 @@ class TestCallMappingQoder:
         }
         decision = resolve_call_mapping(agent="qoder", usage=usage)
         assert decision.api_family == "qoder_broker"
-        assert decision.underlying_provider == "openai"
+        assert decision.underlying_provider is None  # Qoder 不推断 underlying provider
 
     def test_qoder_no_usage(self):
         decision = resolve_call_mapping(agent="qoder", usage=None)

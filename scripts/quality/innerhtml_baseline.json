@@ -117,13 +117,13 @@
     },
     {
       "file": "src/session_browser/web/static/js/session-detail/attribution.js",
-      "line": 44,
+      "line": 49,
       "isClear": false,
       "snippet": "body.innerHTML = '<div class=\"sd-payload-error\">' +"
     },
     {
       "file": "src/session_browser/web/static/js/session-detail/attribution.js",
-      "line": 63,
+      "line": 68,
       "isClear": false,
       "snippet": "body.innerHTML = renderAttributionLoading(url.indexOf(\"/request\") !== -1 ? \"request\" : \"response\");"
     },

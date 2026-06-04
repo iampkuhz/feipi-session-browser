@@ -231,7 +231,11 @@ class TestRealUsagePreserved:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_qoder_provider_usage_normalized_to_canonical_buckets(self):
-        """Qoder provider input total should not be double-counted with cache read."""
+        """Qoder provider input total 不应与 cache read 双算。
+
+        关键：provider-reported cache_creation_input_tokens=0 不能被下一条
+        cache_read 差值覆盖。推断值只进入 qoder_cache_write_inferred_tokens。
+        """
         events = [
             _user_event("hello"),
             _assistant_event(
@@ -258,16 +262,23 @@ class TestRealUsagePreserved:
         ]
 
         records = _assistant_records(events)
-        assert records[0]["usage"]["input_tokens"] == 10
-        assert records[0]["usage"]["cache_creation_input_tokens"] == 990
+        # Call 1: fresh = 1000 - 0 - 0 = 1000，cache_write 保持 provider-reported 0
+        assert records[0]["usage"]["input_tokens"] == 1000
+        assert records[0]["usage"]["cache_creation_input_tokens"] == 0  # 不被推断覆盖
         assert records[0]["usage"]["qoder_input_tokens_total"] == 1000
+        # 推断值进入单独字段
+        assert records[0]["usage"].get("qoder_cache_write_inferred_tokens") == 990
+        assert records[0]["usage"].get("qoder_cache_write_inferred") is True
+        # Call 2: fresh = 1200 - 990 - 0 = 210
         assert records[1]["usage"]["input_tokens"] == 210
         assert records[1]["usage"]["cache_read_input_tokens"] == 990
 
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
-        assert summary.input_tokens == 220
+        # input_tokens 是各 call fresh 之和: 1000 + 210 = 1210
+        assert summary.input_tokens == 1210
         assert summary.cached_input_tokens == 990
-        assert summary.cached_output_tokens == 990
+        # cached_output_tokens 是 cache_creation_input_tokens 之和: 0 + 0 = 0
+        assert summary.cached_output_tokens == 0
         assert summary.output_tokens == 30
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
