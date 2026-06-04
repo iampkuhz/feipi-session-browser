@@ -1,3 +1,7 @@
+{# Subagent block components — session detail timeline. #}
+{% import "components/session_detail_primitives.html" as sdp with context %}
+{% import "components/session_detail_timeline/llm_call.html" as llm with context %}
+
 {% macro subagent_block(block) -%}
   <div class="sd-timeline-item" data-timeline-item="subagent">
     {{ sdp.timeline_dot('sub') }}
@@ -54,9 +58,9 @@
             <div class="sd-sub-steps">
               {% for step in sr.steps %}
                 {% if step.type == "llm_call" %}
-                  {{ llm_call_card(step) }}
+                  {{ llm.llm_call_card(step) }}
                 {% elif step.type == "tool_batch" %}
-                  {{ tool_batch(step) }}
+                  {{ llm.tool_batch(step) }}
                 {% else %}
                   {# tool_step fallback #}
                   <div class="sd-sub-step">
