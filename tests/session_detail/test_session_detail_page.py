@@ -21,6 +21,7 @@ TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 COMPONENTS = TEMPLATE_DIR / "components"
 SESSION_HTML = TEMPLATE_DIR / "session.html"
 TIMELINE_HTML = COMPONENTS / "session_detail_timeline.html"
+TIMELINE_DIR = COMPONENTS / "session_detail_timeline"
 PRIMITIVES_HTML = COMPONENTS / "session_detail_primitives.html"
 
 
@@ -28,6 +29,17 @@ def _read(path: pathlib.Path) -> str:
     if not path.exists():
         pytest.skip(f"Template not found: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def _read_timeline_with_splits() -> str:
+    """Read main timeline file and all split subdirectory files."""
+    parts = []
+    if TIMELINE_HTML.exists():
+        parts.append(TIMELINE_HTML.read_text(encoding="utf-8"))
+    if TIMELINE_DIR.is_dir():
+        for f in sorted(TIMELINE_DIR.glob("*.html")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 # ── 主视觉区 ────────────────────────────────────────────────────────
@@ -38,7 +50,7 @@ class TestHeroArea:
 
     @pytest.fixture(scope="class")
     def timeline(self):
-        return _read(TIMELINE_HTML)
+        return _read_timeline_with_splits()
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_hero_section_exists(self, timeline):
@@ -167,6 +179,7 @@ class TestTabNavigation:
             "Missing data-tab=\"trace\""
 
     @pytest.mark.contract_case("UI-SD-001")
+    @pytest.mark.skip(reason="metrics tab removed in 72b3157")
     def test_metrics_tab_exists(self, session):
         """Metrics tab must exist with data-action=\"tab-metrics\"."""
         assert 'data-action="tab-metrics"' in session, \
@@ -203,7 +216,7 @@ class TestTraceTableStructure:
 
     @pytest.fixture(scope="class")
     def timeline(self):
-        return _read(TIMELINE_HTML)
+        return _read_timeline_with_splits()
 
     @pytest.fixture(scope="class")
     def session(self):
@@ -291,8 +304,8 @@ class TestTraceTableStructure:
     @pytest.mark.contract_case("UI-SD-001")
     def test_session_calls_trace_round(self, session):
         """session.html must call sdt.trace_round for each row."""
-        assert "sdt.trace_round(row)" in session, \
-            "session.html must call sdt.trace_round(row)"
+        assert "sdt.trace_round(row" in session, \
+            "session.html must call sdt.trace_round(row, ...)"
         assert "for row in trace_rows" in session, \
             "session.html must iterate over trace_rows"
 
@@ -319,7 +332,7 @@ class TestFilterButtons:
 
     @pytest.fixture(scope="class")
     def timeline(self):
-        return _read(TIMELINE_HTML)
+        return _read_timeline_with_splits()
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_filter_status_action(self, timeline):
@@ -384,7 +397,7 @@ class TestTokenBar:
 
     @pytest.fixture(scope="class")
     def timeline(self):
-        return _read(TIMELINE_HTML)
+        return _read_timeline_with_splits()
 
     @pytest.fixture(scope="class")
     def primitives(self):
@@ -467,7 +480,7 @@ class TestPayloadModal:
 
     @pytest.fixture(scope="class")
     def timeline(self):
-        return _read(TIMELINE_HTML)
+        return _read_timeline_with_splits()
 
     @pytest.fixture(scope="class")
     def primitives(self):

@@ -18,12 +18,24 @@ TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
 
 PROJECT_HTML = TEMPLATE_DIR / "project.html"
 UI_PRIMITIVES = TEMPLATE_DIR / "components" / "ui_primitives.html"
+UI_PRIMITIVES_DIR = TEMPLATE_DIR / "components" / "ui_primitives"
 
 
 def _read_template(path: Path) -> str:
     if not path.exists():
         pytest.skip(f"{path.name} not found at {path}")
     return path.read_text(encoding="utf-8")
+
+
+def _read_ui_primitives_with_splits() -> str:
+    """Read ui_primitives with split-aware reading."""
+    parts = []
+    if UI_PRIMITIVES.exists():
+        parts.append(UI_PRIMITIVES.read_text(encoding="utf-8"))
+    if UI_PRIMITIVES_DIR.is_dir():
+        for f in sorted(UI_PRIMITIVES_DIR.glob("*.html")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 @pytest.fixture(scope="module")
@@ -133,8 +145,7 @@ class TestProjectDetailTokenCellReuse:
 
         if uses_macro:
             # Macro call found — verify the macro itself has a tooltip
-            ui_primitives = Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "templates" / "components" / "ui_primitives.html"
-            macro_text = ui_primitives.read_text(encoding="utf-8")
+            macro_text = _read_ui_primitives_with_splits()
             assert "token-tooltip" in macro_text, (
                 "ui.token_cell macro must contain token-tooltip element"
             )

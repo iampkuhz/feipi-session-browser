@@ -19,6 +19,19 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 TIMELINE = ROOT / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html"
 JS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "js" / "session-detail.js"
 CSS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
+JS_DIR = JS_FILE.parent / "session-detail"
+CSS_DIR = CSS_FILE.parent / "session-detail"
+
+
+def _read_source_with_splits(main_file, split_dir):
+    """Read main file and all split subdirectory files (if they exist)."""
+    parts = []
+    if main_file.exists():
+        parts.append(main_file.read_text(encoding="utf-8"))
+    if split_dir.is_dir():
+        for f in sorted(split_dir.glob("*.css" if "css" in str(main_file) else "*.js")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 JS_DIR = JS_FILE.parent / "session-detail"
 CSS_DIR = CSS_FILE.parent / "session-detail"

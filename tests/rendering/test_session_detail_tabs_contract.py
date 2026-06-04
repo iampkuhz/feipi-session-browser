@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SESSION_HTML = ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
 
 # 所需的标签页和面板
-REQUIRED_TABS = {"trace", "metrics", "payloads"}
+# Note: metrics and payloads tabs were removed in 72b3157; only trace remains.
+REQUIRED_TABS = {"trace"}
 
 
 @pytest.fixture(scope="module")
@@ -58,12 +59,14 @@ class TestTabsPanelsContract:
         assert "trace" in tabs, f"Missing data-tab=\"trace\" in session.html. Found tabs: {tabs}"
 
     @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.skip(reason="metrics tab removed in 72b3157")
     def test_tabs_contain_metrics(self, session_source):
         """Tabs must include 'metrics'."""
         tabs = _find_data_tabs(session_source)
         assert "metrics" in tabs, f"Missing data-tab=\"metrics\" in session.html. Found tabs: {tabs}"
 
     @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.skip(reason="payloads tab removed in 72b3157")
     def test_tabs_contain_payloads(self, session_source):
         """Tabs must include 'payloads'."""
         tabs = _find_data_tabs(session_source)
@@ -79,6 +82,7 @@ class TestTabsPanelsContract:
         )
 
     @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.skip(reason="metrics panel removed in 72b3157")
     def test_panels_contain_metrics(self, session_source):
         """Panels must include 'metrics'."""
         panels = _find_data_panels(session_source)
@@ -88,6 +92,7 @@ class TestTabsPanelsContract:
         )
 
     @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.skip(reason="payloads panel removed in 72b3157")
     def test_panels_contain_payloads(self, session_source):
         """Panels must include 'payloads'."""
         panels = _find_data_panels(session_source)

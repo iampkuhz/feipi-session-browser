@@ -13,9 +13,25 @@ import subprocess
 import sys
 import time
 import urllib.request
+import glob
 
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_DIR = os.path.join(SB_ROOT, "src")
+
+
+def _read_css_with_splits():
+    """Read session-detail.css with split-aware reading."""
+    css_path = os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "css", "session-detail.css")
+    css_dir = os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "css", "session-detail")
+    parts = []
+    if os.path.exists(css_path):
+        with open(css_path) as f:
+            parts.append(f.read())
+    if os.path.isdir(css_dir):
+        for fp in sorted(glob.glob(os.path.join(css_dir, "*.css"))):
+            with open(fp) as f:
+                parts.append(f.read())
+    return "\n".join(parts)
 
 
 @pytest.fixture(scope="module")
@@ -87,9 +103,7 @@ class TestLongSessionRendering:
     @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
     def test_css_contain_property(self, long_session_url):
         """CSS 应在 trace 元素上包含 contain: layout style。"""
-        css_path = os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "css", "session-detail.css")
-        with open(css_path) as f:
-            css = f.read()
+        css = _read_css_with_splits()
         assert "contain: layout style" in css
 
 

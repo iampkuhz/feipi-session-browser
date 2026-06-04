@@ -651,7 +651,14 @@ class TestTranscriptExactCSS:
     def test_transcript_exact_css_in_file(self):
         import pathlib
         css_path = pathlib.Path(__file__).resolve().parent.parent / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
-        css = css_path.read_text()
+        css_dir = css_path.parent / "session-detail"
+        parts = []
+        if css_path.exists():
+            parts.append(css_path.read_text())
+        if css_dir.is_dir():
+            for f in sorted(css_dir.glob("*.css")):
+                parts.append(f.read_text())
+        css = "\n".join(parts)
         assert "sd-precision-tag--transcript_exact" in css
 
 

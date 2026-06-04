@@ -1,14 +1,14 @@
 """Apply 按钮 dirty-state 静态契约测试。
-验证 Sessions List 筛选表单中的 Apply 按钮具备：
-1. 可识别的 selector（data-action 或 id），供 JS 定位。
-2. 筛选表单（#session-filter-form）存在，作为事件绑定锚点。
-3. JS 中包含 dirty-state 管理逻辑：监听表单 input/change
-   事件并切换 Apply 按钮的 disabled 状态或 is-dirty 类。
 
-这是静态契约测试——读取模板和 JS 源文件，无需浏览器或实时服务器。
+注意：Apply 按钮及 dirty state 逻辑已在 9d137e1 中移除，
+搜索改为实时过滤、下拉选择自动提交。此文件保留作为历史参考。
 """
 
 from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Apply button removed in 9d137e1: real-time search")
 
 import pytest
 import os

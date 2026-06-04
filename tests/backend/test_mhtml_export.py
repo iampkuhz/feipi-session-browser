@@ -11,11 +11,11 @@ STATIC_CSS_DIR = ROOT / "src" / "session_browser" / "web" / "static" / "css"
 
 
 def _read_split_component(rel_path: str) -> str:
-    """Read a template file, resolving {% include %} directives for split wrappers.
+    """Read a template file, resolving split wrappers.
 
-    If the file is a thin wrapper with {% include %} statements (detected by
-    having includes but no actual macro/rule content), this returns the
-    concatenated content of all included files plus the wrapper itself.
+    Handles both {% include %} and {% import %} based split wrappers.
+    Also scans for split subdirectory files when the main file delegates
+    to sub-modules.
     """
     wrapper_path = TEMPLATES / rel_path
     text = wrapper_path.read_text(encoding="utf-8")
@@ -30,6 +30,18 @@ def _read_split_component(rel_path: str) -> str:
             if inc_path.exists():
                 parts.append(inc_path.read_text(encoding="utf-8"))
         return "\n".join(parts)
+
+    # Also handle {% import %} based split wrappers (Phase 04 pattern)
+    imports = re.findall(r'{%\s*import\s+"[^"]*" as \w+\s*%}', text)
+    if imports and 'data-' not in text:
+        import_paths = re.findall(r'{%\s*import\s+"([^"]+)" as \w+\s*%}', text)
+        parts = [text]
+        for inc in import_paths:
+            inc_path = TEMPLATES / inc
+            if inc_path.exists():
+                parts.append(inc_path.read_text(encoding="utf-8"))
+        return "\n".join(parts)
+
     return text
 
 # mhtml.py get_css() 捆绑的 CSS 文件

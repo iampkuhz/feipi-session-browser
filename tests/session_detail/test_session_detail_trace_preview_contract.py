@@ -237,8 +237,8 @@ class TestTraceRowDOMContract:
         assert "for row in trace_rows" in content, (
             "Template must iterate over trace_rows"
         )
-        assert "sdt.trace_round(row)" in content, (
-            "Template must call sdt.trace_round(row) for each row"
+        assert "sdt.trace_round(row" in content, (
+            "Template must call sdt.trace_round(row, ...) for each row"
         )
 
     @pytest.mark.contract_case("UI-SD-019")

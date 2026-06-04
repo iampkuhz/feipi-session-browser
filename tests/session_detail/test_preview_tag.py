@@ -9,6 +9,7 @@
 import pytest
 
 import os
+import glob
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROUTES = os.path.join(ROOT, "src", "session_browser", "web", "routes.py")
@@ -28,6 +29,23 @@ def _read_view_model():
 def _read_all_sources():
     """Read both routes.py and view_model.py for source-level checks."""
     return _read_routes() + "\n" + _read_view_model()
+
+
+def _read_timeline_with_splits():
+    """Read timeline with split-aware reading."""
+    timeline = os.path.join(ROOT, "src", "session_browser", "web", "templates",
+                            "components", "session_detail_timeline.html")
+    split_dir = os.path.join(ROOT, "src", "session_browser", "web", "templates",
+                             "components", "session_detail_timeline")
+    parts = []
+    if os.path.exists(timeline):
+        with open(timeline) as f:
+            parts.append(f.read())
+    if os.path.isdir(split_dir):
+        for fp in sorted(glob.glob(os.path.join(split_dir, "*.html"))):
+            with open(fp) as f:
+                parts.append(f.read())
+    return "\n".join(parts)
 
 
 class TestPreviewTextBuiltInViewmodel:
@@ -73,12 +91,7 @@ class TestPreviewTagDoesNotLeakUserContent:
     @pytest.mark.contract_case("UI-SD-024")
     def test_preview_uses_view_model_vars(self):
         """模板应使用视图模型中的 row.preview_title，而非原始内容。"""
-        timeline = os.path.join(
-            ROOT, "src", "session_browser", "web", "templates",
-            "components", "session_detail_timeline.html"
-        )
-        with open(timeline) as f:
-            content = f.read()
+        content = _read_timeline_with_splits()
         assert "row.preview_title" in content, "Should use row.preview_title"
         assert "row.preview_subtitle" in content, "Should use row.preview_subtitle"
 

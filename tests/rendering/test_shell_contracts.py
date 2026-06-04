@@ -17,6 +17,7 @@ BASE_HTML = TEMPLATE_DIR / "base.html"
 STYLE_CSS = None  # style.css 已删除 — MHTML 现在打包模块化 CSS
 SHELL_CSS = STATIC_DIR / "css" / "shell.css"
 UI_PRIMITIVES_CSS = STATIC_DIR / "css" / "ui-primitives.css"
+UI_PRIMITIVES_CSS_DIR = STATIC_DIR / "css" / "ui-primitives"
 LEGACY_ALIASES_CSS = STATIC_DIR / "css" / "legacy-aliases.css"
 
 
@@ -48,10 +49,16 @@ def shell_text():
 
 
 def _ui_primitives_source():
-    """返回 ui-primitives.css 文本，如果文件缺失则跳过测试。"""
-    if not UI_PRIMITIVES_CSS.exists():
+    """返回 ui-primitives.css 文本（含 split-aware 读取）。"""
+    parts = []
+    if UI_PRIMITIVES_CSS.exists():
+        parts.append(UI_PRIMITIVES_CSS.read_text(encoding="utf-8"))
+    if UI_PRIMITIVES_CSS_DIR.is_dir():
+        for f in sorted(UI_PRIMITIVES_CSS_DIR.glob("*.css")):
+            parts.append(f.read_text(encoding="utf-8"))
+    if not parts:
         pytest.skip(f"ui-primitives.css not found at {UI_PRIMITIVES_CSS}")
-    return UI_PRIMITIVES_CSS.read_text(encoding="utf-8")
+    return "\n".join(parts)
 
 
 @pytest.fixture(scope="module")

@@ -13,18 +13,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TIMELINE_HTML = ROOT / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html"
+TIMELINE_DIR = ROOT / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline"
+SUMMARY_SPLIT = TIMELINE_DIR / "summary.html"
+
+
+def _read_trace_header_source() -> str:
+    """Read trace_header macro from split module or wrapper."""
+    # Try split module first
+    if SUMMARY_SPLIT.exists():
+        return SUMMARY_SPLIT.read_text(encoding="utf-8")
+    # Fallback to wrapper
+    if TIMELINE_HTML.exists():
+        return TIMELINE_HTML.read_text(encoding="utf-8")
+    pytest.skip("trace_header template not found")
 
 
 @pytest.fixture(scope="module")
 def trace_header_source():
     """从模板中提取 trace_header 宏体。"""
-    if not TIMELINE_HTML.exists():
-        pytest.skip(f"Template not found at {TIMELINE_HTML}")
-    text = TIMELINE_HTML.read_text(encoding="utf-8")
+    text = _read_trace_header_source()
     # 定位 trace_header 宏块
     start = text.find("{% macro trace_header()")
     if start == -1:
-        pytest.fail("trace_header macro not found in session_detail_timeline.html")
+        pytest.fail("trace_header macro not found")
     end = text.find("{%- endmacro %}", start)
     if end == -1:
         pytest.fail("trace_header macro lacks closing endmacro")

@@ -25,8 +25,19 @@ def _base_source():
     return (TEMPLATE_DIR / "base.html").read_text(encoding="utf-8")
 
 
+TIMELINE_SPLIT_DIR = COMPONENTS / "session_detail_timeline"
+
+
 def _timeline_component():
-    return (COMPONENTS / "session_detail_timeline.html").read_text(encoding="utf-8")
+    """Read timeline component with split-aware reading."""
+    parts = []
+    main = COMPONENTS / "session_detail_timeline.html"
+    if main.exists():
+        parts.append(main.read_text(encoding="utf-8"))
+    if TIMELINE_SPLIT_DIR.is_dir():
+        for f in sorted(TIMELINE_SPLIT_DIR.glob("*.html")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 @pytest.fixture(scope="module")

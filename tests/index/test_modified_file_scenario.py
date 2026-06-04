@@ -245,7 +245,7 @@ class TestModifiedFileScenario:
 
         # 第二次增量扫描（无进一步变化）应跳过该会话
         result2 = _run_incremental_scan(str(data_dir), db_path)
-        assert result["claude_count"] == 0 or (
+        assert result2["claude_count"] == 0 or (
             # 如果扫描报告 claude_count > 0，说明它仍然重新索引了
             # 但这可能是因为缺少时间数据。改为检查 skipped。
             result2["skipped"] >= 1

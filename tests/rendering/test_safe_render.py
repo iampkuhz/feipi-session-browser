@@ -43,8 +43,7 @@ class TestSafeJsonDisplay:
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_escapes_script_tag(self):
-        """
-JSON 值中的 HTML 实体必须转义。
+        """JSON 值中的 HTML 实体必须转义。"""
         payload = {"html": "<script>alert(1)</script>"}
         result = safe_json_display(payload)
         assert "<script>" not in result
