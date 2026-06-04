@@ -847,7 +847,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "round detail not found"}, status=404)
             return
 
-        # Render the expanded row HTML using Jinja template
+        # Render the expanded row HTML using Jinja template.
+        # round_table.html now imports llm_call/subagent with context,
+        # so the macro namespace is self-contained and works via template.module.
         template = _template_env.get_template("components/session_detail_timeline.html")
         expanded_html = template.module.expanded_row(trace_row)
         # Strip <tr>/<td> wrapper tags — JS creates its own <tr><td> and injects inner content

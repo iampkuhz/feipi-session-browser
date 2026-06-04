@@ -32,9 +32,9 @@ def _read_split_component(rel_path: str) -> str:
         return "\n".join(parts)
 
     # Also handle {% import %} based split wrappers (Phase 04 pattern)
-    imports = re.findall(r'{%\s*import\s+"[^"]*" as \w+\s*%}', text)
+    imports = re.findall(r'{%\s*import\s+"[^"]*" as \w+(?:\s+with context)?\s*%}', text)
     if imports and 'data-' not in text:
-        import_paths = re.findall(r'{%\s*import\s+"([^"]+)" as \w+\s*%}', text)
+        import_paths = re.findall(r'{%\s*import\s+"([^"]+)" as \w+(?:\s+with context)?\s*%}', text)
         parts = [text]
         for inc in import_paths:
             inc_path = TEMPLATES / inc
@@ -50,7 +50,6 @@ MHTML_CSS_FILES = [
     "css/base.css",
     "css/shell.css",
     "css/ui-primitives.css",
-    "css/legacy-aliases.css",
 ]
 
 

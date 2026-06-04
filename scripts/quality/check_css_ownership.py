@@ -7,7 +7,6 @@
 2. 跨层重复定义：页面 CSS 是否重写 ui-primitives 中的全局组件
 3. 依赖方向：低层 CSS 是否反向引用页面级选择器
 4. 硬编码颜色：页面 CSS 是否绕过 token 变量
-5. legacy-aliases 纯度：兼容层是否包含新样式逻辑
 
 用法:
     python3 scripts/quality/check_css_ownership.py
@@ -77,7 +76,7 @@ SHARED_BASE_SELECTORS = {
 
 # 豁免文件：这些文件不受跨层重复检查约束
 EXEMPT_FROM_DUPLICATE = {
-    "tokens.css", "base.css", "shell.css", "ui-primitives.css", "legacy-aliases.css",
+    "tokens.css", "base.css", "shell.css", "ui-primitives.css",
 }
 
 
@@ -378,7 +377,7 @@ def check_hardcoded_colors(
     violations: list[Violation] = []
 
     # 豁免：tokens 是颜色定义源，base/shell/ui-primitives 可以有基础色
-    if filename in ("tokens.css", "base.css", "shell.css", "ui-primitives.css", "legacy-aliases.css"):
+    if filename in ("tokens.css", "base.css", "shell.css", "ui-primitives.css"):
         return violations
 
     hex_color = re.compile(r"(?<![a-zA-Z])#[0-9a-fA-F]{3,8}\b")
@@ -396,34 +395,6 @@ def check_hardcoded_colors(
                     detail=f"{filename} 使用硬编码颜色 '{color}'（选择器: '{selector[:60]}...'），"
                            f"建议使用 token 变量",
                 ))
-
-    return violations
-
-
-def check_legacy_aliases_purity(
-    filename: str,
-    rules: list[tuple[int, str, str]],
-) -> list[Violation]:
-    """检查 5: legacy-aliases 纯度 — 兼容层只做变量映射。"""
-    violations: list[Violation] = []
-
-    if filename != "legacy-aliases.css":
-        return violations
-
-    for lineno, selector, body in rules:
-        if selector.startswith("@"):
-            continue
-        if selector == ":root":
-            continue  # :root 包裹变量映射是合法的
-        # 如果选择器不是 :root 也不是 --var 声明，WARN
-        if not selector.startswith("--"):
-            violations.append(Violation(
-                severity="WARN",
-                rule="legacy-purity",
-                file=filename,
-                line=lineno,
-                detail=f"legacy-aliases.css 包含非变量映射规则：'{selector[:100]}'",
-            ))
 
     return violations
 
@@ -477,9 +448,6 @@ def check_css_ownership(repo_root: Path) -> OwnershipCheck:
 
         # 检查 4: 硬编码颜色
         result.warnings.extend(check_hardcoded_colors(filename, rules))
-
-        # 检查 5: legacy-aliases 纯度
-        result.warnings.extend(check_legacy_aliases_purity(filename, rules))
 
     return result
 

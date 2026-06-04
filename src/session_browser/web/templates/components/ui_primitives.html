@@ -6,20 +6,20 @@
   into component files under ui_primitives/ subdirectory.
 
   Usage (unchanged):
-    {% import "components/ui_primitives.html" as ui %}
-    {% from "components/ui_primitives.html" import button %}
+    {% import "components/ui_primitives.html" as ui with context %}
+    {% from "components/ui_primitives.html" import button with context %}
 
   All macros are re-exported from sub-components to preserve compatibility.
 #}
 
-{# Import sub-components #}
-{% import "components/ui_primitives/_buttons.html" as _btn %}
-{% import "components/ui_primitives/_badges.html" as _badge %}
-{% import "components/ui_primitives/_cards.html" as _card %}
-{% import "components/ui_primitives/_tables.html" as _table %}
-{% import "components/ui_primitives/_empty_states.html" as _empty %}
-{% import "components/ui_primitives/_tabs.html" as _tab %}
-{% import "components/ui_primitives/_helpers.html" as _helper %}
+{# Import sub-components with context #}
+{% import "components/ui_primitives/_buttons.html" as _btn with context %}
+{% import "components/ui_primitives/_badges.html" as _badge with context %}
+{% import "components/ui_primitives/_cards.html" as _card with context %}
+{% import "components/ui_primitives/_tables.html" as _table with context %}
+{% import "components/ui_primitives/_empty_states.html" as _empty with context %}
+{% import "components/ui_primitives/_tabs.html" as _tab with context %}
+{% import "components/ui_primitives/_helpers.html" as _helper with context %}
 
 {# === Re-exported macros (thin delegation wrappers) === #}
 

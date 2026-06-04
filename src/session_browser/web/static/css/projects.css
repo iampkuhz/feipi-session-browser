@@ -1,6 +1,8 @@
 /* ───────────────────────────────────────────────────────────────
 * Projects — Canonical CSS (T098, T103)
 *
+* ITCSS+BEM compliant. All selectors namespaced under .p-projects.
+*
 * Scope:
 *   projects.html only (projects list and project detail views).
 *
@@ -14,12 +16,12 @@
 /* ── Page Head (canonical .page-head pattern, T100) ─── */
 /* Base .page-head styles in ui-primitives.css;
 overrides below. */
-.page-head-stats {
+.p-projects .page-head-stats {
   display: flex;
   gap: 8px;
   align-items: center;
 }
-.page-head-stats .ui-stat-pill {
+.p-projects .page-head-stats .ui-stat-pill {
   font-size: 13px;
   color: var(--text-subtle);
   padding: 4px 10px;
@@ -27,12 +29,12 @@ overrides below. */
   border-radius: 999px;
   background: var(--surface);
 }
-.page-head-stats .ui-stat-pill b {
+.p-projects .ui-stat-pill b {
   color: var(--text-primary);
   font-weight: 700;
 }
 /* ── Metric grid spacing below page head ─────── */
-.page-head + .metric-grid {
+.p-projects .page-head + .metric-grid {
   margin-top: 12px;
 }
 /* ── Table toolbar (T103: migrated from .card-title.flex) ─── */
@@ -40,29 +42,29 @@ overrides below. */
    and .table-note are defined in ui-primitives.css.
    Do not redefine them here to avoid cascade conflicts. */
 /* ── Sortable th elements (T117: project detail table headers) ── */
-th.sortable,
-th.numeric.sortable {
+.p-projects th.sortable,
+.p-projects th.numeric.sortable {
   cursor: pointer;
   user-select: none;
 }
-th.sortable:hover {
+.p-projects th.sortable:hover {
   color: var(--purple);
 }
 /* Arrow is handled by .sort-mark::after in ui-primitives.css */
 /* ── Token total above tokenbar (T117) ────────────────────── */
-.token-total {
+.p-projects .token-total {
   display: flex;
   align-items: center;
   gap: 7px;
   font: 780 12px var(--font-mono);
   line-height: 1;
 }
-.token-total__value {
+.p-projects .token-total__value {
   font-weight: 800;
   color: var(--text);
 }
 /* ── Sortable header buttons (T103) ───────────────────────── */
-.sortable-header {
+.p-projects .sortable-header {
   height: 28px;
   border: 0;
   background: transparent;
@@ -75,27 +77,27 @@ th.sortable:hover {
   gap: 5px;
   white-space: nowrap;
 }
-.sortable-header:hover {
+.p-projects .sortable-header:hover {
   color: var(--purple);
 }
-.sortable-header:focus-visible {
+.p-projects .sortable-header:focus-visible {
   outline: 2px solid var(--purple);
   outline-offset: -1px;
   border-radius: 4px;
 }
-.sort-caret {
+.p-projects .sort-caret {
   font-size: 14px;
   color: var(--text-subtle);
   display: inline-block;
 }
 /* ── Token cell with tokenbar (T103) ─────────────────────── */
-.token-cell {
+.p-projects .token-cell {
   min-width: 170px;
   padding-top: 6px;
   padding-bottom: 6px;
 }
 /* Tokenbar inside data table — uses .tokenbar-seg with --segment-width */
-.token-cell .tokenbar {
+.p-projects .token-cell .tokenbar {
   position: relative;
   width: 46px;
   height: 7px;
@@ -106,17 +108,17 @@ th.sortable:hover {
   cursor: help;
   border: 1px solid var(--line-soft);
 }
-/* Disable legacy tooltip (legacy-aliases.css .tokenbar::after) */
-.token-cell .tokenbar::after {
+/* Disable legacy tooltip (.tokenbar::after) */
+.p-projects .tokenbar::after {
   display: none;
 }
-.token-cell .tokenbar .tokenbar-seg {
+.p-projects .tokenbar .tokenbar-seg {
   height: 100%;
   display: block;
 }
 /* Tokenbar segment colors now managed by ui-primitives.css (.tokenbar-seg.fresh/.read/.write/.out) */
 /* Tooltip inside tokenbar — centered below bar, arrow pointing up */
-.token-cell .token-tooltip {
+.p-projects .token-cell .token-tooltip {
   left: 50%;
   top: calc(100% + 8px);
   transform: translateX(-50%);
@@ -130,7 +132,7 @@ th.sortable:hover {
   display: none;
   pointer-events: none;
 }
-.token-cell .token-tooltip::before {
+.p-projects .token-cell .token-tooltip::before {
   content: '';
   position: absolute;
   top: -8px;
@@ -142,16 +144,16 @@ th.sortable:hover {
   border-left: 1px solid var(--line);
   border-top: 1px solid var(--line);
 }
-.token-cell .tokenbar:hover .token-tooltip,
-.token-cell .tokenbar:focus-within .token-tooltip {
+.p-projects .tokenbar:hover .token-tooltip,
+.p-projects .tokenbar:focus-within .token-tooltip {
   display: block;
 }
-.token-tooltip__title {
+.p-projects .token-tooltip__title {
   font-weight: 850;
   margin-bottom: 8px;
   font-size: 12px;
 }
-.token-tooltip__row {
+.p-projects .token-tooltip__row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -159,7 +161,7 @@ th.sortable:hover {
   font-size: 12px;
   margin: 6px 0;
 }
-.token-tooltip__label {
+.p-projects .token-tooltip__label {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -168,7 +170,7 @@ th.sortable:hover {
   margin-right: auto;
   color: var(--text-subtle);
 }
-.token-tooltip__label .dot {
+.p-projects .token-tooltip__label .dot {
   display: block;
   width: 8px;
   height: 8px;
@@ -176,27 +178,27 @@ th.sortable:hover {
   flex-shrink: 0;
   margin: auto 0;
 }
-.token-tooltip__type-name {
+.p-projects .token-tooltip__type-name {
   line-height: 1;
 }
 /* Tooltip dot colors now managed by ui-primitives.css (.dot--fresh/.read/.write/.out) */
-.token-tooltip__value {
+.p-projects .token-tooltip__value {
   font-family: var(--font-mono);
   font-weight: 750;
   min-width: 60px;
   text-align: right;
 }
-.token-tooltip__pct {
+.p-projects .token-tooltip__pct {
   font-family: var(--font-mono);
   font-weight: 600;
   min-width: 52px;
   text-align: right;
   color: var(--text-subtle);
 }
-.token-tooltip__total {
+.p-projects .token-tooltip__total {
   font-weight: 850;
 }
-.token-tooltip__sep {
+.p-projects .token-tooltip__sep {
   border-top: 1px solid var(--line-strong);
   margin: 8px 0;
 }
@@ -204,47 +206,47 @@ th.sortable:hover {
 /* P-20/T026: .agents-cell must NOT define display:flex.
    Flex on <td> breaks border-height alignment with adjacent cells.
    Use .agents-cell__inner wrapper for layout isolation. */
-.agents-cell {
+.p-projects .agents-cell {
   vertical-align: middle;
 }
-.agents-cell__inner {
+.p-projects .agents-cell__inner {
   display: flex;
   gap: 5px;
   align-items: center;
   flex-wrap: wrap;
 }
-.agents-cell .badge {
+.p-projects .agents-cell .badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
-.dot {
+.p-projects .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   display: inline-block;
 }
-.dot.claude {
+.p-projects .dot.claude {
   background: var(--claude);
 }
-.dot.codex {
+.p-projects .dot.codex {
   background: var(--codex);
 }
-.dot.qoder {
+.p-projects .dot.qoder {
   background: var(--qoder);
 }
-.dot.total {
+.p-projects .dot.total {
   background: var(--output);
 }
 /* ── Tools failed badge inline ────────────────────────────── */
-.tools-failed {
+.p-projects .tools-failed {
   margin-left: 6px;
   font-size: 10px;
   height: 20px;
   padding: 0 6px;
 }
 /* ── Health badge (legacy alias, still used in some contexts) */
-.health-badge {
+.p-projects .health-badge {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
@@ -252,20 +254,20 @@ th.sortable:hover {
   font-size: 11px;
   font-weight: 700;
 }
-.health-badge.health--healthy {
+.p-projects .health-badge.health--healthy {
   background: var(--green-soft);
   color: var(--green);
 }
-.health-badge.health--warning {
+.p-projects .health-badge.health--warning {
   background: var(--warn-bg);
   color: var(--warn);
 }
-.health-badge.health--error {
+.p-projects .health-badge.health--error {
   background: var(--err-bg);
   color: var(--err);
 }
 /* ── Pagination ───────────────────────────────────────────── */
-.unified-pagination {
+.p-projects .unified-pagination {
   height: 58px;
   display: flex;
   align-items: center;
@@ -274,18 +276,18 @@ th.sortable:hover {
   padding: 0 14px;
   border-top: 1px solid var(--line-strong);
 }
-.page-input {
+.p-projects .page-input {
   width: 64px;
   text-align: center;
 }
 /* ── Empty state ──────────────────────────────────────────── */
-#projects-empty.is-hidden {
+.p-projects #projects-empty.is-hidden {
   display: none;
 }
 /* T090: Empty state inside .table-wrap must break out of
    horizontal scroll context and get proper card spacing.
    Uses .state-strip tokens from ui-primitives.css. */
-.table-wrap > #projects-empty {
+.p-projects .table-wrap > #projects-empty {
   overflow-x: visible;
   margin: 12px 0 4px;
 }
@@ -295,41 +297,41 @@ th.sortable:hover {
 * (.metric-icon, .state-icon) which sets a larger font-size.
 * ─────────────────────────────────────────────────────────── */
 /* inline action / nav icon: 14–16px */
-.emoji {
+.p-projects .emoji {
   font-size: 16px;
   line-height: 1;
   display: inline-block;
 }
 /* metric / state / decorative icon: 20–24px (inherited from container) */
-.emoji.lg {
+.p-projects .emoji.lg {
   font-size: 22px;
   line-height: 1;
   display: inline-block;
 }
 /* ── Utility ──────────────────────────────────────────────── */
-.text-muted {
+.p-projects .text-muted {
   color: var(--text-subtle);
 }
-.text-xs {
+.p-projects .text-xs {
   font-size: 12px;
 }
-.normal-case {
+.p-projects .normal-case {
   text-transform: none;
 }
-.truncate {
+.p-projects .truncate {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 280px;
   display: inline-block;
 }
-.muted-zero {
+.p-projects .muted-zero {
   color: var(--text-subtle);
   opacity: 0.5;
 }
 /* ── Project detail: page head extras ───────────────────────── */
 /* Back button (HIFI canonical, used alongside .page-header__back) */
-.back-btn {
+.p-projects .back-btn {
   width: 42px;
   height: 42px;
   border: 1px solid var(--line);
@@ -342,23 +344,23 @@ th.sortable:hover {
   font-weight: 900;
   cursor: pointer;
 }
-.back-btn:hover {
+.p-projects .back-btn:hover {
   background: var(--surface-soft);
   border-color: var(--line-strong);
 }
 /* Subtitle text below page title */
-.subtitle {
+.p-projects .subtitle {
   color: var(--text-subtle);
   font-size: 14px;
   margin: 0;
 }
 /* ── Project detail: path row ───────────────────────────────── */
-.path-row {
+.p-projects .path-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.path-chip {
+.p-projects .path-chip {
   height: 30px;
   padding: 0 12px;
   border: 1px solid var(--line);
@@ -370,20 +372,20 @@ th.sortable:hover {
   font-size: 12px;
 }
 /* ── Project detail: session title cells ────────────────────── */
-.title-main {
+.p-projects .title-main {
   font-weight: 850;
   line-height: 1.3;
 }
-.title-sub {
+.p-projects .title-sub {
   font-size: 11px;
   color: var(--text-subtle);
   margin-top: 2px;
 }
 /* ── Project detail: failed row tone ────────────────────────── */
-.data-table tbody tr.row--failed {
+.p-projects tr.row--failed {
   background: var(--red-soft);
 }
-.data-table tbody tr.row--failed:hover {
+.p-projects tr.row--failed:hover {
   background: var(--red-soft);
 }
 /* ── Project detail: sessions table toolbar ─────────────────── */
@@ -393,72 +395,72 @@ th.sortable:hover {
 /* ── Project sessions table column widths (T086) ───────────── */
 /* Column min-widths via CSS classes, not inline styles,
    to satisfy the layout-inline-style quality gate. */
-.project-sessions-table col.col-title {
+.p-projects .project-sessions-table col.col-title {
   min-width: 280px;
 }
-.project-sessions-table col.col-agent {
+.p-projects .project-sessions-table col.col-agent {
   min-width: 0;
 }
-.project-sessions-table col.col-model {
+.p-projects .project-sessions-table col.col-model {
   min-width: 0;
 }
-.project-sessions-table col.col-tokens {
+.p-projects .project-sessions-table col.col-tokens {
   min-width: 170px;
 }
-.project-sessions-table col.col-rounds {
+.p-projects .project-sessions-table col.col-rounds {
   min-width: 70px;
 }
-.project-sessions-table col.col-tools {
+.p-projects .project-sessions-table col.col-tools {
   min-width: 70px;
 }
-.project-sessions-table col.col-failed {
+.p-projects .project-sessions-table col.col-failed {
   min-width: 80px;
 }
-.project-sessions-table col.col-duration {
+.p-projects .project-sessions-table col.col-duration {
   min-width: 80px;
 }
-.project-sessions-table col.col-updated {
+.p-projects .project-sessions-table col.col-updated {
   min-width: 0;
 }
 /* ── Active filters — hide when empty ───────────────────────── */
-.filter-footer .active-filters {
+.p-projects .filter-footer .active-filters {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.filter-footer .active-filters:has(.filter-chip:not(.is-hidden)) {
+.p-projects .filter-footer .active-filters:has(.filter-chip:not(.is-hidden)) {
   display: inline-flex;
 }
 
-.filter-footer .active-filters:has(.filter-chip.is-hidden):only-child,
-.filter-footer .active-filters:not(:has(.filter-chip:not(.is-hidden))) {
+.p-projects .filter-footer .active-filters:has(.filter-chip.is-hidden):only-child,
+.p-projects .filter-footer .active-filters:not(:has(.filter-chip:not(.is-hidden))) {
   display: none;
 }
 
 /* ── Filter chip styling ────────────────────────────────────── */
-.filter-footer .active-filters .filter-chip.is-hidden {
+.p-projects .filter-chip.is-hidden {
   display: none;
 }
 
 /* ── Card-sub inside table-toolbar: compact with breathing room ── */
-.table-toolbar .card-sub {
+.p-projects .table-toolbar .card-sub {
   margin-bottom: 4px;
   line-height: 1.3;
 }
 
 /* Allow table-toolbar to grow when subtitle is present */
-.table-toolbar:has(.card-sub) {
+.p-projects .table-toolbar:has(.card-sub) {
   height: auto;
   min-height: 48px;
 }
 
 /* ── data-tooltip hover tooltip (for badges and inline elements) ── */
-[data-tooltip] {
+.p-projects [data-tooltip] {
   position: relative;
 }
-[data-tooltip]::after {
+.p-projects [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
   bottom: calc(100% + 6px);
@@ -478,7 +480,7 @@ th.sortable:hover {
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
-[data-tooltip]::before {
+.p-projects [data-tooltip]::before {
   content: '';
   position: absolute;
   bottom: calc(100% + 2px);
@@ -496,56 +498,56 @@ th.sortable:hover {
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
-[data-tooltip]:hover::after,
-[data-tooltip]:hover::before {
+.p-projects [data-tooltip]:hover::after,
+.p-projects [data-tooltip]:hover::before {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
 /* ── Session copy button: minimal border ────────────────────── */
-.session-copy-btn {
+.p-projects .session-copy-btn {
   border: 1px solid var(--line-soft);
   padding: 0 5px;
   min-width: 0;
   border-radius: 6px;
   background: transparent;
 }
-.session-copy-btn:hover {
+.p-projects .session-copy-btn:hover {
   background: var(--surface-soft);
   border-color: var(--line);
 }
-.session-copy-btn .emoji {
+.p-projects .session-copy-btn .emoji {
   font-size: 13px;
 }
 
 /* ── Token cell vertical alignment ──────────────────────────── */
-.token-cell {
+.p-projects .token-cell {
   vertical-align: middle;
 }
-.token-cell .token-total {
+.p-projects .token-cell .token-total {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   white-space: nowrap;
 }
-.token-cell .tokenbar {
+.p-projects .token-cell .tokenbar {
   flex-shrink: 0;
   margin-top: 0;
 }
 
 /* ── Agent dot alias for projects.css scope ─────────────────── */
-.agent-dot {
+.p-projects .agent-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   display: inline-block;
 }
-.agent-dot.claude {
+.p-projects .agent-dot.claude {
   background: var(--claude);
 }
-.agent-dot.codex {
+.p-projects .agent-dot.codex {
   background: var(--codex);
 }
-.agent-dot.qoder {
+.p-projects .agent-dot.qoder {
   background: var(--qoder);
 }

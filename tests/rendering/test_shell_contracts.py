@@ -18,7 +18,6 @@ STYLE_CSS = None  # style.css 已删除 — MHTML 现在打包模块化 CSS
 SHELL_CSS = STATIC_DIR / "css" / "shell.css"
 UI_PRIMITIVES_CSS = STATIC_DIR / "css" / "ui-primitives.css"
 UI_PRIMITIVES_CSS_DIR = STATIC_DIR / "css" / "ui-primitives"
-LEGACY_ALIASES_CSS = STATIC_DIR / "css" / "legacy-aliases.css"
 
 
 def _base_source():

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_page = 'projects' %}
 {% set hide_sidebar_extra = true %}
-{% import "components/ui_primitives.html" as ui %}
+{% import "components/ui_primitives.html" as ui with context %}
 
 {% block title %}Projects - Agent Run Profiler{% endblock %}
 
@@ -18,6 +18,9 @@
 {% endblock %}
 
 {% block content %}
+
+{# Projects 页面命名空间根容器 #}
+<div class="p-projects">
 
 {# ── Error state: data failed to load or parse ────────────────── #}
 {% if error %}
@@ -250,6 +253,8 @@
     {% endif %}
 </section>
 {% endif %}{# /error guard #}
+
+</div><!-- /.p-projects -->
 
 {% endblock %}
 

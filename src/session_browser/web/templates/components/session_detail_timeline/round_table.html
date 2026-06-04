@@ -1,3 +1,8 @@
+{# Round table components — timeline row macros.
+   导入 llm_call 和 subagent 组件，使用 namespace 调用 macro。 #}
+{% import "components/session_detail_timeline/llm_call.html" as llm with context %}
+{% import "components/session_detail_timeline/subagent.html" as sub with context %}
+
 {% macro round_row(row) -%}
 <tr class="round-row {% if row.is_open %}is-open{% endif %} {% if row.status_key == 'manual' %}manual{% endif %}" id="round-{{ row.round_id }}" data-trace-round-row data-round="{{ row.round_id }}" data-status="{{ row.status_key }}">
   <td><span class="round-id {% if row.status_key == 'manual' %}manual{% endif %} {% if 'fail' in row.status_key|default('') %}failed{% endif %}">R{{ row.round_id }}</span></td>
@@ -67,13 +72,13 @@
     <div class="sd-timeline">
       {% for item in row.timeline_items %}
         {% if item.type == 'llm_call' %}
-          {{ llm_call_card(item) }}
+          {{ llm.llm_call_card(item) }}
         {% elif item.type == 'tool_batch' %}
-          {{ tool_batch(item) }}
+          {{ llm.tool_batch(item) }}
         {% elif item.type == 'subagent' %}
           {# Nested subagent under parent LLM call (Issues 3, 4) #}
           <div class="sd-subagent-nested">
-            {{ subagent_block(item) }}
+            {{ sub.subagent_block(item) }}
           </div>
         {% endif %}
       {% endfor %}

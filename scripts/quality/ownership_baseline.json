@@ -25,7 +25,6 @@
     "web/static/js/app.js"
   ],
   "selector_depth_violations": [
-    "web/static/css/legacy-aliases.css:.data-table tbody tr:hover td",
     "web/static/css/ui-primitives.css:.table-wrap > .data-table thead th.sticky-col",
     "web/static/css/ui-primitives.css:.payload-modal__rendered .rendered-message-list li .msg-role",
     "web/static/css/ui-primitives.css:.data-table.sessions-grid .table-row > div > .cell-title:only-child",

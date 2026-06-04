@@ -1,3 +1,7 @@
+{# LLM call card components — session detail timeline.
+   导入 sdp primitives，使用 namespace 调用 macro。 #}
+{% import "components/session_detail_primitives.html" as sdp with context %}
+
 {% macro llm_call_card(call) -%}
   <div class="sd-timeline-item" data-timeline-item="llm">
     {{ sdp.timeline_dot('llm') }}

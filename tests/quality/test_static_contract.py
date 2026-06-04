@@ -75,20 +75,18 @@ class TestCheckCssLoadOrder:
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
-    <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     {% block head_extra %}{% endblock %}
     """
         assert check_css_load_order(html) == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_wrong_order_blocks(self):
-        """legacy-aliases 在 ui-primitives 之前应拦截。"""
+        """ui-primitives 在 shell 之前应拦截。"""
         html = """
     <link rel="stylesheet" href="/static/css/tokens.css">
     <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="/static/css/shell.css">
-    <link rel="stylesheet" href="/static/css/legacy-aliases.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
+    <link rel="stylesheet" href="/static/css/shell.css">
     {% block head_extra %}{% endblock %}
     """
         errors = check_css_load_order(html)
@@ -106,20 +104,18 @@ class TestCheckCssLoadOrder:
         assert "缺失必需项" in errors[0]
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
-    def test_head_extra_before_legacy_blocks(self):
-        """head_extra 必须出现在 legacy-aliases 之后。"""
+    def test_head_extra_before_page_css_blocks(self):
+        """head_extra 必须出现在 page CSS 之前。"""
         html = """
     <link rel="stylesheet" href="/static/css/tokens.css">
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
-    {% block head_extra %}{% endblock %}
-    <link rel="stylesheet" href="/static/css/legacy-aliases.css">
+    {% block head_extra %}<link rel="stylesheet" href="/static/css/page.css">{% endblock %}
     """
+        # head_extra 中的 page CSS 在 shared primitives 之后是合法的
         errors = check_css_load_order(html)
-        assert len(errors) >= 1
-        assert "legacy-aliases.css" in errors[0]
-        assert "head_extra" in errors[0]
+        assert errors == []
 
 
 # ── check_no_dead_css ─────────────────────────────────────────────────
@@ -244,28 +240,19 @@ class TestCheckPayloadModalOwnership:
         assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-013")
-    def test_legacy_aliases_warn_not_block(self, tmp_path):
-        """legacy-aliases.css 中裸 #payload-modal 应告警 而非 拦截。"""
-        css = tmp_path / "legacy-aliases.css"
-        css.write_text("#payload-modal { display: flex; }")
+    def test_page_level_payload_modal_passes(self, tmp_path):
+        """页面级 .session-detail-page .payload-modal 不应拦截。"""
+        css = tmp_path / "session-detail.css"
+        css.write_text(".session-detail-page .payload-modal { width: 80vw; }")
         errors, warnings = check_payload_modal_ownership([css])
         assert errors == []
-        assert len(warnings) == 1
-        assert "payload-modal" in warnings[0].lower()
+        assert warnings == []
 
 
 # ── check_shell_ownership ─────────────────────────────────────────────
 
 
 class TestCheckShellOwnership:
-    @pytest.mark.contract_case("HOOK-HARNESS-013")
-    def test_legacy_aliases_exempt(self, tmp_path):
-        """legacy-aliases.css 可包含 shell 引用以保持向后兼容。"""
-        css = tmp_path / "legacy-aliases.css"
-        css.write_text(".shell { display: grid; }")
-        warnings = check_shell_ownership([css])
-        assert warnings == []
-
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_shell_css_exempt(self, tmp_path):
         """shell.css 是 shell 权威定义，不应告警。"""
@@ -287,14 +274,6 @@ class TestCheckShellOwnership:
         """tokens.css 是 tokens 文件，不应告警。"""
         css = tmp_path / "tokens.css"
         css.write_text(":root { --shell-w: 220px; }")
-        warnings = check_shell_ownership([css])
-        assert warnings == []
-
-    @pytest.mark.contract_case("HOOK-HARNESS-013")
-    def test_legacy_aliases_exempt(self, tmp_path):
-        """legacy-aliases.css 是兼容层，不应告警。"""
-        css = tmp_path / "legacy-aliases.css"
-        css.write_text(".app-shell { display: grid; }")
         warnings = check_shell_ownership([css])
         assert warnings == []
 

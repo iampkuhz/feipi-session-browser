@@ -1,6 +1,6 @@
 /* ───────────────────────────────────────────────────────────────
 * Design Tokens — 浅色主题（默认）
-* 分层：primitive → semantic → component → legacy aliases
+* 分层：primitive → semantic → component
 *
 * 从 style.css 拆分（Task 06：tokens/base 拆分）
 * ─────────────────────────────────────────────────────────────── */

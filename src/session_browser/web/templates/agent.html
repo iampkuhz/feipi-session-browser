@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_page = 'agents' %}
 {% set hide_sidebar_extra = true %}
-{% import "components/ui_primitives.html" as ui %}
+{% import "components/ui_primitives.html" as ui with context %}
 
 {% block title %}{{ 'Claude Code' if current_agent == 'claude_code' else 'Qoder' if current_agent == 'qoder' else 'Codex' }} - Agent Run Profiler{% endblock %}
 

@@ -4,7 +4,7 @@
   This file re-exports all timeline macros via delegation macros so that
   the existing import path continues to work:
 
-    {% import "components/session_detail_timeline.html" as sdt %}
+    {% import "components/session_detail_timeline.html" as sdt with context %}
     {{ sdt.hero(...) }}
     {{ sdt.trace_round(...) }}
 
@@ -15,12 +15,12 @@
     subagent.html     — subagent_block
     payload.html      — payload_sources, payload_modal
 #}
-{% import "components/session_detail_primitives.html" as sdp %}
-{% import "components/session_detail_timeline/summary.html" as _sdt_summary %}
-{% import "components/session_detail_timeline/round_table.html" as _sdt_round %}
-{% import "components/session_detail_timeline/llm_call.html" as _sdt_llm %}
-{% import "components/session_detail_timeline/subagent.html" as _sdt_sub %}
-{% import "components/session_detail_timeline/payload.html" as _sdt_payload %}
+{% import "components/session_detail_primitives.html" as sdp with context %}
+{% import "components/session_detail_timeline/summary.html" as _sdt_summary with context %}
+{% import "components/session_detail_timeline/round_table.html" as _sdt_round with context %}
+{% import "components/session_detail_timeline/llm_call.html" as _sdt_llm with context %}
+{% import "components/session_detail_timeline/subagent.html" as _sdt_sub with context %}
+{% import "components/session_detail_timeline/payload.html" as _sdt_payload with context %}
 
 {% macro hero(summary, metrics, issues=[], session_url='') -%}
   {{ _sdt_summary.hero(summary, metrics, issues, session_url) }}
@@ -46,6 +46,7 @@
   {{ _sdt_round.trace_round(row, slim) }}
 {%- endmacro %}
 
+{# llm_call / tool_batch / subagent 转发宏（供 API 和页面共用） #}
 {% macro llm_call_card(call) -%}
   {{ _sdt_llm.llm_call_card(call) }}
 {%- endmacro %}

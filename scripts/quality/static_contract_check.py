@@ -44,11 +44,11 @@ def check_no_important(css_files: list[Path]) -> list[str]:
 def check_no_duplicate_base_css(html_files: list[Path]) -> list[str]:
     """检查页面模板是否重复加载 base 已加载的 CSS。BLOCK。
 
-    base.html 已经加载 tokens.css、base.css、shell.css、ui-primitives.css、legacy-aliases.css，
+    base.html 已经加载 tokens.css、base.css、shell.css、ui-primitives.css，
     页面模板不得在 head_extra 或其他位置重复 link 这些文件。
     """
     errors: list[str] = []
-    base_names = {"tokens.css", "base.css", "shell.css", "ui-primitives.css", "legacy-aliases.css"}
+    base_names = {"tokens.css", "base.css", "shell.css", "ui-primitives.css"}
     for path in html_files:
         text = path.read_text(encoding="utf-8", errors="replace")
         # 排除 base.html 自身
@@ -76,8 +76,7 @@ def check_css_load_order(base_html_text: str) -> list[str]:
     2. /static/css/base.css
     3. /static/css/shell.css
     4. /static/css/ui-primitives.css
-    5. /static/css/legacy-aliases.css
-    6. {% block head_extra %}
+    5. {% block head_extra %}
     """
     errors: list[str] = []
     expected = [
@@ -85,7 +84,6 @@ def check_css_load_order(base_html_text: str) -> list[str]:
         "/static/css/base.css",
         "/static/css/shell.css",
         "/static/css/ui-primitives.css",
-        "/static/css/legacy-aliases.css",
         "{% block head_extra %}",
     ]
 
@@ -151,7 +149,6 @@ def check_payload_modal_ownership(css_files: list[Path]) -> tuple[list[str], lis
     """检查 payload-modal 裸定义的位置。
 
     权威来源应为 ui-primitives.css。
-    - legacy-aliases.css 作为兼容层允许存在（WARN）
     - 其他页面 CSS 出现裸定义时 BLOCK
     - 不以 page-contract 前缀开头的定义视为裸定义
     """
@@ -164,20 +161,14 @@ def check_payload_modal_ownership(css_files: list[Path]) -> tuple[list[str], lis
         re.MULTILINE,
     )
     for path in css_files:
-        rel = path.relative_to(path.parent.parent.parent.parent).as_posix() if path.parent.name == "css" else path.name
         name = path.name
-        # 权威来源跳过（包括 ui-primitives/ 子目录下的拆分文件）
+        # 权威来源跳过
         if name in ("ui-primitives.css", "tokens.css", "base.css") or _is_in_ui_primitives_subdir(path):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         matches = bare_pattern.findall(text)
         if not matches:
             continue
-        # legacy-aliases.css 作为兼容层允许，只 WARN
-        if name == "legacy-aliases.css":
-            warnings.append(
-                f"{path}: payload-modal 兼容层定义（{len(matches)} 处），计划后续删除。"
-            )
         else:
             errors.append(
                 f"{path}: 禁止裸 payload-modal 定义（{len(matches)} 处），应收敛至 ui-primitives.css。"
@@ -197,8 +188,8 @@ def check_shell_ownership(css_files: list[Path]) -> list[str]:
         ".app-shell", ".shell", ".phase1-shell",
         "body.hide-left", "body.hide-right", "body.focus",
     ]
-    # 豁免文件：shell.css（当前 shell 权威）、base.css（基础样式）、legacy-aliases.css（兼容层）、tokens.css（设计令牌）
-    exempt = {"shell.css", "base.css", "legacy-aliases.css", "tokens.css"}
+    # 豁免文件：shell.css（当前 shell 权威）、base.css（基础样式）、tokens.css（设计令牌）
+    exempt = {"shell.css", "base.css", "tokens.css"}
     for path in css_files:
         name = path.name
         if name in exempt:
@@ -293,7 +284,7 @@ def check_css_ownership_gate(css_files: list[Path]) -> list[str]:
     注意：此 gate 只检查 shell 级选择器越权，不检查页面内容 grid。
     """
     errors: list[str] = []
-    exempt_shell = {"shell.css", "legacy-aliases.css"}
+    exempt_shell = {"shell.css"}
 
     for path in css_files:
         name = path.name
@@ -319,7 +310,7 @@ def check_css_ownership_gate(css_files: list[Path]) -> list[str]:
                     break
 
         # 页面 CSS 不得定义 shell 架构选择器
-        # 豁免：shell.css（权威定义）、legacy-aliases.css（兼容层）
+        # 豁免：shell.css（权威定义）
         if name not in exempt_shell:
             for pattern, label in SHELL_SELECTORS_FOR_OWNERSHIP:
                 if re.search(pattern, text):
@@ -332,7 +323,7 @@ def check_css_ownership_gate(css_files: list[Path]) -> list[str]:
 
 def check_no_global_component_override(css_files: list[Path]) -> list[str]:
     """检查：页面 CSS 不得裸定义原语根组件。BLOCK。
-    豁免：ui-primitives.css、tokens.css、base.css、shell.css、legacy-aliases.css
+    豁免：ui-primitives.css、tokens.css、base.css、shell.css
     以及 ui-primitives/ 子目录下的所有拆分文件（它们是原语系统的一部分）。
 
     裸选择器定义：组件选择器在选择器链的开头，没有页面前缀。
@@ -340,7 +331,7 @@ def check_no_global_component_override(css_files: list[Path]) -> list[str]:
     非法：.btn { ... }（裸定义）
     """
     errors: list[str] = []
-    exempt = {"ui-primitives.css", "tokens.css", "base.css", "shell.css", "legacy-aliases.css"}
+    exempt = {"ui-primitives.css", "tokens.css", "base.css", "shell.css"}
     for path in css_files:
         # Exempt both the main wrapper and all files in ui-primitives/ subdirectory
         if path.name in exempt or _is_in_ui_primitives_subdir(path):
@@ -387,10 +378,10 @@ def check_no_global_component_override(css_files: list[Path]) -> list[str]:
 
 def check_no_new_legacy_selector(css_files: list[Path]) -> list[str]:
     """检查：新增遗留选择器引用。BLOCK。
-    豁免：shell.css（已知 shell aliases）、legacy-aliases.css（兼容层）
+    豁免：shell.css（已知 shell aliases）
     """
     errors: list[str] = []
-    exempt = {"legacy-aliases.css", "shell.css", "tokens.css", "base.css"}
+    exempt = {"shell.css", "tokens.css", "base.css"}
     for path in css_files:
         if path.name in exempt:
             continue
@@ -636,7 +627,7 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         html_files = list(templates.rglob("*.html"))
         errors.extend(check_no_duplicate_base_css(html_files))
 
-    # BLOCK: payload-modal ownership (new violations), WARN: legacy aliases
+    # BLOCK: payload-modal ownership (new violations)
     pm_errors, pm_warnings = check_payload_modal_ownership(css_files)
     errors.extend(pm_errors)
     warnings.extend(pm_warnings)

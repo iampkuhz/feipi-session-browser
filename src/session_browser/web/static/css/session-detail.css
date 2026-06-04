@@ -1,9 +1,5 @@
-/* This wrapper re-exports session-detail CSS via @import for the split refactor.
- * The .session-detail-page {} no-op ensures the file has a valid CSS rule body
- * (required by dead-CSS quality checks). */
-.session-detail-page {
-  /* CSS variables and rules are defined in session-detail/ modules. */
-}
+/* Session Detail CSS — split modules import wrapper.
+ * 所有 @import 必须位于任何 selector/style rule 之前。 */
 
 @import "session-detail/00-tokens.css";
 @import "session-detail/01-shell.css";

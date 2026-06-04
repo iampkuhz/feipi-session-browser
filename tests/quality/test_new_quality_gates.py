@@ -32,7 +32,6 @@ from check_css_ownership import (
     check_cross_layer_duplicate,
     check_hardcoded_colors,
     check_layer_purity,
-    check_legacy_aliases_purity,
     extract_css_rules as ownership_extract_rules,
     split_selectors as ownership_split_selectors,
 )
@@ -377,22 +376,6 @@ class TestCheckHardcodedColors:
             (1, ".card", "color: #000; background: #fff;"),
         ])
         assert violations == []
-
-
-class TestCheckLegacyAliasesPurity:
-    @pytest.mark.contract_case("HOOK-HARNESS-008")
-    def test_root_is_clean(self):
-        violations = check_legacy_aliases_purity("legacy-aliases.css", [
-            (1, ":root", "--old: var(--new);"),
-        ])
-        assert violations == []
-
-    @pytest.mark.contract_case("HOOK-HARNESS-008")
-    def test_non_var_selector_warns(self):
-        violations = check_legacy_aliases_purity("legacy-aliases.css", [
-            (1, ".old-class", "color: red;"),
-        ])
-        assert len(violations) == 1
 
 
 # ======================================================================

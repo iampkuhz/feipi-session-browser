@@ -1,5 +1,5 @@
 <!-- AJAX pagination response — wraps tbody + pagination for sessions page -->
-{% import "components/ui_primitives.html" as ui %}
+{% import "components/ui_primitives.html" as ui with context %}
 <div id="sessions-ajax-response">
     {% include "partials/sessions_table_body.html" %}
     {% if total_count is defined and total_count > 0 %}

@@ -1,68 +1,23 @@
 /* ───────────────────────────────────────────────────────────────
-* Agents — Canonical CSS (T126)
+* Agents — Page CSS (T126)
 *
 * Scope:
 *   agents.html only (agents list and agent detail views).
 *
-* Do not globally override .card, .btn, .pill, .tabs, or
-* sessions-list styles.
+* ITCSS 规则：
+*   - page CSS 只能定义 .p-agents 命名空间内的样式
+*   - 不得重写 .page-head、.table-card、.tokenbar 等共享 primitive
+*   - 只定义页面专属选择器和 agents 页面特有的组件变体
 *
 * ─────────────────────────────────────────────────────────────── */
-/* ── Page Head (canonical .page-head pattern, T128) ───────── */
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 20px 0 12px;
+
+/* ── Agent 列表页专属命名空间 ───────────────────────────────── */
+.p-agents .metric-grid:has(.metric-card) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-.page-head h1 {
-  margin: 0;
-  font-size: 28px;
-  letter-spacing: -0.03em;
-}
-.page-head p {
-  margin: 6px 0 0;
-  color: var(--text-subtle);
-  font-size: 13px;
-}
-.page-head + .metric-grid {
-  margin-top: 12px;
-}
-/* Emoji icon inside metric-icon */
-.emoji {
-  font-size: 16px;
-  line-height: 1;
-  display: inline-block;
-}
-/* Subtitle text below page title (T128) */
-.subtitle {
-  color: var(--text-subtle);
-  font-size: 14px;
-  margin: 0;
-}
-/* ── Table toolbar (T128: efficiency section header) ─────── */
-.table-toolbar {
-  height: 48px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
-}
-.table-title {
-  font-size: 16px;
-  font-weight: 850;
-}
-/* Table card wrapper */
-.table-card {
-  overflow: hidden;
-}
-.table-card .table-wrap {
-  overflow-x: auto;
-}
-/* ── Agent avatar (HIFI: 34x34 circular badge) ────────────── */
-.agent-avatar {
+
+/* ── Agent 头像（agents 列表专属） ──────────────────────────── */
+.p-agents .agent-avatar {
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -75,175 +30,39 @@
   border: 1px solid var(--line);
   flex-shrink: 0;
 }
-.agent-avatar.claude {
+.p-agents .agent-avatar.claude {
   background: var(--claude-soft, rgba(169, 120, 255, 0.1));
   color: var(--claude, #a978ff);
 }
-.agent-avatar.codex {
+.p-agents .agent-avatar.codex {
   background: var(--codex-soft, rgba(52, 211, 153, 0.1));
   color: var(--codex, #34d399);
 }
-.agent-avatar.qoder {
+.p-agents .agent-avatar.qoder {
   background: var(--qoder-soft, rgba(251, 146, 60, 0.1));
   color: var(--qoder, #fb923c);
 }
-/* ── Agent dot (legacy alias, still used in some contexts) ─── */
-.agent-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-.agent-dot.claude {
-  background: var(--claude);
-}
-.agent-dot.codex {
-  background: var(--codex);
-}
-.agent-dot.qoder {
-  background: var(--qoder);
-}
-/* ── Agent main cell layout (T131) ────────────────────────── */
-.agent-main {
+
+/* ── Agent 名称单元格布局 ───────────────────────────────────── */
+.p-agents .agent-main {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.agent-main .title-main {
-  font-weight: 600;
-  font-size: 14px;
-}
-.agent-main .title-sub {
-  font-size: 12px;
-  color: var(--text-subtle);
-}
-/* Agent dot with agent-specific colors (T131) */
-.dot.claude {
-  background: var(--claude);
-}
-.dot.codex {
-  background: var(--codex);
-}
-.dot.qoder {
-  background: var(--qoder);
-}
-/* Token cell (T131) */
-.token-cell {
-  min-width: 140px;
-}
-.token-total {
-  font: 700 13px var(--font-mono);
-  margin-bottom: 2px;
-}
-/* ── Agent name cell ───────────────────────────────────────── */
-.agent-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.agent-name-cell .agent-name {
-  font-weight: 600;
-}
-.agent-name-cell .agent-desc {
-  font-size: 11px;
-  color: var(--text-subtle);
-}
-/* ── Token bar (shared) ────────────────────────────────────── */
-.tokenbar {
-  position: relative;
-  width: 132px;
-  height: 8px;
-  margin-top: 5px;
-  /* background handled by ui-primitives .tokenbar */
-  border-radius: 999px;
-  display: flex;
-  overflow: visible;
-  cursor: help;
-}
-.tokenbar .tokenbar-seg {
-  height: 8px;
-}
-.tokenbar .tokenbar-seg:first-child {
-  border-radius: 999px 0 0 999px;
-}
-.tokenbar .tokenbar-seg:last-of-type {
-  border-radius: 0 999px 999px 0;
-}
-.tokenbar .tokenbar-seg.fresh {
-  background: var(--token-input-fresh);
-  width: var(--segment-width, 25%);
-}
-.tokenbar .tokenbar-seg.read {
-  background: var(--token-cache-read);
-  width: var(--segment-width, 25%);
-}
-.tokenbar .tokenbar-seg.write {
-  background: var(--token-cache-write);
-  width: var(--segment-width, 25%);
-}
-.tokenbar .tokenbar-seg.out {
-  background: var(--token-output-visible);
-  width: var(--segment-width, 25%);
-}
-/* ── Progress bar (tool calls) ─────────────────────────────── */
-.progress-bar {
-  width: 100%;
-  height: 4px;
-  background: var(--surface-soft);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-.progress-bar .progress-fill {
-  height: 100%;
-  background: var(--text-subtle);
-  border-radius: 999px;
-  width: var(--fill-width, 0%);
-}
-/* ── Empty state ───────────────────────────────────────────── */
-#agents-empty.is-hidden {
-  display: none;
-}
-/* ── Pagination ────────────────────────────────────────────── */
-.unified-pagination {
-  height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 0 14px;
-  border-top: 1px solid var(--line-strong);
-}
-.page-input {
-  width: 64px;
-  text-align: center;
-}
-/* ── Agent Detail page styles (T140) ────────────────────────── */
-/* 1. Page header for agent detail */
-.header {
+
+/* ── Agent 详情页专属样式 ───────────────────────────────────── */
+.p-agents .agent-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 18px;
   margin-bottom: 16px;
 }
-.header-left {
+.p-agents .agent-header-left {
   display: flex;
   align-items: flex-start;
   gap: 12px;
 }
-.back-btn {
-  width: 36px;
-  height: 36px;
-}
-.agent-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 7px;
-}
-.agent-title {
+.p-agents .agent-title {
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -257,21 +76,15 @@
   letter-spacing: -.03em;
   text-transform: uppercase;
 }
-.agent-subtitle {
-  color: var(--muted, #667085);
-  font-size: 13px;
-}
-/* 2. Metric card layout (4-card grid for agents list) */
-.metric-grid:has(.metric-card) {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.metric-card {
+
+/* ── Agent 详情 metric 网格 ──────────────────────────────────── */
+.p-agents .metric-card {
   min-width: 0;
   height: 92px;
   padding: 16px;
   gap: 12px;
 }
-.metric-card__value {
+.p-agents .metric-card__value {
   font-family: var(--font-mono);
   font-size: 19px;
   line-height: 1.15;
@@ -279,87 +92,39 @@
   letter-spacing: -.02em;
   white-space: nowrap;
 }
-/* 4. Section cards */
-.section {
+
+/* ── Agent 详情 section ──────────────────────────────────────── */
+.p-agents .agent-section {
   margin-top: 16px;
   overflow: hidden;
 }
-.section-head {
-  min-height: 52px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.section-title {
-  font-size: 16px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.section-sub {
-  font-size: 12px;
-  color: var(--muted, #667085);
-  font-weight: 650;
-}
-.insight {
-  height: 30px;
-  padding: 0 11px;
-  border-radius: 9px;
-  background: #f0edff;
-  border: 1px solid #ddd6fe;
-  color: #4f32e8;
-  font-weight: 850;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-/* 5. Input (search) */
-.input {
-  height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  padding: 0 12px;
-  color: #344054;
-  font-weight: 650;
-  min-width: 252px;
-}
-/* 6. Button base — removed: .btn is defined in ui-primitives.css
-Page CSS should not redefine global primitives. Use page-scoped
-modifiers if adjustment is needed (e.g. .agents-page .btn.sm). */
-/* 7. Data table improvements */
-.data-table .col-num {
-  text-align: right;
-}
-.data-table th.sortable {
-  cursor: pointer;
-}
-.data-table th.sortable .sort-mark {
-  font-size: 10px;
-  color: #667085;
-  margin-left: 6px;
-}
-.data-table .title-main {
-  font-weight: 850;
-  color: #111827;
-}
-.data-table .title-sub {
-  font-size: 11px;
-  color: var(--muted, #667085);
-  margin-top: 2px;
-}
-/* 8. Project cell with path tooltip */
-.project-cell {
+
+/* ── Agent 详情 model breakdown table 列宽 ──────────────────── */
+.p-agents col.col-model-name { width: 22%; }
+.p-agents col.col-sessions    { width: 9%; }
+.p-agents col.col-token-md    { width: 28%; min-width: 160px; }
+.p-agents col.col-cache       { width: 11%; }
+.p-agents col.col-tools       { width: 10%; }
+.p-agents col.col-failed      { width: 9%; }
+.p-agents col.col-avg         { width: 11%; }
+
+/* ── Agent 详情 sessions table 列宽 ─────────────────────────── */
+.p-agents col.col-title       { width: 26%; }
+.p-agents col.col-project     { width: 14%; }
+.p-agents col.col-model       { width: 14%; }
+.p-agents col.col-token       { width: 18%; min-width: 140px; }
+.p-agents col.col-num-sm      { width: 7%; }
+.p-agents col.col-duration    { width: 10%; }
+.p-agents col.col-updated     { width: 9%; }
+
+/* ── Agent 详情 tooltip ──────────────────────────────────────── */
+.p-agents .project-cell {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.path-tooltip {
+.p-agents .path-tooltip {
   display: none;
   position: absolute;
   left: 0;
@@ -375,43 +140,32 @@ modifiers if adjustment is needed (e.g. .agents-page .btn.sm). */
   z-index: 10;
   box-shadow: 0 12px 30px rgba(16, 24, 40, .22);
 }
-.project-cell:hover .path-tooltip {
+.p-agents .project-cell:hover .path-tooltip {
   display: block;
 }
-/* 9. Badge — removed: .badge and variants are defined in ui-primitives.css
-(.badge.cc, .badge.cx, .badge.qd, .badge.err all have canonical definitions
-in ui-primitives.css). Page CSS should not redefine global primitives. */
-/* 10. Dot base (type-colored variants already exist above) */
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  vertical-align: middle;
-  flex-shrink: 0;
+
+/* ── Empty state ────────────────────────────────────────────── */
+.p-agents #agents-empty.is-hidden {
+  display: none;
 }
-/* Override: dot inside tip-row flex container — block for proper flex centering */
-.tip-row .dot {
-  display: block;
-  margin-right: 4px;
-  margin-top: auto;
-  margin-bottom: auto;
+
+/* ── Pagination ─────────────────────────────────────────────── */
+.p-agents .unified-pagination {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line-strong);
 }
-/* 11. Tokenbar tooltip colors using canonical token variables */
-.tokenbar .t-fresh {
-  background: var(--token-input-fresh);
+.p-agents .page-input {
+  width: 64px;
+  text-align: center;
 }
-.tokenbar .t-read {
-  background: var(--token-cache-read);
-}
-.tokenbar .t-write {
-  background: var(--token-cache-write);
-}
-.tokenbar .t-out {
-  background: var(--token-output-visible);
-}
-/* Tokenbar-specific tooltip (scoped to avoid conflict with global .tooltip in ui-primitives.css) */
-.tokenbar .tooltip {
+
+/* ── Efficiency section tooltip (agents 专属) ────────────────── */
+.p-agents .tokenbar .tooltip {
   display: none;
   position: absolute;
   left: 44px;
@@ -424,85 +178,11 @@ in ui-primitives.css). Page CSS should not redefine global primitives. */
   border-radius: 12px;
   padding: 11px;
 }
-.tokenbar:hover .tooltip {
+.p-agents .tokenbar:hover .tooltip {
   display: block;
 }
-.tip-title {
-  font-weight: 900;
-  margin-bottom: 8px;
-}
-.tip-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  margin: 6px 0;
-}
-.tip-row .dot {
-  margin-right: 4px;
-}
-.tip-row .name {
-  min-width: 85px;
-  margin-right: auto;
-}
-.tip-row .val {
-  font-family: var(--font-mono);
-  font-weight: 850;
-  min-width: 55px;
-  text-align: right;
-}
-.tip-sep {
-  border-top: 1px solid var(--line-soft, #eef2f7);
-  margin: 8px 0;
-}
-/* 13. Table colgroup column widths (HIFI alignment) */
-/* Model Breakdown table column widths */
-col.col-model-name {
-  width: 22%;
-}
-col.col-sessions   {
-  width: 9%;
-}
-col.col-token-md   {
-  width: 28%;
-  min-width: 160px;
-}
-col.col-cache      {
-  width: 11%;
-}
-col.col-tools      {
-  width: 10%;
-}
-col.col-failed     {
-  width: 9%;
-}
-col.col-avg        {
-  width: 11%;
-}
-/* Sessions table column widths */
-col.col-title      {
-  width: 26%;
-}
-col.col-project    {
-  width: 14%;
-}
-col.col-model      {
-  width: 14%;
-}
-col.col-token      {
-  width: 18%;
-  min-width: 140px;
-}
-col.col-num-sm     {
-  width: 7%;
-}
-col.col-duration   {
-  width: 10%;
-}
-col.col-updated    {
-  width: 9%;
-}
-/* Ensure sort-mark has consistent spacing */
-.data-table th.sortable .sort-mark {
+
+/* ── Sort mark spacing ──────────────────────────────────────── */
+.p-agents .sort-mark {
   display: inline;
 }

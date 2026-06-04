@@ -31,7 +31,6 @@ CSS_LOAD_ORDER = [
     "css/base.css",
     "css/shell.css",
     "css/ui-primitives.css",
-    "css/legacy-aliases.css",
 ]
 
 # Page-specific CSS files keyed by page identifier used in routes.

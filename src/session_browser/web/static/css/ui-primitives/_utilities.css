@@ -103,8 +103,7 @@
 *     ...
 *     <span class="current">label</span>
 *   </div>
-* Page-specific overrides (e.g. legacy-aliases.css .topbar-breadcrumb)
-* may adjust colors or spacing.
+* Page-specific overrides may adjust colors or spacing.
 */
 .breadcrumb {
   display: flex;

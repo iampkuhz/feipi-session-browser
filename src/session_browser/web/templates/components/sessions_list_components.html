@@ -1,10 +1,10 @@
 {#
   Sessions List HIFI components.
   Usage:
-    {% import "components/ui_primitives.html" as ui %}
-    {% import "components/sessions_list_components.html" as sl %}
+    {% import "components/ui_primitives.html" as ui with context %}
+    {% import "components/sessions_list_components.html" as sl with context %}
 #}
-{% import "components/ui_primitives.html" as ui %}
+{% import "components/ui_primitives.html" as ui with context %}
 
 {% macro page_title(total_sessions, total_projects, total_tokens) -%}
   <div class="sessions-page-title">
