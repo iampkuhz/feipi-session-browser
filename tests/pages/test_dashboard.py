@@ -13,10 +13,13 @@ import pytest
 import os
 import pathlib
 import re
+import glob as _glob
 
 _DASHBOARD_PATH = "src/session_browser/web/templates/dashboard.html"
 _DASHBOARD_CSS_PATH = "src/session_browser/web/static/css/dashboard.css"
 _DASHBOARD_JS_PATH = "src/session_browser/web/static/js/dashboard.js"
+_UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
+_UI_PRIMITIVES_DIR = "src/session_browser/web/templates/components/ui_primitives"
 
 
 def _read(path: str) -> str:
@@ -26,6 +29,14 @@ def _read(path: str) -> str:
 
 def _read_dashboard() -> str:
     return _read(_DASHBOARD_PATH)
+
+
+def _read_ui_primitives_with_splits() -> str:
+    """Read ui_primitives wrapper + all split sub-components."""
+    parts = [_read(_UI_PRIMITIVES_PATH)]
+    for fp in sorted(_glob.glob(os.path.join(_UI_PRIMITIVES_DIR, "*.html"))):
+        parts.append(_read(fp))
+    return "\n".join(parts)
 
 
 # ── TestDashboardTemplate ─────────────────────────────────────────────
@@ -195,10 +206,8 @@ class TestDashboardChartCards:
         # Dashboard 使用 ui_primitives 中的 chart_legend 宏
         assert "ui.chart_legend()" in content or "chart_legend(" in content, \
             "Dashboard 必须在 chart_card 中使用 chart_legend 宏"
-        # 验证宏定义了默认的 agent 名称
-        ui_path = "src/session_browser/web/templates/components/ui_primitives.html"
-        with open(ui_path) as f:
-            ui_content = f.read()
+        # 验证宏定义了默认的 agent 名称（split-aware: 搜索 wrapper + 子组件）
+        ui_content = _read_ui_primitives_with_splits()
         for agent in ["Claude Code", "Codex", "Qoder"]:
             assert agent in ui_content, \
                 f"图例宏必须包含默认项 '{agent}'"

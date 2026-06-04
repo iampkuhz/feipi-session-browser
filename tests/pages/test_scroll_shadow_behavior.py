@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import pytest
+import glob as _glob
+import os
 from scripts.check_scroll_shadow_behavior import (
     check_right_shadow_absent,
     check_left_shadow_absent,
@@ -22,7 +24,21 @@ from scripts.check_scroll_shadow_behavior import (
 
 CSS_PATH = "src/session_browser/web/static/css/shell.css"
 CSS_TABLE_WRAP = "src/session_browser/web/static/css/ui-primitives.css"
+CSS_TABLE_WRAP_DIR = "src/session_browser/web/static/css/ui-primitives"
 JS_PATH = "src/session_browser/web/static/js/app.js"
+
+
+def _read(path: str) -> str:
+    with open(path) as f:
+        return f.read()
+
+
+def _read_css_with_splits() -> str:
+    """Read ui-primitives CSS wrapper + all split sub-components."""
+    parts = [_read(CSS_TABLE_WRAP)]
+    for fp in sorted(_glob.glob(os.path.join(CSS_TABLE_WRAP_DIR, "*.css"))):
+        parts.append(_read(fp))
+    return "\n".join(parts)
 
 
 class TestCSSAbsent:
@@ -81,6 +97,6 @@ class TestTableWrapLayoutPreserved:
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_table_wrap_base_exists(self):
-        css = open(CSS_TABLE_WRAP).read()
+        css = _read_css_with_splits()
         assert ".table-wrap" in css, ".table-wrap 基础规则必须保留"
         assert "overflow-x" in css, "overflow-x:auto 必须保留以支持滚动"

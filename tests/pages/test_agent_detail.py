@@ -12,8 +12,11 @@ from __future__ import annotations
 import pytest
 import os
 import re
+import glob as _glob
 
 _AGENT_PATH = "src/session_browser/web/templates/agent.html"
+_UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
+_UI_PRIMITIVES_DIR = "src/session_browser/web/templates/components/ui_primitives"
 
 
 def _read(path: str) -> str:
@@ -23,6 +26,14 @@ def _read(path: str) -> str:
 
 def _read_template() -> str:
     return _read(_AGENT_PATH)
+
+
+def _read_ui_primitives_with_splits() -> str:
+    """Read ui_primitives wrapper + all split sub-components."""
+    parts = [_read(_UI_PRIMITIVES_PATH)]
+    for fp in sorted(_glob.glob(os.path.join(_UI_PRIMITIVES_DIR, "*.html"))):
+        parts.append(_read(fp))
+    return "\n".join(parts)
 
 
 # -- TestAgentDetailTemplate ------------------------------------------------
@@ -779,9 +790,8 @@ class TestAgentDetailAccessibility:
         # ui_primitives.html 中的 ui.pagination 宏提供 aria-label
         assert "ui.pagination" in _read_template(), \
             "Agent must use ui.pagination for pagination"
-        # 验证宏定义中有 aria-label
-        with open("src/session_browser/web/templates/components/ui_primitives.html") as f:
-            primitives = f.read()
+        # 验证宏定义中有 aria-label（split-aware: 搜索 wrapper + 子组件）
+        primitives = _read_ui_primitives_with_splits()
         assert 'aria-label="Page number"' in primitives, \
             "Pagination macro must have aria-label on page input"
 

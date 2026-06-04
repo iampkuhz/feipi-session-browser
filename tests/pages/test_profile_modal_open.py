@@ -8,11 +8,14 @@
 """
 
 import pytest
+import glob as _glob
 
 from pathlib import Path
 
 TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
 VIEW_SWITCHING_JS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "js" / "view-switching.js"
+TIMELINE_PATH = TEMPLATE_DIR / "components" / "session_detail_timeline.html"
+TIMELINE_DIR = TEMPLATE_DIR / "components" / "session_detail_timeline"
 
 
 def _session_source():
@@ -27,8 +30,16 @@ def _view_switching_source():
     return (VIEW_SWITCHING_JS).read_text(encoding="utf-8")
 
 
+def _read_timeline_with_splits() -> str:
+    """Read timeline wrapper + all split sub-components."""
+    parts = [TIMELINE_PATH.read_text(encoding="utf-8")]
+    for fp in sorted(_glob.glob(str(TIMELINE_DIR / "*.html"))):
+        parts.append(Path(fp).read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def _timeline_component():
-    return (TEMPLATE_DIR / "components" / "session_detail_timeline.html").read_text(encoding="utf-8")
+    return _read_timeline_with_splits()
 
 
 # ── 工具渲染（组件宏） ──────────────────────────
