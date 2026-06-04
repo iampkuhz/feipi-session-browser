@@ -116,28 +116,16 @@
       "snippet": "overlay.innerHTML ="
     },
     {
-      "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 342,
+      "file": "src/session_browser/web/static/js/session-detail/attribution.js",
+      "line": 44,
       "isClear": false,
       "snippet": "body.innerHTML = '<div class=\"sd-payload-error\">' +"
     },
     {
-      "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 361,
+      "file": "src/session_browser/web/static/js/session-detail/attribution.js",
+      "line": 63,
       "isClear": false,
       "snippet": "body.innerHTML = renderAttributionLoading(url.indexOf(\"/request\") !== -1 ? \"request\" : \"response\");"
-    },
-    {
-      "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 715,
-      "isClear": false,
-      "snippet": "bodyEl.innerHTML = '<div class=\"sd-bucket-detail-loading\">加载中…</div>';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/session-detail.js",
-      "line": 1202,
-      "isClear": false,
-      "snippet": "fetchTrigger.innerHTML = '<span class=\"sd-bucket-detail-loading\">加载中…</span>';"
     },
     {
       "file": "src/session_browser/web/static/js/session_detail_timeline.js",
@@ -161,7 +149,7 @@
       "file": "src/session_browser/web/static/js/sessions-list.js",
       "line": 365,
       "isClear": false,
-      "snippet": "tbody.innerHTML = '<tr><td colspan=\"9\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td><"
+      "snippet": "tbody.innerHTML = '<tr><td colspan=\"10\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td>"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
@@ -188,5 +176,5 @@
       "snippet": "content.innerHTML = '';"
     }
   ],
-  "count": 31
+  "count": 29
 }
