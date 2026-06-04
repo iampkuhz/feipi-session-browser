@@ -102,9 +102,35 @@
     html += '<div class="sd-attribution-disclaimer">基于本地日志重建，不等同于真实提供方请求/响应体。</div>';
 
     var usage = data.usage || {};
+    var usageSummary = data.usage_summary || usage;
     var timing = data.timing || {};
     var model = data.model || "";
     var notes = data.attribution_notes || [];
+    var schemaVersion = data.schema_version || "";
+    var callIdentity = data.call_identity || null;
+    var orderedSpans = data.ordered_spans || [];
+    var semanticBuckets = data.semantic_buckets || [];
+    var coverage = data.coverage || null;
+    var creditSummary = data.credit_summary || null;
+    var diagnostics = data.diagnostics || null;
+
+    // ── Call identity card (v2) ──
+    if (callIdentity) {
+      html += '<div class="sd-attribution-section-label">调用身份</div>';
+      html += '<div class="sd-attribution-identity-grid">';
+      html += '<div class="sd-kv"><span>Agent</span><span>' + escapeHtml(callIdentity.agent_runtime || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>API Family</span><span>' + escapeHtml(callIdentity.api_family || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>Provider</span><span>' + escapeHtml(callIdentity.provider_or_broker || "—") + '</span></div>';
+      if (callIdentity.underlying_provider) {
+        html += '<div class="sd-kv"><span>底层 Provider</span><span>' + escapeHtml(callIdentity.underlying_provider) + '</span></div>';
+      }
+      html += '<div class="sd-kv"><span>Model</span><span>' + escapeHtml(callIdentity.model || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>计费单位</span><span>' + escapeHtml((callIdentity.billing_units || []).join(", ") || "—") + '</span></div>';
+      if (callIdentity.mapping_confidence != null) {
+        html += '<div class="sd-kv"><span>映射置信度</span><span>' + ((callIdentity.mapping_confidence * 100).toFixed(0)) + '%</span></div>';
+      }
+      html += '</div>';
+    }
 
     // ── Two-column layout ──
     html += '<div class="sd-payload-shell sd-payload-shell--attribution">';
@@ -113,13 +139,18 @@
     html += '<aside class="sd-payload-meta sd-attribution-rail">';
 
     // Card 1: Summary (use ~ for estimated values)
+    // Support both v2 usage_summary and old usage fields
+    var totalInput = usageSummary.total_input || usage.total_input;
+    var freshInput = usageSummary.fresh_input || usage.fresh_input;
+    var cacheRead = usageSummary.cache_read || usage.cache_read;
+    var cacheWrite = usageSummary.cache_write || usage.cache_write;
     html += '<div class="sd-attribution-rail__card">';
     html += '<h3>' + (kind === "request" ? "请求摘要" : "响应摘要") + '</h3>';
     if (kind === "request") {
-      html += '<div class="sd-kv"><span>总 token 消耗</span><span title="' + kvTitleAttr(usage.total_input) + '">' + formatTokenValue(usage.total_input) + '</span></div>';
-      html += '<div class="sd-kv"><span>新鲜输入</span><span title="' + kvTitleAttr(usage.fresh_input) + '">' + formatTokenValue(usage.fresh_input) + '</span></div>';
-      html += '<div class="sd-kv"><span>缓存读取</span><span title="' + kvTitleAttr(usage.cache_read) + '">' + formatTokenValue(usage.cache_read) + '</span></div>';
-      html += '<div class="sd-kv"><span>缓存写入</span><span title="' + kvTitleAttr(usage.cache_write) + '">' + formatTokenValue(usage.cache_write) + '</span></div>';
+      html += '<div class="sd-kv"><span>总 token 消耗</span><span title="' + kvTitleAttr(totalInput) + '">' + formatTokenValue(totalInput) + '</span></div>';
+      html += '<div class="sd-kv"><span>新鲜输入</span><span title="' + kvTitleAttr(freshInput) + '">' + formatTokenValue(freshInput) + '</span></div>';
+      html += '<div class="sd-kv"><span>缓存读取</span><span title="' + kvTitleAttr(cacheRead) + '">' + formatTokenValue(cacheRead) + '</span></div>';
+      html += '<div class="sd-kv"><span>缓存写入</span><span title="' + kvTitleAttr(cacheWrite) + '">' + formatTokenValue(cacheWrite) + '</span></div>';
       html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
       var unkVal = (usage.unknown && usage.unknown.value) || 0;
       var totVal = (usage.total_input && usage.total_input.value) || 1;
@@ -241,6 +272,65 @@
         html += '</div>'; // end bucket-card
       });
       html += '</div>'; // end bucket-list
+    }
+
+    // ── v2 Ordered API Spans ──
+    if (orderedSpans.length > 0) {
+      html += '<div class="sd-attribution-section-label">有序 API 片段 (' + orderedSpans.length + ')</div>';
+      html += '<div class="sd-attribution-span-list">';
+      orderedSpans.forEach(function (s) {
+        html += '<div class="sd-attribution-span-row">';
+        html += '<span class="sd-attribution-span-index">' + (s.order_index != null ? s.order_index : '') + '</span>';
+        html += '<span class="sd-attribution-span-kind">' + escapeHtml(s.semantic_kind || "") + '</span>';
+        html += '<span class="sd-attribution-span-path" title="' + escapeHtml(s.api_path || "") + '">' + escapeHtml((s.api_path || "").substring(0, 40)) + '</span>';
+        html += '<span class="sd-attribution-span-tokens">' + formatCompactToken(s.tokens || s.token_estimate || 0) + 't</span>';
+        if (s.cache_read_tokens) html += '<span class="sd-attribution-span-cr" title="cache read">CR:' + s.cache_read_tokens + '</span>';
+        if (s.cache_write_tokens) html += '<span class="sd-attribution-span-cw" title="cache write">CW:' + s.cache_write_tokens + '</span>';
+        if (s.fresh_tokens) html += '<span class="sd-attribution-span-fresh" title="fresh">F:' + s.fresh_tokens + '</span>';
+        if (s.precision) html += '<span class="sd-precision-tag sd-precision-tag--' + escapeHtml(s.precision) + '">' + translatePrecision(s.precision) + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    // ── v2 Coverage & Uncertainty ──
+    if (coverage) {
+      html += '<div class="sd-attribution-section-label">覆盖率与不确定性</div>';
+      html += '<div class="sd-attribution-coverage">';
+      html += '<div class="sd-kv"><span>Provider 总计</span><span>' + formatCompactToken(coverage.provider_total_input || 0) + '</span></div>';
+      html += '<div class="sd-kv"><span>本地重建</span><span>' + formatCompactToken(coverage.reconstructed_total || 0) + '</span></div>';
+      html += '<div class="sd-kv"><span>覆盖率</span><span>' + ((coverage.coverage_ratio || 0) * 100).toFixed(1) + '%</span></div>';
+      html += '<div class="sd-kv"><span>残差</span><span>' + formatCompactToken(coverage.residual_tokens || 0) + '</span></div>';
+      if (coverage.residual_likely_sources && coverage.residual_likely_sources.length > 0) {
+        html += '<div class="sd-attribution-coverage-sources">可能来源：' + escapeHtml(coverage.residual_likely_sources.join("、")) + '</div>';
+      }
+      html += '</div>';
+    }
+
+    // ── v2 Credit Summary (Qoder) ──
+    if (creditSummary) {
+      html += '<div class="sd-attribution-section-label">Credit 归因</div>';
+      html += '<div class="sd-attribution-credit">';
+      if (creditSummary.total_credits != null) {
+        html += '<div class="sd-kv"><span>Total Credits</span><span>' + creditSummary.total_credits.toFixed(2) + '</span></div>';
+      }
+      if (creditSummary.credit_source) {
+        html += '<div class="sd-kv"><span>来源</span><span>' + escapeHtml(creditSummary.credit_source) + '</span></div>';
+      }
+      if (creditSummary.notes && creditSummary.notes.length > 0) {
+        html += '<div class="sd-attribution-credit-notes">' + creditSummary.notes.map(function (n) { return escapeHtml(n); }).join("<br>") + '</div>';
+      }
+      html += '</div>';
+    }
+
+    // ── v2 Diagnostics Warnings ──
+    if (diagnostics && diagnostics.warnings && diagnostics.warnings.length > 0) {
+      html += '<div class="sd-attribution-section-label">诊断警告</div>';
+      html += '<ul class="sd-attribution-warnings">';
+      diagnostics.warnings.forEach(function (w) {
+        html += '<li>' + escapeHtml(w) + '</li>';
+      });
+      html += '</ul>';
     }
 
     html += '</main>'; // end right main

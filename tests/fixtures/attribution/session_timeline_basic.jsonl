@@ -1,0 +1,6 @@
+{"type": "user_message", "role": "user", "content": "Hello, please help me fix this bug", "id": "call-001"}
+{"type": "llm_request", "role": "assistant", "content": "Sure, let me analyze the code.", "id": "call-001", "usage": {"input_tokens": 500, "output_tokens": 200}}
+{"type": "tool_use", "name": "Read", "parameters": {"file_path": "test.py"}, "id": "call-001"}
+{"type": "tool_result", "content": "print('hello world')", "tool_use_id": "tool-001"}
+{"type": "user_message", "role": "user", "content": "Now run the code", "id": "call-002"}
+{"type": "llm_request", "role": "assistant", "content": "Running the code for you.", "id": "call-002", "usage": {"input_tokens": 300, "output_tokens": 100}}

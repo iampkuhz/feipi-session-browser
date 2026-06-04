@@ -1,0 +1,5 @@
+[
+  {"type": "exact", "delta": 0.5, "model": "performance-tier", "timestamp": "2025-01-01T00:00:00Z"},
+  {"type": "exact", "delta": 0.3, "model": "standard-tier", "timestamp": "2025-01-01T00:01:00Z"},
+  {"type": "estimated", "delta": 0.15, "model": "performance-tier", "timestamp": "2025-01-01T00:02:00Z"}
+]
