@@ -79,7 +79,7 @@ Playwright 截图验收：
 
 | 合同规则 | 缺口说明 | 建议实现方式 |
 |---|---|---|
-| 图标必须有说明文档条目 | 无脚本验证图标与 `docs/ui/contracts/05-icon-behavior-detailed.md` 的一致性 | 新建 `scripts/qa/ui/check_icon_docs.py`：扫描生产模板中的 Unicode 符号和 icon class，与图标文档交叉比对 |
+| 图标必须有说明文档条目 | 无脚本验证图标与 `docs/ui/contracts/behavior-*.md` 的一致性 | 新建 `scripts/qa/ui/check_icon_docs.py`：扫描生产模板中的 Unicode 符号和 icon class，与行为契约文档交叉比对 |
 | metric grid card 等宽 | 无脚本验证 CSS 中 `grid-template-columns` 等宽规则 | 可在 `check_ui_contracts.py` 中增加 CSS 规则检查，或在 Playwright 中测量 DOM |
 | 表头/单元格对齐一致 | 无脚本验证 DataTable 表头与数据单元格的 alignment/padding 一致性 | 需 Playwright 截图比对或 DOM 计算检查 |
 | card/button 内图文垂直居中 | 无脚本验证 `align-items: center` 等 CSS 规则 | 可在 `check_ui_contracts.py` 中检查 CSS 文件，或 Playwright 中检查 computed style |

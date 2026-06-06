@@ -40,7 +40,6 @@ feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Cla
 | implementer | 从 tasks.md 执行单个有界的任务 |
 | qa-verifier | 最终验证门禁（流程 + 技术正确性） |
 
-`.claude/agents/specialty/` 下的 specialty agent 用于领域特定工作。
 
 ## 本地状态
 

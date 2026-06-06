@@ -82,4 +82,4 @@ qa-verifier agent 检查：
 | PostToolUse (Write/Edit/MultiEdit) | `log_change_evidence.py` | 自动将文件编辑记录到证据 |
 | Stop/SubagentStop | `stop_validate_change.py` | 变更未完成时阻止 stop |
 
-详见 `harness/workflow/hook-enforcement.md`。
+详见 `.claude/settings.json` 中的 hooks 配置和各 `.claude/hooks/` 脚本。

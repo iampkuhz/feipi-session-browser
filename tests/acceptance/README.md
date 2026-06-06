@@ -49,7 +49,7 @@ tests/acceptance/
 
 ## 页面功能标准 v3
 
-当前页面功能标准要求见 `docs/ui/contracts/03-page-contracts.md`，逐页验收清单见 `PAGE_ACCEPTANCE_CHECKLIST.md`。
+当前页面功能标准要求见 `docs/ui/contracts/03-page-contracts.md`，逐页验收清单见 `PAGE_ACCEPTANCE_CHECKLIST.md`，逐页行为契约见 `ui/behavior-*.md`。
 
 该标准收敛了旧版页面口径：
 

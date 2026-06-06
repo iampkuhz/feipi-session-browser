@@ -51,6 +51,5 @@
 ## 按钮/图标规则
 
 - 每个 button 必须有 `data-action` 或 `href`。
-- 每个 icon 必须在 `docs/ui/contracts/icon-behavior.md` 中说明含义。
-- 可点击 icon 必须有 hover/focus/active 状态。
+- 可点击 icon 必须有 hover/focus/active 状态（详见 `behavior-*.md` 逐页行为表）。
 - 不可点击 icon 必须作为 decorative 或带 `aria-hidden="true"`。

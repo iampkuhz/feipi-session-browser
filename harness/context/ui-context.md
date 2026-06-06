@@ -14,7 +14,7 @@
 
 ## 逐页行为
 
-`docs/ui/contracts/behavior-*.md` — 各页面按钮/图标/布局行为详表。
+`tests/acceptance/ui/behavior-*.md` — 各页面按钮/图标/布局行为详表。
 
 ## 关键 UI 规则
 

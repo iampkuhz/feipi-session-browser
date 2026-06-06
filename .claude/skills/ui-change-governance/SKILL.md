@@ -1,6 +1,4 @@
 ---
 name: ui-change-governance
-description: Use before any UI/CSS/template change.
+description: Use before any UI/CSS/template change. Read `harness/context/ui-context.md` for current UI baseline and contracts.
 ---
-
-> Note: Use `src/session_browser/web/templates/` as the current UI baseline. Before editing any UI file, read the relevant harness context from `harness/context/` and contracts from `docs/ui/contracts/`.

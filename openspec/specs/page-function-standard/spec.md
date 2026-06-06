@@ -56,6 +56,6 @@ The repository SHALL provide a page function standard v3 acceptance checklist.
 #### Scenario: Review page compliance
 
 - **Given** a developer needs to review page compliance against v3
-- **When** they read `docs/acceptance/PAGE_ACCEPTANCE_CHECKLIST.md`
+- **When** they read `tests/acceptance/PAGE_ACCEPTANCE_CHECKLIST.md`
 - **Then** the checklist SHALL cover Dashboard, Sessions, Session Detail, Projects, and Agent Detail
 - **And** the checklist SHALL reference `docs/ui/contracts/03-page-contracts.md` as the detailed standard

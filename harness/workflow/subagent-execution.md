@@ -39,7 +39,6 @@
 
 ## Specialty Agent
 
-Specialty agent 位于 `.claude/agents/specialty/` 下，用于领域特定工作（UI、MHTML 导出、迁移）。它们不属于默认 OpenSpec 循环。
 
 ## 上下文继承
 

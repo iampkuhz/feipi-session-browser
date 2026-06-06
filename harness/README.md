@@ -23,9 +23,8 @@ harness/
     quality-gate-matrix.md
     deterministic-quality-gate.md
   workflow/
-    hook-runtime-lifecycle.md
-    openspec-change-lifecycle.md   # 原有
-    subagent-execution.md           # 原有
+    change-lifecycle.md             # 变更生命周期
+    subagent-execution.md           # 子 agent 执行
 ```
 
 ## 03. 运行态目录
@@ -56,7 +55,7 @@ Python 逻辑：
 scripts/claude_hooks/
 ```
 
-详细生命周期见 `workflow/hook-runtime-lifecycle.md`。
+Hook 配置在 `.claude/settings.json` 中，详见各 `.claude/hooks/` 脚本。
 
 ## 05. Quality Gate
 

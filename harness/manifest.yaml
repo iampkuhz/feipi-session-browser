@@ -42,7 +42,8 @@ docs:
   - harness/README.md
   - harness/quality/quality-gate-matrix.md
   - harness/quality/deterministic-quality-gate.md
-  - harness/workflow/hook-runtime-lifecycle.md
+  - harness/workflow/change-lifecycle.md
+  - harness/workflow/subagent-execution.md
 
 local_only:
   - ".claude/settings.local.json"
