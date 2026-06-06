@@ -11,16 +11,16 @@
 - **Then** 应从 `openspec/specs/`、`AGENTS.md`、`CLAUDE.md`、`README.md` 和当前变更目录获取信息
 - **And** 不需要读取历史版本 change 文档
 
-## Requirement: UI requirements are maintained under docs/ui
+## Requirement: UI requirements are maintained under docs/page-ui-specs
 
-`docs/ui/` SHALL describe page functionality requirements that code must follow.
+`docs/page-ui-specs/` SHALL describe page functionality requirements that code must follow.
 
 ### Scenario: Review UI requirements
 
 - **Given** 开发者修改页面功能、模板、CSS 或 JS
 - **When** 判断目标行为
-- **Then** 应先读取 `docs/ui/contracts/03-page-contracts.md`
-- **And** 根据 `docs/ui/contracts/` 与 `docs/ui/design/` 下的细分要求实现和验证
+- **Then** 应先读取 `docs/page-ui-specs/README.md`
+- **And** 根据 `docs/page-ui-specs/common.md` 与对应 `docs/page-ui-specs/pages/*.md` 实现和验证
 
 ## Requirement: Harness documentation is minimal
 

@@ -60,3 +60,4 @@ node_modules/
 
 *.egg-info/
 /.traces/
+/.refactor-artifacts/
