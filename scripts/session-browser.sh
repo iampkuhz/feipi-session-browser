@@ -119,8 +119,16 @@ warn_if_podman_running() {
 }
 
 python_bin() {
-    if [[ -x "$VENV_DIR/bin/python" ]]; then
+    if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
+        printf '%s\n' "$SESSION_BROWSER_PYTHON"
+    elif [[ -x "$VENV_DIR/bin/python" ]]; then
         printf '%s\n' "$VENV_DIR/bin/python"
+    elif command -v python >/dev/null 2>&1 && python - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+    then
+        printf 'python\n'
     else
         printf 'python3\n'
     fi

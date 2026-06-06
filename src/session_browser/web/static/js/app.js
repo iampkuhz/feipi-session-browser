@@ -29,26 +29,26 @@
     window.arpCopy = function(btn, text, opts) {
         opts = opts || {};
         var feedbackText = opts.feedback || DEFAULT_FEEDBACK;
-        var originalHTML = opts.original !== undefined
+        var originalText = opts.original !== undefined
             ? opts.original
-            : btn.innerHTML;
+            : btn.textContent;
         var duration     = opts.duration || DEFAULT_DURATION;
 
         function showFeedback() {
-            btn.innerHTML = feedbackText;
+            btn.textContent = feedbackText;
             btn.classList.add('copied');
             setTimeout(function() {
-                btn.innerHTML = originalHTML;
+                btn.textContent = originalText;
                 btn.classList.remove('copied');
             }, duration);
         }
 
         function fail() {
             console.warn('[arpCopy] Clipboard API not available. Copy this value manually:\n' + text);
-            btn.innerHTML = '!';
+            btn.textContent = '!';
             btn.title = 'Copy failed — see console';
             setTimeout(function() {
-                btn.innerHTML = originalHTML;
+                btn.textContent = originalText;
                 btn.title = '';
             }, duration);
         }
@@ -61,8 +61,7 @@
                 var ta = document.createElement('textarea');
                 ta.value = text;
                 ta.setAttribute('readonly', '');
-                ta.style.position = 'absolute';
-                ta.style.left = '-9999px';
+                ta.className = 'clipboard-fallback-textarea';
                 document.body.appendChild(ta);
                 ta.select();
                 var ok = document.execCommand('copy');

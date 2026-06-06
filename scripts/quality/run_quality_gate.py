@@ -20,6 +20,7 @@ import tempfile
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 # 确保 repo_root 在 sys.path 中，使 `scripts.*` 导入在直接运行时可用。
@@ -42,6 +43,93 @@ from scripts.quality.quality_targets import required_gates_for_target, applicabl
 
 # 01. 命令执行工具
 
+def _python_candidates(repo_root: Path) -> list[str]:
+    candidates: list[str] = []
+
+    explicit = os.environ.get("SESSION_BROWSER_PYTHON")
+    if explicit:
+        candidates.append(explicit)
+
+    venv_dir = os.environ.get("SESSION_BROWSER_VENV_DIR")
+    if venv_dir:
+        candidates.append(str(Path(venv_dir) / "bin" / "python"))
+
+    candidates.append(str(repo_root / ".venv" / "bin" / "python"))
+    candidates.append(sys.executable)
+
+    for name in ("python", "python3"):
+        resolved = shutil.which(name)
+        if resolved:
+            candidates.append(resolved)
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        normalized = str(Path(candidate).expanduser()) if "/" in candidate else candidate
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+    return result
+
+
+def _python_supports_modules(executable: str, repo_root: Path, modules: tuple[str, ...]) -> bool:
+    if shutil.which(executable) is None:
+        return False
+
+    env = os.environ.copy()
+    src_path = str(repo_root / "src")
+    env["PYTHONPATH"] = src_path + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    code = (
+        "import importlib, sys\n"
+        "missing=[]\n"
+        "for name in sys.argv[1:]:\n"
+        "    try:\n"
+        "        importlib.import_module(name)\n"
+        "    except Exception:\n"
+        "        missing.append(name)\n"
+        "sys.exit(1 if missing else 0)\n"
+    )
+    try:
+        proc = subprocess.run(
+            [executable, "-c", code, *modules],
+            cwd=repo_root,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+    except Exception:
+        return False
+    return proc.returncode == 0
+
+
+@lru_cache(maxsize=8)
+def _project_python_cached(repo_root: str, modules: tuple[str, ...]) -> str:
+    root = Path(repo_root)
+    for candidate in _python_candidates(root):
+        if _python_supports_modules(candidate, root, modules):
+            return candidate
+    return sys.executable
+
+
+def _project_python(repo_root: Path, *, dev: bool = False) -> str:
+    modules = ("jinja2", "markdown_it")
+    if dev:
+        modules = (*modules, "pytest")
+    return _project_python_cached(str(repo_root), modules)
+
+
+def _tail_file(path: Path, max_chars: int = 2000) -> str:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return text[-max_chars:].strip()
+
+
 def _fixture_session_available(base_url: str) -> bool:
     """Check if the HIFI fixture session is available on the given server."""
     import urllib.request
@@ -52,10 +140,10 @@ def _fixture_session_available(base_url: str) -> bool:
         return False
 
 
-def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | None]:
+def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | None, str | None]:
     """Start a temporary fixture server with HIFI test data.
 
-    Returns (proc, base_url, tmpdir) or (None, None, None) on failure.
+    Returns (proc, base_url, tmpdir, error) or (None, None, None, error) on failure.
     """
     import socket
     import tempfile
@@ -64,7 +152,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
 
     fixture_root = REPO_ROOT / "tests" / "fixtures" / "session_hifi_fixture"
     if not fixture_root.exists():
-        return None, None, None
+        return None, None, None, f"fixture root missing: {fixture_root}"
 
     tmpdir = tempfile.mkdtemp(prefix="quality_gate_fixture_")
     index_dir = os.path.join(tmpdir, "index")
@@ -96,7 +184,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
         conn.close()
     except Exception:
         shutil.rmtree(tmpdir, ignore_errors=True)
-        return None, None, None
+        return None, None, None, "failed to populate fixture index"
 
     # Find free port
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -111,11 +199,16 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     env["SERVER_HOST"] = "127.0.0.1"
     env["SERVER_PORT"] = str(port)
     env["SESSION_BROWSER_LOG_LEVEL"] = "WARNING"
+    server_log = Path(tmpdir) / "fixture-server.log"
+    log_handle = server_log.open("w", encoding="utf-8")
 
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "session_browser", "serve", "--allow-empty", "--no-scan"],
-        cwd=str(REPO_ROOT), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    try:
+        proc = subprocess.Popen(
+            [_project_python(REPO_ROOT), "-m", "session_browser", "serve", "--allow-empty", "--no-scan"],
+            cwd=str(REPO_ROOT), env=env, stdout=log_handle, stderr=subprocess.STDOUT,
+        )
+    finally:
+        log_handle.close()
 
     # Wait for server to start
     base_url = f"http://127.0.0.1:{port}"
@@ -123,15 +216,20 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
         try:
             resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)
             if resp.status == 200:
-                return proc, base_url, tmpdir
+                return proc, base_url, tmpdir, None
         except Exception:
             pass
+        if proc.poll() is not None:
+            output = _tail_file(server_log)
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            return None, None, None, f"fixture server exited early with code {proc.returncode}: {output}"
         time.sleep(0.5)
 
     proc.terminate()
     proc.wait()
+    output = _tail_file(server_log)
     shutil.rmtree(tmpdir, ignore_errors=True)
-    return None, None, None
+    return None, None, None, f"fixture server did not become ready within 15s: {output}"
 
 
 def _stop_fixture_server(proc: subprocess.Popen, tmpdir: str | None) -> None:
@@ -183,11 +281,13 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True,
 
 # 02. gate 命令映射
 def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
+    python = _project_python(repo_root)
+    dev_python = _project_python(repo_root, dev=True)
     if gate == "settingsJson":
         json_files = [".claude/settings.json", ".codex/hooks.json"]
         existing = [f for f in json_files if (repo_root / f).exists()]
         code = "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]"
-        return [sys.executable, "-c", code, *existing] if existing else []
+        return [python, "-c", code, *existing] if existing else []
     if gate == "bashSyntax":
         shell_files = [
             ".claude/hooks/stop.sh",
@@ -207,15 +307,15 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
             paths = ["scripts/harness", "scripts/quality"]
         if target == "index":
             paths = ["src/session_browser/index", "scripts/quality/check_index_integrity.py"]
-        return ["python3", "-m", "compileall", "-q", *paths]
+        return [python, "-m", "compileall", "-q", *paths]
     if gate == "hookSelfTest":
-        return ["python3", "-m", "scripts.claude_hooks.main", "--self-test"]
+        return [python, "-m", "scripts.claude_hooks.main", "--self-test"]
     if gate == "templateContract":
-        return ["python3", "scripts/quality/template_contract_check.py"]
+        return [python, "scripts/quality/template_contract_check.py"]
     if gate == "staticCssContract":
-        return ["python3", "scripts/quality/static_contract_check.py"]
+        return [python, "scripts/quality/static_contract_check.py"]
     if gate == "cssOwnership":
-        return ["python3", "scripts/quality/check_css_ownership.py"]
+        return [python, "scripts/quality/check_css_ownership.py"]
     if gate == "browserLayout":
         if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
             return ["npx", "playwright", "test", "session-detail-layout", "shell-states"]
@@ -261,25 +361,25 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
             "index": ["tests/index/"],
         }
         items = [x for x in test_candidates.get(target, ["tests"]) if (repo_root / x).exists()]
-        return ["pytest", "-q", *items] if items else []
+        return [dev_python, "-m", "pytest", "-q", *items] if items else []
     if gate == "doctor":
         return ["bash", "scripts/harness/doctor.sh"]
     if gate == "repoStructure":
-        return ["python3", "scripts/quality/validate_repo_structure.py"]
+        return [python, "scripts/quality/validate_repo_structure.py"]
     if gate == "harnessStructure":
-        return ["python3", "scripts/harness/validate_harness_structure.py"]
+        return [python, "scripts/harness/validate_harness_structure.py"]
     if gate == "openspecLayout":
-        return ["python3", "scripts/harness/validate_openspec_layout.py"]
+        return [python, "scripts/harness/validate_openspec_layout.py"]
     if gate == "repoSlimming":
-        return ["python3", "scripts/quality/repo_slimming_contract_check.py"]
+        return [python, "scripts/quality/repo_slimming_contract_check.py"]
     if gate == "indexIntegrity":
-        return ["python3", "scripts/quality/check_index_integrity.py"]
+        return [python, "scripts/quality/check_index_integrity.py"]
     if gate == "rawInnerhtml":
-        return ["python3", "scripts/quality/check_raw_innerhtml.py", "--check"]
+        return [python, "scripts/quality/check_raw_innerhtml.py", "--check"]
     if gate == "layoutInlineStyle":
-        return ["python3", "scripts/quality/check_layout_inline_style.py", "--check"]
+        return [python, "scripts/quality/check_layout_inline_style.py", "--check"]
     if gate == "acceptanceContracts":
-        return [sys.executable, "scripts/quality/validate_acceptance_contracts.py"]
+        return [python, "scripts/quality/validate_acceptance_contracts.py"]
     return []
 
 
@@ -298,15 +398,18 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
     fixture_proc = None
     fixture_tmpdir = None
     fixture_base_url = None
+    fixture_error = None
 
     if needs_fixture:
         default_base = os.environ.get("BASE_URL", "http://127.0.0.1:18999")
         if not _fixture_session_available(default_base):
-            fixture_proc, fixture_base_url, fixture_tmpdir = _start_fixture_server()
+            fixture_proc, fixture_base_url, fixture_tmpdir, fixture_error = _start_fixture_server()
             if fixture_proc and fixture_base_url:
                 print(f"[fixture-server] started at {fixture_base_url}")
             elif fixture_base_url is None:
-                print("[fixture-server] WARNING: could not start fixture server, browserLayout tests may fail")
+                print(f"[fixture-server] BLOCKED: could not start fixture server: {fixture_error}")
+        else:
+            fixture_base_url = default_base
 
     try:
         for gate in applicable_gates_for_target(target, changed_files):
@@ -319,6 +422,15 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
             env_override = None
             if gate in _FIXTURE_GATES and fixture_base_url:
                 env_override = {"BASE_URL": fixture_base_url}
+            elif gate in _FIXTURE_GATES:
+                details.append(GateDetail(
+                    name=gate,
+                    status=BLOCKED,
+                    command=cmd,
+                    durationMs=0,
+                    output=f"fixture server unavailable: {fixture_error or 'unknown error'}",
+                ))
+                continue
 
             details.append(run_cmd(gate, cmd, repo_root, required=True, env_overrides=env_override))
     finally:

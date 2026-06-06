@@ -23,10 +23,14 @@ import sqlite3
 import sys
 from pathlib import Path
 
-# Ensure repo_root is on sys.path so `session_browser.*` imports work.
+# Ensure src/ and repo_root are on sys.path so `session_browser.*` imports work
+# when this gate is launched directly by hooks.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+SRC_ROOT = REPO_ROOT / "src"
+for path in (SRC_ROOT, REPO_ROOT):
+    value = str(path)
+    if value not in sys.path:
+        sys.path.insert(0, value)
 
 from session_browser.config import INDEX_PATH, ensure_index_dir
 

@@ -289,3 +289,8 @@ body.focus .inspector                  {
 .is-hidden {
   display: none;
 }
+
+.clipboard-fallback-textarea {
+  position: absolute;
+  left: -9999px;
+}

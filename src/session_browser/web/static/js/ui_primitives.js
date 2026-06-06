@@ -605,17 +605,4 @@
     }
   };
 
-  /* Apply data-scroll-max → max-height for viewer bodies */
-  function initScrollMax() {
-    var els = document.querySelectorAll('.viewer__body[data-scroll-max]');
-    for (var i = 0; i < els.length; i++) {
-      els[i].style.maxHeight = els[i].dataset.scrollMax;
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initScrollMax);
-  } else {
-    initScrollMax();
-  }
 })();

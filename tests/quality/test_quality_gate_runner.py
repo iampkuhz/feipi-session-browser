@@ -15,6 +15,7 @@ from scripts.quality.quality_artifact import (
     BLOCKED,
 )
 from scripts.quality.run_quality_gate import build_summary
+from scripts.quality import run_quality_gate
 from scripts.quality.quality_targets import (
     applicable_gates_for_target,
     required_gates_for_target,
@@ -127,3 +128,48 @@ class TestQualityTargets:
             ["scripts/quality/validate_acceptance_contracts.py"],
         )
         assert "acceptanceContracts" in gates
+
+
+class TestQualityGateRuntime:
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_pytest_gate_uses_project_python_module(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(
+            run_quality_gate,
+            "_project_python",
+            lambda repo_root, *, dev=False: "/tmp/dev-python" if dev else "/tmp/runtime-python",
+        )
+        tests_dir = tmp_path / "tests" / "ui"
+        tests_dir.mkdir(parents=True)
+        (tests_dir / "test_web_template_contract.py").write_text("", encoding="utf-8")
+        cmd = run_quality_gate.gate_command("pytest", tmp_path, "session-detail")
+        assert cmd[:4] == ["/tmp/dev-python", "-m", "pytest", "-q"]
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_fixture_gate_blocks_without_running_playwright(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(
+            run_quality_gate,
+            "applicable_gates_for_target",
+            lambda target, changed_files=None: ["browserLayout"],
+        )
+        monkeypatch.setattr(
+            run_quality_gate,
+            "gate_command",
+            lambda gate, repo_root, target: ["npx", "playwright", "test", "session-detail-layout"],
+        )
+        monkeypatch.setattr(run_quality_gate, "_fixture_session_available", lambda base_url: False)
+        monkeypatch.setattr(
+            run_quality_gate,
+            "_start_fixture_server",
+            lambda: (None, None, None, "missing jinja2"),
+        )
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("fixture-dependent Playwright gate should fail fast")
+
+        monkeypatch.setattr(run_quality_gate, "run_cmd", fail_if_called)
+
+        details = run_quality_gate.run_target(tmp_path, "session-detail")
+        assert len(details) == 1
+        assert details[0].name == "browserLayout"
+        assert details[0].status == BLOCKED
+        assert "missing jinja2" in details[0].output
