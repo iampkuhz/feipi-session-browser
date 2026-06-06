@@ -1,5 +1,18 @@
 # 06 验证契约
 
+## 页面功能标准 v3 质量门
+
+- 所有页面主路由返回 status < 500。
+- 关键 API 返回 status < 500，特别是 Session Detail 的 round lazy load、payload、attribution、insights 数据接口。
+- Jinja 模板在 StrictUndefined 下渲染关键组件不得报 undefined。
+- CSS import 顺序必须有效。
+- 不允许同一组件存在多套同义 selector。
+- 不允许页面样式覆盖共享组件样式。
+- 不允许未使用、无归属、无页面引用的 UI selector 留在代码中。
+- Browser smoke 必须覆盖 Dashboard、Sessions、Projects、Session Detail Trace、Session Detail Payload、Project Detail、Agent Detail。
+- 交互测试必须点击排序、搜索 focus、tokenbar hover、round toggle、request/response attribution、payload call selector。
+- 测试期间浏览器 console 不得有 error，服务日志不得有 ERROR / Traceback / Rendering 500。
+
 ## 每个任务至少运行
 
 ```bash

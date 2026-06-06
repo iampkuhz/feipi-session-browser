@@ -1,5 +1,9 @@
 # 02 Component Contracts
 
+## 页面功能标准 v3 对齐
+
+本文件的组件要求服务于 `03-page-contracts.md`。与旧版观察记录冲突时，以页面功能标准 v3 的目标状态为准。
+
 ## Shared primitives 必须覆盖
 
 - AppShell
@@ -39,12 +43,13 @@ Button 内部图标和文字必须 `inline-flex; align-items:center`。
 统一结构：
 
 ```text
-[prev] [page input] [next]
+[Prev] [page input] [page status / total records] [page buttons] [page size] [Next]
 ```
 
-- 首页：不渲染 prev。
-- 尾页：不渲染 next。
+- 首页：不渲染或禁用 Prev。
+- 尾页：不渲染或禁用 Next。
 - 页码输入框确认后跳到指定页。
+- Sessions、Projects 和项目内 sessions 明细表必须保留 page size 控制和总页数/总记录数说明。
 
 ## TokenBar
 
@@ -53,12 +58,34 @@ Button 内部图标和文字必须 `inline-flex; align-items:center`。
 - Total 可以出现在 tooltip，不一定出现在图面。
 - token 数字统一短格式。
 
+## Token Cell
+
+- token cell 固定结构：左侧为总 token 数字，右侧为 tokenbar。
+- tokenbar hover tooltip 每行包含 dot 颜色、分类名称、token 数量、token 占比。
+- tooltip 各列必须垂直对齐，数值使用 tabular font。
+- token cell 内不得出现无意义的 `tokens` 文案或多行 legend。
+
 ## DataTable
 
 - Header 与 cell 对齐同列一致。
 - Cell 必须 padding。
 - 数字列可右对齐；文本列左对齐；但表头与单元格必须一致。
 - sortable header 必须有明确 affordance；非 sortable 不显示 sort icon。
+- 表头排序按钮必须占满整个表头单元格宽度和高度，hover 区域与单元格一致。
+- 列宽通过模板化单位定义；短列固定，主列吸收额外宽屏空间。
+- 表格必须支持横向滚动，不允许压缩到文本重叠。
+
+## Badge
+
+- Agent、Model、Provider、Status、Severity 都使用模板化 badge。
+- 多个 agents 必须显示为多个独立 badge，不能合并成一个字符串 badge。
+
+## Chart
+
+- 图表必须有明确 x 轴、y 轴、legend、tooltip。
+- 鼠标悬停必须展示可读的精确数值，不只展示颜色或总量。
+- 堆叠/折线/柱状图的颜色语义必须跨页面一致。
+- 口径不清楚的数据不得放入图表；应移动到更具体的页面或卡片并注明口径。
 
 ## 交叉验证补充（2026-05-21）
 

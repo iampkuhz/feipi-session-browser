@@ -1,5 +1,17 @@
 # 01 全局 UI 契约
 
+## 页面功能标准 v3
+
+- 当前页面功能标准见 `docs/ui/contracts/03-page-contracts.md`。
+- 与旧版 HIFI/contract 条款冲突时，以页面功能标准 v3 为准。
+- Sidebar 主导航只包含 Dashboard、Sessions、Projects；不提供独立 Agents 列表导航入口。
+- Agent 列表信息归入 Dashboard，单个 agent 深度信息归入 Agent Detail。
+- Session Detail 只保留 Trace / Payload 两个主 tab。
+- 页面保持高密度桌面 UI；宽屏多余空间优先分配给主内容列、标题列、图表和明细表。
+- 不允许出现 Dense / Comfortable / Columns / Export / Keyboard shortcuts 这类布局或工具按钮。
+- 不允许删除已有核心页面、核心表格字段、搜索、过滤、排序、分页、行跳转、行展开能力。
+- 所有不可用数据必须显示来源或不可用原因，不允许静默隐藏。
+
 ## 通用视觉规则
 
 - 默认 light mode。
@@ -27,8 +39,8 @@
 - 文本不能紧贴单元格边缘，必须有 padding。
 - 可排序列和不可排序列要视觉区分。
 - 表头不可全部显示可排序态。
-- 有翻页的表格：只显示 `prev`、页码输入框、`next`。
-- 当前首页不渲染 prev；当前尾页不渲染 next。
+- 有翻页的表格按页面功能标准 v3 使用当前产品风格：`Prev`、页码输入、总页数/总记录数、若干页码按钮、page size、`Next`。
+- 当前首页不渲染或禁用 prev；当前尾页不渲染或禁用 next。
 
 ## Metric grid 规则
 

@@ -28,6 +28,7 @@
 docs/acceptance/
 ├── README.md                        ← 本文件
 ├── ACCEPTANCE_CHECK_MATRIX.md       ← 总矩阵表（所有用例 ID 一览）
+├── PAGE_ACCEPTANCE_CHECKLIST.md     ← 页面功能标准 v3 逐页验收清单
 ├── TEST_CONTRACT_ID_RULES.md        ← 测试 ID 命名规则
 ├── features/
 │   ├── DATA_SOURCES.md              ← 数据源模块（Claude/Codex/Qoder 解析器）
@@ -47,6 +48,17 @@ docs/acceptance/
     ├── TEST_CONTRACT_COVERAGE.md    ← 运行 validate_test_contract_mapping.py 生成
     └── ORPHAN_TESTS.md              ← 运行 validate_test_contract_mapping.py 生成
 ```
+
+## 页面功能标准 v3
+
+当前页面功能标准要求见 `docs/ui/contracts/03-page-contracts.md`，逐页验收清单见 `PAGE_ACCEPTANCE_CHECKLIST.md`。
+
+该标准收敛了旧版页面口径：
+
+- Sidebar 主导航只包含 Dashboard、Sessions、Projects。
+- 不提供独立 Agents 列表页；Agent 列表信息在 Dashboard，深度信息在 Agent Detail。
+- Session Detail 只保留 Trace / Payload 两个主 tab。
+- 列表页必须保留搜索、过滤、排序、分页和核心字段，不允许为视觉重排删减可见/可操作信息。
 
 ## 如何使用
 
