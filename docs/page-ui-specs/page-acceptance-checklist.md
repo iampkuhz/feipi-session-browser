@@ -17,7 +17,7 @@
 - [ ] 有 agent scope selector，并影响 KPI、trend、token 分析和 scope 分支区。
 - [ ] KPI 固定为 Projects、Sessions、Total Tokens、Prompt Activity、Cache Read Ratio、Failed Tools，每张卡有一级值和二级指标。
 - [ ] Day 显示最近 30 天，x 轴 `MM-DD`；Week 显示最近 20 个 ISO week；Month 显示最近 12 个月。
-- [ ] Trend 总览区固定为 Session Trend、Token Trend、Prompt Activity Trend 三张同级卡，图表和摘要表同时可见。
+- [ ] Trend 总览区固定为 Session Trend、Token Trend、Prompt Activity Trend 三张同级卡，只渲染全宽图表和 hover/focus tooltip。
 - [ ] Token 分析区固定为 Token Trend by Composition 和 Cache Health；Cache Health 只画 Cache Read Ratio 折线，Fresh spike 使用异常标记。
 - [ ] All agents scope 展示 Agent Contribution Comparison、All Agents、Agent / Model Efficiency。
 - [ ] 单 agent scope 展示 Model Mix、Tool Distribution、Failure Signals、Model Efficiency Detail、Agent Sessions。
@@ -27,7 +27,7 @@
 
 - [ ] 搜索覆盖标题、project、agent、model、session id。
 - [ ] 过滤覆盖 agent、model、project、status、failure。
-- [ ] 表格列完整：Title、Project、Agent、Model、Tokens、Rounds、Tools、Subagents、Duration、Updated。
+- [ ] 表格列完整：Session、Project、Agent / Model、Tokens、Workload、Failure、Updated。
 - [ ] Tokens cell 为数字 + tokenbar + tooltip。
 - [ ] 行跳转、排序、分页和 active filters 均可用。
 
@@ -41,22 +41,16 @@
 
 ## Projects
 
-- [ ] 表格列完整：Project、Agents、Sessions、Tokens、Tools、Failed、Last Active。
+- [ ] 表格列完整：Project、Agents、Activity、Tokens、Tools / Failure、Last Active。
 - [ ] 多 agent 显示多个独立 badge。
 - [ ] 搜索、排序、分页、行跳转和 token cell 可用。
 
 ## Project Detail
 
 - [ ] 顶部展示项目名、返回入口、路径摘要和完整路径。
-- [ ] KPI 覆盖 sessions、agents、tokens、cache reuse、failed tools、active period。
+- [ ] KPI 覆盖 Sessions、Agents、Total Tokens、Cache Read Ratio、Failed Tools；Active Period 位于 Page Head 副信息。
 - [ ] 有 Project Token Trend、Agent Mix、Tool Hotspots。
 - [ ] 项目内 sessions 表复用 Sessions contract。
-
-## Agent Detail 迁移
-
-- [ ] Agent Detail 不作为目标页面扩展。
-- [ ] 原 Agent Detail 的 Model Mix、Tool Distribution、Failure Signals、Model Efficiency Detail、Sessions 信息并入 Dashboard 单 agent scope。
-- [ ] Dashboard 的 agent 行点击切换 scope，不跳转到 Agent Detail。
 
 ## Token Glossary 和状态页
 

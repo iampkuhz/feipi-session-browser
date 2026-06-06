@@ -7,7 +7,7 @@
 ## 页面布局
 
 - 404 模板：`404.html`；Error 模板：`error.html`。
-- 状态页加载 `states.css`，复用统一 `state-panel` 或共享 empty/error state 组件。
+- 状态页加载 `states.css`，复用统一 `state-panel` 组件和共享 empty/error state 组件。
 - 状态页内容居中于主内容区，不覆盖 Sidebar、Topbar、Footer。
 - Error details 使用 details/summary，原始错误放可滚动 pre。
 
@@ -15,8 +15,8 @@
 
 - 404 页面操作入口固定为 Dashboard、Projects、Sessions。
 - Error 页面操作入口固定为 Dashboard。
-- 页面级空态至少提供一个可执行主操作。
-- 过滤无结果状态固定提供清除当前过滤或清空搜索的操作。
+- 页面级空态固定提供一个主操作和一个次操作。
+- 过滤无结果状态固定提供 `Clear current filter` 和 `Clear all filters` 两个操作。
 
 ## 文字内容
 
@@ -30,7 +30,7 @@
 
 - 404 返回 status 404。
 - Error 返回 status 500。
-- Error details 只展示必要错误摘要；不得泄露密钥、token、真实 session 原文或个人敏感路径。
+- Error details 只展示必要错误摘要；不得泄露密钥、token、真实 session 原文、个人敏感路径。
 - 状态页必须有合适的 `role` 和 `aria-live`。
 
 ## 交互逻辑
@@ -39,7 +39,8 @@
 - 点击 Projects 返回 `/projects`。
 - 点击 Sessions 返回 `/sessions`。
 - 展开 Error details 只影响当前状态面板，不改变 URL。
-- 清除过滤后恢复默认列表或保留其它未清除条件，行为必须与对应页面 filter contract 一致。
+- `Clear current filter` 只清除当前触发无结果的过滤条件。
+- `Clear all filters` 清除当前页面全部搜索和过滤条件。
 
 ## 状态
 
