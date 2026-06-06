@@ -3,6 +3,8 @@
   display: flex;
   gap: 2px;
   margin-bottom: 10px;
+  min-width: 0;
+  max-width: 100%;
   border-bottom: 1px solid var(--sd-line);
   padding-bottom: 0;
 }
@@ -36,86 +38,15 @@
   display: none;
 }
 .sd-trace-panel {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-}
-/* ── Tab panels: metrics ── */
-.sd-metrics-panel {
-  border: 1px solid var(--sd-line);
-  background: var(--sd-surface);
-  border-radius: var(--sd-radius-panel);
-  box-shadow: var(--sd-shadow-sm);
-  overflow: hidden;
-}
-.sd-metrics-panel__head {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--sd-line-soft);
-  background: linear-gradient(180deg, #fff, #fbfcff);
-}
-.sd-metrics-panel__head h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 850;
-  color: var(--sd-text);
-}
-.sd-metrics-panel__body {
-  padding: 16px;
-}
-.sd-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.sd-metric-item {
-  border: 1px solid var(--sd-line-soft);
-  border-radius: 12px;
-  background: #fff;
-  padding: 12px;
-  text-align: center;
-}
-.sd-metric-item__label {
-  font-size: 11px;
-  color: var(--sd-muted);
-  text-transform: uppercase;
-  letter-spacing: .055em;
-  margin-bottom: 6px;
-}
-.sd-metric-item__value {
-  font-family: var(--sd-mono);
-  font-size: 18px;
-  font-weight: 850;
-  color: var(--sd-text);
-}
-.sd-metrics-detail h3 {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--sd-text-2);
-}
-.sd-metrics-kv {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
 }
 .sd-empty-state {
   padding: 20px;
   text-align: center;
   color: var(--sd-muted);
   font-size: 13px;
-}
-@media (max-width: 1360px) {
-  .sd-kpis {
-    grid-template-columns: 1fr;
-  }
-  .sd-kpi-group--tokens {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-  .sd-kpi-group--calls {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .sd-metrics-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 /* sd-trace-head mapped to table-toolbar */
 .sd-trace-head {
@@ -137,3 +68,6 @@
 .sd-trace-actions {
   margin-left: auto;
   display: flex;
+  align-items: center;
+  gap: 8px;
+}

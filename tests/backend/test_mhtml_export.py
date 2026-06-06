@@ -127,6 +127,15 @@ class TestMhtmlTemplateContracts:
         assert "get_js" in mhtml, "mhtml.py missing get_js"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
+    def test_export_css_inlines_import_wrappers(self):
+        """Exported CSS must not contain @import after bundling."""
+        from session_browser.web.mhtml import get_css, get_page_css
+
+        css = get_css() + "\n" + get_page_css("session")
+        css_without_comments = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+        assert "@import" not in css_without_comments, "exported CSS must inline local @import wrappers"
+
+    @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_routes_has_export_mhtml_support(self):
         routes = (ROOT / "src" / "session_browser" / "web" / "routes.py").read_text(encoding="utf-8")
         assert "export_mhtml" in routes, "routes.py missing export_mhtml"

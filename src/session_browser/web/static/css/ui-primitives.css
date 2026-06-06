@@ -8,9 +8,9 @@
 * Token System:
 *   - Color variables (--bg, --surface, --line, --text, --purple, --green,
 *     --orange, --red, --claude, --codex, --qoder, --ok, --warn, --err)
-*   - Spacing variables (--shadow, --radius-lg/md/sm, --hifi-cell-pad-x/y,
+*   - Spacing variables (--shadow, --radius-lg/md/sm, --table-cell-padding-x/y,
 *     --sidebar, --topbar, --max)
-*   - Typography variables (--mono, --sans, --hifi-icon-nav/inline/metric)
+*   - Typography variables (--mono, --sans, --icon-nav/inline/metric-size)
 *   - Alias variables (--ui-* family mapped to core tokens)
 *
 * Primitives Covered:

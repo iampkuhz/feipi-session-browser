@@ -32,9 +32,6 @@
   color: var(--text-subtle);
   font-size: 13px;
 }
-.table-wrap {
-  overflow: auto;
-}
 .section-card.full-width {
   width: 100%;
 }

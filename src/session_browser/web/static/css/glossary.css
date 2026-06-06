@@ -1,115 +1,4 @@
-/* ───────────────────────────────────────────────────────────────
-* Glossary — Canonical CSS (T154)
-*
-* Scope: glossary.html only.
-*
-* Do not globally override .card, .data-table, .badge, etc.
-* Those are defined in ui-primitives.css.
-*
-* Already covered by ui-primitives.css (no need to duplicate):
-*   .card, .section, .section-head, .section-title, .section-sub
-*   .metric_grid, .metric-card, .metric-icon, .metric-card__body,
-*   .metric-card__label-row, .metric-card__label, .metric-card__value,
-*   .metric-card__sub, .table-wrap, .data-table, .filter-card,
-*   .filter-row, .input, .input.search, .state-strip, .state-icon,
-*   .state-title, .badge (all variants), .muted, .mono, .btn,
-*   .icon-btn, .icon-button, .toast
-* ─────────────────────────────────────────────────────────────── */
-/* ── Page Head (canonical .page-head pattern, T156) ───────── */
-.page-head {
-  margin-bottom: 24px;
-}
-/* Summary metric grid spacing (T157) */
-.page-head + .metric-grid {
-  margin-top: 12px;
-}
-.page-head h1 {
-  margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-.page-head p.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-subtle);
-  line-height: 1.4;
-}
-/* ── Metric Grid (page-specific overrides on top of primitives) ── */
-.metric-grid {
-  margin-bottom: 20px;
-}
-/* ── Legend Card (HIFI M1/W1 — not in ui-primitives) ───────── */
-.legend-card {
-  padding: 14px 16px;
-  margin-bottom: 16px;
-}
-.legend-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-.legend-block {
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  background: #fff;
-  padding: 12px;
-}
-.legend-title {
-  font-size: 12px;
-  color: var(--text-subtle);
-  font-weight: 850;
-  margin-bottom: 9px;
-}
-/* Row container for badges and dots (HIFI) */
-.legend-block .row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-/* Dot color indicators (HIFI) */
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  flex: 0 0 8px;
-}
-.dot.claude {
-  background: var(--claude);
-}
-.dot.codex {
-  background: var(--codex);
-}
-.dot.qoder {
-  background: var(--qoder);
-}
-.dot.total {
-  background: var(--output);
-}
-/* ── Note Strip (HIFI M2/W2 — production bottom tip bar) ───── */
-.note-strip {
-  margin-top: 20px;
-  padding: 14px 16px;
-  border: 1px solid #bfdbfe;
-  border-radius: 12px;
-  background: var(--surface-soft);
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-.note-strip .note-icon {
-  font-size: 18px;
-  line-height: 1;
-  width: 22px;
-  text-align: center;
-  flex: 0 0 auto;
-}
-/* ── Glossary Table (HIFI W5 — semantic table styling) ─────── */
-/* .glossary-table is the HIFI class for glossary-specific tables.
-.data-table is the production class. We style both to support
-gradual migration. */
+/* Glossary page styles. Shared card, table, badge, and filter primitives stay global. */
 .glossary-table {
   width: 100%;
   border-collapse: separate;
@@ -123,67 +12,18 @@ gradual migration. */
   color: #253044;
   font-size: 11px;
   text-align: left;
-  padding: var(--hifi-cell-pad-y) var(--hifi-cell-pad-x);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   font-weight: 850;
   white-space: nowrap;
 }
 .glossary-table td {
   border-bottom: 1px solid var(--line-strong);
-  padding: var(--hifi-cell-pad-y) var(--hifi-cell-pad-x);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   vertical-align: top;
   color: var(--text-subtle);
 }
 .glossary-table tr:last-child td {
   border-bottom: 0;
-}
-/* Wide table variant — full width within .table-wrap */
-.wide-table {
-  min-width: 0;
-  width: 100%;
-}
-/* Mapping table column widths (HIFI provider mapping) */
-.mapping-table th:nth-child(1),
-.mapping-table td:nth-child(1) {
-  width: 16%;
-}
-.mapping-table th:nth-child(2),
-.mapping-table td:nth-child(2),
-.mapping-table th:nth-child(3),
-.mapping-table td:nth-child(3),
-.mapping-table th:nth-child(4),
-.mapping-table td:nth-child(4) {
-  width: 17%;
-}
-.mapping-table th:nth-child(5),
-.mapping-table td:nth-child(5) {
-  width: 33%;
-}
-/* ── Cell-level semantic classes (HIFI W6/W7) ──────────────── */
-/* Term cell — monospaced, bold, dark (used in .glossary-table) */
-.glossary-table .term,
-.wide-table .term {
-  font-family: var(--font-mono);
-  font-weight: 850;
-  color: var(--text);
-  white-space: nowrap;
-}
-/* Formula cell — inline code block style */
-.formula {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  background: var(--surface-soft);
-  border: 1px solid var(--line-strong);
-  border-radius: 7px;
-  padding: 3px 7px;
-  display: inline-block;
-  white-space: nowrap;
-}
-/* Sample value cell — monospaced, bold, dark */
-.sample-value {
-  font-family: var(--font-mono);
-  font-weight: 820;
-  color: var(--text);
-  white-space: nowrap;
 }
 /* section-desc: production section subtitle */
 .section-desc {
@@ -191,23 +31,14 @@ gradual migration. */
   color: var(--text-subtle);
   font-size: 12.5px;
 }
-/* stack-sections: HIFI vertical stacking layout */
-.stack-sections {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
 /* full-width: section card spans full content width */
 .full-width {
   width: 100%;
 }
-/* section-card: HIFI class that extends .card */
 .section-card {
   padding: 15px 16px;
   min-width: 0;
 }
-/* section-head h2 styling (HIFI uses <h2> in section-head) */
 .section-head h2 {
   margin: 0;
   font-size: 16px;
@@ -249,15 +80,6 @@ gradual migration. */
   font-weight: 800;
   color: var(--text);
   white-space: nowrap;
-}
-/* JS-controlled visibility (class-based, no inline styles).
-glossary.js toggles .is-hidden on rows, table-wraps, sections,
-and the empty state during search filtering. */
-#glossary-empty.is-hidden {
-  display: none;
-}
-.is-hidden {
-  display: none;
 }
 #glossary-empty {
   margin-bottom: 16px;

@@ -1,6 +1,3 @@
-  gap: 7px;
-  align-items: center;
-}
 .sd-seg {
   display: flex;
   gap: 3px;
@@ -42,6 +39,7 @@
   text-align: left;
   cursor: pointer;
   color: var(--sd-text-2);
+  overflow: hidden;
 }
 .sd-round-summary:hover {
   background: #fbfdff;
@@ -57,6 +55,7 @@
 }
 .sd-round-status {
   height: 22px;
+  min-width: 0;
   border-radius: 999px;
   border: 1px solid var(--sd-line-soft);
   background: var(--sd-panel);
@@ -103,12 +102,14 @@
   text-overflow: ellipsis;
 }
 .sd-round-metric {
+  min-width: 0;
   font-family: var(--sd-mono);
   font-size: 12px;
   text-align: right;
   color: var(--sd-text-2);
 }
 .sd-round-mix {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -122,12 +123,15 @@
   overflow: hidden;
 }
 .sd-tokenbar__fresh {
+  width: var(--segment-width);
   background: var(--token-input-fresh, #2563eb);
 }
 .sd-tokenbar__cache {
+  width: var(--segment-width);
   background: var(--token-cache-read, #f59e0b);
 }
 .sd-tokenbar__out {
+  width: var(--segment-width);
   background: var(--token-output-visible, #10b981);
 }
 .sd-round-detail {
@@ -218,6 +222,7 @@
   gap: 10px;
   padding: 10px 10px;
   align-items: center;
+  min-width: 0;
 }
 .sd-llm-token-grid {
   display: grid;
@@ -255,6 +260,7 @@
   gap: 8px;
   padding: 8px 10px;
   align-items: center;
+  min-width: 0;
 }
 .sd-sub-llm-token-grid {
   display: grid;
@@ -363,6 +369,7 @@
   grid-template-columns: 58px minmax(400px, 1.2fr) minmax(200px, .6fr) 78px;
   gap: 8px;
   align-items: center;
+  min-width: 0;
   min-height: 34px;
   border-radius: 10px;
   background: #fff;
@@ -383,6 +390,7 @@
 }
 .sd-tool-cmd,
 .sd-tool-result {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -712,24 +720,6 @@ shift dot left to align with the container timeline line */
   white-space: pre-wrap;
   font: 12px/1.45 var(--sd-mono);
 }
-@media (max-width: 1360px) {
-  .sd-llm-content-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  .sd-llm-content-row .sd-llm-action-group {
-    justify-content: flex-start;
-  }
-  .sd-sub-llm-content-row {
-    grid-template-columns: 1fr;
-  }
-  .sd-round-detail {
-    padding-left: 54px;
-  }
-  .sd-tool-row {
-    grid-template-columns: 58px minmax(260px, 1fr) 140px 78px;
-  }
-}
 /* ── Trace table (T089 HIFI migration) ── */
 .trace-table {
   width: 100%;
@@ -904,7 +894,7 @@ shift dot left to align with the container timeline line */
   --token-tooltip-translate: -50%;
   --token-tooltip-arrow-left: 50%;
 }
-.tokenbar {
+.tokenbar-wrap .tokenbar {
   position: relative;
   height: 7px;
   width: 100%;
@@ -914,16 +904,16 @@ shift dot left to align with the container timeline line */
   cursor: help;
   flex-shrink: 0;
 }
-.tokenbar .fresh {
+.tokenbar-wrap .tokenbar .fresh {
   width: var(--segment-width, 0%);
 }
-.tokenbar .read {
+.tokenbar-wrap .tokenbar .read {
   width: var(--segment-width, 0%);
 }
-.tokenbar .write {
+.tokenbar-wrap .tokenbar .write {
   width: var(--segment-width, 0%);
 }
-.tokenbar .out {
+.tokenbar-wrap .tokenbar .out {
   width: var(--segment-width, 0%);
 }
 /* token breakdown tooltip */
@@ -969,13 +959,13 @@ shift dot left to align with the container timeline line */
 .tokenbar-wrap:focus-within .token-tooltip {
   display: block;
 }
-.token-tooltip__title {
+.session-detail-page .token-tooltip__title {
   font-weight: 850;
   font-size: 12px;
   margin-bottom: 8px;
   color: var(--sd-text);
 }
-.token-tooltip__row {
+.session-detail-page .token-tooltip__row {
   display: grid;
   grid-template-columns: minmax(92px, 1fr) minmax(48px, max-content) minmax(38px, max-content);
   align-items: center;
@@ -983,14 +973,14 @@ shift dot left to align with the container timeline line */
   font-size: 12px;
   margin: 5px 0;
 }
-.token-tooltip__label {
+.session-detail-page .token-tooltip__label {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
   color: var(--sd-muted);
 }
-.token-tooltip__label .dot {
+.session-detail-page .token-tooltip__label .dot {
   display: block;
   width: 8px;
   height: 8px;
@@ -998,11 +988,11 @@ shift dot left to align with the container timeline line */
   flex-shrink: 0;
 }
 /* dot colors from ui-primitives.css (.dot--fresh/.dot--read/.dot--write/.dot--out) */
-.token-tooltip__type-name {
+.session-detail-page .token-tooltip__type-name {
   line-height: 1;
   font-weight: 600;
 }
-.token-tooltip__value {
+.session-detail-page .token-tooltip__value {
   font-family: var(--sd-mono);
   font-weight: 700;
   font-size: 12px;
@@ -1010,21 +1000,21 @@ shift dot left to align with the container timeline line */
   min-width: 40px;
   text-align: right;
 }
-.token-tooltip__pct {
+.session-detail-page .token-tooltip__pct {
   font-family: var(--sd-mono);
   font-size: 11px;
   color: var(--sd-muted);
   min-width: 36px;
   text-align: right;
 }
-.token-tooltip__total {
+.session-detail-page .token-tooltip__total {
   grid-template-columns: minmax(92px, 1fr) minmax(48px, max-content);
   font-weight: 800;
   border-top: 1px solid var(--sd-line-soft);
   padding-top: 6px;
   margin-top: 4px;
 }
-.token-tooltip__sep {
+.session-detail-page .token-tooltip__sep {
   height: 1px;
   background: var(--sd-line-soft);
   margin: 4px 0;

@@ -36,15 +36,15 @@
   --radius-lg: 18px;
   --radius-md: 14px;
   --radius-sm: 10px;
-  --hifi-cell-pad-y: 9px;
-  --hifi-cell-pad-x: 12px;
+  --table-cell-padding-y: 9px;
+  --table-cell-padding-x: 12px;
   --sidebar: 226px;
   --topbar: 52px;
   --max: 1320px;
   /* Typography variables (aliases to style.css canonical --font-sans/--font-mono) */
-  --hifi-icon-nav: 18px;
-  --hifi-icon-inline: 16px;
-  --hifi-icon-metric: 22px;
+  --icon-nav-size: 18px;
+  --icon-inline-size: 16px;
+  --icon-metric-size: 22px;
   /* UI component tokens */
   --ui-radius-btn: 9px;
   --ui-radius-pill: 999px;

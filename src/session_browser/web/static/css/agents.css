@@ -1,15 +1,4 @@
-/* ───────────────────────────────────────────────────────────────
-* Agents — Page CSS (T126)
-*
-* Scope:
-*   agents.html only (agents list and agent detail views).
-*
-* ITCSS 规则：
-*   - page CSS 只能定义 .p-agents 命名空间内的样式
-*   - 不得重写 .page-head、.table-card、.tokenbar 等共享 primitive
-*   - 只定义页面专属选择器和 agents 页面特有的组件变体
-*
-* ─────────────────────────────────────────────────────────────── */
+/* Agents list page styles. Shared primitives stay in ui-primitives.css. */
 
 /* ── Agent 列表页专属命名空间 ───────────────────────────────── */
 .p-agents .metric-grid:has(.metric-card) {
@@ -50,34 +39,7 @@
   gap: 12px;
 }
 
-/* ── Agent 详情页专属样式 ───────────────────────────────────── */
-.p-agents .agent-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 18px;
-  margin-bottom: 16px;
-}
-.p-agents .agent-header-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.p-agents .agent-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 14px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #6d5dfc, #4f32e8);
-  color: white;
-  box-shadow: 0 10px 22px rgba(79, 70, 229, .22);
-  font-size: 23px;
-  font-weight: 900;
-  letter-spacing: -.03em;
-  text-transform: uppercase;
-}
-
-/* ── Agent 详情 metric 网格 ──────────────────────────────────── */
+/* ── Agent metric 网格 ───────────────────────────────────────── */
 .p-agents .metric-card {
   min-width: 0;
   height: 92px;
@@ -91,77 +53,6 @@
   font-weight: 900;
   letter-spacing: -.02em;
   white-space: nowrap;
-}
-
-/* ── Agent 详情 section ──────────────────────────────────────── */
-.p-agents .agent-section {
-  margin-top: 16px;
-  overflow: hidden;
-}
-
-/* ── Agent 详情 model breakdown table 列宽 ──────────────────── */
-.p-agents col.col-model-name { width: 22%; }
-.p-agents col.col-sessions    { width: 9%; }
-.p-agents col.col-token-md    { width: 28%; min-width: 160px; }
-.p-agents col.col-cache       { width: 11%; }
-.p-agents col.col-tools       { width: 10%; }
-.p-agents col.col-failed      { width: 9%; }
-.p-agents col.col-avg         { width: 11%; }
-
-/* ── Agent 详情 sessions table 列宽 ─────────────────────────── */
-.p-agents col.col-title       { width: 26%; }
-.p-agents col.col-project     { width: 14%; }
-.p-agents col.col-model       { width: 14%; }
-.p-agents col.col-token       { width: 18%; min-width: 140px; }
-.p-agents col.col-num-sm      { width: 7%; }
-.p-agents col.col-duration    { width: 10%; }
-.p-agents col.col-updated     { width: 9%; }
-
-/* ── Agent 详情 tooltip ──────────────────────────────────────── */
-.p-agents .project-cell {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.p-agents .path-tooltip {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: 28px;
-  width: max-content;
-  max-width: 380px;
-  background: #101828;
-  color: white;
-  padding: 8px 10px;
-  border-radius: 9px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  z-index: 10;
-  box-shadow: 0 12px 30px rgba(16, 24, 40, .22);
-}
-.p-agents .project-cell:hover .path-tooltip {
-  display: block;
-}
-
-/* ── Empty state ────────────────────────────────────────────── */
-.p-agents #agents-empty.is-hidden {
-  display: none;
-}
-
-/* ── Pagination ─────────────────────────────────────────────── */
-.p-agents .unified-pagination {
-  height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 0 14px;
-  border-top: 1px solid var(--line-strong);
-}
-.p-agents .page-input {
-  width: 64px;
-  text-align: center;
 }
 
 /* ── Efficiency section tooltip (agents 专属) ────────────────── */

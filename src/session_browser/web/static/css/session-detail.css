@@ -2,7 +2,6 @@
  * 所有 @import 必须位于任何 selector/style rule 之前。 */
 
 @import "session-detail/00-tokens.css";
-@import "session-detail/01-shell.css";
 @import "session-detail/02-header-summary.css";
 @import "session-detail/03-tabs.css";
 @import "session-detail/04-timeline.css";

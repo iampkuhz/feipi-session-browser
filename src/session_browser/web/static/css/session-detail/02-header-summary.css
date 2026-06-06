@@ -124,6 +124,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
 }
 .sd-hero__id {
