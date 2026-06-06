@@ -9,7 +9,6 @@
 - Dashboard 页面渲染
 - Sessions List 页面渲染
 - Session Detail 页面渲染
-- Agents 页面渲染
 - Projects 页面渲染
 - 结构检查：CSS 媒体查询、布局容器、表格元素
 
@@ -36,7 +35,6 @@ DISPLAY_2K_UA = (
 PAGES = [
     ("Dashboard", "/dashboard", ">Dashboard<", 500),
     ("Sessions List", "/sessions", ">Sessions<", 500),
-    ("Agents", "/agents", ">Agents<", 500),
     ("Projects", "/projects", ">Projects<", 500),
     ("Glossary", "/glossary", "Token Glossary", 500),
 ]
@@ -224,36 +222,6 @@ class TestDisplay2KSessionDetail:
         assert status == 200
         assert "page-head" in detail_html or "session-detail" in detail_html.lower(), \
             "Session Detail 必须有页面头部"
-
-
-class TestDisplay2KAgents:
-    """Agents 页面在 2560x1440 下的结构检查。"""
-
-    @pytest.mark.contract_case("UI-VISUAL-008")
-    def test_agents_page_loads(self, display_2k_smoke_server):
-        """Agents 页面必须返回 HTTP 200。"""
-        base_url = display_2k_smoke_server
-        status, html = fetch_page(base_url, "/agents")
-        assert status == 200
-        assert len(html) >= 500, "Agents 页面 HTML 过短"
-
-    @pytest.mark.contract_case("UI-VISUAL-008")
-    def test_agents_has_table_or_list(self, display_2k_smoke_server):
-        """Agents 页面必须有数据表格或 Agent 列表。"""
-        base_url = display_2k_smoke_server
-        status, html = fetch_page(base_url, "/agents")
-        assert status == 200
-        has_table = 'class="data-table"' in html or 'class="agent-list"' in html
-        assert has_table, "Agents 页面必须有表格或 Agent 列表"
-
-    @pytest.mark.contract_case("UI-VISUAL-008")
-    def test_agents_has_entries(self, display_2k_smoke_server):
-        """Agents 页面必须列出至少一个 Agent。"""
-        base_url = display_2k_smoke_server
-        status, html = fetch_page(base_url, "/agents")
-        assert status == 200
-        assert "claude" in html.lower() or "agent" in html.lower(), \
-            "Agents 页面必须至少列出一个 Agent 条目"
 
 
 class TestDisplay2KProjects:

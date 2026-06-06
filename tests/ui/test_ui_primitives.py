@@ -187,31 +187,6 @@ class TestMacroMinimalRender:
         assert "Error occurred" in html
 
     @pytest.mark.contract_case("UI-VISUAL-012")
-    def test_legacy_btn_renders(self):
-        html = _render_macro("btn", label="Legacy")
-        assert "Legacy" in html
-
-    @pytest.mark.contract_case("UI-VISUAL-012")
-    def test_select_control_renders(self):
-        html = _render_macro("select_control", label="Model", name="model", options=["gpt4", "claude"])
-        assert "model" in html
-
-    @pytest.mark.contract_case("UI-VISUAL-012")
-    def test_stat_pill_renders(self):
-        html = _render_macro("stat_pill", value="42", label="sessions")
-        assert "42" in html
-
-    @pytest.mark.contract_case("UI-VISUAL-012")
-    def test_th_static_renders(self):
-        html = _render_macro("th_static", label="Column")
-        assert "Column" in html
-
-    @pytest.mark.contract_case("UI-VISUAL-012")
-    def test_th_sort_renders(self):
-        html = _render_macro("th_sort", label="Date", key="date")
-        assert "Date" in html
-
-    @pytest.mark.contract_case("UI-VISUAL-012")
     def test_token_total_renders(self):
         html = _render_macro("token_total", total="1.5K")
         assert "1.5K" in html

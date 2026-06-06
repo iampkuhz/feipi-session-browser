@@ -15,7 +15,6 @@ const VIEWPORTS = {
 const PAGES = [
   { name: 'Dashboard', path: '/dashboard' },
   { name: 'Sessions', path: '/sessions' },
-  { name: 'Agents', path: '/agents' },
   { name: 'Projects', path: '/projects' },
 ];
 
@@ -44,12 +43,6 @@ for (const [viewportName, size] of Object.entries(VIEWPORTS)) {
       await page.goto('/sessions');
       const table = page.locator('table[aria-label="Sessions table"]');
       await expect(table).toBeVisible();
-    });
-
-    test('[UI-VISUAL-009] Agents page renders agent list', async ({ page }) => {
-      await page.goto('/agents');
-      const agentList = page.locator('.agent-list, .data-table');
-      await expect(agentList.first()).toBeVisible();
     });
 
     test('[UI-VISUAL-009] Projects page renders project list', async ({ page }) => {

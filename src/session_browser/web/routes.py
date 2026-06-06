@@ -44,13 +44,9 @@ from session_browser.web.presenters.sessions import (
     fetch_sessions_view_model,
 )
 from session_browser.web.presenters.dashboard import build_dashboard_view_model
-from session_browser.web.presenters.agents import (
-    build_agents_view_model,
-    build_agent_view_model,
-)
 from session_browser.web.presenters.projects import (
     build_projects_view_model,
-    build_project_view_model,
+    build_project_detail_view_model,
 )
 from session_browser.domain.models import (
     ChatMessage,
@@ -167,11 +163,6 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                     self._serve_session(agent, session_id, export_mhtml=export_mhtml)
                 else:
                     self._serve_all_sessions()
-            elif path == "/agents":
-                self._serve_agents()
-            elif path.startswith("/agents/"):
-                agent = urllib.parse.unquote(path[len("/agents/"):])
-                self._serve_agent(agent)
             elif path == "/glossary":
                 self._serve_glossary()
             elif path.startswith("/static/"):
@@ -268,7 +259,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         raw_params = urllib.parse.parse_qs(parsed.query)
 
         conn = _get_connection()
-        view_model = build_project_view_model(conn, project_key, raw_params)
+        view_model = build_project_detail_view_model(conn, project_key, raw_params)
         conn.close()
 
         html = self._render_template("project.html", **view_model)
@@ -1004,9 +995,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
             r = rounds[target_idx]
             content = r.user_msg.content if r.user_msg else ""
-            from session_browser.attribution.agents.claude_code import _mask_sensitive_keys
+            from session_browser.attribution.agents.claude_code_parts.utils import mask_sensitive_keys
             from session_browser.attribution.token_estimator import estimate_tokens_from_text
-            masked = _mask_sensitive_keys(content or "")
+            masked = mask_sensitive_keys(content or "")
             self._send_json({
                 "kind": "bucket_detail",
                 "bucket_key": bucket_key,
@@ -1036,9 +1027,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 })
                 return
 
-            from session_browser.attribution.agents.claude_code import _mask_sensitive_keys
+            from session_browser.attribution.agents.claude_code_parts.utils import mask_sensitive_keys
             from session_browser.attribution.token_estimator import estimate_tokens_from_text
-            masked = _mask_sensitive_keys(local_text)
+            masked = mask_sensitive_keys(local_text)
             self._send_json({
                 "kind": "bucket_detail",
                 "bucket_key": bucket_key,
@@ -1081,7 +1072,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
             from session_browser.attribution.context import build_attribution_session_context
-            from session_browser.attribution.agents.claude_code import _mask_sensitive_keys
+            from session_browser.attribution.agents.claude_code_parts.utils import mask_sensitive_keys
             from session_browser.attribution.token_estimator import estimate_tokens_from_text
 
             # Build full_messages_array for the first interaction of the first round
@@ -1123,7 +1114,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             elif msg_entry.get("content_type") == "assistant_text":
                 content_text = self._find_assistant_message_content(messages, msg_array, msg_index)
 
-            masked = _mask_sensitive_keys(content_text or "")
+            masked = mask_sensitive_keys(content_text or "")
             self._send_json({
                 "kind": "bucket_detail",
                 "bucket_key": "full_messages_array_item",
@@ -1138,22 +1129,6 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         else:
             self._send_json({"error": f"bucket_key '{bucket_key}' not supported for dynamic loading"}, status=400)
-
-    def _serve_agent(self, agent: str) -> None:
-        conn = _get_connection()
-        view_model = build_agent_view_model(conn, agent)
-        conn.close()
-
-        html = self._render_template("agent.html", **view_model)
-        self._send_html(html)
-
-    def _serve_agents(self) -> None:
-        conn = _get_connection()
-        view_model = build_agents_view_model(conn)
-        conn.close()
-
-        html = self._render_template("agents.html", **view_model)
-        self._send_html(html)
 
     def _serve_static(self, filename: str) -> None:
         static_dir = Path(__file__).parent / "static"

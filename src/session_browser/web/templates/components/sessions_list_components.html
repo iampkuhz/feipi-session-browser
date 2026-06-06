@@ -6,6 +6,20 @@
 #}
 {% import "components/ui_primitives.html" as ui with context %}
 
+{% macro column_header(label) -%}
+  <div class="sessions-th" role="columnheader">{{ label }}</div>
+{%- endmacro %}
+
+{% macro sort_column_header(label, key, sort_key='', sort_dir='desc', href='') -%}
+  {%- set active = (sort_key == key) -%}
+  {%- set aria = ' aria-sort="' ~ ('ascending' if sort_dir == 'asc' else 'descending') ~ '"' if active else '' -%}
+  {%- if href -%}
+  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}><a class="c-data-table__sort" href="{{ href }}">{{ label }} <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></div>
+  {%- else -%}
+  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}>{{ label }} <button type="submit" name="sort" value="{{ key }}" class="c-data-table__sort" data-sort-key="{{ key }}"><span class="c-data-table__sort-icon" aria-hidden="true"></span></button></div>
+  {%- endif -%}
+{%- endmacro %}
+
 {% macro page_title(total_sessions, total_projects, total_tokens) -%}
   <div class="sessions-page-title">
     <div>
@@ -43,16 +57,16 @@
 {%- endmacro %}
 
 {% macro table_header(sort_key='updated', sort_dir='desc', sort_urls=None) -%}
-  {{ ui.th_static('Title') }}
-  {{ ui.th_static('Project') }}
-  {{ ui.th_static('Agent') }}
-  {{ ui.th_static('Model') }}
-  {{ ui.th_sort('Tokens', 'tokens', sort_key, sort_dir, href=sort_urls.tokens if sort_urls else '') }}
-  {{ ui.th_sort('Rounds', 'rounds', sort_key, sort_dir, href=sort_urls.rounds if sort_urls else '') }}
-  {{ ui.th_sort('Tools', 'tools', sort_key, sort_dir, href=sort_urls.tools if sort_urls else '') }}
-  {{ ui.th_sort('Subagents', 'subagents', sort_key, sort_dir, href=sort_urls.subagents if sort_urls else '') }}
-  {{ ui.th_sort('Duration', 'duration', sort_key, sort_dir, href=sort_urls.duration if sort_urls else '') }}
-  {{ ui.th_sort('Updated', 'updated', sort_key, sort_dir, href=sort_urls.updated if sort_urls else '') }}
+  {{ column_header('Title') }}
+  {{ column_header('Project') }}
+  {{ column_header('Agent') }}
+  {{ column_header('Model') }}
+  {{ sort_column_header('Tokens', 'tokens', sort_key, sort_dir, href=sort_urls.tokens if sort_urls else '') }}
+  {{ sort_column_header('Rounds', 'rounds', sort_key, sort_dir, href=sort_urls.rounds if sort_urls else '') }}
+  {{ sort_column_header('Tools', 'tools', sort_key, sort_dir, href=sort_urls.tools if sort_urls else '') }}
+  {{ sort_column_header('Subagents', 'subagents', sort_key, sort_dir, href=sort_urls.subagents if sort_urls else '') }}
+  {{ sort_column_header('Duration', 'duration', sort_key, sort_dir, href=sort_urls.duration if sort_urls else '') }}
+  {{ sort_column_header('Updated', 'updated', sort_key, sort_dir, href=sort_urls.updated if sort_urls else '') }}
 {%- endmacro %}
 
 {% macro footer(start_label, end_label, total_label, prev_url='', next_url='', current_page=1, total_pages=1) -%}

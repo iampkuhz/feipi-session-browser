@@ -7,7 +7,7 @@ Covers:
 4. previous_response_id residual (section 8.4)
 5. Tool schemas from raw request (section 8.5)
 6. Reasoning tokens are not visible text (section 8.6)
-7. Backward compatibility (section 8.7)
+7. Flat Codex usage variants (section 8.7)
 """
 
 import pytest
@@ -142,8 +142,8 @@ class TestOpenAINestedUsage:
         assert bd.raw_fields.get("input_tokens") == 1000
         assert bd.raw_fields.get("output_tokens") == 80
 
-    def test_chat_compatible_fallback(self):
-        """Test prompt_tokens_details / completion_tokens_details fallback."""
+    def test_openai_chat_usage_fields(self):
+        """Test prompt_tokens_details / completion_tokens_details parsing."""
         usage = {
             "prompt_tokens": 2000,
             "prompt_tokens_details": {"cached_tokens": 1500},
@@ -334,13 +334,13 @@ class TestReasoningTokensNotVisible:
         assert bd.fresh_input_tokens == 500
 
 
-# ── 8.7 Backward compatibility ──────────────────────────────────────────────
+# ── 8.7 Flat Codex usage variants ───────────────────────────────────────────
 
-class TestBackwardCompatibility:
-    """Test section 8.7: Backward compatibility with old fixtures."""
+class TestFlatCodexUsageVariants:
+    """Test section 8.7: flat Codex usage payload variants."""
 
-    def test_old_codex_fixture(self):
-        """Old Codex fixture with only token_count.last_token_usage input/output, no reasoning."""
+    def test_flat_codex_usage_without_reasoning(self):
+        """Codex usage with input/output totals and no reasoning field."""
         usage = {
             "input_tokens": 5000,
             "cached_input_tokens": 3000,

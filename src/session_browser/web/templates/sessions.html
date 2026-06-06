@@ -29,9 +29,9 @@
 {{ ui.page_head(
     'Sessions',
     subtitle='Browse indexed local agent runs',
-    stat_pills=ui.stat_pill(total_count, "sessions")
-        + ui.stat_pill(sessions_aggregate.project_count, "projects")
-        + ui.stat_pill(sessions_aggregate.total_tokens | format_compact_token, "total tokens")
+    stat_pills='<span class="ui-stat-pill" role="status"><b>' ~ total_count ~ '</b> sessions</span>'
+        ~ '<span class="ui-stat-pill" role="status"><b>' ~ sessions_aggregate.project_count ~ '</b> projects</span>'
+        ~ '<span class="ui-stat-pill" role="status"><b>' ~ (sessions_aggregate.total_tokens | format_compact_token) ~ '</b> total tokens</span>'
 ) }}
 
 {% set agent_options = [
@@ -50,7 +50,7 @@
         {{ ui.filter_select(label='Model', name='model', options=model_list, selected=filter_model, id='filter-model', all_label='All Models') }}
         {{ ui.filter_select(label='Project', name='project', options=project_list, selected=filter_project, id='filter-project', all_label='All Projects') }}
         <span class="filter-row__push"></span>
-        {{ ui.btn('Reset', 'secondary', 'sm', href=actions.clear_all_url, extra_class='js-clear-all', data_action='clear') }}
+        {{ ui.button('Reset', variant='secondary', size='sm', href=actions.clear_all_url, extra_classes='js-clear-all', data_action='clear') }}
     </div>
     {% call ui.filter_footer(show_label=False, count=total_count ~ ' matching sessions' if total_count > 0 else 'No matching sessions') %}
         {{ sl.active_filters(
@@ -155,8 +155,7 @@
                         fresh_pct_val=fresh_pct,
                         read_pct_val=read_pct,
                         write_pct_val=write_pct,
-                        out_pct_val=output_pct,
-                        profile=s.agent
+                        out_pct_val=output_pct
                     ) }}
                     <td class="num mono col-rounds">{{ s.assistant_message_count }}</td>
                     <td class="num mono col-tools">{{ s.tool_call_count }}</td>

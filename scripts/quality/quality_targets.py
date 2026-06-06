@@ -195,8 +195,8 @@ def _glob_match(path: str, pattern: str) -> bool:
     return bool(re.match(f'^{regex}$', p))
 
 
-def _match(path: str, pattern: str) -> bool:
-    """兼容旧 classify.py 的 _match 接口。"""
+def _pattern_matches(path: str, pattern: str) -> bool:
+    """Return whether a normalized path matches a quality gate pattern."""
     return _glob_match(path, pattern)
 
 
@@ -221,7 +221,7 @@ def applicable_gates_for_target(target: str, changed_files: list[str] | None = N
 
     for gate, patterns in gate_patterns.items():
         for f in changed_files:
-            if any(_match(f, pattern) for pattern in patterns):
+            if any(_pattern_matches(f, pattern) for pattern in patterns):
                 applicable.add(gate)
                 break
 

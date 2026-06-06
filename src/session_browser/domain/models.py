@@ -76,19 +76,6 @@ class NormalizedTokenBreakdown:
     raw_fields: dict = field(default_factory=dict)
     notes: list = field(default_factory=list)
 
-    @property
-    def provider(self) -> str:
-        """Alias for backward compat — maps source_kind to provider string."""
-        mapping = {
-            TokenSourceKind.CLAUDE_CODE_JSONL_USAGE: TokenProvider.ANTHROPIC,
-            TokenSourceKind.CODEX_ROLLOUT_TOKEN_COUNT: TokenProvider.CODEX,
-            TokenSourceKind.QODER_SEGMENT_MODEL_RESPONSE_COMPLETED: TokenProvider.QODER,
-            TokenSourceKind.QODER_SQLITE_TOKEN_INFO: TokenProvider.QODER,
-            TokenSourceKind.QODER_TURN_FINISHED_FALLBACK: TokenProvider.QODER,
-            TokenSourceKind.QODER_TRANSCRIPT_ESTIMATED: TokenProvider.QODER,
-        }
-        return mapping.get(self.source_kind, TokenProvider.UNKNOWN)
-
     def to_dict(self) -> dict:
         return {
             "fresh_input_tokens": self.fresh_input_tokens,

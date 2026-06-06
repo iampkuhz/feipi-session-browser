@@ -16,11 +16,13 @@ from __future__ import annotations
 import pytest
 
 from session_browser.attribution.agents.claude_code import (
-    _tool_description,
-    _extract_tool_name,
-    _mask_sensitive_keys,
-    _truncate_preview,
     ClaudeCodeAttributionBuilder,
+)
+from session_browser.attribution.agents.claude_code_parts.utils import (
+    tool_description,
+    extract_tool_name,
+    mask_sensitive_keys,
+    truncate_preview,
 )
 from session_browser.attribution.agents.claude_code_tool_schemas import (
     get_tool_schema_tokens,
@@ -36,38 +38,38 @@ from session_browser.attribution.context import (
 
 class TestToolDescriptions:
     def test_known_tool_read(self):
-        assert "file" in _tool_description("Read")
+        assert "file" in tool_description("Read")
 
     def test_known_tool_write(self):
-        assert "file" in _tool_description("Write")
+        assert "file" in tool_description("Write")
 
     def test_known_tool_edit(self):
-        assert "replacements" in _tool_description("Edit")
+        assert "replacements" in tool_description("Edit")
 
     def test_known_tool_bash(self):
-        assert "command" in _tool_description("Bash")
+        assert "command" in tool_description("Bash")
 
     def test_known_tool_grep(self):
-        assert "regular" in _tool_description("Grep")
+        assert "regular" in tool_description("Grep")
 
     def test_known_tool_glob(self):
-        assert "pattern" in _tool_description("Glob")
+        assert "pattern" in tool_description("Glob")
 
     def test_known_tool_ls(self):
         # LS is not in _BINARY_TOOL_DESCRIPTIONS, falls back to Chinese
-        assert "目录" in _tool_description("LS")
+        assert "目录" in tool_description("LS")
 
     def test_known_tool_agent(self):
-        assert "agent" in _tool_description("Agent").lower()
+        assert "agent" in tool_description("Agent").lower()
 
     def test_known_tool_todo_write(self):
-        assert "task" in _tool_description("TodoWrite").lower()
+        assert "task" in tool_description("TodoWrite").lower()
 
     def test_known_tool_web_fetch(self):
-        assert "URL" in _tool_description("WebFetch")
+        assert "URL" in tool_description("WebFetch")
 
     def test_unknown_tool_fallback(self):
-        desc = _tool_description("SomeUnknownTool")
+        desc = tool_description("SomeUnknownTool")
         assert "未知" in desc
 
 
@@ -91,17 +93,17 @@ class TestToolSchemaTokens:
 
 class TestExtractToolName:
     def test_empty_returns_unknown(self):
-        assert _extract_tool_name("") == "unknown"
+        assert extract_tool_name("") == "unknown"
 
     def test_none_returns_unknown(self):
-        assert _extract_tool_name(None) == "unknown"
+        assert extract_tool_name(None) == "unknown"
 
     def test_fallback_first_word(self):
-        result = _extract_tool_name("Read output: hello world")
+        result = extract_tool_name("Read output: hello world")
         assert result == "Read"
 
     def test_caps_long_name(self):
-        name = _extract_tool_name("abcdefghijklmnopqrstuvwxyz1234567890 result")
+        name = extract_tool_name("abcdefghijklmnopqrstuvwxyz1234567890 result")
         assert len(name) <= 30
 
 
@@ -111,35 +113,35 @@ class TestExtractToolName:
 class TestMaskSensitiveKeys:
     def test_api_key_masked(self):
         text = 'api_key: "sk-1234567890"'
-        result = _mask_sensitive_keys(text)
+        result = mask_sensitive_keys(text)
         assert "sk-1234567890" not in result
         assert "MASKED" in result
 
     def test_token_masked(self):
         text = 'token = abc123secret'
-        result = _mask_sensitive_keys(text)
+        result = mask_sensitive_keys(text)
         assert "abc123secret" not in result
         assert "MASKED" in result
 
     def test_password_masked(self):
         text = '"password": "supersecret"'
-        result = _mask_sensitive_keys(text)
+        result = mask_sensitive_keys(text)
         assert "supersecret" not in result
         assert "MASKED" in result
 
     def test_authorization_masked(self):
         text = "authorization: Bearer eyJhbGciOi"
-        result = _mask_sensitive_keys(text)
+        result = mask_sensitive_keys(text)
         assert "eyJhbGciOi" not in result
         assert "MASKED" in result
 
     def test_normal_text_unchanged(self):
         text = "Hello world, this is normal content."
-        result = _mask_sensitive_keys(text)
+        result = mask_sensitive_keys(text)
         assert "Hello world" in result
 
     def test_empty_string(self):
-        assert _mask_sensitive_keys("") == ""
+        assert mask_sensitive_keys("") == ""
 
     def test_context_masking_api_key(self):
         text = '{"api_key": "secret-value-123"}'
@@ -154,11 +156,11 @@ class TestMaskSensitiveKeys:
 class TestTruncatePreview:
     def test_short_text_unchanged(self):
         text = "Hello"
-        assert _truncate_preview(text, 200) == text
+        assert truncate_preview(text, 200) == text
 
     def test_long_text_truncated(self):
         text = "A" * 300
-        result = _truncate_preview(text, 100)
+        result = truncate_preview(text, 100)
         assert len(result) == 101  # 100 + ellipsis
         assert result.endswith("…")
 
@@ -172,7 +174,7 @@ class TestTruncatePreview:
         assert result.endswith("…")
 
     def test_empty_string(self):
-        assert _truncate_preview("", 100) == ""
+        assert truncate_preview("", 100) == ""
 
 
 # ── Bucket details on Claude Code builder ─────────────────────────

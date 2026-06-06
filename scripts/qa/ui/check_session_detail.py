@@ -27,18 +27,37 @@ SESSIONS_HTML = ROOT / "src/session_browser/web/templates/session.html"
 TIMELINE_CMP = ROOT / "src/session_browser/web/templates/components/session_detail_timeline.html"
 PRIMITIVES_CMP = ROOT / "src/session_browser/web/templates/components/session_detail_primitives.html"
 CSS_MAIN = ROOT / "src/session_browser/web/static/css/session-detail.css"
-JS_MAIN = ROOT / "src/session_browser/web/static/js/session-detail.js"
+TIMELINE_DIR = TIMELINE_CMP.parent / "session_detail_timeline"
+CSS_DIR = CSS_MAIN.parent / "session-detail"
+JS_DIR = ROOT / "src/session_browser/web/static/js/session-detail"
 
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
+def read_split(path: Path, split_dir: Path, pattern: str) -> str:
+    parts = [read(path)]
+    if split_dir.is_dir():
+        for child in sorted(split_dir.glob(pattern)):
+            parts.append(read(child))
+    return "\n".join(parts)
+
+
+def no_inline_style_except_mhtml(session: str) -> tuple[bool, str]:
+    style_tags = re.findall(r"<style[^>]*>.*?</style>", session, re.DOTALL)
+    unexpected = [tag for tag in style_tags if "mhtml_page_css" not in tag]
+    return (
+        not unexpected,
+        "clean" if not unexpected else "INLINE STYLE FOUND",
+    )
+
+
 def main() -> int:
     session = read(SESSIONS_HTML)
-    timeline = read(TIMELINE_CMP)
+    timeline = read_split(TIMELINE_CMP, TIMELINE_DIR, "*.html")
     primitives = read(PRIMITIVES_CMP)
-    css = read(CSS_MAIN)
+    css = read_split(CSS_MAIN, CSS_DIR, "*.css")
     combined = session + "\n" + timeline + "\n" + primitives
 
     checks: list[tuple[str, callable]] = [
@@ -59,9 +78,9 @@ def main() -> int:
             CSS_MAIN.exists(),
             "exists" if CSS_MAIN.exists() else "MISSING"
         )),
-        ("T095-05 session-detail.js exists", lambda: (
-            JS_MAIN.exists(),
-            "exists" if JS_MAIN.exists() else "MISSING"
+        ("T095-05 session-detail split modules exist", lambda: (
+            JS_DIR.exists() and (JS_DIR / "init.js").exists() and (JS_DIR / "events.js").exists(),
+            "exists" if JS_DIR.exists() and (JS_DIR / "init.js").exists() and (JS_DIR / "events.js").exists() else "MISSING"
         )),
 
         # ── Canonical CSS import ────────────────────────────────────
@@ -71,10 +90,7 @@ def main() -> int:
         )),
 
         # ── No inline style/script/onclick ──────────────────────────
-        ("T095-07 No inline <style> blocks", lambda: (
-            not bool(re.search(r'<style[^>]*>', session, re.DOTALL)),
-            "clean" if not re.search(r'<style[^>]*>', session) else "INLINE STYLE FOUND"
-        )),
+        ("T095-07 No inline <style> blocks except MHTML export", lambda: no_inline_style_except_mhtml(session)),
         ("T095-08 No inline <script> (non-JSON) in session.html", lambda: (
             not bool(re.findall(r'<script(?![^>]*type="application/json")[^>]*>[^<]', session)),
             "clean" if not re.findall(r'<script(?![^>]*type="application/json")[^>]*>[^<]', session) else "INLINE SCRIPT FOUND"
@@ -115,21 +131,21 @@ def main() -> int:
             "sd-tabs" in session and "data-session-tabs" in session,
             "sd-tabs with data-session-tabs found" if ("sd-tabs" in session and "data-session-tabs" in session) else "MISSING"
         )),
-        ("T095-17 Tab count = 3 (trace, metrics, payloads)", lambda: (
-            session.count("sd-tab") >= 3,
-            f"{session.count('sd-tab')} tabs found" if session.count("sd-tab") >= 3 else "EXPECTED 3"
+        ("T095-17 Trace tab present", lambda: (
+            session.count("sd-tab") >= 1,
+            f"{session.count('sd-tab')} tabs found" if session.count("sd-tab") >= 1 else "EXPECTED TRACE TAB"
         )),
         ("T095-18 Trace tab data-action", lambda: (
             'data-action="tab-trace"' in session,
             "tab-trace data-action found" if 'data-action="tab-trace"' in session else "MISSING"
         )),
-        ("T095-19 Metrics tab data-action", lambda: (
-            'data-action="tab-metrics"' in session,
-            "tab-metrics data-action found" if 'data-action="tab-metrics"' in session else "MISSING"
+        ("T095-19 Metrics tab absent", lambda: (
+            'data-action="tab-metrics"' not in session,
+            "tab-metrics absent" if 'data-action="tab-metrics"' not in session else "UNEXPECTED"
         )),
-        ("T095-20 Payloads tab data-action", lambda: (
-            'data-action="tab-payloads"' in session,
-            "tab-payloads data-action found" if 'data-action="tab-payloads"' in session else "MISSING"
+        ("T095-20 Payloads tab absent", lambda: (
+            'data-action="tab-payloads"' not in session,
+            "tab-payloads absent" if 'data-action="tab-payloads"' not in session else "UNEXPECTED"
         )),
 
         # ── Trace table structure ───────────────────────────────────
@@ -160,22 +176,22 @@ def main() -> int:
 
         # ── Filter buttons ──────────────────────────────────────────
         ("T095-27 Status-all filter button", lambda: (
-            'data-action="status-all"' in timeline or ('data-action="filter-status"' in timeline and 'data-status="all"' in timeline),
-            "status-all filter found" if ('data-action="status-all"' in timeline or ('data-action="filter-status"' in timeline and 'data-status="all"' in timeline)) else "MISSING"
+            'data-action="status-all"' in timeline,
+            "status-all filter found" if 'data-action="status-all"' in timeline else "MISSING"
         )),
         ("T095-28 Status-failed filter button", lambda: (
-            'data-action="status-failed"' in timeline or ('data-action="filter-status"' in timeline and 'data-status="failed"' in timeline),
-            "status-failed filter found" if ('data-action="status-failed"' in timeline or ('data-action="filter-status"' in timeline and 'data-status="failed"' in timeline)) else "MISSING"
+            'data-action="status-failed"' in timeline,
+            "status-failed filter found" if 'data-action="status-failed"' in timeline else "MISSING"
         )),
-        ("T095-29 Collapse-all button", lambda: (
-            'data-action="collapse-all"' in timeline,
-            "collapse-all data-action found" if 'data-action="collapse-all"' in timeline else "MISSING"
+        ("T095-29 Toggle-all button", lambda: (
+            'data-action="toggle-all"' in timeline,
+            "toggle-all data-action found" if 'data-action="toggle-all"' in timeline else "MISSING"
         )),
 
         # ── Token bar 4-segment structure ───────────────────────────
         ("T095-30 Token bar 4 segments (fresh, read, write, out) in timeline", lambda: (
-            "class=\"fresh\"" in timeline and "class=\"read\"" in timeline and "class=\"write\"" in timeline and "class=\"out\"" in timeline,
-            "4-segment tokenbar found" if ("class=\"fresh\"" in timeline and "class=\"read\"" in timeline and "class=\"write\"" in timeline and "class=\"out\"" in timeline) else "MISSING segments"
+            "tokenbar-seg fresh" in timeline and "tokenbar-seg read" in timeline and "tokenbar-seg write" in timeline and "tokenbar-seg out" in timeline,
+            "4-segment tokenbar found" if ("tokenbar-seg fresh" in timeline and "tokenbar-seg read" in timeline and "tokenbar-seg write" in timeline and "tokenbar-seg out" in timeline) else "MISSING segments"
         )),
         ("T095-31 Token bar CSS classes present", lambda: (
             "tokenbar .fresh" in css and "tokenbar .read" in css and "tokenbar .write" in css and "tokenbar .out" in css,
@@ -207,9 +223,9 @@ def main() -> int:
             "data-payload-empty" in timeline,
             "data-payload-empty found" if "data-payload-empty" in timeline else "MISSING"
         )),
-        ("T095-38 Payload modal metadata fields (data-meta-*)", lambda: (
-            "data-meta-id" in timeline and "data-meta-kind" in timeline and "data-meta-status" in timeline and "data-meta-size" in timeline,
-            "data-meta-{id,kind,status,size} found" if ("data-meta-id" in timeline and "data-meta-kind" in timeline and "data-meta-status" in timeline and "data-meta-size" in timeline) else "MISSING"
+        ("T095-38 Payload source metadata fields", lambda: (
+            "data-payload-kind" in timeline and "data-payload-status" in timeline and "data-payload-size" in timeline,
+            "data-payload-{kind,status,size} found" if ("data-payload-kind" in timeline and "data-payload-status" in timeline and "data-payload-size" in timeline) else "MISSING"
         )),
         ("T095-39 Close payload button (data-action=close-payload)", lambda: (
             'data-action="close-payload"' in timeline,
@@ -233,9 +249,9 @@ def main() -> int:
             "data-trace-detail" in timeline,
             "data-trace-detail found" if "data-trace-detail" in timeline else "MISSING"
         )),
-        ("T095-44 Copy session URL action", lambda: (
-            'data-action="copy-session-url"' in timeline,
-            "copy-session-url data-action found" if 'data-action="copy-session-url"' in timeline else "MISSING"
+        ("T095-44 Copy session ID action", lambda: (
+            'data-action="copy"' in timeline and 'data-copy-text=' in timeline,
+            "canonical copy action found" if ('data-action="copy"' in timeline and 'data-copy-text=' in timeline) else "MISSING"
         )),
 
         # ── CSS: no legacy file references ──────────────────────────

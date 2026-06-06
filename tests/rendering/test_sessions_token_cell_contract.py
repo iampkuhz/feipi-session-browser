@@ -5,7 +5,7 @@ Fresh / Cached Rd / Cached Wr / Output 分类。
 
 契约：
 - 所有 provider 都显示 4 行 — Fresh / Cached Rd / Cached Wr / Output
-- profile 只保留为兼容参数，不改变分类行或颜色段
+- provider 不改变分类行或颜色段
 """
 
 from __future__ import annotations
@@ -39,17 +39,12 @@ def _render_token_cell(**kwargs) -> str:
 
 
 def _render_with_profile(provider: str) -> str:
-    """渲染 token_cell，如同为给定 provider 调用。
-
-    模拟调用者模板逻辑，该逻辑会传递 `profile`
-    参数或有选择地抑制 cache 行。
-    """
+    """渲染 token_cell，如同为给定 provider 调用。"""
     return _render_token_cell(
         total="2.0K",
         fresh_pct=40.0, read_pct=20.0, write_pct=10.0, out_pct=30.0,
         fresh_val="800", read_val="400", write_val="200", out_val="600",
         fresh_pct_val="40.0", read_pct_val="20.0", write_pct_val="10.0", out_pct_val="30.0",
-        profile=provider,
     )
 
 

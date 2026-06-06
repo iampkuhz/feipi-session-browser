@@ -104,7 +104,7 @@ def main() -> int:
          lambda: ('class="state-panel__links"' in html_404,
                   "state-panel__links found" if 'class="state-panel__links"' in html_404 else "MISSING")),
 
-        # ── 404.html: Navigation links (4 required) ────────────────
+        # ── 404.html: Navigation links (3 required) ────────────────
         ("T179-S16 404: link to /dashboard",
          lambda: ('href="/dashboard"' in html_404,
                   "dashboard link found" if 'href="/dashboard"' in html_404 else "MISSING")),
@@ -117,15 +117,11 @@ def main() -> int:
          lambda: ('href="/sessions"' in html_404,
                   "sessions link found" if 'href="/sessions"' in html_404 else "MISSING")),
 
-        ("T179-S19 404: link to /agents",
-         lambda: ('href="/agents"' in html_404,
-                  "agents link found" if 'href="/agents"' in html_404 else "MISSING")),
-
-        ("T179-S20 404: exactly 4 nav links via .state-panel__link",
-         lambda: (html_404.count('class="state-panel__link"') >= 4,
+        ("T179-S20 404: exactly 3 nav links via .state-panel__link",
+         lambda: (html_404.count('class="state-panel__link"') == 3,
                   f'{html_404.count("class=\"state-panel__link\"")} link(s) found'
-                  if html_404.count('class="state-panel__link"') >= 4
-                  else f"ONLY {html_404.count('class=\"state-panel__link\"')} link(s), expected 4")),
+                  if html_404.count('class="state-panel__link"') == 3
+                  else f"{html_404.count('class=\"state-panel__link\"')} link(s), expected 3")),
 
         # ── error.html: Canonical classes ──────────────────────────
         ("T179-S21 error: .state-panel present",

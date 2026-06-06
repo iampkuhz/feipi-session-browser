@@ -22,7 +22,7 @@
 
          Layer 3 — Page-specific CSS (per-page, via block head_extra):
            css/dashboard.css, css/sessions-list.css, css/session-detail.css,
-           css/projects.css, css/agents.css, css/glossary.css, css/states.css
+           css/projects.css, css/glossary.css, css/states.css
 
          禁止新增: 版本化或补丁 CSS 文件
          ============================================================ -->
@@ -67,9 +67,6 @@
                 </a>
                 <a class="nav-item{% if active_page == 'projects' %} is-active{% endif %}" href="/projects" data-action="nav-projects" data-target="projects">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4C1;</span><span>Projects</span>
-                </a>
-                <a class="nav-item{% if active_page == 'agents' %} is-active{% endif %}" href="/agents" data-action="nav-agents" data-target="agents">
-                    <span class="icon icon--nav" aria-hidden="true">&#x1F916;</span><span>Agents</span>
                 </a>
                 <a class="nav-item{% if active_page == 'glossary' %} is-active{% endif %}" href="/glossary" data-action="nav-glossary" data-target="glossary">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4D8;</span><span>Token Glossary</span>
@@ -141,8 +138,8 @@
            /static/js/timeline.js       → 时间轴通用逻辑
 
          Layer 3 — Page-specific JS (per-page, via block head_extra):
-           js/dashboard.js, js/sessions-list.js, js/session-detail.js,
-           js/projects.js, js/agents.js, js/glossary.js, js/states.js
+           js/dashboard.js, js/sessions-list.js, js/session-detail/*.js,
+           js/projects.js, js/glossary.js, js/states.js
 
          加载顺序: 原语 → 工具 → 页面专用
          ============================================================ -->
@@ -155,12 +152,9 @@
     <script src="/static/js/trace-interactions.js"></script>
     {% endif %}
     {% if not export_mhtml %}
-    <!-- Shared JS: view/tab switching, round toggle, show-more, restore state -->
-    <script src="/static/js/view-switching.js"></script>
-    {% endif %}
-
     {# 页面专用 JS（由子模板通过 script_extra 注入，在所有全局依赖之后加载） #}
     {% block script_extra %}{% endblock %}
+    {% endif %}
 
 {% if not hide_payload_modal %}
 {% block payload_modal %}

@@ -15,7 +15,7 @@ Validates projects.html against the page behavior contract:
 10. Table: data-table class, 6 column headers
 11. Sortable headers: data-action="sort" with data-sort for sessions, tokens, tools, last_active
 12. Table toolbar: table-toolbar, table-title, table-note
-13. Row structure: data-action="open-project", open-project-link, copy-project-path, clipboard-text
+13. Row structure: data-action="open-project", open-project-link, canonical copy protocol
 14. Agent badges: badge cc/cx/qd classes with dot claude/codex/qoder
 15. Token bar: tokenbar class with 4 segment classes, tooltip present
 16. Pagination: nav with role="navigation", data-action="page-input", data-action="next-page"
@@ -33,6 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PROJECTS_HTML = ROOT / "src/session_browser/web/templates/projects.html"
+UI_HELPERS = ROOT / "src/session_browser/web/templates/components/ui_primitives/_helpers.html"
 
 
 def read(path: Path) -> str:
@@ -41,6 +42,8 @@ def read(path: Path) -> str:
 
 def main() -> int:
     html = read(PROJECTS_HTML)
+    macro_html = read(UI_HELPERS)
+    contract_html = html + "\n" + macro_html
 
     checks: list[tuple[str, callable]] = [
         # ── 1. File existence ──────────────────────────────────────
@@ -202,12 +205,12 @@ def main() -> int:
         ("T109-H40 data-action=open-project-link",
          lambda: ('data-action="open-project-link"' in html,
                   "open-project-link found" if 'data-action="open-project-link"' in html else "MISSING")),
-        ("T109-H41 data-action=copy-project-path",
-         lambda: ('data-action="copy-project-path"' in html,
-                  "copy-project-path found" if 'data-action="copy-project-path"' in html else "MISSING")),
-        ("T109-H42 data-clipboard-text present",
-         lambda: ('data-clipboard-text="' in html,
-                  "data-clipboard-text found" if 'data-clipboard-text="' in html else "MISSING")),
+        ("T109-H41 canonical copy action",
+         lambda: ('data-action="copy"' in contract_html,
+                  "copy action found" if 'data-action="copy"' in contract_html else "MISSING")),
+        ("T109-H42 data-copy-text present",
+         lambda: ('data-copy-text="' in contract_html,
+                  "data-copy-text found" if 'data-copy-text="' in contract_html else "MISSING")),
 
         # ── 14. Agent badges ───────────────────────────────────────
         ("T109-H43 badge cc (Claude Code)",
@@ -277,22 +280,22 @@ def main() -> int:
         # ── 18. data-action coverage ───────────────────────────────
         ("T109-H62 data-action coverage (sort, open-project, copy, pagination)",
          lambda: (
-             all(x in html for x in [
+             all(x in contract_html for x in [
                  'data-action="sort"',
                  'data-action="open-project"',
                  'data-action="open-project-link"',
-                 'data-action="copy-project-path"',
+                 'data-action="copy"',
                  'data-action="apply-search"',
                  'data-action="clear-search"',
                  'data-action="page-input"',
                  'data-action="next-page"',
                  'data-action="metric-info"',
              ]),
-             "all covered" if all(x in html for x in [
+             "all covered" if all(x in contract_html for x in [
                  'data-action="sort"',
                  'data-action="open-project"',
                  'data-action="open-project-link"',
-                 'data-action="copy-project-path"',
+                 'data-action="copy"',
                  'data-action="apply-search"',
                  'data-action="clear-search"',
                  'data-action="page-input"',

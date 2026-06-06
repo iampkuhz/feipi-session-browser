@@ -2,7 +2,7 @@
 """P0 门禁：UI 交互 Smoke 测试。
 
 覆盖：
-- 打开 /dashboard、/sessions、/projects、/agents
+- 打开 /dashboard、/sessions、/projects、/glossary
 - 打开 session detail（如果存在 session），点击 Expand all、Failed filter、round lazy load
 - 检查无 console error、无 failed network response、服务端无 ERROR
 
@@ -57,7 +57,7 @@ async def run_smoke(base_url: str) -> list[str]:
         page.on("response", on_response)
 
         # ── 1. 页面导航测试 ──
-        for path in ["/dashboard", "/sessions", "/projects", "/agents"]:
+        for path in ["/dashboard", "/sessions", "/projects", "/glossary"]:
             try:
                 resp = await page.goto(f"{base_url}{path}", wait_until="domcontentloaded", timeout=15000)
                 if resp and resp.status >= 500:
@@ -95,17 +95,7 @@ async def run_smoke(base_url: str) -> list[str]:
         except Exception as e:
             errors.append(f"[BLOCK] Projects 交互失败: {e}")
 
-        # ── 4. Agents 页面：点击 sort 按钮 ──
-        try:
-            resp = await page.goto(f"{base_url}/agents", wait_until="domcontentloaded", timeout=15000)
-            await page.wait_for_timeout(500)
-            has_table = await page.evaluate("() => !!document.querySelector('#agents-table, .data-table')")
-            if has_table:
-                print("  [PASS] Agents 页面数据表存在")
-        except Exception as e:
-            errors.append(f"[BLOCK] Agents 交互失败: {e}")
-
-        # ── 5. Session detail（如果存在）：round lazy load + Expand all ──
+        # ── 4. Session detail（如果存在）：round lazy load + Expand all ──
         # 尝试从 /sessions 页面获取第一个 session 链接
         session_url = None
         try:

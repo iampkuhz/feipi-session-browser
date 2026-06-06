@@ -128,10 +128,10 @@ class TestRequestAttributionPayloadV2:
         payload = request_attribution_to_payload(attr)
         assert payload["schema_version"] == "llm_attribution_v2"
 
-    def test_legacy_compatible_true(self):
+    def test_payload_has_no_legacy_compatible_marker(self):
         attr = _make_request_attribution()
         payload = request_attribution_to_payload(attr)
-        assert payload["legacy_compatible"] is True
+        assert "legacy_compatible" not in payload
 
     def test_call_identity_fields(self):
         attr = _make_request_attribution()
@@ -175,10 +175,9 @@ class TestRequestAttributionPayloadV2:
         assert "residual_tokens" in cov
         assert "residual_likely_sources" in cov
 
-    def test_legacy_fields_preserved(self):
+    def test_route_payload_fields_present(self):
         attr = _make_request_attribution()
         payload = request_attribution_to_payload(attr)
-        # 旧字段必须存在
         assert payload["kind"] == "llm.request_attribution"
         assert payload["agent"] == "claude_code"
         assert "model" in payload
@@ -205,10 +204,10 @@ class TestResponseAttributionPayloadV2:
         payload = response_attribution_to_payload(attr)
         assert payload["schema_version"] == "llm_attribution_v2"
 
-    def test_legacy_compatible_true(self):
+    def test_payload_has_no_legacy_compatible_marker(self):
         attr = _make_response_attribution()
         payload = response_attribution_to_payload(attr)
-        assert payload["legacy_compatible"] is True
+        assert "legacy_compatible" not in payload
 
     def test_call_identity_fields(self):
         attr = _make_response_attribution()

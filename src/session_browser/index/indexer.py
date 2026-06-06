@@ -7,7 +7,7 @@ Supports:
 - Tiered background scanning (hot/warm/cold by session age)
 - Query interface for dashboard, project, and session pages
 
-This module is a re-export facade; implementation lives in:
+This module exposes the public index API. Implementation lives in:
 - schema.py: connection, schema, tier config constants
 - writers.py: upsert_session, _row_to_summary
 - scanners.py: full_scan, incremental_scan, file locators, normalization
@@ -56,13 +56,3 @@ from session_browser.index.queries import (
     get_prompt_activity_trend,
     list_agents,
 )
-
-
-class SessionIndexer:
-    """Facade class that provides a namespace for index operations.
-
-    This class exists for import compatibility; all methods delegate
-    to module-level functions.
-    """
-
-    pass

@@ -238,17 +238,3 @@ def build_project_detail_view_model(
         "has_prev": pagination["has_prev"],
         "has_next": pagination["has_next"],
     }
-
-
-# Backward-compatible alias for existing route callers.
-# New code should prefer build_project_detail_view_model.
-def build_project_view_model(
-    conn: sqlite3.Connection,
-    project_key: str,
-    raw_params: dict[str, list[str]] | None = None,
-) -> dict[str, Any]:
-    """Build the view model for a single project page.
-
-    Supports pagination via raw_params.
-    """
-    return build_project_detail_view_model(conn, project_key, raw_params)

@@ -70,9 +70,9 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
 
     Searches both projects/ (CLI) and cache/projects/ (GUI) directories.
 
-    Search order (optimised for old-index scenarios where file_path is missing):
+    Search order:
     1. Resolve short ID alias -> full UUID via canonical map, then search projects/.
-    2. Search projects/ by session_id -- direct match then recursive.
+    2. Search projects/ by session_id.
     3. Fall back to cache/projects/ -- recursive walk.
     """
     import re
@@ -94,9 +94,6 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
                 candidate = projects_dir / project_key / f"{resolved_id}.jsonl"
                 if candidate.exists():
                     return candidate
-                for root, _dirs, files in os.walk(projects_dir):
-                    if f"{resolved_id}.jsonl" in files:
-                        return Path(root) / f"{resolved_id}.jsonl"
 
     # Step 2: search projects/ by original session_id
     projects_dir = QODER_DATA_DIR / "projects"
@@ -104,9 +101,6 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
         candidate = projects_dir / project_key / f"{session_id}.jsonl"
         if candidate.exists():
             return candidate
-        for root, _dirs, files in os.walk(projects_dir):
-            if f"{session_id}.jsonl" in files:
-                return Path(root) / f"{session_id}.jsonl"
 
     # Step 3: fall back to cache/projects/
     cache_dir = QODER_DATA_DIR / "cache" / "projects"
@@ -294,23 +288,41 @@ def full_scan(
 
     # Scan Qoder (walk projects/ directory)
     if scan_qoder:
+        from session_browser.config import QODER_DATA_DIR
+
         if verbose:
             print("Scanning Qoder...")
-        for summary in qoder_source.scan_all_sessions(verbose=verbose):
+        discovered = qoder_source._discover_sessions()
+        cache_discovered = qoder_source._discover_cache_sessions()
+        canonical_map = qoder_source._build_canonical_id_map()
+        projects_ids = {sid.lower() for _pk, sid, _fp in discovered}
+        all_discovered = list(discovered)
+        for project_key, sid, fpath in cache_discovered:
+            canonical_id = canonical_map.get(sid.lower(), sid)
+            if canonical_id != sid.lower() and canonical_id in projects_ids:
+                continue
+            all_discovered.append((project_key, canonical_id, fpath))
+
+        for project_key, sid, fpath in all_discovered:
+            file_mtime = os.path.getmtime(fpath) if fpath.exists() else 0.0
+            is_cache = str(fpath).startswith(str(QODER_DATA_DIR / "cache"))
+            if is_cache:
+                summary = qoder_source._parse_cache_session(
+                    project_key, sid, fpath, file_mtime=file_mtime
+                )
+            else:
+                summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
+                    project_key, sid, session_file=fpath, verbose=verbose
+                )
+                summary.subagent_instance_count = len(_sa)
+
             # Skip sessions with no valid timestamps
             if not summary.ended_at:
                 if verbose:
                     print(f"  Skipping {summary.session_id}: no valid ended_at timestamp")
                 continue
 
-            # Record file mtime + path for future incremental scans
-            file_mtime = 0.0
-            file_path = ""
-            fpath = _locate_qoder_session_file(summary.project_key, summary.session_id)
-            if fpath and fpath.exists():
-                file_path = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
-
+            file_path = str(fpath) if fpath and fpath.exists() else ""
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
             qoder_count += 1
             if verbose and qoder_count % 50 == 0:
@@ -452,25 +464,15 @@ def incremental_scan(
                     skipped_count += 1
                     continue
 
-                # Check file mtime -- skip if unchanged and already has execution times
+                # Check file mtime -- skip if unchanged.
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
-                stored_model = info.get("model", "")
-                stored_model_exec = info.get("model_execution_seconds", 0)
-                stored_tool_exec = info.get("tool_execution_seconds", 0)
-                has_timing_data = (stored_model_exec and stored_model_exec > 0 and
-                                   stored_tool_exec and stored_tool_exec > 0)
-                # A record needs rebuild if it is missing file_path, model, or timing data.
-                # This ensures old records can get file_path/model completion without
-                # re-parsing all normal existing records on every scan.
-                needs_rebuild = (not stored_path or not stored_model or not has_timing_data)
                 path_relocated = False
                 if stored_path:
                     fpath = Path(stored_path)
                     if fpath.exists():
                         current_mtime = os.path.getmtime(fpath)
-                        # Only skip when file unchanged AND record is complete
-                        if current_mtime <= stored_mtime and not needs_rebuild:
+                        if current_mtime <= stored_mtime:
                             skipped_count += 1
                             continue
                     else:
@@ -479,13 +481,13 @@ def incremental_scan(
                         if fpath and fpath.exists() and str(fpath) != stored_path:
                             path_relocated = True
                 else:
-                    # No stored path -- try to locate
-                    fpath = _locate_claude_session_file(project, sid)
+                    skipped_count += 1
+                    continue
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Skip only if file unchanged AND record is complete AND path unchanged
-                    if current_mtime <= stored_mtime and not needs_rebuild and not path_relocated:
+                    # Skip unchanged files unless the stored path was relocated.
+                    if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
                 else:
@@ -538,20 +540,12 @@ def incremental_scan(
 
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
-                stored_model = info.get("model", "")
-                stored_model_exec = info.get("model_execution_seconds", 0)
-                stored_tool_exec = info.get("tool_execution_seconds", 0)
-                has_timing_data = (stored_model_exec and stored_model_exec > 0 and
-                                   stored_tool_exec and stored_tool_exec > 0)
-                # A record needs rebuild if it is missing file_path, model, or timing data.
-                needs_rebuild = (not stored_path or not stored_model or not has_timing_data)
                 path_relocated = False
                 if stored_path:
                     fpath = Path(stored_path)
                     if fpath.exists():
                         current_mtime = os.path.getmtime(fpath)
-                        # Only skip when file unchanged AND record is complete
-                        if current_mtime <= stored_mtime and not needs_rebuild:
+                        if current_mtime <= stored_mtime:
                             skipped_count += 1
                             continue
                     else:
@@ -562,14 +556,13 @@ def incremental_scan(
                         if fpath and fpath.exists() and str(fpath) != stored_path:
                             path_relocated = True
                 else:
-                    thread_info = threads_db.get(sid, {})
-                    rollout_path = thread_info.get("rollout_path", "")
-                    fpath = _locate_codex_session_file(sid, rollout_path)
+                    skipped_count += 1
+                    continue
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Skip only if file unchanged AND record is complete AND path unchanged
-                    if current_mtime <= stored_mtime and not needs_rebuild and not path_relocated:
+                    # Skip unchanged files unless the stored path was relocated.
+                    if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
                 else:
@@ -637,22 +630,12 @@ def incremental_scan(
 
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
-                stored_model = info.get("model", "")
-                stored_model_exec = info.get("model_execution_seconds", 0)
-                stored_tool_exec = info.get("tool_execution_seconds", 0)
-                has_timing_data = (stored_model_exec and stored_model_exec > 0 and
-                                   stored_tool_exec and stored_tool_exec > 0)
-                # A record needs rebuild if it is missing file_path, model, or timing data.
-                # This ensures old records can get file_path/model completion without
-                # re-parsing all normal existing records on every scan.
-                needs_rebuild = (not stored_path or not stored_model or not has_timing_data)
                 path_relocated = False
                 if stored_path:
                     p = Path(stored_path)
                     if p.exists():
                         current_mtime = os.path.getmtime(p)
-                        # Only skip when file unchanged AND record is complete
-                        if current_mtime <= stored_mtime and not needs_rebuild:
+                        if current_mtime <= stored_mtime:
                             skipped_count += 1
                             continue
                     else:
@@ -661,12 +644,13 @@ def incremental_scan(
                         if fpath and fpath.exists() and str(fpath) != stored_path:
                             path_relocated = True
                 else:
-                    fpath = _locate_qoder_session_file(project_key, sid)
+                    skipped_count += 1
+                    continue
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Skip only if file unchanged AND record is complete AND path unchanged
-                    if current_mtime <= stored_mtime and not needs_rebuild and not path_relocated:
+                    # Skip unchanged files unless the stored path was relocated.
+                    if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
                 else:

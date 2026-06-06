@@ -14,13 +14,8 @@
 - `pages/07_token_glossary.md`：Token Glossary，术语、token 口径和 provider 映射。
 - `pages/08_state_pages.md`：404、Error、空态等状态页。
 
-## 迁移参考
-
-- `pages/06_agent_detail.md`：Agent Detail 历史参考；单 agent 深度统计目标已并入 Dashboard。
-
 ## 非目标页面
 
-- `pages/99_agents_list_legacy.md` 记录当前遗留 `/agents` 列表页的迁移约束。
 - 目标结构不提供独立 Agents 列表页；agent 汇总和单 agent 深度信息都放到 Dashboard。
 - Sidebar 主导航目标只保留 Dashboard、Sessions、Projects；Glossary 可作为辅助入口但不作为核心业务导航。
 

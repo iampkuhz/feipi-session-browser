@@ -41,7 +41,6 @@ MACBOOK_14_UA = (
 PAGES = [
     ("Dashboard", "/dashboard", ">Dashboard<", 500),
     ("Sessions List", "/sessions", ">Sessions<", 500),
-    ("Agents", "/agents", ">Agents<", 500),
     ("Projects", "/projects", ">Projects<", 500),
 ]
 
@@ -177,16 +176,6 @@ class TestMacbookViewportSpecific:
         assert status == 200
         assert 'aria-label="Sessions table"' in html, \
             "Sessions table 必须存在"
-
-    @pytest.mark.contract_case("UI-VISUAL-009")
-    def test_agents_page_has_agent_entries(self, macbook_smoke_server):
-        """Agents 页面必须列出至少一个 agent。"""
-        base_url = macbook_smoke_server
-        status, html = fetch_page(base_url, "/agents")
-        assert status == 200
-        # 检查 data-table 或 agent-list 结构
-        has_table = 'class="data-table"' in html or 'class="agent-list"' in html
-        assert has_table, "Agents 页面必须有表格或 agent 列表"
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_projects_page_has_project_entries(self, macbook_smoke_server):

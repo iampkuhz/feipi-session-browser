@@ -347,26 +347,26 @@ def test_single_bucket_no_normalization_needed():
 
 def test_all_bucket_keys_classified():
     """All expected bucket keys should be classified by the normalization function."""
-    from session_browser.attribution.agents.claude_code import (
-        _MEASURED_BUCKET_KEYS,
-        _ESTIMATED_BUCKET_KEYS,
-        _HEURISTIC_FIXED_KEYS,
-        _HEURISTIC_SCALED_KEYS,
+    from session_browser.attribution.agents.claude_code_parts.constants import (
+        MEASURED_BUCKET_KEYS,
+        ESTIMATED_BUCKET_KEYS,
+        HEURISTIC_FIXED_KEYS,
+        HEURISTIC_SCALED_KEYS,
     )
 
     all_known = (
-        _MEASURED_BUCKET_KEYS | _ESTIMATED_BUCKET_KEYS |
-        _HEURISTIC_FIXED_KEYS | _HEURISTIC_SCALED_KEYS
+        MEASURED_BUCKET_KEYS | ESTIMATED_BUCKET_KEYS |
+        HEURISTIC_FIXED_KEYS | HEURISTIC_SCALED_KEYS
     )
 
     # Should include the expected keys
-    assert "current_user_message" in _MEASURED_BUCKET_KEYS
-    assert "preceding_tool_results" in _MEASURED_BUCKET_KEYS
-    assert "tool_schemas" in _HEURISTIC_FIXED_KEYS  # moved from estimated
-    assert "local_instruction_context" in _ESTIMATED_BUCKET_KEYS
-    assert "hidden_builtin_system_estimate" in _HEURISTIC_FIXED_KEYS
+    assert "current_user_message" in MEASURED_BUCKET_KEYS
+    assert "preceding_tool_results" in MEASURED_BUCKET_KEYS
+    assert "tool_schemas" in HEURISTIC_FIXED_KEYS  # moved from estimated
+    assert "local_instruction_context" in ESTIMATED_BUCKET_KEYS
+    assert "hidden_builtin_system_estimate" in HEURISTIC_FIXED_KEYS
     # provider_wrapper_estimate removed — now noted in attribution_notes instead
-    assert "top_level_system_estimate" in _HEURISTIC_SCALED_KEYS
+    assert "top_level_system_estimate" in HEURISTIC_SCALED_KEYS
 
 
 def test_estimated_bucket_details_scaled_proportionally():

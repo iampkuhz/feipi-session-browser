@@ -163,12 +163,11 @@ class TestProjectDetailPageHead:
             "Page-head must have a subtitle parameter"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    @pytest.mark.skip(reason="data-action='copy-path' not implemented in path_row macro")
     def test_copy_path_in_macro(self):
-        """path_row 宏必须生成 copy-path 按钮。"""
+        """path_row 宏必须生成标准 copy 按钮。"""
         primitives = _read_ui_primitives_with_splits()
-        assert 'data-action="copy-path"' in primitives, \
-            "path_row macro must produce a copy-path button"
+        assert 'data-action="copy"' in primitives and 'data-copy-text="{{ path }}"' in primitives, \
+            "path_row macro must produce a canonical copy button"
 
 
 # ── TestProjectDetailMetricCards ──────────────────────────────────
@@ -454,12 +453,11 @@ class TestProjectDetailRowStructure:
             "Title-sub must have mono class"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    @pytest.mark.skip(reason="copy-session button uses data-action='copy' in project template")
     def test_copy_session_button_present(self):
-        """行必须有带 data-action 的 copy-session 按钮。"""
+        """行必须有标准 copy 按钮。"""
         content = _read_template()
-        assert 'data-action="copy-session"' in content, \
-            "Row must have a copy-session button"
+        assert 'data-action="copy"' in content and 'data-copy-text="{{ s.session_id }}"' in content, \
+            "Row must have canonical copy button"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_agent_badge_cc(self):

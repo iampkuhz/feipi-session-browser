@@ -30,7 +30,7 @@ HOOK_QUALITY_CATEGORIES = {"hook", "quality-gate"}
 
 
 def resolve_change_id(explicit: str | None) -> str:
-    """Resolve change ID from args, active change file, or fallback."""
+    """Resolve change ID from args or tmp/active_change.json."""
     if explicit:
         return explicit
     # Read from tmp/active_change.json (written by agent during OpenSpec change)
@@ -43,10 +43,6 @@ def resolve_change_id(explicit: str | None) -> str:
                 return cid
         except (json.JSONDecodeError, OSError):
             pass
-    # Fallback to legacy active-change file
-    active_file = REPO_ROOT / "tmp" / "active-change"
-    if active_file.exists():
-        return active_file.read_text().strip()
     return "unknown"
 
 
@@ -93,24 +89,12 @@ def get_latest_ui_edit_time(entries: list[dict]) -> str | None:
 
 
 def read_quality_artifact(change_id: str) -> dict | None:
-    """Read quality-gate-summary.json for the change.
-
-    优先读取 target-specific 文件（quality-gate-summary.session-detail.json），
-    回退到兼容文件（quality-gate-summary.json）。
-    """
-    # 优先读取 target-specific 文件
+    """Read the session-detail quality artifact for the change."""
     target_specific = QUALITY_DIR / change_id / "quality-gate-summary.session-detail.json"
-    if target_specific.exists():
-        try:
-            return json.loads(target_specific.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            pass
-    # 回退到兼容文件
-    summary_path = QUALITY_DIR / change_id / "quality-gate-summary.json"
-    if not summary_path.exists():
+    if not target_specific.exists():
         return None
     try:
-        return json.loads(summary_path.read_text(encoding="utf-8"))
+        return json.loads(target_specific.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return None
 
@@ -171,7 +155,7 @@ def run_check(change_id: str | None = None) -> tuple[str, list[str]]:
             f"  python3 scripts/quality/run_quality_gate.py --target session-detail",
             "",
             f"Expected artifact:",
-            f"  tmp/quality/{cid}/quality-gate-summary.json",
+            f"  tmp/quality/{cid}/quality-gate-summary.session-detail.json",
             "",
             f"Reason:",
             f"  missing artifact",
@@ -287,8 +271,8 @@ def _self_test():
                 )
                 art = _make_artifact("FAIL")
                 art["blockingFailures"] = ["css: missing rule"]
-                (QUALITY_DIR / "test" / "quality-gate-summary.json").parent.mkdir(parents=True, exist_ok=True)
-                (QUALITY_DIR / "test" / "quality-gate-summary.json").write_text(json.dumps(art))
+                (QUALITY_DIR / "test" / "quality-gate-summary.session-detail.json").parent.mkdir(parents=True, exist_ok=True)
+                (QUALITY_DIR / "test" / "quality-gate-summary.session-detail.json").write_text(json.dumps(art))
                 status, msgs = run_check("test")
                 assert status == "FAIL", f"Expected FAIL, got {status}"
             finally:
@@ -309,8 +293,8 @@ def _self_test():
                                 "category": "ui-css", "requiresQualityGate": True}) + "\n"
                 )
                 art = _make_artifact("PASS", finished="2026-05-18T00:01:00Z")
-                (QUALITY_DIR / "test" / "quality-gate-summary.json").parent.mkdir(parents=True, exist_ok=True)
-                (QUALITY_DIR / "test" / "quality-gate-summary.json").write_text(json.dumps(art))
+                (QUALITY_DIR / "test" / "quality-gate-summary.session-detail.json").parent.mkdir(parents=True, exist_ok=True)
+                (QUALITY_DIR / "test" / "quality-gate-summary.session-detail.json").write_text(json.dumps(art))
                 status, msgs = run_check("test")
                 assert status == "FAIL", f"Expected FAIL (stale), got {status}"
             finally:
@@ -331,8 +315,8 @@ def _self_test():
                                 "category": "ui-css", "requiresQualityGate": True}) + "\n"
                 )
                 art = _make_artifact("PASS", finished="2026-05-18T00:01:00Z")
-                (QUALITY_DIR / "test" / "quality-gate-summary.json").parent.mkdir(parents=True, exist_ok=True)
-                (QUALITY_DIR / "test" / "quality-gate-summary.json").write_text(json.dumps(art))
+                (QUALITY_DIR / "test" / "quality-gate-summary.session-detail.json").parent.mkdir(parents=True, exist_ok=True)
+                (QUALITY_DIR / "test" / "quality-gate-summary.session-detail.json").write_text(json.dumps(art))
                 status, msgs = run_check("test")
                 assert status == "PASS", f"Expected PASS, got {status}"
             finally:

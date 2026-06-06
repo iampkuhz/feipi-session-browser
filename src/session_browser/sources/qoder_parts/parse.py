@@ -122,9 +122,9 @@ def parse_session_detail(
 def _find_session_file(project_key: str, session_id: str) -> Path | None:
     """Search for a Qoder session file under projects/ and cache/projects/.
 
-    Search order (optimised for old-index scenarios where file_path is missing):
+    Search order:
     1. Resolve short ID alias -> full UUID via canonical map, then search projects/.
-    2. Search projects/ (CLI sessions) by session_id -- direct match then recursive.
+    2. Search projects/ (CLI sessions) by session_id.
     3. Fall back to cache/projects/ (GUI sessions) -- recursive walk.
 
     Mirrors _locate_qoder_session_file in indexer.py.
@@ -141,27 +141,16 @@ def _find_session_file(project_key: str, session_id: str) -> Path | None:
             # Short ID resolved to full UUID -- try projects/ direct match
             projects_dir = QODER_DATA_DIR / "projects"
             if projects_dir.exists():
-                # Try with original project_key
                 candidate = projects_dir / project_key / f"{resolved_id}.jsonl"
                 if candidate.exists():
                     return candidate
-                # Also search all project dirs (project_key may be stale)
-                for root, _dirs, files in os.walk(projects_dir):
-                    if f"{resolved_id}.jsonl" in files:
-                        return Path(root) / f"{resolved_id}.jsonl"
 
     # Step 2: search projects/ by original session_id
     projects_dir = QODER_DATA_DIR / "projects"
     if projects_dir.exists():
-        # Try direct match
         candidate = projects_dir / project_key / f"{session_id}.jsonl"
         if candidate.exists():
             return candidate
-
-        # Search all project directories
-        for root, _dirs, files in os.walk(projects_dir):
-            if f"{session_id}.jsonl" in files:
-                return Path(root) / f"{session_id}.jsonl"
 
     # Step 3: fall back to cache/projects/
     cache_dir = QODER_DATA_DIR / "cache" / "projects"

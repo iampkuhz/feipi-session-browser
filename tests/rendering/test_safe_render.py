@@ -194,22 +194,13 @@ class TestJinjaFilterIntegration:
         assert result.count("</pre>") == 1  # 仅外层一个
 
 
-# ─── Backward compatibility with existing filters ────────────────────
-
-class TestBackwardCompat:
-    """确保新的 safe_json_display 替换 tojson_safe 行为
-    同时不破坏现有的模板使用方式。"""
+class TestRepoJsonFilters:
+    """验证 repo JSON filters 不渲染可执行 HTML。"""
 
     @pytest.fixture
     def env(self):
         from session_browser.web.template_env import env as _env
         return _env
-
-    @pytest.mark.contract_case("ROUTE-API-003")
-    def test_tojson_safe_is_now_safe(self, env):
-        tpl = env.from_string("{{ data | tojson_safe }}")
-        result = tpl.render(data={"x": "<script>alert(1)</script>"})
-        assert "<script>" not in result
 
     @pytest.mark.contract_case("ROUTE-API-003")
     def test_tojson_repo_is_now_safe(self, env):

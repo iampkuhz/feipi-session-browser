@@ -152,12 +152,11 @@ class TestCopyActionContractTemplates:
 
 
 # ---------------------------------------------------------------------------
-# T035-2：ui_primitives.js handleCopy 支持标准 + 向后兼容
+# T035-2：ui_primitives.js handleCopy 只支持当前标准
 # ---------------------------------------------------------------------------
 
 class TestUiPrimitivesCopyHandler:
-    """验证 ui_primitives.js handleCopy 同时读取 data-copy-text（标准）
-    和 data-clipboard-text（向后兼容后备）。"""
+    """验证 ui_primitives.js handleCopy 只读取 data-copy-text。"""
 
     _js_file = JS_DIR / "ui_primitives.js"
 
@@ -208,9 +207,8 @@ class TestUiPrimitivesCopyHandler:
         )
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
-    def test_handleCopy_supports_backward_compat(self):
-        """handleCopy 应可选地回退到 data-clipboard-text 或 title，
-        以兼容遗留按钮。"""
+    def test_handleCopy_has_no_legacy_fallback(self):
+        """handleCopy 不得读取旧复制属性或从按钮文本猜测复制内容。"""
         text = self._js_file.read_text(encoding="utf-8")
         match = re.search(
             r'function handleCopy\([^)]*\)\s*\{(.*?)(?=\n  //|  function |\n  window\.|}$)',
@@ -219,15 +217,11 @@ class TestUiPrimitivesCopyHandler:
         )
         assert match, f"{self._js_file}: could not parse handleCopy body"
         body = match.group(1)
-        has_fallback = (
-            "data-clipboard-text" in body
-            or "clipboardText" in body
-            or "title" in body
-            or "textContent" in body
-        )
-        assert has_fallback, (
-            f"{self._js_file}: handleCopy has no backward compat fallback "
-            f"(expected data-clipboard-text or title/textContent)"
+        banned = ["data-clipboard-text", "clipboardText", "title", "textContent"]
+        found = [item for item in banned if item in body]
+        assert not found, (
+            f"{self._js_file}: handleCopy reads non-canonical copy fallback(s): "
+            + ", ".join(found)
         )
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
@@ -251,18 +245,15 @@ class TestProjectsJsCopyHandlers:
     """验证 projects.js 不存在与统一 ui_primitives.js 契约冲突的私有复制处理器。
 
     标准契约要求：
-    - 不得在 [data-action="copy-project-path"] 或
-      [data-action="copy-session"] 上注册绕过统一处理器的 addEventListener。
-    - 如果存在页面级复制逻辑，它必须兼容（即同时读取
-      data-copy-text 和 data-clipboard-text）。
+    - 不得在非标准 copy action 上注册绕过统一处理器的 addEventListener。
+    - 如果存在页面级复制逻辑，它必须读取 data-copy-text。
     """
 
     _js_file = JS_DIR / "projects.js"
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_private_copy_project_path_handler(self):
-        """projects.js 不得在 [data-action="copy-project-path"] 上注册
-        绕过统一处理器的私有点击处理器。"""
+        """projects.js 不得在旧 project copy action 上注册私有处理器。"""
         text = self._js_file.read_text(encoding="utf-8")
         # 检查是否直接对 copy-project-path 使用 querySelectorAll
         has_direct_handler = (
@@ -276,8 +267,7 @@ class TestProjectsJsCopyHandlers:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_no_private_copy_session_handler(self):
-        """projects.js 不得在 [data-action="copy-session"] 上注册
-        绕过统一处理器的私有点击处理器。"""
+        """projects.js 不得在旧 session copy action 上注册私有处理器。"""
         text = self._js_file.read_text(encoding="utf-8")
         has_direct_handler = (
             'copy-session' in text
@@ -304,8 +294,7 @@ class TestProjectsJsCopyHandlers:
 
     @pytest.mark.contract_case("UI-INTERACTION-005")
     def test_projects_js_copy_handlers_use_canonical_attribute(self):
-        """如果 projects.js 中仍存在复制处理器，它必须读取 data-copy-text
-        （标准）以及 data-clipboard-text（遗留）。"""
+        """如果 projects.js 中仍存在复制处理器，它必须读取 data-copy-text。"""
         text = self._js_file.read_text(encoding="utf-8")
         # 提取与复制相关的函数体
         copy_functions = re.findall(

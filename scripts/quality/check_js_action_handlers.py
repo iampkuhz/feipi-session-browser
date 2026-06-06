@@ -72,7 +72,7 @@ def main() -> None:
     built_in = {"sort", "page-input", "go-dashboard", "go-sessions", "run-scan",
                 "open-project", "open-project-link", "open-agent", "clear-search",
                 "info", "metric-info", "close-modal", "prev-page", "next-page",
-                "tab-trace", "nav-dashboard", "nav-projects", "nav-agents",
+                "tab-trace", "nav-dashboard", "nav-projects",
                 "nav-sessions", "nav-glossary", "payload-mode"}
 
     errors: list[str] = []

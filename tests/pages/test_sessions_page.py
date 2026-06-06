@@ -33,47 +33,47 @@ class TestSessionsTemplateColumns:
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_title_column(self):
         content = _read_sessions_templates()
-        assert "th_static('Title')" in content
+        assert "column_header('Title')" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_project_column(self):
         content = _read_sessions_templates()
-        assert "th_static('Project')" in content
+        assert "column_header('Project')" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_agent_column(self):
         content = _read_sessions_templates()
-        assert "th_static('Agent')" in content
+        assert "column_header('Agent')" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_model_column(self):
         content = _read_sessions_templates()
-        assert "th_static('Model')" in content
+        assert "column_header('Model')" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_tokens_column(self):
         content = _read_sessions_templates()
-        assert "th_sort('Tokens'" in content
+        assert "sort_column_header('Tokens'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_rounds_column(self):
         content = _read_sessions_templates()
-        assert "th_sort('Rounds'" in content
+        assert "sort_column_header('Rounds'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_tools_column(self):
         content = _read_sessions_templates()
-        assert "th_sort('Tools'" in content
+        assert "sort_column_header('Tools'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_duration_column(self):
         content = _read_sessions_templates()
-        assert "th_sort('Duration'" in content
+        assert "sort_column_header('Duration'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_updated_column(self):
         content = _read_sessions_templates()
-        assert "th_sort('Updated'" in content
+        assert "sort_column_header('Updated'" in content
 
 
 class TestSessionsTemplateRemovedColumns:
@@ -184,57 +184,55 @@ class TestSortableHeaders:
     def test_title_not_sortable(self):
         """Title 列不得可排序。"""
         content = _read_sessions_templates()
-        assert "th_sort('Title'" not in content
+        assert "sort_column_header('Title'" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_project_not_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Project'" not in content
+        assert "sort_column_header('Project'" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_agent_not_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Agent'" not in content
+        assert "sort_column_header('Agent'" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_model_not_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Model'" not in content
+        assert "sort_column_header('Model'" not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_tokens_is_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Tokens', 'tokens'" in content
+        assert "sort_column_header('Tokens', 'tokens'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_rounds_is_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Rounds', 'rounds'" in content
+        assert "sort_column_header('Rounds', 'rounds'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_tools_is_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Tools', 'tools'" in content
+        assert "sort_column_header('Tools', 'tools'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_duration_is_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Duration', 'duration'" in content
+        assert "sort_column_header('Duration', 'duration'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_updated_is_sortable(self):
         content = _read_sessions_templates()
-        assert "th_sort('Updated', 'updated'" in content
+        assert "sort_column_header('Updated', 'updated'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_five_sortable_headers(self):
         """table_header 宏中必须恰好有 6 个可排序表头定义。"""
         content = _read_sessions_templates()
-        # 统计 table_header 宏体中的 th_sort 调用（排除宏定义行本身）
-        assert content.count("ui.th_sort(") == 6
+        assert content.count("{{ sort_column_header(") == 6
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="aria-sort not implemented in th_sort macro (pre-existing)")
     def test_default_sort_aria(self):
         """默认排序列必须有 aria-sort 设置。"""
         content = _read_sessions_templates()
@@ -587,7 +585,7 @@ class TestCSS:
     def test_sort_icon_css(self):
         with open("src/session_browser/web/static/css/sessions-list.css") as f:
             content = f.read()
-        assert ".sessions-sort-icon" in content
+        assert ".c-data-table__sort-icon" in content
 
 
 # ── Sessions List 页面夹具测试（T093） ─────────────────────────
@@ -805,7 +803,7 @@ class TestSessionsListFiltering:
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_reset_button_present(self, sessions_list_html):
         """Reset 按钮必须存在。"""
-        assert ">Reset<" in sessions_list_html, \
+        assert "Reset" in sessions_list_html and 'data-action="clear"' in sessions_list_html, \
             "Reset 按钮必须可见"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")

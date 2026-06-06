@@ -70,7 +70,6 @@ def _make_page_env() -> jinja2.Environment:
     env.filters["local_time"] = lambda iso: str(iso) if iso else "—"
     env.filters["urlencode"] = urllib.parse.quote
     env.filters["urldecode"] = urllib.parse.unquote
-    env.filters["tojson_safe"] = lambda v: safe_json_display(v)
     env.filters["safe_json_display"] = safe_json_display
     env.filters["markdown"] = lambda t: t  # 测试用直通
     env.filters["render_llm_blocks_html"] = lambda t: ""  # 直通
@@ -273,73 +272,3 @@ class TestProjectsRender:
         })
         assert "Projects" in html
         _assert_page_content_ok(html, "Projects")
-
-
-class TestAgentDetailRender:
-    """agent.html 必须在无过滤器/模板错误的情况下渲染。"""
-
-    @pytest.mark.contract_case("ROUTE-API-004")
-    def test_agent_detail_renders(self):
-        html = _render_page("agent.html", {
-            "agent_summary": {
-                "name": "Claude Code",
-                "key": "claude_code",
-                "total_sessions": 0,
-                "total_tokens": 0,
-                "total_rounds": 0,
-                "total_tools": 0,
-                "total_failed": 0,
-            },
-            "sessions": [],
-            "models": [],
-            "model_breakdown": [],
-            "current_page": 1,
-            "total_pages": 1,
-            "error": None,
-        })
-        assert "Agent" in html
-        _assert_page_content_ok(html, "Agent")
-
-
-class TestAgentsRender:
-    """agents.html 必须在无过滤器/模板错误的情况下渲染。"""
-
-    @pytest.mark.contract_case("ROUTE-API-004")
-    def test_agents_renders(self):
-        html = _render_page("agents.html", {
-            "agents": [],
-        })
-        assert "Agents" in html
-        _assert_page_content_ok(html, "Agents")
-
-    @pytest.mark.contract_case("ROUTE-API-004")
-    def test_agents_renders_with_realistic_data(self):
-        """使用真实 agent dict 渲染，覆盖 token bar 数据路径。
-
-        该测试使用 list_agents() 返回的完整字段集合，确保
-        模板中所有 token 字段（total_fresh_input_tokens、
-        total_cache_read_tokens 等）key 名一致，
-        防止再次出现 'dict object' has no attribute 错误。
-        """
-        html = _render_page("agents.html", {
-            "agents": [
-                {
-                    "agent": "claude_code",
-                    "session_count": 5,
-                    "last_active": "2025-01-15T10:00:00",
-                    "total_tokens": 150000,
-                    "total_fresh_input_tokens": 60000,
-                    "total_cache_read_tokens": 40000,
-                    "total_cache_write_tokens": 20000,
-                    "total_output_tokens": 30000,
-                    "total_tool_calls": 500,
-                    "total_failed_tools": 3,
-                    "total_assistant_messages": 200,
-                    "project_count": 2,
-                },
-            ],
-            "efficiency": [],
-        })
-        assert "Agents" in html
-        assert "Claude Code" in html
-        _assert_page_content_ok(html, "Agents")

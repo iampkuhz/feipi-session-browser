@@ -21,7 +21,6 @@ JS_LOAD_ORDER = [
     "js/data-table.js",
     "js/timeline.js",
     "js/keyboard.js",
-    "js/view-switching.js",
 ]
 
 

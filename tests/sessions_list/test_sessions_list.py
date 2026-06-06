@@ -258,9 +258,8 @@ class TestSessionsDataTable:
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_sort_icons_present(self):
         content = _read_sessions()
-        # 统一模式：.sort-mark 是箭头容器
-        assert 'class="sort-mark"' in content, \
-            "Sort buttons must have sort-mark class for arrow injection"
+        assert 'c-data-table__sort-icon' in content, \
+            "Sort buttons must use the canonical c-data-table__sort-icon"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_static_headers(self):

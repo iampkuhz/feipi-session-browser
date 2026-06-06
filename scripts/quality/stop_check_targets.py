@@ -68,8 +68,7 @@ def get_changed_files_for_session() -> list[str]:
 
 
 def resolve_change_id() -> str:
-    """从 active_change.json 或 active-change 文件解析 change-id。"""
-    # 优先读取 tmp/active_change.json
+    """从 tmp/active_change.json 解析 change-id。"""
     active_change = REPO_ROOT / "tmp" / "active_change.json"
     if active_change.exists():
         try:
@@ -79,10 +78,6 @@ def resolve_change_id() -> str:
                 return cid
         except (json.JSONDecodeError, OSError):
             pass
-    # 回退到 legacy active-change 文件
-    active_file = REPO_ROOT / "tmp" / "active-change"
-    if active_file.exists():
-        return active_file.read_text().strip()
     return "unknown"
 
 

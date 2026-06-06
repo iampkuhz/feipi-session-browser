@@ -4,10 +4,7 @@ Defines a ContentPart dataclass and detection helpers so downstream viewers
 can safely render text / markdown / json / image / code / html payloads
 without guessing the format.
 
-Backward compatibility:
-- Existing ChatMessage.content (plain str) can be wrapped via
-  ContentPart.from_text() to produce a single 'markdown' part.
-- All detection functions are pure and side-effect free.
+All detection functions are pure and side-effect free.
 """
 
 from __future__ import annotations
@@ -305,18 +302,6 @@ class ContentPart:
     title: str = ""
     content_bytes: int = 0
     token_hint: int = 0
-
-    @staticmethod
-    def from_text(text: str) -> ContentPart:
-        """Wrap a plain string into a ContentPart with auto-detected type.
-
-        This is the backward-compatibility bridge: existing code that
-        stores ChatMessage.content as str can call this to get a typed
-        ContentPart without changing the rendering result.
-        """
-        if not text or not text.strip():
-            return ContentPart(part_type=ContentPartType.TEXT, content=text or "")
-        return ContentPart(part_type=ContentPartType.MARKDOWN, content=text)
 
     @staticmethod
     def from_dict(data: dict) -> ContentPart:

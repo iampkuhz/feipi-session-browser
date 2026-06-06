@@ -63,8 +63,7 @@ class TestFixtureDataAttributes:
         # 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
         has_new = soup.select_one('[data-action="status-all"]') is not None or \
                   soup.select_one('[data-action="status-failed"]') is not None
-        has_legacy = soup.select_one('[data-action="filter-status"]') is not None
-        assert has_new or has_legacy, '缺少过滤状态按钮（status-all/status-failed 或旧版 filter-status）'
+        assert has_new, '缺少过滤状态按钮（status-all/status-failed）'
         # toggle-all 必须存在（单个按钮，无独立的 collapse-all）
         btn = soup.select_one('[data-action="toggle-all"]')
         assert btn is not None, '缺少 data-action="toggle-all" 按钮'
@@ -545,12 +544,12 @@ class TestDeadButtonGate:
         return BeautifulSoup(html, "html.parser"), html
 
     SUPPORTED_ACTIONS = {
-        "filter-status", "status-all", "status-failed", "toggle-all", "expand-all", "expand-visible", "collapse-all",
+        "status-all", "status-failed", "toggle-all", "expand-all", "expand-visible", "collapse-all",
         "open-payload", "payload-mode", "close-modal", "close-payload", "payload-tab",
         "jump-round", "jump-anomaly", "md-toggle",
         "toggle-round", "toggle-issue-expand", "toggle-sub-round",
         "open-settings", "help", "shell",
-        "copy-session-id", "copy",
+        "copy",
     }
 
     # 侧边栏导航操作（nav-*）由侧边栏契约测试单独验证

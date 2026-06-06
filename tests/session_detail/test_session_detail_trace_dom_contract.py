@@ -17,23 +17,8 @@ import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TIMELINE = ROOT / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html"
-JS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "js" / "session-detail.js"
+JS_DIR = ROOT / "src" / "session_browser" / "web" / "static" / "js" / "session-detail"
 CSS_FILE = ROOT / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
-JS_DIR = JS_FILE.parent / "session-detail"
-CSS_DIR = CSS_FILE.parent / "session-detail"
-
-
-def _read_source_with_splits(main_file, split_dir):
-    """Read main file and all split subdirectory files (if they exist)."""
-    parts = []
-    if main_file.exists():
-        parts.append(main_file.read_text(encoding="utf-8"))
-    if split_dir.is_dir():
-        for f in sorted(split_dir.glob("*.css" if "css" in str(main_file) else "*.js")):
-            parts.append(f.read_text(encoding="utf-8"))
-    return "\n".join(parts)
-
-JS_DIR = JS_FILE.parent / "session-detail"
 CSS_DIR = CSS_FILE.parent / "session-detail"
 TIMELINE_DIR = TIMELINE.parent / "session_detail_timeline"
 
@@ -41,12 +26,13 @@ TIMELINE_DIR = TIMELINE.parent / "session_detail_timeline"
 def _read_source_with_splits(main_file, split_dir):
     """Read main file and all split subdirectory files (if they exist)."""
     parts = []
-    if main_file.exists():
+    if main_file is not None and main_file.exists():
         parts.append(main_file.read_text(encoding="utf-8"))
     if split_dir.is_dir():
-        if "css" in str(main_file):
+        source_hint = str(main_file) if main_file is not None else str(split_dir)
+        if "css" in source_hint:
             ext = "*.css"
-        elif "js" in str(main_file):
+        elif "js" in source_hint:
             ext = "*.js"
         else:
             ext = "*.html"
@@ -327,7 +313,7 @@ class TestJSEventDispatchOnDataAction:
     """JS must dispatch toggle on data-action=\"toggle-round\"."""
 
     def _js_source(self):
-        return _read_source_with_splits(JS_FILE, JS_DIR)
+        return _read_source_with_splits(None, JS_DIR)
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_toggle_round_action_in_js(self):

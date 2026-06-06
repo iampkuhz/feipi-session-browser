@@ -3,23 +3,18 @@
   "description": "CSS/JS ownership historical debt baseline. Violations listed here are WARN (technical debt). New violations are BLOCK.",
   "created": "2026-05-26",
   "component_override_violations": [
-    "web/static/css/agents.css:.metric-card,.metric-grid,.page-head,.section,.section-head,.tooltip",
     "web/static/css/dashboard.css:.metric-grid,.page-head",
     "web/static/css/projects.css:.badge,.metric-grid",
     "web/static/css/glossary.css:.metric-grid,.page-head",
     "web/static/css/sessions-list.css:.badge,.card,.data-table,.filter-chip,.ui-btn"
   ],
   "raw_innerhtml_violations": [
-    "web/static/js/agents.js",
     "web/static/js/sessions-list.js",
     "web/static/js/dashboard.js",
     "web/static/js/app.js"
   ],
-  "layout_inline_style_html_violations": [
-    "session_browser/web/templates/agent.html"
-  ],
+  "layout_inline_style_html_violations": [],
   "layout_style_js_violations": [
-    "web/static/js/agents.js",
     "web/static/js/ui_primitives.js",
     "web/static/js/dashboard.js",
     "web/static/js/app.js"

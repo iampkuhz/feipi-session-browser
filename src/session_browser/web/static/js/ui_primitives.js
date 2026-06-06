@@ -146,10 +146,6 @@
 
       // ── Copy ──────────────────────────────────────────────────────
       case 'copy':
-      case 'copy-project-path':
-      case 'copy-session':
-      case 'copy-session-id':
-      case 'copy-path':
         handleCopy(actionEl);
         break;
 
@@ -509,20 +505,15 @@
   /**
    * handleCopy: Unified copy handler.
    *
-   * Attribute resolution priority:
-   *   1. data-copy-text       (canonical)
-   *   2. title attribute       (fallback — tooltip text)
-   *   3. button.textContent    (last resort)
+   * Attribute source:
+   *   - data-copy-text
    *
    * Clipboard fallback:
    *   - If navigator.clipboard is unavailable, shows toast-only (no write).
    *   - No inline styles are used (avoids layout-inline-style gate violation).
    */
   function handleCopy(buttonEl) {
-    var text = buttonEl.getAttribute('data-copy-text')
-      || buttonEl.getAttribute('title')
-      || buttonEl.textContent
-      || '';
+    var text = buttonEl.getAttribute('data-copy-text') || '';
 
     if (!text) {
       showToast('Nothing to copy');

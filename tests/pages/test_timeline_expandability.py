@@ -463,29 +463,6 @@ class TestEventDelegationPresent:
         else:
             pytest.skip("未找到 session_detail_timeline.js")
 
-    @pytest.mark.contract_case("UI-INTERACTION-007")
-    @pytest.mark.skip(reason="filter-status not found in timeline component (pre-existing)")
-    def test_delegation_handles_filter_status(self):
-        """阶段 1：必须存在 filter-status 操作以支持 All/Failed 过滤。"""
-        chk._FAIL_COUNT = 0
-        chk._WARN_COUNT = 0
-        # filter-status 在 timeline 组件中
-        timeline_path = (Path(__file__).resolve().parents[2]
-                        / "src" / "session_browser" / "web" / "templates" / "components" / "session_detail_timeline.html")
-        if timeline_path.exists():
-            html = timeline_path.read_text(encoding="utf-8")
-            has_filter = 'data-action="filter-status"' in html
-            assert has_filter, (
-                "timeline 组件中必须存在 [data-action=filter-status]"
-            )
-            has_all = 'data-status="all"' in html
-            assert has_all, "必须存在 [data-status=all] 过滤芯片"
-            has_failed = 'data-status="failed"' in html
-            assert has_failed, "必须存在 [data-status=failed] 过滤芯片"
-        else:
-            pytest.skip("未找到 timeline 组件")
-
-
 class TestAccordionBehavior:
     """验证 session_detail_timeline.js 中的手风琴逻辑。"""
 

@@ -200,7 +200,6 @@ SESSION_ANOMALY_DEFINITIONS: dict[str, dict] = {
         "severity_levels": ("info", "warning"),
         "thresholds": {
             "warning": 200_000,
-            "critical": 500_000,  # kept for backward compat, but severity caps at warning
         },
         "description": "High cache creation tokens (cache_creation_input_tokens) indicate that this session generated "
                        "a large amount of context being written to the prompt cache for future rounds. "

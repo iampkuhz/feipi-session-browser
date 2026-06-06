@@ -143,7 +143,7 @@ def _normalize_qoder_provider_usage(records: list[dict]) -> None:
     - **不**把 "下一条 cache_read - 当前 cache_read" 写回
       ``cache_creation_input_tokens``。provider-reported 值必须保留。
     - 如需保留跨 call 推断，写入单独的 inferred 字段，不污染原始 provider usage。
-    - ``input_tokens`` 改写为 fresh，以与现有 domain model 兼容。
+    - ``input_tokens`` 改写为 fresh，以符合当前 domain model。
     """
     usages: list[dict] = []
     for rec in records:

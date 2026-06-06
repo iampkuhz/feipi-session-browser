@@ -26,11 +26,7 @@ from session_browser.web.template_env import (
     _truncate_path,
     _display_path,
     _shorten_path,
-    _html_escape,
     _renumber_lines,
-    _detect_line_number_gutter,
-    _strip_line_number_gutter,
-    _infer_code_language,
     normalize_llm_content,
     render_llm_blocks_html,
     _content_parts_to_blocks,
@@ -38,6 +34,12 @@ from session_browser.web.template_env import (
     _relative_paths_in_json,
     _tojson_repo_html,
     _TEMPLATE_DIR,
+)
+from session_browser.web.renderers.llm_blocks import (
+    _html_escape,
+    _detect_line_number_gutter,
+    _strip_line_number_gutter,
+    _infer_code_language,
 )
 from session_browser.web.renderers.markdown import render_markdown as _md_filter
 from session_browser.domain.content_part import ContentPart
@@ -93,7 +95,6 @@ EXPECTED_FILTERS = [
     "urldecode",
     "markdown",
     "render_llm_blocks_html",
-    "tojson_safe",
     "strip_line_numbers",
     "renumber_lines",
     "normalize_llm_content",

@@ -1,5 +1,5 @@
-{# _helpers.html — Remaining UI primitive macros (pagination, tokens, filters,
-   modals, layout, navigation, compatibility aliases) #}
+{# _helpers.html — UI primitive macros for pagination, tokens, filters,
+   modals, layout, and navigation. #}
 
 {# --- Pagination ---
    HIFI structure: [prev] [page-status] [page-input] [page-status] [spacer] [page-size] [next]
@@ -77,7 +77,7 @@
 {% macro token_cell(total, fresh_pct=0, read_pct=0, write_pct=0, out_pct=0,
                     fresh_val='0', read_val='0', write_val='0', out_val='0',
                     fresh_pct_val='0.0', read_pct_val='0.0', write_pct_val='0.0', out_pct_val='0.0',
-                    title='Token Breakdown', profile='standard') -%}
+                    title='Token Breakdown') -%}
 <td class="token-cell">
   <div class="token-total">
     <span class="token-total__value">{{ total }}</span>
@@ -358,7 +358,7 @@
   {%- if stat_pills or extra_content %}
   <div class="page-head-actions">
     {%- if stat_pills %}
-    {{ stat_pills }}
+    {{ stat_pills | safe }}
     {%- endif %}
     {%- if extra_content %}
     {{ extra_content | safe }}
@@ -438,36 +438,6 @@
     {%- endif %}
   </div>
   {%- endif %}
-</td>
-{%- endmacro %}
-
-{# ============================================================================
-   AgentCell
-   Renders a canonical agent cell for data tables with avatar, agent name link,
-   and optional description.
-#}
-{% macro agent_cell(name, agent_key, href='', description=None, abbrev='', avatar_class='', extra_classes=None) -%}
-  {%- set classes = ['agent-cell'] -%}
-  {%- if extra_classes -%}
-    {%- for cls in extra_classes.split() -%}
-      {%- set _ = classes.append(cls) -%}
-    {%- endfor -%}
-  {%- endif -%}
-  {%- set effective_abbrev = abbrev if abbrev else name[:2]|upper -%}
-  {%- set effective_avatar = avatar_class if avatar_class else ('cc' if agent_key == 'claude_code' else 'qd' if agent_key == 'qoder' else 'cx') -%}
-  {%- set effective_href = href if href else '/agents/' ~ agent_key -%}
-<td class="{{ classes | join(' ') }}">
-  <span class="agent-main">
-    <a href="{{ effective_href }}" class="link" data-action="open-agent-link">
-      <div class="agent-avatar {{ effective_avatar }}">{{ effective_abbrev }}</div>
-    </a>
-    <div>
-      <div class="title-main">{{ name }}</div>
-      {%- if description %}
-      <div class="title-sub">{{ description }}</div>
-      {%- endif %}
-    </div>
-  </span>
 </td>
 {%- endmacro %}
 
@@ -595,39 +565,4 @@
     {%- endif %}
   {%- endfor %}
 </div>
-{%- endmacro %}
-
-{# ============================================================================
-   Compatibility macros (preserved for existing pages)
-   ============================================================================ #}
-
-{% macro select_control(label, name, options, selected='', extra_class='') -%}
-  <label class="ui-select {{ extra_class }}">
-    <span class="ui-select__label">{{ label }}</span>
-    <select class="ui-select__control" name="{{ name }}" aria-label="{{ label }}">
-      {%- for opt in options %}
-        {%- set opt_value = opt.value if opt.value is defined else opt[0] if opt is sequence and opt is not string else opt -%}
-        {%- set opt_label = opt.label if opt.label is defined else opt[1] if opt is sequence and opt is not string and opt|length > 1 else opt_value -%}
-        <option value="{{ opt_value }}" {% if opt_value == selected %}selected{% endif %}>{{ opt_label }}</option>
-      {%- endfor %}
-    </select>
-  </label>
-{%- endmacro %}
-
-{% macro stat_pill(value, label, id=None) -%}
-  <span class="ui-stat-pill" role="status"{% if id %} id="{{ id }}"{% endif %}><b>{{ value }}</b> {{ label }}</span>
-{%- endmacro %}
-
-{% macro th_static(label) -%}
-  <div class="sessions-th" role="columnheader">{{ label }}</div>
-{%- endmacro %}
-
-{% macro th_sort(label, key, sort_key='', sort_dir='desc', href='') -%}
-  {%- set active = (sort_key == key) -%}
-  {%- set aria = ' aria-sort="' ~ ('ascending' if sort_dir == 'asc' else 'descending') ~ '"' if active else '' -%}
-  {%- if href -%}
-  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}><a class="c-data-table__sort" href="{{ href }}">{{ label }} <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></div>
-  {%- else -%}
-  <div class="sessions-th sessions-th--sortable" role="columnheader"{{ aria|safe }}>{{ label }} <button type="submit" name="sort" value="{{ key }}" class="c-data-table__sort" data-sort-key="{{ key }}"><span class="c-data-table__sort-icon" aria-hidden="true"></span></button></div>
-  {%- endif -%}
 {%- endmacro %}

@@ -2,12 +2,6 @@
   "version": 1,
   "entries": [
     {
-      "file": "src/session_browser/web/static/js/agents.js",
-      "line": 267,
-      "isClear": false,
-      "snippet": "tooltip.innerHTML = '<strong>' + labelText + '</strong><br>' + tipText;"
-    },
-    {
       "file": "src/session_browser/web/static/js/app.js",
       "line": 34,
       "isClear": false,
@@ -168,13 +162,7 @@
       "line": 421,
       "isClear": false,
       "snippet": "paginationDiv.innerHTML = newPagination.innerHTML;"
-    },
-    {
-      "file": "src/session_browser/web/static/js/view-switching.js",
-      "line": 80,
-      "isClear": true,
-      "snippet": "content.innerHTML = '';"
     }
   ],
-  "count": 29
+  "count": 28
 }

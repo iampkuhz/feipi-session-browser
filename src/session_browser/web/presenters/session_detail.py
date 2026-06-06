@@ -146,7 +146,7 @@ def _derive_prompt_preview(
 
 def _normalize_codex_usage(
     usage: dict,
-    cumulative_state: dict | None = None,
+    cumulative_state: dict,
 ) -> dict:
     """Normalize Codex per-turn usage from cumulative totals to deltas.
 
@@ -156,8 +156,7 @@ def _normalize_codex_usage(
     Args:
         usage: Raw cumulative usage from Codex source.
         cumulative_state: Mutable dict tracking previous cumulative values.
-            Pass the same dict for each call to compute deltas. If None,
-            returns raw values with no delta computation (backward compat).
+            Pass the same dict for each call to compute deltas.
 
     Returns:
         Dict with per-turn delta values for input_tokens, cache_read_input_tokens,
@@ -167,16 +166,6 @@ def _normalize_codex_usage(
     cached = usage.get("cached_input_tokens", 0) or 0
     output = usage.get("output_tokens", 0) or 0
     cache_write = usage.get("cache_creation_input_tokens", 0) or 0
-
-    if cumulative_state is None:
-        # Backward compat: no state tracking, compute fresh only
-        fresh = max(raw_input - cached, 0)
-        return {
-            "input_tokens": fresh,
-            "cache_read_input_tokens": cached,
-            "cache_creation_input_tokens": cache_write,
-            "output_tokens": output,
-        }
 
     # Get previous cumulative values
     prev_input = cumulative_state.get("input_tokens", 0)

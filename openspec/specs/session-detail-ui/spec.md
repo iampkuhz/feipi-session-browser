@@ -93,7 +93,8 @@ The page SHALL NOT render a `content-modal` element or any `data-content-modal` 
 ### Requirement: Dead button gate
 
 Every visible `<button>` on the session detail page SHALL have a supported `data-action` value from this list:
-- `filter-status`
+- `status-all`
+- `status-failed`
 - `expand-all`
 - `collapse-all`
 - `open-payload`

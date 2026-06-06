@@ -5,11 +5,11 @@
   This file is now a thin {% include %} wrapper. All macros have been split
   into component files under ui_primitives/ subdirectory.
 
-  Usage (unchanged):
+  Usage:
     {% import "components/ui_primitives.html" as ui with context %}
     {% from "components/ui_primitives.html" import button with context %}
 
-  All macros are re-exported from sub-components to preserve compatibility.
+  Public macros delegate to their focused sub-component files.
 #}
 
 {# Import sub-components with context #}
@@ -21,7 +21,7 @@
 {% import "components/ui_primitives/_tabs.html" as _tab with context %}
 {% import "components/ui_primitives/_helpers.html" as _helper with context %}
 
-{# === Re-exported macros (thin delegation wrappers) === #}
+{# === Public macros (thin delegation wrappers) === #}
 
 {# --- Buttons --- #}
 {% macro button(label, variant='primary', size='md', data_action=None, href=None, disabled=False, icon=None, extra_classes=None, aria_label=None) -%}
@@ -30,10 +30,6 @@
 
 {% macro icon_button(icon, data_action=None, href=None, aria_label=None, extra_classes=None) -%}
   {{- _btn.icon_button(icon, data_action, href, aria_label, extra_classes) -}}
-{%- endmacro %}
-
-{% macro btn(label, variant='secondary', size='md', type='button', href=None, extra_class='', data_action=None, disabled=False, icon=None, aria_label=None) -%}
-  {{- _btn.btn(label, variant, size, type, href, extra_class, data_action, disabled, icon, aria_label) -}}
 {%- endmacro %}
 
 {# --- Badges --- #}
@@ -149,11 +145,11 @@
 {% macro token_cell(total, fresh_pct=0, read_pct=0, write_pct=0, out_pct=0,
                     fresh_val='0', read_val='0', write_val='0', out_val='0',
                     fresh_pct_val='0.0', read_pct_val='0.0', write_pct_val='0.0', out_pct_val='0.0',
-                    title='Token Breakdown', profile='standard') -%}
+                    title='Token Breakdown') -%}
   {{- _helper.token_cell(total, fresh_pct, read_pct, write_pct, out_pct,
                     fresh_val, read_val, write_val, out_val,
                     fresh_pct_val, read_pct_val, write_pct_val, out_pct_val,
-                    title, profile) -}}
+                    title) -}}
 {%- endmacro %}
 
 {% macro tooltip(content, trigger_text, title=None, extra_classes=None) -%}
@@ -227,10 +223,6 @@
   {{- _helper.project_cell(name, path, href, show_path, show_copy, extra_classes, name_data_action) -}}
 {%- endmacro %}
 
-{% macro agent_cell(name, agent_key, href='', description=None, abbrev='', avatar_class='', extra_classes=None) -%}
-  {{- _helper.agent_cell(name, agent_key, href, description, abbrev, avatar_class, extra_classes) -}}
-{%- endmacro %}
-
 {% macro metric_info(metric_name, label='指标说明', title=None) -%}
   {{- _helper.metric_info(metric_name, label, title if title is not none else metric_name ~ ' 指标说明') -}}
 {%- endmacro %}
@@ -253,21 +245,4 @@
 
 {% macro breadcrumb(items, extra_classes=None) -%}
   {{- _helper.breadcrumb(items, extra_classes) -}}
-{%- endmacro %}
-
-{# --- Compatibility aliases --- #}
-{% macro select_control(label, name, options, selected='', extra_class='') -%}
-  {{- _helper.select_control(label, name, options, selected, extra_class) -}}
-{%- endmacro %}
-
-{% macro stat_pill(value, label, id=None) -%}
-  {{- _helper.stat_pill(value, label, id) -}}
-{%- endmacro %}
-
-{% macro th_static(label) -%}
-  {{- _helper.th_static(label) -}}
-{%- endmacro %}
-
-{% macro th_sort(label, key, sort_key='', sort_dir='desc', href='') -%}
-  {{- _helper.th_sort(label, key, sort_key, sort_dir, href) -}}
 {%- endmacro %}

@@ -173,14 +173,7 @@ def test_filter_buttons_exist():
         r'<button[^>]*data-action="status-failed"[^>]*>',
         timeline
     )
-    assert len(chips_all) > 0 or len(chips_failed) > 0, "Filter status chips must exist"
-    # Also accept legacy filter-status pattern
-    chips_legacy = re.findall(
-        r'<button[^>]*data-action="filter-status"[^>]*>',
-        timeline
-    )
-    if len(chips_all) == 0 and len(chips_failed) == 0:
-        assert len(chips_legacy) > 0, "Filter status chips must exist (legacy pattern)"
+    assert len(chips_all) > 0 and len(chips_failed) > 0, "Filter status chips must exist"
 
 
 # ── Payload tabs accessibility ──────────────────────────────────────

@@ -1,8 +1,9 @@
 """Serializers for attribution data layer.
 
 Converts internal dataclass objects to dict payloads for routes.py.
-支持旧字段（向后兼容）和 v2 新字段（schema_version, call_identity,
-ordered_spans, semantic_buckets, coverage, credit_summary, diagnostics）。
+输出 route payload 字段与 v2 attribution 字段（schema_version,
+call_identity, ordered_spans, semantic_buckets, coverage,
+credit_summary, diagnostics）。
 """
 
 from __future__ import annotations
@@ -82,8 +83,7 @@ def availability_row_to_dict(row: AvailabilityRow | dict) -> dict:
 def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict | None = None) -> dict:
     """Serialize a full LLMRequestAttribution to a route-ready payload dict.
 
-    保持旧字段兼容，同时新增 v2 字段：
-    schema_version, call_identity, usage_summary (AttributedValue 格式),
+    包含 schema_version, call_identity, usage_summary (AttributedValue 格式),
     ordered_spans, semantic_buckets, coverage, credit_summary, diagnostics。
     """
     v2_extra = v2_extra or {}
@@ -91,7 +91,6 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
     payload = {
         # ── v2 schema ──
         "schema_version": "llm_attribution_v2",
-        "legacy_compatible": True,
 
         # ── Call identity (v2) ──
         "call_identity": v2_extra.get("call_identity", _build_call_identity(attr)),
@@ -120,7 +119,7 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
         # ── Diagnostics (v2) ──
         "diagnostics": v2_extra.get("diagnostics", _build_diagnostics(attr)),
 
-        # ── 旧字段：保持向后兼容 ──
+        # ── Route payload fields ──
         "kind": "llm.request_attribution",
         "agent": attr.agent,
         "model": attr.model,
@@ -151,16 +150,12 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
 
 
 def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict | None = None) -> dict:
-    """Serialize a full LLMResponseAttribution to a route-ready payload dict.
-
-    保持旧字段兼容，同时新增 v2 字段。
-    """
+    """Serialize a full LLMResponseAttribution to a route-ready payload dict."""
     v2_extra = v2_extra or {}
 
     payload = {
         # ── v2 schema ──
         "schema_version": "llm_attribution_v2",
-        "legacy_compatible": True,
 
         # ── Call identity (v2) ──
         "call_identity": v2_extra.get("call_identity", _build_call_identity(attr)),
@@ -184,7 +179,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
         # ── Diagnostics (v2) ──
         "diagnostics": v2_extra.get("diagnostics", _build_response_diagnostics(attr)),
 
-        # ── 旧字段：保持向后兼容 ──
+        # ── Route payload fields ──
         "kind": "llm.response_attribution",
         "agent": attr.agent,
         "model": attr.model,
@@ -215,7 +210,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
 
 
 def _build_call_identity(attr) -> dict:
-    """构建 call_identity v2 字段（基于旧属性）。"""
+    """构建 call_identity v2 字段。"""
     agent_runtime = attr.agent if attr.agent else "unknown"
     return {
         "agent_runtime": agent_runtime,

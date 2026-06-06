@@ -11,6 +11,10 @@
 (function() {
     'use strict';
 
+    if (typeof ViewState !== 'undefined' && typeof ViewState.init === 'function') {
+        ViewState.init();
+    }
+
     var DEFAULT_FEEDBACK = '✓';  // ✓
     var DEFAULT_DURATION  = 1200;     // ms
 
@@ -52,7 +56,7 @@
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(showFeedback, fail);
         } else {
-            // Legacy fallback
+            // Textarea fallback when Clipboard API is unavailable.
             try {
                 var ta = document.createElement('textarea');
                 ta.value = text;
@@ -70,15 +74,7 @@
         }
     };
 
-    /* ─── Convenience wrappers used by existing templates ─────── */
-
-    /** Drop-in replacement for copyProjectPath(btn, path). */
-    window.copyProjectPath = function(btn, path) {
-        window.arpCopy(btn, path, {
-            feedback: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 8 7 11 12 5"/></svg>',
-            original: btn.innerHTML
-        });
-    };
+    /* ─── Convenience wrappers used by current templates ─────── */
 
     /** Copy raw session JSON data. */
     window.copyRawData = function() {
@@ -91,16 +87,6 @@
         });
     };
 
-    /** Copy text from a data-clipboard-text attribute. */
-    window.arpCopyAttr = function(btn) {
-        var text = btn.getAttribute('data-clipboard-text');
-        if (text === null) {
-            console.warn('[arpCopyAttr] No data-clipboard-text attribute on', btn);
-            return;
-        }
-        window.arpCopy(btn, text);
-    };
-
     /* ─── Global event delegation for canonical data-actions ─────── */
 
     document.addEventListener('click', function(event) {
@@ -108,11 +94,7 @@
         if (!actionEl) return;
         var action = actionEl.dataset.action;
 
-        if (action === 'copy-project-path') {
-            event.preventDefault();
-            var text = actionEl.dataset.clipboardText || '';
-            if (text) window.arpCopy(actionEl, text);
-        } else if (action === 'toggle-part-raw') {
+        if (action === 'toggle-part-raw') {
             event.preventDefault();
             var part = actionEl.closest('.viewer__part');
             if (!part) return;

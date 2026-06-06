@@ -155,7 +155,7 @@ class Test404Template:
     def test_has_navigation_links(self):
         """404 页面必须提供多个导航选项。"""
         html = _render_404_template()
-        nav_links = ["/dashboard", "/projects", "/sessions", "/agents"]
+        nav_links = ["/dashboard", "/projects", "/sessions"]
         for link in nav_links:
             assert link in html, f"404 页面必须链接到 {link}"
 

@@ -2,11 +2,11 @@
 """P0 门禁：UI 排序按钮统一性、页面脚本加载、sidebar nav 和脏选择器检查。
 
 检查项：
-  1. 页面脚本加载 — /projects 和 /agents 模板必须包含对应 JS
+  1. 页面脚本加载 — /projects 模板必须包含对应 JS
   2. 排序按钮唯一 contract — 禁止多套排序按钮体系并存
   3. _tables.css 无重复 .data-table th rule
   4. 脏 CSS 选择器禁令 — compat alias 注释等
-  5. 共享 primitive 所有权 — projects.css/agents.css 不得重写共享 primitive
+  5. 共享 primitive 所有权 — projects.css 不得重写共享 primitive
 
 用法:
     python3 scripts/quality/check_ui_sort_contract.py
@@ -29,11 +29,10 @@ JS_DIR = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "js"
 
 
 def check_page_scripts() -> list[str]:
-    """检查 1: /projects 和 /agents 模板必须包含对应 JS 脚本标签。"""
+    """检查 1: /projects 模板必须包含对应 JS 脚本标签。"""
     errors: list[str] = []
     checks = [
         ("projects.html", "projects.js"),
-        ("agents.html", "agents.js"),
     ]
     for template_name, js_name in checks:
         tmpl = TEMPLATES_DIR / template_name
@@ -130,7 +129,7 @@ def check_dirty_css_ban() -> list[str]:
 
     禁止:
       - "legacy alias" 或 "compat alias" 注释
-      - projects.css/agents.css 中定义共享 primitive (如 .btn, .data-table th 等)
+      - projects.css 中定义共享 primitive (如 .btn, .data-table th 等)
         但命名空间内的覆盖 (.p-projects .tokenbar) 不算违规。
     """
     errors: list[str] = []
@@ -150,7 +149,7 @@ def check_dirty_css_ban() -> list[str]:
         r"^[^.]*^\s*\.table-card\s*\{",
         r"^[^.]*^\s*\.nav-item\s*\{",
     ]
-    for css_file in ["projects.css", "agents.css"]:
+    for css_file in ["projects.css"]:
         f = CSS_DIR / css_file
         if not f.exists():
             continue

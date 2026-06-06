@@ -37,7 +37,7 @@
 {{ ui.page_head(
     'Projects',
     'Indexed local workspaces',
-    stat_pills=ui.stat_pill(projects | length, "projects", id="projects-count")
+    stat_pills='<span class="ui-stat-pill" role="status" id="projects-count"><b>' ~ (projects | length) ~ '</b> projects</span>'
 ) }}
 
 <!-- Metric grid: canonical shared primitives (T101) -->

@@ -126,7 +126,6 @@ python3 scripts/quality/run_quality_gate.py --target harness --change-id <change
 | Project | `/projects/{key}` | 项目级统计 + 会话列表 |
 | Sessions | `/sessions` | 全局会话列表，支持 Agent/Model/Project 过滤 |
 | Session | `/sessions/{agent}/{id}` | 折叠对话轮次、Token 柱状图、Token Profile、Tool 树 |
-| Agents | `/agents` | Agent 级统计 |
 | Token Glossary | `/glossary` | Token 指标定义与 Provider 映射 |
 
 ## 快捷键
@@ -189,7 +188,7 @@ feipi-session-browser/
 ├── .dockerignore
 ├── .gitignore
 ├── compose/
-│   └── docker-compose.yml          # 可选 compose 兼容入口
+│   └── docker-compose.yml          # 本地 compose 配置
 ├── env/
 │   └── .env.example                # 环境变量模板
 ├── scripts/

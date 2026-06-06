@@ -145,8 +145,8 @@ def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
         notes.append(".trace-panel__toolbar MISSING")
 
     # All/Failed filter buttons
-    all_btn = soup.select_one('[data-action="filter-status"][data-status="all"]')
-    failed_btn = soup.select_one('[data-action="filter-status"][data-status="failed"]')
+    all_btn = soup.select_one('[data-action="status-all"]')
+    failed_btn = soup.select_one('[data-action="status-failed"]')
     if all_btn and failed_btn:
         notes.append("All/Failed filter buttons found")
         pass_count += 1

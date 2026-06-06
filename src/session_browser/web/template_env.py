@@ -25,12 +25,6 @@ from session_browser.web.renderers.llm_blocks import (
     render_llm_blocks_html,
     _content_parts_to_blocks,
     _parts_mode_from_raw,
-    # Re-export internal helpers for backward compatibility with tests
-    _detect_line_number_gutter,
-    _strip_line_number_gutter,
-    _infer_code_language,
-    _detect_file_marker,
-    _html_escape,
 )
 from session_browser.web.safe_render import register_filters as _register_safe_filters, safe_json_display
 
@@ -276,7 +270,6 @@ env.filters["urlencode"] = urllib.parse.quote
 env.filters["urldecode"] = urllib.parse.unquote
 env.filters["markdown"] = render_markdown
 env.filters["render_llm_blocks_html"] = render_llm_blocks_html
-env.filters["tojson_safe"] = lambda v: safe_json_display(v)
 env.filters["strip_line_numbers"] = lambda text: (
     re.sub(r'^\d+\t', '', text, flags=re.MULTILINE)
     if text and re.search(r'^\d+\t', text, flags=re.MULTILINE)

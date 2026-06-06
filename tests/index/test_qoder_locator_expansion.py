@@ -2,9 +2,8 @@
 
 验证 _find_session_file 和 _locate_qoder_session_file 能正确：
 1. 将短 ID 别名解析为完整 UUID，然后搜索 projects/。
-2. 在 projects/ 中找到完整 UUID 会话（直接匹配 + 递归搜索）。
+2. 在 projects/ 中按明确 project_key 找到完整 UUID 会话。
 3. 通过递归遍历在 cache/projects/ 中找到会话。
-4. 处理空的或过期的 project_key（旧索引场景）。
 
 测试使用 monkeypatch 的临时 QODER_DATA_DIR —— 不涉及真实用户数据。
 """
@@ -194,21 +193,6 @@ class TestFindSessionFile:
             _restore_qoder_env(old)
 
     @pytest.mark.contract_case("DATA-INDEX-010")
-    def test_empty_project_key_still_finds_session(self, full_uuid_in_projects):
-        """当 project_key 为空（旧索引）时，递归搜索应能找到会话。"""
-        data_dir = full_uuid_in_projects
-        old = _setup_qoder_env(str(data_dir))
-        try:
-            _reload_qoder_module()
-            from session_browser.sources.qoder import _find_session_file
-
-            result = _find_session_file("", FULL_UUID)
-            assert result is not None, "Should find session even with empty project_key"
-            assert result.name == f"{FULL_UUID}.jsonl"
-        finally:
-            _restore_qoder_env(old)
-
-    @pytest.mark.contract_case("DATA-INDEX-010")
     def test_cache_only_full_uuid_found(self, cache_only_full_uuid):
         """仅在 cache/ 中的完整 UUID 会话应能通过递归遍历找到。"""
         data_dir = cache_only_full_uuid
@@ -287,20 +271,5 @@ class TestLocateQoderSessionFile:
             result = _locate_qoder_session_file(PROJECT_NAME, SHORT_ID)
             assert result is not None
             assert "cache" in str(result)
-        finally:
-            _restore_qoder_env(old)
-
-    @pytest.mark.contract_case("DATA-INDEX-010")
-    def test_empty_project_key_in_indexer(self, full_uuid_in_projects):
-        """索引器定位器即使 project_key 为空也应找到会话。"""
-        data_dir = full_uuid_in_projects
-        old = _setup_qoder_env(str(data_dir))
-        try:
-            _reload_qoder_module()
-            from session_browser.index.indexer import _locate_qoder_session_file
-
-            result = _locate_qoder_session_file("", FULL_UUID)
-            assert result is not None
-            assert result.name == f"{FULL_UUID}.jsonl"
         finally:
             _restore_qoder_env(old)

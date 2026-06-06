@@ -65,7 +65,7 @@
 * Structure:
 *   <div class="path-row [extra]">
 *     <span class="path-chip mono" data-tooltip="...">...</span>
-*     <button class="btn small" data-action="copy-path">...</button>  <!-- optional -->
+*     <button class="btn small" data-action="copy" data-copy-text="...">...</button>
 *   </div>
 * Page-specific overrides (e.g. projects.css) may adjust dimensions or colors.
 */

@@ -40,15 +40,21 @@ EXCLUDED_TARGETS = {"session-detail"}
 
 
 def resolve_change_id(explicit: str | None) -> str:
-    """Resolve change-id from args, env, or active-change file fallback."""
+    """Resolve change-id from args, env, or tmp/active_change.json."""
     if explicit:
         return explicit
     env = os.environ.get("ACTIVE_CHANGE_ID", "")
     if env:
         return env
-    active_file = REPO_ROOT / "tmp" / "active-change"
-    if active_file.exists():
-        return active_file.read_text().strip()
+    active_change = REPO_ROOT / "tmp" / "active_change.json"
+    if active_change.exists():
+        try:
+            data = json.loads(active_change.read_text(encoding="utf-8"))
+            cid = data.get("change_id", "")
+            if cid:
+                return cid
+        except (json.JSONDecodeError, OSError):
+            pass
     return "unknown"
 
 

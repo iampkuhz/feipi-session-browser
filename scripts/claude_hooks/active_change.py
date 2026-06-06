@@ -24,16 +24,11 @@ def _read_json(path: Path) -> dict:
     return {}
 
 
-# 03. active_change 读取：新路径优先，legacy 只读兼容。
+# 03. active_change 读取
 def read_active_change(paths: RepoPaths) -> dict:
     data = _read_json(paths.active_change)
     if data:
         return data
-    legacy = _read_json(paths.legacy_active_change)
-    if legacy:
-        legacy = dict(legacy)
-        legacy["legacySource"] = "tmp/active_change.json"
-        return legacy
     return {"changeId": default_change_id(), "source": "default"}
 
 

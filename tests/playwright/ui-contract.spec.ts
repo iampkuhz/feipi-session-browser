@@ -12,7 +12,6 @@ const pages = [
   ['/dashboard', 'dashboard'],
   ['/sessions', 'sessions'],
   ['/projects', 'projects'],
-  ['/agents', 'agents'],
   ['/glossary', 'glossary'],
 ];
 
@@ -124,27 +123,6 @@ for (const vp of viewports) {
   });
 }
 
-// ─── Agent 列表页视口契约测试（T138） ────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
-
-for (const vp of viewports) {
-  test(`Agent 列表 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
-    await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/agents');
-
-    // 核心结构可见
-    await expect(page.locator('.page-head')).toBeVisible();
-    await expect(page.locator('.metric-grid')).toBeVisible();
-    await expect(page.locator('#agents-table.data-table')).toBeVisible();
-
-    // 全屏截图用于视觉回归
-    await expect(page).toHaveScreenshot(`agents-${vp.label.replace('x', '-')}.png`, {
-      fullPage: true,
-      maxDiffPixelRatio: 0.05,
-    });
-  });
-}
-
 // ─── 术语表视口契约测试（T166） ──────────────────────────────────────
 // 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
 
@@ -162,30 +140,6 @@ for (const vp of viewports) {
 
     // 全屏截图用于视觉回归
     await expect(page).toHaveScreenshot(`glossary-${vp.label.replace('x', '-')}.png`, {
-      fullPage: true,
-      maxDiffPixelRatio: 0.05,
-    });
-  });
-}
-
-// ─── Agent 详情页视口契约测试（T152） ─────────────────────────────────
-// 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
-// 使用 fixture agent URL，不再依赖 PW_AGENT_URL 环境变量。
-
-const FIXTURE_AGENT_URL = '/agents/claude_code';
-
-for (const vp of viewports) {
-  test(`Agent 详情 @ ${vp.label} — 截图 + 可见性`, async ({ page }) => {
-    await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto(FIXTURE_AGENT_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-    // 核心结构可见
-    await expect(page.locator('.header')).toBeVisible();
-    await expect(page.locator('.metric-grid')).toBeVisible();
-    await expect(page.locator('.data-table').first()).toBeVisible();
-
-    // 全屏截图用于视觉回归
-    await expect(page).toHaveScreenshot(`agent-detail-${vp.label.replace('x', '-')}.png`, {
       fullPage: true,
       maxDiffPixelRatio: 0.05,
     });

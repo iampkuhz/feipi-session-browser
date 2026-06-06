@@ -13,7 +13,6 @@ class RepoPaths:
 
     repo_root: Path
     agent_log_dir: Path
-    legacy_agent_dir: Path
 
     @property
     def changed_files(self) -> Path:
@@ -41,10 +40,6 @@ class RepoPaths:
 
     @property
     def active_change(self) -> Path:
-        return self.agent_log_dir / "active_change.json"
-
-    @property
-    def legacy_active_change(self) -> Path:
         return self.repo_root / "tmp" / "active_change.json"
 
 
@@ -85,7 +80,7 @@ def quality_dir(repo_root: Path) -> Path:
 def build_paths(repo_root: str | Path | None = None) -> RepoPaths:
     root = find_repo_root(repo_root)
     log_dir = agent_log_dir(root)
-    return RepoPaths(repo_root=root, agent_log_dir=log_dir, legacy_agent_dir=root / ".agent")
+    return RepoPaths(repo_root=root, agent_log_dir=log_dir)
 
 
 # 04. 目录初始化

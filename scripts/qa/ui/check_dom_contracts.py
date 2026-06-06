@@ -24,8 +24,29 @@ passes: list[str] = []
 # 1. Primitive macro existence
 # ---------------------------------------------------------------------------
 primitive_file = ROOT / "src/session_browser/web/templates/components/ui_primitives.html"
+primitive_dir = primitive_file.parent / "ui_primitives"
+
+
+def _read_primitive_source() -> str:
+    parts: list[str] = []
+    if primitive_file.exists():
+        parts.append(primitive_file.read_text(encoding="utf-8", errors="ignore"))
+    if primitive_dir.is_dir():
+        for path in sorted(primitive_dir.glob("*.html")):
+            parts.append(path.read_text(encoding="utf-8", errors="ignore"))
+    return "\n".join(parts)
+
+
+def _macro_blocks(text: str, name: str) -> str:
+    pattern = re.compile(
+        rf"{{% macro {re.escape(name)}\b.*?{{%-?\s*endmacro\s*%}}",
+        re.DOTALL,
+    )
+    return "\n".join(match.group(0) for match in pattern.finditer(text))
+
+
 if primitive_file.exists():
-    text = primitive_file.read_text(encoding="utf-8", errors="ignore")
+    text = _read_primitive_source()
 
     # Canonical macros (T032/T034)
     canonical_macros = [
@@ -33,10 +54,7 @@ if primitive_file.exists():
         "pagination", "token_bar", "tooltip", "popover", "section_card",
         "data_table", "filter_bar", "payload_modal", "empty_state", "error_state",
     ]
-    # Legacy macros still required for backward compatibility
-    legacy_macros = ["btn", "select_control", "stat_pill", "th_static", "th_sort", "token_total"]
-
-    all_macros = canonical_macros + legacy_macros  # 21 total; task target is 18+
+    all_macros = canonical_macros
     found: list[str] = []
     missing: list[str] = []
     for macro in all_macros:
@@ -48,7 +66,7 @@ if primitive_file.exists():
     if missing:
         errors.append(f"missing macros in ui_primitives.html: {', '.join(missing)}")
     else:
-        passes.append(f"All {len(all_macros)} primitive macros present ({len(canonical_macros)} canonical + {len(legacy_macros)} legacy)")
+        passes.append(f"All {len(all_macros)} primitive macros present")
 else:
     errors.append(f"ui_primitives.html not found: {primitive_file}")
 
@@ -56,7 +74,7 @@ else:
 # 2. Button data-action coverage
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
-    text = primitive_file.read_text(encoding="utf-8", errors="ignore")
+    text = _read_primitive_source()
     button_re = re.compile(r"<button\b([^>]*)>", re.I)
     buttons_with_action = 0
     buttons_without_action = 0
@@ -82,17 +100,14 @@ if primitive_file.exists():
 # 3. Pagination prev/next/input structure
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
-    text = primitive_file.read_text(encoding="utf-8", errors="ignore")
+    text = _read_primitive_source()
     pagination_checks: list[str] = []
 
     # Check for pagination macro block
-    pagination_block = re.search(
-        r"{% macro pagination.*?{%-?\s*endmacro\s*%}", text, re.DOTALL
-    )
-    if not pagination_block:
+    block = _macro_blocks(text, "pagination")
+    if not block:
         errors.append("pagination macro not found")
     else:
-        block = pagination_block.group(0)
         checks = {
             "prev button": r"data-action=\"prev-page\"",
             "next button": r"data-action=\"next-page\"",
@@ -113,14 +128,11 @@ if primitive_file.exists():
 # 4. Token bar segment color classes
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
-    text = primitive_file.read_text(encoding="utf-8", errors="ignore")
-    token_block = re.search(
-        r"{% macro token_bar.*?{%-?\s*endmacro\s*%}", text, re.DOTALL
-    )
-    if not token_block:
+    text = _read_primitive_source()
+    block = _macro_blocks(text, "token_bar")
+    if not block:
         errors.append("token_bar macro not found")
     else:
-        block = token_block.group(0)
         segment_kinds = ["fresh", "read", "write", "out"]
         found_segments: list[str] = []
         for kind in segment_kinds:
@@ -137,14 +149,11 @@ if primitive_file.exists():
 # 5. Payload modal data attributes
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
-    text = primitive_file.read_text(encoding="utf-8", errors="ignore")
-    modal_block = re.search(
-        r"{% macro payload_modal.*?{%-?\s*endmacro\s*%}", text, re.DOTALL
-    )
-    if not modal_block:
+    text = _read_primitive_source()
+    block = _macro_blocks(text, "payload_modal")
+    if not block:
         errors.append("payload_modal macro not found")
     else:
-        block = modal_block.group(0)
         modal_attrs: list[str] = []
         attr_checks = {
             "data-modal": r'data-modal\b',
@@ -169,17 +178,14 @@ if primitive_file.exists():
 # 6. Empty state and error state presence
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
-    text = primitive_file.read_text(encoding="utf-8", errors="ignore")
+    text = _read_primitive_source()
     state_checks_passed: list[str] = []
 
     # Empty state
-    empty_block = re.search(
-        r"{% macro empty_state.*?{%-?\s*endmacro\s*%}", text, re.DOTALL
-    )
-    if not empty_block:
+    block = _macro_blocks(text, "empty_state")
+    if not block:
         errors.append("empty_state macro not found")
     else:
-        block = empty_block.group(0)
         empty_attrs = {
             "role=status": r'role="status"',
             "aria-live=polite": r'aria-live="polite"',
@@ -194,13 +200,10 @@ if primitive_file.exists():
                 errors.append(f"empty_state missing: {label}")
 
     # Error state
-    error_block = re.search(
-        r"{% macro error_state.*?{%-?\s*endmacro\s*%}", text, re.DOTALL
-    )
-    if not error_block:
+    block = _macro_blocks(text, "error_state")
+    if not block:
         errors.append("error_state macro not found")
     else:
-        block = error_block.group(0)
         error_attrs = {
             "role=alert": r'role="alert"',
             "aria-live=assertive": r'aria-live="assertive"',

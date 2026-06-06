@@ -1,4 +1,4 @@
-"""parser 兼容性回归测试。
+"""parser 合同回归测试。
 
 验证三个 adapter 模块（claude、codex、qoder）暴露可调用的公共函数签名、
 正确处理各自的 fixture 语料库、返回类型匹配约定，
@@ -112,10 +112,10 @@ class TestPublicSignatures:
         assert "verbose" in params
 
 
-# ─── 2. Adapter fixture 语料库兼容性 ─────────────────────────────────────
+# ─── 2. Adapter fixture 语料库合同 ─────────────────────────────────────
 
 
-class TestFixtureCorpusCompatibility:
+class TestFixtureCorpusContract:
     """每个 adapter 必须无误处理其 fixture 语料库。"""
 
     @pytest.mark.contract_case("DATA-SOURCE-001")

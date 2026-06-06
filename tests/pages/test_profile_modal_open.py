@@ -4,7 +4,6 @@
 - 基于组件的 Jinja2 宏（sdp、sdt）替代内联 HTML。
 - 工具调用通过 session_detail_timeline.html 中的 sdt.tool_batch 宏渲染。
 - Payload 模态框在 base.html 中统一处理所有 payload 查看。
-- 点击委托通过 view-switching.js 中的 _arpClosest 辅助函数处理（从 base.html 中提取）。
 """
 
 import pytest
@@ -13,7 +12,6 @@ import glob as _glob
 from pathlib import Path
 
 TEMPLATE_DIR = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "templates"
-VIEW_SWITCHING_JS = Path(__file__).parents[2] / "src" / "session_browser" / "web" / "static" / "js" / "view-switching.js"
 TIMELINE_PATH = TEMPLATE_DIR / "components" / "session_detail_timeline.html"
 TIMELINE_DIR = TEMPLATE_DIR / "components" / "session_detail_timeline"
 
@@ -24,10 +22,6 @@ def _session_source():
 
 def _base_source():
     return (TEMPLATE_DIR / "base.html").read_text(encoding="utf-8")
-
-
-def _view_switching_source():
-    return (VIEW_SWITCHING_JS).read_text(encoding="utf-8")
 
 
 def _read_timeline_with_splits() -> str:
@@ -76,42 +70,6 @@ def test_payload_modal_in_base():
     """Payload 模态框必须在 base.html 中定义。"""
     source = _base_source()
     assert "payload-modal" in source, "payload-modal 必须存在于 base.html 中"
-
-
-# ── 事件处理（base.html） ───────────────────────────────────
-
-
-@pytest.mark.contract_case("UI-INTERACTION-006")
-def test_capture_phase_click_listener():
-    """view-switching.js 必须有一个捕获阶段的点击监听器用于 [data-content-modal]。"""
-    source = _view_switching_source()
-    assert "addEventListener('click'" in source, (
-        "view-switching.js 必须添加点击事件监听器"
-    )
-    assert ", true)" in source, (
-        "view-switching.js 必须注册捕获阶段的点击监听器"
-    )
-
-
-@pytest.mark.contract_case("UI-INTERACTION-006")
-def test_closest_polyfill():
-    """view-switching.js 必须定义 closest 辅助函数以兼容旧版 WebView。"""
-    source = _view_switching_source()
-    assert "_arpClosest" in source, (
-        "view-switching.js 必须定义 _arpClosest 辅助函数"
-    )
-    assert "webkitMatchesSelector" in source, (
-        "view-switching.js 的 _arpClosest 必须支持 webkitMatchesSelector"
-    )
-
-
-@pytest.mark.contract_case("UI-INTERACTION-006")
-def test_capture_handler_sets_handled_flag():
-    """捕获阶段处理器必须设置 e.__contentModalHandled。"""
-    source = _view_switching_source()
-    assert "__contentModalHandled" in source, (
-        "捕获处理器必须设置 e.__contentModalHandled 标志"
-    )
 
 
 # ── 组件使用 ────────────────────────────────────────────

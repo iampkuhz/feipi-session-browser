@@ -44,10 +44,8 @@ PROTECTED_ROOTS = [
     "src/",
 ]
 
-ACTIVE_CHANGE_FILE = Path("tmp/agent_logs/current/active_change.json")
-EVIDENCE_DIR = Path("tmp/agent_logs/current/task-evidence")
-LEGACY_ACTIVE_CHANGE_FILE = Path("tmp/active_change.json")
-LEGACY_EVIDENCE_DIR = Path("tmp/task-evidence")
+ACTIVE_CHANGE_FILE = Path("tmp/active_change.json")
+EVIDENCE_DIR = Path("tmp/task-evidence")
 
 # Required files inside openspec/changes/<change-id>/
 REQUIRED_CHANGE_FILES = ["proposal.md", "design.md", "tasks.md"]
@@ -83,15 +81,11 @@ def has_uncommitted_changes(roots: list[str] | None = None) -> bool:
 
 
 def load_active_change() -> dict | None:
-    """Parse active_change.json from new or legacy location."""
+    """Parse active_change.json from the current OpenSpec location."""
     root = _repo_root()
-    # New location: tmp/agent_logs/current/active_change.json
     p = root / ACTIVE_CHANGE_FILE
     if not p.is_file():
-        # Legacy fallback: tmp/active_change.json
-        p = root / LEGACY_ACTIVE_CHANGE_FILE
-        if not p.is_file():
-            return None
+        return None
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
@@ -119,13 +113,8 @@ def required_files_present(change_id: str) -> list[str]:
 
 
 def evidence_file(change_id: str) -> Path:
-    """Return evidence file path (new location with legacy fallback)."""
-    root = _repo_root()
-    new_ef = root / EVIDENCE_DIR / f"{change_id}.jsonl"
-    if new_ef.is_file():
-        return new_ef
-    # Legacy fallback
-    return root / LEGACY_EVIDENCE_DIR / f"{change_id}.jsonl"
+    """Return the current evidence file path."""
+    return _repo_root() / EVIDENCE_DIR / f"{change_id}.jsonl"
 
 
 def has_evidence_entries(change_id: str) -> bool:
@@ -346,8 +335,8 @@ def _run_self_test() -> int:
         (cdir / "proposal.md").write_text("# Proposal\n", encoding="utf-8")
         (cdir / "design.md").write_text("# Design\n", encoding="utf-8")
         (cdir / "tasks.md").write_text("- [x] Task 1\n- [ ] Task 2\n", encoding="utf-8")
-        # Set up evidence (new location)
-        evdir = tmp / "tmp" / "agent_logs" / "current" / "task-evidence"
+        # Set up evidence
+        evdir = tmp / "tmp" / "task-evidence"
         evdir.mkdir(parents=True)
         (evdir / "test-change-003.jsonl").write_text(
             '{"ts":"2026-01-01T00:00:00Z","tool":"Edit","file_path":"CLAUDE.md","change_id":"test-change-003"}\n',

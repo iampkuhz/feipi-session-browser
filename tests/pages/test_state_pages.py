@@ -222,19 +222,12 @@ class Test404Navigation:
             "404 必须有 /sessions 链接"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
-    def test_agents_link(self):
-        """404 必须链接到 /agents。"""
-        content = _read_404()
-        assert 'href="/agents"' in content, \
-            "404 必须有 /agents 链接"
-
-    @pytest.mark.contract_case("UI-VISUAL-015")
-    def test_four_nav_links(self):
-        """404 必须恰好有 4 个导航链接。"""
+    def test_three_nav_links(self):
+        """404 必须恰好有 3 个导航链接。"""
         content = _read_404()
         links = re.findall(r'class="state-panel__link"', content)
-        assert len(links) == 4, \
-            f"404 必须有 4 个 state-panel__link 元素，发现 {len(links)} 个"
+        assert len(links) == 3, \
+            f"404 必须有 3 个 state-panel__link 元素，发现 {len(links)} 个"
 
 
 # -- TestErrorTemplate ------------------------------------------------------

@@ -634,10 +634,12 @@ class TestSessionPageMarkers:
             "Missing session-detail.css link"
 
     @pytest.mark.contract_case("UI-SD-001")
-    def test_session_detail_js(self, session):
-        """Session must include session-detail.js."""
-        assert "session-detail.js" in session, \
-            "Missing session-detail.js script"
+    def test_session_detail_js_modules(self, session):
+        """Session must include session-detail split modules."""
+        assert "/static/js/session-detail/init.js" in session, \
+            "Missing session-detail init module"
+        assert "/static/js/session-detail/events.js" in session, \
+            "Missing session-detail events module"
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_trace_panel_container(self, session):

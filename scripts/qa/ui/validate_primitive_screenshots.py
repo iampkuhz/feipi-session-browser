@@ -14,8 +14,6 @@ Primitives covered:
     Canonical (15): button, icon_button, badge, metric_card, metric_grid,
                     pagination, token_bar, tooltip, popover, section_card,
                     data_table, filter_bar, payload_modal, empty_state, error_state
-    Legacy (6): legacy-btn, select-control, stat-pill, th-static, th-sort, token-total
-
 Reference image directory: qa/screenshots/primitive-references/
 Actual screenshot directory: test-results/primitive-screenshots/
 """
@@ -54,17 +52,7 @@ CANONICAL_PRIMITIVES = [
     "error_state",
 ]
 
-# Legacy primitives — present for backward compatibility
-LEGACY_PRIMITIVES = [
-    "legacy-btn",
-    "select-control",
-    "stat-pill",
-    "th-static",
-    "th-sort",
-    "token-total",
-]
-
-ALL_PRIMITIVES = CANONICAL_PRIMITIVES + LEGACY_PRIMITIVES
+ALL_PRIMITIVES = CANONICAL_PRIMITIVES
 
 # Default viewport for screenshot capture
 VIEWPORT = {"width": 800, "height": 600}
@@ -108,12 +96,6 @@ def get_primitive_render_args(name: str) -> dict:
         "payload_modal": {"payload_id": "test-1", "title": "Test Payload", "kind": "tool_call"},
         "empty_state": {"message": "No results found"},
         "error_state": {"message": "Something went wrong"},
-        "legacy-btn": {"label": "Legacy"},
-        "select-control": {"name": "sort", "options": ["asc", "desc"], "value": "asc"},
-        "stat-pill": {"label": "Tokens", "value": "1.2K"},
-        "th-static": {"label": "Static Column"},
-        "th-sort": {"label": "Sortable", "sort_key": "name"},
-        "token-total": {"total": 5000},
     }
     return args.get(name, {})
 
@@ -420,10 +402,6 @@ def main() -> int:
     if args.list:
         print("Canonical primitives (15):")
         for name in CANONICAL_PRIMITIVES:
-            args_dict = get_primitive_render_args(name)
-            print(f"  - {name}: {json.dumps(args_dict)}")
-        print("\nLegacy primitives (6):")
-        for name in LEGACY_PRIMITIVES:
             args_dict = get_primitive_render_args(name)
             print(f"  - {name}: {json.dumps(args_dict)}")
         print(f"\nTotal: {len(ALL_PRIMITIVES)} primitives")

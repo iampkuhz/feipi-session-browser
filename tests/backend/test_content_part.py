@@ -6,7 +6,6 @@
 - is_html 检测 HTML 文档但不检测散文中的内联标签
 - is_code_block 检测围栏代码、文件扩展名、代码模式
 - detect_content_type 对常见负载返回正确类型
-- 向后兼容：from_text 将普通字符串包装为 markdown
 - 空值/None 处理
 """
 import pytest
@@ -258,38 +257,6 @@ def test_detect_ordered_list_not_code():
 
 
 # ─── ContentPart 模型 ────────────────────────────────────────────────────
-
-
-@pytest.mark.contract_case("DATA-SOURCE-001")
-def test_from_text_empty():
-    part = ContentPart.from_text('')
-    assert part.part_type == ContentPartType.TEXT
-    assert part.content == ''
-
-
-@pytest.mark.contract_case("DATA-SOURCE-001")
-def test_from_text_whitespace_only():
-    part = ContentPart.from_text('   \n\n  ')
-    assert part.part_type == ContentPartType.TEXT
-
-
-@pytest.mark.contract_case("DATA-SOURCE-001")
-def test_from_text_normal():
-    part = ContentPart.from_text('# Hello\n\n**World**')
-    assert part.part_type == ContentPartType.MARKDOWN
-    assert '# Hello' in part.content
-
-
-@pytest.mark.contract_case("DATA-SOURCE-001")
-def test_from_text_json_becomes_markdown():
-    """from_text 应始终对非空文本生成 markdown。
-
-    检测逻辑在 detect_content_type 中；from_text 是简单的
-    向后兼容包装器。
-    """
-    part = ContentPart.from_text('{"key": "value"}')
-    """from_text 应始终生成 markdown（不是 json）——这是向后兼容行为。"""
-    assert part.part_type == ContentPartType.MARKDOWN
 
 
 @pytest.mark.contract_case("DATA-SOURCE-001")

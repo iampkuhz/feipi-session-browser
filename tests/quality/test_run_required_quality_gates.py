@@ -178,14 +178,14 @@ class TestChangeIdResolution:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_unknown_fallback(self, monkeypatch):
-        """无环境变量且无 active-change 文件时，返回 'unknown'。"""
+        """无环境变量且无 active_change.json 文件时，返回 'unknown'。"""
         tmp_dir = Path(tempfile.mkdtemp())
         monkeypatch.setattr(_runner, "REPO_ROOT", tmp_dir)
         old = os.environ.get("ACTIVE_CHANGE_ID")
         try:
             if "ACTIVE_CHANGE_ID" in os.environ:
                 del os.environ["ACTIVE_CHANGE_ID"]
-            # 临时环境中不存在 active-change 文件
+            # 临时环境中不存在 active_change.json 文件
             result = _runner.resolve_change_id(None)
             assert result == "unknown"
         finally:
@@ -194,10 +194,10 @@ class TestChangeIdResolution:
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
     def test_active_change_file_exists(self, monkeypatch):
-        """active-change 文件存在且无环境变量时，返回文件内容。"""
+        """active_change.json 文件存在且无环境变量时，返回 change_id。"""
         tmp_dir = Path(tempfile.mkdtemp())
         (tmp_dir / "tmp").mkdir()
-        (tmp_dir / "tmp" / "active-change").write_text("from-file-change")
+        (tmp_dir / "tmp" / "active_change.json").write_text(json.dumps({"change_id": "from-file-change"}))
         monkeypatch.setattr(_runner, "REPO_ROOT", tmp_dir)
         old = os.environ.get("ACTIVE_CHANGE_ID")
         try:

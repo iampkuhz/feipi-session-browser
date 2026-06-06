@@ -123,7 +123,6 @@ test.describe('会话详情 — Phase 1', () => {
 
     // Phase 1 支持的 data-action 值
     const supportedActions = new Set([
-      'filter-status',
       'expand-all',
       'collapse-all',
       'jump-round',
@@ -135,9 +134,7 @@ test.describe('会话详情 — Phase 1', () => {
       'nav-dashboard',
       'nav-sessions',
       'nav-projects',
-      'nav-agents',
       'nav-glossary',
-      'copy-session-id',
       'sort',
       'status-all',
       'status-failed',

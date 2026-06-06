@@ -1,9 +1,8 @@
-"""Qoder 增量扫描：file_path/model 更新测试。
+"""Qoder 增量扫描：未变化会话跳过测试。
 
 验证 incremental_scan 能正确：
-1. 更新有 timing 数据但缺少 file_path 的旧记录。
-2. 重新解析 model 为空的记录以填充（无需 mtime 变化）。
-3. 在 mtime 未变时仍跳过完整记录（file_path + model + timing）。
+1. 对已索引且 mtime 未变化的记录保持跳过。
+2. 不在每次扫描时重复解析完整记录。
 
 测试使用 monkeypatch 的临时 QODER_DATA_DIR —— 不涉及真实用户数据。
 """
@@ -15,7 +14,6 @@ import json
 import os
 import sqlite3
 import sys
-import time
 from pathlib import Path
 
 # ─── 常量 ─────────────────────────────────────────────────────────────────────
@@ -144,125 +142,8 @@ def _create_qoder_project(data_dir: Path, project_name: str, session_id: str,
 
 # ─── 测试 ─────────────────────────────────────────────────────────────────────
 
-class TestQoderIncrementalFilepathUpdate:
-    """验证增量扫描更新旧记录的 file_path。"""
-
-    @pytest.mark.contract_case("DATA-INDEX-009")
-    def test_empty_file_path_gets_populated_without_mtime_change(self, tmp_path):
-        """有 timing 数据但 file_path 为空的旧记录应被更新。
-
-        场景：full_scan 存在未保存 file_path 的 bug，
-        或 file_path 被清空。增量扫描应定位文件并更新
-        file_path，无需 mtime 变化。
-        """
-        data_dir = tmp_path / "qoder_data"
-        _create_qoder_project(data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT)
-
-        db_path = str(tmp_path / "index.sqlite")
-
-        # 步骤 1: 全量扫描创建记录
-        _run_full_scan(str(data_dir), db_path)
-
-        # 步骤 2: 手动清空 file_path 以模拟 bug 场景
-        conn = sqlite3.connect(db_path)
-        skey = f"qoder:{FULL_UUID}"
-        conn.execute(
-            "UPDATE sessions SET file_path = '' WHERE session_key = ?",
-            (skey,),
-        )
-        conn.commit()
-
-        # 验证 file_path 为空
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT file_path, model, model_execution_seconds, tool_execution_seconds FROM sessions WHERE session_key = ?",
-            (skey,),
-        ).fetchone()
-        assert row["file_path"] == "", "Precondition: file_path should be empty"
-        assert row["model"] != "", "Precondition: model should be set"
-        conn.close()
-
-        # 步骤 3: 运行增量扫描，无任何文件变化
-        result = _run_incremental_scan(str(data_dir), db_path)
-
-        # 记录应被重新处理（而非跳过）
-        assert result["qoder_count"] >= 1, (
-            f"Expected at least 1 re-indexed Qoder session (file_path update), "
-            f"got qoder_count={result['qoder_count']}, skipped={result.get('skipped', 0)}"
-        )
-
-        # 验证 file_path 已被填充
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT file_path FROM sessions WHERE session_key = ?",
-            (skey,),
-        ).fetchone()
-        assert row["file_path"] != "", (
-            f"file_path should be populated after incremental scan, got: '{row['file_path']}'"
-        )
-        assert FULL_UUID in row["file_path"], (
-            f"file_path should contain session ID, got: '{row['file_path']}'"
-        )
-        conn.close()
-
-    @pytest.mark.contract_case("DATA-INDEX-009")
-    def test_empty_model_gets_reparsed_without_mtime_change(self, tmp_path):
-        """有 timing 数据但 model 为空的旧记录应被重新解析。
-
-        场景：model 字段因解析 bug 为空。增量扫描应重新解析
-        以填充 model，无需 mtime 变化。
-        """
-        data_dir = tmp_path / "qoder_data"
-        _create_qoder_project(data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT)
-
-        db_path = str(tmp_path / "index.sqlite")
-
-        # 步骤 1: 全量扫描
-        _run_full_scan(str(data_dir), db_path)
-
-        # 步骤 2: 手动清空 model 以模拟 bug 场景
-        conn = sqlite3.connect(db_path)
-        skey = f"qoder:{FULL_UUID}"
-        conn.execute(
-            "UPDATE sessions SET model = '' WHERE session_key = ?",
-            (skey,),
-        )
-        conn.commit()
-
-        # 验证 model 为空
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT model, file_path FROM sessions WHERE session_key = ?",
-            (skey,),
-        ).fetchone()
-        assert row["model"] == "", "Precondition: model should be empty"
-        assert row["file_path"] != "", "Precondition: file_path should be set"
-        conn.close()
-
-        # 步骤 3: 增量扫描，无文件变化
-        result = _run_incremental_scan(str(data_dir), db_path)
-
-        # 记录应被重新处理（而非跳过），因为 model 为空
-        assert result["qoder_count"] >= 1, (
-            f"Expected at least 1 re-indexed Qoder session (model fill), "
-            f"got qoder_count={result['qoder_count']}, skipped={result.get('skipped', 0)}"
-        )
-
-        # 验证 model 已被填充
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT model FROM sessions WHERE session_key = ?",
-            (skey,),
-        ).fetchone()
-        assert row["model"] != "", (
-            f"model should be populated after incremental scan, got: '{row['model']}'"
-        )
-        assert "qwen" in row["model"].lower(), (
-            f"model should contain the correct model name, got: '{row['model']}'"
-        )
-        conn.close()
+class TestQoderIncrementalCurrentRecords:
+    """验证增量扫描跳过未变化的完整记录。"""
 
     @pytest.mark.contract_case("DATA-INDEX-009")
     def test_complete_record_still_skipped_on_unchanged_mtime(self, tmp_path):
@@ -302,93 +183,3 @@ class TestQoderIncrementalFilepathUpdate:
         assert result["skipped"] >= 1, (
             f"Expected at least 1 skipped session, got skipped={result.get('skipped', 0)}"
         )
-
-    @pytest.mark.contract_case("DATA-INDEX-009")
-    def test_deleted_file_path_gets_relocated(self, tmp_path):
-        """file_path 指向已删除文件的记录应被重新定位。
-
-        场景：会话文件被移动到其他项目目录。
-        增量扫描应找到新位置并更新 file_path。
-        """
-        data_dir = tmp_path / "qoder_data"
-
-        # 在原始项目中创建会话
-        sess_file = _create_qoder_project(
-            data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT
-        )
-
-        db_path = str(tmp_path / "index.sqlite")
-
-        # 步骤 1: 全量扫描
-        _run_full_scan(str(data_dir), db_path)
-
-        # 步骤 2: 将文件移动到其他项目目录
-        new_proj = "movedproj"
-        new_proj_dir = data_dir / "projects" / new_proj
-        new_proj_dir.mkdir(parents=True, exist_ok=True)
-        new_file = new_proj_dir / f"{FULL_UUID}.jsonl"
-        sess_file.rename(new_file)
-
-        # 步骤 3: 增量扫描
-        result = _run_incremental_scan(str(data_dir), db_path)
-
-        # 记录应被重新处理（文件已迁移）
-        assert result["qoder_count"] >= 1, (
-            f"Expected at least 1 re-indexed session (file relocation), "
-            f"got qoder_count={result['qoder_count']}"
-        )
-
-        # 验证 file_path 已更新到新位置
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        skey = f"qoder:{FULL_UUID}"
-        row = conn.execute(
-            "SELECT file_path FROM sessions WHERE session_key = ?",
-            (skey,),
-        ).fetchone()
-        assert new_proj in row["file_path"], (
-            f"file_path should contain new project name '{new_proj}', "
-            f"got: '{row['file_path']}'"
-        )
-        conn.close()
-
-    @pytest.mark.contract_case("DATA-INDEX-009")
-    def test_both_empty_filepath_and_model_reparsed(self, tmp_path):
-        """file_path 和 model 都为空的记录应被重新解析。"""
-        data_dir = tmp_path / "qoder_data"
-        _create_qoder_project(data_dir, PROJECT_NAME, FULL_UUID, CLI_JSONL_CONTENT)
-
-        db_path = str(tmp_path / "index.sqlite")
-
-        # 步骤 1: 全量扫描
-        _run_full_scan(str(data_dir), db_path)
-
-        # 步骤 2: 清空 file_path 和 model
-        conn = sqlite3.connect(db_path)
-        skey = f"qoder:{FULL_UUID}"
-        conn.execute(
-            "UPDATE sessions SET file_path = '', model = '' WHERE session_key = ?",
-            (skey,),
-        )
-        conn.commit()
-        conn.close()
-
-        # 步骤 3: 增量扫描
-        result = _run_incremental_scan(str(data_dir), db_path)
-
-        # 应被重新处理
-        assert result["qoder_count"] >= 1, (
-            f"Expected at least 1 re-indexed session (both fields empty), "
-            f"got qoder_count={result['qoder_count']}"
-        )
-
-        # 验证两个字段都已恢复
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT file_path, model FROM sessions WHERE session_key = ?",
-            (skey,),
-        ).fetchone()
-        assert row["file_path"] != "", "file_path should be populated"
-        assert row["model"] != "", "model should be populated"
-        conn.close()

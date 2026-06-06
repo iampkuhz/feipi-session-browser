@@ -12,7 +12,7 @@ Validates project.html against the page behavior contract:
 7. Info buttons: 5 info buttons with data-action="info" and aria-label
 8. Table toolbar: .table-toolbar, .card-title, .card-sub, search input with data-action="search"
 9. Table structure: id="project-sessions-table", 9 column headers, sortable headers with data-action="sort" and data-sort for tokens/rounds/tools/failed/duration/updated
-10. Row structure: data-action="open-session", data-href, .title-main, .title-sub, copy-session with data-action, agent badges (.badge.cc/.cx/.qd + .dot), .token-cell with .token-total and .tokenbar (fresh/read/write/out segments)
+10. Row structure: data-action="open-session", data-href, .title-main, .title-sub, canonical copy action, agent badges (.badge.cc/.cx/.qd + .dot), .token-cell with .token-total and .tokenbar (fresh/read/write/out segments)
 11. Pagination: nav with role="navigation", data-action="page-input", data-action="next-page", page-status, aria-label
 12. Empty state: ui.empty_state macro present, "No sessions" text, data-action="view-all"
 13. Error state: ui.error_state macro present, data-action="go-projects", href="/projects"
@@ -29,6 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PROJECT_HTML = ROOT / "src/session_browser/web/templates/project.html"
+UI_HELPERS = ROOT / "src/session_browser/web/templates/components/ui_primitives/_helpers.html"
 
 
 def read(path: Path) -> str:
@@ -37,6 +38,8 @@ def read(path: Path) -> str:
 
 def main() -> int:
     html = read(PROJECT_HTML)
+    macro_html = read(UI_HELPERS)
+    contract_html = html + "\n" + macro_html
 
     checks: list[tuple[str, callable]] = [
         # ── 1. File existence ──────────────────────────────────────
@@ -189,9 +192,9 @@ def main() -> int:
         ("T123-H38 .title-sub present",
          lambda: ('class="title-sub' in html,
                   "title-sub found" if 'class="title-sub' in html else "MISSING")),
-        ("T123-H39 copy-session with data-action",
-         lambda: ('data-action="copy-session"' in html,
-                  "copy-session found" if 'data-action="copy-session"' in html else "MISSING")),
+        ("T123-H39 canonical copy action",
+         lambda: ('data-action="copy"' in contract_html and 'data-copy-text="' in contract_html,
+                  "canonical copy found" if ('data-action="copy"' in contract_html and 'data-copy-text="' in contract_html) else "MISSING")),
         ("T123-H40 badge cc",
          lambda: ('class="badge cc"' in html,
                   "badge cc found" if 'class="badge cc"' in html else "MISSING")),
@@ -268,29 +271,29 @@ def main() -> int:
         # ── 14. data-action coverage ───────────────────────────────
         ("T123-H62 data-action coverage (sort, open-session, copy, pagination, info, search)",
          lambda: (
-             all(x in html for x in [
+             all(x in contract_html for x in [
                  'data-action="sort"',
                  'data-action="open-session"',
-                 'data-action="copy-session"',
+                 'data-action="copy"',
                  'data-action="page-input"',
                  'data-action="next-page"',
                  'data-action="info"',
                  'data-action="search"',
              ])
              and ("data_action='view-all'" in html or 'data_action="view-all"' in html)
-             and ('data-action="copy-path"' in html),
+             and ('data-copy-text="' in contract_html),
              "all covered" if (
-                 all(x in html for x in [
+                 all(x in contract_html for x in [
                      'data-action="sort"',
                      'data-action="open-session"',
-                     'data-action="copy-session"',
+                     'data-action="copy"',
                      'data-action="page-input"',
                      'data-action="next-page"',
                      'data-action="info"',
                      'data-action="search"',
                  ])
                  and ("data_action='view-all'" in html or 'data_action="view-all"' in html)
-                 and ('data-action="copy-path"' in html)
+                 and ('data-copy-text="' in contract_html)
              ) else "MISSING some data-action values"
          )),
     ]

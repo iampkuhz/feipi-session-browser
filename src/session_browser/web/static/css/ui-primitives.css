@@ -25,7 +25,7 @@
 *
 * Consumed By:
 *   sessions-list.css, session-detail.css, dashboard.css, projects.css,
-*   agents.css, glossary.css, states.css — all page-specific stylesheets
+*   glossary.css, states.css — all page-specific stylesheets
 *   import or depend on these primitives for consistent styling.
 *
 * Contract: No versioned filename patterns. No inline styles.

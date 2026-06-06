@@ -66,7 +66,7 @@ class HookContext:
             if isinstance(value, str) and value:
                 candidates.append(value)
 
-        # MultiEdit 通常也有 file_path；这里额外兼容 edits 内的 path。
+        # MultiEdit may provide per-edit paths in addition to top-level file_path.
         edits = self.tool_input.get("edits")
         if isinstance(edits, list):
             for item in edits:

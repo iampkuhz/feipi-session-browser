@@ -25,7 +25,7 @@
 
 ### Requirement: Claude permissions baseline
 
-项目级 settings MUST 保留 hooks 与安全 deny 规则，并 SHOULD 避免把历史旧工具、Web 工具、Notebook 工具作为默认 permissions allow 基线。若兼容已有 Claude Code 运行方式需要暂时保留 `bypassPermissions`，变更报告 MUST 明确提示风险与后续收敛建议。
+项目级 settings MUST 保留 hooks 与安全 deny 规则，并 SHOULD 避免把历史旧工具、Web 工具、Notebook 工具作为默认 permissions allow 基线。若暂时保留 `bypassPermissions`，变更报告 MUST 明确提示风险与后续收敛建议。
 
 #### Scenario: Keep hooks and safe denies
 

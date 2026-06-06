@@ -233,10 +233,9 @@ def test_qoder_attribution_payload_has_no_cache():
     assert req_payload is not None
     data = req_payload.get("data", {})
     usage = data.get("usage", {})
-    # Qoder: fresh/cache should be None or unavailable
-    assert usage["fresh_input"]["value"] is None or usage["fresh_input"]["precision"] == "unavailable"
-    assert usage["cache_read"]["value"] is None or usage["cache_read"]["precision"] == "unavailable"
-    assert usage["cache_write"]["value"] is None or usage["cache_write"]["precision"] == "unavailable"
+    assert usage["fresh_input"]["value"] == lc.input_tokens
+    assert usage["cache_read"]["value"] in (0, None) or usage["cache_read"]["precision"] == "unavailable"
+    assert usage["cache_write"]["value"] in (0, None) or usage["cache_write"]["precision"] == "unavailable"
 
 
 def test_codex_attribution_payload_has_no_cache():

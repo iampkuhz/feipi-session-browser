@@ -97,8 +97,7 @@ class TestMhtmlTemplateContracts:
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_layout_mode_classes(self):
-        js = self._read_js("view-switching.js")
-        # hide-left 迁移代码位于 view-switching.js 中
+        js = self._read_js("view-state.js")
         assert "hide-left" in js, 'missing hide-left toggle support'
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
@@ -216,8 +215,7 @@ class TestPhase1SimplifiedStructure:
         # 过滤控件使用 status-all/status-failed（HIFI 表格迁移）
         component = _read_split_component("components/session_detail_timeline.html")
         has_new = 'data-action="status-all"' in component and 'data-action="status-failed"' in component
-        has_legacy = 'data-action="filter-status"' in component
-        assert has_new or has_legacy, "missing filter status buttons (status-all/status-failed or legacy filter-status)"
+        assert has_new, "missing filter status buttons (status-all/status-failed)"
 
     @pytest.mark.contract_case("ROUTE-API-001", "ROUTE-API-004")
     def test_no_old_workbench_views(self):

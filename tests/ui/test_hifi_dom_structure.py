@@ -120,9 +120,9 @@ class TestViewSwitch:
         assert toolbar is not None, "missing .trace-panel__toolbar"
 
         # 检查过滤按钮
-        all_btn = page.query_selector('[data-action="filter-status"][data-status="all"]')
+        all_btn = page.query_selector('[data-action="status-all"]')
         assert all_btn is not None, 'missing All filter chip'
-        failed_btn = page.query_selector('[data-action="filter-status"][data-status="failed"]')
+        failed_btn = page.query_selector('[data-action="status-failed"]')
         assert failed_btn is not None, 'missing Failed filter chip'
 
         # 检查展开/折叠按钮

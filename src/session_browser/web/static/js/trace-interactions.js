@@ -4,8 +4,8 @@
 // - toggle-round
 // - toggle-all
 // - jump-round
-// - open-payload  (handled by session-detail.js)
-// - close-payload (handled by session-detail.js)
+// - open-payload  (handled by session-detail/payload.js)
+// - close-payload (handled by session-detail/payload.js)
 (function(){
   "use strict";
 
@@ -45,7 +45,7 @@
     updateToggleAll(page);
   }
 
-  /* open-payload / close-payload handled by session-detail.js */
+  /* open-payload / close-payload handled by session-detail/payload.js */
 
   document.addEventListener("click", function(event){
     const actionEl = closest(event.target, "[data-action]");
@@ -66,11 +66,11 @@
       event.preventDefault();
       jumpRound(page, actionEl.dataset.round);
     }
-    /* open-payload / close-payload handled by session-detail.js */
+    /* open-payload / close-payload handled by session-detail/payload.js */
   });
 
   document.addEventListener("keydown", function(event){
-    /* Escape to close payload handled by session-detail.js */
+    /* Escape to close payload handled by session-detail/payload.js */
   });
 
   document.addEventListener("DOMContentLoaded", function(){

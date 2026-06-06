@@ -1,6 +1,6 @@
 """Shell 契约测试（T054）。
 
-验证 base.html 包含预期的 app-shell 结构，且
+验证 base.html 包含预期的 shell 结构，且
 CSS 文件包含所需的 shell CSS 规则。
 
 覆盖 ui-shell 规约：
@@ -69,12 +69,12 @@ def ui_primitives_text():
 
 
 class TestBaseHtmlShellStructure:
-    """base.html 必须包含预期的 app-shell 容器层级。"""
+    """base.html 必须包含预期的 shell 容器层级。"""
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
-    def test_app_shell_root_exists(self, base_text):
-        """Root container must have .app-shell class."""
-        assert "app-shell" in base_text, "base.html lacks .app-shell root container"
+    def test_shell_root_exists(self, base_text):
+        """Root container must have .shell class."""
+        assert 'class="shell' in base_text, "base.html lacks .shell root container"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_data_session_detail_shell_marker(self, base_text):
@@ -89,10 +89,10 @@ class TestBaseHtmlShellStructure:
             "base.html lacks <aside class=\"sidebar\">"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
-    def test_main_panel_exists(self, base_text):
-        """Main content area must have .main-panel class."""
-        assert "main-panel" in base_text, \
-            "base.html lacks .main-panel class"
+    def test_main_exists(self, base_text):
+        """Main content area must have .main class."""
+        assert 'class="main"' in base_text, \
+            "base.html lacks .main class"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_topbar_header_exists(self, base_text):
@@ -124,7 +124,6 @@ class TestBaseHtmlNavItems:
         "nav-dashboard",
         "nav-sessions",
         "nav-projects",
-        "nav-agents",
         "nav-glossary",
     ]
 
@@ -144,11 +143,6 @@ class TestBaseHtmlNavItems:
             "Missing nav-projects"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
-    def test_has_nav_agents(self, base_text):
-        assert 'data-action="nav-agents"' in base_text, \
-            "Missing nav-agents"
-
-    @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_has_nav_glossary(self, base_text):
         assert 'data-action="nav-glossary"' in base_text, \
             "Missing nav-glossary"
@@ -156,7 +150,7 @@ class TestBaseHtmlNavItems:
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_nav_item_has_data_target(self, base_text):
         """每个导航项必须包含 data-target 属性。"""
-        for target in ["dashboard", "sessions", "projects", "agents", "glossary"]:
+        for target in ["dashboard", "sessions", "projects", "glossary"]:
             assert f'data-target="{target}"' in base_text, \
                 f"Missing data-target=\"{target}\""
 
@@ -258,10 +252,10 @@ class TestCssShellRules:
 
     # 规则已移至 shell.css（任务 05）
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
-    def test_app_shell_rule(self, shell_text):
-        """.app-shell 规则必须存在于 shell.css 中。"""
-        assert re.search(r'\.app-shell\s*\{', shell_text), \
-            "shell.css lacks .app-shell rule"
+    def test_shell_rule(self, shell_text):
+        """.shell 规则必须存在于 shell.css 中。"""
+        assert re.search(r'\.shell\s*\{', shell_text), \
+            "shell.css lacks .shell rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_sidebar_rule(self, shell_text):
@@ -270,10 +264,10 @@ class TestCssShellRules:
             "shell.css lacks .sidebar rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
-    def test_main_panel_rule(self, shell_text):
-        """.main-panel 规则必须存在于 shell.css 中。"""
-        assert re.search(r'\.main-panel\s*\{', shell_text), \
-            "shell.css lacks .main-panel rule"
+    def test_main_rule(self, shell_text):
+        """.main 规则必须存在于 shell.css 中。"""
+        assert re.search(r'\.main\s*\{', shell_text), \
+            "shell.css lacks .main rule"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_topbar_rule(self, shell_text):

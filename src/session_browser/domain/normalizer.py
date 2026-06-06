@@ -11,8 +11,6 @@ Design
   blocks, standalone JSON) and classifies each segment.
 - Empty or whitespace-only input returns a single empty ``text`` part
   (never raises).
-- Backward compatible: callers that still expect ``str`` content can
-  fall back to ``ContentPart.from_text()``.
 """
 
 from __future__ import annotations

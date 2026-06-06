@@ -76,30 +76,3 @@
   </button>
   {%- endif -%}
 {%- endmacro %}
-
-{# Legacy btn — uses canonical HIFI class names (btn, btn primary, btn sm)
-   Signature: btn(label, variant, size, type, href, extra_class)
-   Additionally supports: data_action, disabled, icon, aria_label
-#}
-{% macro btn(label, variant='secondary', size='md', type='button', href=None, extra_class='', data_action=None, disabled=False, icon=None, aria_label=None) -%}
-  {%- set classes = ['btn'] -%}
-  {%- if variant == 'primary' -%}
-    {%- set _ = classes.append('primary') -%}
-  {%- elif variant and variant != 'secondary' -%}
-    {%- set _ = classes.append(variant) -%}
-  {%- endif -%}
-  {%- if size == 'sm' -%}
-    {%- set _ = classes.append('sm') -%}
-  {%- endif -%}
-  {%- if extra_class -%}
-    {%- for cls in extra_class.split() -%}
-      {%- set _ = classes.append(cls) -%}
-    {%- endfor -%}
-  {%- endif -%}
-  {%- set cls = classes | join(' ') -%}
-  {%- if href -%}
-    <a class="{{ cls }}" href="{{ href }}"{%- if data_action %} data-action="{{ data_action }}"{% endif -%}>{{ label }}</a>
-  {%- else -%}
-    <button type="{{ type }}" class="{{ cls }}"{%- if data_action %} data-action="{{ data_action }}"{% endif -%}{%- if disabled %} disabled{% endif -%}{%- if aria_label %} aria-label="{{ aria_label }}"{% endif -%}>{%- if icon %}<span class="ui-icon" aria-hidden="true">{{ icon }}</span> {% endif %}{{ label }}</button>
-  {%- endif -%}
-{%- endmacro %}

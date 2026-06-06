@@ -62,7 +62,6 @@ PAGE_SPECIFIC_SELECTORS = [
     ".sessions-filter-card", ".sessions-control-row",
     ".sd-hero", ".sd-tabs", ".trace-table", ".trace-round",
     ".hero-metrics", ".project-cell", ".project-name", ".project-tooltip",
-    ".agent-cell", ".agent-main", ".efficiency",
     ".glossary-table", ".term-cell", ".formula-cell", ".sample-cell",
     ".state-panel", ".error-icon", ".error-title", ".error-description",
     ".metric-grid--glossary",
@@ -85,7 +84,6 @@ KNOWN_CSS = {
     "css/sessions-list.css",
     "css/session-detail.css",
     "css/projects.css",
-    "css/agents.css",
     "css/glossary.css",
     "css/states.css",
     "css/ui-primitives.css",
@@ -334,7 +332,6 @@ def main():
         ROOT / "css/sessions-list.css",
         ROOT / "css/session-detail.css",
         ROOT / "css/projects.css",
-        ROOT / "css/agents.css",
         ROOT / "css/glossary.css",
         ROOT / "css/states.css",
     ]

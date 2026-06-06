@@ -162,21 +162,7 @@ class LLMResponseAttribution:
     availability_rows: list[AvailabilityRow | dict]
 
 
-# ─── Re-exports from new core models (v2, backward compatible) ──────
-# 新架构的核心数据模型通过 contracts.py 重新导出，保持旧 import 路径兼容。
-
-from session_browser.attribution.core.models import (
-    ContentRef,
-    Evidence,
-    PromptSpan,
-    UsageBreakdown,
-    AttributionResult,
-    CallCreditSlice,
-    CreditAttribution,
-)
-
 __all__ = [
-    # Old public contracts
     "ValuePrecision",
     "ValueSource",
     "AttributedValue",
@@ -185,12 +171,4 @@ __all__ = [
     "AvailabilityRow",
     "LLMRequestAttribution",
     "LLMResponseAttribution",
-    # New v2 core models
-    "ContentRef",
-    "Evidence",
-    "PromptSpan",
-    "UsageBreakdown",
-    "AttributionResult",
-    "CallCreditSlice",
-    "CreditAttribution",
 ]

@@ -15,6 +15,8 @@ import pytest
 from session_browser.web.template_env import (
     normalize_llm_content,
     render_llm_blocks_html,
+)
+from session_browser.web.renderers.llm_blocks import (
     _detect_line_number_gutter,
     _strip_line_number_gutter,
     _infer_code_language,

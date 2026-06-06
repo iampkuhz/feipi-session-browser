@@ -160,18 +160,6 @@ class TestProjectsTemplatePathDisplay:
                 assert "relative_to_repo" not in line
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
-    @pytest.mark.skip(reason="data-clipboard-text / copy-project-path not implemented in project_cell macro")
-    def test_path_copy_uses_full_project_key(self):
-        """复制按钮应通过 data-clipboard-text 使用完整 project_key。"""
-        content = _read_template()
-        # projects.html 将完整 p.project_key 作为 path 参数传递给宏
-        macro = _read_ui_primitives()
-        assert 'data-clipboard-text="{{ path }}"' in macro, \
-            "project_cell macro must have data-clipboard-text bound to path"
-        assert 'data-action="copy-project-path"' in macro, \
-            "project_cell macro must have copy-project-path action"
-
-    @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_path_tooltip_shows_full_key(self):
         """工具提示应显示完整 project_key。"""
         content = _read_template()
@@ -589,11 +577,10 @@ class TestProjectsRowStructure:
             "project_cell macro must define path-copy-btn class"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
-    @pytest.mark.skip(reason="copy-project-path not implemented in project_cell macro (pre-existing)")
     def test_path_copy_button_data_action(self):
         # 复制按钮 data-action 在宏中定义
-        assert 'data-action="copy-project-path"' in _read_ui_primitives(), \
-            "project_cell macro must have data-action='copy-project-path'"
+        assert 'data-action="copy"' in _read_ui_primitives(), \
+            "project_cell macro must use canonical data-action='copy'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_agent_badge_cc(self):
@@ -869,13 +856,6 @@ class TestProjectsDataActions:
         "next-page",
     ]
 
-    # 在 project_cell 宏中定义的 actions（单独验证）
-    # 注意：open-project-link 通过 name_data_action 参数传递，
-    # 因此宏使用 data-action="{{ name_data_action }}" 而非字面字符串。
-    _MACRO_ACTIONS = [
-        "copy-project-path",
-    ]
-
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_data_action_present(self, action):
@@ -884,15 +864,6 @@ class TestProjectsDataActions:
         assert (f'data-action="{action}"' in content
                 or f"data_action='{action}'" in content), \
             f"Template must have data-action='{action}'"
-
-    @pytest.mark.parametrize("action", _MACRO_ACTIONS)
-    @pytest.mark.contract_case("UI-PROJECTS-001")
-    @pytest.mark.skip(reason="copy-project-path not implemented in project_cell macro (pre-existing)")
-    def test_macro_data_actions(self, action):
-        """验证 project_cell 宏中定义的 data-action。"""
-        macro = _read_ui_primitives()
-        assert f'data-action="{action}"' in macro, \
-            f"project_cell macro must have data-action='{action}'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_projects_passes_open_project_link(self):

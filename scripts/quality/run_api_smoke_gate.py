@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """P0 门禁：API Smoke 测试。
 
-覆盖 /dashboard、/sessions、/projects、/agents、session detail、round API、
+覆盖 /dashboard、/sessions、/projects、/glossary、session detail、round API、
 request attribution、response attribution。
 
 断言:
@@ -78,7 +78,6 @@ def main() -> None:
         "/dashboard",
         "/sessions",
         "/projects",
-        "/agents",
         "/glossary",
     ]
 

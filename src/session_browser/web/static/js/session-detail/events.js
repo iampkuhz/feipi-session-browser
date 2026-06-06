@@ -159,17 +159,6 @@
         event.preventDefault();
         event.stopPropagation();
         toggleAll(page);
-      } else if (action === 'copy-session-id') {
-        event.preventDefault();
-        event.stopPropagation();
-        var sessionId = actionEl.getAttribute('data-session-id');
-        if (!sessionId) {
-          var metaEl = document.querySelector('meta[name="session-id"]');
-          sessionId = metaEl ? metaEl.getAttribute('content') : '';
-        }
-        if (sessionId && navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(sessionId);
-        }
       } else if (action === 'jump-round') {
         event.preventDefault();
         event.stopPropagation();

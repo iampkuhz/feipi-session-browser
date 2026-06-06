@@ -215,6 +215,12 @@
   font-size: 13px;
   color: var(--sd-text);
 }
+.sd-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(72px, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
 /* ── LLM call card 3-column layout (metrics | note | actions) ── */
 .sd-llm-content-row {
   display: grid;
@@ -725,6 +731,7 @@ shift dot left to align with the container timeline line */
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+  contain: layout style;
 }
 .trace-table col.col-round {
   width: 64px;

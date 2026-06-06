@@ -18,7 +18,6 @@ from static_contract_check import (
     check_innerhtml_safety,
     check_css_ownership_gate,
     check_no_global_component_override,
-    check_no_new_legacy_selector,
     check_selector_depth_new_block,
     check_no_raw_innerhtml_new_block,
     check_no_layout_inline_style_new_block,
@@ -289,7 +288,7 @@ class TestCheckShellOwnership:
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_body_hide_left_warns(self, tmp_path):
         """页面 CSS 中的 body.hide-left 应告警。"""
-        css = tmp_path / "agents.css"
+        css = tmp_path / "page.css"
         css.write_text("body.hide-left .sidebar { display: none; }")
         warnings = check_shell_ownership([css])
         assert len(warnings) == 1
@@ -423,7 +422,7 @@ class TestCheckCssOwnershipGate:
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_body_state_in_page_blocks(self, tmp_path):
         """页面 CSS 定义 body.hide-left 应拦截。"""
-        css = tmp_path / "agents.css"
+        css = tmp_path / "page.css"
         css.write_text("body.hide-left .sidebar { display: none; }")
         errors = check_css_ownership_gate([css])
         assert len(errors) == 1
@@ -492,7 +491,7 @@ class TestCheckNoGlobalComponentOverride:
     @pytest.mark.contract_case("HOOK-HARNESS-013")
     def test_bare_modal_blocks(self, tmp_path):
         """页面 CSS 含裸 .modal 应拦截。"""
-        css = tmp_path / "agents.css"
+        css = tmp_path / "page.css"
         css.write_text(".modal { z-index: 1000; }")
         errors = check_no_global_component_override([css])
         assert len(errors) == 1
@@ -511,33 +510,6 @@ class TestCheckNoGlobalComponentOverride:
         css = tmp_path / "dashboard.css"
         css.write_text(".dashboard-page .payload-modal { width: 80vw; }")
         assert check_no_global_component_override([css]) == []
-
-
-# ── check_no_new_legacy_selector ──────────────────────────────────────
-
-
-class TestCheckNoNewLegacySelector:
-    @pytest.mark.contract_case("HOOK-HARNESS-013")
-    def test_clean_page_css_passes(self, tmp_path):
-        css = tmp_path / "dashboard.css"
-        css.write_text(".dashboard-page .card { padding: 16px; }")
-        assert check_no_new_legacy_selector([css]) == []
-
-    @pytest.mark.contract_case("HOOK-HARNESS-013")
-    def test_legacy_app_shell_blocks(self, tmp_path):
-        """页面 CSS 中新 .app-shell 引用应拦截。"""
-        css = tmp_path / "dashboard.css"
-        css.write_text(".app-shell { display: grid; }")
-        errors = check_no_new_legacy_selector([css])
-        assert len(errors) == 1
-        assert ".app-shell" in errors[0]
-
-    @pytest.mark.contract_case("HOOK-HARNESS-013")
-    def test_shell_css_exempt(self, tmp_path):
-        """shell.css 中的遗留引用是允许的。"""
-        css = tmp_path / "shell.css"
-        css.write_text(".app-shell { display: grid; }")
-        assert check_no_new_legacy_selector([css]) == []
 
 
 # ── check_selector_depth_new_block ────────────────────────────────────

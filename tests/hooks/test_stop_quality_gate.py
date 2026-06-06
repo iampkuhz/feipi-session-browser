@@ -36,7 +36,7 @@ def _setup_env(changed_files_content: list[dict], artifact: dict | None = None, 
         cf.write_text("\n".join(json.dumps(e) for e in changed_files_content) + "\n")
     if artifact is not None:
         qd.mkdir(parents=True, exist_ok=True)
-        (qd / "quality-gate-summary.json").write_text(json.dumps(artifact))
+        (qd / "quality-gate-summary.session-detail.json").write_text(json.dumps(artifact))
 
     # 修补模块全局变量
     _sqg.CHANGED_FILES = cf
