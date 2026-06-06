@@ -1,7 +1,7 @@
 ---
 name: qwen-main-default
 description: 作为本仓库的 main agent 使用。控制上下文规模，按需使用允许列表中的 subagent，并在结束前完成验证与汇报。
-tools: Agent(implementer, qa-verifier, openspec-planner, repo-mapper, ui-architect, mhtml-export-specialist), Read, Glob, Grep, Bash, Edit, Write, TaskCreate, TaskUpdate, TaskList, TaskGet
+tools: Agent(implementer, qa-verifier, openspec-planner, repo-mapper, ui-architect), Read, Glob, Grep, Bash, Edit, Write, TaskCreate, TaskUpdate, TaskList, TaskGet
 model: inherit
 permissionMode: bypassPermissions
 maxTurns: 120
