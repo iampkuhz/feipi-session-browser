@@ -1,13 +1,7 @@
 # /create-task-pack
 
-从已批准的 OpenSpec 变更创建串行任务文件。
+已废弃：请使用 `/execute-task-file`。本命令功能与 `/execute-task-file` 重叠，后续将移除。
 
 Arguments: `$ARGUMENTS`
 
-输出路径：
-
-```text
-tasks/changes/<change-id>/
-```
-
-每个任务文件必须包含：目标、范围、需检查的文件、可能变更的文件、验证命令、验收标准、风险和手动 QA。
+行为：转发到 `/execute-task-file`。

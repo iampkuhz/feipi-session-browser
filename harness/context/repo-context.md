@@ -28,18 +28,9 @@ feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Cla
 | `docs/` | 开发规范和 UI 规格 |
 | `prompts/` | 输入提示词包——非权威入口；请通过 `/change` 路由 |
 
-## OpenSpec 工作流
+## 变更工作流
 
-所有非平凡变更都通过 `/change <requirement-path>`：
-
-1. 在 `openspec/changes/<change-id>/` 下创建 proposal、design、tasks。
-2. 记录 `tmp/active_change.json`。
-3. 受保护文件编辑需有活跃变更（由 PreToolUse hooks 强制执行）。
-4. 编辑自动记录到 `tmp/task-evidence/<change-id>.jsonl`。
-5. QA verifier 在 stop 前验证。
-6. Stop hook 在变更未完成时阻塞。
-
-详见 `harness/workflow/change-lifecycle.md` 和 `harness/workflow/hook-enforcement.md`。
+所有非平凡变更都通过 `/change <requirement-path>` 路由。详见 `harness/workflow/change-lifecycle.md` 和 `.claude/hooks/README.md`。
 
 ## 默认 Agent
 

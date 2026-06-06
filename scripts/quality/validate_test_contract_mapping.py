@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """测试契约映射校验脚本。
 
-扫描 docs/acceptance/features/*.md 中的契约用例表，
+扫描 tests/acceptance/features/*.md 中的契约用例表，
 与 tests/**/*.py（pytest marker）和 tests/playwright/**/*.js|ts
 （Playwright test 标题）进行交叉校验，生成覆盖率报告和孤立测试报告。
 
@@ -65,7 +65,7 @@ _PLAYWRIGHT_TEST_RE = re.compile(
 
 
 def _parse_md_features(features_dir: Path) -> dict[str, dict]:
-    """从 docs/acceptance/features/*.md 解析契约用例。
+    """从 tests/acceptance/features/*.md 解析契约用例。
 
     返回 {case_id: {priority, layer, scenario, how, assertions,
                      test_type, related_check, code_location, source_file}}

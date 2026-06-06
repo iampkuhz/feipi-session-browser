@@ -25,7 +25,7 @@
 ## 文档结构
 
 ```
-docs/acceptance/
+tests/acceptance/
 ├── README.md                        ← 本文件
 ├── ACCEPTANCE_CHECK_MATRIX.md       ← 总矩阵表（所有用例 ID 一览）
 ├── PAGE_ACCEPTANCE_CHECKLIST.md     ← 页面功能标准 v3 逐页验收清单
@@ -44,9 +44,7 @@ docs/acceptance/
 │   ├── UI_GLOBAL_VISUAL.md          ← 全局视觉契约（视口、Shell、基础组件）
 │   ├── UI_INTERACTIONS.md           ← 跨页面交互（侧边栏、分页、AJAX）
 │   └── HOOK_HARNESS.md              ← Hook/Harness 质量门禁
-└── generated/
-    ├── TEST_CONTRACT_COVERAGE.md    ← 运行 validate_test_contract_mapping.py 生成
-    └── ORPHAN_TESTS.md              ← 运行 validate_test_contract_mapping.py 生成
+└── generated/                       ← 由 validate_test_contract_mapping.py 生成
 ```
 
 ## 页面功能标准 v3

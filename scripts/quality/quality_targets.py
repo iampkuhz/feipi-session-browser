@@ -175,7 +175,7 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
     },
     "testContractMapping": {
         "testContractMapping": [
-            "docs/acceptance/**/*.md",
+            "tests/acceptance/**/*.md",
             "tests/**/*.py",
             "tests/**/*.js",
             "tests/**/*.ts",

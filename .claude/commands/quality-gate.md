@@ -1,7 +1,3 @@
 # /quality-gate
 
-运行仓库质量门禁。
-
-优先运行 `scripts/harness/` 下的脚本，然后运行产品相关测试（如有）。
-
-返回一个表格，包含命令、结果和证据。
+已简化：请直接使用 `/openspec-validate` 或运行 `python3 scripts/quality/run_quality_gate.py`。

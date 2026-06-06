@@ -198,4 +198,97 @@ legacy-aliases.css  ← 组件别名层（旧变量映射 + 旧组件样式）
 
 ---
 
-*最后更新：2026/05/24*
+*最后更新：2026/06/06*
+
+---
+
+## JS 所有权
+
+### 规范 JS 文件
+
+```text
+js/ui_primitives.js          ← 共享原语交互
+js/dashboard.js              ← Dashboard 页
+js/sessions-list.js          ← Sessions 列表页
+js/session-detail.js         ← Session 详情页
+js/projects.js               ← Projects 页
+js/agents.js                 ← Agents 页
+js/glossary.js               ← Glossary 页
+js/states.js                 ← 状态页
+```
+
+共享工具 JS（非页面专属，由 base.html 加载）：
+`app.js`、`data-table.js`、`keyboard.js`、`payload_viewer.js`、`timeline.js`、`view-state.js`。
+
+### 禁止新增命名模式
+
+- `*-v{N}.css`（版本化 CSS）
+- `*-patch.css`
+- `*-fix.css`
+- `*-overlay.css`
+- `*-reference.css`
+- `session_browser_ui_v{N}.js`（版本化 JS）
+
+旧文件只能迁移、清理、停止引用，不能继续扩展。
+
+---
+
+## 选择器所有权矩阵
+
+| 选择器模式 | 归属文件 | 其他文件能否定义 |
+|---|---|---|
+| `:root { --* }` | tokens.css | ui-primitives.css 可新增组件 token |
+| `.shell`, `.app-shell` | shell.css | ❌ |
+| `.sidebar` | shell.css | ❌ |
+| `.topbar` | shell.css | ❌ |
+| `.content` | shell.css | ❌ |
+| `.footer` | shell.css | ❌ |
+| `.breadcrumb`, `.topbar-breadcrumb` | shell.css | legacy-aliases.css 可做 additive 补充（color、font-weight） |
+| `.main-panel`, `.main` | shell.css | ❌ |
+| `.sd-shell`, `.sd-content` | shell.css | ❌ |
+| `.btn`, `.badge`, `.tooltip`, `.popover`, `.toast` | ui-primitives.css | ❌ |
+| `.metric-card`, `.metric-grid` | ui-primitives.css | 页面 CSS 可做 layout override（如 grid columns） |
+| `.data-table` | ui-primitives.css | 页面 CSS 可做 cell 变体 |
+| `.sd-*` 别名 | legacy-aliases.css | — |
+| `.page-head`, `.chart-card` | dashboard.css | — |
+| `.sessions-page`, `.token-cell` | sessions-list.css | — |
+| `.sd-hero`, `.trace-table` | session-detail.css | — |
+| `.project-cell`, `.hero-metrics` | projects.css | — |
+| `.agent-cell`, `.efficiency` | agents.css | — |
+| `.glossary-table` | glossary.css | — |
+| `.state-panel` | states.css | — |
+
+---
+
+## 阻断规则
+
+### BLOCK（新增即阻断）
+
+1. **CSS 所有权越权**：页面 CSS 定义 shell grid（如 `.shell { grid-template-columns: ... }`）
+2. **原语组件重写**：页面 CSS 直接重写原语根组件（如 `.payload-modal {}`、`.data-table {}`、`.btn {}`）
+3. **新 `!important`**：任何新增的 `!important` 声明
+4. **新 `innerHTML =`**：JS 中新增原始 `innerHTML` 赋值（清空操作除外）
+5. **新 `.style.xxx =` 布局赋值**：JS 中新增 `el.style.display/width/position/... =` 布局操作
+6. **新遗留选择器引用**：新增引用遗留别名类名
+7. **新 ID 选择器**：新增 `#xxx` CSS 选择器（存量白名单除外）
+8. **选择器深度越界**：新选择器嵌套深度 > 3
+
+### WARN（存量技术债务，允许但应治理）
+
+1. 存量 `!important`
+2. 存量 `innerHTML` 使用
+3. 存量 `.style.xxx` 布局赋值
+4. 存量遗留选择器引用
+5. 存量 ID 选择器（白名单内）
+6. 存量选择器深度 = 3
+
+### JS 反绕过规则
+
+JS 文件禁止以下模式来绕过 CSS 所有权：
+
+- `element.innerHTML = "<html>..."` — 应使用 `textContent` 或安全 helper
+- `element.style.display = "none"` — 应使用 class 切换
+- `element.style.position = "absolute"` — 应使用 CSS 类
+- 任何直接通过 `.style` 设置 layout 相关属性的行为
+
+例外：CSS custom property 注入（如 `el.style.setProperty('--x', '...')`）是允许的。
