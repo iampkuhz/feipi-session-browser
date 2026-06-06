@@ -23,7 +23,7 @@
 | `button.nav-button[data-target="agents"]` | Agents | 侧边栏导航 | `data-action="nav" data-target="agents"` | 跳转到 Agents 页面 | 点击后导航到 `/agents` |
 | `button.nav-button[data-target="glossary"]` | Token Glossary | 侧边栏导航 | `data-action="nav" data-target="glossary"` | 跳转到 Token Glossary 页面 | 点击后导航到 `/glossary` |
 | `button.settings-button[data-action="settings"]` | Settings | 侧边栏底部 | `data-action="settings"` | 打开 Settings 抽屉：可配置数据源、扫描路径、显示偏好等 | 点击后 Settings 抽屉从右侧滑入 |
-| `button.icon-button[data-action="help"]` | ❔ (帮助) | Topbar 右侧 | `data-action="help"` | 打开帮助说明：解释 Sessions 页面字段、排序、过滤和快捷键 | 点击后弹出帮助面板 |
+| `button.icon-button[data-action="help"]` | ❔ (帮助) | Topbar 右侧 | `data-action="help"` | 打开帮助说明：解释 Sessions 页面字段、排序、过滤 | 点击后弹出帮助面板 |
 | `button.icon-button[data-action="local-command"]` | 💻 (命令面板) | Topbar 右侧 | `data-action="local-command"` | 打开本地命令说明：显示如何重新扫描 session 数据 | 点击后弹出命令面板 |
 | `a.sessions-title > a` (标题链接) | 会话标题（截断至 80 字符） | Table body 行 Title 列 | `href="/sessions/{agent}/{session_id}"` | 打开 Session detail 页面 | 点击标题链接直接跳转详情 |
 | `a.link-muted[data-project]` | 项目名称 | Table body 行 Project 列 | `href="/projects/{project_key}"` | 打开对应 Project 页面 | 点击项目名跳转到项目详情页 |

@@ -12,7 +12,7 @@
 | `button.nav-item[data-action="nav-projects"]` | Projects | Sidebar nav | `data-action="nav-projects"` | 导航到 Projects 列表页 | 无特殊状态 |
 | `button.nav-item[data-action="nav-agents"]` | Agents | Sidebar nav | `data-action="nav-agents"` | 导航到 Agents 列表页 | 无特殊状态 |
 | `button.nav-item[data-action="nav-glossary"]` | Token Glossary | Sidebar nav | `data-action="nav-glossary"` | 导航到 Token Glossary 页 | 无特殊状态 |
-| `button.nav-item.nav-item--footer[data-action="open-settings"]` | Settings | Sidebar footer | `data-action="open-settings"` | 打开 Settings 抽屉（`#settingsDrawer`），展示本地数据路径、主题、快捷键、扫描配置 | `title` 属性含中文说明 |
+| `button.nav-item.nav-item--footer[data-action="open-settings"]` | Settings | Sidebar footer | `data-action="open-settings"` | 打开 Settings 抽屉（`#settingsDrawer`），展示本地数据路径、主题、扫描配置 | `title` 属性含中文说明 |
 | `button.scope-switch__btn[data-scope="day"]` | Day | Topbar 右侧 scope-switch | `data-scope="day"` | 三张趋势图切换为 Day 粒度（最近 30 天），重绘图表 | 默认 `is-active` |
 | `button.scope-switch__btn[data-scope="week"]` | Week | Topbar 右侧 scope-switch | `data-scope="week"` | 三张趋势图同步切换为 Week 粒度（最近 12 周） | 互斥单选 |
 | `button.scope-switch__btn[data-scope="month"]` | Month | Topbar 右侧 scope-switch | `data-scope="month"` | 三张趋势图同步切换为 Month 粒度（最近 12 月） | 互斥单选 |

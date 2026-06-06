@@ -7,9 +7,8 @@
 
 | selector | label | location | data-action-or-href | expected behavior | validation notes |
 |---|---|---|---|---|---|
-| `aside.sidebar button.settings[data-action="settings"]` | Settings | Sidebar footer | `data-action="settings"` | 打开 Settings 面板：展示本地数据路径、主题、快捷键与扫描配置 | `title` 属性含中文说明；`aria-label="打开设置面板"` |
+| `aside.sidebar button.settings[data-action="settings"]` | Settings | Sidebar footer | `data-action="settings"` | 打开 Settings 面板：展示本地数据路径、主题与扫描配置 | `title` 属性含中文说明；`aria-label="打开设置面板"` |
 | `header.topbar button.icon-button[data-action="help"]` | ❓ | Topbar 右侧 | `data-action="help"` | 打开术语页帮助说明 | `aria-label="打开术语页帮助"` |
-| `header.topbar button.icon-button[data-action="shortcuts"]` | ⌨️ | Topbar 右侧 | `data-action="shortcuts"` | 打开快捷键说明面板 | `aria-label="打开快捷键说明"` |
 | `.metric-grid .metric-card .info-icon` (Token Types) | ℹ️ | Token Types metric card 标签行 | `title="查看 token 分类说明"` | 打开就地说明 popover，解释 Token Types 指标含义 | inline `.info-icon`；hover 显示 tooltip |
 | `.metric-grid .metric-card .info-icon` (Derived Metrics) | ℹ️ | Derived Metrics metric card 标签行 | `title="查看派生指标计算说明"` | 打开就地说明 popover，解释派生指标计算方式 | inline `.info-icon`；hover 显示 tooltip |
 | `.metric-grid .metric-card .info-icon` (Provider Fields) | ℹ️ | Provider Fields metric card 标签行 | `title="查看 provider 字段映射说明"` | 打开就地说明 popover，解释 provider 字段映射 | inline `.info-icon`；hover 显示 tooltip |
@@ -46,7 +45,6 @@
 | ⚙️ | Sidebar footer `.settings` button | Settings 入口图标 | decorative | 跟随 Settings 按钮点击打开面板 | `--icon-size-nav` (20px) |
 | › | Sidebar footer `.settings` button 右侧 | 展开/进入指示器 | decorative | 跟随 Settings 按钮点击 | `--icon-size-inline` (14px) |
 | ❓ | Topbar `.icon-button[data-action="help"]` | 帮助入口 | action | 点击打开术语页帮助说明 | `--icon-size-inline` (16px) |
-| ⌨️ | Topbar `.icon-button[data-action="shortcuts"]` | 快捷键入口 | action | 点击打开快捷键说明面板 | `--icon-size-inline` (16px) |
 | ℹ️ | 4 个 metric card `.metric-label .info-icon` | 指标口径说明入口 | action | hover 显示 tooltip；点击打开详细说明 popover | `--icon-size-inline` (14px) |
 | ℹ️ | Legend card `.section-head .info-icon` | 图例颜色定义说明入口 | action | hover 显示 tooltip；点击打开详细说明 popover | `--icon-size-inline` (14px) |
 | ℹ️ | 4 个 section card `.section-head .info-icon` | 术语组说明入口 | action | hover 显示 tooltip；点击打开详细说明 popover | `--icon-size-inline` (14px) |

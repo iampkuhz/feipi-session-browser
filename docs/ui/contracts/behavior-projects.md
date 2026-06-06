@@ -9,8 +9,8 @@
 
 | # | Selector / Label | Location | data-action / href | Expected Behavior | Validation |
 |---|---|---|---|---|---|
-| 1 | `a.settings` / "Settings" | Sidebar bottom | `data-action="open-settings"` | 打开 Settings 抽屉，展示数据目录、扫描配置、主题、快捷键 | HIFI: `data-action="open-settings"`；生产: `data-action="open-settings"` |
-| 2 | `button.icon-button[data-action="open-help"]` / "?" | Topbar right | `data-action="open-help"` | 打开帮助说明，展示本页字段含义、排序规则和快捷键 | HIFI: `data-action="open-help"`；生产: 无对应按钮 |
+| 1 | `a.settings` / "Settings" | Sidebar bottom | `data-action="open-settings"` | 打开 Settings 抽屉，展示数据目录、扫描配置、主题 | HIFI: `data-action="open-settings"`；生产: `data-action="open-settings"` |
+| 2 | `button.icon-button[data-action="open-help"]` / "?" | Topbar right | `data-action="open-help"` | 打开帮助说明，展示本页字段含义、排序规则 | HIFI: `data-action="open-help"`；生产: 无对应按钮 |
 | 3 | `button.icon-button[data-action="open-shell"]` / "⌨️" | Topbar right | `data-action="open-shell"` | 打开本地命令说明，展示如何重新扫描本地 agent sessions | HIFI: `data-action="open-shell"`；生产: 无对应按钮 |
 | 4 | `input.search[data-search="project-name"]` / search input | Filter card | `data-search="project-name"` | 按项目名称实时搜索，过滤表格行 | HIFI: `data-search="project-name"`；生产: `#project-search` + `filterProjects()` |
 | 5 | `button[data-action="clear-search"]` / "Clear" | Filter card | `data-action="clear-search"` | 清空项目名搜索，恢复完整项目列表 | HIFI: `data-action="clear-search"`；生产: `onclick="resetProjectFilters()"` |
@@ -50,7 +50,7 @@
 | 18 | `button[data-action="next-page"]` / "next ›" | Pagination | `data-action="next-page"` | 跳到下一页；尾页不显示 | HIFI: `data-action="next-page"`；生产: 无分页组件 |
 | 19 | `button[data-action="view-all"]` / "View all sessions" | Empty state strip | `data-action="view-all"` | 查看所有 Sessions（跳转到全局 Sessions 页面） | HIFI: 空状态条中的 View all 按钮；生产: 无对应按钮 |
 | 20 | `a.settings[data-action="settings"]` / "Settings" | Sidebar bottom | `data-action="settings"` | 打开 Settings 面板 | HIFI: `data-action="settings"`；生产: `data-action="open-settings"` |
-| 21 | `button.icon-btn[data-action="help"]` / "?" | Topbar | `data-action="help"` | 打开帮助说明和快捷键 | HIFI: `data-action="help"`；生产: 无对应按钮 |
+| 21 | `button.icon-btn[data-action="help"]` / "?" | Topbar | `data-action="help"` | 打开帮助说明 | HIFI: `data-action="help"`；生产: 无对应按钮 |
 | 22 | `button.icon-btn[data-action="shell"]` / "💻" | Topbar | `data-action="shell"` | 打开本地 CLI/open-folder 操作 | HIFI: `data-action="shell"`；生产: 无对应按钮 |
 
 ## 2. 图标行为表

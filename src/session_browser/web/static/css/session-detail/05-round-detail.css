@@ -464,12 +464,6 @@ red only on failed rows. */
   background: linear-gradient(90deg, #f7f9ff, #fff 44%);
   box-shadow: inset 3px 0 0 var(--brand, var(--accent));
 }
-.trace-row.keyboard-focus {
-  background: linear-gradient(90deg, #eef2ff, #fff 44%);
-  box-shadow: inset 3px 0 0 var(--purple, #7c3aed);
-  outline: 2px solid var(--purple, #7c3aed);
-  outline-offset: -2px;
-}
 .trace-row.is-jump-target {
   background: linear-gradient(90deg, #fef3c7, #fff 60%);
   box-shadow: inset 3px 0 0 var(--warn, #d97706);

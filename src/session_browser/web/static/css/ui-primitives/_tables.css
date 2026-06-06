@@ -484,13 +484,6 @@
   padding-left: 7px;
   /* compensate for 3px border */
 }
-/* Originally at style.css line 2137 */
-.data-table tbody tr.keyboard-focus {
-  background: #eef2ff;
-  box-shadow: inset 3px 0 0 var(--purple, #7c3aed);
-  outline: 2px solid var(--purple, #7c3aed);
-  outline-offset: -2px;
-}
 /* Originally at style.css line 2146 */
 .data-table tbody tr.row--failed:hover {
   background: var(--status-error-bg);
@@ -500,12 +493,6 @@
 .data-table tbody tr.row--error:hover {
   background: var(--status-error-bg);
   border-left: 3px solid var(--status-error);
-}
-/* Originally at style.css line 2156 */
-.data-table tbody tr.keyboard-focus:hover {
-  background: var(--accent-bg, #f0f4ff);
-  outline: 2px solid var(--accent, #3b82f6);
-  outline-offset: -2px;
 }
 /* Originally at style.css line 2163 */
 .data-table .status-cell {
@@ -563,13 +550,6 @@
 .data-table > .table-row.selected {
   background: linear-gradient(90deg, #f7f9ff, #fff 44%);
   box-shadow: inset 3px 0 0 var(--brand, var(--accent));
-}
-/* Originally at style.css line 1413 */
-.data-table > .table-row.keyboard-focus {
-  background: #eef2ff;
-  box-shadow: inset 3px 0 0 var(--purple, #7c3aed);
-  outline: 2px solid var(--purple, #7c3aed);
-  outline-offset: -2px;
 }
 /* Originally at style.css line 1420 */
 .data-table > .table-row:focus-visible {

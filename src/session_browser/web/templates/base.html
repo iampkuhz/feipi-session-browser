@@ -44,7 +44,7 @@
     {# script_extra 已移至 body 末尾全局 JS 之后，确保页面专用 JS 在全局依赖加载后才执行 #}
 </head>
 <body>
-    <div class="shell app-shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
+    <div class="shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
         <!-- Sidebar: grid column 1 -->
         <aside class="sidebar" aria-label="Primary navigation">
             <div class="brand-card">
@@ -103,7 +103,7 @@
         </aside>
 
         <!-- Main: grid column 2 -->
-        <main class="main main-panel"{% block main_attrs %}{% endblock %}>
+        <main class="main"{% block main_attrs %}{% endblock %}>
             <!-- Topbar -->
             <header class="topbar">
                 <div class="breadcrumb topbar-breadcrumb" aria-label="页面导航">
@@ -141,7 +141,6 @@
            /static/js/app.js            → 应用外壳初始化
            /static/js/data-table.js     → 表格通用交互
            /static/js/timeline.js       → 时间轴通用逻辑
-           /static/js/keyboard.js       → 键盘快捷键
 
          Layer 3 — Page-specific JS (per-page, via block head_extra):
            js/dashboard.js, js/sessions-list.js, js/session-detail.js,
@@ -155,7 +154,6 @@
     <script src="/static/js/app.js"></script>
     <script src="/static/js/data-table.js"></script>
     <script src="/static/js/timeline.js"></script>
-    <script src="/static/js/keyboard.js"></script>
     <script src="/static/js/trace-interactions.js"></script>
     {% endif %}
     {% if not export_mhtml %}

@@ -74,16 +74,8 @@ def write_quality_summary(base_dir: Path, summary: QualitySummary, target_specif
     summary_path = out_dir / filename
     summary_path.write_text(json.dumps(asdict(summary), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    # 兼容 Stop hook 默认文件名：仅当不存在时写一份副本，避免覆盖其他 target。
-    compat = out_dir / "quality-gate-summary.json"
-    if not compat.exists() or not target_specific:
-        compat.write_text(json.dumps(asdict(summary), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
     details = out_dir / (f"gate-details.{summary.target}.json" if target_specific else "gate-details.json")
     details.write_text(json.dumps(summary.gateDetails, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    compat_details = out_dir / "gate-details.json"
-    if not compat_details.exists() or not target_specific:
-        compat_details.write_text(json.dumps(summary.gateDetails, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return summary_path
 
 

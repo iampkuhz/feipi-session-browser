@@ -8,7 +8,6 @@ runtime:
   hook_entry: .claude/hooks/
   python_package: scripts/claude_hooks
   log_dir: tmp/agent_logs/
-  legacy_log_dir: .agent
 
 entrypoints:
   deps: "./scripts/session-browser.sh deps"

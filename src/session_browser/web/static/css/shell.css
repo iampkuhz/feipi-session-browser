@@ -15,22 +15,15 @@
 }
 /* ─── Body class 切换规则（统一覆盖块） ───────────────────────
  * All body-level shell state rules are defined here in one block
- * to avoid specificity conflicts between .shell and .app-shell aliases.
+ * to avoid specificity conflicts.
  * .no-inspector variants use single-column;
  * others use appropriate column count.
- * See docs/ui/contracts/shell-state-contract.md §2 "specificity 竞争".
  */
 /* hide-left: sidebar hidden, main + inspector visible */
 body.hide-left .shell                  {
   grid-template-columns: minmax(0, 1fr) var(--inspector);
 }
 body.hide-left .shell.no-inspector     {
-  grid-template-columns: minmax(0, 1fr);
-}
-body.hide-left .app-shell              {
-  grid-template-columns: minmax(0, 1fr) var(--inspector);
-}
-body.hide-left .app-shell.no-inspector {
   grid-template-columns: minmax(0, 1fr);
 }
 /* hide-right: sidebar + main visible, inspector hidden */
@@ -40,19 +33,9 @@ body.hide-right .shell                 {
 body.hide-right .shell.no-inspector    {
   grid-template-columns: minmax(0, 1fr);
 }
-body.hide-right .app-shell             {
-  grid-template-columns: var(--sidebar) minmax(0, 1fr);
-}
-body.hide-right .app-shell.no-inspector {
-  grid-template-columns: minmax(0, 1fr);
-}
 /* focus: only main visible */
 body.focus .shell,
 body.focus .shell.no-inspector         {
-  grid-template-columns: minmax(0, 1fr);
-}
-body.focus .app-shell,
-body.focus .app-shell.no-inspector     {
   grid-template-columns: minmax(0, 1fr);
 }
 /* Hide sidebar/inspector when their columns are 0 */
@@ -63,9 +46,7 @@ body.focus .sidebar                    {
 body.focus .inspector                  {
   display: none;
 }
-.shell,
-.app-shell,
-.phase1-shell {
+.shell {
   min-width: 0;
 }
 .main,
@@ -79,30 +60,9 @@ body.focus .inspector                  {
   min-width: 0;
   max-width: 100%;
 }
-/* ─── Shell aliases (HIFI naming → production) ──────────────────
-* base.html uses both production (.shell/.main) and HIFI (.app-shell/.main-panel)
-* class names on the same element. These aliases ensure both names resolve correctly.
-* ─── App shell root (alias to .shell) ─── */
-.app-shell {
-  display: grid;
-  grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--inspector);
-  min-height: 100vh;
-}
-.app-shell.no-inspector {
-  grid-template-columns: var(--sidebar) minmax(0, 1fr);
-}
-/* body state rules for .app-shell are defined in the unified override block
-above (lines 298-305) to avoid specificity conflicts. */
-/* ─── Main panel (alias to .main) ─── */
-.main-panel {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
 /* ─── Sidebar: sticky 内嵌容器 ─────────────────────────────── */
 .sidebar {
   position: static;
-  /* 覆盖旧的 position: fixed — task 02 */
   background: rgba(255, 255, 255, 0.88);
   border-right: 1px solid var(--line);
   backdrop-filter: saturate(150%) blur(10px);
@@ -311,40 +271,7 @@ above (lines 298-305) to avoid specificity conflicts. */
   color: var(--brand);
 }
 
-/* ─── Sidebar collapse toggle（DEPRECATED: task 02; marked T053） ─── */
-.sidebar-toggle {
-  /* hide old collapse button — replaced by shell grid toggles */
-  display: none;
-}
-/* Expand button（DEPRECATED: task 02; marked T053） */
-.sidebar-toggle-expand {
-  /* hide old expand button — replaced by shell grid toggles */
-  display: none;
-}
-/* Collapsed state（DEPRECATED: task 02; marked T053） */
-body.sidebar-collapsed .sidebar {
-  /* replaced by body.hide-left in shell grid */
-  transform: translateX(calc(-1 * var(--sidebar-w)));
-}
-body.sidebar-collapsed .main-area {
-  margin-left: 0;
-}
-body.sidebar-collapsed .sidebar-toggle {
-  opacity: 0;
-  pointer-events: none;
-}
-body.sidebar-collapsed .sidebar-toggle-expand {
-  opacity: 1;
-  pointer-events: auto;
-}
-/* Transition（DEPRECATED: task 02; marked T053） */
-.sidebar {
-  /* transform transition no longer needed — shell grid handles it */
-  transition: none;
-}
-.main-area {
-  transition: margin-left 200ms ease;
-}
+
 /* ── Desktop: >=1400px ─────────────────────────────────────────── */
 @media (min-width: 1400px) {
   .main {

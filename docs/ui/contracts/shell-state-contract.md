@@ -21,7 +21,6 @@
 | 类 | 作用 |
 |---|---|
 | `.shell` | 主 grid 容器 |
-| `.app-shell` | `.shell` 的别名/兼容 |
 | `.phase1-shell` | Phase1 专用 shell，需要 override body state |
 | `.no-inspector` | 标记没有 inspector 栏的页面 |
 
@@ -29,12 +28,8 @@
 
 `css/shell.css` 中 `grid-template-columns` 在以下区域定义 shell 布局：
 
-- lines 10-80: `.shell` + body state 规则
-- lines 82-110: `.app-shell` + body state 规则（aliases）
-- lines 210-240: `.phase1-shell` override
-- lines 320-360: 媒体查询中 body state override
-
-`style.css` 中的 shell grid 已抽取至 `css/shell.css`（Task 05）。
+- `.shell` + body state 规则（统一在 body class 切换块中定义）
+- `.phase1-shell` override（如有）
 
 ### 当前 grid 规则（desktop）
 
@@ -44,17 +39,15 @@
 .shell.no-inspector     { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
 
 /* hide-left */
-body.hide-left .shell                  { grid-template-columns: 0 minmax(0, 1fr) var(--inspector); }
-body.hide-left .shell.no-inspector     { grid-template-columns: 0 minmax(0, 1fr); }
+body.hide-left .shell                  { grid-template-columns: minmax(0, 1fr) var(--inspector); }
+body.hide-left .shell.no-inspector     { grid-template-columns: minmax(0, 1fr); }
 
 /* hide-right */
-body.hide-right .shell { grid-template-columns: var(--sidebar) minmax(0, 1fr) 0; }
+body.hide-right .shell { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
 
 /* focus */
-body.focus .shell       { grid-template-columns: 0 minmax(0, 1fr) 0; }
+body.focus .shell       { grid-template-columns: minmax(0, 1fr); }
 ```
-
-`.app-shell` 有相同规则（lines 296-305）。
 
 ---
 
@@ -69,9 +62,7 @@ body.focus .shell       { grid-template-columns: 0 minmax(0, 1fr) 0; }
 
 ### 2. specificity 竞争
 
-- `.shell` (0,1,0) vs `.app-shell` (0,1,0) — 同级别别名
-- `body.hide-left .shell` (0,2,0) vs `body.hide-left .app-shell` (0,2,0) — 同级别
-- `.phase1-shell` override 需要更高 specificity
+- `.shell` 与 `.phase1-shell` 需要明确的 specificity 层级
 - 媒体查询中的 override 与 desktop 规则存在层叠
 
 ### 3. 页面 CSS 可能污染 shell grid
@@ -85,9 +76,9 @@ body.focus .shell       { grid-template-columns: 0 minmax(0, 1fr) 0; }
 
 ### 边界规则
 
-1. **shell grid 只能在 shell 层定义**：`grid-template-columns` 对 `.shell` / `.app-shell` / `.phase1-shell` 的定义只能在 `style.css` 的 shell 层中出现。
+1. **shell grid 只能在 shell 层定义**：`grid-template-columns` 对 `.shell` / `.phase1-shell` 的定义只能在 `shell.css` 中出现。
 
-2. **page CSS 不得定义 shell grid-template-columns**：`session-detail.css`、`dashboard.css` 等页面 CSS 不得对 `.shell`、`.app-shell`、`.phase1-shell` 设置 `grid-template-columns`。
+2. **page CSS 不得定义 shell grid-template-columns**：`session-detail.css`、`dashboard.css` 等页面 CSS 不得对 `.shell`、`.phase1-shell` 设置 `grid-template-columns`。
 
 3. **body 状态类只能控制布局状态，不得控制组件内部样式**：`body.hide-left`、`body.hide-right`、`body.focus` 只能影响 shell grid 的 column visibility，不得影响组件内部样式。
 

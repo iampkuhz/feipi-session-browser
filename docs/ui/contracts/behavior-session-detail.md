@@ -11,7 +11,7 @@
 
 | # | Selector | Label | Location | data-action / href | Expected Behavior | Validation |
 |---|---|---|---|---|---|---|
-| 1 | `.settings-link` / `[data-action="settings"]` | Settings | Sidebar footer | `data-action="settings"` | 打开 Settings 面板，展示本地数据路径、主题、快捷键与扫描配置。 | Settings 面板可见且内容正确。 |
+| 1 | `.settings-link` / `[data-action="settings"]` | Settings | Sidebar footer | `data-action="settings"` | 打开 Settings 面板，展示本地数据路径、主题与扫描配置。 | Settings 面板可见且内容正确。 |
 | 2 | `[data-action="help"]` | Help | Topbar right | `data-action="help"` | 打开帮助浮层或文档。 | 帮助浮层弹出。 |
 | 3 | `[data-action="shell"]` | CLI | Topbar right | `data-action="shell"` | 展示 CLI 命令面板或复制 CLI 路径。 | CLI 面板可见。 |
 | 4 | `[data-action="copy"]` (hero) | Copy URL | Hero title line, right of URL | `data-action="copy"` | 将完整 session URL 复制到剪贴板。 | Toast 提示 "Copied"。 |

@@ -15,7 +15,7 @@
 | `a.nav-link[data-target="projects"]` / sidebar `a:contains("Projects")` | Projects | 侧边栏导航 | `href="/projects"` | 跳转到 Projects 列表页 | 点击后导航到 `/projects` |
 | `a.nav-link[data-target="glossary"]` / sidebar `a:contains("Token Glossary")` | Token Glossary | 侧边栏导航 | `href="/glossary"` | 跳转到 Token Glossary 页面 | 点击后导航到 `/glossary` |
 | `a[data-action="settings"]` / sidebar `.settings-link` | Settings | 侧边栏底部 | `data-action="settings"` | 打开 Settings 抽屉：配置本地数据路径、主题、扫描策略 | 点击后 Settings 抽屉从右侧滑入 |
-| `button[data-action="help"]` / `.icon-btn` | 帮助 (emoji: ❔) | Topbar 右侧 | `data-action="help"` | 打开帮助面板：展示 Agents 页面字段说明、排序和快捷键 | 点击后弹出帮助面板 |
+| `button[data-action="help"]` / `.icon-btn` | 帮助 (emoji: ❔) | Topbar 右侧 | `data-action="help"` | 打开帮助面板：展示 Agents 页面字段说明、排序 | 点击后弹出帮助面板 |
 | `button[data-action="shell"]` / `.icon-btn` | 终端 (emoji: ⌘/⌨️) | Topbar 右侧 | `data-action="shell"` | 打开本地命令面板：展示重新扫描 session 数据的方法 | 点击后弹出命令面板 |
 | `th.sort[data-action="sort"][data-sort="sessions"]` | Sessions ↕ | All Agents 表头 | `data-action="sort" data-sort="sessions"` | 按 session 数排序（首次 desc，再次 asc），刷新表格 | 点击后行顺序改变；`active-sort` class 切换 |
 | `th.sort[data-action="sort"][data-sort="projects"]` | Projects ↕ | All Agents 表头 | `data-action="sort" data-sort="projects"` | 按 project 数排序 | 点击后行顺序改变 |

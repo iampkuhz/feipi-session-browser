@@ -40,6 +40,5 @@
     "web/static/css/ui-primitives/_tables.css:.data-table.sessions-grid .table-head .th.sortable button",
     "web/static/css/ui-primitives/_modals.css:.payload-modal__rendered .rendered-message-list li .msg-role"
   ],
-  "new_legacy_selector_violations": [],
   "css_ownership_violations": []
 }
