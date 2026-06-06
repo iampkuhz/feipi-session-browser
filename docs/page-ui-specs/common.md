@@ -17,7 +17,9 @@
 - 宽屏空间优先给主列、标题列、图表和明细表，短字段列固定宽度。
 - 文本不得重叠；空间不足使用横向滚动、截断和 tooltip。
 - 不用营销式 hero、大装饰卡片、布局说明、快捷键说明占用首屏。
-- 不提供全局搜索入口；搜索只出现在 Sessions、Projects、Glossary 等需要检索当前列表的页面内。
+- 不提供全局搜索入口；搜索只出现在 Sessions、Projects、Token Glossary 三类需要检索当前列表的页面内。
+- 断点固定为标准桌面 `1024px-1439px`、宽屏 `>=1440px`、窄宽兜底 `<1024px`。
+- 窄宽兜底只用于单列堆叠、横向滚动和防重叠，不维护独立移动端信息架构。
 
 ## 共享组件
 
@@ -28,6 +30,45 @@
 - Chart 必须有标题、统计口径、legend、tooltip；无数据时显示空态，不渲染空白坐标区。
 - Tooltip 只解释 tokenbar、图表点、异常信号和不可用原因，不承载必须常驻的核心数据。
 - Modal/Drawer 用于 payload、request、response、attribution，必须支持关闭按钮、Esc、遮罩关闭和内部滚动。
+
+### Page Head
+
+- `Page Head` 是每个业务页面主内容区的顶部标题组件。
+- `Page Head` 左侧固定展示 title、subtitle、副信息行。
+- title 使用页面固定标题；对象详情页 title 使用当前对象名称。
+- subtitle 最长展示 1 行，超出后截断并提供 tooltip。
+- 副信息行只放 scope、active period、path summary、stat pills 中的页面核心元信息。
+- `Page Head` 右侧固定放当前页面主控件，数量上限为 3 个。
+- `Page Head` 不承载全局搜索、长说明、质量门结果、营销文案。
+
+### KPI Card
+
+- `KPI Card` 是所有一级指标卡的共享组件，固定包含 label、primary value、secondary metrics、definition tooltip。
+- primary value 使用 tabular number；token 数值缩写保留一位小数。
+- secondary metrics 数量固定为 2 到 4 个，具体项由页面规约声明。
+- secondary metric tooltip 固定展示 definition、formula、scope、source、precision。
+- primary value 为 `N/A` 时，secondary metrics 仍展示可计算项，tooltip 列出缺失字段和分母状态。
+- KPI card 不作为跳转入口；页面规约声明的行内按钮和链接承担跳转。
+
+### Filter Card
+
+- `Filter Card` 是列表页和术语页的共享筛选组件，固定包含 search input、filter controls、active filters、reset action。
+- search input label 必须可访问，placeholder 由页面规约声明。
+- filter controls 的候选项、默认值、URL 参数名由页面规约声明。
+- active filters 固定展示在控件行下方，格式为 `<Field>: <Value>`。
+- 单项 active filter remove 只清除该字段；reset action 清除页面规约声明的全部搜索和过滤字段。
+- 搜索输入固定使用 250ms debounce；选择型过滤器即时生效。
+- Filter Card 不承载排序控件；排序入口固定在 Data Table 表头。
+
+### State Panel
+
+- `State Panel` 是 404、Error、默认空态、过滤无结果、加载失败的共享状态组件。
+- State Panel 固定包含 title、message、reason、primary action、secondary action。
+- 404 的 `role` 固定为 `region`，`aria-live` 固定为 `polite`。
+- Error 的 `role` 固定为 `alert`，`aria-live` 固定为 `assertive`。
+- 默认空态和过滤无结果的 `role` 固定为 `status`，`aria-live` 固定为 `polite`。
+- primary action 必须是当前状态的最直接恢复路径；secondary action 必须是返回上一级列表、清除条件、查看说明中的一种。
+- action 不可执行时不渲染按钮，在 reason 中说明不可执行原因。
 
 ### Data Table
 
@@ -47,6 +88,8 @@
 - `Compact Table` 只用于 Top N、信号摘要、字段映射、术语解释。
 - `Compact Table` 不承载主列表检索、分页、批量浏览。
 - `Compact Table` 的长文本单元格必须截断并提供 tooltip。
+- `Compact Table` 的排序只改变当前表格显示顺序，不写入 URL。
+- 页面规约未声明排序时，Compact Table 不显示排序入口。
 
 ### Pagination
 
@@ -116,7 +159,7 @@
 - `shell.css` 只维护壳层；`ui-primitives.css` 维护共享组件；页面 CSS 只维护页面布局和特有组合。
 - 页面 CSS 不直接重写共享组件基础定义。
 - 不新增版本化、patch、fix、overlay、alias CSS 文件。
-- 当前 UI 只维护桌面端和宽屏桌面收敛规则，不维护移动端、平板专属断点。
+- 当前 UI 只维护标准桌面、宽屏和窄宽兜底规则，不维护独立移动端、平板端断点。
 
 ## 质量门
 
@@ -125,5 +168,5 @@
 - Jinja 关键组件在 StrictUndefined 下不得 undefined。
 - Browser smoke 覆盖 Dashboard All agents、Dashboard single agent、Sessions、Projects、Session Detail Trace、Session Detail Payload、Project Detail。
 - 交互 smoke 固定点击排序、搜索 focus、tokenbar hover、round toggle、request/response attribution、payload call selector。
-- UI 修改后按影响范围选择并运行相关 pytest、`python3 scripts/quality/run_quality_gate.py --target session-detail`、页面级 QA 脚本。
+- UI 修改后按影响范围选择并运行本次变更触达的 pytest、`python3 scripts/quality/run_quality_gate.py --target session-detail`、页面级 QA 脚本。
 - 验证失败必须保留失败命令和原因；未运行的命令不得描述为通过，失败的命令不得描述为通过。

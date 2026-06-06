@@ -16,7 +16,7 @@ Projects 是项目级入口页，展示已索引工作区的项目活动、agent
 
 ## 控件和候选项
 
-- 搜索框只搜索 project name 和 path，placeholder 固定为 `Search project name or path`。
+- 搜索框只搜索 project name 和 path，placeholder 固定为 `Search project name, path`。
 - Clear 按钮只清空 project 搜索。
 - 可排序列固定为 `Sessions`、`Tokens`、`Tools`、`Failed`、`First Seen`、`Last Active`。
 - Page size selector 候选项固定为 25、50、100，默认值固定为 25。

@@ -91,18 +91,18 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 ### 项目内 Sessions 表
 
 - 表格列固定为 `Session`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Created`、`Updated`。
-- `Session`：session title、短 session id、git branch。
-- `Agent`：标准 agent badge。
-- `Model`：model mono 文本。
-- `Tokens`：通用 `Token Cell`。
-- `Rounds`：assistant round 数。
-- `Tools`：tool call 数。
-- `Subagents`：subagent call 数。
-- `Duration`：通用时间指标 `Duration`。
-- `Process Time`：通用时间指标 `Process Time`。
-- `Failure`：failed tool result 数量。
-- `Created`：通用时间指标 `Created`。
-- `Updated`：通用时间指标 `Updated`。
+- `Session`：session title、短 session id、git branch；示例值 `Fix cache chart · a8120f1d · main`。
+- `Agent`：标准 agent badge；示例值 `Claude Code`。
+- `Model`：model mono 文本；示例值 `claude-sonnet-4.5`。
+- `Tokens`：通用 `Token Cell`；示例值 `184k`。
+- `Rounds`：assistant round 数；示例值 `18`。
+- `Tools`：tool call 数；示例值 `42`。
+- `Subagents`：subagent call 数；示例值 `2`。
+- `Duration`：通用时间指标 `Duration`；示例值 `36m`。
+- `Process Time`：通用时间指标 `Process Time`；示例值 `9m 42s`。
+- `Failure`：failed tool result 数量；示例值 `3 failed`。
+- `Created`：通用时间指标 `Created`；示例值 `2026-06-06 10:24`。
+- `Updated`：通用时间指标 `Updated`；示例值 `2 min ago`。
 
 ## 交互逻辑
 

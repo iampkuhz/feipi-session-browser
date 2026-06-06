@@ -12,7 +12,7 @@
 - `pages/04_projects.md`：Projects，项目列表和项目级统计入口。
 - `pages/05_project_detail.md`：Project Detail，单项目统计和项目内 sessions。
 - `pages/07_token_glossary.md`：Token Glossary，术语、token 口径和 provider 映射。
-- `pages/08_state_pages.md`：404、Error、空态等状态页。
+- `pages/08_state_pages.md`：404、Error、默认空态、过滤无结果状态页。
 
 ## 非目标页面
 

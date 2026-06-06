@@ -4,7 +4,7 @@
 
 - [ ] Sidebar 目标主导航为 Dashboard、Sessions、Projects；当前页高亮。
 - [ ] Topbar 面包屑清晰；Footer 保持只读本地语义。
-- [ ] Page Head、Card、Data Table、Compact Table、Badge、Token Cell、Tokenbar、Pagination、Tooltip、Modal 复用共享 contract。
+- [ ] Page Head、KPI Card、Filter Card、Card、Data Table、Compact Table、Badge、Token Cell、Tokenbar、Pagination、Tooltip、Modal、State Panel 复用共享 contract。
 - [ ] 页面文件按布局、控件、文案、数据口径、交互、状态和禁止项逐项对齐。
 - [ ] 文本不重叠；长路径、session id、model、token 使用截断并提供 tooltip。
 - [ ] 搜索、过滤、排序、分页状态可见且不丢失上下文。
@@ -21,6 +21,7 @@
 - [ ] Token 分析区固定为 Token Trend by Composition 和 Cache Health；Cache Health 只画 Cache Read Ratio 折线，Fresh spike 使用异常标记。
 - [ ] All agents scope 展示 Agent Contribution Comparison、All Agents、Agent / Model Efficiency。
 - [ ] 单 agent scope 展示 Model Mix、Tool Distribution、Failure Signals、Model Efficiency Detail、Agent Sessions。
+- [ ] Agent Sessions 表列完整：Title、Project、Model、Tokens、Rounds、Tools、Subagents、Duration、Process Time、Failure、Updated。
 - [ ] 不展示 Hot Sessions & Signals，不展示全局搜索，不展示独立 Agents 导航入口，不提供 Agent Detail 跳转入口。
 
 ## Sessions
@@ -58,3 +59,4 @@
 - [ ] Glossary 覆盖 token 组成、派生指标、provider 映射和 badge reference。
 - [ ] Glossary 搜索无结果状态可见。
 - [ ] 404、Error、空态使用统一状态组件，并提供可执行入口。
+- [ ] 404、Error、空态、过滤无结果使用固定 role 和 aria-live。

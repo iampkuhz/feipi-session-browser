@@ -7,7 +7,7 @@
 ## 页面布局
 
 - 404 模板：`404.html`；Error 模板：`error.html`。
-- 状态页加载 `states.css`，复用统一 `state-panel` 组件和共享 empty/error state 组件。
+- 状态页加载 `states.css`，复用 `common.md` 的 `State Panel` 组件和共享 empty/error state 组件。
 - 状态页内容居中于主内容区，不覆盖 Sidebar、Topbar、Footer。
 - Error details 使用 details/summary，原始错误放可滚动 pre。
 
@@ -17,6 +17,8 @@
 - Error 页面操作入口固定为 Dashboard。
 - 页面级空态固定提供一个主操作和一个次操作。
 - 过滤无结果状态固定提供 `Clear current filter` 和 `Clear all filters` 两个操作。
+- 404 的 primary action 固定为 `Go to Dashboard`；secondary actions 固定为 `Open Sessions`、`Open Projects`。
+- Error 的 primary action 固定为 `Go to Dashboard`；secondary action 固定为 `Reload page`。
 
 ## 文字内容
 
@@ -30,8 +32,11 @@
 
 - 404 返回 status 404。
 - Error 返回 status 500。
-- Error details 只展示必要错误摘要；不得泄露密钥、token、真实 session 原文、个人敏感路径。
-- 状态页必须有合适的 `role` 和 `aria-live`。
+- Error details 字段固定为 error type、request path、request id、timestamp、message summary。
+- Error details 不展示 stack trace、环境变量、密钥、token、真实 session 原文、个人敏感路径。
+- 404 的 `role` 固定为 `region`，`aria-live` 固定为 `polite`。
+- Error 的 `role` 固定为 `alert`，`aria-live` 固定为 `assertive`。
+- 页面级空态和过滤无结果的 `role` 固定为 `status`，`aria-live` 固定为 `polite`。
 
 ## 交互逻辑
 

@@ -286,8 +286,10 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
 #### 单 agent 模式：Agent Sessions
 
 - `Agent Sessions` 表固定展示当前 agent 范围内的 sessions。
-- 表格列固定为 `Title`、`Project`、`Model`、`Tokens`、`Workload`、`Failure`、`Updated`。
+- `Agent Sessions` 使用通用 `Data Table` 组件。
+- 表格列固定为 `Title`、`Project`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Updated`。
 - 默认排序固定为 `Updated` 降序。
+- 可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Updated`。
 - 分页固定每页 20 条。
 - `Tokens` 单元格必须使用 token cell。
 - 点击 project 单元格进入 Project Detail。
@@ -298,7 +300,11 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
   - `Project`：project key；示例值 `feipi-session-browser`。
   - `Model`：主模型名称；示例值 `claude-sonnet-4.5`。
   - `Tokens`：total tokens，tooltip 展示 Fresh、Cache Read、Cache Write、Output；示例值 `184k`。
-  - `Workload`：rounds、tools、duration 合并展示；示例值 `18 rounds · 42 tools · 36m`。
+  - `Rounds`：assistant round 数；示例值 `18`。
+  - `Tools`：tool call 数；示例值 `42`。
+  - `Subagents`：subagent run 数；示例值 `2`。
+  - `Duration`：通用时间指标 `Duration`；示例值 `36m`。
+  - `Process Time`：通用时间指标 `Process Time`；示例值 `9m 42s`。
   - `Failure`：failed tool result 数；示例值 `3 failed`。
   - `Updated`：最后 event 时间；示例值 `2 min ago`。
 
