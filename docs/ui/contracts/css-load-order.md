@@ -15,8 +15,7 @@
 1. `/static/css/base.css` — reset、html、body、typography、focus、reduced motion
 2. `/static/css/shell.css` — shell 布局骨架（Grid 三栏、body 状态切换、响应式断点）
 3. `/static/css/ui-primitives.css` — 共享原子组件（按钮、徽章、卡片、Modal 等）
-4. `/static/css/legacy-aliases.css` — 迁移兼容层，计划删除
-5. `{% block head_extra %}` — 页面专用 CSS，通过模板继承注入
+4. `{% block head_extra %}` — 页面专用 CSS，通过模板继承注入
 
 详见 `src/session_browser/web/templates/base.html:28-42`。
 
@@ -44,11 +43,9 @@
 
 4. **primitives 必须早于 page CSS**：`ui-primitives.css` 中的原子组件必须在页面专用 CSS 之前加载，以确保页面 CSS 可以覆写 primitive 样式。
 
-4. **legacy-aliases.css 作为组件别名层**：包含旧变量映射和组件样式。
-
 5. **page CSS 必须通过 head_extra 在 base CSS 之后加载**：禁止在 `head_extra` 之外加载页面专用 CSS。
 
-6. **不允许页面重复加载 base 已加载过的 CSS**：base.html 已加载 `tokens.css`、`base.css`、`shell.css`、`ui-primitives.css`、`legacy-aliases.css`，页面不得在 `head_extra` 中重复加载。**BLOCK**。
+6. **不允许页面重复加载 base 已加载过的 CSS**：base.html 已加载 `tokens.css`、`base.css`、`shell.css`、`ui-primitives.css`，页面不得在 `head_extra` 中重复加载。**BLOCK**。
 
 7. **payload-modal 裸定义应收敛至 ui-primitives.css**：在 `session-detail.css` 等处出现裸 `.payload-modal` 或 `#payload-modal` 定义时输出 **WARN**，不 BLOCK。
 

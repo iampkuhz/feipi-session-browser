@@ -48,9 +48,9 @@ LAYOUT_PROPERTIES = {
 # Selectors where additive (color/font/background only) is allowed in Layer 3
 SHELL_SELECTORS_ADDITIVE = {
     ".topbar-breadcrumb",
-    ".sidebar",       # legacy: background, border-right (additive)
-    ".main",          # legacy: min-width (additive)
-    ".sd-shell",      # legacy: background var; session-detail: CSS variables only
+    ".sidebar",       # compat-era: background, border-right (additive)
+    ".main",          # compat-era: min-width (additive)
+    ".sd-shell",      # compat-era: background var; session-detail: CSS variables only
 }
 
 # Page-specific selectors that should NOT appear in style.css
@@ -81,7 +81,6 @@ FORBIDDEN_PATTERNS = [
 
 # Known legitimate Layer 3/4 files (allowed to exist)
 KNOWN_CSS = {
-    "css/legacy-aliases.css",
     "css/dashboard.css",
     "css/sessions-list.css",
     "css/session-detail.css",
@@ -222,12 +221,9 @@ def check_forbidden_names(css_dir: Path) -> list[tuple[str, str]]:
     violations = []
     for f in sorted(css_dir.rglob("*.css")):
         rel = str(f.relative_to(css_dir))
-        if f.name in ("style.css", "ui-primitives.css", "legacy-aliases.css"):
+        if f.name in ("style.css", "ui-primitives.css"):
             continue
         if str(f.relative_to(css_dir)) in KNOWN_CSS:
-            # Check if deprecated files should be flagged
-            if str(f.relative_to(css_dir)) == "css/session-detail.css":
-                violations.append((rel, "deprecated — should be merged and removed"))
             continue
         for pat in FORBIDDEN_PATTERNS:
             if pat.search(f.name):
@@ -334,7 +330,6 @@ def main():
 
     # 1. Check shell selector violations in Layer 3/4 files
     layer34_files = [
-        ROOT / "css/legacy-aliases.css",
         ROOT / "css/dashboard.css",
         ROOT / "css/sessions-list.css",
         ROOT / "css/session-detail.css",

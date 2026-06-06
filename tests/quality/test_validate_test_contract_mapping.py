@@ -6,6 +6,8 @@ import pytest
 import sys
 from pathlib import Path
 
+pytestmark = pytest.mark.contract_case("HOOK-HARNESS-013")
+
 # 导入脚本中的内部函数
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = REPO_ROOT / "scripts" / "quality"
@@ -158,6 +160,24 @@ class TestParsePytestMarker:
         bindings = _parse_pytest_markers(tests_dir)
 
         assert len(bindings["SHARED-001"]["files"]) == 2
+
+    def test_extract_module_level_pytestmark(self, tmp_path: Path):
+        """模块级 pytestmark 绑定应被识别，避免同一测试文件重复贴相同 ID。"""
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_quality_gate.py").write_text(
+            "import pytest\n\n"
+            'pytestmark = pytest.mark.contract_case("HOOK-HARNESS-013")\n\n'
+            "def test_quality_gate_contract():\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+
+        bindings = _parse_pytest_markers(tests_dir)
+
+        assert "HOOK-HARNESS-013" in bindings
+        assert bindings["HOOK-HARNESS-013"]["type"] == "pytest"
+        assert bindings["HOOK-HARNESS-013"]["files"] == ["tests/test_quality_gate.py"]
 
     def test_skips_pycache(self, tmp_path: Path):
         """__pycache__ 目录下的 .py 文件应被跳过。"""

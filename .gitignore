@@ -60,5 +60,3 @@ node_modules/
 
 *.egg-info/
 /.traces/
-/.claude/refactor_remaining_autopilot/
-/.refactor-artifacts/

@@ -13,6 +13,8 @@ import pytest
 
 from session_browser.web.template_env import env
 
+pytestmark = pytest.mark.contract_case("UI-SD-020")
+
 
 def _render_payload_sources(payload_sources):
     macro = env.get_template("components/session_detail_timeline.html").module

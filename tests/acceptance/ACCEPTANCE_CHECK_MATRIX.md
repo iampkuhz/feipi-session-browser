@@ -54,7 +54,7 @@
 | DATA-PRESENTER-007 | P0 | data | `features/DATA_PRESENTERS.md` | `tests/web/test_sessions_pagination_has_next.py` |
 | DATA-PRESENTER-008 | P1 | data | `features/DATA_PRESENTERS.md` | `tests/backend/test_token_bar_normalization.py` |
 | DATA-PRESENTER-009 | P1 | data | `features/DATA_PRESENTERS.md` | `tests/session_detail/test_session_detail_llm_call_contract.py` |
-| DATA-PRESENTER-010 | P1 | data | `features/DATA_PRESENTERS.md` | `tests/session_detail/test_session_detail_llm_payload_semantics.py` |
+| DATA-PRESENTER-010 | P1 | data | `features/DATA_PRESENTERS.md` | `tests/session_detail/test_session_detail_api.py` |
 | DATA-PRESENTER-011 | P1 | data | `features/DATA_PRESENTERS.md` | `tests/session_detail/test_session_detail_round_consistency.py` |
 | DATA-PRESENTER-012 | P1 | data | `features/DATA_PRESENTERS.md` | `src/session_browser/web/presenters/agents.py` |
 | DATA-PRESENTER-013 | P2 | data | `features/DATA_PRESENTERS.md` | `tests/ui/test_token_variable_homology.py` |
@@ -126,7 +126,7 @@
 | UI-SD-008 | P0 | interaction | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail.spec.js` |
 | UI-SD-009 | P0 | visual | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail.spec.js` |
 | UI-SD-010 | P0 | interaction | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail.spec.js` |
-| UI-SD-011 | P0 | interaction | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail.spec.js` |
+| UI-SD-011 | P2 | interaction | `features/UI_SESSION_DETAIL.md` | — |
 | UI-SD-012 | P0 | interaction | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail.spec.js` |
 | UI-SD-013 | P0 | visual | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail-layout.spec.js` |
 | UI-SD-014 | P0 | visual | `features/UI_SESSION_DETAIL.md` | `tests/playwright/shell-states.spec.js` |
@@ -135,17 +135,18 @@
 | UI-SD-017 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_session_detail_trace_dom_contract.py` |
 | UI-SD-018 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_session_detail_trace_layout_contract.py` |
 | UI-SD-019 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_session_detail_trace_preview_contract.py` |
-| UI-SD-020 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/rendering/test_payload_modal_renderer_contract.py` |
+| UI-SD-020 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/test_session_detail_llm_attribution_modal_contract.py` |
 | UI-SD-021 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/rendering/test_tool_result_render.py` |
 | UI-SD-022 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/rendering/test_trace_header_contract.py` |
 | UI-SD-023 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/rendering/test_session_detail_tabs_contract.py` |
 | UI-SD-024 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_preview_tag.py` |
 | UI-SD-025 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/ui/test_tool_status.py` |
-| UI-SD-026 | P1 | data | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_missing_raw_payload.py` |
+| UI-SD-026 | P1 | data | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_session_detail_api.py` |
 | UI-SD-027 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail.spec.js` |
 | UI-SD-028 | P1 | visual | `features/UI_SESSION_DETAIL.md` | `tests/playwright/session-detail.spec.js` |
 | UI-SD-029 | P2 | visual | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_session_detail_noise_and_a11y.py` |
 | UI-SD-030 | P2 | visual | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_session_detail_hifi_contract.py` |
+| UI-SD-031 | P1 | data | `features/UI_SESSION_DETAIL.md` | `tests/session_detail/test_hero_subagent_count.py` |
 
 ## Projects（UI-PROJECTS-*）
 

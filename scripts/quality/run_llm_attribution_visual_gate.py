@@ -10,7 +10,7 @@ Usage:
         --url http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001
     python3 scripts/quality/run_llm_attribution_visual_gate.py \
         --url http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001 \
-        --out .agent/quality/llm-attribution-visual
+        --out test-results/quality/llm-attribution-visual
     python3 scripts/quality/run_llm_attribution_visual_gate.py --self-test
     python3 scripts/quality/run_llm_attribution_visual_gate.py --help
 """
@@ -25,7 +25,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # ── Default output directory ──
-DEFAULT_OUT = REPO_ROOT / ".agent" / "quality" / "llm-attribution-visual"
+DEFAULT_OUT = REPO_ROOT / "test-results" / "quality" / "llm-attribution-visual"
 
 # ── Thresholds ──
 OVERFLOW_MARGIN_PX = 2

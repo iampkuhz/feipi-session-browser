@@ -72,7 +72,7 @@ python3 -m compileall -q src || fail=1
 # CSS ownership validation
 css_output="$(python3 scripts/validate_css_ownership.py 2>&1)" || true
 css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
-css_expected=2  # session-detail.css deprecated + .sd-shell duplicate (pre-existing)
+css_expected=1  # .sd-shell duplicate (pre-existing)
 if [[ "$css_total" -gt "$css_expected" ]]; then
   echo "[FAIL] CSS ownership violations: $css_total (expected $css_expected or fewer)" >&2
   echo "$css_output" >&2

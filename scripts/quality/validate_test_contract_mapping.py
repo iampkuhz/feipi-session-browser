@@ -38,8 +38,9 @@ _MD_ROW_RE = re.compile(
 
 # pytest marker
 # @pytest.mark.contract_case("ID-1", "ID-2")
+# pytestmark = pytest.mark.contract_case("ID-1", "ID-2")
 _PYTEST_MARKER_RE = re.compile(
-    r'^\s*@pytest\.mark\.contract_case\((.*?)\)',
+    r'^\s*(?:@pytest\.mark\.contract_case|pytestmark\s*=\s*pytest\.mark\.contract_case)\((.*?)\)',
     re.MULTILINE
 )
 # 提取括号内引号中的 ID
@@ -471,9 +472,9 @@ def main() -> int:
         repo_root = Path(__file__).resolve().parent.parent.parent
         repo_root = repo_root.resolve()
 
-    features_dir = repo_root / "docs" / "acceptance" / "features"
+    features_dir = repo_root / "tests" / "acceptance" / "features"
     tests_dir = repo_root / "tests"
-    generated_dir = repo_root / "docs" / "acceptance" / "generated"
+    generated_dir = repo_root / "tests" / "acceptance" / "generated"
     tmp_dir = repo_root / "tmp" / "acceptance"
 
     # 检查 features 目录

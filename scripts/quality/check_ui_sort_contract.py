@@ -5,7 +5,7 @@
   1. 页面脚本加载 — /projects 和 /agents 模板必须包含对应 JS
   2. 排序按钮唯一 contract — 禁止多套排序按钮体系并存
   3. _tables.css 无重复 .data-table th rule
-  4. 脏 CSS 选择器禁令 — legacy-aliases、legacy alias 注释等
+  4. 脏 CSS 选择器禁令 — compat alias 注释等
   5. 共享 primitive 所有权 — projects.css/agents.css 不得重写共享 primitive
 
 用法:

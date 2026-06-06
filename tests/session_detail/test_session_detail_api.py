@@ -82,6 +82,7 @@ class TestPayloadApiEndpoint:
 class TestPayloadApiNoTruncation:
     """测试 API 返回完整、未截断的内容。"""
 
+    @pytest.mark.contract_case("DATA-PRESENTER-010")
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_text_not_truncated(self, api_payload_ids):
         """text 字段不得被截断（无 5000/10000 字符限制）。"""
@@ -137,6 +138,7 @@ class TestPayloadApi404:
             assert e.code == 404, f"Expected 404, got {e.code}"
 
     @pytest.mark.contract_case("ROUTE-API-002")
+    @pytest.mark.contract_case("UI-SD-026")
     def test_invalid_payload_id_returns_404(self, api_payload_ids):
         """请求不存在的 payload_id 必须返回 404。"""
         base_url, agent, session_id, _ = api_payload_ids

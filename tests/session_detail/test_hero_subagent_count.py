@@ -65,7 +65,7 @@ def _make_empty_round():
 class TestHeroSubagentCount:
     """Hero area subagent_count must reflect actual subagent run count."""
 
-    @pytest.mark.contract_case("UI-HERO-001")
+    @pytest.mark.contract_case("UI-SD-031")
     def test_subagent_count_matches_subagent_runs(self):
         """session_summary.subagent_count 必须等于 len(subagent_runs)。"""
         session = _FakeSession()
@@ -90,7 +90,7 @@ class TestHeroSubagentCount:
             f"subagent_count 应为 3，实际为 {vm['session_summary']['subagent_count']}"
         )
 
-    @pytest.mark.contract_case("UI-HERO-001")
+    @pytest.mark.contract_case("UI-SD-031")
     def test_subagent_count_zero_without_subagents(self):
         """无 subagent 的 session，subagent_count 必须为 0。"""
         session = _FakeSession()
@@ -109,7 +109,7 @@ class TestHeroSubagentCount:
             f"subagent_count 应为 0，实际为 {vm['session_summary']['subagent_count']}"
         )
 
-    @pytest.mark.contract_case("UI-HERO-001")
+    @pytest.mark.contract_case("UI-SD-031")
     def test_subagent_count_correct_in_slim_mode(self):
         """Slim mode 下 subagent_count 也必须正确（bug regression）。
 
@@ -138,7 +138,7 @@ class TestHeroSubagentCount:
             f"slim mode 下 subagent_count 应为 1，实际为 {vm['session_summary']['subagent_count']}"
         )
 
-    @pytest.mark.contract_case("UI-HERO-001")
+    @pytest.mark.contract_case("UI-SD-031")
     def test_subagent_count_single_run(self):
         """单个 subagent run 的场景。"""
         session = _FakeSession()
