@@ -86,7 +86,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - 每张 trend card 的标题栏右侧固定显示 `Latest` 和 `Range total` 两个紧凑 stat。
 - 每张 trend card 的图表宽度占卡片内容宽度 100%；图表绘图区高度固定为 240px 到 280px。
 - 每张 trend card 的图表左侧必须显示 y 轴标题，格式固定为 `Y-axis: <metric name> (<unit>)`。
-- 每张 trend card 的所有 range point 细节都通过 hover tooltip 和键盘 focus tooltip 展示，不把每个 range point 的数值同时铺成表格。
+- 每张 trend card 的所有 range point 细节都通过 `common.md` 的 `Chart Tooltip` 展示，不把每个 range point 的数值同时铺成表格。
 - 时间粒度控制固定影响三张 trend card、Token 分析区和 all agents 占比柱状图。
 - 时间粒度的数据窗口固定如下：
   - `Day`：最近 30 个自然日，x 轴标签格式 `MM-DD`。
@@ -94,7 +94,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
   - `Month`：最近 12 个自然月，x 轴标签格式 `YYYY-MM`。
 - `Latest` stat 展示当前可见窗口最后一个 range point 的 y 轴真实值。
 - `Range total` stat 展示当前可见窗口内所有 range point 的 y 轴真实值合计。
-- Hover 图表点必须高亮当前 range point；tooltip 必须展示该点的 y 轴真实值、占比、辅助指标。
+- Hover 图表点必须高亮当前 range point；tooltip 使用 `Chart Tooltip` 的 header、label、value、share 三列布局，并展示该点的 y 轴真实值、占比、辅助指标。
 
 #### Session Trend
 
@@ -104,6 +104,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - 图表 y 轴标题固定为 `Y-axis: Sessions (count)`。
 - `All agents` scope 下，每个柱子按 agent 分段堆叠，分段顺序固定为 Claude Code、Qoder、Codex。
 - 单 agent scope 下，每个柱子使用当前 agent 的单一颜色。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 `Range point`、`Sessions`、`Share of visible range`、`Delta from previous point`、`Claude Code sessions`、`Qoder sessions`、`Codex sessions`、`Failed-tool sessions`。
 - 单 agent scope 下 tooltip 中其它 agent 行不展示。
 - tooltip 示例固定包含 `06-06 · Sessions 42 · Share 8.4% · Delta +6 · Failed-tool sessions 3`。
@@ -117,6 +118,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - 折线只展示 `Total Tokens`；token 组成放在 `Token Trend by Composition` 卡片中展示。
 - `All agents` scope 下 tooltip 必须展示三个 agent 的 token 贡献值和占比。
 - 单 agent scope 下 tooltip 必须展示当前 agent 的 `Fresh`、`Cache Read`、`Cache Write`、`Output`。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局，token 行按 Fresh、Cache Read、Cache Write、Output 顺序展示。
 - tooltip 固定展示 `Range point`、`Total Tokens`、`Share of visible range`、`Delta from previous point`、`Fresh`、`Cache Read`、`Cache Write`、`Output`、`Cache Read Ratio`。
 - tooltip 示例固定包含 `2026-W23 · Total 2.4M · Fresh 520k · Read 1.3M · Write 180k · Output 400k · Cache 61.2%`。
 
@@ -128,6 +130,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - 图表 y 轴标题固定为 `Y-axis: User Prompts (count)`。
 - `All agents` scope 下，每个柱子按 agent 分段堆叠，分段顺序固定为 Claude Code、Qoder、Codex。
 - 单 agent scope 下，每个柱子使用当前 agent 的单一颜色。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 `Range point`、`User Prompts`、`Assistant Turns`、`Tool Calls`、`Prompts / Session`。
 - `All agents` scope 下 tooltip 追加三个 agent 的 user prompt 贡献值和占比。
 - tooltip 示例固定包含 `06-06 · User Prompts 318 · Assistant Turns 301 · Tool Calls 1,482 · Prompts / Session 7.6`。
@@ -145,6 +148,7 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
 - 图表绘图区高度固定为 220px 到 260px。
 - 卡片标题栏右侧固定显示 `Latest total` 和 `Range total`。
 - legend 固定展示四个 token 类型，每个 legend 项显示当前可见时间窗口内的合计和占比。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局，token 行按 Fresh、Cache Read、Cache Write、Output 顺序展示。
 - tooltip 固定展示 `Range point`、`Fresh`、`Cache Read`、`Cache Write`、`Output`、`Total Tokens`，每一项都显示数量和占比。
 - 该卡不渲染配套明细表；分段数量、占比、delta 全部通过 legend 和 tooltip 展示。
 - tooltip 示例固定包含 `06-06 · Fresh 520k · Read 1.3M · Write 180k · Output 400k · Total 2.4M`。
@@ -159,6 +163,7 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
 - Fresh spike 使用图表点上的红色三角标记展示，不再作为第二条折线展示。
 - Fresh spike 判定规则固定为：当前 range point 的 Fresh tokens 大于 `max(1.8 × rolling median fresh tokens, rolling median fresh tokens + 2 × MAD)`。
 - Fresh spike 的 rolling window 固定为 Day 最近 7 点、Week 最近 4 点、Month 最近 3 点；历史点不足时 Fresh spike 显示 `N/A`。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 `Range point`、`Cache Read Ratio`、`Input-side Tokens`、`Fresh`、`Cache Read`、`Cache Write`、`Fresh Spike`。
 - 卡片标题栏右侧固定显示 `Latest ratio`、`Lowest ratio`、`Fresh spikes` 三个紧凑 stat。
 - 该卡不渲染配套明细表；每个点的 Input-side Tokens、Fresh spike 阈值、Fresh spike 判定结果全部通过 tooltip 展示。
@@ -178,6 +183,7 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
 - 每张卡只展示一根柱子；柱子分段固定为 Claude Code、Qoder、Codex。
 - x 轴固定为 0% 到 100%；y 轴固定显示当前指标名称。
 - 每个分段内部显示 agent 名称和占比；分段宽度不足 56px 时只显示占比，agent 名称移入 tooltip。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 agent 名称、当前指标绝对值、当前指标占比、当前指标全体合计。
 - 三张图使用同一套 agent 颜色，颜色顺序固定为 Claude Code、Qoder、Codex。
 - 该区不渲染配套明细表；绝对值、占比、全体合计通过 tooltip 展示。
@@ -230,6 +236,7 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
 - y 轴显示 model 名称；x 轴显示 tokens。
 - 每个柱子右侧显示 token 占比和 session 数。
 - 柱子排序固定为 tokens 降序。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 `Model`、`Sessions`、`Session Share`、`Tokens`、`Token Share`、`Cache Read Ratio`、`Failed/session`。
 - tooltip 示例固定包含 `claude-sonnet-4.5 · Sessions 641 · Tokens 23.8M · Token Share 76.3% · Cache 63.0% · Failed 0.12/session`。
 
@@ -241,6 +248,7 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
 - 柱子排序固定为 calls 降序。
 - 工具名缺失时显示 `Unknown tool`。
 - 每个柱子右侧显示 call share 和 failure rate。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 `Tool`、`Calls`、`Call Share`、`Tokens`、`Token Share`、`Failed`、`Failure Rate`。
 - tooltip 示例固定包含 `Bash · Calls 1,840 · Call Share 20.6% · Tokens 5.4M · Failed 76 · Failure 4.1%`。
 
@@ -375,9 +383,9 @@ Token 分析区固定为两张卡片，顺序固定为 `Token Trend by Compositi
 
 - 切换 agent scope 后，全页所有数值和表格必须同步更新；不得保留旧 scope 的局部数据。
 - 切换时间粒度后，KPI 不变，Trend 总览区、Token 分析区、`Agent Contribution Comparison` 更新。
-- hover 任意图表点展示真实数值和占比；tooltip 不展示归一化后的内部绘图值。
+- hover 任意图表点展示真实数值和占比；tooltip 使用 `common.md` 的 `Chart Tooltip` 布局，不展示归一化后的内部绘图值。
 - hover 图表 legend 时，高亮对应序列，非对应序列降低透明度到 30%。
-- hover tokenbar 时展示 Fresh、Cache Read、Cache Write、Output 的数量和占比。
+- hover tokenbar 时使用 `common.md` 的 `Chart Tooltip` 布局展示 Fresh、Cache Read、Cache Write、Output 的数量和占比。
 - 点击 All agents 模式中的 agent 行切换 Dashboard scope，不进入新页面。
 - 点击 model efficiency 行进入带 agent/model 参数的 Sessions。
 - 点击 Agent Sessions 行进入 Session Detail。

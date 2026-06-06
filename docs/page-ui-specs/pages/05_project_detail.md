@@ -11,7 +11,7 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - Page Head 下方显示项目路径摘要，完整路径通过 hover tooltip 展示。
 - KPI 区固定为 5 张卡片：`Sessions`、`Agents`、`Total Tokens`、`Cache Read Ratio`、`Failed Tools`。
 - 分析区包含 `Project Token Trend`、`Agent Mix`、`Tool Hotspots`。
-- 下方是项目内 `Sessions` 表格，复用 Sessions 页面压缩列结构。
+- 下方是项目内 `Sessions` 表格，使用通用 `Data Table` 和 `Pagination` 组件。
 
 ## 控件和候选项
 
@@ -19,7 +19,8 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - Agent Mix 中 agent badge 点击进入 Dashboard，并带上对应 agent scope 参数。
 - Tool Hotspots 按 calls 降序展示。
 - 项目内 Sessions 表搜索范围固定为 title 和 session id。
-- 项目内 Sessions 表可排序列固定为 `Tokens`、`Workload`、`Failure`、`Updated`。
+- 项目内 Sessions 表可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Created`、`Updated`。
+- 项目内 Sessions 表 page size selector 候选项固定为 25、50、100，默认值固定为 25。
 
 ## 文字内容
 
@@ -34,7 +35,11 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 
 1. `Sessions`
    - 一级值：当前 project 下 session 总数。
-   - 二级指标固定为 `Today`、`7d Avg`、`Median Duration`。
+   - 二级指标固定为 `Today`、`7d Avg`、`Median Duration`、`Median Process Time`。
+   - `Today`：first user message timestamp 落在当前自然日内的 session 数。
+   - `7d Avg`：最近 7 个自然日每日 session 数的算术平均值。
+   - `Median Duration`：当前 project 下 session `Duration` 的中位数。
+   - `Median Process Time`：当前 project 下 session `Process Time` 的中位数。
 2. `Agents`
    - 一级值：当前 project 下出现过的 agent key 去重数。
    - 二级指标固定为 `Claude Code`、`Qoder`、`Codex`。
@@ -45,9 +50,14 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 4. `Cache Read Ratio`
    - 一级值：`Cache Read / Input-side Tokens`。
    - 二级指标固定为 `Eligible Sessions`、`Low-read Sessions`。
+   - `Eligible Sessions`：`Input-side Tokens > 0` 的 session 数。
+   - `Low-read Sessions`：eligible sessions 中 cache read ratio 小于 20.0% 的 session 数。
 5. `Failed Tools`
    - 一级值：当前 project failed tool result 数。
    - 二级指标固定为 `Failure Rate`、`Affected Sessions`、`Repeated Failure Sessions`。
+   - `Failure Rate`：`Failed Tools / Tool Calls`。
+   - `Affected Sessions`：failed tool result 数量大于 0 的 session 数。
+   - `Repeated Failure Sessions`：failed tool result 数量大于 1 的 session 数。
 - `Active Period` 放在 Page Head 副信息区，格式固定为 `Active: <first seen> to <last active>`。
 
 ### Project Token Trend
@@ -56,7 +66,8 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - x 轴显示当前时间粒度的 range point。
 - y 轴显示 total tokens。
 - 堆叠层顺序固定为 Fresh、Cache Read、Cache Write、Output。
-- 不渲染配套明细表；数值细节通过 hover tooltip 展示。
+- 不渲染配套明细表；数值细节通过 `common.md` 的 `Chart Tooltip` 展示。
+- tooltip 使用 header、label、value、share 三列布局。
 - tooltip 固定展示 Range point、Fresh、Cache Read、Cache Write、Output、Total Tokens、Cache Read Ratio。
 
 ### Agent Mix
@@ -64,6 +75,7 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - 图表类型固定为 100% 横向堆叠柱状图。
 - 分段固定为 Claude Code、Qoder、Codex。
 - 该卡不渲染配套表格。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 Agent、Sessions、Session Share、Tokens、Token Share、Failed Tools。
 
 ### Tool Hotspots
@@ -73,17 +85,24 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - 柱子排序固定为 calls 降序。
 - 每个柱子右侧显示 failure rate。
 - 不渲染配套表格。
+- tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 Tool、Calls、Tokens、Failed、Failure Rate。
 
 ### 项目内 Sessions 表
 
-- 表格列固定为 `Session`、`Agent / Model`、`Tokens`、`Workload`、`Failure`、`Updated`。
+- 表格列固定为 `Session`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Created`、`Updated`。
 - `Session`：session title、短 session id、git branch。
-- `Agent / Model`：agent badge 和 model mono 文本。
-- `Tokens`：统一 token cell。
-- `Workload`：rounds、tools、subagents、duration 合并展示。
+- `Agent`：标准 agent badge。
+- `Model`：model mono 文本。
+- `Tokens`：通用 `Token Cell`。
+- `Rounds`：assistant round 数。
+- `Tools`：tool call 数。
+- `Subagents`：subagent call 数。
+- `Duration`：通用时间指标 `Duration`。
+- `Process Time`：通用时间指标 `Process Time`。
 - `Failure`：failed tool result 数量。
-- `Updated`：last event time。
+- `Created`：通用时间指标 `Created`。
+- `Updated`：通用时间指标 `Updated`。
 
 ## 交互逻辑
 
@@ -91,7 +110,7 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - 点击 agent badge 进入 Dashboard 的对应 agent scope。
 - 点击 session 行进入 Session Detail。
 - 点击复制 session id 不触发行跳转。
-- Hover 图表点显示精确数值和百分比。
+- Hover 图表点使用 `common.md` 的 `Chart Tooltip` 布局显示精确数值和百分比。
 - Hover 长路径、长 model、长 session id 显示完整值。
 
 ## 状态

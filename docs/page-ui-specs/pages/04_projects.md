@@ -10,14 +10,16 @@ Projects 是项目级入口页，展示已索引工作区的项目活动、agent
 - Page Head 左侧显示 `Projects` 和一句工作区说明。
 - KPI 区固定展示 `Projects`、`Sessions`、`Total Tokens`、`Failed Tools` 四张卡。
 - Filter Card 放在 KPI 区下方，`All Projects` 表格上方。
+- `All Projects` 使用通用 `Data Table` 组件。
 - `All Projects` 表格占页面主宽度，支持横向滚动。
+- `All Projects` 底部分页器使用通用 `Pagination` 组件。
 
 ## 控件和候选项
 
 - 搜索框只搜索 project name 和 path，placeholder 固定为 `Search project name or path`。
 - Clear 按钮只清空 project 搜索。
-- 可排序列固定为 `Activity`、`Tokens`、`Tools / Failure`、`Last Active`。
-- Page size 候选项固定为 25、50、100。
+- 可排序列固定为 `Sessions`、`Tokens`、`Tools`、`Failed`、`First Seen`、`Last Active`。
+- Page size selector 候选项固定为 25、50、100，默认值固定为 25。
 
 ## 文字内容
 
@@ -53,17 +55,22 @@ Projects 是项目级入口页，展示已索引工作区的项目活动、agent
 
 ### All Projects 表格
 
-- 表格列固定为 `Project`、`Agents`、`Activity`、`Tokens`、`Tools / Failure`、`Last Active`。
+- 表格列固定为 `Project`、`Agents`、`Sessions`、`Tokens`、`Tools`、`Failed`、`First Seen`、`Last Active`。
 - `Project`：project name + display path；完整 path 放 tooltip。
   - 示例值：`feipi-session-browser · ~/Documents/tools/llm/...`。
 - `Agents`：项目内出现过的 agent 拆成多个独立 badge。
   - 示例值：`Claude Code`、`Codex`。
-- `Activity`：合并展示 sessions 和 active period。
-  - 示例值：`842 sessions · 2026-05-01 to 2026-06-06`。
-- `Tokens`：使用统一 token cell。
+- `Sessions`：该 project 下 session 总数。
+  - 示例值：`842`。
+- `Tokens`：使用通用 `Token Cell`。
   - 示例值：`31.2M`，tooltip 展示 Fresh、Cache Read、Cache Write、Output。
-- `Tools / Failure`：合并展示 tool calls 和 failed tool count。
-  - 示例值：`8,942 tools · 108 failed`。
+  - hover/focus tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
+- `Tools`：该 project 下 tool call 总数。
+  - 示例值：`8,942`。
+- `Failed`：该 project 下 failed tool result 数。
+  - 示例值：`108`。
+- `First Seen`：该 project 下最早 session created_at。
+  - 示例值：`2026-05-01`。
 - `Last Active`：project 内最后 session event 时间。
   - 示例值：`2 min ago`。
 
@@ -74,7 +81,7 @@ Projects 是项目级入口页，展示已索引工作区的项目活动、agent
 - 点击项目行和项目名进入 Project Detail。
 - 点击可排序表头切换排序方向，排序状态必须可见。
 - Hover project path 展示完整路径。
-- Hover tokenbar 展示四类 token 数量和占比。
+- Hover tokenbar 使用 `common.md` 的 `Chart Tooltip` 布局展示四类 token 数量和占比。
 
 ## 状态
 

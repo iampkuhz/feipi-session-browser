@@ -4,7 +4,7 @@
 
 - [ ] Sidebar 目标主导航为 Dashboard、Sessions、Projects；当前页高亮。
 - [ ] Topbar 面包屑清晰；Footer 保持只读本地语义。
-- [ ] Page Head、Card、Table、Badge、Token Cell、Pagination、Tooltip、Modal 复用共享 contract。
+- [ ] Page Head、Card、Data Table、Compact Table、Badge、Token Cell、Tokenbar、Pagination、Tooltip、Modal 复用共享 contract。
 - [ ] 页面文件按布局、控件、文案、数据口径、交互、状态和禁止项逐项对齐。
 - [ ] 文本不重叠；长路径、session id、model、token 使用截断并提供 tooltip。
 - [ ] 搜索、过滤、排序、分页状态可见且不丢失上下文。
@@ -27,7 +27,7 @@
 
 - [ ] 搜索覆盖标题、project、agent、model、session id。
 - [ ] 过滤覆盖 agent、model、project、status、failure。
-- [ ] 表格列完整：Session、Project、Agent / Model、Tokens、Workload、Failure、Updated。
+- [ ] 表格列完整：Session、Project、Agent、Model、Tokens、Rounds、Tools、Subagents、Duration、Process Time、Failure、Created、Updated。
 - [ ] Tokens cell 为数字 + tokenbar + tooltip。
 - [ ] 行跳转、排序、分页和 active filters 均可用。
 
@@ -41,7 +41,7 @@
 
 ## Projects
 
-- [ ] 表格列完整：Project、Agents、Activity、Tokens、Tools / Failure、Last Active。
+- [ ] 表格列完整：Project、Agents、Sessions、Tokens、Tools、Failed、First Seen、Last Active。
 - [ ] 多 agent 显示多个独立 badge。
 - [ ] 搜索、排序、分页、行跳转和 token cell 可用。
 
@@ -49,6 +49,7 @@
 
 - [ ] 顶部展示项目名、返回入口、路径摘要和完整路径。
 - [ ] KPI 覆盖 Sessions、Agents、Total Tokens、Cache Read Ratio、Failed Tools；Active Period 位于 Page Head 副信息。
+- [ ] 项目内 Sessions 表列完整：Session、Agent、Model、Tokens、Rounds、Tools、Subagents、Duration、Process Time、Failure、Created、Updated。
 - [ ] 有 Project Token Trend、Agent Mix、Tool Hotspots。
 - [ ] 项目内 sessions 表复用 Sessions contract。
 
