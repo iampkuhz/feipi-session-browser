@@ -7,5 +7,5 @@
 1. **读取活跃变更**：子 agent 必须先读取 `tmp/active_change.json` 获取上下文。
 2. **在变更范围内工作**：仅修改与活跃变更相关的文件，不扩大范围。
 3. **更新任务状态**：完成后标记任务复选框并添加验证说明。
-4. **遵守 Hook 约束**：子 agent 在与父 agent 相同的 hook 策略下运行。
+4. **遵守 Hook 约束**：子 agent 在与父 agent 相同的 hook 策略下运行；共享门禁真源见 `harness/agent-runtime.md`。
 5. **不得修改活跃变更注册**：不修改 `tmp/active_change.json`，不创建新变更目录。

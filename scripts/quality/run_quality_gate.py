@@ -184,10 +184,17 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True,
 # 02. gate 命令映射
 def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
     if gate == "settingsJson":
-        return ["python3", "-m", "json.tool", ".claude/settings.json"]
+        json_files = [".claude/settings.json", ".codex/hooks.json"]
+        existing = [f for f in json_files if (repo_root / f).exists()]
+        code = "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]"
+        return [sys.executable, "-c", code, *existing] if existing else []
     if gate == "bashSyntax":
         shell_files = [
             ".claude/hooks/stop.sh",
+            ".codex/hooks/pre_tool_guard.sh",
+            ".codex/hooks/post_tool_guard.sh",
+            ".codex/hooks/stop_check.sh",
+            ".qoder/hooks/stop_check.sh",
             "scripts/harness/doctor.sh",
         ]
         existing = [f for f in shell_files if (repo_root / f).exists()]
@@ -248,6 +255,9 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
                 "tests/hooks/test_claude_hooks_evidence.py",
                 "tests/quality/test_quality_artifact.py",
             ],
+            "acceptance-contracts": [
+                "tests/quality/test_contract_case_specs.py",
+            ],
             "index": ["tests/index/"],
         }
         items = [x for x in test_candidates.get(target, ["tests"]) if (repo_root / x).exists()]
@@ -268,6 +278,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return ["python3", "scripts/quality/check_raw_innerhtml.py", "--check"]
     if gate == "layoutInlineStyle":
         return ["python3", "scripts/quality/check_layout_inline_style.py", "--check"]
+    if gate == "acceptanceContracts":
+        return [sys.executable, "scripts/quality/validate_acceptance_contracts.py"]
     return []
 
 
@@ -339,7 +351,7 @@ def build_summary(target: str, change_id: str, started_at: str, details: list[Ga
 # 05. CLI
 def main() -> int:
     parser = argparse.ArgumentParser(description="Deterministic quality gate runner")
-    parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness", "index"])
+    parser.add_argument("--target", required=True, choices=["session-detail", "python-src", "hook-runtime", "harness", "acceptance-contracts", "index"])
     parser.add_argument("--change-id", required=True)
     parser.add_argument("--out", default="tmp/quality",
                         help="Quality artifact directory. Default: tmp/quality")

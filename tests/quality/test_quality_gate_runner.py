@@ -15,7 +15,11 @@ from scripts.quality.quality_artifact import (
     BLOCKED,
 )
 from scripts.quality.run_quality_gate import build_summary
-from scripts.quality.quality_targets import required_gates_for_target, validate_target
+from scripts.quality.quality_targets import (
+    applicable_gates_for_target,
+    required_gates_for_target,
+    validate_target,
+)
 
 
 class TestComputeOverall:
@@ -109,3 +113,17 @@ class TestQualityTargets:
         import pytest
         with pytest.raises(ValueError):
             validate_target("nonexistent")
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_acceptance_contract_gates(self):
+        gates = required_gates_for_target("acceptance-contracts")
+        assert "acceptanceContracts" in gates
+        assert "pytest" in gates
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_hook_runtime_runs_acceptance_contract_gate_for_validator_changes(self):
+        gates = applicable_gates_for_target(
+            "hook-runtime",
+            ["scripts/quality/validate_acceptance_contracts.py"],
+        )
+        assert "acceptanceContracts" in gates

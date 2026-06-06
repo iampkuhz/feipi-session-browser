@@ -159,7 +159,6 @@ class TestParseSessionsQueryParams:
 class TestComputePagination:
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
-    @pytest.mark.contract_case("DATA-PRESENTER-012")
     def test_empty_list(self):
         result = compute_pagination(0, 1, 20)
         assert result["limit"] == 20

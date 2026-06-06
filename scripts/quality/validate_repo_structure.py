@@ -23,7 +23,13 @@ REQUIRED_PATHS = [
     "scripts/quality/run_quality_gate.py",
     "scripts/quality/quality_targets.py",
     "scripts/quality/quality_artifact.py",
+    "scripts/quality/validate_acceptance_contracts.py",
+    "scripts/harness/agent_stop_check.py",
     "harness/README.md",
+    "harness/agent-runtime.md",
+    "docs/acceptance-contracts/README.md",
+    ".codex/hooks/stop_check.sh",
+    ".qoder/hooks/stop_check.sh",
     "tmp/.gitkeep",
 ]
 

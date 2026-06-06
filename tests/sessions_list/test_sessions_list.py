@@ -374,7 +374,6 @@ class TestSessionsEmptyState:
     """验证空状态渲染。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
-    @pytest.mark.contract_case("UI-SESSIONS-010")
     def test_empty_state_condition(self):
         content = _read_sessions()
         assert "{% if has_active_filter %}" in content or \

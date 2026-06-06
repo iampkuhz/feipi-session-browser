@@ -32,7 +32,7 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
      "change_path": "openspec/changes/<change-id>/",
      "started_at": "<ISO 8601 timestamp>",
      "source_request": "<原始用户请求或提示文件路径>",
-     "protected_roots": ["openspec/", "harness/", ".claude/", "CLAUDE.md"],
+     "protected_roots": ["openspec/", "harness/", ".claude/", ".codex/", ".qoder/", "CLAUDE.md"],
      "required_gates": ["scripts/openspec/validate_layout.py", ...]
    }
    ```
@@ -94,12 +94,12 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
 
 ## Hook 强制层
 
-仓库通过 `.claude/settings.json` 中定义的 hooks 强制 OpenSpec 变更存在：
+仓库通过 `.claude/settings.json` 中定义的 hooks 接入强制层；可复用门禁逻辑以 `harness/agent-runtime.md` 和 `scripts/harness/agent_stop_check.py` 为真源：
 
 - **PreToolUse（Write|Edit|MultiEdit）：** `scripts/hooks/guard_openspec_change.py` — 在 `openspec/changes/` 下没有活跃变更目录时阻止受保护文件编辑。
 - **PostToolUse（Write|Edit|MultiEdit）：** `.claude/hooks/post_tool_guard.sh` — 对编辑的 shell 和 JSON 文件做语法检查。
 - **PreToolUse（Bash）：** `.claude/hooks/pre_tool_guard.sh` — 阻止破坏性 shell 命令。
-- **Stop：** `.claude/hooks/stop_check.sh` — 警告未提交的本地文件和生成的产物。
+- **Stop：** `.claude/hooks/stop.sh` — 薄入口，转发到 `scripts/harness/agent_stop_check.py`，执行 OpenSpec 与 required quality gates。
 
 这些 hooks 是强制层。本技能编排流程，hooks 防止策略违规。
 

@@ -95,14 +95,15 @@ def compute_required_targets(changed_files: list[str], excluded: set[str]) -> li
     return [t for t in all_targets if t not in excluded]
 
 
-def run_gate(target: str, change_id: str) -> tuple[bool, str]:
+def run_gate(target: str, change_id: str, changed_files: list[str] | None = None) -> tuple[bool, str]:
     """Run run_quality_gate.py for a single target. Returns (passed, artifact_path)."""
+    changed_arg = "auto" if changed_files is None else json.dumps(changed_files, ensure_ascii=False)
     cmd = [
-        "python3",
+        sys.executable,
         str(REPO_ROOT / "scripts" / "quality" / "run_quality_gate.py"),
         "--target", target,
         "--change-id", change_id,
-        "--changed-files", "auto",
+        "--changed-files", changed_arg,
     ]
     artifact_path = str(QUALITY_DIR / change_id / f"quality-gate-summary.{target}.json")
 
@@ -134,6 +135,8 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Print what would run without executing")
     parser.add_argument("--include-session-detail", action="store_true",
                         help="Include session-detail in runner targets (default: excluded)")
+    parser.add_argument("--changed-files", default=None,
+                        help="JSON array of changed file paths. Defaults to changed-files.jsonl auto-read.")
     args = parser.parse_args()
 
     # Determine effective exclusions
@@ -145,7 +148,10 @@ def main() -> int:
         print("[run_required_quality_gates] session-detail excluded (handled by stop_quality_gate.py)", file=sys.stderr)
 
     change_id = resolve_change_id(args.change_id)
-    changed_files = get_changed_files()
+    if args.changed_files:
+        changed_files = json.loads(args.changed_files)
+    else:
+        changed_files = get_changed_files()
 
     print(f"[run_required_quality_gates] change-id={change_id}", file=sys.stderr)
     print(f"[run_required_quality_gates] changed-files={CHANGED_FILES.relative_to(REPO_ROOT)}", file=sys.stderr)
@@ -179,7 +185,7 @@ def main() -> int:
     blocked = False
     for target in sorted(all_required):
         print(f"[run_required_quality_gates] running target: {target}", file=sys.stderr)
-        passed, artifact_path = run_gate(target, change_id)
+        passed, artifact_path = run_gate(target, change_id, changed_files)
         status_str = "PASS" if passed else "FAIL"
         print(
             f"[run_required_quality_gates] {status_str} target={target} artifact={artifact_path}",

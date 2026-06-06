@@ -1,25 +1,11 @@
 #!/usr/bin/env bash
-# Stop: warn about local-only files and common generated artifacts.
+# Codex Stop: thin wrapper around the shared harness stop gate.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib/common.sh"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-cd "$ROOT" || exit $EXIT_WARN
+cd "$ROOT" || exit 1
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 
-FAIL=0
-
-if git status --short -- .claude/settings.local.json .mcp.json .env data output .venv .pytest_cache 2>/dev/null | grep -q .; then
-  hook_log "WARN" "local-only files or generated artifacts appear in git status"
-  git status --short -- .claude/settings.local.json .mcp.json .env data output .venv .pytest_cache >&2 || true
-  FAIL=1
-fi
-
-if [[ -f tmp/task-ledger.md ]] && ! grep -q '|.*ID.*任务.*状态' tmp/task-ledger.md 2>/dev/null; then
-  hook_log "WARN" "tmp/task-ledger.md table header not found"
-  FAIL=1
-fi
-
-[[ $FAIL -ne 0 ]] && exit $EXIT_WARN
-exit $EXIT_OK
+exec python3 "$ROOT/scripts/harness/agent_stop_check.py" --agent codex

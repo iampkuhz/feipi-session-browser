@@ -29,6 +29,8 @@
 | 路径 | 约束 |
 |---|---|
 | `.claude/` | 影响 Claude Code 运行、权限、hooks、agents |
+| `.codex/` | 影响 Codex hooks、agents 与本仓库入口 |
+| `.qoder/` | 影响 Qoder hooks、agents 与本仓库入口 |
 | `openspec/` | 影响规格真相和变更流程 |
 | `harness/` | 影响 agent 工作流和上下文包 |
 | `scripts/` | 影响本地验证、运行、质量门 |
@@ -43,6 +45,8 @@
 - 修改已有文件时优先局部编辑，避免整文件覆写。
 - 不覆盖用户未提交改动。
 - 不提交缓存、运行数据、真实 session 数据、密钥、token 或个人配置。
+- 仓库不维护“废弃”信息；不再需要的文档、契约用例和对应测试应直接删除，不保留“已废弃/Deprecated/历史保留”说明。
+- Claude Code、Codex、Qoder 可复用的 hook、subagent、skill 和质量门规则应沉淀到 `harness/` 或 `scripts/harness/`；`.claude/`、`.codex/`、`.qoder/` 只保留工具所需的薄入口。
 - 修改后检查 diff，确认没有引入无关文件。
 
 ## 验证原则

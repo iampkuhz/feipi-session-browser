@@ -22,16 +22,17 @@ class FileClassification:
 
 # 02. 分类规则
 RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
+    ("acceptance-contract", ["docs/acceptance-contracts/**"], True, "acceptance-contracts", "medium", True),
     ("ui-template", ["src/session_browser/web/templates/**/*.html", "src/session_browser/web/templates/*.html"], True, "session-detail", "medium", True),
     ("ui-css", ["src/session_browser/web/static/**/*.css", "src/session_browser/web/static/*.css"], True, "session-detail", "medium", True),
     ("ui-js", ["src/session_browser/web/static/**/*.js", "src/session_browser/web/static/*.js"], True, "session-detail", "medium", True),
     ("python-src", ["src/session_browser/**/*.py", "src/session_browser/*.py"], True, "python-src", "medium", True),
-    ("test", ["tests/**/*.py", "tests/*.py"], False, None, "low", True),
-    ("hook", [".claude/hooks/**", "scripts/claude_hooks/**", "scripts/hooks/**", "scripts/agent_hooks/**"], True, "hook-runtime", "high", True),
+    ("test", ["tests/**/*.py", "tests/*.py", "tests/**/*.js", "tests/*.js", "tests/**/*.ts", "tests/*.ts"], True, "acceptance-contracts", "medium", True),
+    ("hook", [".claude/hooks/**", ".codex/hooks/**", ".qoder/hooks/**", "scripts/claude_hooks/**", "scripts/hooks/**", "scripts/agent_hooks/**"], True, "hook-runtime", "high", True),
     ("quality-gate", ["scripts/quality/**"], True, "hook-runtime", "high", True),
     ("harness", ["harness/**", "scripts/harness/**"], True, "harness", "high", True),
     ("openspec", ["openspec/**"], True, "harness", "medium", True),
-    ("claude-config", [".claude/settings.json", ".claude/agents/**", ".claude/commands/**", ".claude/skills/**"], True, "hook-runtime", "high", True),
+    ("agent-config", [".claude/settings.json", ".claude/agents/**", ".claude/commands/**", ".claude/skills/**", ".codex/hooks.json", ".codex/agents/**", ".qoder/**"], True, "hook-runtime", "high", True),
     ("docs", ["README.md", "AGENTS.md", "CLAUDE.md", "docs/**"], False, None, "low", True),
     ("local-or-generated", ["tmp/**", "data/**", "output/**", ".venv/**", ".pytest_cache/**", "**/*.sqlite", "**/*.sqlite3", "**/*.db"], False, None, "local", True),
 ]
@@ -102,7 +103,11 @@ def _self_test() -> None:
     assert classify_file("src/session_browser/web/templates/session_detail.html").category == "ui-template"
     assert classify_file("src/session_browser/web/static/app.css").category == "ui-css"
     assert classify_file("src/session_browser/foo.py").quality_target == "python-src"
+    assert classify_file("docs/acceptance-contracts/features/DATA_PRESENTERS.md").quality_target == "acceptance-contracts"
+    assert classify_file("tests/backend/test_round_signals.py").quality_target == "acceptance-contracts"
     assert classify_file(".claude/settings.json").quality_target == "hook-runtime"
+    assert classify_file(".codex/hooks/stop_check.sh").quality_target == "hook-runtime"
+    assert classify_file(".qoder/hooks/stop_check.sh").quality_target == "hook-runtime"
     assert classify_file("tmp/agent_logs/session1/x.jsonl").category == "local-or-generated"
 
 

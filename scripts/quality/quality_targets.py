@@ -29,6 +29,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "repoSlimming",
         "rawInnerhtml",
         "layoutInlineStyle",
+        "acceptanceContracts",
     ],
     "harness": [
         "bashSyntax",
@@ -37,6 +38,10 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "repoStructure",
         "harnessStructure",
         "openspecLayout",
+    ],
+    "acceptance-contracts": [
+        "acceptanceContracts",
+        "pytest",
     ],
     "index": [
         "indexIntegrity",
@@ -85,9 +90,12 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         "settingsJson": [
             ".claude/settings.json",
             ".claude/settings.local.json",
+            ".codex/hooks.json",
         ],
         "bashSyntax": [
             ".claude/hooks/**/*.sh",
+            ".codex/hooks/**/*.sh",
+            ".qoder/hooks/**/*.sh",
             "scripts/hooks/**/*.sh",
             "scripts/agent_hooks/**/*.sh",
         ],
@@ -108,11 +116,15 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
         "doctor": [
             ".claude/hooks/**/*.sh",
+            ".codex/hooks/**/*.sh",
+            ".qoder/hooks/**/*.sh",
             ".claude/settings.json",
             "scripts/**/*.sh",
         ],
         "repoStructure": [
             ".claude/**",
+            ".codex/**",
+            ".qoder/**",
             "scripts/**/*.py",
             "scripts/**/*.sh",
             "AGENTS.md",
@@ -139,6 +151,10 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "src/session_browser/web/templates/**/*.html",
             "src/session_browser/web/static/**/*.js",
             "scripts/quality/check_layout_inline_style.py",
+        ],
+        "acceptanceContracts": [
+            "scripts/quality/validate_acceptance_contracts.py",
+            "tests/quality/test_contract_case_specs.py",
         ],
     },
     "harness": {
@@ -168,6 +184,26 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "src/session_browser/index/**/*.py",
             "src/session_browser/config.py",
             "scripts/quality/check_index_integrity.py",
+        ],
+    },
+    "acceptance-contracts": {
+        "acceptanceContracts": [
+            "docs/acceptance-contracts/**/*.md",
+            "tests/**/*.py",
+            "tests/**/*.js",
+            "tests/**/*.ts",
+            "scripts/quality/validate_acceptance_contracts.py",
+            "tests/quality/test_contract_case_specs.py",
+            "pyproject.toml",
+        ],
+        "pytest": [
+            "docs/acceptance-contracts/**/*.md",
+            "tests/**/*.py",
+            "tests/**/*.js",
+            "tests/**/*.ts",
+            "scripts/quality/validate_acceptance_contracts.py",
+            "tests/quality/test_contract_case_specs.py",
+            "pyproject.toml",
         ],
     },
 }

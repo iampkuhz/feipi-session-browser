@@ -33,6 +33,8 @@ PROTECTED_ROOTS = [
     "AGENTS.md",
     "openspec/",
     ".claude/",
+    ".codex/",
+    ".qoder/",
     "scripts/",
     "harness/",
     "src/",

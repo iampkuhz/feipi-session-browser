@@ -46,7 +46,11 @@ check_file .claude/hooks/tool-failure.sh
 check_file .claude/hooks/subagent-stop.sh
 check_file .claude/hooks/config-change.sh
 check_file .claude/hooks/lib/common.sh
+check_file .codex/hooks/stop_check.sh
+check_file .qoder/hooks/stop_check.sh
 check_file harness/manifest.yaml
+check_file harness/agent-runtime.md
+check_file scripts/harness/agent_stop_check.py
 check_dir src/session_browser
 check_dir tests
 check_dir scripts/claude_hooks
@@ -58,7 +62,7 @@ if [[ -f .claude/settings.json ]]; then
   }
 fi
 
-for script in scripts/session-browser.sh .claude/hooks/*.sh; do
+for script in scripts/session-browser.sh .claude/hooks/*.sh .codex/hooks/*.sh .qoder/hooks/*.sh; do
   [[ -f "$script" ]] || continue
   bash -n "$script" || fail=1
 done

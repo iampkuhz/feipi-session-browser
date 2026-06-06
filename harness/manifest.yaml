@@ -6,8 +6,13 @@ project:
 
 runtime:
   hook_entry: .claude/hooks/
+  shared_stop_entry: scripts/harness/agent_stop_check.py
   python_package: scripts/claude_hooks
   log_dir: tmp/agent_logs/
+  agent_entrypoints:
+    claude_stop: .claude/hooks/stop.sh
+    codex_stop: .codex/hooks/stop_check.sh
+    qoder_stop: .qoder/hooks/stop_check.sh
 
 entrypoints:
   deps: "./scripts/session-browser.sh deps"
@@ -23,6 +28,7 @@ quality:
     - python-src
     - hook-runtime
     - harness
+    - acceptance-contracts
 
 quality_gates:
   - name: python-compile
@@ -40,6 +46,7 @@ quality_gates:
 
 docs:
   - harness/README.md
+  - harness/agent-runtime.md
 
 local_only:
   - ".claude/settings.local.json"

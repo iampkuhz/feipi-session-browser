@@ -29,6 +29,8 @@ PROTECTED_ROOTS = [
     "openspec/",
     "harness/",
     ".claude/",
+    ".codex/",
+    ".qoder/",
     "CLAUDE.md",
     "AGENTS.md",
 ]

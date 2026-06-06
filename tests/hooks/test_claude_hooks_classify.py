@@ -26,5 +26,33 @@ def test_hook_classification():
 
 
 @pytest.mark.contract_case("HOOK-HARNESS-002")
+def test_cross_agent_hook_classification():
+    assert classify_file(".codex/hooks/stop_check.sh").quality_target == "hook-runtime"
+    assert classify_file(".qoder/hooks/stop_check.sh").quality_target == "hook-runtime"
+    assert classify_file(".codex/hooks.json").quality_target == "hook-runtime"
+
+
+@pytest.mark.contract_case("HOOK-HARNESS-002")
+def test_acceptance_contract_classification():
+    doc = classify_file("docs/acceptance-contracts/features/DATA_PRESENTERS.md")
+    test = classify_file("tests/backend/test_round_signals.py")
+    assert doc.category == "acceptance-contract"
+    assert doc.requires_quality_gate
+    assert doc.quality_target == "acceptance-contracts"
+    assert test.category == "test"
+    assert test.requires_quality_gate
+    assert test.quality_target == "acceptance-contracts"
+
+
+@pytest.mark.contract_case("HOOK-HARNESS-002")
 def test_targets_deduped():
     assert required_quality_targets(["src/session_browser/a.py", "src/session_browser/b.py"]) == ["python-src"]
+
+
+@pytest.mark.contract_case("HOOK-HARNESS-002")
+def test_acceptance_contract_target_required():
+    targets = required_quality_targets([
+        "docs/acceptance-contracts/features/DATA_PRESENTERS.md",
+        "tests/backend/test_round_signals.py",
+    ])
+    assert targets == ["acceptance-contracts"]

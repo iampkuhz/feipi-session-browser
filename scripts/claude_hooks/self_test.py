@@ -14,6 +14,7 @@ def run_self_test() -> None:
     ctx = read_stdin_json("pre-bash", '{"tool_name":"Bash","tool_input":{"command":"pytest -q"}}')
     assert ctx.command == "pytest -q"
     assert classify_file("src/session_browser/web/static/app.css").quality_target == "session-detail"
+    assert classify_file("docs/acceptance-contracts/features/DATA_PRESENTERS.md").quality_target == "acceptance-contracts"
     assert not evaluate_command("rm -rf /").allowed
     with tempfile.TemporaryDirectory() as d:
         assert evaluate_write_path("src/session_browser/x.py", Path(d)).allowed

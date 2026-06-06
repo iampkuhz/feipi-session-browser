@@ -71,6 +71,30 @@ class TestDryRun:
             sys.argv = old_argv
         assert rc == 0  # dry-run 始终返回 0
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
+    def test_dry_run_acceptance_contracts_detected(self):
+        """契约 docs 或测试变更 => acceptance-contracts 出现在必需目标中。"""
+        td = _setup_env([{
+            "ts": "2026-06-06T00:00:00Z",
+            "tool": "Edit",
+            "file": "docs/acceptance-contracts/features/DATA_PRESENTERS.md",
+            "category": "acceptance-contract",
+            "requiresQualityGate": True,
+            "sessionId": "test-session-001",
+        }])
+
+        changed_files = _runner.get_changed_files()
+        targets = _runner.compute_required_targets(changed_files, set())
+        assert targets == ["acceptance-contracts"]
+
+        old_argv = sys.argv
+        try:
+            sys.argv = ["run_required_quality_gates.py", "--dry-run"]
+            rc = _runner.main()
+        finally:
+            sys.argv = old_argv
+        assert rc == 0
+
 
 class TestNoRequiredTargets:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
@@ -283,25 +307,21 @@ class TestIncludeSessionDetail:
         assert "session-detail" in all_targets
 
 
-class TestStopShOrdering:
+class TestSharedStopEntrypoint:
     @pytest.mark.contract_case("HOOK-HARNESS-012")
-    def test_run_required_before_stop_quality_gate(self):
-        """stop.sh 必须在 stop_quality_gate.py 之前调用 run_required_quality_gates.py。"""
+    def test_claude_stop_is_thin_wrapper(self):
+        """stop.sh 只保留薄入口，实际质量门禁委托共享 harness runner。"""
         stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"
         text = stop_sh.read_text()
 
-        run_required_pos = text.find("run_required_quality_gates.py")
-        stop_quality_pos = text.find("stop_quality_gate.py")
-
-        assert run_required_pos != -1, "stop.sh 中未找到 run_required_quality_gates.py"
-        assert stop_quality_pos != -1, "stop.sh 中未找到 stop_quality_gate.py"
-        assert run_required_pos < stop_quality_pos, \
-            f"run_required_quality_gates.py (位置 {run_required_pos}) 必须出现在 stop_quality_gate.py (位置 {stop_quality_pos}) 之前"
+        assert "scripts/harness/agent_stop_check.py" in text
+        assert "run_required_quality_gates.py" not in text
+        assert "stop_quality_gate.py" not in text
 
     @pytest.mark.contract_case("HOOK-HARNESS-012")
-    def test_stop_sh_includes_session_detail_flag(self):
-        """stop.sh 必须向 run_required_quality_gates.py 传递 --include-session-detail。"""
-        stop_sh = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "stop.sh"
-        text = stop_sh.read_text()
-        assert "--include-session-detail" in text, \
-            "stop.sh 必须向 run_required_quality_gates.py 传递 --include-session-detail"
+    def test_shared_stop_runner_includes_session_detail_flag(self):
+        """共享 stop runner 必须向 run_required_quality_gates.py 传递 --include-session-detail。"""
+        runner = Path(__file__).resolve().parents[2] / "scripts" / "harness" / "agent_stop_check.py"
+        text = runner.read_text()
+        assert "run_required_quality_gates.py" in text
+        assert "--include-session-detail" in text
