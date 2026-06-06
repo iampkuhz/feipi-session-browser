@@ -59,12 +59,12 @@ test.describe('会话列表页', () => {
 
   test('[UI-SESSIONS-005] 排序按钮可点击且生效', async ({ page }) => {
     await page.goto('/sessions');
-    const sortButtons = page.locator('.sort-button[data-action="sort"]');
+    const sortButtons = page.locator('.c-data-table__sort[data-action="sort"]');
     const count = await sortButtons.count();
     expect(count).toBeGreaterThanOrEqual(4);
 
     // 点击 tokens 排序按钮，验证 URL 变化
-    const tokensSort = page.locator('.sort-button[data-sort-key="tokens"]');
+    const tokensSort = page.locator('.c-data-table__sort[data-sort-key="tokens"]');
     if (await tokensSort.isVisible()) {
       const currentUrl = page.url();
       await tokensSort.click();

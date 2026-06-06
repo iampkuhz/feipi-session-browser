@@ -147,16 +147,16 @@
                         <th class="static-header col-project">Project</th>
                         <th class="static-header col-agents">Agents</th>
                         <th class="col-num sortable col-sessions" data-sort-key="sessions"{% if sort_by == 'sessions' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                            <button class="sort-button" type="button" data-action="sort" data-sort-key="sessions" title="按 Sessions 排序">Sessions <span class="sort-mark" aria-hidden="true"></span></button>
+                            <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="sessions" title="按 Sessions 排序">Sessions <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
                         </th>
                         <th class="col-num sortable col-tokens" data-sort-key="tokens"{% if sort_by == 'tokens' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                            <button class="sort-button" type="button" data-action="sort" data-sort-key="tokens" title="按 Tokens 排序">Tokens <span class="sort-mark" aria-hidden="true"></span></button>
+                            <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="tokens" title="按 Tokens 排序">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
                         </th>
                         <th class="col-num sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                            <button class="sort-button" type="button" data-action="sort" data-sort-key="tools" title="按 Tools 排序">Tools <span class="sort-mark" aria-hidden="true"></span></button>
+                            <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="tools" title="按 Tools 排序">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
                         </th>
                         <th class="sortable col-last-active" data-sort-key="last_active"{% if sort_by == 'last_active' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                            <button class="sort-button" type="button" data-action="sort" data-sort-key="last_active" title="按 Last Active 排序">Last Active <span class="sort-mark" aria-hidden="true"></span></button>
+                            <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="last_active" title="按 Last Active 排序">Last Active <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
                         </th>
                     </tr>
                 </thead>

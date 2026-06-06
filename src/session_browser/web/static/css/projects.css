@@ -41,16 +41,10 @@ overrides below. */
 /* NOTE: .table-card overflow, .table-toolbar, .table-title,
    and .table-note are defined in ui-primitives.css.
    Do not redefine them here to avoid cascade conflicts. */
-/* ── Sortable th elements (T117: project detail table headers) ── */
-.p-projects th.sortable,
-.p-projects th.numeric.sortable {
-  cursor: pointer;
-  user-select: none;
-}
+/* ── Sortable th — ensure hover color (T117) ── */
 .p-projects th.sortable:hover {
   color: var(--purple);
 }
-/* Arrow is handled by .sort-mark::after in ui-primitives.css */
 /* ── Token total above tokenbar (T117) ────────────────────── */
 .p-projects .token-total {
   display: flex;
@@ -63,32 +57,12 @@ overrides below. */
   font-weight: 800;
   color: var(--text);
 }
-/* ── Sortable header buttons (T103) ───────────────────────── */
-.p-projects .sortable-header {
-  height: 28px;
-  border: 0;
-  background: transparent;
-  color: inherit;
+/* ── Sortable header buttons — canonical c-data-table__sort override (T103) ── */
+.p-projects .c-data-table__sort {
   font: 850 11px var(--font-sans);
-  padding: 0;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
 }
-.p-projects .sortable-header:hover {
+.p-projects .c-data-table__sort:hover {
   color: var(--purple);
-}
-.p-projects .sortable-header:focus-visible {
-  outline: 2px solid var(--purple);
-  outline-offset: -1px;
-  border-radius: 4px;
-}
-.p-projects .sort-caret {
-  font-size: 14px;
-  color: var(--text-subtle);
-  display: inline-block;
 }
 /* ── Token cell with tokenbar (T103) ─────────────────────── */
 .p-projects .token-cell {
@@ -244,27 +218,6 @@ overrides below. */
   font-size: 10px;
   height: 20px;
   padding: 0 6px;
-}
-/* ── Health badge (legacy alias, still used in some contexts) */
-.p-projects .health-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.p-projects .health-badge.health--healthy {
-  background: var(--green-soft);
-  color: var(--green);
-}
-.p-projects .health-badge.health--warning {
-  background: var(--warn-bg);
-  color: var(--warn);
-}
-.p-projects .health-badge.health--error {
-  background: var(--err-bg);
-  color: var(--err);
 }
 /* ── Pagination ───────────────────────────────────────────── */
 .p-projects .unified-pagination {
@@ -550,4 +503,18 @@ overrides below. */
 }
 .p-projects .agent-dot.qoder {
   background: var(--qoder);
+}
+
+/* ── All table cells left-aligned (override numeric right-align from _tables.css) ── */
+.p-projects .data-table th,
+.p-projects .data-table td {
+  text-align: left;
+}
+/* Numeric cells: keep tabular-nums but left-align */
+.p-projects .data-table th.numeric,
+.p-projects .data-table td.numeric,
+.p-projects .data-table th.col-num,
+.p-projects .data-table td.col-num {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
 }

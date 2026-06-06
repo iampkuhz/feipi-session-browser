@@ -238,7 +238,7 @@
   color: var(--sessions-text-2);
 }
 
-.sessions-page .sessions-th__sort-btn {
+.sessions-page .sessions-th .c-data-table__sort {
   min-height: 25px;
   border: 1px solid transparent;
   background: transparent;
@@ -257,8 +257,8 @@
   white-space: nowrap;
 }
 
-.sessions-page .sessions-th__sort-btn:hover,
-.sessions-page .sessions-th__sort-btn:focus-visible {
+.sessions-page .sessions-th .c-data-table__sort:hover,
+.sessions-page .sessions-th .c-data-table__sort:focus-visible {
   outline: 0;
   border-color: #dfe3ff;
   background: #fff;
@@ -266,11 +266,11 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, .7);
 }
 
-.sessions-page .sessions-th__sort-btn:hover {
+.sessions-page .sessions-th .c-data-table__sort:hover {
   text-decoration: none;
 }
 
-.sessions-page .sessions-sort-icon {
+.sessions-page .sessions-th .c-data-table__sort-icon {
   width: 18px;
   height: 18px;
   border-radius: 7px;
@@ -283,12 +283,6 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: 14px 14px;
-}
-
-.sessions-page .sessions-sort-icon--active {
-  background: var(--sessions-brand);
-  border-color: var(--sessions-brand);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10V4M4.5 6.5L7 4l2.5 2.5'/%3E%3C/svg%3E");
 }
 
 .sessions-page [data-sessions-grid] .sessions-row {
@@ -767,7 +761,7 @@ table-layout:fixed scales proportionally
   color: var(--sessions-text-3);
 }
 
-.sessions-page .sort-button {
+.sessions-page .data-table .c-data-table__sort {
   height: 100%;
   min-height: 36px;
   border: 1px solid transparent;
@@ -786,8 +780,8 @@ table-layout:fixed scales proportionally
   white-space: nowrap;
 }
 
-.sessions-page .sort-button:hover,
-.sessions-page .sort-button:focus-visible {
+.sessions-page .data-table .c-data-table__sort:hover,
+.sessions-page .data-table .c-data-table__sort:focus-visible {
   outline: 0;
   border-color: #dfe3ff;
   background: #fff;
@@ -795,15 +789,15 @@ table-layout:fixed scales proportionally
   box-shadow: 0 1px 3px rgba(15, 23, 42, .07);
 }
 
-.sessions-page .sort-button:hover {
+.sessions-page .data-table .c-data-table__sort:hover {
   text-decoration: none;
 }
 
-.sessions-page .data-table th.sortable .sort-mark {
+.sessions-page .data-table th.sortable .c-data-table__sort-icon {
   color: var(--sessions-text-3);
 }
 
-.sessions-page .data-table th.sortable[data-sort-dir] .sort-mark {
+.sessions-page .data-table th.sortable[data-sort-dir] .c-data-table__sort-icon {
   color: var(--sessions-brand);
 }
 

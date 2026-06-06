@@ -41,7 +41,7 @@
     {% endif %}
 
     {% block head_extra %}{% endblock %}
-    {% block script_extra %}{% endblock %}
+    {# script_extra 已移至 body 末尾全局 JS 之后，确保页面专用 JS 在全局依赖加载后才执行 #}
 </head>
 <body>
     <div class="shell app-shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
@@ -162,6 +162,9 @@
     <!-- Shared JS: view/tab switching, round toggle, show-more, restore state -->
     <script src="/static/js/view-switching.js"></script>
     {% endif %}
+
+    {# 页面专用 JS（由子模板通过 script_extra 注入，在所有全局依赖之后加载） #}
+    {% block script_extra %}{% endblock %}
 
 {% if not hide_payload_modal %}
 {% block payload_modal %}

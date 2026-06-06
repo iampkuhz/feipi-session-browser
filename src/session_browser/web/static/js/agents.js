@@ -56,7 +56,7 @@
 
         /* ── Sortable header buttons: stop bubbling to prevent
               ui_primitives.js from also handling the same click ── */
-        var sortButtons = agentsTable.querySelectorAll('th.sortable .sortable-header');
+        var sortButtons = agentsTable.querySelectorAll('th.sortable .c-data-table__sort');
         sortButtons.forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -109,9 +109,9 @@
         }
 
         function updateSortIndicators() {
-            var buttons = agentsTable.querySelectorAll('th .sortable-header');
+            var buttons = agentsTable.querySelectorAll('th .c-data-table__sort');
             buttons.forEach(function(btn) {
-                var caret = btn.querySelector('.sort-caret');
+                var caret = btn.querySelector('.c-data-table__sort-icon');
                 if (!caret) return;
                 if (btn.dataset.sort === currentSort.key) {
                     caret.textContent = currentSort.ascending ? '↑' : '↓';
@@ -175,7 +175,7 @@
         });
 
         /* ── Sortable header buttons: stop bubbling ──────── */
-        var effSortButtons = efficiencyTable.querySelectorAll('th.sortable .sortable-header');
+        var effSortButtons = efficiencyTable.querySelectorAll('th.sortable .c-data-table__sort');
         effSortButtons.forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -227,7 +227,7 @@
 
         function updateEffSortIndicators() {
             effSortButtons.forEach(function(btn) {
-                var caret = btn.querySelector('.sort-caret');
+                var caret = btn.querySelector('.c-data-table__sort-icon');
                 if (!caret) return;
                 if (btn.dataset.sort === effSortState.key) {
                     caret.textContent = effSortState.ascending ? '↑' : '↓';
@@ -371,7 +371,7 @@
 
     // Contract: th.sortable[data-action="sort"][data-sort-key] within
     // agent-detail context — click to sort model breakdown table.
-    // Toggles ascending/descending and updates .sort-mark indicator.
+    // Toggles ascending/descending and updates .c-data-table__sort-icon indicator.
     var modelSortState = { key: null, ascending: false };
 
     document.addEventListener('click', function(e) {
@@ -436,7 +436,7 @@
     function updateModelSortIndicators(table, state) {
         var headers = table.querySelectorAll('th.sortable');
         headers.forEach(function(th) {
-            var mark = th.querySelector('.sort-mark, .sort-caret');
+            var mark = th.querySelector('.c-data-table__sort-icon, .c-data-table__sort-icon');
             if (!mark) return;
             if (th.dataset.sortKey === state.key) {
                 mark.textContent = state.ascending ? '↑' : '↓';

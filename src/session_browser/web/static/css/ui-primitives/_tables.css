@@ -288,100 +288,65 @@
   z-index: 3;
   vertical-align: middle;
 }
-/* Sortable header — always-visible sort arrow */
+/* Sortable header — canonical contract: button fills cell, hover covers entire th */
 .data-table th.sortable {
   cursor: pointer;
-  padding: 0 2px;
+  padding: 0;
 }
-.data-table th.sortable:hover {
-  color: var(--purple);
-}
-.data-table th.sortable:focus-visible {
-  outline: 2px solid var(--purple);
-  outline-offset: -1px;
-  background: var(--purple-soft);
-  color: var(--purple);
-}
-/* Static headers get padding directly */
+/* Static headers and non-sortable cells get padding directly */
 .data-table th.static-header,
 .data-table th:not(.sortable) {
-  padding: 0 10px;
+  padding: 0 var(--hifi-cell-pad-x, 10px);
 }
-/* Sort button inside sortable th — fills full height, vertically centered */
-.data-table th .sort-button {
+/* Sort button inside sortable th — fills full width of cell for consistent hover area */
+.data-table th .c-data-table__sort {
   height: 100%;
   min-height: 36px;
-  border: 1px solid transparent;
+  width: 100%;
+  border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
   text-transform: inherit;
   letter-spacing: inherit;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
-  padding: 0 6px;
-  border-radius: 8px;
+  padding: 0 var(--hifi-cell-pad-x, 10px);
+  border-radius: 0;
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
 }
-.data-table th .sort-button:hover,
-.data-table th .sort-button:focus-visible {
+.data-table th .c-data-table__sort:hover,
+.data-table th .c-data-table__sort:focus-visible {
   outline: 0;
-  border-color: #dfe3ff;
-  background: #fff;
+  background: var(--surface-soft);
   color: var(--purple);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, .07);
 }
-.data-table th .sort-button:hover {
+.data-table th .c-data-table__sort:hover {
   text-decoration: none;
 }
-.data-table th .sort-mark {
+/* Sort indicator icon — canonical .c-data-table__sort-icon */
+.data-table th .c-data-table__sort-icon {
   display: inline-block;
-  width: var(--hifi-icon-inline);
-  height: var(--hifi-icon-inline);
+  width: var(--hifi-icon-inline, 14px);
+  height: var(--hifi-icon-inline, 14px);
   color: var(--text-subtle);
   margin-left: 4px;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 14px 14px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3v8M4.5 5.5L7 3l2.5 2.5M4.5 8.5L7 11l2.5-2.5'/%3E%3C/svg%3E");
-}
-/* Sorted states: single arrow */
-.data-table th.sortable[data-sort-dir="asc"] .sort-mark {
-  color: var(--purple);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10V4M4.5 6.5L7 4l2.5 2.5'/%3E%3C/svg%3E");
-}
-.data-table th.sortable[data-sort-dir="desc"] .sort-mark {
-  color: var(--purple);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v6M4.5 7.5L7 10l2.5-2.5'/%3E%3C/svg%3E");
-}
-/* Sort icon aliases — .sort-icon and .sort-caret are legacy names;
-.sort-mark is canonical */
-.data-table th .sort-icon,
-.data-table th .sort-caret {
-  display: inline-block;
-  width: var(--hifi-icon-inline);
-  height: var(--hifi-icon-inline);
-  color: var(--text-subtle);
-  margin-left: 4px;
+  flex-shrink: 0;
   background-repeat: no-repeat;
   background-position: center;
   background-size: 14px 14px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3v8M4.5 5.5L7 3l2.5 2.5M4.5 8.5L7 11l2.5-2.5'/%3E%3C/svg%3E");
 }
-.data-table th.sortable:hover .sort-icon,
-.data-table th.sortable:hover .sort-caret {
-  color: var(--purple);
-}
-.data-table th.sortable[data-sort-dir="asc"] .sort-icon,
-.data-table th.sortable[data-sort-dir="asc"] .sort-caret {
+/* Sorted states: single arrow (asc/desc) */
+.data-table th.sortable[data-sort-dir="asc"] .c-data-table__sort-icon {
   color: var(--purple);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10V4M4.5 6.5L7 4l2.5 2.5'/%3E%3C/svg%3E");
 }
-.data-table th.sortable[data-sort-dir="desc"] .sort-icon,
-.data-table th.sortable[data-sort-dir="desc"] .sort-caret {
+.data-table th.sortable[data-sort-dir="desc"] .c-data-table__sort-icon {
   color: var(--purple);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v6M4.5 7.5L7 10l2.5-2.5'/%3E%3C/svg%3E");
 }
@@ -472,55 +437,23 @@
 }
 
 /* ── Migrated from style.css (post-mega-css-cleanup sprint) ── */
+/* NOTE: Duplicate .data-table / .data-table th / .data-table th.sortable /
+   .data-table td / .data-table tbody rules from style.css have been removed
+   to prevent cascade conflicts with canonical rules defined above. */
 /* Originally at style.css line 499 */
 .table-wrap {
   overflow-x: auto;
 }
-/* Originally at style.css line 2067 */
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--density-font-size, var(--text-sm));
-}
-/* Originally at style.css line 2072 */
-.data-table th {
-  text-align: left;
-  padding: var(--density-cell-padding, 4px 10px);
-  font-weight: 700;
-  font-size: var(--density-font-size, var(--text-sm));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  border-bottom: 2px solid var(--table-header-border);
-  white-space: nowrap;
-  cursor: default;
-  user-select: none;
-  position: sticky;
-  top: 0;
-  background: var(--table-header-bg);
-  z-index: 10;
-  line-height: var(--lh-normal);
-}
-/* Originally at style.css line 2091 */
-.data-table th.sortable {
-  cursor: pointer;
-}
-/* Originally at style.css line 2094 */
-.data-table th.sortable:hover {
-  color: var(--text);
-  background: var(--surface-hover, rgba(0,0,0,0.02));
-}
-/* Originally at style.css line 2098 */
+/* Originally at style.css line 2098 — aria-sort indicator (retained for compatibility) */
 .data-table th[aria-sort="ascending"]::after {
   content: " \2191";
   opacity: 0.7;
 }
-/* Originally at style.css line 2102 */
 .data-table th[aria-sort="descending"]::after {
   content: " \2193";
   opacity: 0.7;
 }
-/* Originally at style.css line 2106 */
+/* Originally at style.css line 2106 — td baseline */
 .data-table td {
   padding: var(--density-cell-padding, 4px 10px);
   border-bottom: 1px solid var(--border-light);

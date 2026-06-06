@@ -81,22 +81,22 @@
                     <th class="static-header col-agent" role="columnheader" scope="col">Agent</th>
                     <th class="static-header col-model" role="columnheader" scope="col">Model</th>
                     <th class="col-num sortable col-tokens" data-sort-key="tokens"{% if sort_by == 'tokens' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="sort-button" href="{{ actions.sort_urls.tokens }}" data-action="sort" data-sort-key="tokens" title="按 token 总量排序">Tokens <span class="sort-mark" aria-hidden="true"></span></a>
+                        <a class="c-data-table__sort" href="{{ actions.sort_urls.tokens }}" data-action="sort" data-sort-key="tokens" title="按 token 总量排序">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
                     </th>
                     <th class="col-num sortable col-rounds" data-sort-key="rounds"{% if sort_by == 'rounds' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="sort-button" href="{{ actions.sort_urls.rounds }}" data-action="sort" data-sort-key="rounds" title="按 rounds 数量排序">Rounds <span class="sort-mark" aria-hidden="true"></span></a>
+                        <a class="c-data-table__sort" href="{{ actions.sort_urls.rounds }}" data-action="sort" data-sort-key="rounds" title="按 rounds 数量排序">Rounds <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
                     </th>
                     <th class="col-num sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="sort-button" href="{{ actions.sort_urls.tools }}" data-action="sort" data-sort-key="tools" title="按 tools 数量排序">Tools <span class="sort-mark" aria-hidden="true"></span></a>
+                        <a class="c-data-table__sort" href="{{ actions.sort_urls.tools }}" data-action="sort" data-sort-key="tools" title="按 tools 数量排序">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
                     </th>
                     <th class="col-num sortable col-subagents" data-sort-key="subagents"{% if sort_by == 'subagents' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="sort-button" href="{{ actions.sort_urls.subagents }}" data-action="sort" data-sort-key="subagents" title="按 subagent 实例数排序">Subagents <span class="sort-mark" aria-hidden="true"></span></a>
+                        <a class="c-data-table__sort" href="{{ actions.sort_urls.subagents }}" data-action="sort" data-sort-key="subagents" title="按 subagent 实例数排序">Subagents <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
                     </th>
                     <th class="sortable col-duration" data-sort-key="duration"{% if sort_by == 'duration' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="sort-button" href="{{ actions.sort_urls.duration }}" data-action="sort" data-sort-key="duration" title="按执行耗时排序">Duration <span class="sort-mark" aria-hidden="true"></span></a>
+                        <a class="c-data-table__sort" href="{{ actions.sort_urls.duration }}" data-action="sort" data-sort-key="duration" title="按执行耗时排序">Duration <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
                     </th>
                     <th class="sortable col-updated" data-sort-key="updated"{% if sort_by == 'updated' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="sort-button" href="{{ actions.sort_urls.updated }}" data-action="sort" data-sort-key="updated" title="按更新时间排序">Updated <span class="sort-mark" aria-hidden="true"></span></a>
+                        <a class="c-data-table__sort" href="{{ actions.sort_urls.updated }}" data-action="sort" data-sort-key="updated" title="按更新时间排序">Updated <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
                     </th>
                 </tr>
             </thead>

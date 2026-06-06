@@ -116,11 +116,11 @@
     }
 
     function updateSortIndicators() {
-        var buttons = document.querySelectorAll('#projects-table th .sortable-header');
+        var buttons = document.querySelectorAll('#projects-table th .c-data-table__sort');
         buttons.forEach(function(btn) {
-            var caret = btn.querySelector('.sort-caret');
+            var caret = btn.querySelector('.c-data-table__sort-icon');
             if (!caret) return;
-            if (btn.dataset.sort === currentSort.key) {
+            if (btn.dataset.sortKey === currentSort.key) {
                 caret.textContent = currentSort.ascending ? '↑' : '↓';
             } else {
                 caret.textContent = '↕';
@@ -217,11 +217,11 @@
         }
 
         // Sortable header buttons (list page)
-        var sortButtons = document.querySelectorAll('#projects-table th .sortable-header');
+        var sortButtons = document.querySelectorAll('#projects-table th .c-data-table__sort');
         sortButtons.forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
-                var key = btn.dataset.sort;
+                var key = btn.dataset.sortKey;
                 if (currentSort.key === key) {
                     currentSort.ascending = !currentSort.ascending;
                 } else {
@@ -326,7 +326,7 @@
             });
 
             /* ── Detail: sortable headers ────────────────────────── */
-            var detailSortBtns = detailTable.querySelectorAll('th .sortable-header');
+            var detailSortBtns = detailTable.querySelectorAll('th .c-data-table__sort');
             var detailSortableThs = detailTable.querySelectorAll('th.sortable');
             var detailSortState = { key: null, ascending: false };
 
@@ -334,7 +334,7 @@
             detailSortBtns.forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    var key = btn.dataset.sort;
+                    var key = btn.dataset.sortKey;
                     if (!key) return;
                     if (detailSortState.key === key) {
                         detailSortState.ascending = !detailSortState.ascending;
@@ -388,8 +388,8 @@
                 var colIndex = -1;
                 var headers = Array.from(detailTable.querySelectorAll('thead th'));
                 for (var i = 0; i < headers.length; i++) {
-                    var sortBtn = headers[i].querySelector('.sortable-header');
-                    if (sortBtn && sortBtn.dataset.sort === key) {
+                    var sortBtn = headers[i].querySelector('.c-data-table__sort');
+                    if (sortBtn && sortBtn.dataset.sortKey === key) {
                         colIndex = i;
                         break;
                     }
@@ -414,9 +414,9 @@
             function updateDetailSortIndicators() {
                 // Update button-based carets
                 detailSortBtns.forEach(function(btn) {
-                    var caret = btn.querySelector('.sort-caret');
+                    var caret = btn.querySelector('.c-data-table__sort-icon');
                     if (!caret) return;
-                    if (btn.dataset.sort === detailSortState.key) {
+                    if (btn.dataset.sortKey === detailSortState.key) {
                         caret.textContent = detailSortState.ascending ? '↑' : '↓';
                     } else {
                         caret.textContent = '↕';

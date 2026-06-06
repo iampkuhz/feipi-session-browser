@@ -222,7 +222,7 @@
    * instead of default link-follow behavior.
    */
   function augmentSortableHeaders() {
-    var sortBtns = document.querySelectorAll('.sessions-th__sort-btn');
+    var sortBtns = document.querySelectorAll('.sessions-th .c-data-table__sort');
     for (var i = 0; i < sortBtns.length; i++) {
       var btn = sortBtns[i];
       // Only augment if not already having data-action

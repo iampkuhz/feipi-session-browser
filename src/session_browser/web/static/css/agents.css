@@ -182,7 +182,20 @@
   display: block;
 }
 
-/* ── Sort mark spacing ──────────────────────────────────────── */
-.p-agents .sort-mark {
-  display: inline;
+/* ── Sortable header — canonical c-data-table__sort override (T126) ── */
+.p-agents .c-data-table__sort {
+  font: 850 11px var(--font-sans);
+}
+
+/* ── All table cells left-aligned (override numeric right-align from _tables.css) ── */
+.p-agents .data-table th,
+.p-agents .data-table td {
+  text-align: left;
+}
+.p-agents .data-table th.numeric,
+.p-agents .data-table td.numeric,
+.p-agents .data-table th.col-num,
+.p-agents .data-table td.col-num {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
 }

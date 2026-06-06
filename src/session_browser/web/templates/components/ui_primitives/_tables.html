@@ -39,7 +39,7 @@
         {%- endif -%}
       <th class="{{ col_classes | join(' ') }}"{%- if h_sortable %} data-action="sort" data-sort-key="{{ h.key }}" role="columnheader" aria-sort="none" tabindex="0"{% else %} role="columnheader"{% endif %}{% if h.min_width %} style="--col-min-width:{{ h.min_width }}"{% endif %} scope="col">
         {{ h.label }}
-        {%- if h_sortable %} <span class="sort-mark" aria-hidden="true"></span>{% endif -%}
+        {%- if h_sortable %} <span class="c-data-table__sort-icon" aria-hidden="true"></span>{% endif -%}
       </th>
       {%- endfor %}
     </tr>
@@ -69,7 +69,7 @@
 
 {# ============================================================================
    SortHeader (P1: sort_header)
-   Renders a canonical sortable <th> with a consistent .sort-mark icon.
+   Renders a canonical sortable <th> with a consistent .c-data-table__sort-icon indicator.
    Supports both href (server-side sort) and button (client-side JS sort) modes.
 #}
 {% macro sort_header(label, sort_key, current_sort_key='', current_sort_dir='desc', href='', numeric=False, extra_classes=None) -%}
@@ -87,12 +87,12 @@
   {%- set aria_sort = ' aria-sort="' ~ ('ascending' if current_sort_dir == 'asc' else 'descending') ~ '"' if is_active else '' -%}
 <th class="{{ cls }}" data-action="sort" data-sort-key="{{ sort_key }}"{{ aria_sort|safe }}>{{ label }}
   {%- if href -%}
-  <a class="sort-button" href="{{ href }}" data-action="sort" data-sort-key="{{ sort_key }}">
-    <span class="sort-mark" aria-hidden="true"></span>
+  <a class="c-data-table__sort" href="{{ href }}" data-action="sort" data-sort-key="{{ sort_key }}">
+    <span class="c-data-table__sort-icon" aria-hidden="true"></span>
   </a>
   {%- else -%}
-  <button class="sort-button" type="button" data-action="sort" data-sort-key="{{ sort_key }}">
-    <span class="sort-mark" aria-hidden="true"></span>
+  <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="{{ sort_key }}">
+    <span class="c-data-table__sort-icon" aria-hidden="true"></span>
   </button>
   {%- endif %}
 </th>
