@@ -30,7 +30,7 @@ feipi-session-browser 是一个本地会话浏览器，用于索引和分析 Cla
 
 ## 变更工作流
 
-所有非平凡变更都通过 `/change <requirement-path>` 路由。详见 `harness/workflow/change-lifecycle.md` 和 `.claude/hooks/README.md`。
+所有非平凡变更都通过 `/change <requirement-path>` 路由。详见 `harness/workflow/change-lifecycle.md`。
 
 ## 默认 Agent
 
