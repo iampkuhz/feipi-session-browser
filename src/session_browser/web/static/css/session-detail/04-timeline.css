@@ -211,14 +211,6 @@
   font-size: 13px;
   color: var(--sd-text);
 }
-/* ── Legacy aliases (empty, for backward compat) ── */
-.sd-llm-body {
-  /* Alias for .sd-llm-content-row */
-}
-.sd-metrics {
-  /* Legacy wrapper name;
-  current metrics use .sd-llm-token-grid + .sd-mcell */
-}
 /* ── LLM call card 3-column layout (metrics | note | actions) ── */
 .sd-llm-content-row {
   display: grid;
@@ -624,7 +616,6 @@ shift dot left to align with the container timeline line */
 .sd-sub-steps .sd-timeline-item .sd-timeline-dot {
   left: -18px;
 }
-/* Simple tool_step fallback — 3-col grid with dot on left line */
 .sd-sub-step {
   position: relative;
   display: grid;

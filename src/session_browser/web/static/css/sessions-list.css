@@ -801,14 +801,11 @@ table-layout:fixed scales proportionally
   color: var(--sessions-brand);
 }
 
-/* ── Migrated from style.css (post-mega-css-cleanup sprint) ── */
-/* Originally at style.css line 2136 */
 .sessions-title-cell {
   max-width: 280px;
   min-width: 140px;
 }
 
-/* Originally at style.css line 2140 */
 .sessions-title-link {
   display: block;
   max-width: 100%;

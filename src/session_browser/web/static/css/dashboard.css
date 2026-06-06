@@ -267,75 +267,6 @@ no page override ── */
 .drawer__body ul {
   padding-left: 18px;
 }
-/* ── Backward Compat (hero, legacy chart structure) =================== */
-/*
-* These styles support the current dashboard.html template (hero +
-* chart structure). They coexist with the newer patterns above and will
-* be phased out when the template migrates to the canonical structure.
-*
-* NOTE: .chart-card, .legend, .legend-item, .dot rules are intentionally
-* not redefined here — they are either covered by ui-primitives.css or
-* by the newer canonical rules above. Only legacy-unique patterns are listed.
-*/
-.hero {
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: linear-gradient(135deg, #fff 0%, #fbfcff 70%, #f4f6ff 100%);
-  box-shadow: var(--shadow);
-  padding: 13px 14px;
-  margin-bottom: 10px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: center;
-}
-.hero-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 7px;
-}
-.hero h1 {
-  font-size: 18px;
-  line-height: 1.2;
-  margin: 0;
-  font-weight: 900;
-}
-.hero-sub {
-  font-size: 12.5px;
-  color: var(--text-subtle);
-}
-.hero-chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.hero-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 112px);
-  gap: 8px;
-}
-.hero-kpi {
-  height: 52px;
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 14px;
-  padding: 8px 10px;
-  text-align: right;
-  box-shadow: var(--shadow);
-}
-.hero-kpi b {
-  font: 900 16px/1.05 var(--font-mono);
-}
-.hero-kpi span {
-  display: block;
-  margin-top: 5px;
-  font-size: 10px;
-  color: var(--text-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 850;
-}
 /* Chart head with range tabs */
 .chart-head {
   display: flex;
@@ -550,14 +481,7 @@ no page override ── */
   display: block;
   min-width: 0;
 }
-/* Responsive */
 @media (max-width: 1400px) {
-  .hero {
-    grid-template-columns: 1fr;
-  }
-  .hero-kpis {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
   .plot {
     gap: 0;
   }

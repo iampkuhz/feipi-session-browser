@@ -289,13 +289,13 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
         all_text_files.extend(repo_root.rglob(ext))
     # Exclude build/cache dirs and the check file itself (patterns in regex source)
     exclude_dirs = {".git", "node_modules", "__pycache__", ".pytest_cache", "tmp", ".mypy_cache", "dist", "venv", ".venv"}
-    check_self = "repo_slimming_contract_check.py"
+    excluded_files = {"repo_slimming_contract_check.py", "test_repo_slimming_contract.py"}
     filtered_files = []
     for f in all_text_files:
         if any(ex in f.parts for ex in exclude_dirs):
             continue
-        if f.name == check_self:
-            continue  # regex source strings match own file
+        if f.name in excluded_files:
+            continue
         filtered_files.append(f)
     e, w = check_no_historical_version_comments(filtered_files)
     errors.extend(e)

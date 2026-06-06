@@ -125,8 +125,6 @@
   background: var(--ok, #059669);
 }
 
-/* ── Migrated from style.css ── */
-/* Originally at style.css line 4914 */
 .badges {
   display: flex;
   gap: 7px;
@@ -134,7 +132,6 @@
   margin-bottom: 10px;
   flex-wrap: wrap;
 }
-/* Originally at style.css line 4917 */
 .badge {
   display: inline-flex;
   height: 25px;
@@ -146,49 +143,41 @@
   border: 1px solid var(--line);
   white-space: nowrap;
 }
-/* Originally at style.css line 4922 */
 .badge.agent {
   background: var(--agent-claude-bg, #f5f3ff);
   color: #7c3aed;
   border-color: rgba(124,58,237,0.16);
 }
-/* Originally at style.css line 4923 */
 .badge.issue {
   background: var(--status-error-bg, #fff1f2);
   color: var(--status-error, #dc2626);
   border-color: var(--status-error-bg, #fecdd3);
 }
-/* Originally at style.css line 4925 */
 .badge-agent-claude {
   background: var(--agent-claude-bg);
   color: #7c3aed;
   border-color: rgba(124,58,237,0.16);
 }
-/* Originally at style.css line 4926 */
 .badge-agent-qoder  {
   background: var(--agent-qoder-bg);
   color: #b45309;
   border-color: rgba(180,83,9,0.16);
 }
-/* Originally at style.css line 4927 */
 .badge-agent-codex  {
   background: var(--agent-codex-bg);
   color: #047857;
   border-color: rgba(4,120,87,0.16);
 }
-/* Originally at style.css line 2441 */
 .badge-anomaly-critical {
   background: var(--status-error-bg);
   color: var(--status-error);
   border-color: rgba(239, 68, 68, 0.2);
 }
-/* Originally at style.css line 2446 */
 .badge-anomaly-warning {
   background: var(--status-warning-bg);
   color: #b45309;
   border-color: rgba(245, 158, 11, 0.2);
 }
-/* Originally at style.css line 2451 */
 .badge-anomaly-info {
   background: var(--accent-bg);
   color: var(--accent);

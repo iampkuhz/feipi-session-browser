@@ -455,14 +455,11 @@
   color: white;
 }
 
-/* ── Migrated from style.css ── */
-/* Originally at style.css line 4957 */
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
-/* Originally at style.css line 4958 */
 .kpi {
   min-height: 67px;
   border: 1px solid var(--line);
@@ -471,13 +468,11 @@
   padding: 10px 11px;
   box-shadow: var(--sm);
 }
-/* Originally at style.css line 4962 */
 .kpi .v {
   font: 820 22px/1.05 var(--mono);
   letter-spacing: -.045em;
   color: var(--text);
 }
-/* Originally at style.css line 4963 */
 .kpi .l {
   margin-top: 6px;
   color: var(--t4, var(--text-muted));
@@ -486,19 +481,15 @@
   letter-spacing: .075em;
   font-weight: 850;
 }
-/* Originally at style.css line 4967 */
 .kpi.err .v {
   color: var(--status-error, #dc2626);
 }
-/* Originally at style.css line 4999 */
 .kpis {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-/* Originally at style.css line 6914 */
 .kpis {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-/* Originally at style.css line 1216 */
 .toolbar .tab--chart {
   height: auto;
   /* let padding define height */

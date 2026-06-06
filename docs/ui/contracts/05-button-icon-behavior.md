@@ -1,51 +1,35 @@
-# 05 按钮与图标行为契约
+# 05 按钮与图标行为要求
 
-## 全局按钮行为表要求
+## 按钮
 
-每个页面必须有一份按钮行为表，字段：
+- 每个按钮必须表达明确命令。
+- 表单提交按钮使用 `type="submit"`。
+- 非提交按钮必须有 `data-action` 或 `href`。
+- 禁用按钮必须有禁用态和不可执行原因。
+- 主操作每个区域最多一个。
 
-```text
-selector / label / location / data-action-or-href / expected render behavior / validation
-```
+## 图标按钮
 
-## 全局图标行为表要求
+- 图标按钮必须有可访问名称。
+- 常用操作优先使用熟悉图标：搜索、复制、关闭、展开、收起、排序、刷新。
+- 不熟悉图标必须有 tooltip。
+- 图标按钮 hover、focus、active 状态必须可见。
 
-每个页面必须有一份图标行为表，字段：
+## 表格交互
 
-```text
-icon / location / semantic meaning / decorative-or-action / expected behavior / size class
-```
+- 可排序表头整体可点击。
+- 当前排序列必须展示方向。
+- 行跳转和行展开不能互相抢占点击区域。
+- 复制按钮只复制目标内容，不改变筛选或排序状态。
 
-## 常用按钮预期
+## Tooltip
 
-- Settings：打开 settings drawer/panel。
-- Info icon：打开就地说明 popover。
-- More icon：打开轻量 action menu。
-- Apply：提交当前筛选并刷新列表。
-- Clear：清空当前筛选并刷新列表。
-- Prev：跳到上一页；首页不渲染。
-- Page input：输入页码并确认后跳转。
-- Next：跳到下一页；尾页不渲染。
-- Context / Response / Result：打开同一个 PayloadModal，切换对应内容。
+- Tooltip 用于解释图表点、tokenbar、异常信号、不可用原因。
+- Tooltip 必须可读，不遮挡触发元素的关键内容。
+- Tooltip 内容不得承载必须常驻显示的核心数据。
 
-## 图标尺寸
+## Modal
 
-- nav icon: 18–20px。
-- metric/card icon: 20–24px。
-- inline action icon: 14–16px。
-
----
-
-## 逐页按钮/图标行为表
-
-逐页详细行为表已记录在各 `behavior-*.md` 文件中：
-
-- `behavior-dashboard.md` — Dashboard 页面
-- `behavior-sessions.md` — Sessions 页面
-- `behavior-session-detail.md` — Session Detail 页面
-- `behavior-projects.md` — Projects 页面
-- `behavior-agents.md` — Agents 页面
-- `behavior-glossary.md` — Glossary 页面
-- `behavior-states.md` — State Pages (404/error)
-
-本文件不再重复各页面摘要，仅保留全局规则。
+- Modal 打开后焦点进入弹层。
+- Esc、遮罩和关闭按钮都能关闭弹层。
+- 关闭后焦点返回触发元素。

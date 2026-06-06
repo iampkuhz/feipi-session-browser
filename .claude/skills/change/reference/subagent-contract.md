@@ -9,5 +9,3 @@
 3. **更新任务状态**：完成后标记任务复选框并添加验证说明。
 4. **遵守 Hook 约束**：子 agent 在与父 agent 相同的 hook 策略下运行。
 5. **不得修改活跃变更注册**：不修改 `tmp/active_change.json`，不创建新变更目录。
-
-完整委派模式和验证证据要求见 `harness/workflow/subagent-execution.md`。

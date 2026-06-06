@@ -1,65 +1,33 @@
-# CSS 加载顺序契约
+# CSS 加载与所有权要求
 
-**版本**: P1 (2026-05-24)
-**状态**: 记录 + BLOCK gate
+## 加载顺序
 
----
+页面 CSS 按以下顺序加载：
 
-## 当前 CSS 加载顺序
+1. `tokens.css`
+2. `base.css`
+3. `shell.css`
+4. `ui-primitives.css`
+5. 页面专属 CSS
 
-### base.html 固定顺序
+## 所有权
 
-所有页面通过继承 `base.html` 获得以下 CSS 加载顺序：
+- `tokens.css` 只维护设计变量。
+- `base.css` 只维护基础元素、reset、typography 和 focus。
+- `shell.css` 只维护整体壳层布局。
+- `ui-primitives.css` 维护共享组件。
+- 页面专属 CSS 只维护页面布局和页面特有组合。
 
-0. `/static/css/tokens.css` — 设计令牌（CSS 变量）
-1. `/static/css/base.css` — reset、html、body、typography、focus、reduced motion
-2. `/static/css/shell.css` — shell 布局骨架（Grid 三栏、body 状态切换、响应式断点）
-3. `/static/css/ui-primitives.css` — 共享原子组件（按钮、徽章、卡片、Modal 等）
-4. `{% block head_extra %}` — 页面专用 CSS，通过模板继承注入
+## 禁止项
 
-详见 `src/session_browser/web/templates/base.html:28-42`。
+- 页面 CSS 不直接重写共享组件的基础定义。
+- 不新增版本化 CSS 文件名。
+- 不新增 patch、fix、overlay 或别名 CSS 文件。
+- 不用空 selector、隐藏 selector 或别名 selector 支撑当前 UI。
+- 不在 CSS 中保留来源行号或阶段注释。
 
-### 页面专用 CSS（通过 head_extra）
+## 桌面视口
 
-| 页面模板 | CSS 文件 |
-|---|---|
-| `dashboard.html` | `css/dashboard.css` |
-| `sessions.html` | `css/sessions-list.css` |
-| `session.html` | `css/session-detail.css` |
-| `projects.html` / `project.html` | `css/projects.css` |
-| `agents.html` | `css/agents.css` |
-| `glossary.html` | `css/glossary.css` |
-| `404.html` / `error.html` | `css/states.css` |
-
----
-
-## 规则
-
-1. **tokens 必须最先加载**：`css/tokens.css` 包含所有核心设计令牌（CSS 变量），必须在所有其他 CSS 之前加载。
-
-2. **base 必须紧随 tokens 之后**：`css/base.css` 包含 reset、html、body、typography、focus 等基础样式，依赖 tokens 中的变量。
-
-3. **shell 必须早于 primitives/page CSS**：`shell.css` 依赖 `tokens.css` 中的令牌，必须在 primitives 和页面 CSS 之前加载。
-
-4. **primitives 必须早于 page CSS**：`ui-primitives.css` 中的原子组件必须在页面专用 CSS 之前加载，以确保页面 CSS 可以覆写 primitive 样式。
-
-5. **page CSS 必须通过 head_extra 在 base CSS 之后加载**：禁止在 `head_extra` 之外加载页面专用 CSS。
-
-6. **不允许页面重复加载 base 已加载过的 CSS**：base.html 已加载 `tokens.css`、`base.css`、`shell.css`、`ui-primitives.css`，页面不得在 `head_extra` 中重复加载。**BLOCK**。
-
-7. **payload-modal 裸定义应收敛至 ui-primitives.css**：在 `session-detail.css` 等处出现裸 `.payload-modal` 或 `#payload-modal` 定义时输出 **WARN**，不 BLOCK。
-
-8. **shell 级选择器不应出现在页面 CSS**：`.app-shell`、`.shell`、`body.hide-left` 等选择器应归属 `shell.css`，页面 CSS 出现时输出 **WARN**，不 BLOCK。
-
----
-
-## Static Gate 状态
-
-| 检查 | 级别 | 说明 |
-|---|---|---|
-| !important | BLOCK | 禁止任何 !important |
-| css-load-order | BLOCK | base.html 中 CSS link 顺序 |
-| no-dead-css | BLOCK | 无 0 规则 CSS 文件 |
-| no-duplicate-base-css | BLOCK | 页面不重复加载 base CSS |
-| payload-modal ownership | WARN | 裸定义应收敛至 ui-primitives.css |
-| shell ownership | WARN | shell 选择器不应在页面 CSS |
+- 当前 UI 只维护桌面端视口。
+- CSS 可以维护宽屏和桌面收敛规则。
+- 不维护移动端或平板专属断点。

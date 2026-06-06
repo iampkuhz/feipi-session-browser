@@ -6,8 +6,7 @@ required = [
     '.claude/settings.json', '.claude/commands', '.claude/agents',
     'openspec/specs', 'openspec/changes',
     'openspec/schemas', 'openspec/templates',
-    'harness/workflow', 'harness/context',
-    'harness/quality', 'harness/templates',
+    'harness/README.md', 'harness/manifest.yaml',
     'scripts/openspec', 'scripts/agent_hooks', 'scripts/quality', 'scripts/dev',
 ]
 missing = [p for p in required if not (Path.cwd() / p).exists()]

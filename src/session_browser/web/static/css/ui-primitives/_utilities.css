@@ -137,17 +137,13 @@
 }
 
 /* ── Tab content ──────────────────────────────────────────────── */
-/* Originally at style.css line 1100 */
 .tab-content {
   display: none;
 }
-/* Originally at style.css line 1101 */
 .tab-content.active {
   display: block;
 }
 
-/* ── Migrated from style.css (post-mega-css-cleanup sprint) ── */
-/* Originally at style.css line 318 */
 .card {
   background: var(--surface);
   border: 1px solid var(--card-border);
@@ -155,11 +151,9 @@
   padding: 10px 14px;
   box-shadow: var(--card-shadow);
 }
-/* Originally at style.css line 325 */
 .card + .card {
   margin-top: var(--space-md);
 }
-/* Originally at style.css line 339 */
 .card .card {
   background: transparent;
   border: none;
@@ -168,17 +162,14 @@
   padding: 0;
   margin-top: 0;
 }
-/* Originally at style.css line 1843 */
 .card > .section-header {
   margin: 0;
   padding: 0;
   border: none;
 }
-/* Originally at style.css line 325 */
 .card-body {
   padding-top: var(--space-md);
 }
-/* Originally at style.css line 330 */
 .card-title {
   font-size: var(--text-xs);
   font-weight: 600;
@@ -190,11 +181,9 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-/* Originally at style.css line 341 */
 .card-title.flex {
   flex-wrap: wrap;
 }
-/* Originally at style.css line 342 */
 .card-subtitle-inline {
   font-size: var(--text-xs);
   font-weight: 400;
@@ -203,7 +192,6 @@
   letter-spacing: normal;
   margin-left: 4px;
 }
-/* Originally at style.css line 350 */
 .card-subtitle {
   font-size: var(--text-micro);
   color: var(--text-muted);
@@ -211,7 +199,6 @@
   margin-bottom: 10px;
   line-height: 1.5;
 }
-/* Originally at style.css line 359 */
 .card-head {
   display: flex;
   align-items: flex-start;
@@ -219,18 +206,15 @@
   gap: var(--space-md);
   flex-wrap: wrap;
 }
-/* Originally at style.css line 366 */
 .card-head .card-title {
   margin-bottom: 0;
 }
-/* Originally at style.css line 369 */
 .card-sub {
   font-size: var(--text-xs);
   color: var(--text-muted);
   margin-top: 4px;
   line-height: 1.5;
 }
-/* Originally at style.css line 709 */
 .card--chat .card-title {
   margin-bottom: 12px;
 }

@@ -82,15 +82,10 @@ overrides below. */
   cursor: help;
   border: 1px solid var(--line-soft);
 }
-/* Disable legacy tooltip (.tokenbar::after) */
-.p-projects .tokenbar::after {
-  display: none;
-}
 .p-projects .tokenbar .tokenbar-seg {
   height: 100%;
   display: block;
 }
-/* Tokenbar segment colors now managed by ui-primitives.css (.tokenbar-seg.fresh/.read/.write/.out) */
 /* Tooltip inside tokenbar — centered below bar, arrow pointing up */
 .p-projects .token-cell .token-tooltip {
   left: 50%;

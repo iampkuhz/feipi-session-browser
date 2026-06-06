@@ -2,7 +2,7 @@
 """T081 — Static QA for sessions-list page HTML structure.
 
 Validates sessions.html and sessions_list_components.html against
-the page behavior contract (tests/acceptance/ui/behavior-sessions.md):
+the current sessions-list DOM contract:
 
 1. Filter form: search input, agent/model/project selects, Apply button
 2. Active filters region with chip structure

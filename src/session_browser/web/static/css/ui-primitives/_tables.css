@@ -436,15 +436,9 @@
   font-weight: 650;
 }
 
-/* ── Migrated from style.css (post-mega-css-cleanup sprint) ── */
-/* NOTE: Duplicate .data-table / .data-table th / .data-table th.sortable /
-   .data-table td / .data-table tbody rules from style.css have been removed
-   to prevent cascade conflicts with canonical rules defined above. */
-/* Originally at style.css line 499 */
 .table-wrap {
   overflow-x: auto;
 }
-/* Originally at style.css line 2098 — aria-sort indicator (retained for compatibility) */
 .data-table th[aria-sort="ascending"]::after {
   content: " \2191";
   opacity: 0.7;
@@ -453,54 +447,44 @@
   content: " \2193";
   opacity: 0.7;
 }
-/* Originally at style.css line 2106 — td baseline */
 .data-table td {
   padding: var(--density-cell-padding, 4px 10px);
   border-bottom: 1px solid var(--border-light);
   vertical-align: middle;
   line-height: var(--lh-normal);
 }
-/* Originally at style.css line 2114 */
 .data-table tbody tr {
   min-height: var(--density-row-h, 32px);
   transition: background 120ms ease;
 }
-/* Originally at style.css line 2118 */
 .data-table tbody tr:hover {
   background: var(--table-row-hover-bg);
 }
-/* Originally at style.css line 2122 */
 .data-table tbody tr:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
-/* Originally at style.css line 2128 */
 .data-table tbody tr.active {
   background: var(--accent-bg);
   border-left: 3px solid var(--accent);
 }
-/* Originally at style.css line 2133 */
 .data-table tbody tr.active td:first-child {
   padding-left: 7px;
   /* compensate for 3px border */
 }
-/* Originally at style.css line 2146 */
 .data-table tbody tr.row--failed:hover {
   background: var(--status-error-bg);
   border-left: 3px solid var(--status-error);
 }
-/* Originally at style.css line 2151 */
 .data-table tbody tr.row--error:hover {
   background: var(--status-error-bg);
   border-left: 3px solid var(--status-error);
 }
-/* Originally at style.css line 2163 */
 .data-table .status-cell {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-/* Originally at style.css line 1309 */
 .filter-bar {
   display: grid;
   grid-template-columns: 1fr 160px 160px 200px 80px 80px;
@@ -508,7 +492,6 @@
   align-items: center;
   width: 100%;
 }
-/* Originally at style.css line 1370 */
 .data-table > .table-head {
   display: grid;
   grid-template-columns: 70px 80px 140px 110px 110px 110px 90px 130px minmax(240px, 1fr);
@@ -524,13 +507,11 @@
   background: var(--bg-app);
   z-index: 1;
 }
-/* Originally at style.css line 1386 */
 .data-table > .table-head > div {
   padding: 8px 12px;
   white-space: nowrap;
   transition: background 0.15s ease;
 }
-/* Originally at style.css line 1392 */
 .data-table > .table-row {
   display: grid;
   grid-template-columns: 70px 80px 140px 110px 110px 110px 90px 130px minmax(240px, 1fr);
@@ -542,58 +523,46 @@
   cursor: pointer;
   transition: background 0.12s ease;
 }
-/* Originally at style.css line 1404 */
 .data-table > .table-row:hover {
   background: var(--surface-hover);
 }
-/* Originally at style.css line 1408 */
 .data-table > .table-row.selected {
   background: linear-gradient(90deg, #f7f9ff, #fff 44%);
   box-shadow: inset 3px 0 0 var(--brand, var(--accent));
 }
-/* Originally at style.css line 1420 */
 .data-table > .table-row:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: -2px;
   border-radius: 4px;
 }
-/* Originally at style.css line 1426 */
 .data-table > .table-row > div {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 2px 12px;
 }
-/* Originally at style.css line 1489 */
 .data-table[data-calls-table] > .table-row[data-payload-status="error"] {
   border-left: 3px solid var(--danger, #dc2626);
 }
-/* Originally at style.css line 1492 */
 .data-table[data-calls-table] > .table-row[data-payload-status="gap"] {
   border-left: 3px solid var(--warn, #d97706);
 }
-/* Originally at style.css line 1495 */
 .data-table[data-calls-table] > .table-row[data-payload-status="warn"] {
   border-left: 3px solid var(--warn, #d97706);
 }
-/* Originally at style.css line 1498 */
 .data-table[data-calls-table] > .table-row[data-payload-status="ok"] {
   border-left: 3px solid transparent;
 }
-/* Originally at style.css line 1503 */
 .data-table.sessions-grid[data-sessions-grid] {
   display: flex;
   flex-direction: column;
 }
-/* Originally at style.css line 1508 */
 .data-table.sessions-grid[data-sessions-grid] > .table-head {
   grid-template-columns: minmax(280px, 2fr) minmax(140px, 1fr) 90px minmax(140px, 1fr) 120px 80px 80px 110px 100px;
 }
-/* Originally at style.css line 1512 */
 .data-table.sessions-grid[data-sessions-grid] > .table-row {
   grid-template-columns: minmax(280px, 2fr) minmax(140px, 1fr) 90px minmax(140px, 1fr) 120px 80px 80px 110px 100px;
 }
-/* Originally at style.css line 1517 */
 .data-table.sessions-grid .cell-title a {
   color: var(--t1);
   text-decoration: none;
@@ -602,12 +571,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Originally at style.css line 1525 */
 .data-table.sessions-grid .cell-title a:hover {
   color: var(--brand, #4f46e5);
   text-decoration: underline;
 }
-/* Originally at style.css line 1530 */
 .data-table.sessions-grid .cell-sub {
   font-size: 11px;
   color: var(--t4);
@@ -615,12 +582,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Originally at style.css line 1542 */
 .data-table.sessions-grid .table-row > div > .cell-title:only-child {
   padding-top: 2px;
   padding-bottom: 2px;
 }
-/* Originally at style.css line 1548 */
 .data-table.sessions-grid .badge.agent {
   display: inline-block;
   padding: 1px 6px;
@@ -632,23 +597,18 @@
   color: #7c3aed;
   border: 1px solid rgba(124, 58, 237, 0.16);
 }
-/* Originally at style.css line 1561 */
 .data-table.sessions-grid > .table-row.row--failed {
   border-left: 3px solid var(--danger, #c5221f);
 }
-/* Originally at style.css line 1565 */
 .data-table.sessions-grid > .table-row.row--anomaly {
   background: var(--warnbg, #fef7e0);
 }
-/* Originally at style.css line 1569 */
 .data-table.sessions-grid > .table-row.selected {
   background: var(--surface-selected, #f0f0f0);
 }
-/* Originally at style.css line 1574 */
 .data-table.sessions-grid > .table-row.row--failed.selected {
   background: var(--dangerbg, #fce8e6);
 }
-/* Originally at style.css line 1581 */
 .data-table.sessions-grid .table-head .th {
   display: flex;
   align-items: center;
@@ -665,12 +625,10 @@
   z-index: 3;
   user-select: none;
 }
-/* Originally at style.css line 1598 */
 .data-table.sessions-grid .table-head .th.sortable {
   background: linear-gradient(180deg, #f6f8ff, #f3f6ff);
   color: var(--text-2, #334155);
 }
-/* Originally at style.css line 1603 */
 .data-table.sessions-grid .table-head .th.sortable button {
   min-height: 25px;
   border: 1px solid transparent;
@@ -687,7 +645,6 @@
   border-radius: 8px;
   cursor: pointer;
 }
-/* Originally at style.css line 1620 */
 .data-table.sessions-grid .table-head .th.sortable button:hover {
   outline: 0;
   border-color: var(--brand-100, #dfe3ff);
@@ -695,7 +652,6 @@
   color: var(--brand, #5b5ce2);
   box-shadow: 0 1px 3px rgba(15, 23, 42, .07);
 }
-/* Originally at style.css line 1628 */
 .data-table.sessions-grid .table-head .sort-icon {
   width: 18px;
   height: 18px;
@@ -710,13 +666,11 @@
   font-weight: 900;
   line-height: 1;
 }
-/* Originally at style.css line 1644 */
 .data-table.sessions-grid .table-head .th.sortable[aria-sort="ascending"] .sort-icon {
   background: var(--brand, #5b5ce2);
   border-color: var(--brand, #5b5ce2);
   color: #fff;
 }
-/* Originally at style.css line 1651 */
 .data-table.sessions-grid .table-row > .td {
   display: flex;
   align-items: center;
@@ -727,11 +681,9 @@
   background: #fff;
   min-width: 0;
 }
-/* Originally at style.css line 1662 */
 .data-table.sessions-grid .table-row:hover > .td {
   background: #fbfdff;
 }
-/* Originally at style.css line 1666 */
 .data-table.sessions-grid .session-cell {
   display: flex;
   flex-direction: column;
@@ -740,7 +692,6 @@
   min-width: 0;
   width: 100%;
 }
-/* Originally at style.css line 1675 */
 .data-table.sessions-grid .session-title {
   font-weight: 790;
   color: var(--text, #111827);
@@ -750,17 +701,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Originally at style.css line 1685 */
 .data-table.sessions-grid .session-title a {
   color: inherit;
   text-decoration: none;
 }
-/* Originally at style.css line 1690 */
 .data-table.sessions-grid .session-title a:hover {
   color: var(--brand, #5b5ce2);
   text-decoration: underline;
 }
-/* Originally at style.css line 1695 */
 .data-table.sessions-grid .session-meta {
   display: flex;
   align-items: center;
@@ -769,16 +717,13 @@
   color: var(--text-3, #64748b);
   font-size: 11.5px;
 }
-/* Originally at style.css line 1704 */
 .data-table.sessions-grid .session-id {
   font-family: var(--mono, monospace);
   color: var(--t4, #94a3b8);
 }
-/* Originally at style.css line 1709 */
 .data-table.sessions-grid .session-branch {
   color: var(--text-3, #64748b);
 }
-/* Originally at style.css line 1713 */
 .data-table.sessions-grid .project-sub {
   font-size: 11.5px;
   color: var(--t4, #94a3b8);
@@ -786,7 +731,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Originally at style.css line 1721 */
 .data-table.sessions-grid .model {
   font-family: var(--mono, monospace);
   white-space: nowrap;
@@ -795,20 +739,17 @@
   color: var(--text-2, #334155);
   font-size: 12px;
 }
-/* Originally at style.css line 1730 */
 .data-table.sessions-grid .td.num {
   justify-content: flex-end;
   font-family: var(--mono, monospace);
   font-variant-numeric: tabular-nums;
 }
-/* Originally at style.css line 1736 */
 .data-table.sessions-grid .td.time {
   font-family: var(--mono, monospace);
   color: var(--text-3, #64748b);
   justify-content: flex-end;
   font-size: 11.5px;
 }
-/* Originally at style.css line 1743 */
 .data-table.sessions-grid .token-stack {
   display: flex;
   align-items: center;
@@ -816,7 +757,6 @@
   justify-content: flex-end;
   width: 100%;
 }
-/* Originally at style.css line 1751 */
 .data-table.sessions-grid .mini-bar {
   width: 46px;
   height: 7px;
@@ -826,24 +766,19 @@
   background: var(--surface-3, #f2f5fa);
   border: 1px solid var(--line-soft, #e8eef6);
 }
-/* Originally at style.css line 1761 */
 .data-table.sessions-grid .mini-bar span {
   height: 100%;
   display: block;
 }
-/* Originally at style.css line 1766 */
 .data-table.sessions-grid .mini-bar .fresh {
   background: var(--blue, #2563eb);
 }
-/* Originally at style.css line 1767 */
 .data-table.sessions-grid .mini-bar .cache {
   background: #f59e0b;
 }
-/* Originally at style.css line 1768 */
 .data-table.sessions-grid .mini-bar .out {
   background: var(--green, #059669);
 }
-/* Originally at style.css line 1771 */
 .table-footer {
   height: 42px;
   display: flex;
@@ -855,7 +790,6 @@
   color: var(--text-3, #64748b);
   font-size: 12px;
 }
-/* Originally at style.css line 1783 */
 .table-footer .page-btn {
   height: 28px;
   border: 1px solid var(--line, #d9e2ef);
@@ -867,77 +801,61 @@
   font-weight: 760;
   cursor: pointer;
 }
-/* Originally at style.css line 1795 */
 .table-footer .page-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
-/* Originally at style.css line 1800 */
 .table-footer .page-btn:hover:not(:disabled) {
   border-color: var(--brand-100, #dfe3ff);
   color: var(--brand, #5b5ce2);
 }
-/* Originally at style.css line 1805 */
 .table-footer .page-range {
   margin-left: 4px;
   color: var(--text-2, #334155);
   font-family: var(--mono, monospace);
   font-weight: 720;
 }
-/* Originally at style.css line 1812 */
 .table-footer .footer-spacer {
   flex: 1;
 }
-/* Originally at style.css line 1816 */
 .table-footer .footer-total {
   color: var(--text-4, #94a3b8);
   font-size: 12px;
 }
-/* Originally at style.css line 1861 */
 .table-scroll {
   overflow-x: auto;
 }
-/* Originally at style.css line 1864 */
 .table-scroll table {
   min-width: 600px;
 }
-/* Originally at style.css line 4308 */
 .table-wrap {
   position: relative;
   overflow-x: auto;
 }
-/* Originally at style.css line 5079 */
 .data-table .row-select-cell {
   width: 36px;
   text-align: center;
 }
-/* Originally at style.css line 5090 */
 .data-table .row-select-cell input[type="checkbox"] {
   cursor: pointer;
   accent-color: var(--accent);
 }
-/* Originally at style.css line 1654 */
 .data-table--compact th {
   padding: 3px 8px;
   font-size: var(--text-sm);
 }
-/* Originally at style.css line 1658 */
 .data-table--compact td {
   padding: 3px 8px;
 }
-/* Originally at style.css line 1661 */
 .data-table--compact tbody tr {
   min-height: 28px;
 }
-/* Originally at style.css line 1666 */
 .data-table--light td {
   border-bottom-color: var(--border-light);
 }
-/* Originally at style.css line 1669 */
 .data-table--light th {
   border-bottom-width: 1px;
 }
-/* Originally at style.css line 4689 */
 .data-table__filter-row {
   display: flex;
   gap: var(--space-sm);
@@ -945,12 +863,10 @@
   border-bottom: 1px solid var(--border-light);
   background: var(--surface-hover, rgba(0,0,0,0.02));
 }
-/* Originally at style.css line 4696 */
 .data-table__filter-row input {
   width: 100%;
   min-width: 0;
 }
-/* Originally at style.css line 4702 */
 .data-table__pagination {
   display: flex;
   align-items: center;
@@ -961,17 +877,14 @@
   color: var(--text-muted);
   flex-wrap: wrap;
 }
-/* Originally at style.css line 4712 */
 .data-table__pagination-info {
   white-space: nowrap;
 }
-/* Originally at style.css line 4715 */
 .data-table__pagination-controls {
   display: flex;
   align-items: center;
   gap: 2px;
 }
-/* Originally at style.css line 4721 */
 .data-table__page-info {
   display: inline-flex;
   align-items: center;
@@ -989,24 +902,20 @@
   text-decoration: none;
   transition: background 120ms ease, border-color 120ms ease;
 }
-/* Originally at style.css line 4738 */
 .data-table__page-btn:hover:not(:disabled) {
   background: var(--surface-hover);
   border-color: var(--accent);
 }
-/* Originally at style.css line 4742 */
 .data-table__page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;
 }
-/* Originally at style.css line 4747 */
 .data-table__page-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
-/* Originally at style.css line 4752 */
 .data-table__page-ellipsis {
   display: inline-flex;
   align-items: center;
@@ -1016,12 +925,10 @@
   color: var(--text-muted);
   letter-spacing: 2px;
 }
-/* Originally at style.css line 5252 */
 .data-table .row-select-cell {
   width: 36px;
   text-align: center;
 }
-/* Originally at style.css line 5256 */
 .data-table .row-select-cell input[type="checkbox"] {
   cursor: pointer;
   accent-color: var(--accent);

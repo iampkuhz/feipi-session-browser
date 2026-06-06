@@ -3,8 +3,8 @@ from pathlib import Path
 import sys
 required = [
     'CLAUDE.md','AGENTS.md','.claude/settings.json','.claude/commands','.claude/agents',
-    'openspec/specs','openspec/changes','harness/workflow','harness/context',
-    'harness/quality','scripts/harness'
+    'openspec/specs','openspec/changes','harness/README.md','harness/manifest.yaml',
+    'scripts/harness'
 ]
 missing = [p for p in required if not (Path.cwd()/p).exists()]
 if missing:

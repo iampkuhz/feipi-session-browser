@@ -1,96 +1,29 @@
-# 06 验证契约
+# 06 验证要求
 
-## 页面功能标准 v3 质量门
+## 验证入口
 
-- 所有页面主路由返回 status < 500。
-- 关键 API 返回 status < 500，特别是 Session Detail 的 round lazy load、payload、attribution、insights 数据接口。
-- Jinja 模板在 StrictUndefined 下渲染关键组件不得报 undefined。
-- CSS import 顺序必须有效。
-- 不允许同一组件存在多套同义 selector。
-- 不允许页面样式覆盖共享组件样式。
-- 不允许未使用、无归属、无页面引用的 UI selector 留在代码中。
-- Browser smoke 必须覆盖 Dashboard、Sessions、Projects、Session Detail Trace、Session Detail Payload、Project Detail、Agent Detail。
-- 交互测试必须点击排序、搜索 focus、tokenbar hover、round toggle、request/response attribution、payload call selector。
-- 测试期间浏览器 console 不得有 error，服务日志不得有 ERROR / Traceback / Rendering 500。
+- 页面功能修改后运行相关 pytest 或 Playwright 检查。
+- UI 静态检查入口：`python3 scripts/qa/ui/check_ui_contracts.py`。
+- CSS ownership 检查入口：`python3 scripts/quality/check_css_ownership.py`。
+- Session Detail 质量门入口：`python3 scripts/quality/run_quality_gate.py --target session-detail`。
 
-## 每个任务至少运行
+## 必查内容
 
-```bash
-python scripts/qa/ui/check_ui_contracts.py
-python -m pytest
-```
+- 页面必须加载当前 CSS 和 JS 文件。
+- 不允许版本化、补丁、overlay、fix 文件名作为页面资源。
+- 不允许移动端和平板断点成为当前 CSS 支持面。
+- Dashboard、Sessions、Projects、Session Detail 的核心控件必须可见。
+- 表格排序、过滤、分页和行跳转必须可执行。
+- Payload modal 必须可打开、关闭、复制和滚动。
 
-## 如果涉及 JS
+## 文档对齐
 
-```bash
-node --check src/session_browser/web/static/js/<file>.js
-```
+- 修改页面行为时必须同步更新 `docs/ui/`。
+- 修改 `docs/ui/` 时必须评估模板、CSS、JS、测试是否需要调整。
+- 不允许代码行为和 `docs/ui/` 要求长期不一致。
 
-## 如果涉及核心 UI 页面
+## 失败处理
 
-Playwright 截图验收：
-
-```text
-1440x900
-1280x800
-1180x800
-```
-
-## 静态检查必须覆盖
-
-- 禁止 vN/patch CSS 引用。
-- 禁止 inline style/script/onclick。
-- 按钮必须有 data-action 或 href。
-- 图标必须有说明文档条目。
-- Token 缩写规则。
-- Pagination 只显示 prev/input/next。
-- metric grid card 等宽。
-- 表头/单元格对齐一致。
-- card/button 内图文垂直居中。
-
-## QA Coverage Status
-
-> 本章节为 T014 安装时追加的交叉验证记录，对照现有 QA 基础设施。
-> 最后更新：2026-05-21
-
-### 1. check_ui_contracts.py 已覆盖的规则
-
-| 合同规则 | 检查方式 | 状态 |
-|---|---|---|
-| 禁止 vN/patch CSS 引用 | `FORBIDDEN_NAME_PATTERNS` 匹配 `v\d+.(css\|js\|html)`、`patch|fix|overlay.(css\|js)`；`FORBIDDEN_TEXT_PATTERNS` 匹配 `session-browser-v\d+\.css`、`dashboard-v\d+\.css`、`session_browser_ui_v\d+\.js` | 已覆盖 |
-| 禁止 inline style/script/onclick | `FORBIDDEN_TEXT_PATTERNS` 匹配 `onclick=`、`style=`、`<script`（非外部 src） | 已覆盖 |
-| 按钮必须有 data-action 或 href | 正则扫描 `<button>` 标签，检查 `data-action`/`type="submit"`；宏定义内的按钮跳过 | 已覆盖（部分：仅检查 button 标签，未检查 a.btn） |
-
-### 2. check_dom_contracts.py 已覆盖的规则
-
-| 合同规则 | 检查方式 | 状态 |
-|---|---|---|
-| Pagination 只显示 prev/input/next | 检查 `ui_primitives.html` 中是否存在 `prev` 和 `next` 文本 | 已覆盖（仅存在性检查，不验证 "仅 prev/input/next" 模式） |
-| Token 缩写规则 | 检查 Python 代码中是否存在 `format_compact_token` 或 `format_number` | 已覆盖（仅检查过滤器是否存在，不验证实际输出） |
-
-### 3. pytest (test_ui_contract_static.py) 已覆盖的规则
-
-| 合同规则 | 检查方式 | 状态 |
-|---|---|---|
-| 禁止 inline onclick | 遍历所有 .html 模板，断言 `onclick=` 不存在 | 已覆盖 |
-| 禁止 vN/patch CSS 引用 | 遍历所有 .html 模板，断言不包含 `session-browser-v`、`dashboard-v`、`-patch.css`、`-fix.css`、`-overlay.css` | 已覆盖 |
-
-### 4. 尚无 QA 脚本覆盖的规则（需后续补充）
-
-| 合同规则 | 缺口说明 | 建议实现方式 |
-|---|---|---|
-| 图标必须有说明文档条目 | 无脚本验证图标与 `docs/ui/contracts/behavior-*.md` 的一致性 | 新建 `scripts/qa/ui/check_icon_docs.py`：扫描生产模板中的 Unicode 符号和 icon class，与行为契约文档交叉比对 |
-| metric grid card 等宽 | 无脚本验证 CSS 中 `grid-template-columns` 等宽规则 | 可在 `check_ui_contracts.py` 中增加 CSS 规则检查，或在 Playwright 中测量 DOM |
-| 表头/单元格对齐一致 | 无脚本验证 DataTable 表头与数据单元格的 alignment/padding 一致性 | 需 Playwright 截图比对或 DOM 计算检查 |
-| card/button 内图文垂直居中 | 无脚本验证 `align-items: center` 等 CSS 规则 | 可在 `check_ui_contracts.py` 中检查 CSS 文件，或 Playwright 中检查 computed style |
-| JS 语法检查 (`node --check`) | 合同要求但未集成到自动化流程 | 可在 CI 脚本或 `harness/doctor.sh` 中添加 `node --check` 循环 |
-
-### 5. Playwright viewport 配置对比
-
-| 合同要求 | 当前实现 (ui-contract.spec.ts) | 差距 |
-|---|---|---|
-| 1440x900 | 截图命名为 `${name}-1440.png`，但未显式设置 viewport（依赖 Playwright 默认值） | 可能不匹配 1440x900；需确认 playwright.config.ts 默认 viewport |
-| 1280x800 | 无对应截图测试 | **缺失** |
-| 1180x800 | 无对应截图测试 | **缺失** |
-
-**结论**：当前 `ui-contract.spec.ts` 仅覆盖 1 个 viewport（且未显式设置尺寸），合同要求 3 个 viewport 截图验收。需在 Playwright 配置或 spec 中补充 `viewportSize` 设置和多尺寸截图。
+- 验证失败必须记录失败命令和失败原因。
+- 不得把未运行或失败的验证描述为通过。
+- 若失败来自既有问题，必须标明与本次改动的关系。

@@ -1,36 +1,33 @@
-# Sessions List 组件体系
+# Sessions 列表组件要求
 
-## 目标
+## 页面组成
 
-Sessions List 应由稳定的 UI 原始组件组装而成，而非一次性 HTML。
+- Page Head：标题、简短副标题、必要操作。
+- Filter Card：搜索、agent、project、date、status、token 过滤。
+- Active Filters：展示当前过滤项并可单项移除。
+- Sessions Table：展示 session 记录。
+- Pagination：展示页码、总数、page size、上一页、下一页。
 
-## 组件层级
+## 表格列
 
-1. `ui_primitives.html`
-   - 通用 Jinja 宏：按钮、选择控件、统计药丸、可排序标题、token 单元格。
+- Title：主列，吸收宽屏空间。
+- Project：项目名称或路径摘要。
+- Agent：独立 agent badge。
+- Model：model badge 或文本。
+- Time：最近时间。
+- Tokens：总量加 tokenbar。
+- Status：失败或异常状态。
 
-2. `sessions_list_components.html`
-   - 页面级组合：页面标题、活跃过滤器、表格标题、页脚。
+## Token Cell
 
-3. `ui-primitives.css`
-   - 通用原始样式。
+- 左侧显示缩写 token 总量。
+- 右侧 tokenbar 使用统一分类颜色。
+- hover 展示分类明细 tooltip。
+- tooltip 数值对齐。
 
-4. `sessions-list.css`
-   - 页面作用域的布局和表格样式，限定在 `.sessions-page` 下。
+## 行状态
 
-5. `ui_primitives.js`
-   - 小型通用行为，主要是排序按钮表单集成。
-
-## 按钮契约
-
-使用 `ui.btn(label, variant, size)` 或等价的 `.ui-btn` 类。
-
-允许的变体：
-- `primary`
-- `secondary`
-
-允许的尺寸：
-- `sm`
-- `md`
-
-除非首先定义新的原始组件，否则避免在 Sessions List 上使用一次性按钮类。
+- hover 高亮当前行。
+- selected 或 active 行必须可区分。
+- 行内操作不改变行高度。
+- 长标题截断并提供完整 title 或 tooltip。

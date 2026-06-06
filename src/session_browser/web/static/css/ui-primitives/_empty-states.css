@@ -70,20 +70,16 @@
   display: none;
 }
 
-/* ── Migrated from style.css ── */
-/* Originally at style.css line 6072 */
 .empty-state__icon {
   font-size: 28px;
   color: var(--t4);
 }
-/* Originally at style.css line 6077 */
 .empty-state__title {
   font-size: 13px;
   font-weight: 600;
   color: var(--t1);
   margin-top: 8px;
 }
-/* Originally at style.css line 6084 */
 .empty-state__desc {
   font-size: 11px;
   color: var(--t4);

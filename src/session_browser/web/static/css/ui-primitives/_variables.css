@@ -67,8 +67,6 @@
   font-family: var(--font-mono);
 }
 
-/* ── Migrated from style.css (post-mega-css-cleanup sprint) ── */
-/* Originally at style.css line 984 */
 .tabular {
   font-variant-numeric: tabular-nums;
 }

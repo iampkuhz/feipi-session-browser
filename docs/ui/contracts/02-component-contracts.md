@@ -1,256 +1,53 @@
-# 02 Component Contracts
+# 02 组件要求
 
-## 页面功能标准 v3 对齐
+## Page Head
 
-本文件的组件要求服务于 `03-page-contracts.md`。与旧版观察记录冲突时，以页面功能标准 v3 的目标状态为准。
+- 每个主页面必须有 Page Head。
+- Page Head 包含页面标题、简短副标题和必要的右侧操作。
+- Page Head 不展示使用说明或快捷键说明。
 
-## Shared primitives 必须覆盖
+## Card
 
-- AppShell
-- SidebarNav
-- TopbarBreadcrumb
-- Button
-- IconButton
-- Badge / Pill
-- MetricCard
-- MetricGrid
-- TokenBar
-- Tooltip
-- Popover
-- DataTable
-- FilterBar
-- Pagination
-- PayloadModal
-- EmptyState
-- ErrorState
-- SectionCard
+- Card 只用于承载独立信息组、重复项、modal 或工具面板。
+- 页面 section 不应包在额外大卡片中。
+- Card 内部标题、操作和内容区域必须有稳定间距。
 
 ## Button
 
-字段：
-
-```text
-size: sm / md
-variant: primary / secondary / ghost / danger
-state: normal / hover / active / disabled
-behavior: data-action 或 href
-```
-
-Button 内部图标和文字必须 `inline-flex; align-items:center`。
-
-## Pagination
-
-统一结构：
-
-```text
-[Prev] [page input] [page status / total records] [page buttons] [page size] [Next]
-```
-
-- 首页：不渲染或禁用 Prev。
-- 尾页：不渲染或禁用 Next。
-- 页码输入框确认后跳到指定页。
-- Sessions、Projects 和项目内 sessions 明细表必须保留 page size 控制和总页数/总记录数说明。
-
-## TokenBar
-
-- Segment：fresh / cache-read / cache-write / output。
-- Hover tooltip：显示各 segment 数值与百分比。
-- Total 可以出现在 tooltip，不一定出现在图面。
-- token 数字统一短格式。
-
-## Token Cell
-
-- token cell 固定结构：左侧为总 token 数字，右侧为 tokenbar。
-- tokenbar hover tooltip 每行包含 dot 颜色、分类名称、token 数量、token 占比。
-- tooltip 各列必须垂直对齐，数值使用 tabular font。
-- token cell 内不得出现无意义的 `tokens` 文案或多行 legend。
-
-## DataTable
-
-- Header 与 cell 对齐同列一致。
-- Cell 必须 padding。
-- 数字列可右对齐；文本列左对齐；但表头与单元格必须一致。
-- sortable header 必须有明确 affordance；非 sortable 不显示 sort icon。
-- 表头排序按钮必须占满整个表头单元格宽度和高度，hover 区域与单元格一致。
-- 列宽通过模板化单位定义；短列固定，主列吸收额外宽屏空间。
-- 表格必须支持横向滚动，不允许压缩到文本重叠。
+- 命令按钮必须有 `data-action` 或 `href`。
+- 图标按钮必须有 `aria-label` 或等价可访问名称。
+- 主操作、次操作、危险操作必须有明确视觉区分。
+- 禁止用纯文本胶囊替代可识别图标按钮。
 
 ## Badge
 
-- Agent、Model、Provider、Status、Severity 都使用模板化 badge。
-- 多个 agents 必须显示为多个独立 badge，不能合并成一个字符串 badge。
+- Agent、Model、Provider、Status、Severity 使用 badge。
+- 多个 agent 或 model 必须展示为多个独立 badge。
+- Badge 文案不得合并成长字符串。
+
+## Data Table
+
+- 表头排序按钮覆盖整个表头单元格。
+- hover 区域必须和可点击区域一致。
+- 主列吸收宽屏空间；短字段列保持固定宽度。
+- 行点击、展开、复制、跳转等行为必须可见且稳定。
+
+## Token Cell
+
+- Token cell 包含总量和 tokenbar。
+- tokenbar segment 颜色语义跨页面一致。
+- tooltip 行包含分类、数量、占比。
+- tooltip 数值右对齐。
 
 ## Chart
 
-- 图表必须有明确 x 轴、y 轴、legend、tooltip。
-- 鼠标悬停必须展示可读的精确数值，不只展示颜色或总量。
-- 堆叠/折线/柱状图的颜色语义必须跨页面一致。
-- 口径不清楚的数据不得放入图表；应移动到更具体的页面或卡片并注明口径。
+- 图表必须有标题、口径、legend、tooltip。
+- tooltip 必须给出精确数值。
+- 图表颜色语义必须与 agent/token 分类一致。
+- 无数据时显示明确空态，不渲染空白图。
 
-## 交叉验证补充（2026-05-21）
+## Modal 和 Drawer
 
-以下来自页面模板的实际观察，用于补充合同未明确但应约束的细节。
-
-### Button — 实际使用的 class 变体
-
-| 实际 class | 对应合同 variant | 备注 |
-|---|---|---|
-| `btn` | secondary (默认) | 无变体后缀时为次按钮 |
-| `btn primary` | primary | 主操作按钮 |
-| `btn sm` / `btn small` | size=sm | 小尺寸（两种写法等价） |
-| `btn btn-sm` / `btn btn-sm btn-primary` | size=sm + primary | session-detail 页面的 payload 操作按钮 |
-| `btn back-btn` | secondary + 语义 | 返回按钮，可单独或与 btn 组合 |
-| `btn chip-x` | secondary + 语义 | 删除 chip 的按钮 |
-| `icon-btn` | IconButton | 纯图标按钮，始终 `data-action` |
-
-**补充约束**：
-- `icon-btn` 是独立于 Button 的 IconButton 原始组件。
-- `scope-switch__btn` 和 `scope-switch__btn is-active` 是 Dashboard 特有的范围切换按钮组。
-- 按钮图标使用 emoji（`span.emoji` 或 `span.ui-icon`），非 SVG。
-
-### Badge — 实际使用的 class 变体
-
-| HiFi class | 语义 |
-|---|---|
-| `badge badge-err` / `badge err` | 错误/失败 |
-| `badge badge-warn` / `badge warn` | 警告 |
-| `badge badge-info` / `badge info` | 信息 |
-| `badge badge-manual` / `badge manual` | 手动输入标记 |
-| `badge badge-model` | 模型名称标记 |
-| `badge ok` | 成功/正常 |
-| `badge err tools-failed` | 工具失败专用（带修饰符） |
-| `badge cc` / `badge cx` / `badge qd` | Agent 来源标记（Claude/Codex/Qoder） |
-
-### MetricCard / MetricGrid — 实际结构
-
-MetricCard 有两种形态：
-
-**形态 A（session-detail metrics 页）**：
-```html
-<div class="metric-card">
-  <h3><span class="ui-icon">🧮</span>Total Tokens</h3>
-  <div class="big">34.3M</div>
-  <div class="panel-sub">input + output + cache writes</div>
-</div>
-```
-
-**形态 B（agent-detail 等页）**：
-```html
-<article class="card metric-card">
-  <div class="metric-icon blue"><span class="emoji">🧾</span></div>
-  <div class="metric-body">
-    <div class="metric-label">Sessions</div>
-    <div class="metric-value">4,892</div>
-  </div>
-</article>
-```
-
-**补充约束**：
-- 图标颜色类：`metric-icon blue|green|orange|purple|red` 共 5 种语义色。
-- 数值类可带 `mono` 修饰符（`metric-value mono`）。
-- MetricGrid 统一使用 `class="metric-grid"` 包裹。
-- 内联 token 指标使用 `metric-stack` + `metric-token`（非 MetricCard）。
-
-### TokenBar — class 映射
-
-| 合同 segment | 页面级 class | DataTable 内嵌 class |
-|---|---|---|
-| fresh | `fresh` | `t-fresh` |
-| cache-read | `read` | `t-read` |
-| cache-write | `write` | `t-write` |
-| output | `out` | `t-out` |
-
-**补充约束**：
-- DataTable 单元格内的 TokenBar 使用 `t-` 前缀以区别于独立 TokenBar。
-- Tooltip 结构：`.tooltip > .tip-title + .tip-row* + .tip-sep? + .tip-row (Total)`。
-- 独立 TokenBar 可带 `show` 修饰符（`tokenbar show`）。
-- TokenBar 段颜色通过 CSS 类名（非 style 背景色）区分。
-
-### DataTable — 补充观察
-
-- 统一使用 `<table class="data-table">`。
-- 使用 `<colgroup>` 定义列宽（如 `col-token-md`、`col-num`、`col-duration`）。
-- 排序表头：`class="sortable" data-action="sort" data-sort-key="..."` + `<span class="sort-mark">↕</span>`。
-- 非排序表头无 `sortable` 类，不显示 `sort-mark`。
-- 数字列统一加 `class="col-num"`，内容用 `class="mono"`。
-- 行可带语义类：`class="round-row failed"`、`class="round-row manual"`。
-
-### Pagination — 验证
-
-完整结构（非首页）：
-```html
-<div class="pagination unified-pagination">
-  <span class="page-status">Page</span>
-  <input class="page-input mono" data-action="page-input" value="1"/>
-  <span class="page-status">of 245 · 1–20 of 4.9K sessions</span>
-  <span class="spacer"></span>
-  <button class="btn sm" data-action="next-page">next ›</button>
-</div>
-```
-
-单页情况（agents.html，of 1）：只渲染 `page-status` + `page-input`，不渲染 prev/next。
-验证结果：合同描述的 prev/input/next 模式与页面模板一致。
-
-### PayloadModal — 实际结构
-
-```html
-<div class="modal-backdrop" data-modal="">
-  <div class="modal">
-    <div class="modal-head">
-      <span class="badge badge-info" data-modal-kind="">RESPONSE</span>
-      <div><b data-modal-title="">...</b><div class="panel-sub">...</div></div>
-      <span class="spacer"></span>
-      <button class="btn" data-action="close-modal">...</button>
-    </div>
-    <div class="modal-body">
-      <div data-modal-meta=""></div>
-      <main data-modal-content=""></main>
-    </div>
-  </div>
-</div>
-```
-
-**补充约束**：
-- 模态框由 `.modal-backdrop`（遮罩）+ `.modal`（内容框）组成。
-- 头部使用 `data-modal-kind`、`data-modal-title` 数据属性。
-- 内容由 `data-modal-meta` 和 `data-modal-content` 占位。
-- Toast 通知使用独立 `.toast` 元素（`data-toast=""`），不属于 Modal。
-
-### SectionCard — 实际结构
-
-```html
-<section class="card section">
-  <div class="section-head">
-    <div class="section-title">...</div>
-    <div class="section-sub">...</div>
-    <span class="spacer"></span>
-    <span class="insight">...</span>
-  </div>
-  <div class="table-wrap">...</div>
-</section>
-```
-
-变体：`card section-card full-width`（全宽表格卡片）。
-
-### EmptyState / ErrorState — 观察
-
-EmptyState 使用 `.state-strip` 容器：
-```html
-<section class="state-strip">
-  <div class="state-icon">🔎</div>
-  <div>
-    <div class="state-title">No matching sessions</div>
-    <div class="muted">Try adjusting your filters or search terms.</div>
-  </div>
-</section>
-```
-
-ErrorState 未在页面模板中独立出现（通过 EmptyState 和 inline badges 替代）。
-
-### AppShell — 验证
-
-两种根容器：
-- `<div class="app">` — 部分页面使用
-- `<div class="app-shell">` — session-detail 系列页面使用
-
-两者内部结构一致：`.sidebar` + `.main`（含 `.topbar` + `.content`）+ 可选 `.footer`。
+- Modal 必须支持关闭按钮、Esc 关闭和遮罩关闭。
+- Payload、request、response、attribution 使用 modal 或 drawer 展示。
+- 弹层内容必须可滚动，不能撑破视口。

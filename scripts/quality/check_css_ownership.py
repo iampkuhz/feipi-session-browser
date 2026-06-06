@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CSS 所有权门禁检查。
 
-基于 harness/quality/css-ownership-map.md 定义的职责边界，检查：
+基于本脚本内的当前职责边界，检查：
 
 1. 层纯度：tokens/base 层是否包含越权选择器
 2. 跨层重复定义：页面 CSS 是否重写 ui-primitives 中的全局组件
@@ -43,7 +43,7 @@ class OwnershipCheck:
     selectors_analyzed: int = 0
 
 
-# ── 所有权配置（源自 css-ownership-map.md）─────────────────────────────
+# ── 所有权配置 ───────────────────────────────────────────────────────
 
 
 # ui-primitives.css 中定义的全局组件（页面 CSS 不得直接重写）

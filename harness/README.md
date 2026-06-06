@@ -1,79 +1,21 @@
 # Harness
 
-本目录包含用于在 Claude Code 下保持仓库可控性的工程流程。
+本目录只保留当前工程入口。
 
-## 01. 目标
+## 当前真源
 
-本目录描述 `feipi-session-browser` 的 Claude Code 本地工程化改造约束：
+- `harness/manifest.yaml`：入口、质量目标和本地文件策略。
+- `scripts/harness/doctor.sh`：harness 最小健康检查。
+- `scripts/quality/run_quality_gate.py`：质量门执行入口。
+- `scripts/quality/quality_targets.py`：质量目标与触发规则。
 
-- Hook runtime 独立入口
-- `tmp/agent_logs/` per-session 运行态目录
-- deterministic quality gate
-- 高权限、强质量
-- 文档、脚本、测试三者一致
-
-## 02. 目录
-
-```text
-harness/
-  README.md
-  manifest.yaml
-  context/          # 渐进式加载上下文包
-  quality/
-    quality-gate-matrix.md
-    deterministic-quality-gate.md
-  workflow/
-    change-lifecycle.md             # 变更生命周期
-    subagent-execution.md           # 子 agent 执行
-```
-
-## 03. 运行态目录
-
-新代码默认只写：
-
-```text
-tmp/agent_logs/MMDD_<session-id>/
-```
-
-每个 session 有独立目录，多个 agent 实例同时运行时互不干扰。
-
-## 04. Hook Runtime
-
-入口（每个 hook type 独立脚本）：
-
-```text
-.claude/hooks/
-  session-start.sh
-  stop.sh
-  pre-bash.sh
-  ...
-```
-
-Python 逻辑：
-
-```text
-scripts/claude_hooks/
-```
-
-Hook 配置在 `.claude/settings.json` 中，详见各 `.claude/hooks/` 脚本。
-
-## 05. Quality Gate
-
-显式运行：
+## 常用命令
 
 ```bash
-python3 scripts/quality/run_quality_gate.py --target session-detail --change-id <change-id>
-python3 scripts/quality/run_quality_gate.py --target python-src --change-id <change-id>
-python3 scripts/quality/run_quality_gate.py --target hook-runtime --change-id <change-id>
-python3 scripts/quality/run_quality_gate.py --target harness --change-id <change-id>
+bash scripts/harness/doctor.sh
+python3 scripts/harness/validate_harness_structure.py
+python3 scripts/harness/validate_openspec_layout.py
+python3 scripts/quality/run_quality_gate.py --target session-detail
 ```
 
-输出：
-
-```text
-tmp/quality/<change-id>/quality-gate-summary.<target>.json
-tmp/quality/<change-id>/gate-details.<target>.json
-```
-
-Stop hook 只检查 artifact，不跑重型测试。
-详见 `quality/deterministic-quality-gate.md` 和 `quality/quality-gate-matrix.md`。
+质量门输出写入 `tmp/quality/<change-id>/`。运行态日志写入 `tmp/agent_logs/`。

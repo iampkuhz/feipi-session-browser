@@ -300,23 +300,18 @@ input[data-action="page-input"]:disabled {
   color: var(--ui-text);
 }
 
-/* ── Migrated from style.css ── */
-/* Originally at style.css line 319 */
 .card--filter-bar {
   margin-bottom: 12px;
   padding: 10px 14px;
 }
-/* Originally at style.css line 1237 */
 .filter-bar__input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-bg);
 }
-/* Originally at style.css line 1241 */
 .filter-bar__select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-bg);
 }
-/* Originally at style.css line 1281 */
 .filter-bar__input {
   padding: 4px 8px;
   border: 1px solid var(--border);
@@ -330,12 +325,10 @@ input[data-action="page-input"]:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Originally at style.css line 1294 */
 .filter-bar__input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-bg);
 }
-/* Originally at style.css line 1298 */
 .filter-bar__select {
   padding: 4px 6px;
   border: 1px solid var(--border);
@@ -355,7 +348,6 @@ input[data-action="page-input"]:disabled {
   background-position: right 6px center;
   padding-right: 22px;
 }
-/* Originally at style.css line 5079 */
 .data-table__selection-bar {
   display: flex;
   align-items: center;
@@ -367,7 +359,6 @@ input[data-action="page-input"]:disabled {
   font-size: var(--text-xs);
   color: var(--accent);
 }
-/* Originally at style.css line 5090 */
 .data-table__clear-sel-btn {
   background: none;
   border: 1px solid var(--accent);
@@ -377,7 +368,6 @@ input[data-action="page-input"]:disabled {
   font-size: var(--text-micro);
   cursor: pointer;
 }
-/* Originally at style.css line 5099 */
 .data-table__clear-sel-btn:hover {
   background: var(--accent);
   color: #fff;

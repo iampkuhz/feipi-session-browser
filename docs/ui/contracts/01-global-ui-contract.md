@@ -1,55 +1,45 @@
-# 01 全局 UI 契约
+# 01 全局 UI 要求
 
-## 页面功能标准 v3
+## 页面基线
 
-- 当前页面功能标准见 `docs/ui/contracts/03-page-contracts.md`。
-- 与旧版 HIFI/contract 条款冲突时，以页面功能标准 v3 为准。
-- Sidebar 主导航只包含 Dashboard、Sessions、Projects；不提供独立 Agents 列表导航入口。
-- Agent 列表信息归入 Dashboard，单个 agent 深度信息归入 Agent Detail。
-- Session Detail 只保留 Trace / Payload 两个主 tab。
-- 页面保持高密度桌面 UI；宽屏多余空间优先分配给主内容列、标题列、图表和明细表。
-- 不允许出现 Dense / Comfortable / Columns / Export / Keyboard shortcuts 这类布局或工具按钮。
-- 不允许删除已有核心页面、核心表格字段、搜索、过滤、排序、分页、行跳转、行展开能力。
-- 所有不可用数据必须显示来源或不可用原因，不允许静默隐藏。
+- 页面面向桌面端高密度使用场景。
+- 主内容区必须为扫描、比较和重复操作优化。
+- 页面应保持信息完整，不用营销式 hero 或装饰卡片占用首屏。
+- 宽屏空间优先分配给主内容列、标题列、图表和明细表。
+- 页面不能因为视觉留白减少核心字段、操作或反馈。
 
-## 通用视觉规则
+## 导航
 
-- 默认 light mode。
-- 主内容区居中，宽屏不偏左。
-- 左侧 sidebar 固定宽度，当前页面高亮明确。
-- 页面术语用英文；中文只用于说明文档或内部注释。
-- 信息密度高，但不能拥挤。
-- 技术工具感：path/session id/model/token 等用 mono。
-- 图标优先 emoji；同类组件图标尺寸一致。
-- button/card 内图标与文字同一行时必须垂直居中。
+- Sidebar 主导航包含 Dashboard、Sessions、Projects。
+- Agent 汇总信息在 Dashboard 呈现。
+- Agent Detail 通过 Dashboard 行跳转或详情选择器进入。
+- 当前页面必须有明确高亮状态。
+- 顶栏展示当前页面位置和必要操作，不承载说明文案。
 
-## Token 展示规则
+## 信息密度
 
-全部 token 数值使用缩写，精确到小数点后 1 位：
+- 页面标题、指标、筛选、表格和图表之间保持紧凑间距。
+- 表格和列表优先展示可操作信息。
+- 长路径、session id、model、token 数值使用 mono 或 tabular number。
+- 文本不得重叠；空间不足时使用截断、tooltip 或横向滚动。
 
-- `1700000` -> `1.7M`
-- `20000` -> `20.0K`
-- `950` -> `950`
+## Token 展示
 
-禁止出现长整数 token：`1700000`、`1,700,000`。
+- Token 数值必须缩写显示，保留一位小数。
+- 示例：`1700000` 显示为 `1.7M`，`20000` 显示为 `20.0K`。
+- Token cell 固定为数值加 tokenbar。
+- tokenbar hover 显示分类、数量和占比。
 
-## 表格规则
+## 表格
 
-- th 与 td 同列对齐一致。
-- 文本不能紧贴单元格边缘，必须有 padding。
-- 可排序列和不可排序列要视觉区分。
-- 表头不可全部显示可排序态。
-- 有翻页的表格按页面功能标准 v3 使用当前产品风格：`Prev`、页码输入、总页数/总记录数、若干页码按钮、page size、`Next`。
-- 当前首页不渲染或禁用 prev；当前尾页不渲染或禁用 next。
+- 表格列宽必须稳定。
+- 文本列左对齐，数值列使用 tabular number。
+- 可排序列必须有可见排序入口和当前排序状态。
+- 分页表格必须包含上一页、下一页、页码、总数和 page size。
+- 表格不能压缩到字段重叠。
 
-## Metric grid 规则
+## 禁止项
 
-- 同一 metric grid 中所有 card 等宽。
-- 不允许某个 card 因数字长而撑宽。
-- 长数字必须缩写。
-
-## 按钮/图标规则
-
-- 每个 button 必须有 `data-action` 或 `href`。
-- 可点击 icon 必须有 hover/focus/active 状态（详见 `behavior-*.md` 逐页行为表）。
-- 不可点击 icon 必须作为 decorative 或带 `aria-hidden="true"`。
+- 不维护 Dense、Comfortable、Columns、Export、Keyboard shortcuts 这类布局工具按钮。
+- 不维护同一组件的多套同义 class 或视觉风格。
+- 不用隐藏样式、别名样式或补丁样式承载当前页面。
