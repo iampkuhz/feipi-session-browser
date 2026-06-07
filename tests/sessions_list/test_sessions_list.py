@@ -17,6 +17,7 @@ _SESSIONS_PATH = "src/session_browser/web/templates/sessions.html"
 _SESSIONS_CSS_PATH = "src/session_browser/web/static/css/sessions-list.css"
 _SESSIONS_JS_PATH = "src/session_browser/web/static/js/sessions-list.js"
 _SESSIONS_COMPONENTS_PATH = "src/session_browser/web/templates/components/sessions_list_components.html"
+_SESSIONS_TABLE_BODY_PATH = "src/session_browser/web/templates/partials/sessions_table_body.html"
 _UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
 _UI_PRIMITIVES_DIR = "src/session_browser/web/templates/components/ui_primitives"
 
@@ -27,7 +28,11 @@ def _read(path: str) -> str:
 
 
 def _read_sessions() -> str:
-    return _read(_SESSIONS_PATH)
+    parts = [_read(_SESSIONS_PATH)]
+    for path in (_SESSIONS_COMPONENTS_PATH, _SESSIONS_TABLE_BODY_PATH):
+        if os.path.exists(path):
+            parts.append(_read(path))
+    return "\n".join(parts)
 
 
 def _read_ui_primitives() -> str:
@@ -214,7 +219,8 @@ class TestSessionsFilterBar:
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_clear_all_button_conditional(self):
         content = _read_sessions()
-        assert "filter_q or filter_agent or filter_model or filter_project" in content, \
+        assert ("filter_q or filter_agent or filter_model or filter_project" in content
+                or "has_active_filter" in content), \
             "Clear All button must be conditional on active filters"
         assert "data_action='clear'" in content, \
             "Clear All must use data_action='clear'"
@@ -253,25 +259,48 @@ class TestSessionsDataTable:
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_table_headers(self):
         content = _read_sessions()
-        for header in ["Title", "Project", "Agent", "Model", "Tokens", "Rounds", "Tools", "Duration", "Updated"]:
+        for header in [
+            "Session",
+            "Project",
+            "Agent",
+            "Model",
+            "Tokens",
+            "Rounds",
+            "Tools",
+            "Subagents",
+            "Duration",
+            "Process Time",
+            "Failure",
+            "Created",
+            "Updated",
+        ]:
             assert header in content, \
                 f"Table must have '{header}' column header"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_sortable_columns(self):
         content = _read_sessions()
-        # 统一模式：col-num sortable 或仅 sortable
-        sortable = re.findall(r'class="[^"]*sortable[^"]*"', content)
-        # Tokens, Rounds, Tools, Duration, Updated 为可排序列
-        assert len(sortable) >= 4, \
-            f"Must have at least 4 sortable columns, found {len(sortable)}"
+        for sort_key in [
+            "tokens",
+            "rounds",
+            "tools",
+            "subagents",
+            "duration",
+            "process-time",
+            "failure",
+            "created",
+            "updated",
+        ]:
+            assert f"'{sort_key}'" in content, \
+                f"Must include sortable column key '{sort_key}'"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_sort_buttons_with_data_action(self):
         content = _read_sessions()
-        sort_buttons = re.findall(r'data-action="sort"', content)
-        assert len(sort_buttons) >= 4, \
-            f"Must have at least 4 sort buttons, found {len(sort_buttons)}"
+        assert 'data-action="sort"' in content, \
+            "Sortable header macro must render data-action='sort'"
+        assert 'data-sort-key="{{ col[1] }}"' in content, \
+            "Sortable header macro must bind each column sort key"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_sort_icons_present(self):

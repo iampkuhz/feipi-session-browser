@@ -8,6 +8,9 @@
 - Stop 门禁必须同时读取 `tmp/agent_logs/current/changed-files.jsonl` 和 `git status --short --untracked-files=all`。
 - `changed-files.jsonl` 用于捕获 Write/Edit/MultiEdit；`git status` 用于捕获 Bash 删除、非 Claude agent 修改和未记录的文件变更。
 - Stop 门禁必须通过 `scripts/claude_hooks/classify.py` 计算 quality target，再通过 `scripts/quality/run_required_quality_gates.py` 执行。
+- changed files 只能用于判断本次必须执行哪些 quality target；一旦 target 被选中，target 内部必须执行完整 required gate baseline，不得再按 changed files 裁剪 gate。
+- required gate 失败时，Stop 门禁必须阻断。失败不得因为“不是当前 agent 的改动”“已有失败”“与本次改动无关”而被降级、跳过或描述为通过。
+- 如果 required gate 因外部环境缺失无法运行，状态必须保持 blocked/fail，并在输出中保留可复现命令和阻断原因。
 
 ## 契约用例门禁
 

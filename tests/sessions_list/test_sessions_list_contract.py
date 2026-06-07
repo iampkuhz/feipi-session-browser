@@ -374,7 +374,7 @@ class TestRoundsColumn:
     def test_rounds_th_sort_call(self):
         """Rounds 必须是可排序列。"""
         content = _read_all_templates()
-        assert "sort_column_header('Rounds'" in content
+        assert "('Rounds', 'rounds'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
     def test_rounds_css_column_width(self):

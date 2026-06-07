@@ -17,6 +17,9 @@
     {% set write_pct = (cache_write / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
     {% set output_pct = (output / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
     {% set session_detail_url = '/sessions/' ~ (s.agent | urlencode('')) ~ '/' ~ (s.session_id | urlencode('')) %}
+    {% set process_seconds = (s.model_execution_seconds | default(0) | int) + (s.tool_execution_seconds | default(0) | int) %}
+    {% set raw_failure_count = s.failed_tool_count | default(0) %}
+    {% set failure_count = raw_failure_count if raw_failure_count is number else 0 %}
     <tr class="sessions-row" data-action="row"
         data-agent="{{ s.agent }}"
         data-model="{{ s.model }}"
@@ -29,8 +32,8 @@
         data-rounds="{{ s.assistant_message_count }}"
         data-tool-count="{{ s.tool_call_count }}"
         data-duration="{{ s.duration_seconds }}"
-        data-process-time="{{ (s.model_execution_seconds | default(0)) + (s.tool_execution_seconds | default(0)) }}"
-        data-failed-tools="{{ s.failed_tool_count | default(0) }}"
+        data-process-time="{{ process_seconds }}"
+        data-failed-tools="{{ failure_count }}"
         data-created-at="{{ s.started_at }}"
         title="点击打开该 session detail 页面">
         <td class="col-session">
@@ -66,10 +69,9 @@
         <td class="num mono col-tools">{{ s.tool_call_count }}</td>
         <td class="num mono col-subagents">{{ s.subagent_instance_count | default(0) }}</td>
         <td class="mono col-duration" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>
-        {% set process_seconds = (s.model_execution_seconds | default(0)) + (s.tool_execution_seconds | default(0)) %}
         <td class="mono col-process-time" data-tooltip="active processing {{ process_seconds | int }}s">{{ process_seconds | format_duration }}</td>
-        <td class="col-failure {{ 'muted' if s.failed_tool_count == 0 else '' }}">
-            {% if s.failed_tool_count > 0 %}{{ s.failed_tool_count }} failed{% else %}No failures{% endif %}
+        <td class="col-failure {{ 'muted' if failure_count == 0 else '' }}">
+            {% if failure_count > 0 %}{{ failure_count }} failed{% else %}No failures{% endif %}
         </td>
         <td class="mono col-created" title="{{ s.started_at }}">{{ s.started_at | local_time }}</td>
         <td class="muted col-updated">{{ s.ended_at | relative_time }}</td>
@@ -79,21 +81,17 @@
     <tr><td colspan="13">
         {% set has_active_filter = filter_q or filter_agent or filter_model or filter_project or filter_status %}
         {% if has_active_filter %}
-        <section class="state-strip" role="status" aria-live="polite">
-            <div class="state-icon" aria-hidden="true">🔎</div>
-            <div>
-                <div class="state-title">No sessions match your current filters</div>
-                <div class="muted">Try adjusting your filters or search terms.</div>
-            </div>
-        </section>
+        {{ ui.empty_state(
+            'No sessions match your current filters',
+            action_button=ui.button('Clear All Filters', variant='secondary', href=actions.clear_all_url, data_action='clear'),
+            icon='🔎'
+        ) }}
         {% else %}
-        <section class="state-strip" role="status" aria-live="polite">
-            <div class="state-icon" aria-hidden="true">📭</div>
-            <div>
-                <div class="state-title">No sessions indexed yet</div>
-                <div class="muted">Run a scan to index local agent sessions.</div>
-            </div>
-        </section>
+        {{ ui.empty_state(
+            'No sessions indexed yet',
+            action_button=ui.button('Run Scan', variant='primary', href='/', data_action='run-scan'),
+            icon='📭'
+        ) }}
         {% endif %}
     </td></tr>
     {% endif %}

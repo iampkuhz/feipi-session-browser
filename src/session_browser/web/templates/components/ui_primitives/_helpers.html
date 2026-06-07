@@ -11,7 +11,7 @@
   {%- set is_first_page = current_page <= 1 -%}
   {%- set is_last_page = current_page >= total_pages -%}
   {%- set total_items_text = ('of ' ~ total_items) if total_items else '' -%}
-  {%- set effective_options = page_size_options if page_size_options else [20, 50, 100, 500] -%}
+  {%- set effective_options = page_size_options if page_size_options else [25, 50, 100] -%}
   {%- set label = custom_label or 'Pagination' -%}
 <nav class="pagination unified-pagination" role="navigation" aria-label="{{ label }}">
   <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>

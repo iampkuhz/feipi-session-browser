@@ -127,11 +127,11 @@ class Test404StatePanel:
             "404 必须有 state-panel 类"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
-    def test_state_panel_role_status(self):
-        """404 的 state-panel 必须有 role='status'。"""
+    def test_state_panel_role_region(self):
+        """404 的 state-panel 必须有 role='region'。"""
         content = _read_404()
-        assert 'role="status"' in content, \
-            "404 的 state-panel 必须有 role='status'"
+        assert 'role="region"' in content, \
+            "404 的 state-panel 必须有 role='region'"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_aria_live(self):
@@ -225,7 +225,7 @@ class Test404Navigation:
     def test_three_nav_links(self):
         """404 必须恰好有 3 个导航链接。"""
         content = _read_404()
-        links = re.findall(r'class="state-panel__link"', content)
+        links = re.findall(r'<a[^>]+class="[^"]*state-panel__link[^"]*"', content)
         assert len(links) == 3, \
             f"404 必须有 3 个 state-panel__link 元素，发现 {len(links)} 个"
 
@@ -438,8 +438,8 @@ class TestErrorConditionalDetails:
     def test_jinja_if_error_block(self):
         """Error 模板必须条件性地渲染错误详情。"""
         content = _read_error()
-        assert '{% if error %}' in content, \
-            "Error 必须有 {% if error %} 条件块"
+        assert '{% if error_details %}' in content, \
+            "Error 必须有 {% if error_details %} 条件块"
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_state_panel_details(self):
@@ -466,10 +466,10 @@ class TestErrorConditionalDetails:
 
     @pytest.mark.contract_case("UI-VISUAL-015")
     def test_jinja_error_variable(self):
-        """Error 模板必须渲染 error 变量。"""
+        """Error 模板必须渲染结构化错误摘要字段。"""
         content = _read_error()
-        assert "{{ error }}" in content, \
-            "Error 必须渲染 {{ error }} 变量"
+        assert "{{ error_details.message_summary }}" in content, \
+            "Error 必须渲染 error_details.message_summary 字段"
 
 
 # -- TestNoInlinePatterns (shared) -----------------------------------------

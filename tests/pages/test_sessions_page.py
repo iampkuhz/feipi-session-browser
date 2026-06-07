@@ -33,47 +33,51 @@ class TestSessionsTemplateColumns:
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_title_column(self):
         content = _read_sessions_templates()
-        assert "column_header('Title')" in content
+        assert 'class="static-header col-session"' in content
+        assert ">Session</th>" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_project_column(self):
         content = _read_sessions_templates()
-        assert "column_header('Project')" in content
+        assert 'class="static-header col-project"' in content
+        assert ">Project</th>" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_agent_column(self):
         content = _read_sessions_templates()
-        assert "column_header('Agent')" in content
+        assert 'class="static-header col-agent"' in content
+        assert ">Agent</th>" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_model_column(self):
         content = _read_sessions_templates()
-        assert "column_header('Model')" in content
+        assert 'class="static-header col-model"' in content
+        assert ">Model</th>" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_tokens_column(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Tokens'" in content
+        assert "('Tokens', 'tokens'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_rounds_column(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Rounds'" in content
+        assert "('Rounds', 'rounds'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_tools_column(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Tools'" in content
+        assert "('Tools', 'tools'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_duration_column(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Duration'" in content
+        assert "('Duration', 'duration'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_has_updated_column(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Updated'" in content
+        assert "('Updated', 'updated'" in content
 
 
 class TestSessionsTemplateRemovedColumns:
@@ -204,33 +208,44 @@ class TestSortableHeaders:
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_tokens_is_sortable(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Tokens', 'tokens'" in content
+        assert "('Tokens', 'tokens'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_rounds_is_sortable(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Rounds', 'rounds'" in content
+        assert "('Rounds', 'rounds'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_tools_is_sortable(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Tools', 'tools'" in content
+        assert "('Tools', 'tools'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_duration_is_sortable(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Duration', 'duration'" in content
+        assert "('Duration', 'duration'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_updated_is_sortable(self):
         content = _read_sessions_templates()
-        assert "sort_column_header('Updated', 'updated'" in content
+        assert "('Updated', 'updated'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_five_sortable_headers(self):
-        """table_header 宏中必须恰好有 6 个可排序表头定义。"""
+        """table_header 宏中必须包含当前规约的 9 个可排序表头定义。"""
         content = _read_sessions_templates()
-        assert content.count("{{ sort_column_header(") == 6
+        for key in [
+            "tokens",
+            "rounds",
+            "tools",
+            "subagents",
+            "duration",
+            "process-time",
+            "failure",
+            "created",
+            "updated",
+        ]:
+            assert f"'{key}'" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_default_sort_aria(self):

@@ -30,6 +30,10 @@ def _read_template() -> str:
     return _read(_PROJECTS_PATH)
 
 
+def _read_template_with_macros() -> str:
+    return _read_template() + "\n" + _read_ui_primitives()
+
+
 def _read_ui_primitives() -> str:
     """Read ui_primitives wrapper + all split sub-components (split-aware)."""
     parts = [_read(_UI_PRIMITIVES_PATH)]
@@ -585,20 +589,20 @@ class TestProjectsRowStructure:
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_agent_badge_cc(self):
         content = _read_template()
-        assert 'badge_with_dot' in content and "'cc'" in content, \
-            "Must have Claude Code agent badge via badge_with_dot macro"
+        assert "ui.agent_badge('claude_code'" in content, \
+            "Must have Claude Code agent badge via agent_badge macro"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_agent_badge_cx(self):
         content = _read_template()
-        assert 'badge_with_dot' in content and "'cx'" in content, \
-            "Must have Codex agent badge via badge_with_dot macro"
+        assert "ui.agent_badge('codex'" in content, \
+            "Must have Codex agent badge via agent_badge macro"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_agent_badge_qd(self):
         content = _read_template()
-        assert 'badge_with_dot' in content and "'qd'" in content, \
-            "Must have Qoder agent badge via badge_with_dot macro"
+        assert "ui.agent_badge('qoder'" in content, \
+            "Must have Qoder agent badge via agent_badge macro"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_tokenbar_present(self):
@@ -653,39 +657,39 @@ class TestProjectsPagination:
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_nav_present(self):
-        content = _read_template()
+        content = _read_template_with_macros()
         assert 'class="pagination unified-pagination"' in content, \
             "Projects must have unified-pagination"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_has_role_navigation(self):
-        content = _read_template()
+        content = _read_template_with_macros()
         assert 'role="navigation"' in content, \
             "Pagination must have role='navigation'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_page_input(self):
-        content = _read_template()
+        content = _read_template_with_macros()
         assert 'data-action="page-input"' in content, \
             "Pagination must have data-action='page-input'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_next_page(self):
-        content = _read_template()
+        content = _read_template_with_macros()
         assert 'data-action="next-page"' in content, \
             "Pagination must have data-action='next-page'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_page_status(self):
-        content = _read_template()
+        content = _read_template_with_macros()
         assert 'class="page-status"' in content, \
             "Pagination must have page-status element"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_pagination_has_aria_label(self):
-        content = _read_template()
-        assert 'aria-label="Pagination"' in content, \
-            "Pagination must have aria-label='Pagination'"
+        content = _read_template_with_macros()
+        assert 'aria-label="{{ label }}"' in content, \
+            "Pagination macro must expose an aria-label"
 
 
 # ── TestProjectsEmptyState ────────────────────────────────────────
@@ -859,7 +863,7 @@ class TestProjectsDataActions:
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_data_action_present(self, action):
-        content = _read_template()
+        content = _read_template_with_macros()
         # 接受渲染后的 HTML（data-action="..."）和 Jinja2 参数（data_action='...'）
         assert (f'data-action="{action}"' in content
                 or f"data_action='{action}'" in content), \

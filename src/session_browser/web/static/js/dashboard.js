@@ -5,11 +5,10 @@
  *   - Agent scope 切换（URL 重载）
  *   - 时间粒度切换（URL 重载）
  *   - 图表渲染（Session Trend、Token Trend、Prompt Activity Trend、
- *     Token Trend by Composition、Cache Health、Model Mix、Tool Distribution）
+ *     Cache Health、Model Mix、Tool Distribution）
  *   - 图表 tooltip hover/focus
  *   - Info 按钮 popover
  *   - All Agents 行点击切换 scope
- *   - View Sessions 跳转
  *
  * 使用 data-action 事件委托，不绑定 inline handler。
  * 不复制 ui_primitives.js 或 view-state.js 已有逻辑。
@@ -22,55 +21,51 @@
     var INFO_COPY = {
         'projects': {
             title: 'Projects',
-            text: '当前 scope 下出现过 session 的 project key 去重数。二级指标：Active 24h（最近 24 小时有 session event 的项目数）、Active 7d（最近 7 天有 session event 的项目数）、New 7d（最近 7 天首次出现的项目数）。'
+            text: '当前 scope 下出现过 session 的 project key 去重数。Badge 显示最近 7 天新出现的项目数；二级指标展示最近 24 小时活跃、最近 7 天活跃和最近 7 天首次出现的项目数。'
         },
         'sessions': {
             title: 'Sessions',
-            text: '当前 scope 下已索引 session 总数。二级指标：Today（今日 session 数）、7d Avg（最近 7 天日均 session 数）、Median Duration（session 持续时间中位数）、Avg Rounds（平均每 session 轮数）。'
+            text: '当前 scope 下已索引 session 总数。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示今日 session、7 天日均、生命周期中位时长和平均 assistant 轮数。'
         },
         'total-tokens': {
             title: 'Total Tokens',
-            text: 'Fresh + Cache Read + Cache Write + Output 的合计。二级指标分别展示四类 token 的绝对量。'
+            text: 'Fresh、Cache Read、Cache Write、Output 的合计。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示四类 token 的绝对量。'
         },
         'prompt-activity': {
             title: 'Prompt Activity',
-            text: '用户发起输入数量，按 user message 事件计数。二级指标：Assistant Turns（assistant message 总数）、Tool Calls（tool call 总数）、Prompts / Session（User Prompts / Sessions）。'
+            text: '用户发起输入数量，按 user message 事件计数。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示 assistant turns、tool calls 和每个 session 平均 user prompts。'
         },
         'cache-read-ratio': {
             title: 'Cache Read Ratio',
-            text: 'Cache Read / Input-side Tokens，其中 Input-side = Fresh + Cache Read + Cache Write。二级指标：Eligible Sessions（Input-side > 0 的 session 数）、P50 Session Ratio（per-session cache read ratio 中位数）、Low-read Sessions（cache read ratio < 20% 的 session 数）。'
+            text: 'Cache Read / Input-side Tokens，其中 Input-side = Fresh + Cache Read + Cache Write。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示可计算样本数、session 级中位数和低缓存复用 session 数。'
         },
         'failed-tools': {
             title: 'Failed Tools',
-            text: '执行失败的工具调用次数。二级指标：Failure Rate（Failed Tools / Tool Calls）、Affected Sessions（failed > 0 的 session 数）、Repeated Failure Sessions（failed > 1 的 session 数）。'
+            text: '执行失败的工具结果数量。Badge 对比当前可见趋势窗口最后两个时间点，下降为正向；二级指标展示失败率、受影响 session 数和重复失败 session 数。'
         },
         'chart-sessions': {
             title: 'Session Trend',
-            text: '纵向柱状图展示 session volume。All agents 下按 agent 分段堆叠（Claude Code、Qoder、Codex）。单 agent 下使用单一颜色。'
+            text: '按当前 Day、Week 或 Month 粒度展示 session 数。All agents 下按 Claude Code、Qoder、Codex 堆叠；单 agent 下只显示当前 agent。'
         },
         'chart-tokens': {
             title: 'Token Trend',
-            text: '折线图展示 total tokens 趋势。All agents 下 tooltip 展示三个 agent 的 token 贡献值和占比。单 agent 下展示四类 token 分段。'
+            text: '展示 token 总量随时间变化。面积层分别代表 Fresh、Cache Read、Cache Write、Output，折线连接每个时间点的 total tokens。'
         },
         'chart-prompts': {
             title: 'Prompt Activity Trend',
-            text: '纵向柱状图展示 user-initiated inputs。All agents 下按 agent 分段堆叠。'
-        },
-        'chart-composition': {
-            title: 'Token Trend by Composition',
-            text: '堆叠面积图展示 Fresh、Cache Read、Cache Write、Output 四类 token 随时间的变化。'
+            text: '柱状图展示 User Prompts，右轴折线展示 Avg Prompts / Session。Assistant Turns 和 Tool Calls 只作为 tooltip 辅助信息，不作为主系列。'
         },
         'chart-cache': {
             title: 'Cache Health',
-            text: '单折线图展示 Cache Read Ratio (0%-100%)。红色三角标记 Fresh spike 异常点。'
+            text: '多折线展示 Average、Claude Code、Qoder、Codex 的 Cache Read Ratio。All agents 高亮 Average；单 agent 高亮当前 agent。Dashboard 只展示聚合趋势，不展示异常标记。'
         },
         'model-mix': {
             title: 'Model Mix',
-            text: '横向柱状图展示当前 agent 下各模型的 token 分布。'
+            text: '圆环图展示当前 agent 下各模型的 token 消耗占比；旁边的表格分别展示 session 占比和 token 占比，方便判断数量贡献与成本贡献是否一致。'
         },
         'tool-dist': {
             title: 'Tool Distribution',
-            text: '横向柱状图展示各工具调用频率。'
+            text: '展示当前 agent 下工具调用分布。当前索引只有聚合 tool-call 数量，若缺少工具名称明细则显示空态。'
         }
     };
 
@@ -122,7 +117,8 @@
         infoPopover.classList.add('is-visible');
 
         var rect = button.getBoundingClientRect();
-        var popoverLeft = Math.min(window.innerWidth - 320, rect.left);
+        var popoverWidth = Math.min(300, window.innerWidth - 16);
+        var popoverLeft = Math.max(8, Math.min(window.innerWidth - popoverWidth - 8, rect.left));
         infoPopover.style.setProperty('--popover-left', popoverLeft + 'px');
         infoPopover.style.setProperty('--popover-top', (rect.bottom + 10) + 'px');
         infoPopover.setAttribute('data-positioned', 'true');
@@ -151,11 +147,11 @@
 
         var rect = button.getBoundingClientRect();
         var tooltipWidth = infoHoverTooltip.offsetWidth || 200;
-        var centerX = rect.left + rect.width / 2 + window.scrollX;
+        var centerX = rect.left + rect.width / 2;
         var leftPos = centerX - tooltipWidth / 2;
         if (leftPos < 8) leftPos = 8;
         if (leftPos + tooltipWidth > window.innerWidth - 8) leftPos = window.innerWidth - tooltipWidth - 8;
-        infoHoverTooltip.style.setProperty('--tooltip-top', (rect.bottom + 6 + window.scrollY) + 'px');
+        infoHoverTooltip.style.setProperty('--tooltip-top', (rect.bottom + 6) + 'px');
         infoHoverTooltip.style.setProperty('--tooltip-left', leftPos + 'px');
         infoHoverTooltip.setAttribute('data-positioned', 'true');
     }
@@ -320,50 +316,72 @@
 
 
 /**
- * dashboard-charts.js — Chart rendering for Dashboard.
+ * dashboard-charts.js - Chart rendering for Dashboard.
  * Reads data from JSON data blocks injected by Jinja2 template.
  */
 (function() {
     'use strict';
 
     document.addEventListener('DOMContentLoaded', function() {
-        var rawDataEl = document.getElementById('dashboard-graph-data');
-        var promptDataEl = document.getElementById('dashboard-prompt-data');
-        var rawData = rawDataEl ? JSON.parse(rawDataEl.textContent || '[]') : [];
-        var promptRawData = promptDataEl ? JSON.parse(promptDataEl.textContent || '[]') : [];
+        var rawData = parseJsonBlock('dashboard-graph-data');
+        var promptRawData = parseJsonBlock('dashboard-prompt-data');
+        var cacheRawData = parseJsonBlock('dashboard-cache-health-data');
 
-        if (!rawData.length && !promptRawData.length) return;
+        if (!rawData.length && !promptRawData.length && !cacheRawData.length) return;
 
-        /* ── Utility functions ─────────────────────────────────── */
+        var AGENTS = [
+            { key: 'claude_code', scope: 'claude-code', label: 'Claude Code', countKey: 'claude_count', promptKey: 'claude_prompts', tokenKey: 'claude_tokens', dot: 'claude' },
+            { key: 'qoder', scope: 'qoder', label: 'Qoder', countKey: 'qoder_count', promptKey: 'qoder_prompts', tokenKey: 'qoder_tokens', dot: 'qoder' },
+            { key: 'codex', scope: 'codex', label: 'Codex', countKey: 'codex_count', promptKey: 'codex_prompts', tokenKey: 'codex_tokens', dot: 'codex' }
+        ];
+        var TOKEN_LAYERS = [
+            { key: 'fresh_input_tokens', cls: 'fresh', label: 'Fresh' },
+            { key: 'cache_read_tokens', cls: 'read', label: 'Cache Read' },
+            { key: 'cache_write_tokens', cls: 'write', label: 'Cache Write' },
+            { key: 'output_tokens', cls: 'out', label: 'Output' }
+        ];
+
+        function parseJsonBlock(id) {
+            var el = document.getElementById(id);
+            if (!el) return [];
+            try {
+                var data = JSON.parse(el.textContent || '[]');
+                return Array.isArray(data) ? data : [];
+            } catch (err) {
+                return [];
+            }
+        }
 
         function weekKey(dateStr) {
+            if (!dateStr) return '';
+            if (dateStr.indexOf('-W') > 0) return dateStr;
             var d = new Date(dateStr);
-            var jan1 = new Date(d.getFullYear(), 0, 1);
-            var dayOfYear = Math.floor((d - jan1) / 86400000);
-            var weekNum = Math.floor(dayOfYear / 7) + 1;
-            return d.getFullYear() + '-W' + String(weekNum).padStart(2, '0');
+            if (isNaN(d.getTime())) return dateStr;
+            var tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            var day = tmp.getUTCDay() || 7;
+            tmp.setUTCDate(tmp.getUTCDate() + 4 - day);
+            var yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+            var week = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+            return tmp.getUTCFullYear() + '-W' + String(week).padStart(2, '0');
         }
 
-        function monthKey(dateStr) { return dateStr.substring(0, 7); }
-
-        function aggregateByWeek(data, fields) {
-            var map = {}, order = [];
-            data.forEach(function(d) {
-                var key = weekKey(d.date);
-                if (!map[key]) { map[key] = { date: key }; order.push(key); }
-                var row = map[key];
-                fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
-            });
-            return order.map(function(k) { return map[k]; });
+        function monthKey(dateStr) {
+            return (dateStr || '').substring(0, 7);
         }
 
-        function aggregateByMonth(data, fields) {
-            var map = {}, order = [];
+        function aggregateByKey(data, fields, keyFn, dateFn) {
+            var map = {};
+            var order = [];
             data.forEach(function(d) {
-                var key = monthKey(d.date);
-                if (!map[key]) { map[key] = { date: key + '-01' }; order.push(key); }
-                var row = map[key];
-                fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
+                var key = keyFn(d.date || '');
+                if (!key) return;
+                if (!map[key]) {
+                    map[key] = { date: dateFn ? dateFn(key) : key };
+                    order.push(key);
+                }
+                fields.forEach(function(f) {
+                    map[key][f] = (map[key][f] || 0) + (d[f] || 0);
+                });
             });
             return order.map(function(k) { return map[k]; });
         }
@@ -371,6 +389,18 @@
         function getGrain() {
             var el = document.querySelector('.grain-control__btn.is-active');
             return el ? (el.getAttribute('data-grain') || 'day') : 'day';
+        }
+
+        function getActiveScope() {
+            var el = document.querySelector('.scope-selector__btn.is-active');
+            return el ? (el.getAttribute('data-scope') || 'all') : 'all';
+        }
+
+        function scopeToAgentKey(scope) {
+            if (scope === 'claude-code') return 'claude_code';
+            if (scope === 'qoder') return 'qoder';
+            if (scope === 'codex') return 'codex';
+            return 'average';
         }
 
         function getDaysForGrain(grain) {
@@ -383,38 +413,62 @@
             var grain = getGrain();
             var sliced = data.slice(-getDaysForGrain(grain));
             if (!sliced.length) return [];
-            var fieldList = fields || getTrendFields();
-            if (grain === 'week') return aggregateByWeek(sliced, fieldList);
-            if (grain === 'month') return aggregateByMonth(sliced, fieldList);
+            if (grain === 'week') {
+                return aggregateByKey(sliced, fields, weekKey, function(k) { return k; });
+            }
+            if (grain === 'month') {
+                return aggregateByKey(sliced, fields, monthKey, function(k) { return k + '-01'; });
+            }
             return sliced;
         }
 
         function getTrendFields() {
-            return ['claude_count', 'codex_count', 'qoder_count', 'total_count',
-                    'total_tokens', 'fresh_input_tokens', 'cache_read_tokens',
-                    'cache_write_tokens', 'output_tokens', 'tool_calls', 'failed_tools'];
+            return [
+                'claude_count', 'codex_count', 'qoder_count', 'total_count',
+                'claude_tokens', 'codex_tokens', 'qoder_tokens', 'total_tokens',
+                'fresh_input_tokens', 'cache_read_tokens', 'cache_write_tokens',
+                'output_tokens', 'tool_calls', 'failed_tools'
+            ];
         }
 
         function getPromptFields() {
-            return ['claude_prompts', 'codex_prompts', 'qoder_prompts', 'total_prompts'];
+            return [
+                'claude_prompts', 'codex_prompts', 'qoder_prompts',
+                'total_prompts', 'assistant_turns', 'tool_calls'
+            ];
+        }
+
+        function getCacheFields() {
+            var fields = [];
+            ['average', 'claude_code', 'qoder', 'codex'].forEach(function(prefix) {
+                ['fresh_input_tokens', 'cache_read_tokens', 'cache_write_tokens'].forEach(function(metric) {
+                    fields.push(prefix + '_' + metric);
+                });
+            });
+            return fields;
         }
 
         function formatDisplayDate(dateStr) {
             var grain = getGrain();
             if (!dateStr) return '';
-            if (grain === 'week') {
-                var parts = dateStr.split('-W');
-                return parts.length > 1 ? 'W' + parts[1] : dateStr.substring(5);
-            }
-            if (grain === 'month') return dateStr.substring(5, 7);
-            return dateStr.substring(5);
+            if (grain === 'week') return dateStr.indexOf('-W') > 0 ? dateStr : weekKey(dateStr);
+            if (grain === 'month') return dateStr.substring(0, 7);
+            return dateStr.substring(5, 10);
         }
 
         function formatTokens(n) {
+            n = Number(n || 0);
             if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
             if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
             if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-            return String(n);
+            return String(Math.round(n));
+        }
+
+        function formatSignedTokens(n) {
+            n = Number(n || 0);
+            if (n > 0) return '+' + formatTokens(n);
+            if (n < 0) return '-' + formatTokens(Math.abs(n));
+            return '0';
         }
 
         function formatNumber(n) {
@@ -422,51 +476,219 @@
             return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         }
 
-        /* ── Tooltip builders (3-column grid per common.md) ───── */
-
-        function buildSessionTooltip(label, d) {
-            var html = '<div class="dashboard-tooltip">';
-            html += '<div class="tooltip-date">' + label + '</div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + (d.claude_count || 0) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + (d.qoder_count || 0) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + (d.codex_count || 0) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + (d.total_count || 0) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--red"></i><span class="tooltip-label">Failed-tool sessions</span><b class="tooltip-value">' + (d.failed_tools || 0) + '</b></div>';
-            html += '</div>';
-            return html;
+        function formatPct(n) {
+            if (n == null || !isFinite(n)) return '';
+            return n.toFixed(1) + '%';
         }
 
-        function buildTokenTooltip(label, d) {
-            var html = '<div class="dashboard-tooltip">';
-            html += '<div class="tooltip-date">' + label + '</div>';
-            var fresh = d.fresh_input_tokens || d.input_tokens || 0;
-            var read = d.cache_read_tokens || 0;
-            var write = d.cache_write_tokens || 0;
-            var out = d.output_tokens || 0;
-            var total = d.total_tokens || (fresh + read + write + out);
-            var ratio = (fresh + read + write) > 0 ? (read / (fresh + read + write) * 100).toFixed(1) + '%' : 'N/A';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--fresh"></i><span class="tooltip-label">Fresh</span><b class="tooltip-value">' + formatTokens(fresh) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--read"></i><span class="tooltip-label">Cache Read</span><b class="tooltip-value">' + formatTokens(read) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--write"></i><span class="tooltip-label">Cache Write</span><b class="tooltip-value">' + formatTokens(write) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--out"></i><span class="tooltip-label">Output</span><b class="tooltip-value">' + formatTokens(out) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + formatTokens(total) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--read"></i><span class="tooltip-label">Cache Read Ratio</span><b class="tooltip-value">' + ratio + '</b></div>';
-            html += '</div>';
-            return html;
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
-        function buildPromptTooltip(label, d) {
-            var html = '<div class="dashboard-tooltip">';
-            html += '<div class="tooltip-date">' + label + '</div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + (d.claude_prompts || 0) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + (d.qoder_prompts || 0) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + (d.codex_prompts || 0) + '</b></div>';
-            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + (d.total_prompts || 0) + '</b></div>';
-            html += '</div>';
-            return html;
+        function xPct(index, length) {
+            return length <= 1 ? 50 : (index / (length - 1) * 100);
         }
 
-        /* ── Chart renderers ───────────────────────────────────── */
+        function xBandCenterPct(index, length) {
+            return length <= 0 ? 50 : ((index + 0.5) / length * 100);
+        }
+
+        function yPct(value, maxVal) {
+            return 100 - ((Number(value || 0) / Math.max(1, maxVal)) * 100);
+        }
+
+        function yPctRange(value, minVal, maxVal, insetPct) {
+            var span = Math.max(1, maxVal - minVal);
+            var normalized = (Number(value || 0) - minVal) / span;
+            normalized = Math.max(0, Math.min(1, normalized));
+            var inset = Number(insetPct || 0);
+            return inset + (1 - normalized) * (100 - inset * 2);
+        }
+
+        function yAxisHtml(ticks, formatter, extraClass) {
+            return '<div class="y-axis' + (extraClass ? ' ' + extraClass : '') + '">' + ticks.map(function(v) {
+                return '<span>' + escapeHtml(formatter ? formatter(v) : v) + '</span>';
+            }).join('') + '</div>';
+        }
+
+        function plotGridHtml(ticks, yFn) {
+            return '<div class="plot-grid" aria-hidden="true">' + ticks.map(function(tick) {
+                return '<span class="plot-grid__line" style="--grid-y:' + yFn(tick).toFixed(2) + '%"></span>';
+            }).join('') + '</div>';
+        }
+
+        function xAxisHtml(data) {
+            var step = Math.max(Math.floor(data.length / 8), 1);
+            var labels = data.map(function(d, i) {
+                return '<span>' + (i % step === 0 ? escapeHtml(formatDisplayDate(d.date)) : '') + '</span>';
+            }).join('');
+            return '<div class="x-axis" style="--n:' + data.length + '">' + labels + '</div>';
+        }
+
+        function tooltipRow(dotClass, label, value, share, rowClass) {
+            var cls = 'tooltip-row' + (rowClass ? ' ' + rowClass : '');
+            return '<div class="' + cls + '"><i class="tooltip-dot tooltip-dot--' + dotClass + '"></i><span class="tooltip-label">' +
+                escapeHtml(label) + '</span><b class="tooltip-value">' + escapeHtml(value) +
+                '</b><span class="tooltip-share">' + escapeHtml(share || '') + '</span></div>';
+        }
+
+        function tooltipLineRow(lineClass, label, value, share, rowClass) {
+            var cls = 'tooltip-row tooltip-row--line' + (rowClass ? ' ' + rowClass : '');
+            return '<div class="' + cls + '"><i class="tooltip-line-key tooltip-line-key--' + lineClass + '"></i><span class="tooltip-label">' +
+                escapeHtml(label) + '</span><b class="tooltip-value">' + escapeHtml(value) +
+                '</b><span class="tooltip-share">' + escapeHtml(share || '') + '</span></div>';
+        }
+
+        function tooltipSection(title) {
+            return '<div class="tooltip-section-title">' + escapeHtml(title) + '</div>';
+        }
+
+        function tooltipShell(label, rows) {
+            return '<div class="dashboard-tooltip"><div class="tooltip-date">' + escapeHtml(label) + '</div>' + rows.join('') + '</div>';
+        }
+
+        function edgeClass(index, length, base) {
+            if (length <= 2) return '';
+            if (index <= 1) return base + '--edge-left';
+            if (index >= length - 2) return base + '--edge-right';
+            return '';
+        }
+
+        function share(value, total) {
+            if (!total) return '';
+            return (value / total * 100).toFixed(1) + '%';
+        }
+
+        function totalTokens(d) {
+            return (d.total_tokens || 0) || TOKEN_LAYERS.reduce(function(sum, layer) {
+                return sum + (d[layer.key] || 0);
+            }, 0);
+        }
+
+        function inputSide(d, prefix) {
+            return (d[prefix + '_fresh_input_tokens'] || 0) +
+                (d[prefix + '_cache_read_tokens'] || 0) +
+                (d[prefix + '_cache_write_tokens'] || 0);
+        }
+
+        function cacheRatio(d, prefix) {
+            var input = inputSide(d, prefix);
+            if (!input) return null;
+            return (d[prefix + '_cache_read_tokens'] || 0) / input * 100;
+        }
+
+        function linePath(data, maxVal, valueFn, xFn, yFn) {
+            var parts = [];
+            var open = false;
+            var resolveX = xFn || xPct;
+            var resolveY = yFn || function(val) { return yPct(val, maxVal); };
+            data.forEach(function(d, i) {
+                var val = valueFn(d, i);
+                if (val == null || !isFinite(val)) {
+                    open = false;
+                    return;
+                }
+                var cmd = open ? 'L ' : 'M ';
+                parts.push(cmd + resolveX(i, data.length).toFixed(2) + ',' + resolveY(val).toFixed(2));
+                open = true;
+            });
+            return parts.join(' ');
+        }
+
+        function isolatedLineMarkers(data, valueFn, xFn, yFn, className) {
+            var resolveX = xFn || xPct;
+            var markers = [];
+            data.forEach(function(d, i) {
+                var val = valueFn(d, i);
+                if (val == null || !isFinite(val)) return;
+                var prev = i > 0 ? valueFn(data[i - 1], i - 1) : null;
+                var next = i < data.length - 1 ? valueFn(data[i + 1], i + 1) : null;
+                var hasPrev = prev != null && isFinite(prev);
+                var hasNext = next != null && isFinite(next);
+                if (hasPrev || hasNext) return;
+                var x = resolveX(i, data.length);
+                var y = yFn(val);
+                markers.push('<line class="' + className + ' line-isolated-marker" x1="' +
+                    Math.max(0, x - 1.2).toFixed(2) + '" x2="' + Math.min(100, x + 1.2).toFixed(2) +
+                    '" y1="' + y.toFixed(2) + '" y2="' + y.toFixed(2) + '"></line>');
+            });
+            return markers.join('');
+        }
+
+        function buildSessionTooltip(label, d, rangeTotal, previous, activeScope) {
+            var rows = [];
+            AGENTS.forEach(function(agent) {
+                var value = d[agent.countKey] || 0;
+                if (activeScope !== 'all' && !value) return;
+                rows.push(tooltipRow(agent.dot, agent.label, formatNumber(value), share(value, d.total_count || 0)));
+            });
+            rows.push(tooltipRow('total', 'Total', formatNumber(d.total_count || 0), share(d.total_count || 0, rangeTotal), 'tooltip-row--total'));
+            var prevTotal = previous ? (previous.total_count || 0) : null;
+            var delta = prevTotal == null ? 'N/A' : ((d.total_count || 0) - prevTotal > 0 ? '+' : '') + formatNumber((d.total_count || 0) - prevTotal);
+            rows.push(tooltipRow('total', 'Delta', delta, ''));
+            return tooltipShell(label, rows);
+        }
+
+        function buildTokenTooltip(label, d, rangeTotal, previous) {
+            var rows = [];
+            var total = totalTokens(d);
+            TOKEN_LAYERS.forEach(function(layer) {
+                var value = d[layer.key] || 0;
+                rows.push(tooltipRow(layer.cls, layer.label, formatTokens(value), share(value, total)));
+            });
+            rows.push(tooltipRow('total', 'Total', formatTokens(total), share(total, rangeTotal), 'tooltip-row--total'));
+            var prevTotal = previous ? totalTokens(previous) : null;
+            var delta = prevTotal == null ? 'N/A' : formatSignedTokens(total - prevTotal);
+            rows.push(tooltipRow('total', 'Delta', delta, ''));
+            return tooltipShell(label, rows);
+        }
+
+        function buildPromptTooltip(label, d, trendPoint) {
+            var rows = [];
+            var activeScope = getActiveScope();
+            var scopedAgents = activeScope === 'all'
+                ? AGENTS
+                : AGENTS.filter(function(agent) { return agent.scope === activeScope; });
+            if (!scopedAgents.length) scopedAgents = AGENTS;
+
+            var primaryAgent = scopedAgents[0];
+            var totalPrompts = activeScope === 'all'
+                ? (d.total_prompts || 0)
+                : (d[primaryAgent.promptKey] || d.total_prompts || 0);
+            var totalSessions = activeScope === 'all'
+                ? (trendPoint ? (trendPoint.total_count || 0) : 0)
+                : (trendPoint ? (trendPoint[primaryAgent.countKey] || trendPoint.total_count || 0) : 0);
+            var totalAverage = totalSessions > 0 ? (totalPrompts / totalSessions).toFixed(1) : 'N/A';
+
+            rows.push(tooltipSection('User Prompts (bars)'));
+            scopedAgents.forEach(function(agent) {
+                var prompts = d[agent.promptKey] || 0;
+                if (!prompts && activeScope !== 'all') return;
+                rows.push(tooltipRow(agent.dot, agent.label, formatNumber(prompts), share(prompts, totalPrompts)));
+            });
+            rows.push(tooltipRow('total', 'Total User Prompts', formatNumber(totalPrompts), '', 'tooltip-row--total'));
+
+            rows.push(tooltipSection('Avg Prompts / Session (line)'));
+            rows.push(tooltipLineRow('prompt-average', 'Overall', totalAverage, '/ session'));
+            if (activeScope === 'all') {
+                scopedAgents.forEach(function(agent) {
+                    var prompts = d[agent.promptKey] || 0;
+                    var sessions = trendPoint ? (trendPoint[agent.countKey] || 0) : 0;
+                    var perSession = sessions > 0 ? (prompts / sessions).toFixed(1) : 'N/A';
+                    rows.push(tooltipLineRow(agent.dot, agent.label, perSession, '/ session'));
+                });
+            }
+
+            rows.push(tooltipSection('Auxiliary'));
+            rows.push(tooltipRow('total', 'Assistant Turns', formatNumber(d.assistant_turns || 0), ''));
+            rows.push(tooltipRow('total', 'Tool Calls', formatNumber(d.tool_calls || 0), ''));
+            return tooltipShell(label, rows);
+        }
 
         function renderSessionChart() {
             var container = document.getElementById('trend-chart');
@@ -475,33 +697,27 @@
             if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
 
             var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_count || 0; })) || 1;
-            var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
-            var yHtml = '<div class="y-axis-label">Y-axis: Sessions (count)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
+            var rangeTotal = data.reduce(function(sum, d) { return sum + (d.total_count || 0); }, 0);
+            var yHtml = yAxisHtml([maxVal, Math.round(2 / 3 * maxVal), Math.round(1 / 3 * maxVal), 0], formatNumber);
 
-            var plotBars = '';
-            data.forEach(function(d) {
+            var bars = '';
+            var activeScope = getActiveScope();
+            data.forEach(function(d, i) {
                 var dateStr = formatDisplayDate(d.date);
                 var pctH = (d.total_count / maxVal) * 100;
-                var tc = d.total_count || 1;
-                var claudePct = (d.claude_count || 0) / tc * 100;
-                var qoderPct = (d.qoder_count || 0) / tc * 100;
-                var codexPct = (d.codex_count || 0) / tc * 100;
-                var tip = buildSessionTooltip(dateStr, d);
-                plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
-                if (d.codex_count > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
-                if (d.claude_count > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
-                if (d.qoder_count > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
-                plotBars += '</div>' + tip + '</div>';
+                var total = d.total_count || 1;
+                var tip = buildSessionTooltip(dateStr, d, rangeTotal, i > 0 ? data[i - 1] : null, activeScope);
+                var edge = edgeClass(i, data.length, 'bar');
+                bars += '<div class="bar' + (edge ? ' ' + edge : '') + '" style="--h:' + pctH + '%"><span class="chart-hover-guide"></span><div class="bar-stack">';
+                if (d.codex_count > 0) bars += '<span class="seg-codex" style="height:' + ((d.codex_count || 0) / total * 100) + '%"></span>';
+                if (d.claude_count > 0) bars += '<span class="seg-claude" style="height:' + ((d.claude_count || 0) / total * 100) + '%"></span>';
+                if (d.qoder_count > 0) bars += '<span class="seg-qoder" style="height:' + ((d.qoder_count || 0) / total * 100) + '%"></span>';
+                bars += '</div>' + tip + '</div>';
             });
-            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
 
-            var step = Math.max(Math.floor(data.length / 8), 1);
-            var xLabels = data.map(function(d, i) {
-                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
-            }).join('');
-            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
-
-            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+            container.innerHTML = '<div class="chart">' + yHtml +
+                '<div class="plot" style="--n:' + data.length + '">' + bars + '</div>' +
+                xAxisHtml(data) + '</div>';
         }
 
         function renderTokenChart() {
@@ -510,99 +726,22 @@
             var data = applyScope(rawData, getTrendFields());
             if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
 
-            var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_tokens || 0; })) || 1;
-            var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
-            var yHtml = '<div class="y-axis-label">Y-axis: Total Tokens (tokens)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + formatTokens(v) + '</span>'; }).join('') + '</div>';
-
-            var plotBars = '';
-            data.forEach(function(d) {
-                var dateStr = formatDisplayDate(d.date);
-                var pctH = (d.total_tokens / maxVal) * 100;
-                var tip = buildTokenTooltip(dateStr, d);
-                plotBars += '<div class="bar bar--line" style="--h:' + pctH + '%">' + tip + '</div>';
-            });
-            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
-
-            var step = Math.max(Math.floor(data.length / 8), 1);
-            var xLabels = data.map(function(d, i) {
-                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
-            }).join('');
-            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
-
-            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
-        }
-
-        function renderPromptChart() {
-            var container = document.getElementById('prompt-activity-chart');
-            if (!container) return;
-            var data = applyScope(promptRawData, getPromptFields());
-            if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
-
-            var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_prompts || 0; })) || 1;
-            var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
-            var yHtml = '<div class="y-axis-label">Y-axis: User Prompts (count)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
-
-            var plotBars = '';
-            data.forEach(function(d) {
-                var dateStr = formatDisplayDate(d.date);
-                var pctH = (d.total_prompts / maxVal) * 100;
-                var tc = d.total_prompts || 1;
-                var claudePct = (d.claude_prompts || 0) / tc * 100;
-                var qoderPct = (d.qoder_prompts || 0) / tc * 100;
-                var codexPct = (d.codex_prompts || 0) / tc * 100;
-                var tip = buildPromptTooltip(dateStr, d);
-                plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
-                if (d.codex_prompts > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
-                if (d.claude_prompts > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
-                if (d.qoder_prompts > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
-                plotBars += '</div>' + tip + '</div>';
-            });
-            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
-
-            var step = Math.max(Math.floor(data.length / 8), 1);
-            var xLabels = data.map(function(d, i) {
-                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
-            }).join('');
-            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
-
-            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
-        }
-
-        /* ── Token Trend by Composition (stacked area) ─────────── */
-
-        function renderCompositionChart() {
-            var container = document.getElementById('token-composition-chart');
-            if (!container) return;
-            var data = applyScope(rawData, getTrendFields());
-            if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
-
-            var maxVal = 0;
-            data.forEach(function(d) {
-                var total = (d.fresh_input_tokens||0) + (d.cache_read_tokens||0) + (d.cache_write_tokens||0) + (d.output_tokens||0);
-                if (total > maxVal) maxVal = total;
-            });
+            var maxVal = Math.max.apply(null, data.map(totalTokens)) || 1;
             if (!maxVal) { container.innerHTML = '<p class="chart-empty">该时间窗口无 token 数据。</p>'; return; }
+            var rangeTotal = data.reduce(function(sum, d) { return sum + totalTokens(d); }, 0);
+            var yHtml = yAxisHtml([maxVal, Math.round(2 / 3 * maxVal), Math.round(1 / 3 * maxVal), 0], formatTokens);
 
-            var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
-            var yHtml = '<div class="y-axis-label">Y-axis: Tokens (tokens)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + formatTokens(v) + '</span>'; }).join('') + '</div>';
-
-            var layers = [
-                { key: 'fresh_input_tokens', cls: 'fresh', label: 'Fresh' },
-                { key: 'cache_read_tokens', cls: 'read', label: 'Cache Read' },
-                { key: 'cache_write_tokens', cls: 'write', label: 'Cache Write' },
-                { key: 'output_tokens', cls: 'out', label: 'Output' }
-            ];
             var cumulative = data.map(function() { return 0; });
             var paths = '';
-            layers.forEach(function(layer) {
+            TOKEN_LAYERS.forEach(function(layer) {
                 var upper = [];
                 var lower = [];
                 data.forEach(function(d, i) {
-                    var x = data.length === 1 ? 50 : (i / (data.length - 1) * 100);
+                    var x = xPct(i, data.length);
                     var low = cumulative[i];
                     var high = low + (d[layer.key] || 0);
-                    lower.push([x, 100 - (low / maxVal * 100)]);
-                    upper.push([x, 100 - (high / maxVal * 100)]);
+                    lower.push([x, yPct(low, maxVal)]);
+                    upper.push([x, yPct(high, maxVal)]);
                     cumulative[i] = high;
                 });
                 var dPath = 'M ' + upper.map(function(p) { return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' L ');
@@ -610,126 +749,179 @@
                 dPath += ' Z';
                 paths += '<path class="area-layer area-layer--' + layer.cls + '" d="' + dPath + '"></path>';
             });
+            paths += '<path class="area-total-line" d="' + linePath(data, maxVal, totalTokens) + '"></path>';
 
-            var points = '';
+            var activeScope = getActiveScope();
+            var targets = '';
             data.forEach(function(d, i) {
-                var dateStr = formatDisplayDate(d.date);
-                var fresh = d.fresh_input_tokens || 0;
-                var read = d.cache_read_tokens || 0;
-                var write = d.cache_write_tokens || 0;
-                var out = d.output_tokens || 0;
-                var total = fresh + read + write + out;
-                var x = data.length === 1 ? 50 : (i / (data.length - 1) * 100);
-                var y = 100 - (total / maxVal * 100);
-
-                var tip = '<div class="dashboard-tooltip"><div class="tooltip-date">' + dateStr + '</div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--fresh"></i><span class="tooltip-label">Fresh</span><b class="tooltip-value">' + formatTokens(fresh) + '</b></div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--read"></i><span class="tooltip-label">Cache Read</span><b class="tooltip-value">' + formatTokens(read) + '</b></div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--write"></i><span class="tooltip-label">Cache Write</span><b class="tooltip-value">' + formatTokens(write) + '</b></div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--out"></i><span class="tooltip-label">Output</span><b class="tooltip-value">' + formatTokens(out) + '</b></div>';
-                tip += '<div class="tooltip-row" style="border-top:1px solid #334155;margin-top:4px;padding-top:4px"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + formatTokens(total) + '</b></div>';
-                tip += '</div>';
-
-                points += '<span class="area-point" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%">' + tip + '</span>';
+                var total = totalTokens(d);
+                var x = xPct(i, data.length);
+                var y = yPct(total, maxVal);
+                var tip = buildTokenTooltip(formatDisplayDate(d.date), d, rangeTotal, i > 0 ? data[i - 1] : null);
+                var edge = edgeClass(i, data.length, 'chart-hover-target');
+                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span><span class="area-point"></span>' + tip + '</span>';
             });
-            var plotHtml = '<div class="plot plot--area" style="--n:' + data.length + '"><svg class="area-plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + '</svg>' + points + '</div>';
 
-            var step = Math.max(Math.floor(data.length / 8), 1);
-            var xLabels = data.map(function(d, i) {
-                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
+            var legend = TOKEN_LAYERS.map(function(layer) {
+                var value = data.reduce(function(sum, d) { return sum + (d[layer.key] || 0); }, 0);
+                return '<span class="chart-legend__item"><i class="chart-legend__dot chart-legend__dot--' + layer.cls + '"></i>' +
+                    escapeHtml(layer.label) + ' ' + escapeHtml(formatTokens(value)) + ' ' + escapeHtml(share(value, rangeTotal)) + '</span>';
             }).join('');
-            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
 
-            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+            container.innerHTML = '<div class="chart">' + yHtml +
+                '<div class="plot plot--area" style="--n:' + data.length + '"><svg class="area-plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + '</svg>' + targets + '</div>' +
+                xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>';
         }
 
-        /* ── Cache Health (line chart) ────────────────────────── */
+        function renderPromptChart() {
+            var container = document.getElementById('prompt-activity-chart');
+            if (!container) return;
+            var data = applyScope(promptRawData, getPromptFields());
+            var trendData = applyScope(rawData, getTrendFields());
+            if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
+
+            var trendByDate = {};
+            trendData.forEach(function(d) { trendByDate[d.date] = d; });
+            var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_prompts || 0; })) || 1;
+            var avgValues = data.map(function(d) {
+                var sessions = trendByDate[d.date] ? (trendByDate[d.date].total_count || 0) : 0;
+                return sessions > 0 ? (d.total_prompts || 0) / sessions : null;
+            });
+            var avgCandidates = avgValues.filter(function(v) { return v != null && isFinite(v); });
+            var maxAvg = avgCandidates.length ? Math.max.apply(null, avgCandidates) : 1;
+            if (!maxAvg || !isFinite(maxAvg)) maxAvg = 1;
+            var yHtml = yAxisHtml([maxVal, Math.round(2 / 3 * maxVal), Math.round(1 / 3 * maxVal), 0], formatNumber);
+            var yRightHtml = yAxisHtml([maxAvg, 2 / 3 * maxAvg, 1 / 3 * maxAvg, 0], function(v) { return Number(v || 0).toFixed(1); }, 'y-axis--right');
+
+            var bars = '';
+            data.forEach(function(d, i) {
+                var dateStr = formatDisplayDate(d.date);
+                var pctH = (d.total_prompts / maxVal) * 100;
+                var total = d.total_prompts || 1;
+                var tip = buildPromptTooltip(dateStr, d, trendByDate[d.date]);
+                var edge = edgeClass(i, data.length, 'bar');
+                bars += '<div class="bar' + (edge ? ' ' + edge : '') + '" style="--h:' + pctH + '%"><span class="chart-hover-guide"></span><div class="bar-stack">';
+                if (d.codex_prompts > 0) bars += '<span class="seg-codex" style="height:' + ((d.codex_prompts || 0) / total * 100) + '%"></span>';
+                if (d.claude_prompts > 0) bars += '<span class="seg-claude" style="height:' + ((d.claude_prompts || 0) / total * 100) + '%"></span>';
+                if (d.qoder_prompts > 0) bars += '<span class="seg-qoder" style="height:' + ((d.qoder_prompts || 0) / total * 100) + '%"></span>';
+                bars += '</div>' + tip + '</div>';
+            });
+
+            var avgPath = linePath(data, maxAvg, function(d, i) { return avgValues[i]; }, xBandCenterPct);
+            var avgLine = '<svg class="line-plot line-plot--bar-aligned" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' +
+                '<path class="line-series line-series--prompt-average" d="' + avgPath + '"></path></svg>';
+            var avgMarkers = avgValues.map(function(value, i) {
+                if (value == null || !isFinite(value)) return '';
+                return '<span class="line-point line-point--prompt-average" style="--point-x:' + xBandCenterPct(i, data.length).toFixed(2) + '%;--point-y:' + yPct(value, maxAvg).toFixed(2) + '%"></span>';
+            }).join('');
+            var legend = '<span class="chart-legend__item"><i class="chart-legend__line chart-legend__line--prompt-average"></i>Avg Prompts / Session</span>';
+
+            container.innerHTML = '<div class="chart chart--dual-axis">' + yHtml +
+                '<div class="plot" style="--n:' + data.length + '">' + avgLine + '<div class="prompt-line-markers" aria-hidden="true">' + avgMarkers + '</div>' + bars + '</div>' +
+                yRightHtml + xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>';
+        }
+
+        function buildCacheTooltip(label, d, highlightPrefix) {
+            var rows = [];
+            [
+                { prefix: 'average', label: 'Average', line: 'average' },
+                { prefix: 'claude_code', label: 'Claude Code', line: 'claude' },
+                { prefix: 'qoder', label: 'Qoder', line: 'qoder' },
+                { prefix: 'codex', label: 'Codex', line: 'codex' }
+            ].forEach(function(item) {
+                var ratio = cacheRatio(d, item.prefix);
+                rows.push(tooltipLineRow(item.line, item.label, ratio == null ? 'N/A' : ratio.toFixed(1) + '%', item.prefix === highlightPrefix ? 'selected' : ''));
+            });
+            var input = inputSide(d, highlightPrefix);
+            rows.push(tooltipRow('total', 'Input-side Tokens', formatTokens(input), '', 'tooltip-row--total'));
+            rows.push(tooltipRow('fresh', 'Fresh', formatTokens(d[highlightPrefix + '_fresh_input_tokens'] || 0), ''));
+            rows.push(tooltipRow('read', 'Cache Read', formatTokens(d[highlightPrefix + '_cache_read_tokens'] || 0), ''));
+            rows.push(tooltipRow('write', 'Cache Write', formatTokens(d[highlightPrefix + '_cache_write_tokens'] || 0), ''));
+            return tooltipShell(label, rows);
+        }
+
+        function cacheAxisDomain(data, specs) {
+            var values = [];
+            data.forEach(function(d) {
+                specs.forEach(function(spec) {
+                    var ratio = cacheRatio(d, spec.prefix);
+                    if (ratio != null && isFinite(ratio)) values.push(ratio);
+                });
+            });
+            if (!values.length) return { min: 0, max: 100, ticks: [100, 75, 50, 25, 0] };
+            var minVal = Math.min.apply(null, values);
+            var lower = Math.max(0, Math.floor((minVal - 5) / 5) * 5);
+            if (minVal <= 0) lower = 0;
+            if (lower >= 100) lower = 95;
+            var span = 100 - lower;
+            return {
+                min: lower,
+                max: 100,
+                ticks: [100, lower + span * 0.75, lower + span * 0.5, lower + span * 0.25, lower]
+            };
+        }
+
+        function formatCacheTick(v) {
+            return (Math.abs(v - Math.round(v)) < 0.05 ? Math.round(v) : v.toFixed(1)) + '%';
+        }
 
         function renderCacheHealthChart() {
             var container = document.getElementById('cache-health-chart');
             if (!container) return;
-            var data = applyScope(rawData, getTrendFields());
+            var data = applyScope(cacheRawData, getCacheFields());
             if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
 
-            // Compute ratios and spikes
-            var ratios = [];
-            var spikes = [];
-            var freshVals = [];
-            data.forEach(function(d) {
-                var inp = (d.fresh_input_tokens||0) + (d.cache_read_tokens||0) + (d.cache_write_tokens||0);
-                var ratio = inp > 0 ? (d.cache_read_tokens||0) / inp * 100 : null;
-                ratios.push(ratio);
-                freshVals.push(d.fresh_input_tokens || 0);
+            var activeScope = getActiveScope();
+            var highlightPrefix = scopeToAgentKey(activeScope);
+            var specs = [
+                { prefix: 'average', label: 'Average' },
+                { prefix: 'claude_code', label: 'Claude Code' },
+                { prefix: 'qoder', label: 'Qoder' },
+                { prefix: 'codex', label: 'Codex' }
+            ];
+            var domain = cacheAxisDomain(data, specs);
+            var cacheY = function(value) { return yPctRange(value, domain.min, domain.max, 5); };
+            var yHtml = yAxisHtml(domain.ticks, formatCacheTick);
+            var gridHtml = plotGridHtml(domain.ticks, cacheY);
+            var paths = '';
+            var isolatedMarkers = '';
+            specs.forEach(function(spec) {
+                var highlight = spec.prefix === highlightPrefix;
+                var cls = 'line-series line-series--' + spec.prefix + (highlight ? ' line-series--highlight' : ' line-series--muted');
+                var valueFn = function(d) { return cacheRatio(d, spec.prefix); };
+                paths += '<path class="' + cls + '" d="' + linePath(data, 100, valueFn, null, cacheY) + '"></path>';
+                isolatedMarkers += isolatedLineMarkers(data, valueFn, xPct, cacheY, cls);
             });
 
-            // Compute spike threshold
-            var nonZeroFresh = freshVals.filter(function(v) { return v > 0; });
-            var spikeThreshold = null;
-            if (nonZeroFresh.length >= 3) {
-                var sorted = nonZeroFresh.slice().sort(function(a,b){return a-b;});
-                var mid = sorted.length >> 1;
-                var median = sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
-                var devs = nonZeroFresh.map(function(v){return Math.abs(v - median);}).sort(function(a,b){return a-b;});
-                var mad = devs.length % 2 ? devs[mid] : (devs[mid-1] + devs[mid]) / 2;
-                spikeThreshold = Math.max(1.8 * median, median + 2 * mad);
-            }
-
-            for (var fi = 0; fi < data.length; fi++) {
-                if (spikeThreshold && freshVals[fi] > spikeThreshold) {
-                    spikes.push(fi);
-                }
-            }
-
-            var yHtml = '<div class="y-axis-label">Y-axis: Cache Read Ratio (0-100%)</div><div class="y-axis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div>';
-
-            var plotBars = '';
+            var targets = '';
             data.forEach(function(d, i) {
-                var dateStr = formatDisplayDate(d.date);
-                var ratio = ratios[i];
-                var pctH = ratio !== null ? ratio : 0;
-                var isSpike = spikes.indexOf(i) >= 0;
-
-                var tip = '<div class="dashboard-tooltip"><div class="tooltip-date">' + dateStr + '</div>';
-                if (ratio !== null) {
-                    tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--read"></i><span class="tooltip-label">Cache Read Ratio</span><b class="tooltip-value">' + ratio.toFixed(1) + '%</b></div>';
-                }
-                var inp = (d.fresh_input_tokens||0) + (d.cache_read_tokens||0) + (d.cache_write_tokens||0);
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Input-side</span><b class="tooltip-value">' + formatTokens(inp) + '</b></div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--fresh"></i><span class="tooltip-label">Fresh</span><b class="tooltip-value">' + formatTokens(d.fresh_input_tokens||0) + '</b></div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--read"></i><span class="tooltip-label">Cache Read</span><b class="tooltip-value">' + formatTokens(d.cache_read_tokens||0) + '</b></div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--write"></i><span class="tooltip-label">Cache Write</span><b class="tooltip-value">' + formatTokens(d.cache_write_tokens||0) + '</b></div>';
-                tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--red"></i><span class="tooltip-label">Fresh Spike</span><b class="tooltip-value">' + (isSpike ? 'Yes' : 'No') + '</b></div>';
-                tip += '</div>';
-
-                var spikeMarker = isSpike ? '<span style="position:absolute;top:0;left:50%;transform:translateX(-50%);color:#ef4444;font-size:10px;line-height:1;">&#9650;</span>' : '';
-                plotBars += '<div class="bar bar--line" style="--h:' + pctH + '%">' + spikeMarker + tip + '</div>';
+                var ratio = cacheRatio(d, highlightPrefix);
+                var y = ratio == null ? cacheY(domain.min) : cacheY(ratio);
+                var x = xPct(i, data.length);
+                var tip = buildCacheTooltip(formatDisplayDate(d.date), d, highlightPrefix);
+                var edge = edgeClass(i, data.length, 'chart-hover-target');
+                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span><span class="line-point line-point--' + highlightPrefix + '"></span>' +
+                    tip + '</span>';
             });
-            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
 
-            var step = Math.max(Math.floor(data.length / 8), 1);
-            var xLabels = data.map(function(d, i) {
-                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
+            var legend = specs.map(function(spec) {
+                return '<span class="chart-legend__item"><i class="chart-legend__line chart-legend__line--' + spec.prefix + '"></i>' + escapeHtml(spec.label) + '</span>';
             }).join('');
-            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
 
-            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+            container.innerHTML = '<div class="chart chart--cache-health">' + yHtml +
+                '<div class="plot plot--line plot--cache-health" style="--n:' + data.length + '">' + gridHtml + '<svg class="line-plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + isolatedMarkers + '</svg>' + targets + '</div>' +
+                xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>';
         }
-
-        /* ── Initial render ────────────────────────────────────── */
 
         renderSessionChart();
         renderTokenChart();
         renderPromptChart();
-        renderCompositionChart();
         renderCacheHealthChart();
-
-        /* ── Public API for external re-render ─────────────────── */
 
         window.renderDashboardCharts = function() {
             renderSessionChart();
             renderTokenChart();
             renderPromptChart();
-            renderCompositionChart();
             renderCacheHealthChart();
         };
     });

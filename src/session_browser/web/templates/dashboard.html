@@ -6,6 +6,7 @@
 {% block title %}Dashboard - Agent Run Profiler{% endblock %}
 
 {% block shell_class %} no-inspector{% endblock %}
+{% block main_attrs %} data-page="dashboard"{% endblock %}
 
 {% block breadcrumb %}
 <span class="current">Dashboard</span>
@@ -31,7 +32,7 @@
 {{ ui.empty_state('暂无已索引 session。请先运行 scan，或查看 Sessions 列表。', action_button=ui.button('运行 Scan', variant='primary', href='/', data_action='run-scan')) }}
 {% else %}
 
-{# ── Page Head: title + agent scope + grain + View Sessions ───────── #}
+{# ── Page Head: title + agent scope + grain ───────────────────────── #}
 <div class="dashboard-head page-head">
     <div class="dashboard-head__title-area">
         <h1 class="page-title">Dashboard</h1>
@@ -76,12 +77,6 @@
                     data-action="grain" data-grain="month"
                     {% if grain == 'month' %}aria-current="true"{% endif %}>Month</button>
         </div>
-        {# View Sessions button #}
-        {% if agent_scope == 'all' %}
-        <a href="/sessions" class="btn btn--primary btn--sm" data-action="view-sessions">View Sessions</a>
-        {% else %}
-        <a href="/sessions?agent={{ agent_scope }}" class="btn btn--primary btn--sm" data-action="view-sessions">View Sessions</a>
-        {% endif %}
     </div>
 </div>
 
@@ -91,20 +86,28 @@
     <article class="metric-card metric-card--kpi" aria-label="{{ kpi.label }}">
         <div class="metric-icon {{ loop.index | kpi_icon_color }}" aria-hidden="true">{{ loop.index | kpi_icon }}</div>
         <div class="metric-card__body">
-            <div class="metric-card__label-row">
+            <div class="metric-card__primary-row">
                 <span class="metric-card__label">{{ kpi.label }}</span>
+                <span class="metric-card__value-group">
+                    <span class="metric-card__value tabular">{{ kpi.value }}</span>
+                    {% if kpi.badge %}
+                    <span class="metric-card__badge metric-card__badge--{{ kpi.badge_tone | default('neutral') }}">{{ kpi.badge }}</span>
+                    {% endif %}
+                </span>
                 <button type="button" class="icon-button icon-button--info"
-                        data-action="kpi-info" data-kpi="{{ kpi.label | lower | replace(' ', '-') }}"
+                        data-action="kpi-info"
+                        data-info="{{ kpi.label | lower | replace(' ', '-') }}"
+                        data-kpi="{{ kpi.label | lower | replace(' ', '-') }}"
                         title="{{ kpi.label }} 指标说明"
                         aria-label="{{ kpi.label }} 指标说明">&#x2139;&#xFE0F;</button>
             </div>
-            <div class="metric-card__value tabular">{{ kpi.value }}</div>
             {% if kpi.secondary and kpi.secondary | length > 0 %}
             <div class="metric-card__secondary">
                 {% for sm in kpi.secondary %}
                 <div class="metric-card__secondary-row"
                      data-secondary-tooltip="{{ sm.label }}"
-                     data-tooltip-def="{{ sm.label }} 定义与计算公式">
+                     data-tooltip-def="{{ sm.description | default(sm.label ~ ' 定义与计算公式') }}"
+                     title="{{ sm.description | default(sm.label ~ ' 定义与计算公式') }}">
                     <span class="metric-card__secondary-label">{{ sm.label }}</span>
                     <span class="metric-card__secondary-value">{{ sm.value }}</span>
                 </div>
@@ -127,7 +130,6 @@
                         <h2>Session Trend</h2>
                         <button class="icon-button icon-button--info" data-action="info-chart-sessions" data-info="chart-sessions" title="Session Trend 图表说明" aria-label="Session Trend 图表说明">&#x2139;&#xFE0F;</button>
                     </div>
-                    <p class="chart-card__subtitle">{% if grain == "week" %}Weekly{% elif grain == "month" %}Monthly{% else %}Daily{% endif %} session count by agent</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-sessions">Latest: {{ trend[-1].total_count if trend else '—' }}</span>
@@ -149,7 +151,6 @@
                         <h2>Token Trend</h2>
                         <button class="icon-button icon-button--info" data-action="info-chart-tokens" data-info="chart-tokens" title="Token Trend 图表说明" aria-label="Token Trend 图表说明">&#x2139;&#xFE0F;</button>
                     </div>
-                    <p class="chart-card__subtitle">{% if grain == "week" %}Weekly{% elif grain == "month" %}Monthly{% else %}Daily{% endif %} total tokens</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-tokens">Latest: {{ (trend[-1].total_tokens if trend else 0) | format_number }}</span>
@@ -171,7 +172,6 @@
                         <h2>Prompt Activity Trend</h2>
                         <button class="icon-button icon-button--info" data-action="info-chart-prompts" data-info="chart-prompts" title="Prompt Activity Trend 图表说明" aria-label="Prompt Activity Trend 图表说明">&#x2139;&#xFE0F;</button>
                     </div>
-                    <p class="chart-card__subtitle">{% if grain == "week" %}Weekly{% elif grain == "month" %}Monthly{% else %}Daily{% endif %} user-initiated inputs</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-prompts">Latest: {{ prompt_activity[-1].total_prompts if prompt_activity else '—' }}</span>
@@ -187,54 +187,27 @@
     </div>
 </section>
 
-{# ── Token 分析区 ───────────────────────────────────────────────── #}
-<section class="token-analysis-section">
-    <div class="token-analysis-grid">
-        {# Token Trend by Composition #}
-        <section class="chart-card chart-card--wide" data-chart-card="token-composition">
-            <div class="chart-card__head">
-                <div>
-                    <div class="chart-card__title-row">
-                        <h2>Token Trend by Composition</h2>
-                        <button class="icon-button icon-button--info" data-action="info-chart-composition" data-info="chart-composition" title="Token Trend by Composition 图表说明" aria-label="Token Trend by Composition 图表说明">&#x2139;&#xFE0F;</button>
-                    </div>
-                    <p class="chart-card__subtitle">Stacked area: Fresh, Cache Read, Cache Write, Output</p>
-                </div>
-                <div class="chart-card__stats">
-                    <span class="chart-stat" data-stat="latest-total">Latest total: {{ (trend[-1].total_tokens if trend else 0) | format_number }}</span>
-                    <span class="chart-stat" data-stat="range-total">Range total: {{ trend | sum_attribute('total_tokens') | format_number }}</span>
+{# ── Cache Health 区 ──────────────────────────────────────────────── #}
+<section class="cache-health-section">
+    <section class="chart-card" data-chart-card="cache-health">
+        <div class="chart-card__head">
+            <div>
+                <div class="chart-card__title-row">
+                    <h2>Cache Health</h2>
+                    <button class="icon-button icon-button--info" data-action="info-chart-cache" data-info="chart-cache" title="Cache Health 图表说明" aria-label="Cache Health 图表说明">&#x2139;&#xFE0F;</button>
                 </div>
             </div>
-            {% if trend %}
-            <div class="chart-container" id="token-composition-chart" data-dashboard-chart="composition"></div>
-            {% else %}
-            <p class="chart-empty">该时间窗口无数据。</p>
-            {% endif %}
-        </section>
-
-        {# Cache Health #}
-        <section class="chart-card" data-chart-card="cache-health">
-            <div class="chart-card__head">
-                <div>
-                    <div class="chart-card__title-row">
-                        <h2>Cache Health</h2>
-                        <button class="icon-button icon-button--info" data-action="info-chart-cache" data-info="chart-cache" title="Cache Health 图表说明" aria-label="Cache Health 图表说明">&#x2139;&#xFE0F;</button>
-                    </div>
-                    <p class="chart-card__subtitle">Cache read ratio over time</p>
-                </div>
-                <div class="chart-card__stats">
-                    <span class="chart-stat" data-stat="latest-ratio">Latest ratio: {{ cache_health.latest_ratio }}</span>
-                    <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: {{ cache_health.lowest_ratio }}</span>
-                    <span class="chart-stat" data-stat="fresh-spikes">Fresh spikes: {{ cache_health.fresh_spikes }}</span>
-                </div>
+            <div class="chart-card__stats">
+                <span class="chart-stat" data-stat="latest-ratio">Latest ratio: {{ cache_health.latest_ratio }}</span>
+                <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: {{ cache_health.lowest_ratio }}</span>
             </div>
-            {% if trend %}
-            <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
-            {% else %}
-            <p class="chart-empty">该时间窗口无数据。</p>
-            {% endif %}
-        </section>
-    </div>
+        </div>
+        {% if cache_health.series %}
+        <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
+        {% else %}
+        <p class="chart-empty">该时间窗口无数据。</p>
+        {% endif %}
+    </section>
 </section>
 
 {# ── Scope 分支区: All agents vs Single agent ────────────────────── #}
@@ -258,15 +231,22 @@
             <div class="hbar" data-hbar="session-share">
                 {% for agent in all_agents_branch.agent_rows %}
                 {% if agent.sessions > 0 %}
-                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}"
-                     style="--seg-width: {{ (agent.sessions / all_agents_branch.total_sessions_all * 100) if all_agents_branch.total_sessions_all > 0 else 0 }}%"
+                {% set share_value = (agent.sessions / all_agents_branch.total_sessions_all * 100) if all_agents_branch.total_sessions_all > 0 else 0 %}
+                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}{% if share_value < 8 %} hbar-seg--tiny{% elif share_value < 18 %} hbar-seg--small{% endif %}"
+                     style="--seg-width: {{ share_value }}%"
                      data-agent="{{ agent.display }}"
                      data-value="{{ agent.sessions }}"
-                     data-share="{{ agent.session_share }}">
+                     data-share="{{ agent.session_share }}"
+                     title="{{ agent.display }} · {{ agent.sessions | format_number }} · {{ agent.session_share }}">
                     <span class="hbar-seg__label">{{ agent.display }}</span>
                     <span class="hbar-seg__pct">{{ agent.session_share }}</span>
                 </div>
                 {% endif %}
+                {% endfor %}
+            </div>
+            <div class="hbar-legend">
+                {% for agent in all_agents_branch.agent_rows %}
+                <span class="hbar-legend__item"><i class="hbar-legend__dot hbar-legend__dot--{{ agent.db_agent }}"></i>{{ agent.display }} {{ agent.session_share }}</span>
                 {% endfor %}
             </div>
         </div>
@@ -277,15 +257,22 @@
             <div class="hbar" data-hbar="token-share">
                 {% for agent in all_agents_branch.agent_rows %}
                 {% if agent.tokens != '0' %}
-                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}"
-                     style="--seg-width: {{ agent.token_share | replace('%', '') | float }}%"
+                {% set share_value = agent.token_share | replace('%', '') | float %}
+                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}{% if share_value < 8 %} hbar-seg--tiny{% elif share_value < 18 %} hbar-seg--small{% endif %}"
+                     style="--seg-width: {{ share_value }}%"
                      data-agent="{{ agent.display }}"
                      data-value="{{ agent.tokens }}"
-                     data-share="{{ agent.token_share }}">
+                     data-share="{{ agent.token_share }}"
+                     title="{{ agent.display }} · {{ agent.tokens }} · {{ agent.token_share }}">
                     <span class="hbar-seg__label">{{ agent.display }}</span>
                     <span class="hbar-seg__pct">{{ agent.token_share }}</span>
                 </div>
                 {% endif %}
+                {% endfor %}
+            </div>
+            <div class="hbar-legend">
+                {% for agent in all_agents_branch.agent_rows %}
+                <span class="hbar-legend__item"><i class="hbar-legend__dot hbar-legend__dot--{{ agent.db_agent }}"></i>{{ agent.display }} {{ agent.token_share }}</span>
                 {% endfor %}
             </div>
         </div>
@@ -296,15 +283,22 @@
             <div class="hbar" data-hbar="prompt-share">
                 {% for agent in all_agents_branch.agent_rows %}
                 {% if agent.prompts > 0 %}
-                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}"
-                     style="--seg-width: {{ (agent.prompts / all_agents_branch.total_prompts_all * 100) if all_agents_branch.total_prompts_all > 0 else 0 }}%"
+                {% set share_value = (agent.prompts / all_agents_branch.total_prompts_all * 100) if all_agents_branch.total_prompts_all > 0 else 0 %}
+                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}{% if share_value < 8 %} hbar-seg--tiny{% elif share_value < 18 %} hbar-seg--small{% endif %}"
+                     style="--seg-width: {{ share_value }}%"
                      data-agent="{{ agent.display }}"
                      data-value="{{ agent.prompts }}"
-                     data-share="{{ agent.prompt_share }}">
+                     data-share="{{ agent.prompt_share }}"
+                     title="{{ agent.display }} · {{ agent.prompts | format_number }} · {{ agent.prompt_share }}">
                     <span class="hbar-seg__label">{{ agent.display }}</span>
                     <span class="hbar-seg__pct">{{ agent.prompt_share }}</span>
                 </div>
                 {% endif %}
+                {% endfor %}
+            </div>
+            <div class="hbar-legend">
+                {% for agent in all_agents_branch.agent_rows %}
+                <span class="hbar-legend__item"><i class="hbar-legend__dot hbar-legend__dot--{{ agent.db_agent }}"></i>{{ agent.display }} {{ agent.prompt_share }}</span>
                 {% endfor %}
             </div>
         </div>
@@ -332,43 +326,51 @@
         </div>
     </div>
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table" id="dashboard-all-agents-table" data-table-enhanced>
             <thead>
                 <tr>
-                    <th>Agent</th>
-                    <th class="numeric">Sessions</th>
-                    <th class="numeric">Tokens</th>
-                    <th class="numeric">Prompt Activity</th>
-                    <th class="numeric">Projects</th>
-                    <th class="numeric">Failure</th>
-                    <th>Last Active</th>
+                    <th class="sortable" data-sort-key="agent">Agent <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="sessions">Sessions <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="tokens">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="prompts">Prompt Activity <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="projects">Projects <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="failure">Failure <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="sortable" data-sort-key="last-active">Last Active <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
                 </tr>
             </thead>
             <tbody>
                 {% for agent in all_agents_branch.agent_rows %}
                 <tr class="agent-row" data-action="switch-agent-scope" data-scope="{{ agent.db_agent | db_agent_to_scope }}">
-                    <td>
+                    <td data-sort-value="{{ agent.display }}">
                         <span class="agent-badge agent-badge--{{ agent.db_agent }}">{{ agent.display }}</span>
                         <a href="/sessions?agent={{ agent.db_agent | db_agent_to_scope }}" class="row-link" data-action="view-agent-sessions" title="View {{ agent.display }} sessions">View Sessions</a>
                     </td>
-                    <td class="numeric">
+                    <td class="numeric" data-sort-value="{{ agent.sessions_raw }}">
                         {{ agent.sessions | format_number }}
                         <span class="subtle">· {{ agent.session_share }}</span>
                     </td>
-                    <td class="numeric">
-                        <span class="mono">{{ agent.tokens }}</span>
+                    <td class="numeric token-cell" data-sort-value="{{ agent.tokens_raw }}">
+                        <span class="token-cell__value tabular">{{ agent.tokens }}</span>
+                        <span class="tokenbar"
+                              title="Fresh {{ agent.token_fresh }} · Read {{ agent.token_cache_read }} · Write {{ agent.token_cache_write }} · Output {{ agent.token_output }}"
+                              style="--seg-fresh:{{ agent.fresh_pct }}%;--seg-read:{{ agent.read_pct }}%;--seg-write:{{ agent.write_pct }}%;--seg-output:{{ agent.output_pct }}%">
+                            <span class="tokenbar__seg tokenbar__seg--fresh"></span>
+                            <span class="tokenbar__seg tokenbar__seg--read"></span>
+                            <span class="tokenbar__seg tokenbar__seg--write"></span>
+                            <span class="tokenbar__seg tokenbar__seg--output"></span>
+                        </span>
                         <span class="subtle">· {{ agent.token_share }}</span>
                     </td>
-                    <td class="numeric">
+                    <td class="numeric" data-sort-value="{{ agent.prompts_raw }}">
                         {{ agent.prompts | format_number }}
                         <span class="subtle">· {{ agent.prompt_share }}</span>
                     </td>
-                    <td class="numeric">{{ agent.projects }}</td>
-                    <td class="numeric">
+                    <td class="numeric" data-sort-value="{{ agent.projects_raw }}">{{ agent.projects }}</td>
+                    <td class="numeric" data-sort-value="{{ agent.failure_rate_raw }}">
                         {{ agent.failed | format_number }}
                         <span class="subtle">· {{ agent.failure_rate }}</span>
                     </td>
-                    <td>{{ agent.last_active }}</td>
+                    <td data-sort-value="{{ agent.last_active_raw }}">{{ agent.last_active }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -387,26 +389,26 @@
         </div>
     </div>
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table" id="dashboard-agent-model-efficiency-table" data-table-enhanced>
             <thead>
                 <tr>
-                    <th>Agent</th>
-                    <th>Model</th>
-                    <th class="numeric">Sessions</th>
-                    <th class="numeric">Tokens / Session</th>
-                    <th class="numeric">Cache Read</th>
-                    <th class="numeric">Failure</th>
+                    <th class="sortable" data-sort-key="agent">Agent <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="sortable" data-sort-key="model">Model <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="sessions">Sessions <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="tokens-per-session">Tokens / Session <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="cache-read">Cache Read <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                    <th class="numeric sortable" data-sort-key="failure">Failure <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in all_agents_branch.efficiency_rows %}
                 <tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="{{ row.db_agent | db_agent_to_scope }}" data-model="{{ row.model }}">
-                    <td><span class="agent-badge agent-badge--{{ row.db_agent }}">{{ row.agent }}</span></td>
-                    <td class="mono">{{ row.model }}</td>
-                    <td class="numeric">{{ row.sessions | format_number }}</td>
-                    <td class="numeric">{{ row.tokens_per_session }}</td>
-                    <td class="numeric">{{ row.cache_read }}</td>
-                    <td class="numeric">{{ row.failure }}</td>
+                    <td data-sort-value="{{ row.agent }}"><span class="agent-badge agent-badge--{{ row.db_agent }}">{{ row.agent }}</span></td>
+                    <td class="mono" data-sort-value="{{ row.model }}">{{ row.model }}</td>
+                    <td class="numeric" data-sort-value="{{ row.sessions_raw }}">{{ row.sessions | format_number }}</td>
+                    <td class="numeric" data-sort-value="{{ row.tokens_per_session_raw }}">{{ row.tokens_per_session }}</td>
+                    <td class="numeric" data-sort-value="{{ row.cache_read_raw }}">{{ row.cache_read }}</td>
+                    <td class="numeric" data-sort-value="{{ row.failure_raw }}">{{ row.failure }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -435,23 +437,69 @@
                 <h2>Model Mix</h2>
                 <button class="icon-button icon-button--info" data-action="info-model-mix" data-info="model-mix" title="Model Mix 图表说明" aria-label="Model Mix 图表说明">&#x2139;&#xFE0F;</button>
             </div>
-            <p class="chart-card__subtitle">Token distribution by model</p>
         </div>
     </div>
     {% if single_agent_branch.model_rows %}
-    <div class="chart-container" id="model-mix-chart" data-dashboard-chart="model-mix">
-        <div class="dashboard-horizontal-chart" role="img" aria-label="Model Mix">
-            {% for row in single_agent_branch.model_rows[:8] %}
-            <div class="dashboard-horizontal-row"
-                 data-tooltip="Model: {{ row.model }} · Sessions {{ row.sessions }} · Session Share {{ row.session_share }} · Tokens {{ row.tokens | format_compact_token }} · Token Share {{ row.token_share }} · Cache {{ row.cache_read }} · Failed {{ row.failed_per_session }}">
-                <div class="dashboard-horizontal-row__label mono" title="{{ row.model }}">{{ row.model }}</div>
-                <div class="dashboard-horizontal-row__track" aria-hidden="true">
-                    <span class="dashboard-horizontal-row__bar dashboard-horizontal-row__bar--model"
-                          style="--bar-width: {{ row.token_share | replace('%', '') }}%"></span>
-                </div>
-                <div class="dashboard-horizontal-row__value tabular">{{ row.token_share }} · {{ row.sessions }} sessions</div>
+    <div class="model-mix-layout" id="model-mix-chart" data-dashboard-chart="model-mix">
+        <div class="model-mix-donut-wrap">
+            <div class="model-mix-donut" role="img" aria-label="Model token share" style="--donut: {{ single_agent_branch.model_donut_gradient }}">
+                <span class="model-mix-donut__hole">
+                    <strong>{{ single_agent_branch.model_count }}</strong>
+                    <span>models</span>
+                </span>
             </div>
-            {% endfor %}
+            <div class="model-mix-legend">
+                {% for row in single_agent_branch.model_rows[:6] %}
+                <span class="model-mix-legend__item" title="{{ row.model }} · Tokens {{ row.tokens_display }} · Sessions {{ row.sessions | format_number }}">
+                    <i style="background: {{ row.color }}"></i>
+                    <span class="mono">{{ row.model }}</span>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="model-mix-tables">
+            <div class="mini-table-card">
+                <div class="mini-table-title">Session Distribution</div>
+                <table class="mini-table">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th class="numeric">Sessions</th>
+                            <th class="numeric">Share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in single_agent_branch.model_rows_by_sessions[:6] %}
+                        <tr>
+                            <td class="mono" title="{{ row.model }}"><span class="model-color-dot" style="background: {{ row.color }}"></span>{{ row.model }}</td>
+                            <td class="numeric tabular">{{ row.sessions | format_number }}</td>
+                            <td class="numeric tabular">{{ row.session_share }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mini-table-card">
+                <div class="mini-table-title">Token Distribution</div>
+                <table class="mini-table">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th class="numeric">Tokens</th>
+                            <th class="numeric">Share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in single_agent_branch.model_rows[:6] %}
+                        <tr>
+                            <td class="mono" title="{{ row.model }}"><span class="model-color-dot" style="background: {{ row.color }}"></span>{{ row.model }}</td>
+                            <td class="numeric tabular">{{ row.tokens_display }}</td>
+                            <td class="numeric tabular">{{ row.token_share }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
     {% else %}
@@ -467,7 +515,6 @@
                 <h2>Tool Distribution</h2>
                 <button class="icon-button icon-button--info" data-action="info-tool-dist" data-info="tool-dist" title="Tool Distribution 图表说明" aria-label="Tool Distribution 图表说明">&#x2139;&#xFE0F;</button>
             </div>
-            <p class="chart-card__subtitle">Tool call frequency</p>
         </div>
     </div>
     <div class="chart-container" id="tool-dist-chart" data-dashboard-chart="tool-dist">
@@ -535,7 +582,9 @@
                     <th>Model</th>
                     <th class="numeric">Sessions</th>
                     <th class="numeric">Avg Tokens</th>
-                    <th class="numeric">Cache / Tools</th>
+                    <th class="numeric">Avg Process Time</th>
+                    <th class="numeric">Cache Read</th>
+                    <th class="numeric">Tool Calls / Session</th>
                     <th class="numeric">Failure</th>
                     <th>Notes</th>
                 </tr>
@@ -546,7 +595,9 @@
                     <td class="mono">{{ row.model }}</td>
                     <td class="numeric">{{ row.sessions | format_number }}</td>
                     <td class="numeric">{{ row.avg_tokens }}</td>
-                    <td class="numeric">{{ row.cache_tools }}</td>
+                    <td class="numeric">{{ row.avg_process_time }}</td>
+                    <td class="numeric">{{ row.cache_read }}</td>
+                    <td class="numeric">{{ row.tool_calls_per_session }}</td>
                     <td class="numeric">{{ row.failure }}</td>
                     <td><span class="badge badge--info">{{ row.notes }}</span></td>
                 </tr>
@@ -557,94 +608,14 @@
 </section>
 {% endif %}
 
-{# Agent Sessions table #}
-{% if single_agent_branch.agent_session_rows %}
-<section class="card table-card" aria-label="Agent Sessions">
-    <div class="table-toolbar">
-        <div>
-            <div class="card-title">Agent Sessions</div>
-            <div class="card-sub">{{ single_agent_branch.display_name }} 范围内的 sessions（分页展示，每页 20 条）</div>
-        </div>
-        <a href="/sessions?agent={{ agent_scope }}" class="btn btn--sm btn--outline" data-action="view-sessions-full">View Sessions</a>
+{# View Sessions CTA #}
+<section class="sessions-cta" aria-label="View Sessions">
+    <div>
+        <div class="sessions-cta__title">View {{ single_agent_branch.display_name }} Sessions</div>
+        <div class="sessions-cta__meta">{{ agent_sessions_total | format_number }} sessions in current agent scope</div>
     </div>
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Project</th>
-                    <th>Model</th>
-                    <th class="numeric">Tokens</th>
-                    <th class="numeric">Rounds</th>
-                    <th class="numeric">Tools</th>
-                    <th class="numeric">Subagents</th>
-                    <th class="numeric">Duration</th>
-                    <th class="numeric">Process Time</th>
-                    <th class="numeric">Failure</th>
-                    <th>Updated</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in single_agent_branch.agent_session_rows %}
-                <tr class="clickable-row" data-action="go-session" data-agent="{{ agent_scope }}" data-session="{{ s.session_id }}">
-                    <td class="title-cell">
-                        <a href="/sessions/{{ agent_scope | scope_to_agent_url }}/{{ s.session_id }}">{{ s.title }}</a>
-                    </td>
-                    <td>
-                        <a href="/projects/{{ s.project | urlencode }}">{{ s.project_name }}</a>
-                    </td>
-                    <td class="mono">{{ s.model }}</td>
-                    <td class="numeric token-cell">
-                        <span class="token-cell__value tabular">{{ s.tokens_display }}</span>
-                        <span class="tokenbar" title="Fresh {{ s.fresh | default(0) | format_number }} · Read {{ s.cache_read | default(0) | format_number }} · Write {{ s.cache_write | default(0) | format_number }} · Output {{ s.output | default(0) | format_number }}"
-                              style="--seg-fresh:{{ s.fresh_pct | default(0) }}%;--seg-read:{{ s.read_pct | default(0) }}%;--seg-write:{{ s.write_pct | default(0) }}%;--seg-output:{{ s.output_pct | default(0) }}%">
-                            <span class="tokenbar__seg tokenbar__seg--fresh"></span>
-                            <span class="tokenbar__seg tokenbar__seg--read"></span>
-                            <span class="tokenbar__seg tokenbar__seg--write"></span>
-                            <span class="tokenbar__seg tokenbar__seg--output"></span>
-                        </span>
-                    </td>
-                    <td class="numeric">{{ s.rounds }}</td>
-                    <td class="numeric">{{ s.tools }}</td>
-                    <td class="numeric">{{ s.subagents }}</td>
-                    <td class="numeric">{{ s.duration }}</td>
-                    <td class="numeric">{{ s.process_time }}</td>
-                    <td class="numeric">{{ s.failure_display }}</td>
-                    <td>{{ s.updated }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {# Pagination footer #}
-    {% if agent_sessions_total_pages > 1 %}
-    <div class="pagination-footer">
-        <span class="pagination-info">
-            Showing {{ ((agent_sessions_page - 1) * agent_sessions_page_size) + 1 }}-{{ agent_sessions_page * agent_sessions_page_size if agent_sessions_page * agent_sessions_page_size < agent_sessions_total else agent_sessions_total }} of {{ agent_sessions_total }}
-        </span>
-        {% if agent_sessions_page > 1 %}
-        <a href="?agent={{ agent_scope }}&grain={{ grain }}&page={{ agent_sessions_page - 1 }}" class="pagination-btn" aria-label="Previous page">Previous</a>
-        {% else %}
-        <span class="pagination-btn pagination-btn--disabled" aria-disabled="true">Previous</span>
-        {% endif %}
-        {% for p in range(1, agent_sessions_total_pages + 1) %}
-            {% if p == agent_sessions_page %}
-            <span class="pagination-btn pagination-btn--active">{{ p }}</span>
-            {% elif p == 1 or p == agent_sessions_total_pages or (p >= agent_sessions_page - 2 and p <= agent_sessions_page + 2) %}
-            <a href="?agent={{ agent_scope }}&grain={{ grain }}&page={{ p }}" class="pagination-btn">{{ p }}</a>
-            {% elif p == agent_sessions_page - 3 or p == agent_sessions_page + 3 %}
-            <span class="pagination-ellipsis">...</span>
-            {% endif %}
-        {% endfor %}
-        {% if agent_sessions_page < agent_sessions_total_pages %}
-        <a href="?agent={{ agent_scope }}&grain={{ grain }}&page={{ agent_sessions_page + 1 }}" class="pagination-btn" aria-label="Next page">Next</a>
-        {% else %}
-        <span class="pagination-btn pagination-btn--disabled" aria-disabled="true">Next</span>
-        {% endif %}
-    </div>
-    {% endif %}
+    <a href="/sessions?agent={{ agent_scope }}" class="btn primary sessions-cta__button" data-action="view-sessions-full">View Sessions</a>
 </section>
-{% endif %}
 
 {% endif %}{# /is_single_agent #}
 
@@ -655,6 +626,9 @@
 {% if trend is defined and trend %}
 <script type="application/json" id="dashboard-graph-data">{{ trend | tojson }}</script>
 <script type="application/json" id="dashboard-prompt-data">{{ prompt_activity | default([]) | tojson }}</script>
+{% endif %}
+{% if cache_health is defined and cache_health.series %}
+<script type="application/json" id="dashboard-cache-health-data">{{ cache_health.series | default([]) | tojson }}</script>
 {% endif %}
 
 {# Floating overlays #}

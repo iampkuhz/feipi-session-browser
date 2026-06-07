@@ -75,7 +75,7 @@ class TestBuildViewActions:
             "sort_key": "updated",
             "sort_dir": "desc",
             "page": 2,
-            "page_size": 20,
+            "page_size": 25,
             "has_prev": True,
             "has_next": True,
         }
@@ -93,7 +93,7 @@ class TestBuildViewActions:
     def test_sort_url_resets_page(self):
         a = self._actions()
         url = a["sort_urls"]["tokens"]
-        assert "page" not in url
+        assert "page=" not in url
 
     @pytest.mark.contract_case("UI-INTERACTION-010")
     def test_sort_url_preserves_filters(self):
@@ -151,4 +151,3 @@ class TestBuildViewActions:
         assert "agent" not in url
         assert "project" not in url
         assert "sort=updated" in url
-

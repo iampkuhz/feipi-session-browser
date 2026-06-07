@@ -406,6 +406,9 @@ def get_trend_data(
             SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_count,
             SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_count,
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_count,
+            COALESCE(SUM(CASE WHEN agent='claude_code' THEN total_tokens ELSE 0 END), 0) as claude_tokens,
+            COALESCE(SUM(CASE WHEN agent='codex' THEN total_tokens ELSE 0 END), 0) as codex_tokens,
+            COALESCE(SUM(CASE WHEN agent='qoder' THEN total_tokens ELSE 0 END), 0) as qoder_tokens,
             COALESCE(SUM(fresh_input_tokens), 0) as fresh_input_tokens,
             COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
             COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens,
@@ -429,6 +432,9 @@ def get_trend_data(
             "claude_count": r["claude_count"],
             "codex_count": r["codex_count"],
             "qoder_count": r["qoder_count"],
+            "claude_tokens": r["claude_tokens"],
+            "codex_tokens": r["codex_tokens"],
+            "qoder_tokens": r["qoder_tokens"],
             "fresh_input_tokens": r["fresh_input_tokens"],
             "cache_read_tokens": r["cache_read_tokens"],
             "cache_write_tokens": r["cache_write_tokens"],
@@ -445,7 +451,8 @@ def get_trend_data(
 def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30, agent_scope: str | None = None) -> list[dict]:
     """Get daily user message counts for the last N days, broken down by agent.
 
-    Returns list of {date, claude_prompts, codex_prompts, qoder_prompts, total_prompts}.
+    Returns list of {date, claude_prompts, codex_prompts, qoder_prompts,
+                     total_prompts, assistant_turns, tool_calls}.
     """
     where, params = _agent_clause(agent_scope)
     where_sql = where.replace("WHERE", "AND") if where else ""
@@ -458,7 +465,9 @@ def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30, agent_sc
             COALESCE(SUM(CASE WHEN agent='claude_code' THEN user_message_count ELSE 0 END), 0) as claude_prompts,
             COALESCE(SUM(CASE WHEN agent='codex' THEN user_message_count ELSE 0 END), 0) as codex_prompts,
             COALESCE(SUM(CASE WHEN agent='qoder' THEN user_message_count ELSE 0 END), 0) as qoder_prompts,
-            COALESCE(SUM(user_message_count), 0) as total_prompts
+            COALESCE(SUM(user_message_count), 0) as total_prompts,
+            COALESCE(SUM(assistant_message_count), 0) as assistant_turns,
+            COALESCE(SUM(tool_call_count), 0) as tool_calls
         FROM sessions
         WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
         {where_sql}
@@ -475,6 +484,8 @@ def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30, agent_sc
             "codex_prompts": r["codex_prompts"],
             "qoder_prompts": r["qoder_prompts"],
             "total_prompts": r["total_prompts"],
+            "assistant_turns": r["assistant_turns"],
+            "tool_calls": r["tool_calls"],
         }
         for r in rows
     ]
@@ -519,7 +530,8 @@ def list_model_stats(conn: sqlite3.Connection) -> list[dict]:
 
     Returns list of {agent, model, total_sessions, total_tokens,
                      input_tokens, output_tokens, cache_read_tokens,
-                     cache_write_tokens, failed_tools}.
+                     cache_write_tokens, tool_calls, failed_tools,
+                     process_seconds, avg_process_seconds}.
     """
     rows = conn.execute(
         """
@@ -532,7 +544,10 @@ def list_model_stats(conn: sqlite3.Connection) -> list[dict]:
             COALESCE(SUM(output_tokens), 0) as output_tokens,
             COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
             COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens,
-            COALESCE(SUM(failed_tool_count), 0) as failed_tools
+            COALESCE(SUM(tool_call_count), 0) as tool_calls,
+            COALESCE(SUM(failed_tool_count), 0) as failed_tools,
+            COALESCE(SUM(model_execution_seconds + tool_execution_seconds), 0) as process_seconds,
+            COALESCE(AVG(model_execution_seconds + tool_execution_seconds), 0) as avg_process_seconds
         FROM sessions
         WHERE model != ''
         GROUP BY agent, model

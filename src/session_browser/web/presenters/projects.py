@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
+from numbers import Real
 import sqlite3
 from statistics import median
 from typing import Any
@@ -161,6 +162,8 @@ def _parse_dt(value: str | None) -> datetime | None:
 
 
 def _fmt_percent(numerator: float, denominator: float) -> str:
+    numerator = _safe_number(numerator)
+    denominator = _safe_number(denominator)
     if denominator <= 0:
         return "0.0%"
     return f"{(numerator / denominator * 100):.1f}%"
@@ -195,6 +198,23 @@ def _project_attr(project: Any, name: str, default: Any = 0) -> Any:
     if isinstance(project, dict):
         return project.get(name, default)
     return getattr(project, name, default)
+
+
+def _safe_number(value: Any, default: float = 0.0) -> float:
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, Real):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return float(default)
+    return float(default)
+
+
+def _project_number(project: Any, name: str, default: float = 0.0) -> float:
+    return _safe_number(_project_attr(project, name, default), default)
 
 
 def _bucket_for_grain(dt: datetime, grain: str) -> str:
@@ -306,11 +326,11 @@ def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -
         agent_failed[agent] += failed
 
     input_side_total = int(
-        _project_attr(project, "total_input_tokens", 0)
-        + _project_attr(project, "total_cached_tokens", 0)
-        + _project_attr(project, "total_cache_write_tokens", 0)
+        _project_number(project, "total_input_tokens", 0)
+        + _project_number(project, "total_cached_tokens", 0)
+        + _project_number(project, "total_cache_write_tokens", 0)
     )
-    total_tokens = int(input_side_total + _project_attr(project, "total_output_tokens", 0))
+    total_tokens = int(input_side_total + _project_number(project, "total_output_tokens", 0))
     agent_rows = []
     for agent_key, label, scope in [
         ("claude_code", "Claude Code", "claude"),
@@ -327,7 +347,7 @@ def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -
             "sessions": count,
             "tokens": tokens,
             "failed": failed,
-            "session_share": count / _project_attr(project, "total_sessions", 0) * 100 if _project_attr(project, "total_sessions", 0) else 0,
+            "session_share": count / _project_number(project, "total_sessions", 0) * 100 if _project_number(project, "total_sessions", 0) else 0,
             "token_share": tokens / total_tokens * 100 if total_tokens else 0,
         })
 
@@ -347,19 +367,19 @@ def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -
         },
         "tokens_kpi": {
             "total": total_tokens,
-            "fresh": int(_project_attr(project, "total_input_tokens", 0)),
-            "cache_read": int(_project_attr(project, "total_cached_tokens", 0)),
-            "cache_write": int(_project_attr(project, "total_cache_write_tokens", 0)),
-            "output": int(_project_attr(project, "total_output_tokens", 0)),
+            "fresh": int(_project_number(project, "total_input_tokens", 0)),
+            "cache_read": int(_project_number(project, "total_cached_tokens", 0)),
+            "cache_write": int(_project_number(project, "total_cache_write_tokens", 0)),
+            "output": int(_project_number(project, "total_output_tokens", 0)),
         },
         "cache_kpi": {
-            "ratio": _fmt_percent(_project_attr(project, "total_cached_tokens", 0), input_side_total),
+            "ratio": _fmt_percent(_project_number(project, "total_cached_tokens", 0), input_side_total),
             "eligible_sessions": eligible_sessions,
             "low_read_sessions": low_read_sessions,
         },
         "failure_kpi": {
-            "failed_tools": int(_project_attr(project, "total_failed_tools", 0)),
-            "failure_rate": _fmt_percent(_project_attr(project, "total_failed_tools", 0), _project_attr(project, "total_tool_calls", 0)),
+            "failed_tools": int(_project_number(project, "total_failed_tools", 0)),
+            "failure_rate": _fmt_percent(_project_number(project, "total_failed_tools", 0), _project_number(project, "total_tool_calls", 0)),
             "affected_sessions": affected_sessions,
             "repeated_failure_sessions": repeated_failure_sessions,
         },
@@ -519,7 +539,7 @@ def build_project_detail_view_model(
     all_project_sessions = list_sessions(
         conn,
         project_key=project_key,
-        limit=max(int(_project_attr(pstats, "total_sessions", 0) or 0), 1),
+        limit=max(int(_project_number(pstats, "total_sessions", 0) or 0), 1),
         offset=0,
         order_by="started_at",
         order_dir="asc",

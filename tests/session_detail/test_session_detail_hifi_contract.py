@@ -545,7 +545,8 @@ class TestDeadButtonGate:
 
     SUPPORTED_ACTIONS = {
         "status-all", "status-failed", "toggle-all", "expand-all", "expand-visible", "collapse-all",
-        "open-payload", "payload-mode", "close-modal", "close-payload", "payload-tab",
+        "open-payload", "payload-mode", "open-payload-tab", "close-modal", "close-payload", "payload-tab",
+        "select-payload-call", "open-trace-step",
         "jump-round", "jump-anomaly", "md-toggle",
         "toggle-round", "toggle-issue-expand", "toggle-sub-round",
         "open-settings", "help", "shell",

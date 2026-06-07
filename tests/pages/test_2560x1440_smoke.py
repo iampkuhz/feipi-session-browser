@@ -105,12 +105,12 @@ class TestDisplay2KDashboard:
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_metric_cards_present(self, display_2k_smoke_server):
-        """Dashboard 必须有 4 个指标卡片。"""
+        """Dashboard 必须有 6 个 KPI 指标卡片。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
-        cards = re.findall(r'class="metric-card"', html)
-        assert len(cards) == 4, f"预期 4 个指标卡片，发现 {len(cards)} 个"
+        cards = re.findall(r'class="metric-card\b', html)
+        assert len(cards) == 6, f"预期 6 个 KPI 指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_chart_containers_present(self, display_2k_smoke_server):
@@ -124,22 +124,22 @@ class TestDisplay2KDashboard:
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_metric_grid_layout(self, display_2k_smoke_server):
-        """Dashboard 的 metric-grid 必须存在以支持宽屏布局。"""
+        """Dashboard 的 kpi-grid 必须存在以支持宽屏布局。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
-        assert 'class="metric-grid"' in html, \
-            "metric-grid 必须存在以支持 2560x1440 布局"
+        assert 'class="kpi-grid"' in html, \
+            "kpi-grid 必须存在以支持 2560x1440 布局"
 
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_scope_switch_ui(self, display_2k_smoke_server):
-        """Dashboard 必须有范围切换 UI。"""
+        """Dashboard 必须有时间粒度切换 UI。"""
         base_url = display_2k_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
-        for scope in ["day", "week", "month"]:
-            assert f'data-scope="{scope}"' in html, \
-                f"范围按钮 '{scope}' 必须存在"
+        for grain in ["day", "week", "month"]:
+            assert f'data-grain="{grain}"' in html, \
+                f"时间粒度按钮 '{grain}' 必须存在"
 
 
 class TestDisplay2KSessionsList:

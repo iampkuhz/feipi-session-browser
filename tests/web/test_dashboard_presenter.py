@@ -134,6 +134,8 @@ class TestBuildDashboardViewModelStructure:
             "all_agents_branch", "single_agent_branch",
             "needs_attention", "cache_health",
             "active_page",
+            "agent_sessions_page", "agent_sessions_total_pages",
+            "agent_sessions_total", "agent_sessions_page_size",
         }
         assert set(result.keys()) == expected_keys
 

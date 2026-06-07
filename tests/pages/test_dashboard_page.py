@@ -114,7 +114,7 @@ class TestDashboardMetrics:
         """当夹具包含数据时，指标卡片必须有填充的值（不为零）。"""
         # 从 metric-card__value 元素中提取值（class 可能包含额外修饰类如 tabular）
         values = re.findall(
-            r'class="metric-card__value[^"]*">([^<]+)<',
+            r'class="metric-card__value(?:\s[^"]*)?">([^<]+)<',
             dashboard_html
         )
         if "暂无已索引 session" in dashboard_html:
@@ -213,18 +213,17 @@ class TestDashboardCharts:
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_subtitles(self, dashboard_html):
-        """每个图表必须有副标题。"""
+        """图表说明必须收敛到 info icon，不渲染 subtitle。"""
         if "暂无已索引 session" in dashboard_html:
             pytest.skip("Fixture 未产生数据，页面渲染空态")
-        # Subtitles are grain-aware (Daily/Weekly/Monthly)
-        subtitles = [
+        assert "chart-card__subtitle" not in dashboard_html
+        for phrase in [
             "session count by agent",
-            "total tokens",
+            "stacked tokens by composition",
             "user-initiated inputs",
-        ]
-        for sub in subtitles:
-            assert sub in dashboard_html, \
-                f"图表副标题 '{sub}' 必须存在"
+        ]:
+            assert phrase not in dashboard_html, \
+                f"图表 subtitle 文案 '{phrase}' 不应出现在模板中"
 
 
 # ── TestDashboardScopeSwitch ─────────────────────────────────────────

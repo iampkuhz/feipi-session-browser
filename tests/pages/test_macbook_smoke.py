@@ -161,12 +161,12 @@ class TestMacbookViewportSpecific:
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_dashboard_metric_cards(self, macbook_smoke_server):
-        """Dashboard 必须有 4 个指标卡片。"""
+        """Dashboard 必须有 6 个 KPI 指标卡片。"""
         base_url = macbook_smoke_server
         status, html = fetch_page(base_url, "/dashboard")
         assert status == 200
-        cards = re.findall(r'class="metric-card"', html)
-        assert len(cards) == 4, f"预期 4 个指标卡片，发现 {len(cards)} 个"
+        cards = re.findall(r'class="metric-card\b', html)
+        assert len(cards) == 6, f"预期 6 个 KPI 指标卡片，发现 {len(cards)} 个"
 
     @pytest.mark.contract_case("UI-VISUAL-009")
     def test_sessions_list_has_table(self, macbook_smoke_server):
@@ -192,10 +192,10 @@ class TestMacbookViewportSpecific:
         """Session Detail 页面必须对至少一个会话存在。"""
         base_url = macbook_smoke_server
         # 首先从会话页面获取一个会话 ID
-        status, html = fetch_page(base_url, "/sessions")
+        status, html = fetch_page(base_url, "/sessions?sort=tokens&dir=asc")
         assert status == 200
 
-        # 从渲染的 HTML 中提取会话链接
+        # 从轻量候选中提取会话链接，避免真实本地索引的最新大 session 把 smoke 测试变成性能压测。
         match = re.search(r'href="(/sessions/[^"]+/[^"]+)"', html)
         assert match, "在会话列表页面未找到会话链接"
 

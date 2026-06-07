@@ -76,10 +76,11 @@ class TestInfoIconNotRawEmbedded:
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_project_uses_info_button_component(self, project_html):
-        """project.html 应使用语义化 info 按钮模式。"""
+        """project.html 应使用语义化说明模式。"""
         has_icon_button = "icon-button--info" in project_html or "icon_button" in project_html
         has_data_action = 'data-action="info"' in project_html
-        assert has_icon_button or has_data_action, (
+        has_tooltip = "data-tooltip=" in project_html
+        assert has_icon_button or has_data_action or has_tooltip, (
             "project.html lacks a semantic info button pattern. "
-            "Expected icon-button--info class or icon_button macro usage."
+            "Expected icon-button--info, icon_button macro, info action, or data-tooltip usage."
         )

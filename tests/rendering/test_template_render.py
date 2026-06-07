@@ -178,7 +178,7 @@ class TestDashboardRender:
             },
             "single_agent_branch": None,
             "needs_attention": [],
-            "cache_health": {"latest_ratio": "N/A", "lowest_ratio": "N/A", "fresh_spikes": "0"},
+            "cache_health": {"latest_ratio": "N/A", "lowest_ratio": "N/A"},
             "active_page": "dashboard",
             "error_count": 0,
         })
@@ -247,12 +247,26 @@ class TestSessionDetailRender:
                 "cache_write_pct": "0%",
             },
             "hero_metrics": {"tokens": "0", "rounds": "0", "tools": "0", "failed": "0"},
+            "diagnostics": {
+                "token_rounds": [],
+                "token_stats": [],
+                "tool_summary": [],
+                "signals": [],
+                "context_scope": "Session-level",
+                "context_segments": [],
+            },
             "issue_links": [],
             "session_url": "",
             "trace_rows": [],
             "payload_sources": [],
+            "payload_index": {
+                "default_call_id": "",
+                "payload_count": 0,
+                "groups": [],
+            },
             "current_agent": "claude_code",
             "session_data": "{}",
+            "slim_mode": False,
         })
         assert "Trace" in html
         _assert_page_content_ok(html, "Trace")
@@ -280,9 +294,53 @@ class TestProjectRender:
                 "first_seen": "2025-01-01",
                 "last_seen": "2025-01-15",
             })(),
+            "project_detail": {
+                "active_period": "2025-01-01 to 2025-01-15",
+                "sessions_kpi": {
+                    "today": 0,
+                    "avg_7d": 0.0,
+                    "median_duration": "0s",
+                    "median_process_time": "0s",
+                },
+                "agents_kpi": {
+                    "count": 0,
+                    "claude_code": 0,
+                    "qoder": 0,
+                    "codex": 0,
+                },
+                "tokens_kpi": {
+                    "total": 0,
+                    "fresh": 0,
+                    "cache_read": 0,
+                    "cache_write": 0,
+                    "output": 0,
+                },
+                "cache_kpi": {
+                    "ratio": "N/A",
+                    "eligible_sessions": 0,
+                    "low_read_sessions": 0,
+                },
+                "failure_kpi": {
+                    "failed_tools": 0,
+                    "failure_rate": "0.0%",
+                    "affected_sessions": 0,
+                    "repeated_failure_sessions": 0,
+                },
+                "token_trend": {
+                    "has_data": False,
+                    "layers": [],
+                    "points": [],
+                },
+                "agent_mix": [],
+                "tool_hotspots_reason": "No tool hotspot data",
+            },
             "sessions": [],
             "current_page": 1,
             "total_pages": 1,
+            "total_count": 0,
+            "page_size": 25,
+            "filter_q": "",
+            "trend_grain": "day",
             "error": None,
         })
         assert "Test Project" in html

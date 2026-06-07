@@ -306,6 +306,31 @@ class TestIncludeSessionDetail:
         all_targets = _runner.compute_required_targets(changed_files, no_exclusion)
         assert "session-detail" in all_targets
 
+    @pytest.mark.contract_case("HOOK-HARNESS-012")
+    def test_run_gate_uses_full_target_baseline(self, monkeypatch):
+        """执行 target 时不得把 changed-files 继续传入 run_quality_gate.py 裁剪 gate。"""
+        td = _setup_env([])
+        captured_cmds: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmds.append(list(cmd))
+            artifact = (
+                _runner.QUALITY_DIR
+                / "full-baseline-check"
+                / "quality-gate-summary.session-detail.json"
+            )
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_text('{"status":"PASS"}\n', encoding="utf-8")
+            return _runner.subprocess.CompletedProcess(cmd, 0, stdout="ok")
+
+        monkeypatch.setattr(_runner.subprocess, "run", fake_run)
+
+        passed, _artifact_path = _runner.run_gate("session-detail", "full-baseline-check")
+
+        assert passed is True
+        assert captured_cmds, "run_gate 必须调用 run_quality_gate.py"
+        assert "--changed-files" not in captured_cmds[0]
+
 
 class TestSharedStopEntrypoint:
     @pytest.mark.contract_case("HOOK-HARNESS-012")

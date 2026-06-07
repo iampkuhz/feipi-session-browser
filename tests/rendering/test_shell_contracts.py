@@ -124,7 +124,6 @@ class TestBaseHtmlNavItems:
         "nav-dashboard",
         "nav-sessions",
         "nav-projects",
-        "nav-glossary",
     ]
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
@@ -143,14 +142,14 @@ class TestBaseHtmlNavItems:
             "Missing nav-projects"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
-    def test_has_nav_glossary(self, base_text):
-        assert 'data-action="nav-glossary"' in base_text, \
-            "Missing nav-glossary"
+    def test_has_no_core_nav_glossary(self, base_text):
+        assert 'data-action="nav-glossary"' not in base_text, \
+            "Token Glossary must not be a core business nav item"
 
     @pytest.mark.contract_case("UI-VISUAL-001", "UI-VISUAL-002")
     def test_nav_item_has_data_target(self, base_text):
         """每个导航项必须包含 data-target 属性。"""
-        for target in ["dashboard", "sessions", "projects", "glossary"]:
+        for target in ["dashboard", "sessions", "projects"]:
             assert f'data-target="{target}"' in base_text, \
                 f"Missing data-target=\"{target}\""
 

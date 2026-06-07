@@ -368,7 +368,18 @@
     tab.setAttribute("data-selected-call-id", callId);
     tab.setAttribute("data-selected-round", round);
     tab.setAttribute("data-selected-raw", allRaw.join("\n\n"));
+    syncSelectedPayloadCopyButtons(tab);
     body.replaceChildren(stack);
+  }
+
+  function syncSelectedPayloadCopyButtons(tab) {
+    tab = tab || qs(document, "[data-payload-tab]");
+    var raw = tab ? tab.getAttribute("data-selected-raw") : "";
+    var callId = tab ? tab.getAttribute("data-selected-call-id") : "";
+    var rawButton = qs(document, '[data-payload-copy="raw"]');
+    var callIdButton = qs(document, '[data-payload-copy="call-id"]');
+    if (rawButton) rawButton.setAttribute("data-copy-text", raw || "No raw payload available");
+    if (callIdButton) callIdButton.setAttribute("data-copy-text", callId || "");
   }
 
   function selectPayloadCall(button, updateUrl) {
@@ -402,6 +413,10 @@
     }
 
     body.replaceChildren(makeEl("div", "sd-card-empty", "Loading selected payload..."));
+    tab.setAttribute("data-selected-call-id", callId);
+    tab.setAttribute("data-selected-round", round);
+    tab.setAttribute("data-selected-raw", "");
+    syncSelectedPayloadCopyButtons(tab);
     var ids = [
       button.getAttribute("data-request-payload-id") || "",
       button.getAttribute("data-response-payload-id") || ""

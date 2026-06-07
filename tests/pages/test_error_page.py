@@ -54,7 +54,16 @@ def _render_error_template(error: str | None = None) -> str:
         autoescape=True,
     )
     template = env.get_template("error.html")
-    return template.render(error=error)
+    error_details = None
+    if error is not None:
+        error_details = {
+            "error_type": "TestError",
+            "request_path": "/test-error",
+            "request_id": "test-request-id",
+            "timestamp": "2026-06-07T00:00:00",
+            "message_summary": error,
+        }
+    return template.render(error_details=error_details, request_path="/test-error")
 
 
 def _render_404_template() -> str:
@@ -123,7 +132,7 @@ class Test404Page:
         """404 页面必须使用共享的 state-panel 组件。"""
         _, html = error_404_response
         assert 'class="state-panel"' in html, "404 页面必须有 state-panel 容器"
-        assert 'role="status"' in html, "404 页面必须有 role=status"
+        assert 'role="region"' in html, "404 页面必须有 role=region"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
     def test_has_states_css_reference(self, error_404_response):
@@ -295,7 +304,7 @@ class TestReturnToDashboard:
         html = _render_404_template()
         assert '/dashboard' in html, "404 页面必须链接到 /dashboard"
         # 验证它看起来像一个正常的导航链接
-        assert 'class="state-panel__link"' in html, \
+        assert 'state-panel__link' in html, \
             "404 的 Dashboard 链接必须使用 state-panel__link 类"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
@@ -303,21 +312,20 @@ class TestReturnToDashboard:
         """500 错误页面必须有返回 Dashboard 的链接。"""
         html = _render_error_template()
         assert '/dashboard' in html, "错误页面必须链接到 /dashboard"
-        assert 'class="state-panel__link"' in html, \
+        assert 'state-panel__link' in html, \
             "错误的 Dashboard 链接必须使用 state-panel__link 类"
         assert "Dashboard" in html, "错误页面必须显示 'Dashboard' 链接文本"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
-    def test_404_has_back_arrow(self):
-        """404 页面的 Dashboard 链接应有返回箭头指示器。"""
+    def test_404_has_primary_dashboard_label(self):
+        """404 页面的主操作应清晰指向 Dashboard。"""
         html = _render_404_template()
-        # &larr; 渲染为左箭头
-        assert "&larr;" in html or "←" in html, \
-            "404 页面的 Dashboard 链接应有返回箭头"
+        assert "Go to Dashboard" in html, \
+            "404 页面必须提供清晰的 Dashboard 主操作"
 
     @pytest.mark.contract_case("UI-VISUAL-007")
-    def test_500_has_back_arrow(self):
-        """500 错误页面的 Dashboard 链接应有返回箭头指示器。"""
+    def test_500_has_primary_dashboard_label(self):
+        """500 错误页面的主操作应清晰指向 Dashboard。"""
         html = _render_error_template()
-        assert "&larr;" in html or "←" in html, \
-            "错误页面的 Dashboard 链接应有返回箭头"
+        assert "Go to Dashboard" in html, \
+            "错误页面必须提供清晰的 Dashboard 主操作"

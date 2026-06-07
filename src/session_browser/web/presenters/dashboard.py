@@ -5,9 +5,9 @@ Builds the complete view model for the dashboard page, supporting:
 - Time grain: day / week / month
 - 6 KPI cards with secondary metrics
 - 3 trend cards (Session Trend, Token Trend, Prompt Activity Trend)
-- Token analysis cards (Token Trend by Composition, Cache Health)
+- Token analysis through Token Trend and Cache Health
 - All agents branch (Agent Contribution Comparison, All Agents table, Agent/Model Efficiency)
-- Single agent branch (Model Mix, Tool Distribution, Failure Signals, Model Efficiency Detail, Agent Sessions)
+- Single agent branch (Model Mix, Tool Distribution, Failure Signals, Model Efficiency Detail, View Sessions CTA)
 """
 from __future__ import annotations
 
@@ -57,6 +57,46 @@ _DB_AGENT = {
     "claude-code": "claude_code",
     "qoder": "qoder",
     "codex": "codex",
+}
+
+_DB_AGENT_DISPLAY = {
+    "claude_code": "Claude Code",
+    "qoder": "Qoder",
+    "codex": "Codex",
+}
+
+_MODEL_MIX_COLORS = [
+    "#5b5ce2",
+    "#22a979",
+    "#f59e0b",
+    "#0ea5e9",
+    "#ef4444",
+    "#8b5cf6",
+    "#14b8a6",
+    "#f97316",
+]
+
+_KPI_SECONDARY_DESCRIPTIONS = {
+    "Active 24h": "最近 24 小时内至少有一个 session event 的 project 去重数。",
+    "Active 7d": "最近 7 个自然日内至少有一个 session event 的 project 去重数。",
+    "New 7d": "first seen timestamp 落在最近 7 个自然日内的 project 去重数。",
+    "Today": "first user message timestamp 落在当前自然日内的 session 数。",
+    "7d Avg": "最近 7 个自然日每日 session 数的算术平均值。",
+    "Median Duration": "session 生命周期中位数，使用最后 event timestamp 减去第一个 event timestamp。",
+    "Avg Rounds": "当前 scope 下每个 session 的 assistant message 平均数量。",
+    "Fresh": "模型输入侧新消耗 token 数，不含 cache read 和 cache write。",
+    "Cache Read": "从缓存读取并计入输入侧的 token 数。",
+    "Cache Write": "写入缓存并计入输入侧的 token 数。",
+    "Output": "模型输出 token 数。",
+    "Assistant Turns": "assistant message 事件总数。",
+    "Tool Calls": "tool call 事件总数，不区分成功和失败。",
+    "Prompts / Session": "User Prompts / Sessions；sessions 为 0 时显示 N/A。",
+    "Eligible Sessions": "Input-side Tokens > 0 的 session 数，也是 cache read ratio 的样本数。",
+    "P50 Session Ratio": "eligible sessions 的 per-session cache read ratio 中位数。",
+    "Low-read Sessions": "eligible sessions 中 per-session cache read ratio 小于 20.0% 的 session 数。",
+    "Failure Rate": "Failed Tools / Tool Calls；tool calls 为 0 时显示 N/A。",
+    "Affected Sessions": "failed tool result 数量大于 0 的 session 数。",
+    "Repeated Failure Sessions": "failed tool result 数量大于 1 的 session 数。",
 }
 
 
@@ -132,7 +172,7 @@ def build_dashboard_view_model(
     prompt_activity = get_prompt_activity_trend(conn, days=days, agent_scope=agent_scope)
 
     # ── KPIs ───────────────────────────────────────────────────────────
-    kpis = _compute_kpis(stats, conn, agent_scope)
+    kpis = _compute_kpis(stats, conn, agent_scope, trend, prompt_activity)
 
     # ── All agents branch data ─────────────────────────────────────────
     all_agents_branch = None
@@ -159,9 +199,10 @@ def build_dashboard_view_model(
         needs_attention = get_needs_attention(anomalies_map, sessions_lookup, limit=8)
 
     # ── Cache Health stats ─────────────────────────────────────────
-    cache_health = _compute_cache_health_stats(trend)
+    cache_health_series = _compute_cache_health_series(conn, days)
+    cache_health = _compute_cache_health_stats(cache_health_series, agent_scope)
 
-    # ── Pagination for Agent Sessions (single agent only) ──────────
+    # ── Single-agent sessions count for View Sessions CTA ─────────
     total_agent_sessions = 0
     total_pages = 1
     current_page = 1
@@ -194,6 +235,8 @@ def _compute_kpis(
     stats: dict,
     conn: sqlite3.Connection,
     agent_scope: str,
+    trend: list[dict] | None = None,
+    prompt_activity: list[dict] | None = None,
 ) -> list[dict]:
     """Compute 6 KPI cards with secondary metrics."""
     total_sessions = stats.get("total_sessions", 0)
@@ -212,14 +255,18 @@ def _compute_kpis(
 
     kpis = []
 
+    project_new_7d = _count_new_projects(conn, agent_scope, 7)
+
     # 1. Projects
     kpis.append({
         "label": "Projects",
         "value": _fmt(project_count),
+        "badge": _format_delta_badge(project_new_7d, suffix=""),
+        "badge_tone": _badge_tone(project_new_7d),
         "secondary": [
             {"label": "Active 24h", "value": _fmt(_count_active_projects(conn, agent_scope, 1))},
             {"label": "Active 7d", "value": _fmt(_count_active_projects(conn, agent_scope, 7))},
-            {"label": "New 7d", "value": _fmt(_count_new_projects(conn, agent_scope, 7))},
+            {"label": "New 7d", "value": _fmt(project_new_7d)},
         ],
     })
 
@@ -229,6 +276,8 @@ def _compute_kpis(
     kpis.append({
         "label": "Sessions",
         "value": _fmt(total_sessions),
+        "badge": _series_delta_badge(trend or [], "total_count", as_percent=False),
+        "badge_tone": _series_delta_tone(trend or [], "total_count"),
         "secondary": [
             {"label": "Today", "value": _fmt(_count_today_sessions(conn, agent_scope))},
             {"label": "7d Avg", "value": _fmt_compact(_avg_daily_sessions(conn, agent_scope, 7))},
@@ -241,6 +290,8 @@ def _compute_kpis(
     kpis.append({
         "label": "Total Tokens",
         "value": _fmt_compact(total_tokens),
+        "badge": _series_delta_badge(trend or [], "total_tokens", as_percent=True),
+        "badge_tone": _series_delta_tone(trend or [], "total_tokens"),
         "secondary": [
             {"label": "Fresh", "value": _fmt_compact(total_fresh)},
             {"label": "Cache Read", "value": _fmt_compact(total_cache_read)},
@@ -254,6 +305,8 @@ def _compute_kpis(
     kpis.append({
         "label": "Prompt Activity",
         "value": _fmt(total_user_messages),
+        "badge": _series_delta_badge(prompt_activity or [], "total_prompts", as_percent=False),
+        "badge_tone": _series_delta_tone(prompt_activity or [], "total_prompts"),
         "secondary": [
             {"label": "Assistant Turns", "value": _fmt(total_assistant_messages)},
             {"label": "Tool Calls", "value": _fmt(total_tool_calls)},
@@ -269,6 +322,8 @@ def _compute_kpis(
     kpis.append({
         "label": "Cache Read Ratio",
         "value": f"{cache_ratio * 100:.1f}%" if cache_ratio is not None else "N/A",
+        "badge": _cache_ratio_delta_badge(trend or []),
+        "badge_tone": _cache_ratio_delta_tone(trend or []),
         "secondary": [
             {"label": "Eligible Sessions", "value": _fmt(eligible_sessions)},
             {"label": "P50 Session Ratio", "value": f"{p50_ratio * 100:.1f}%" if p50_ratio is not None else "N/A"},
@@ -283,6 +338,8 @@ def _compute_kpis(
     kpis.append({
         "label": "Failed Tools",
         "value": _fmt(total_failed_tools),
+        "badge": _series_delta_badge(trend or [], "failed_tools", as_percent=False),
+        "badge_tone": _series_delta_tone(trend or [], "failed_tools", inverse=True),
         "secondary": [
             {"label": "Failure Rate", "value": f"{failure_rate * 100:.1f}%" if failure_rate is not None else "N/A"},
             {"label": "Affected Sessions", "value": _fmt(affected_sessions)},
@@ -290,7 +347,98 @@ def _compute_kpis(
         ],
     })
 
-    return kpis
+    return [_attach_kpi_descriptions(kpi) for kpi in kpis]
+
+
+def _attach_kpi_descriptions(kpi: dict[str, Any]) -> dict[str, Any]:
+    """Attach concrete tooltip descriptions to KPI secondary metrics."""
+    secondary = []
+    for item in kpi.get("secondary", []):
+        enriched = dict(item)
+        enriched["description"] = _KPI_SECONDARY_DESCRIPTIONS.get(
+            item.get("label", ""),
+            f"{item.get('label', 'Metric')} 的统计口径。",
+        )
+        secondary.append(enriched)
+    kpi = dict(kpi)
+    kpi["secondary"] = secondary
+    return kpi
+
+
+def _format_delta_badge(delta: int | float | None, suffix: str = "") -> str:
+    """Format a compact KPI badge value."""
+    if delta is None:
+        return "N/A"
+    if delta > 0:
+        return f"+{_fmt_compact(delta)}{suffix}"
+    if delta < 0:
+        return f"-{_fmt_compact(abs(delta))}{suffix}"
+    return f"0{suffix}"
+
+
+def _badge_tone(delta: int | float | None, inverse: bool = False) -> str:
+    """Map delta to a visual badge tone."""
+    if delta is None or delta == 0:
+        return "neutral"
+    positive = delta > 0
+    if inverse:
+        positive = not positive
+    return "positive" if positive else "negative"
+
+
+def _last_two_values(series: list[dict], key: str) -> tuple[float, float] | None:
+    values = [float(row.get(key) or 0) for row in series if row.get(key) is not None]
+    if len(values) < 2:
+        return None
+    return values[-2], values[-1]
+
+
+def _series_delta_badge(series: list[dict], key: str, as_percent: bool = False) -> str:
+    pair = _last_two_values(series, key)
+    if pair is None:
+        return "N/A"
+    prev, current = pair
+    delta = current - prev
+    if as_percent:
+        if prev == 0:
+            return "N/A" if current == 0 else "+100.0%"
+        return f"{delta / prev * 100:+.1f}%"
+    return _format_delta_badge(delta)
+
+
+def _series_delta_tone(series: list[dict], key: str, inverse: bool = False) -> str:
+    pair = _last_two_values(series, key)
+    if pair is None:
+        return "neutral"
+    prev, current = pair
+    return _badge_tone(current - prev, inverse=inverse)
+
+
+def _cache_ratio_value(row: dict) -> float | None:
+    input_side = (
+        (row.get("fresh_input_tokens") or 0)
+        + (row.get("cache_read_tokens") or 0)
+        + (row.get("cache_write_tokens") or 0)
+    )
+    if input_side <= 0:
+        return None
+    return (row.get("cache_read_tokens") or 0) / input_side
+
+
+def _cache_ratio_delta_badge(series: list[dict]) -> str:
+    ratios = [_cache_ratio_value(row) for row in series]
+    ratios = [r for r in ratios if r is not None]
+    if len(ratios) < 2:
+        return "N/A"
+    return f"{(ratios[-1] - ratios[-2]) * 100:+.1f}pp"
+
+
+def _cache_ratio_delta_tone(series: list[dict]) -> str:
+    ratios = [_cache_ratio_value(row) for row in series]
+    ratios = [r for r in ratios if r is not None]
+    if len(ratios) < 2:
+        return "neutral"
+    return _badge_tone(ratios[-1] - ratios[-2])
 
 
 def _count_active_projects(conn: sqlite3.Connection, agent_scope: str, days: int) -> int:
@@ -428,73 +576,117 @@ def _format_duration(seconds: float) -> str:
     return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
 
 
-def _compute_cache_health_stats(trend: list) -> dict:
-    """Compute Cache Health card stats from trend data."""
-    if not trend:
-        return {"latest_ratio": "N/A", "lowest_ratio": "N/A", "fresh_spikes": "0"}
+def _build_model_donut_gradient(model_rows: list[dict[str, Any]]) -> str:
+    """Build a CSS conic-gradient for model token share."""
+    if not model_rows:
+        return "conic-gradient(#cbd5e1 0% 100%)"
 
-    # Latest ratio
-    last = trend[-1]
-    input_side = (last.get("fresh_input_tokens", 0) +
-                  last.get("cache_read_tokens", 0) +
-                  last.get("cache_write_tokens", 0))
-    if input_side > 0:
-        latest_ratio = f"{last.get('cache_read_tokens', 0) / input_side * 100:.1f}%"
-    else:
-        latest_ratio = "N/A"
+    stops = []
+    cursor = 0.0
+    total_share = sum(
+        max(0.0, float(row.get("token_share_raw", 0) or 0))
+        for row in model_rows
+    )
 
-    # Lowest ratio across all points
-    ratios = []
-    for d in trend:
-        inp = (d.get("fresh_input_tokens", 0) +
-               d.get("cache_read_tokens", 0) +
-               d.get("cache_write_tokens", 0))
-        if inp > 0:
-            ratios.append(d.get("cache_read_tokens", 0) / inp)
-    if ratios:
-        lowest_ratio = f"{min(ratios) * 100:.1f}%"
-    else:
-        lowest_ratio = "N/A"
+    if total_share <= 0:
+        share = 100.0 / len(model_rows)
+        for row in model_rows:
+            next_cursor = min(100.0, cursor + share)
+            stops.append(f"{row.get('color', '#5b5ce2')} {cursor:.2f}% {next_cursor:.2f}%")
+            cursor = next_cursor
+        return "conic-gradient(" + ", ".join(stops) + ")"
 
-    # Fresh spikes (simplified: points where fresh > 1.5x median fresh)
-    fresh_vals = [d.get("fresh_input_tokens", 0) for d in trend if d.get("fresh_input_tokens", 0) > 0]
-    spike_count = 0
-    if len(fresh_vals) >= 3:
-        sorted_fresh = sorted(fresh_vals)
-        median_idx = len(sorted_fresh) // 2
-        median_fresh = sorted_fresh[median_idx]
-        threshold = max(1.8 * median_fresh, median_fresh + 2 * _mad(fresh_vals)) if median_fresh > 0 else 0
-        if threshold > 0:
-            spike_count = sum(1 for v in fresh_vals if v > threshold)
-    fresh_spikes = str(spike_count)
+    for row in model_rows:
+        share = max(0.0, float(row.get("token_share_raw", 0) or 0)) / total_share * 100
+        next_cursor = min(100.0, cursor + share)
+        stops.append(f"{row.get('color', '#5b5ce2')} {cursor:.2f}% {next_cursor:.2f}%")
+        cursor = next_cursor
+
+    if cursor < 100:
+        stops.append(f"#e2e8f0 {cursor:.2f}% 100%")
+    return "conic-gradient(" + ", ".join(stops) + ")"
+
+
+def _compute_cache_health_series(conn: sqlite3.Connection, days: int) -> list[dict]:
+    """Compute daily token inputs for Average and each known agent."""
+    agent_keys = ["claude_code", "qoder", "codex"]
+    fields = ["fresh_input_tokens", "cache_read_tokens", "cache_write_tokens"]
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
+                agent,
+                COALESCE(SUM(fresh_input_tokens), 0) as fresh_input_tokens,
+                COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+                COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens
+            FROM sessions
+            WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
+              AND agent IN ('claude_code', 'qoder', 'codex')
+            GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')), agent
+            ORDER BY day
+            """,
+            [f"-{days} days"],
+        ).fetchall()
+    except Exception:
+        return []
+
+    by_day: dict[str, dict] = {}
+    for row in rows:
+        day = row["day"]
+        point = by_day.setdefault("{}".format(day), {"date": day})
+        agent = row["agent"]
+        for field in fields:
+            value = row[field] or 0
+            point[f"{agent}_{field}"] = value
+            point[f"average_{field}"] = point.get(f"average_{field}", 0) + value
+
+    series = []
+    for day in sorted(by_day):
+        point = by_day[day]
+        for agent in agent_keys:
+            for field in fields:
+                point.setdefault(f"{agent}_{field}", 0)
+        for field in fields:
+            point.setdefault(f"average_{field}", 0)
+        series.append(point)
+    return series
+
+
+def _compute_cache_health_stats(series: list[dict], agent_scope: str) -> dict:
+    """Compute Cache Health card stats from highlighted cache-ratio series."""
+    if not series:
+        return {"latest_ratio": "N/A", "lowest_ratio": "N/A", "series": []}
+
+    prefix = _DB_AGENT.get(agent_scope, "average")
+    values = []
+    latest_ratio = None
+    for point in series:
+        fresh = point.get(f"{prefix}_fresh_input_tokens", 0)
+        read = point.get(f"{prefix}_cache_read_tokens", 0)
+        write = point.get(f"{prefix}_cache_write_tokens", 0)
+        input_side = fresh + read + write
+        ratio = read / input_side if input_side > 0 else None
+        if ratio is not None:
+            values.append(ratio)
+            latest_ratio = ratio
 
     return {
-        "latest_ratio": latest_ratio,
-        "lowest_ratio": lowest_ratio,
-        "fresh_spikes": fresh_spikes,
+        "latest_ratio": f"{latest_ratio * 100:.1f}%" if latest_ratio is not None else "N/A",
+        "lowest_ratio": f"{min(values) * 100:.1f}%" if values else "N/A",
+        "series": series,
     }
-
-
-def _mad(values: list) -> float:
-    """Median Absolute Deviation."""
-    if not values:
-        return 0.0
-    sorted_vals = sorted(values)
-    n = len(sorted_vals)
-    mid = n // 2
-    median = sorted_vals[mid] if n % 2 == 1 else (sorted_vals[mid - 1] + sorted_vals[mid]) / 2
-    abs_devs = sorted([abs(v - median) for v in values])
-    mid = n // 2
-    return abs_devs[mid] if n % 2 == 1 else (abs_devs[mid - 1] + abs_devs[mid]) / 2
-
 
 
 def _count_agent_sessions(conn: sqlite3.Connection, db_agent: str) -> int:
     """Count total sessions for a specific agent (for pagination)."""
-    row = conn.execute(
-        "SELECT COUNT(*) FROM sessions WHERE agent = ?", [db_agent],
-    ).fetchone()
-    return row[0] if row else 0
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM sessions WHERE agent = ?", [db_agent],
+        ).fetchone()
+        return int(row[0]) if row else 0
+    except (TypeError, ValueError):
+        return 0
 
 
 def _build_agent_where(agent_scope: str) -> tuple[str, list]:
@@ -515,13 +707,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
     agent_map = {}
     for a in agents:
         db_agent = a.get("agent", "")
-        display = "Unknown"
-        if db_agent == "claude_code":
-            display = "Claude Code"
-        elif db_agent == "qoder":
-            display = "Qoder"
-        elif db_agent == "codex":
-            display = "Codex"
+        display = _DB_AGENT_DISPLAY.get(db_agent, "Unknown")
         agent_map[db_agent] = {
             "display": display,
             "db_agent": db_agent,
@@ -545,7 +731,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
     for db_a in ["claude_code", "codex", "qoder"]:
         if db_a not in agent_map:
             agent_map[db_a] = {
-                "display": _AGENT_DISPLAY.get(_DB_AGENT.get(db_a, ""), db_a),
+                "display": _DB_AGENT_DISPLAY.get(db_a, db_a),
                 "db_agent": db_a,
                 "sessions": 0, "tokens": 0, "fresh": 0,
                 "cache_read": 0, "cache_write": 0, "output": 0,
@@ -594,19 +780,30 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "display": a["display"],
             "db_agent": db_agent,
             "sessions": a["sessions"],
+            "sessions_raw": a["sessions"],
             "session_share": f"{session_share:.1f}%",
             "tokens": _fmt_compact(a["tokens"]),
+            "tokens_raw": a["tokens"],
             "token_share": f"{token_share:.1f}%",
             "token_fresh": _fmt_compact(a.get("fresh", 0)),
             "token_cache_read": _fmt_compact(a.get("cache_read", 0)),
             "token_cache_write": _fmt_compact(a.get("cache_write", 0)),
             "token_output": _fmt_compact(a.get("output", 0)),
+            "fresh_pct": round(a.get("fresh", 0) / max(1, a["tokens"]) * 100, 1),
+            "read_pct": round(a.get("cache_read", 0) / max(1, a["tokens"]) * 100, 1),
+            "write_pct": round(a.get("cache_write", 0) / max(1, a["tokens"]) * 100, 1),
+            "output_pct": round(a.get("output", 0) / max(1, a["tokens"]) * 100, 1),
             "prompts": a.get("prompts", 0),
+            "prompts_raw": a.get("prompts", 0),
             "prompt_share": f"{prompt_share:.1f}%",
             "projects": a.get("projects", 0),
+            "projects_raw": a.get("projects", 0),
             "failed": a["failed"],
+            "failed_raw": a["failed"],
             "failure_rate": f"{failure_rate:.1f}%",
+            "failure_rate_raw": failure_rate,
             "last_active": last_active_display,
+            "last_active_raw": last_active,
         })
 
     # Agent / Model Efficiency
@@ -614,7 +811,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
     efficiency_rows = []
     for m in model_stats:
         db_agent = m.get("agent", "")
-        display = _AGENT_DISPLAY.get(_DB_AGENT.get(db_agent, ""), db_agent)
+        display = _DB_AGENT_DISPLAY.get(db_agent, db_agent)
         total_sessions = m.get("total_sessions", 0)
         total_tokens = m.get("total_tokens", 0)
         input_tokens = m.get("input_tokens", 0) + m.get("cache_read_tokens", 0) + m.get("cache_write_tokens", 0)
@@ -631,11 +828,15 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "db_agent": db_agent,
             "model": m.get("model", "Unknown model"),
             "sessions": total_sessions,
+            "sessions_raw": total_sessions,
             "tokens_per_session": _fmt_compact(tokens_per_session),
+            "tokens_per_session_raw": tokens_per_session,
             "input_tokens": _fmt_compact(input_tokens),
             "output_tokens": _fmt_compact(output_tokens),
             "cache_read": f"{cache_ratio * 100:.1f}%" if cache_ratio is not None else "N/A",
+            "cache_read_raw": cache_ratio if cache_ratio is not None else -1,
             "failure": f"{failure_per_session:.2f} / session",
+            "failure_raw": failure_per_session,
         })
 
     # Sort by sessions desc
@@ -654,9 +855,6 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
     """Compute data for single agent mode: Model Mix, Tool Distribution, Failure Signals, etc."""
     display_name = _AGENT_DISPLAY.get(scope_key, db_agent)
 
-    # Get agent-scoped sessions
-    where, params = _build_agent_where(scope_key)
-
     # Model Mix data
     model_stats = list_model_stats(conn)
     model_rows = []
@@ -670,6 +868,7 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
         m.get("total_sessions", 0) for m in model_stats if m.get("agent") == db_agent
     )
 
+    model_index = 0
     for m in model_stats:
         if m.get("agent") != db_agent:
             continue
@@ -678,77 +877,55 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
         input_side = m.get("input_tokens", 0) + m.get("cache_read_tokens", 0) + m.get("cache_write_tokens", 0)
         cache_read = m.get("cache_read_tokens", 0)
         failed_tools = m.get("failed_tools", 0)
+        tool_calls = m.get("tool_calls", 0)
+        process_seconds = m.get("process_seconds", 0) or 0
+        avg_process_seconds = m.get("avg_process_seconds", 0) or (
+            process_seconds / total_sessions if total_sessions > 0 else 0
+        )
 
         token_share = total_tokens / total_agent_tokens * 100 if total_agent_tokens > 0 else 0
         cache_ratio = _safe_ratio_float(cache_read, input_side)
         failed_per = failed_tools / total_sessions if total_sessions > 0 else 0
         session_share = total_sessions / max(1, total_agent_sessions) * 100
+        tool_calls_per_session = tool_calls / total_sessions if total_sessions > 0 else 0
+        color = _MODEL_MIX_COLORS[model_index % len(_MODEL_MIX_COLORS)]
+        model_index += 1
 
         model_rows.append({
             "model": m.get("model", "Unknown model"),
             "sessions": total_sessions,
+            "sessions_raw": total_sessions,
             "session_share": f"{session_share:.1f}%",
+            "session_share_raw": session_share,
             "tokens": total_tokens,
+            "tokens_display": _fmt_compact(total_tokens),
             "token_share": f"{token_share:.1f}%",
+            "token_share_raw": token_share,
+            "avg_tokens_raw": total_tokens / total_sessions if total_sessions > 0 else 0,
+            "avg_tokens_display": _fmt_compact(total_tokens / total_sessions) if total_sessions > 0 else "0",
             "cache_read": f"{cache_ratio * 100:.1f}%" if cache_ratio is not None else "N/A",
+            "cache_read_raw": cache_ratio * 100 if cache_ratio is not None else -1,
+            "tool_calls": tool_calls,
+            "tool_calls_per_session": f"{tool_calls_per_session:.1f}",
+            "tool_calls_per_session_raw": tool_calls_per_session,
             "failed_per_session": f"{failed_per:.2f}/session",
+            "failed_per_session_raw": failed_per,
+            "avg_process_time": _format_duration(avg_process_seconds),
+            "avg_process_seconds_raw": avg_process_seconds,
+            "color": color,
         })
 
     model_rows.sort(key=lambda x: x["tokens"], reverse=True)
+    for idx, row in enumerate(model_rows):
+        row["color"] = _MODEL_MIX_COLORS[idx % len(_MODEL_MIX_COLORS)]
 
-    # Agent Sessions table
-    pg = max(1, page or 1)
-    offset = (pg - 1) * page_size
-    agent_sessions = list_sessions(
-        conn, agent=db_agent, limit=page_size, offset=offset, order_by="ended_at",
-    )
-    agent_session_rows = []
-    for s in agent_sessions:
-        total_tok = s.total_tokens or (s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens)
-        agent_session_rows.append({
-            "title": (s.title or "")[:80] or f"Untitled ({s.session_id[-8:]})",
-            "session_id": s.session_id,
-            "project": s.project_key or "",
-            "project_name": s.project_name or s.project_key,
-            "model": s.model or "Unknown",
-            "agent": s.agent,
-            "tokens": total_tok,
-            "tokens_display": _fmt_compact(total_tok),
-            "fresh": s.fresh_input_tokens or s.input_tokens,
-            "cache_read": s.cache_read_tokens or s.cached_input_tokens,
-            "cache_write": s.cache_write_tokens or s.cached_output_tokens,
-            "output": s.output_tokens,
-            "rounds": s.assistant_message_count,
-            "tools": s.tool_call_count,
-            "subagents": s.subagent_instance_count or 0,
-            "duration": _format_duration(s.duration_seconds or 0),
-            "process_time": _format_duration(getattr(s, 'process_time_seconds', 0) or 0),
-            "failure": s.failed_tool_count,
-            "failure_display": f"{s.failed_tool_count} failed" if s.failed_tool_count > 0 else "No failures",
-            "updated": s.ended_at,
-            "fresh_pct": round((s.fresh_input_tokens or s.input_tokens or 0) / max(1, total_tok) * 100, 1),
-            "read_pct": round((s.cache_read_tokens or s.cached_input_tokens or 0) / max(1, total_tok) * 100, 1),
-            "write_pct": round((s.cache_write_tokens or s.cached_output_tokens or 0) / max(1, total_tok) * 100, 1),
-            "output_pct": round((s.output_tokens or 0) / max(1, total_tok) * 100, 1),
-            "created": s.started_at,
-        })
+    model_rows_by_sessions = sorted(model_rows, key=lambda x: x["sessions"], reverse=True)
+    model_donut_gradient = _build_model_donut_gradient(model_rows)
 
     # Model Efficiency Detail
     eff_rows = []
     for m in model_rows:
-        input_side_val = 0
-        output_val = 0
-        tools_per_session = 0
-        cache_ratio_val = None
         sessions_count = m["sessions"]
-        total_tok_val = m["tokens"]
-
-        # Compute additional details
-        avg_input = 0
-        avg_output = 0
-        if sessions_count > 0:
-            avg_input = total_tok_val / sessions_count
-            avg_output = 0  # would need more detailed query
 
         # Determine notes per spec
         notes = []
@@ -779,8 +956,10 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
         eff_rows.append({
             "model": m["model"],
             "sessions": m["sessions"],
-            "avg_tokens": m["tokens"] // max(1, m["sessions"]),
-            "cache_tools": m["cache_read"],
+            "avg_tokens": m["avg_tokens_display"],
+            "avg_process_time": m["avg_process_time"],
+            "cache_read": m["cache_read"],
+            "tool_calls_per_session": m["tool_calls_per_session"],
             "failure": m["failed_per_session"],
             "notes": ", ".join(notes) if notes else "Normal",
         })
@@ -788,8 +967,11 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
     return {
         "display_name": display_name,
         "model_rows": model_rows,
-        "agent_session_rows": agent_session_rows,
+        "model_rows_by_sessions": model_rows_by_sessions,
+        "model_donut_gradient": model_donut_gradient,
+        "model_count": len(model_rows),
+        "agent_session_rows": [],
         "efficiency_rows": eff_rows,
-        "page": pg,
+        "page": max(1, page or 1),
         "page_size": page_size,
     }

@@ -52,7 +52,9 @@
 
 ## 验证原则
 
-只运行与本次改动直接相关的最小验证。
+修改文件后必须确保本仓库 required quality gates 全部通过，才能把任务描述为完成。
+
+可先运行与本次改动直接相关的最小验证来快速定位问题，但这只属于中间检查；最终完成前必须运行本次变更触发的完整 required gate baseline。不能因为失败项看起来不是当前 agent 亲自引入的改动，就跳过、忽略或描述为“与本次无关”。只要当前工作树仍有本次任务改动，required gate 失败就是本次任务的阻断项，必须继续分析并修复，或明确向用户报告阻断原因。
 
 常用验证命令：
 
@@ -69,7 +71,8 @@ python3 scripts/quality/run_quality_gate.py --target session-detail
 - 改 `harness/`、`openspec/`、`.claude/`、`scripts/`：优先运行 `bash scripts/harness/doctor.sh`。
 - 改产品代码或测试：运行 `./scripts/session-browser.sh test`。
 - 改 UI 模板、CSS、前端 JS：运行对应 UI 质量门。
-- 验证失败时必须保留失败信息，不得把失败或未运行描述为通过。
+- Stop / handoff 前以 `scripts/quality/run_required_quality_gates.py` 或等价命令执行完整 required gate baseline；该 baseline 不得按 changed-files 裁剪 target 内部 gate。
+- 验证失败时必须保留失败信息，不得把失败、未运行、跳过或“非本人改动”描述为通过。
 
 ## 语言策略
 
@@ -82,6 +85,6 @@ python3 scripts/quality/run_quality_gate.py --target session-detail
 
 - 改动与用户目标直接对应。
 - 没有扩大无关范围。
-- 已运行最小必要验证，或说明无法运行的原因。
+- 已运行完整 required quality gates 且全部通过；若环境阻断导致无法运行，必须报告阻断并不得声称任务完成。
 - 文档、脚本、OpenSpec、harness 与代码没有明显冲突。
 - 没有纳入个人配置、缓存、运行数据、真实 session 数据或密钥。

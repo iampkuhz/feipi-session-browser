@@ -38,6 +38,9 @@ class TestDashboardJSContract:
         "chart-range",
         "open-settings",
         "close-settings",
+        "bar--line",
+        "Y-axis:",
+        "Failed-tool sessions",
     ]
 
     @pytest.mark.contract_case("DASHBOARD-JS-001")
@@ -80,6 +83,146 @@ class TestDashboardCSSContract:
                     f"(第 {css.index(selector)+1} 行附近)"
                 )
 
+    @pytest.mark.contract_case("DASHBOARD-CSS-002")
+    def test_line_and_area_plots_share_marker_coordinate_space(self):
+        """折线/面积 SVG 不得比 marker/hover target 多一层横向缩进。"""
+        css = _read(_CSS_PATH)
+        assert "inset: 0 6px 0 6px" not in css
+        assert "width: calc(100% - 12px)" not in css
+        assert re.search(
+            r"\.line-plot,\s*\.area-plot\s*\{[^}]*inset:\s*0;[^}]*width:\s*100%;",
+            css,
+            re.S,
+        ), "line/area plot 必须使用完整 plot 坐标系"
+
+    @pytest.mark.contract_case("DASHBOARD-CSS-003")
+    def test_chart_tooltip_renders_above_markers(self):
+        """hover tooltip 必须高于其它折线点和 hover target。"""
+        css = _read(_CSS_PATH)
+        assert re.search(
+            r"\.bar:hover,\s*\.chart-hover-target:hover\s*\{[^}]*z-index:\s*130;",
+            css,
+            re.S,
+        ), "hover 的整列必须抬升，避免兄弟节点点位压过 tooltip"
+        assert re.search(
+            r"\.dashboard-tooltip\s*\{[^}]*z-index:\s*140;",
+            css,
+            re.S,
+        ), "dashboard tooltip 必须处于图表 marker 上层"
+
+    @pytest.mark.contract_case("DASHBOARD-CSS-004")
+    def test_prompt_activity_tooltip_uses_line_key(self):
+        """折线 tooltip 和 legend 必须使用短虚线 key，而不是圆点。"""
+        css = _read(_CSS_PATH)
+        assert ".tooltip-line-key" in css
+        assert ".tooltip-line-key--prompt-average" in css
+        assert ".chart-legend__line--prompt-average" in css
+        assert ".line-plot--bar-aligned" in css
+        assert ".prompt-line-markers" in css
+
+    @pytest.mark.contract_case("DASHBOARD-CSS-005")
+    def test_average_series_uses_neutral_color(self):
+        """Average / All agents 颜色必须和 Claude Code 紫色拉开。"""
+        css = _read(_CSS_PATH)
+        assert "--dashboard-average-color: #111827;" in css
+        for selector, prop in [
+            (r"\.scope-selector__btn\[data-scope=\"all\"\]\.is-active", "background"),
+            (r"\.line-series--average", "stroke"),
+            (r"\.line-point--average", "background"),
+            (r"\.chart-legend__line--average", "color"),
+            (r"\.tooltip-line-key--average", "color"),
+        ]:
+            pattern = selector + r"\s*\{[^}]*" + prop + r":\s*var\(--dashboard-average-color\);"
+            assert re.search(pattern, css, re.S), f"{selector} must use --dashboard-average-color"
+
+        average_blocks = re.findall(
+            r"\.(?:line-series|line-point|chart-legend__line|tooltip-line-key)--average\s*\{[^}]*\}",
+            css,
+            re.S,
+        )
+        assert average_blocks
+        assert all("var(--brand)" not in block and "var(--purple)" not in block for block in average_blocks)
+
+    @pytest.mark.contract_case("DASHBOARD-CSS-006")
+    def test_cache_health_line_series_use_line_keys(self):
+        """Cache Health 折线图例和 tooltip key 必须用短线，不用圆点。"""
+        css = _read(_CSS_PATH)
+        for cls in ["average", "claude_code", "qoder", "codex"]:
+            assert f".chart-legend__line--{cls}" in css
+        for cls in ["average", "claude", "qoder", "codex"]:
+            assert f".tooltip-line-key--{cls}" in css
+        assert ".plot--cache-health" in css
+        assert ".plot-grid__line" in css
+        assert ".line-isolated-marker.line-series--muted" in css
+
+    @pytest.mark.contract_case("DASHBOARD-JS-001")
+    def test_token_trend_tooltip_only_shows_token_types(self):
+        """Token Trend tooltip 不得混入 agent token 行或 Cache Read Ratio。"""
+        js = _read(_JS_PATH)
+        start = js.index("function buildTokenTooltip")
+        end = js.index("function buildPromptTooltip", start)
+        body = js[start:end]
+        assert "agent.label + ' tokens'" not in body
+        assert "agent.tokenKey" not in body
+        assert "Cache Read Ratio" not in body
+
+    @pytest.mark.contract_case("DASHBOARD-JS-002")
+    def test_prompt_activity_line_uses_bar_center_coordinates(self):
+        """Prompt Activity 折线点位必须按柱状图单元格中心计算。"""
+        js = _read(_JS_PATH)
+        assert "function xBandCenterPct" in js
+        start = js.index("function renderPromptChart")
+        end = js.index("function buildCacheTooltip", start)
+        body = js[start:end]
+        assert "linePath(data, maxAvg, function(d, i) { return avgValues[i]; }, xBandCenterPct)" in body
+        assert 'class="line-plot line-plot--bar-aligned"' in body
+        assert 'class="prompt-line-markers"' in body
+
+    @pytest.mark.contract_case("DASHBOARD-JS-003")
+    def test_prompt_activity_tooltip_separates_bars_and_line(self):
+        """Prompt Activity tooltip 不得把柱状图和折线值合并到同一 agent 行。"""
+        js = _read(_JS_PATH)
+        start = js.index("function buildPromptTooltip")
+        end = js.index("function renderSessionChart", start)
+        body = js[start:end]
+        assert "User Prompts (bars)" in body
+        assert "Avg Prompts / Session (line)" in body
+        assert "Auxiliary" in body
+        assert "tooltipLineRow" in body
+        assert "agent.label + ' Prompts'" not in body
+        assert "formatNumber(prompts), perSession" not in body
+
+    @pytest.mark.contract_case("DASHBOARD-JS-005")
+    def test_cache_health_uses_dynamic_axis_and_line_keys(self):
+        """Cache Health 必须使用动态 y 轴和折线 key。"""
+        js = _read(_JS_PATH)
+        assert "function cacheAxisDomain" in js
+        assert "function yPctRange" in js
+        assert "function isolatedLineMarkers" in js
+        start = js.index("function renderCacheHealthChart")
+        end = js.index("renderSessionChart();", start)
+        body = js[start:end]
+        assert "var domain = cacheAxisDomain(data, specs);" in body
+        assert "var cacheY = function(value) { return yPctRange(value, domain.min, domain.max, 5); };" in body
+        assert "plotGridHtml(domain.ticks, cacheY)" in body
+        assert "var isolatedMarkers = '';" in body
+        assert "isolatedLineMarkers(data, valueFn, xPct, cacheY, cls)" in body
+        assert "paths + isolatedMarkers" in body
+        assert 'class="chart-legend__line chart-legend__line--' in body
+        assert 'class="chart-legend__dot chart-legend__dot--' not in body
+        assert "tooltipLineRow(item.line" in js[js.index("function buildCacheTooltip"):start]
+
+    @pytest.mark.contract_case("DASHBOARD-JS-004")
+    def test_dashboard_does_not_render_fresh_spikes(self):
+        """Dashboard 是聚合统计页，不展示或前端计算 Fresh spike。"""
+        js = _read(_JS_PATH)
+        css = _read(_CSS_PATH)
+        assert "freshSpikeIndexes" not in js
+        assert "Fresh Spike" not in js
+        assert "Fresh spike" not in js
+        assert "fresh-spike-marker" not in js
+        assert "fresh-spike-marker" not in css
+
 
 class TestDashboardTemplateContract:
     """验证 Dashboard 模板不出现禁止项。"""
@@ -92,6 +235,13 @@ class TestDashboardTemplateContract:
         "Columns",
         "Export",
         "Keyboard shortcuts",
+        "Token Trend by Composition",
+        'data-action="view-sessions"',
+        'data-stat="fresh-spikes"',
+        'data-chart-card="token-composition"',
+        'id="token-composition-chart"',
+        'class="chart-card__subtitle"',
+        'aria-label="Agent Sessions"',
     ]
 
     @pytest.mark.contract_case("DASHBOARD-TEMPLATE-001")
@@ -106,3 +256,22 @@ class TestDashboardTemplateContract:
             assert "keyboard" not in tmpl.lower(),                 "Dashboard 不得有 keyboard shortcuts"
         else:
             assert phrase not in tmpl,                 f"Dashboard 模板包含禁止短语 '{phrase}'"
+
+    @pytest.mark.contract_case("DASHBOARD-TEMPLATE-002")
+    def test_dashboard_tables_are_sortable(self):
+        """All Agents 和 Agent / Model Efficiency 必须启用列排序。"""
+        tmpl = _read(_TEMPLATE_PATH)
+        assert 'id="dashboard-all-agents-table" data-table-enhanced' in tmpl
+        assert 'id="dashboard-agent-model-efficiency-table" data-table-enhanced' in tmpl
+        for key in [
+            'data-sort-key="agent"',
+            'data-sort-key="sessions"',
+            'data-sort-key="tokens"',
+            'data-sort-key="prompts"',
+            'data-sort-key="projects"',
+            'data-sort-key="failure"',
+            'data-sort-key="model"',
+            'data-sort-key="tokens-per-session"',
+            'data-sort-key="cache-read"',
+        ]:
+            assert key in tmpl, f"Dashboard sortable table missing {key}"
