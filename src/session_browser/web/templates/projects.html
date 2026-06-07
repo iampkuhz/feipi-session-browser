@@ -109,7 +109,7 @@
 <!-- Filter card: canonical structure with shared primitives (T102) -->
 {% call ui.filter_card() %}
     <div class="filter-row">
-        {{ ui.filter_search(name='q', placeholder='Search by name or path...', id='project-search', extra_classes='js-search') }}
+        {{ ui.filter_search(name='q', placeholder='Search project name, path', value=filter_q, id='project-search', extra_classes='js-search') }}
         <span class="filter-row__push"></span>
         {{ ui.button('Clear', 'secondary', 'sm', data_action='clear-search') }}
     </div>
@@ -125,20 +125,7 @@
 <section class="page-section">
     {% if projects %}
     {% set projects_pagination %}
-    <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
-        {%- set cp = current_page | default(1) -%}
-        {%- set tp = total_pages | default(1) -%}
-        {%- set is_single_page = tp <= 1 -%}
-        {%- set is_first_page = cp <= 1 -%}
-        {%- set is_last_page = cp >= tp -%}
-        <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if is_first_page or is_single_page %} disabled{% endif %}>&lsaquo; prev</button>
-        <span class="page-status">Page</span>
-        <input class="page-input mono" data-action="page-input" aria-label="Page number"
-               value="{{ cp }}" title="输入页码后按 Enter，跳转到指定页"{% if is_single_page %} disabled{% endif %} data-total-pages="{{ tp }}" />
-        <span class="page-status" id="page-status-text">of {{ tp }} · {{ total_count | default(projects | length) }} projects</span>
-        <span class="spacer"></span>
-        <button class="btn sm" data-action="next-page" aria-label="Next page"{% if is_last_page or is_single_page %} disabled{% endif %}>next ›</button>
-    </nav>
+    {{ ui.pagination(current_page | default(1), total_pages | default(1), total_items=total_count | default(projects | length), page_size=page_size, page_size_options=[25, 50, 100]) }}
     {% endset %}
     {% call ui.table_card('All Projects', subtitle='(' ~ projects | length ~ ' projects)', pagination_html=projects_pagination) %}
             <table id="projects-table" class="data-table" data-table-enhanced>
@@ -154,6 +141,12 @@
                         </th>
                         <th class="col-num sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
                             <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="tools" title="按 Tools 排序">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
+                        </th>
+                        <th class="col-num sortable col-failed" data-sort-key="failed"{% if sort_by == 'failed' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
+                            <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="failed" title="按 Failed 排序">Failed <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
+                        </th>
+                        <th class="sortable col-first-seen" data-sort-key="first_seen"{% if sort_by == 'first_seen' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
+                            <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="first_seen" title="按 First Seen 排序">First Seen <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
                         </th>
                         <th class="sortable col-last-active" data-sort-key="last_active"{% if sort_by == 'last_active' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
                             <button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="last_active" title="按 Last Active 排序">Last Active <span class="c-data-table__sort-icon" aria-hidden="true"></span></button>
@@ -191,6 +184,7 @@
                     <tr data-action="open-project"
                         data-name="{{ p.project_name | lower }}"
                         data-path="{{ p.display_path | lower }}"
+                        data-first-seen="{{ p.first_seen }}"
                         data-last-seen="{{ p.last_seen }}"
                         data-total-sessions="{{ p.total_sessions }}"
                         data-total-tokens="{{ p_total_tokens }}"
@@ -199,9 +193,9 @@
                         {{ ui.project_cell(p.project_name, p.display_path, '/projects/' ~ p.project_key | urlencode, name_data_action='open-project-link') }}
                         <td class="agents-cell">
                             <span class="agents-cell__inner">
-                            {% if p.claude_sessions > 0 %}{{ ui.badge_with_dot(p.claude_sessions, 'cc', 'claude', tooltip='Claude Code') }}{% endif %}
-                            {% if p.codex_sessions > 0 %}{{ ui.badge_with_dot(p.codex_sessions, 'cx', 'codex', tooltip='Codex') }}{% endif %}
-                            {% if p.qoder_sessions > 0 %}{{ ui.badge_with_dot(p.qoder_sessions, 'qd', 'qoder', tooltip='Qoder') }}{% endif %}
+                            {% if p.claude_sessions > 0 %}{{ ui.agent_badge('claude_code', tooltip=p.claude_sessions ~ ' sessions') }}{% endif %}
+                            {% if p.codex_sessions > 0 %}{{ ui.agent_badge('codex', tooltip=p.codex_sessions ~ ' sessions') }}{% endif %}
+                            {% if p.qoder_sessions > 0 %}{{ ui.agent_badge('qoder', tooltip=p.qoder_sessions ~ ' sessions') }}{% endif %}
                             {% if p.claude_sessions == 0 and p.codex_sessions == 0 and p.qoder_sessions == 0 %}
                             <span class="muted-zero">—</span>
                             {% endif %}
@@ -229,6 +223,8 @@
                             <span class="badge err tools-failed" data-tooltip="{{ p.total_failed_tools }} failed tool results">{{ p_health_label }}</span>
                             {% endif %}
                         </td>
+                        <td class="numeric mono">{{ p.total_failed_tools | format_number }}</td>
+                        <td class="text-xs text-muted" title="{{ p.first_seen }}">{{ p.first_seen[:10] if p.first_seen else 'N/A' }}</td>
                         <td class="text-xs text-muted">{{ p.last_seen | relative_time }}</td>
                     </tr>
                     {% endfor %}

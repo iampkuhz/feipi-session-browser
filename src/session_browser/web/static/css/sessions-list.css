@@ -546,25 +546,26 @@
 table-layout:fixed scales proportionally
 * when container is narrower.
 *
-* Title(10x) Project(4x) Agent(2x) Model(3x) Tokens(3x)
-* Rounds(2x) Tools(2x) Duration(3x) Updated(3x)
+* Session(10x) Project(4x) Agent(2x) Model(3x) Tokens(3x)
+* Rounds(2x) Tools(2x) Subagents(2x) Duration(3x)
+* Process Time(3x) Failure(3x) Created(3x) Updated(3x)
 */
 .sessions-page .table-wrap {
-  min-width: 960px;
+  min-width: 100%;
   max-width: 1900px;
   margin-inline: auto;
+  overflow-x: auto;
 }
 
 .sessions-page .data-table {
-  width: 100%;
-  min-width: 100%;
-  /* override ui-primitives min-width: max-content */
+  width: max-content;
+  min-width: 1780px;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 /* per-column widths applied to both th and td */
-.sessions-page .data-table .col-title {
+.sessions-page .data-table .col-session {
   width: 500px;
 }
 
@@ -597,6 +598,18 @@ table-layout:fixed scales proportionally
 }
 
 .sessions-page .data-table .col-duration {
+  width: 150px;
+}
+
+.sessions-page .data-table .col-process-time {
+  width: 150px;
+}
+
+.sessions-page .data-table .col-failure {
+  width: 140px;
+}
+
+.sessions-page .data-table .col-created {
   width: 150px;
 }
 

@@ -23,16 +23,20 @@ from session_browser.index.anomalies import (
 
 # ── Query parameter defaults ─────────────────────────────────────────
 
-VALID_PAGE_SIZES = {20, 50, 100, 500}
+VALID_PAGE_SIZES = {25, 50, 100}
 
 SORT_KEY_MAP = {
     "ended-at": "ended_at",
+    "updated": "ended_at",
+    "created": "started_at",
     "duration": "duration_seconds",
+    "process-time": "process_seconds",
     "tokens": "total_tokens",
     "total-tokens": "total_tokens",
     "rounds": "assistant_message_count",
     "tools": "tool_call_count",
     "subagents": "subagent_instance_count",
+    "failure": "failed_tool_count",
 }
 
 
@@ -55,24 +59,23 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
         page = 1
 
     # Pagination — page_size
-    raw_size = raw_params.get("page_size", ["20"])[0].strip().lower()
-    if raw_size == "all":
-        page_size: int | str = "all"
-    else:
-        try:
-            page_size_int = int(raw_size)
-            if page_size_int in VALID_PAGE_SIZES:
-                page_size = page_size_int
-            else:
-                page_size = 20
-        except ValueError:
-            page_size = 20
+    raw_size = raw_params.get("page_size", ["25"])[0].strip().lower()
+    try:
+        page_size_int = int(raw_size)
+        if page_size_int in VALID_PAGE_SIZES:
+            page_size: int | str = page_size_int
+        else:
+            page_size = 25
+    except ValueError:
+        page_size = 25
 
     # Filters
     filter_agent = raw_params.get("agent", [""])[0].strip() or None
     filter_model = raw_params.get("model", [""])[0].strip() or None
     filter_project = raw_params.get("project", [""])[0].strip() or None
     filter_q = raw_params.get("q", [""])[0].strip() or None
+    raw_status = raw_params.get("status", [""])[0].strip().lower()
+    filter_status = raw_status if raw_status in {"failed", "no-failures"} else None
 
     # Sort
     raw_sort = raw_params.get("sort", [""])[0].strip().lower()
@@ -88,6 +91,7 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
         "filter_model": filter_model,
         "filter_project": filter_project,
         "filter_q": filter_q,
+        "filter_status": filter_status,
         "sort_by": sort_by,
         "raw_sort": raw_sort,
         "sort_dir": raw_dir,
@@ -148,6 +152,7 @@ def fetch_sessions_view_model(
     filter_model: str | None,
     filter_project: str | None,
     filter_q: str | None,
+    filter_status: str | None,
     sort_by: str,
     sort_dir: str,
     limit: int,
@@ -173,6 +178,7 @@ def fetch_sessions_view_model(
         project_key=filter_project,
         model=filter_model,
         title_like=filter_q,
+        failure_status=filter_status,
     )
 
     # Aggregate stats
@@ -182,6 +188,7 @@ def fetch_sessions_view_model(
         project_key=filter_project,
         model=filter_model,
         title_like=filter_q,
+        failure_status=filter_status,
     )
 
     # Paginated sessions
@@ -191,6 +198,7 @@ def fetch_sessions_view_model(
         project_key=filter_project,
         model=filter_model,
         title_like=filter_q,
+        failure_status=filter_status,
         limit=limit,
         offset=offset,
         order_by=sort_by,
@@ -256,6 +264,7 @@ def build_sessions_context(
             project_key=params["filter_project"],
             model=params["filter_model"],
             title_like=params["filter_q"],
+            failure_status=params["filter_status"],
         ),
         page=params["page"],
         page_size=params["page_size"],
@@ -267,6 +276,7 @@ def build_sessions_context(
         filter_model=params["filter_model"],
         filter_project=params["filter_project"],
         filter_q=params["filter_q"],
+        filter_status=params["filter_status"],
         sort_by=params["sort_by"],
         sort_dir=params["sort_dir"],
         limit=pagination["limit"],
@@ -291,6 +301,7 @@ def build_sessions_context(
         "filter_model": params["filter_model"] or "",
         "filter_project": params["filter_project"] or "",
         "filter_q": params["filter_q"] or "",
+        "filter_status": params["filter_status"] or "",
         "sort_by": ui_sort,
         "sort_dir": params["sort_dir"],
         "model_list": vm["model_list"],

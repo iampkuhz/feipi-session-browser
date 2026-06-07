@@ -135,6 +135,7 @@
   padding: 12px;
   box-sizing: border-box;
   margin-bottom: 12px;
+  min-width: 0;
 }
 .chart-card__head {
   display: flex;
@@ -219,6 +220,7 @@
   gap: 0;
   padding: 0 6px;
   align-items: end;
+  min-width: 0;
 }
 .bar {
   height: var(--h);
@@ -273,6 +275,7 @@
 }
 .chart-container {
   overflow: visible;
+  min-width: 0;
 }
 .x-axis {
   grid-column: 2;
@@ -292,6 +295,46 @@
   padding: 12px;
   color: var(--text-subtle);
   font-size: 13px;
+}
+
+.plot--area {
+  display: block;
+  overflow: visible;
+}
+.area-plot {
+  position: absolute;
+  inset: 0 6px 0 6px;
+  width: calc(100% - 12px);
+  height: 100%;
+}
+.area-layer {
+  stroke: none;
+  fill-opacity: 0.72;
+}
+.area-layer--fresh {
+  fill: var(--token-input-fresh);
+}
+.area-layer--read {
+  fill: var(--token-cache-read);
+}
+.area-layer--write {
+  fill: var(--token-cache-write);
+}
+.area-layer--out {
+  fill: var(--token-output-visible);
+}
+.area-point {
+  position: absolute;
+  left: var(--point-x, 0%);
+  top: var(--point-y, 100%);
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 2px solid var(--surface);
+  background: var(--brand);
+  box-shadow: 0 0 0 1px var(--line);
+  transform: translate(-50%, -50%);
+  cursor: help;
 }
 
 /* ── Token Analysis Section ================================================= */
@@ -525,8 +568,11 @@
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.24);
   z-index: 90;
   transition: 0.14s;
+  display: none;
 }
-.bar:hover .dashboard-tooltip {
+.bar:hover .dashboard-tooltip,
+.area-point:hover .dashboard-tooltip {
+  display: block;
   opacity: 1;
 }
 .tooltip-date {
@@ -708,4 +754,68 @@
 .tokenbar__seg--output {
   width: var(--seg-output, 0%);
   background: var(--token-output-visible, #f97316);
+}
+
+/* ── Single-agent horizontal charts ======================================== */
+.dashboard-horizontal-chart {
+  display: grid;
+  gap: 10px;
+  padding: 8px 0 2px;
+}
+.dashboard-horizontal-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) minmax(120px, auto);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+.dashboard-horizontal-row__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-horizontal-row__track {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.dashboard-horizontal-row__bar {
+  display: block;
+  width: var(--bar-width, 0%);
+  height: 100%;
+  border-radius: inherit;
+}
+.dashboard-horizontal-row__bar--model {
+  background: var(--brand);
+}
+.dashboard-horizontal-row__value {
+  color: var(--text-subtle);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .chart-card__head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .chart-card__stats {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .chart {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+  .y-axis-label {
+    font-size: 10px;
+  }
+  .dashboard-horizontal-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .dashboard-horizontal-row__value {
+    text-align: left;
+  }
 }

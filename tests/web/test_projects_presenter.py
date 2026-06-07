@@ -27,7 +27,7 @@ class TestParseProjectsQueryParams:
     def test_defaults_empty_params(self):
         result = parse_projects_query_params({})
         assert result["page"] == 1
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_valid(self):
@@ -58,22 +58,22 @@ class TestParseProjectsQueryParams:
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_all(self):
         result = parse_projects_query_params({"page_size": ["all"]})
-        assert result["page_size"] == "all"
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_page_size_ALL_uppercase(self):
         result = parse_projects_query_params({"page_size": ["ALL"]})
-        assert result["page_size"] == "all"
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
-    def test_page_size_invalid_defaults_to_20(self):
+    def test_page_size_invalid_defaults_to_25(self):
         result = parse_projects_query_params({"page_size": ["99"]})
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
-    def test_page_size_non_numeric_defaults_to_20(self):
+    def test_page_size_non_numeric_defaults_to_25(self):
         result = parse_projects_query_params({"page_size": ["xyz"]})
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-003", "DATA-PRESENTER-004")
     def test_combined_params(self):
@@ -236,7 +236,7 @@ class TestBuildProjectsViewModel:
     def test_view_model_values_defaults(
         self, mock_list, mock_count,
     ):
-        """默认值应为 page=1, page_size=20, total_pages=1。"""
+        """默认值应为 page=1, page_size=25, total_pages=1。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 0
         mock_list.return_value = []
@@ -246,7 +246,7 @@ class TestBuildProjectsViewModel:
         assert result["total_count"] == 0
         assert result["page"] == 1
         assert result["current_page"] == 1
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
         assert result["total_pages"] == 1
         assert result["page_start"] == 0
         assert result["page_end"] == 0
@@ -264,17 +264,17 @@ class TestBuildProjectsViewModel:
         mock_count.return_value = 100
         mock_list.return_value = [MagicMock()]
 
-        result = build_projects_view_model({"page": ["2"], "page_size": ["20"]}, conn)
+        result = build_projects_view_model({"page": ["2"], "page_size": ["25"]}, conn)
 
         assert result["page"] == 2
         assert result["current_page"] == 2
         assert result["total_count"] == 100
-        assert result["total_pages"] == 5
-        assert result["page_start"] == 21
-        assert result["page_end"] == 40
+        assert result["total_pages"] == 4
+        assert result["page_start"] == 26
+        assert result["page_end"] == 50
         assert result["has_prev"] is True
         assert result["has_next"] is True
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
@@ -287,12 +287,12 @@ class TestBuildProjectsViewModel:
         mock_count.return_value = 100
         mock_list.return_value = []
 
-        build_projects_view_model({"page": ["3"], "page_size": ["20"]}, conn)
+        build_projects_view_model({"page": ["3"], "page_size": ["25"]}, conn)
 
-        # page=3, size=20 -> offset=40, limit=20
+        # page=3, size=25 -> offset=50, limit=25
         call_kwargs = mock_list.call_args.kwargs
-        assert call_kwargs["limit"] == 20
-        assert call_kwargs["offset"] == 40
+        assert call_kwargs["limit"] == 25
+        assert call_kwargs["offset"] == 50
 
     @patch("session_browser.web.presenters.projects.count_projects")
     @patch("session_browser.web.presenters.projects.list_projects")
@@ -305,14 +305,14 @@ class TestBuildProjectsViewModel:
         mock_count.return_value = 200
         mock_list.return_value = []
 
-        build_projects_view_model({"page": ["1"], "page_size": ["20"]}, conn)
+        build_projects_view_model({"page": ["1"], "page_size": ["25"]}, conn)
         offset_page1 = mock_list.call_args.kwargs["offset"]
 
-        build_projects_view_model({"page": ["5"], "page_size": ["20"]}, conn)
+        build_projects_view_model({"page": ["5"], "page_size": ["25"]}, conn)
         offset_page5 = mock_list.call_args.kwargs["offset"]
 
         assert offset_page1 == 0
-        assert offset_page5 == 80
+        assert offset_page5 == 100
         assert offset_page5 > offset_page1
 
     @patch("session_browser.web.presenters.projects.count_projects")
@@ -321,15 +321,15 @@ class TestBuildProjectsViewModel:
     def test_view_model_page_size_all(
         self, mock_list, mock_count,
     ):
-        """page_size='all' 应禁用分页。"""
+        """page_size='all' 不在页面候选项中，应回退默认分页。"""
         conn = self._make_mock_conn()
         mock_count.return_value = 30
         mock_list.return_value = []
 
         result = build_projects_view_model({"page_size": ["all"]}, conn)
 
-        assert result["page_size"] == "all"
-        assert result["total_pages"] == 1
+        assert result["page_size"] == 25
+        assert result["total_pages"] == 2
         assert result["page"] == 1
 
     @patch("session_browser.web.presenters.projects.count_projects")

@@ -6,7 +6,10 @@ so it can be unit-tested in isolation.
 """
 from __future__ import annotations
 
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 import sqlite3
+from statistics import median
 from typing import Any
 
 from session_browser.index.indexer import (
@@ -21,7 +24,27 @@ from session_browser.web.template_env import _display_path
 
 # ── Query parameter defaults ─────────────────────────────────────────
 
-VALID_PAGE_SIZES = {20, 50, 100, 500}
+VALID_PAGE_SIZES = {25, 50, 100}
+PROJECT_SORT_KEY_MAP = {
+    "sessions": "sessions",
+    "tokens": "tokens",
+    "tools": "tools",
+    "failed": "failed",
+    "first_seen": "first_seen",
+    "last_active": "last_active",
+}
+PROJECT_DETAIL_SESSION_SORT_KEY_MAP = {
+    "tokens": "total_tokens",
+    "rounds": "assistant_message_count",
+    "tools": "tool_call_count",
+    "subagents": "subagent_instance_count",
+    "duration": "duration_seconds",
+    "process-time": "process_seconds",
+    "failure": "failed_tool_count",
+    "created": "started_at",
+    "updated": "ended_at",
+}
+PROJECT_TREND_GRAINS = {"day", "week", "month"}
 
 
 def parse_projects_query_params(raw_params: dict[str, list[str]]) -> dict[str, Any]:
@@ -42,22 +65,29 @@ def parse_projects_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
         page = 1
 
     # Pagination — page_size
-    raw_size = raw_params.get("page_size", ["20"])[0].strip().lower()
-    if raw_size == "all":
-        page_size: int | str = "all"
-    else:
-        try:
-            page_size_int = int(raw_size)
-            if page_size_int in VALID_PAGE_SIZES:
-                page_size = page_size_int
-            else:
-                page_size = 20
-        except ValueError:
-            page_size = 20
+    raw_size = raw_params.get("page_size", ["25"])[0].strip().lower()
+    try:
+        page_size_int = int(raw_size)
+        if page_size_int in VALID_PAGE_SIZES:
+            page_size: int | str = page_size_int
+        else:
+            page_size = 25
+    except ValueError:
+        page_size = 25
+
+    filter_q = raw_params.get("q", [""])[0].strip() or None
+    raw_sort = raw_params.get("sort", ["last_active"])[0].strip().lower()
+    sort_by = PROJECT_SORT_KEY_MAP.get(raw_sort, "last_active")
+    sort_dir = raw_params.get("dir", ["desc"])[0].strip().lower()
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "desc"
 
     return {
         "page": page,
         "page_size": page_size,
+        "filter_q": filter_q,
+        "sort_by": sort_by,
+        "sort_dir": sort_dir,
     }
 
 
@@ -109,6 +139,237 @@ def compute_projects_pagination(
     }
 
 
+def parse_project_detail_query_params(raw_params: dict[str, list[str]]) -> dict[str, Any]:
+    """Parse query parameters for project detail sessions and trend controls."""
+    params = parse_projects_query_params(raw_params)
+    raw_sort = raw_params.get("sort", ["updated"])[0].strip().lower()
+    params["sort_by"] = PROJECT_DETAIL_SESSION_SORT_KEY_MAP.get(raw_sort, "ended_at")
+    params["sort_key"] = raw_sort if raw_sort in PROJECT_DETAIL_SESSION_SORT_KEY_MAP else "updated"
+    params["filter_q"] = raw_params.get("q", [""])[0].strip() or None
+    grain = raw_params.get("grain", ["day"])[0].strip().lower()
+    params["grain"] = grain if grain in PROJECT_TREND_GRAINS else "day"
+    return params
+
+
+def _parse_dt(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _fmt_percent(numerator: float, denominator: float) -> str:
+    if denominator <= 0:
+        return "0.0%"
+    return f"{(numerator / denominator * 100):.1f}%"
+
+
+def _fmt_seconds(value: float) -> str:
+    seconds = int(value or 0)
+    if seconds <= 0:
+        return "0s"
+    hours, rem = divmod(seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
+
+
+def _session_input_side(session: Any) -> int:
+    return int(
+        getattr(session, "input_tokens", 0)
+        + getattr(session, "cached_input_tokens", 0)
+        + getattr(session, "cached_output_tokens", 0)
+    )
+
+
+def _session_total_tokens(session: Any) -> int:
+    return int(_session_input_side(session) + getattr(session, "output_tokens", 0))
+
+
+def _project_attr(project: Any, name: str, default: Any = 0) -> Any:
+    if isinstance(project, dict):
+        return project.get(name, default)
+    return getattr(project, name, default)
+
+
+def _bucket_for_grain(dt: datetime, grain: str) -> str:
+    if grain == "month":
+        return dt.strftime("%Y-%m")
+    if grain == "week":
+        start = dt - timedelta(days=dt.weekday())
+        return start.strftime("%Y-%m-%d")
+    return dt.strftime("%Y-%m-%d")
+
+
+def _build_project_token_trend(sessions: list[Any], grain: str) -> dict[str, Any]:
+    buckets: dict[str, dict[str, int]] = defaultdict(lambda: {
+        "fresh": 0,
+        "cache_read": 0,
+        "cache_write": 0,
+        "output": 0,
+        "total": 0,
+    })
+    for session in sessions:
+        dt = _parse_dt(getattr(session, "started_at", ""))
+        if not dt:
+            continue
+        key = _bucket_for_grain(dt, grain)
+        bucket = buckets[key]
+        fresh = int(getattr(session, "input_tokens", 0))
+        read = int(getattr(session, "cached_input_tokens", 0))
+        write = int(getattr(session, "cached_output_tokens", 0))
+        output = int(getattr(session, "output_tokens", 0))
+        bucket["fresh"] += fresh
+        bucket["cache_read"] += read
+        bucket["cache_write"] += write
+        bucket["output"] += output
+        bucket["total"] += fresh + read + write + output
+
+    points = [{"label": k, **v} for k, v in sorted(buckets.items())]
+    max_total = max((p["total"] for p in points), default=0)
+    layers = []
+    keys = [
+        ("fresh", "Fresh"),
+        ("cache_read", "Cache Read"),
+        ("cache_write", "Cache Write"),
+        ("output", "Output"),
+    ]
+    if points and max_total > 0:
+        n = len(points)
+        cumulative_lower = [0.0 for _ in points]
+        for key, label in keys:
+            upper = []
+            lower = []
+            for idx, point in enumerate(points):
+                x = 0 if n == 1 else idx / (n - 1) * 100
+                low = cumulative_lower[idx]
+                high = low + point[key] / max_total * 100
+                lower.append((x, 100 - low))
+                upper.append((x, 100 - high))
+                cumulative_lower[idx] = high
+            path = "M " + " L ".join(f"{x:.2f},{y:.2f}" for x, y in upper)
+            path += " L " + " L ".join(f"{x:.2f},{y:.2f}" for x, y in reversed(lower))
+            path += " Z"
+            layers.append({"key": key, "label": label, "path": path})
+
+    return {
+        "grain": grain,
+        "points": points,
+        "layers": layers,
+        "max_total": max_total,
+        "has_data": bool(points and max_total > 0),
+    }
+
+
+def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -> dict[str, Any]:
+    today = datetime.now().date()
+    recent_days = {today - timedelta(days=i): 0 for i in range(7)}
+    durations = []
+    process_times = []
+    eligible_sessions = 0
+    low_read_sessions = 0
+    affected_sessions = 0
+    repeated_failure_sessions = 0
+    agent_counts: Counter[str] = Counter()
+    agent_tokens: Counter[str] = Counter()
+    agent_failed: Counter[str] = Counter()
+
+    for session in sessions:
+        dt = _parse_dt(getattr(session, "started_at", ""))
+        if dt and dt.date() in recent_days:
+            recent_days[dt.date()] += 1
+        duration = float(getattr(session, "duration_seconds", 0) or 0)
+        process = float(getattr(session, "model_execution_seconds", 0) or 0) + float(getattr(session, "tool_execution_seconds", 0) or 0)
+        if duration > 0:
+            durations.append(duration)
+        if process > 0:
+            process_times.append(process)
+        input_side = _session_input_side(session)
+        read = int(getattr(session, "cached_input_tokens", 0) or 0)
+        if input_side > 0:
+            eligible_sessions += 1
+            if read / input_side < 0.2:
+                low_read_sessions += 1
+        failed = int(getattr(session, "failed_tool_count", 0) or 0)
+        if failed > 0:
+            affected_sessions += 1
+        if failed > 1:
+            repeated_failure_sessions += 1
+        agent = getattr(session, "agent", "") or "unknown"
+        agent_counts[agent] += 1
+        agent_tokens[agent] += _session_total_tokens(session)
+        agent_failed[agent] += failed
+
+    input_side_total = int(
+        _project_attr(project, "total_input_tokens", 0)
+        + _project_attr(project, "total_cached_tokens", 0)
+        + _project_attr(project, "total_cache_write_tokens", 0)
+    )
+    total_tokens = int(input_side_total + _project_attr(project, "total_output_tokens", 0))
+    agent_rows = []
+    for agent_key, label, scope in [
+        ("claude_code", "Claude Code", "claude"),
+        ("qoder", "Qoder", "qoder"),
+        ("codex", "Codex", "codex"),
+    ]:
+        count = agent_counts.get(agent_key, 0)
+        tokens = agent_tokens.get(agent_key, 0)
+        failed = agent_failed.get(agent_key, 0)
+        agent_rows.append({
+            "key": agent_key,
+            "label": label,
+            "scope": scope,
+            "sessions": count,
+            "tokens": tokens,
+            "failed": failed,
+            "session_share": count / _project_attr(project, "total_sessions", 0) * 100 if _project_attr(project, "total_sessions", 0) else 0,
+            "token_share": tokens / total_tokens * 100 if total_tokens else 0,
+        })
+
+    return {
+        "active_period": f"Active: {_project_attr(project, 'first_seen', '')[:10] or 'N/A'} to {_project_attr(project, 'last_seen', '')[:10] or 'N/A'}",
+        "sessions_kpi": {
+            "today": recent_days.get(today, 0),
+            "avg_7d": sum(recent_days.values()) / 7,
+            "median_duration": _fmt_seconds(median(durations)) if durations else "0s",
+            "median_process_time": _fmt_seconds(median(process_times)) if process_times else "0s",
+        },
+        "agents_kpi": {
+            "count": sum(1 for count in agent_counts.values() if count > 0),
+            "claude_code": agent_counts.get("claude_code", 0),
+            "qoder": agent_counts.get("qoder", 0),
+            "codex": agent_counts.get("codex", 0),
+        },
+        "tokens_kpi": {
+            "total": total_tokens,
+            "fresh": int(_project_attr(project, "total_input_tokens", 0)),
+            "cache_read": int(_project_attr(project, "total_cached_tokens", 0)),
+            "cache_write": int(_project_attr(project, "total_cache_write_tokens", 0)),
+            "output": int(_project_attr(project, "total_output_tokens", 0)),
+        },
+        "cache_kpi": {
+            "ratio": _fmt_percent(_project_attr(project, "total_cached_tokens", 0), input_side_total),
+            "eligible_sessions": eligible_sessions,
+            "low_read_sessions": low_read_sessions,
+        },
+        "failure_kpi": {
+            "failed_tools": int(_project_attr(project, "total_failed_tools", 0)),
+            "failure_rate": _fmt_percent(_project_attr(project, "total_failed_tools", 0), _project_attr(project, "total_tool_calls", 0)),
+            "affected_sessions": affected_sessions,
+            "repeated_failure_sessions": repeated_failure_sessions,
+        },
+        "agent_mix": agent_rows,
+        "token_trend": _build_project_token_trend(sessions, grain),
+        "tool_hotspots_available": False,
+        "tool_hotspots_reason": "Tool name breakdown is not stored in the current session index.",
+    }
+
+
 def build_projects_view_model(
     raw_params: dict[str, list[str]] | None = None,
     conn: sqlite3.Connection | None = None,
@@ -132,7 +393,10 @@ def build_projects_view_model(
             "active_page": "projects",
             "page": 1,
             "current_page": 1,
-            "page_size": 20,
+            "page_size": 25,
+            "filter_q": "",
+            "sort_by": "last_active",
+            "sort_dir": "desc",
             "total_pages": 1,
             "total_count": 0,
             "page_start": 0,
@@ -144,7 +408,7 @@ def build_projects_view_model(
     params = parse_projects_query_params(raw_params)
 
     # Get total count first
-    total_count = int(count_projects(conn))
+    total_count = int(count_projects(conn, title_like=params["filter_q"]))
 
     # Compute pagination
     pagination = compute_projects_pagination(
@@ -156,8 +420,11 @@ def build_projects_view_model(
     # Fetch paginated projects
     projects = list_projects(
         conn,
+        title_like=params["filter_q"],
         limit=pagination["limit"],
         offset=pagination["offset"],
+        order_by=params["sort_by"],
+        order_dir=params["sort_dir"],
     )
 
     # Compute display_path for each project: use cwd (actual filesystem path)
@@ -172,6 +439,9 @@ def build_projects_view_model(
         "page": pagination["page"],
         "current_page": pagination["page"],
         "page_size": params["page_size"],
+        "filter_q": params["filter_q"] or "",
+        "sort_by": params["sort_by"],
+        "sort_dir": params["sort_dir"],
         "total_pages": pagination["total_pages"],
         "total_count": total_count,
         "page_start": pagination["page_start"],
@@ -201,12 +471,33 @@ def build_project_detail_view_model(
     if raw_params is None:
         raw_params = {}
 
-    params = parse_projects_query_params(raw_params)
+    params = parse_project_detail_query_params(raw_params)
 
     pstats = get_project_stats(conn, project_key)
+    if not _project_attr(pstats, "project_name", "") and _project_attr(pstats, "total_sessions", 0) == 0:
+        return {
+            "project": pstats,
+            "sessions": [],
+            "project_key": project_key,
+            "active_page": "projects",
+            "error": "Project not found",
+            "page": 1,
+            "current_page": 1,
+            "page_size": 25,
+            "filter_q": "",
+            "sort_by": "updated",
+            "sort_dir": "desc",
+            "trend_grain": "day",
+            "total_pages": 1,
+            "total_count": 0,
+            "page_start": 0,
+            "page_end": 0,
+            "has_prev": False,
+            "has_next": False,
+        }
 
     # Get total count for this project
-    total_count = int(count_sessions(conn, project_key=project_key))
+    total_count = int(count_sessions(conn, project_key=project_key, title_like=params["filter_q"]))
 
     # Compute pagination
     pagination = compute_projects_pagination(
@@ -219,18 +510,36 @@ def build_project_detail_view_model(
     sessions = list_sessions(
         conn,
         project_key=project_key,
+        title_like=params["filter_q"],
         limit=pagination["limit"],
         offset=pagination["offset"],
+        order_by=params["sort_by"],
+        order_dir=params["sort_dir"],
     )
+    all_project_sessions = list_sessions(
+        conn,
+        project_key=project_key,
+        limit=max(int(_project_attr(pstats, "total_sessions", 0) or 0), 1),
+        offset=0,
+        order_by="started_at",
+        order_dir="asc",
+    )
+    project_detail = _build_project_detail_stats(pstats, all_project_sessions, params["grain"])
 
     return {
         "project": pstats,
+        "project_detail": project_detail,
         "sessions": sessions,
         "project_key": project_key,
         "active_page": "projects",
+        "error": None,
         "page": pagination["page"],
         "current_page": pagination["page"],
         "page_size": params["page_size"],
+        "filter_q": params["filter_q"] or "",
+        "sort_by": params["sort_key"],
+        "sort_dir": params["sort_dir"],
+        "trend_grain": params["grain"],
         "total_pages": pagination["total_pages"],
         "total_count": total_count,
         "page_start": pagination["page_start"],

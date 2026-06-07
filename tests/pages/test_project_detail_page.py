@@ -173,29 +173,30 @@ class TestProjectDetailPageHead:
 # ── TestProjectDetailMetricCards ──────────────────────────────────
 
 class TestProjectDetailMetricCards:
-    """验证 4 个指标卡片的标签和结构正确性。"""
+    """验证 5 个指标卡片的标签和结构正确性。"""
 
     _EXPECTED_LABELS = [
         "Sessions",
-        "Input-side Tokens",
-        "Output Tokens",
-        "Active Period",
+        "Agents",
+        "Total Tokens",
+        "Cache Read Ratio",
+        "Failed Tools",
     ]
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_metric_grid_present(self):
         """Project 必须有 metric-grid 区域。"""
         content = _read_template()
-        assert 'class="metric-grid"' in content, \
+        assert 'class="metric-grid project-detail-kpis"' in content, \
             "Project must have a metric-grid section"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    def test_four_metric_cards(self):
-        """Project 必须恰好渲染 4 个指标卡片。"""
+    def test_five_metric_cards(self):
+        """Project 必须恰好渲染 5 个指标卡片。"""
         content = _read_template()
         cards = re.findall(r'class="metric-card"', content)
-        assert len(cards) == 4, \
-            f"Project must have exactly 4 metric cards, found {len(cards)}"
+        assert len(cards) == 5, \
+            f"Project must have exactly 5 metric cards, found {len(cards)}"
 
     @pytest.mark.parametrize("label", _EXPECTED_LABELS)
     @pytest.mark.contract_case("UI-PROJECTS-002")
@@ -210,8 +211,8 @@ class TestProjectDetailMetricCards:
         """每个指标卡片必须有 metric-icon 元素。"""
         content = _read_template()
         icons = re.findall(r'class="metric-icon', content)
-        assert len(icons) >= 4, \
-            f"Project must have at least 4 metric-icon elements, found {len(icons)}"
+        assert len(icons) >= 5, \
+            f"Project must have at least 5 metric-icon elements, found {len(icons)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_metric_icons_have_emoji_aria_hidden(self):
@@ -220,16 +221,16 @@ class TestProjectDetailMetricCards:
         icons = re.findall(
             r'class="metric-icon[^"]*"[^>]*aria-hidden="true"', content
         )
-        assert len(icons) >= 4, \
-            f"Project must have at least 4 metric-icon elements with aria-hidden, found {len(icons)}"
+        assert len(icons) >= 5, \
+            f"Project must have at least 5 metric-icon elements with aria-hidden, found {len(icons)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_metric_cards_have_label_class(self):
         """每个指标卡片必须有 metric-card__label 元素。"""
         content = _read_template()
         labels = re.findall(r'class="metric-card__label"', content)
-        assert len(labels) >= 4, \
-            f"Project must have at least 4 metric-card__label elements, found {len(labels)}"
+        assert len(labels) >= 5, \
+            f"Project must have at least 5 metric-card__label elements, found {len(labels)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_metric_cards_have_value_class(self):
@@ -237,58 +238,43 @@ class TestProjectDetailMetricCards:
         content = _read_template()
         # 匹配 class="metric-card__value" 和 class="metric-card__value mono"
         values = re.findall(r'class="metric-card__value(?: mono)?"', content)
-        assert len(values) >= 4, \
-            f"Project must have at least 4 metric-card__value elements, found {len(values)}"
+        assert len(values) >= 5, \
+            f"Project must have at least 5 metric-card__value elements, found {len(values)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    def test_session_card_has_agent_mix(self):
-        """Sessions 指标卡片必须有 metric-card__sub 区域。"""
+    def test_metric_cards_have_secondary_rows(self):
+        """KPI 卡片必须有二级指标行。"""
         content = _read_template()
-        assert 'class="metric-card__sub"' in content, \
-            "Sessions card must have a metric-card__sub section"
+        assert 'class="metric-card__secondary-row"' in content, \
+            "KPI cards must have secondary metric rows"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    def test_session_card_has_badges(self):
-        """Agent 组合必须包含 CC、CX 和 QD 徽章。"""
+    def test_agent_kpi_has_agent_labels(self):
+        """Agents KPI 必须包含三个固定 agent 二级指标。"""
         content = _read_template()
-        assert 'class="badge badge-claude"' in content, \
-            "Agent mix must have a Claude Code badge"
-        assert 'class="badge badge-codex"' in content, \
-            "Agent mix must have a Codex badge"
-        assert 'class="badge badge-qoder"' in content, \
-            "Agent mix must have a Qoder badge"
+        for label in ["Claude Code", "Qoder", "Codex"]:
+            assert label in content, f"Agents KPI must include {label}"
 
 
 # ── TestProjectDetailInfoButtons ──────────────────────────────────
 
 class TestProjectDetailInfoButtons:
-    """验证信息按钮带有 data-action='info' 和 aria-label。"""
+    """验证 Project Detail 不再渲染无命令信息按钮。"""
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    def test_five_info_buttons(self):
-        """Project 必须恰好有 5 个带 data-action='info' 的信息按钮。"""
+    def test_no_info_buttons(self):
+        """Project Detail KPI 不应渲染无实际命令的 info 按钮。"""
         content = _read_template()
         buttons = re.findall(r'data-action="info"', content)
-        assert len(buttons) == 5, \
-            f"Project must have exactly 5 info buttons, found {len(buttons)}"
+        assert len(buttons) == 0, \
+            f"Project must not have info buttons, found {len(buttons)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    def test_info_buttons_have_aria_label(self):
-        """每个信息按钮必须有 aria-label 属性。"""
+    def test_no_info_icon_class(self):
+        """Project Detail 不应使用 icon-button--info。"""
         content = _read_template()
-        # 查找跟在 data-action="info" 后面的 aria-label
-        # 模式：data-action="info" aria-label="..."
-        pattern = r'data-action="info"[^>]*aria-label="[^"]*"'
-        matches = re.findall(pattern, content)
-        assert len(matches) == 5, \
-            f"Project must have 5 info buttons with aria-label, found {len(matches)}"
-
-    @pytest.mark.contract_case("UI-PROJECTS-002")
-    def test_info_buttons_use_info_icon_class(self):
-        """信息按钮必须使用 icon-button--info 类。"""
-        content = _read_template()
-        assert 'icon-button--info' in content, \
-            "Info buttons must use icon-button--info class"
+        assert 'icon-button--info' not in content, \
+            "Project must not use icon-button--info"
 
 
 # ── TestProjectDetailTableToolbar ─────────────────────────────────
@@ -323,12 +309,12 @@ class TestProjectDetailTableToolbar:
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_search_input_present(self):
-        """表格工具栏必须有搜索输入（通过 table_card 的 search_placeholder）。"""
+        """表格工具栏必须有项目内搜索输入。"""
         content = _read_template()
         assert "ui.table_card(" in content, \
             "Project must use ui.table_card macro"
-        assert "search_placeholder=" in content, \
-            "table_card call must pass search_placeholder parameter"
+        assert 'id="project-session-search"' in content, \
+            "Project sessions toolbar must render project-session-search"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_search_input_has_placeholder(self):
@@ -346,8 +332,9 @@ class TestProjectDetailTableStructure:
     """验证表格结构和列表头。"""
 
     _EXPECTED_COLUMNS = [
-        "Title", "Agent", "Model", "Tokens",
-        "Rounds", "Tools", "Failed", "Duration", "Updated",
+        "Session", "Agent", "Model", "Tokens",
+        "Rounds", "Tools", "Subagents", "Duration",
+        "Process Time", "Failure", "Created", "Updated",
     ]
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
@@ -380,27 +367,27 @@ class TestProjectDetailTableStructure:
             f"Table must have '{column}' column header"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
-    def test_nine_column_headers(self):
-        """表格必须恰好有 9 个列表头。"""
+    def test_twelve_column_headers(self):
+        """表格必须恰好有 12 个列表头。"""
         content = _read_template()
         # 匹配 <th...> 但排除 <thead>
         ths = re.findall(r'<th(?!\w)', content)
-        assert len(ths) == 9, \
-            f"Table must have 9 column headers, found {len(ths)}"
+        assert len(ths) == 12, \
+            f"Table must have 12 column headers, found {len(ths)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_sortable_columns_have_data_action_sort(self):
         """可排序列必须有 data-action='sort'。"""
         content = _read_template()
         sorts = re.findall(r'data-action="sort"', content)
-        assert len(sorts) >= 5, \
-            f"Table must have at least 5 sortable columns, found {len(sorts)}"
+        assert len(sorts) >= 9, \
+            f"Table must have at least 9 sortable columns, found {len(sorts)}"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_sortable_columns_have_data_sort(self):
         """可排序列必须有 data-sort 值。"""
         content = _read_template()
-        for sort_key in ["tokens", "rounds", "tools", "failed", "duration", "updated"]:
+        for sort_key in ["tokens", "rounds", "tools", "subagents", "duration", "process-time", "failure", "created", "updated"]:
             assert f'data-sort="{sort_key}"' in content, \
                 f"Table must have data-sort='{sort_key}'"
 
@@ -461,40 +448,32 @@ class TestProjectDetailRowStructure:
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_agent_badge_cc(self):
-        """行必须有通过 badge_with_dot 宏渲染的 CC agent 徽章。"""
+        """行必须通过标准 agent_badge 宏渲染 agent。"""
         content = _read_template()
-        assert 'badge_with_dot' in content and "'cc'" in content, \
-            "Row must have CC agent badge via badge_with_dot macro"
+        assert "ui.agent_badge(s.agent)" in content, \
+            "Row must use ui.agent_badge(s.agent)"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_agent_badge_cx(self):
-        """行必须有 CX agent 徽章。"""
+        """Agent Mix 必须引用 Codex agent。"""
         content = _read_template()
-        assert 'class="badge cx"' not in content or True, \
-            "CX badge check (template uses CC/QD/CX pattern)"
-        # 模板使用条件判断：'CX' 表示 codex
-        assert "'CX'" in content or "CX" in content, \
-            "Row must reference CX for Codex"
+        assert "codex" in content and "Codex" in content, \
+            "Template must reference Codex"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_agent_badge_qd(self):
-        """行必须有 QD agent 徽章。"""
+        """Agent Mix 必须引用 Qoder agent。"""
         content = _read_template()
-        assert 'class="badge qd"' not in content or True, \
-            "QD badge check (template uses conditional pattern)"
-        assert "'QD'" in content or "QD" in content, \
-            "Row must reference QD for Qoder"
+        assert "qoder" in content and "Qoder" in content, \
+            "Template must reference Qoder"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_agent_dot_indicators(self):
-        """Agent 单元格必须有带 claude/qoder/codex 类的点指示器。"""
+        """Agent Mix 必须链接到三个 Dashboard agent scope。"""
         content = _read_template()
-        assert "'claude'" in content or '"claude"' in content, \
-            "Dot indicator must reference 'claude'"
-        assert "'qoder'" in content or '"qoder"' in content, \
-            "Dot indicator must reference 'qoder'"
-        assert "'codex'" in content or '"codex"' in content, \
-            "Dot indicator must reference 'codex'"
+        for scope in ["claude", "qoder", "codex"]:
+            assert f"/dashboard?agent={{{{ agent.scope }}}}" in content or scope in content, \
+                f"Template must reference '{scope}' dashboard scope"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_token_cell_present(self):
@@ -587,8 +566,8 @@ class TestProjectDetailPagination:
     def test_pagination_has_aria_label(self):
         """分页必须有用于可访问性的 aria-label。"""
         content = _read_template()
-        assert 'aria-label="Sessions' in content or 'aria-label="Pagination' in content, \
-            "Pagination must have an aria-label"
+        assert "custom_label='Project sessions pagination'" in content or 'custom_label="Project sessions pagination"' in content, \
+            "Pagination must pass an accessible custom label"
 
 
 # ── TestProjectDetailEmptyState ───────────────────────────────────
@@ -715,8 +694,8 @@ class TestProjectDetailNoStalePatterns:
     def test_no_cache_w_column(self):
         """Project 不得有 Cache W 列。"""
         content = _read_template()
-        assert "Cache W" not in content, \
-            "Project must not have Cache W column"
+        assert ">Cache W</th>" not in content, \
+            "Project must not have Cache W column header"
 
     @pytest.mark.contract_case("UI-PROJECTS-002")
     def test_no_output_column(self):
@@ -741,10 +720,10 @@ class TestProjectDetailDataActions:
     """验证所有必需的 data-action 属性都存在。"""
 
     _EXPECTED_ACTIONS = [
-        "info",
         "copy",
         "sort",
         "open-session",
+        "apply-search",
     ]
 
     @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)

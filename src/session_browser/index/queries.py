@@ -30,6 +30,7 @@ def list_sessions(
     project_key: str | None = None,
     model: str | None = None,
     title_like: str | None = None,
+    failure_status: str | None = None,
     limit: int = 50,
     offset: int = 0,
     order_by: str = "ended_at",
@@ -57,15 +58,21 @@ def list_sessions(
         pattern = f"%{title_like}%"
         params.append(pattern)
         params.append(pattern)
+    if failure_status == "failed":
+        clauses.append("failed_tool_count > 0")
+    elif failure_status == "no-failures":
+        clauses.append("failed_tool_count = 0")
 
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     valid_orders = {
         "ended_at": "ended_at",
+        "started_at": "started_at",
         "input_tokens": "input_tokens",
         "total_tokens": "total_tokens",
         "assistant_message_count": "assistant_message_count",
         "tool_call_count": "tool_call_count",
         "duration_seconds": "duration_seconds",
+        "process_seconds": "(model_execution_seconds + tool_execution_seconds)",
         "failed_tool_count": "failed_tool_count",
         "subagent_instance_count": "subagent_instance_count",
     }
@@ -86,6 +93,7 @@ def count_sessions(
     project_key: str | None = None,
     model: str | None = None,
     title_like: str | None = None,
+    failure_status: str | None = None,
 ) -> int:
     """Count sessions with optional filtering."""
     clauses = []
@@ -108,6 +116,10 @@ def count_sessions(
         pattern = f"%{title_like}%"
         params.append(pattern)
         params.append(pattern)
+    if failure_status == "failed":
+        clauses.append("failed_tool_count > 0")
+    elif failure_status == "no-failures":
+        clauses.append("failed_tool_count = 0")
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     row = conn.execute(f"SELECT COUNT(*) FROM sessions {where}", params).fetchone()
     return row[0]
@@ -119,6 +131,7 @@ def get_sessions_list_aggregate(
     project_key: str | None = None,
     model: str | None = None,
     title_like: str | None = None,
+    failure_status: str | None = None,
 ) -> dict:
     """Get aggregate stats for filtered sessions list."""
     clauses = []
@@ -141,6 +154,10 @@ def get_sessions_list_aggregate(
         pattern = f"%{title_like}%"
         params.append(pattern)
         params.append(pattern)
+    if failure_status == "failed":
+        clauses.append("failed_tool_count > 0")
+    elif failure_status == "no-failures":
+        clauses.append("failed_tool_count = 0")
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     row = conn.execute(
         f"SELECT COUNT(*) as session_count, "
@@ -210,22 +227,50 @@ def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStat
     )
 
 
-def count_projects(conn: sqlite3.Connection) -> int:
+def count_projects(conn: sqlite3.Connection, title_like: str | None = None) -> int:
     """Count total number of distinct projects."""
+    clauses = []
+    params: list = []
+    if title_like:
+        clauses.append("(LOWER(project_name) LIKE LOWER(?) OR LOWER(project_key) LIKE LOWER(?) OR LOWER(cwd) LIKE LOWER(?))")
+        pattern = f"%{title_like}%"
+        params.extend([pattern, pattern, pattern])
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
     row = conn.execute(
-        "SELECT COUNT(DISTINCT project_key) FROM sessions"
+        f"SELECT COUNT(DISTINCT project_key) FROM sessions {where}",
+        params,
     ).fetchone()
     return row[0]
 
 
 def list_projects(
     conn: sqlite3.Connection,
+    title_like: str | None = None,
     limit: int = 20,
     offset: int = 0,
+    order_by: str = "last_active",
+    order_dir: str = "desc",
 ) -> list[ProjectStats]:
     """List projects sorted by most recent activity with pagination."""
+    clauses = []
+    params: list = []
+    if title_like:
+        clauses.append("(LOWER(project_name) LIKE LOWER(?) OR LOWER(project_key) LIKE LOWER(?) OR LOWER(cwd) LIKE LOWER(?))")
+        pattern = f"%{title_like}%"
+        params.extend([pattern, pattern, pattern])
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    valid_orders = {
+        "sessions": "total_sessions",
+        "tokens": "total_tokens",
+        "tools": "total_tool_calls",
+        "failed": "total_failed_tools",
+        "first_seen": "first_seen",
+        "last_active": "last_seen",
+    }
+    order_expr = valid_orders.get(order_by, "last_seen")
+    safe_dir = "ASC" if order_dir == "asc" else "DESC"
     rows = conn.execute(
-        """
+        f"""
         SELECT
             project_key,
             project_name,
@@ -239,16 +284,18 @@ def list_projects(
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
             COALESCE(SUM(cached_input_tokens), 0) as total_cached_tokens,
             COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
             COALESCE(SUM(user_message_count), 0) as total_user_messages,
             COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
         FROM sessions
+        {where}
         GROUP BY project_key
-        ORDER BY MAX(ended_at) DESC
+        ORDER BY {order_expr} {safe_dir}
         LIMIT ? OFFSET ?
         """,
-        (limit, offset),
+        (*params, limit, offset),
     ).fetchall()
 
     return [

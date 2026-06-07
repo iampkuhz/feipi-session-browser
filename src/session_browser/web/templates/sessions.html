@@ -45,10 +45,21 @@
         <input type="hidden" name="sort" value="{{ sort_by }}"/>
         <input type="hidden" name="dir" value="{{ sort_dir }}"/>
         <input type="hidden" name="page_size" value="{{ page_size }}"/>
-        {{ ui.filter_search(name='q', placeholder='Search by session ID or title...', value=filter_q, id='session-search', extra_classes='js-search') }}
-        {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent, id='filter-agent') }}
+        {{ ui.filter_search(name='q', placeholder='Search title, project, agent, model, session id', value=filter_q, id='session-search', extra_classes='js-search') }}
+        {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent, id='filter-agent', all_label='All Agents') }}
         {{ ui.filter_select(label='Model', name='model', options=model_list, selected=filter_model, id='filter-model', all_label='All Models') }}
         {{ ui.filter_select(label='Project', name='project', options=project_list, selected=filter_project, id='filter-project', all_label='All Projects') }}
+        {{ ui.filter_select(
+            label='Status',
+            name='status',
+            options=[
+                {'value': 'failed', 'label': 'Failed'},
+                {'value': 'no-failures', 'label': 'No failures'}
+            ],
+            selected=filter_status,
+            id='filter-status',
+            all_label='All'
+        ) }}
         <span class="filter-row__push"></span>
         {{ ui.button('Reset', variant='secondary', size='sm', href=actions.clear_all_url, extra_classes='js-clear-all', data_action='clear') }}
     </div>
@@ -58,6 +69,7 @@
             agent=filter_agent,
             model=filter_model,
             project=filter_project,
+            status=filter_status,
             count_label='',
             remove_urls=actions.remove_filter_urls
         ) }}
@@ -68,7 +80,7 @@
 {% set sessions_pagination %}
 <div id="ajax-pagination">
 {% if total_count is defined and total_count > 0 %}
-{{ ui.pagination(current_page, total_pages, total_items=total_count, page_size=page_size) }}
+{{ ui.pagination(current_page, total_pages, total_items=total_count, page_size=page_size, page_size_options=[25, 50, 100]) }}
 {% endif %}
 </div>
 {% endset %}
@@ -76,112 +88,10 @@
         <table class="data-table" role="table" aria-label="Sessions table">
             <thead>
                 <tr>
-                    <th class="static-header col-title" role="columnheader" scope="col">Title</th>
-                    <th class="static-header col-project" role="columnheader" scope="col">Project</th>
-                    <th class="static-header col-agent" role="columnheader" scope="col">Agent</th>
-                    <th class="static-header col-model" role="columnheader" scope="col">Model</th>
-                    <th class="col-num sortable col-tokens" data-sort-key="tokens"{% if sort_by == 'tokens' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="c-data-table__sort" href="{{ actions.sort_urls.tokens }}" data-action="sort" data-sort-key="tokens" title="按 token 总量排序">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
-                    </th>
-                    <th class="col-num sortable col-rounds" data-sort-key="rounds"{% if sort_by == 'rounds' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="c-data-table__sort" href="{{ actions.sort_urls.rounds }}" data-action="sort" data-sort-key="rounds" title="按 rounds 数量排序">Rounds <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
-                    </th>
-                    <th class="col-num sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="c-data-table__sort" href="{{ actions.sort_urls.tools }}" data-action="sort" data-sort-key="tools" title="按 tools 数量排序">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
-                    </th>
-                    <th class="col-num sortable col-subagents" data-sort-key="subagents"{% if sort_by == 'subagents' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="c-data-table__sort" href="{{ actions.sort_urls.subagents }}" data-action="sort" data-sort-key="subagents" title="按 subagent 实例数排序">Subagents <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
-                    </th>
-                    <th class="sortable col-duration" data-sort-key="duration"{% if sort_by == 'duration' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="c-data-table__sort" href="{{ actions.sort_urls.duration }}" data-action="sort" data-sort-key="duration" title="按执行耗时排序">Duration <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
-                    </th>
-                    <th class="sortable col-updated" data-sort-key="updated"{% if sort_by == 'updated' %} data-sort-dir="{{ sort_dir }}"{% endif %}>
-                        <a class="c-data-table__sort" href="{{ actions.sort_urls.updated }}" data-action="sort" data-sort-key="updated" title="按更新时间排序">Updated <span class="c-data-table__sort-icon" aria-hidden="true"></span></a>
-                    </th>
+                    {{ sl.table_header(sort_by, sort_dir, actions.sort_urls) }}
                 </tr>
             </thead>
-            <tbody>
-                {% if sessions %}
-                {% for s in sessions %}
-                {% set raw_total_tokens = s.total_tokens | default(none) %}
-                {% set raw_fresh_input = s.fresh_input_tokens | default(none) %}
-                {% set raw_cache_read = s.cache_read_tokens | default(none) %}
-                {% set raw_cache_write = s.cache_write_tokens | default(none) %}
-                {% set total_tokens = raw_total_tokens if raw_total_tokens is number else s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-                {% set fresh_input = raw_fresh_input if raw_fresh_input is number else s.input_tokens %}
-                {% set cache_read = raw_cache_read if raw_cache_read is number else s.cached_input_tokens %}
-                {% set cache_write = raw_cache_write if raw_cache_write is number else s.cached_output_tokens %}
-                {% set output = s.output_tokens %}
-                {% set fresh_pct = (fresh_input / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
-                {% set read_pct = (cache_read / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
-                {% set write_pct = (cache_write / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
-                {% set output_pct = (output / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
-                <tr class="sessions-row" data-action="row"
-                    data-agent="{{ s.agent }}"
-                    data-model="{{ s.model }}"
-                    data-project="{{ s.project_key }}"
-                    data-session-id="{{ s.session_id }}"
-                    data-title="{{ s.title | lower }}"
-                    data-ended-at="{{ s.ended_at }}"
-                    data-total-tokens="{{ total_tokens }}"
-                    data-rounds="{{ s.assistant_message_count }}"
-                    data-tool-count="{{ s.tool_call_count }}"
-                    data-duration="{{ s.duration_seconds }}"
-                    title="点击打开该 session detail 页面">
-                    <td class="col-title">
-                        <div class="title-main"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
-                        <div class="title-sub mono">
-                            <span class="mono">{{ s.session_id[:12] }}</span>
-                            {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}
-                        </div>
-                    </td>
-                    <td class="col-project">
-                        <div class="project-cell">
-                            <span class="project-name"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | shorten_path }}">{{ s.project_name }}</a></span>
-                        </div>
-                    </td>
-                    <td class="col-agent">{{ ui.agent_badge(s.agent) }}</td>
-                    <td class="mono col-model">{{ s.model }}</td>
-                    {{ ui.token_cell(
-                        total=total_tokens | format_compact_token,
-                        fresh_pct=fresh_pct,
-                        read_pct=read_pct,
-                        write_pct=write_pct,
-                        out_pct=output_pct,
-                        fresh_val=fresh_input | format_compact_token,
-                        read_val=cache_read | format_compact_token,
-                        write_val=cache_write | format_compact_token,
-                        out_val=output | format_compact_token,
-                        fresh_pct_val=fresh_pct,
-                        read_pct_val=read_pct,
-                        write_pct_val=write_pct,
-                        out_pct_val=output_pct
-                    ) }}
-                    <td class="num mono col-rounds">{{ s.assistant_message_count }}</td>
-                    <td class="num mono col-tools">{{ s.tool_call_count }}</td>
-                    <td class="num mono col-subagents">{{ s.subagent_instance_count | default(0) }}</td>
-                    <td class="mono col-duration" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>
-                    <td class="muted col-updated">{{ s.ended_at | relative_time }}</td>
-                </tr>
-                {% endfor %}
-                {% else %}
-                <tr><td colspan="10">
-                    {% set has_active_filter = filter_q or filter_agent or filter_model or filter_project %}
-                    {% if has_active_filter %}
-                    {{ ui.empty_state(
-                        message='No sessions match your current filters',
-                        action_button=ui.button('Clear All Filters', 'secondary', 'sm', href=actions.clear_all_url, data_action='clear'),
-                        icon='🔎'
-                    ) }}
-                    {% else %}
-                    {{ ui.empty_state(
-                        message='No sessions indexed yet',
-                        icon='📭'
-                    ) }}
-                    {% endif %}
-                </td></tr>
-                {% endif %}
-            </tbody>
+            {% include "partials/sessions_table_body.html" %}
         </table>
 {% endcall %}
 

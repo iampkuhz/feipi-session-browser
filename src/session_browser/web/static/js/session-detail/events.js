@@ -167,6 +167,26 @@
         event.preventDefault();
         event.stopPropagation();
         openPayload(actionEl);
+      } else if (action === 'select-payload-call') {
+        event.preventDefault();
+        event.stopPropagation();
+        selectPayloadCall(actionEl, true);
+      } else if (action === 'open-payload-tab') {
+        event.preventDefault();
+        event.stopPropagation();
+        openPayloadTabForPayload(actionEl.getAttribute('data-payload-id') || '');
+      } else if (action === 'copy-selected-raw') {
+        event.preventDefault();
+        event.stopPropagation();
+        copySelectedPayloadRaw(actionEl);
+      } else if (action === 'open-trace-step') {
+        event.preventDefault();
+        event.stopPropagation();
+        openSelectedPayloadTraceStep();
+      } else if (action === 'copy-call-id') {
+        event.preventDefault();
+        event.stopPropagation();
+        copySelectedPayloadCallId(actionEl);
       } else if (action === 'close-payload') {
         event.preventDefault();
         event.stopPropagation();

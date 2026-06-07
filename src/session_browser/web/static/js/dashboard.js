@@ -568,7 +568,7 @@
             container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
         }
 
-        /* ── Token Trend by Composition (stacked bars) ─────────── */
+        /* ── Token Trend by Composition (stacked area) ─────────── */
 
         function renderCompositionChart() {
             var container = document.getElementById('token-composition-chart');
@@ -586,20 +586,41 @@
             var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
             var yHtml = '<div class="y-axis-label">Y-axis: Tokens (tokens)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + formatTokens(v) + '</span>'; }).join('') + '</div>';
 
-            var plotBars = '';
-            data.forEach(function(d) {
+            var layers = [
+                { key: 'fresh_input_tokens', cls: 'fresh', label: 'Fresh' },
+                { key: 'cache_read_tokens', cls: 'read', label: 'Cache Read' },
+                { key: 'cache_write_tokens', cls: 'write', label: 'Cache Write' },
+                { key: 'output_tokens', cls: 'out', label: 'Output' }
+            ];
+            var cumulative = data.map(function() { return 0; });
+            var paths = '';
+            layers.forEach(function(layer) {
+                var upper = [];
+                var lower = [];
+                data.forEach(function(d, i) {
+                    var x = data.length === 1 ? 50 : (i / (data.length - 1) * 100);
+                    var low = cumulative[i];
+                    var high = low + (d[layer.key] || 0);
+                    lower.push([x, 100 - (low / maxVal * 100)]);
+                    upper.push([x, 100 - (high / maxVal * 100)]);
+                    cumulative[i] = high;
+                });
+                var dPath = 'M ' + upper.map(function(p) { return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' L ');
+                dPath += ' L ' + lower.slice().reverse().map(function(p) { return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' L ');
+                dPath += ' Z';
+                paths += '<path class="area-layer area-layer--' + layer.cls + '" d="' + dPath + '"></path>';
+            });
+
+            var points = '';
+            data.forEach(function(d, i) {
                 var dateStr = formatDisplayDate(d.date);
                 var fresh = d.fresh_input_tokens || 0;
                 var read = d.cache_read_tokens || 0;
                 var write = d.cache_write_tokens || 0;
                 var out = d.output_tokens || 0;
                 var total = fresh + read + write + out;
-                var pctH = (total / maxVal) * 100;
-
-                var fPct = total > 0 ? (fresh / total * 100) : 0;
-                var rPct = total > 0 ? (read / total * 100) : 0;
-                var wPct = total > 0 ? (write / total * 100) : 0;
-                var oPct = total > 0 ? (out / total * 100) : 0;
+                var x = data.length === 1 ? 50 : (i / (data.length - 1) * 100);
+                var y = 100 - (total / maxVal * 100);
 
                 var tip = '<div class="dashboard-tooltip"><div class="tooltip-date">' + dateStr + '</div>';
                 tip += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--fresh"></i><span class="tooltip-label">Fresh</span><b class="tooltip-value">' + formatTokens(fresh) + '</b></div>';
@@ -609,14 +630,9 @@
                 tip += '<div class="tooltip-row" style="border-top:1px solid #334155;margin-top:4px;padding-top:4px"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + formatTokens(total) + '</b></div>';
                 tip += '</div>';
 
-                plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
-                if (fresh > 0) plotBars += '<span class="seg-claude" style="height:' + fPct + '%"></span>';
-                if (read > 0) plotBars += '<span class="seg-codex" style="height:' + rPct + '%"></span>';
-                if (write > 0) plotBars += '<span class="seg-qoder" style="height:' + wPct + '%"></span>';
-                if (out > 0) plotBars += '<span class="seg-claude" style="height:' + oPct + '%;opacity:0.7"></span>';
-                plotBars += '</div>' + tip + '</div>';
+                points += '<span class="area-point" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%">' + tip + '</span>';
             });
-            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
+            var plotHtml = '<div class="plot plot--area" style="--n:' + data.length + '"><svg class="area-plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + '</svg>' + points + '</div>';
 
             var step = Math.max(Math.floor(data.length / 8), 1);
             var xLabels = data.map(function(d, i) {

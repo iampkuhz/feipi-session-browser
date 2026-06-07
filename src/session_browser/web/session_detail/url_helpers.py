@@ -9,7 +9,7 @@ from __future__ import annotations
 import urllib.parse
 
 _SESSIONS_URL_PARAM_ORDER = [
-    "q", "agent", "model", "project",
+    "q", "agent", "model", "project", "status",
     "sort", "dir", "page", "page_size",
 ]
 
@@ -77,11 +77,14 @@ def _build_view_actions(
         current["dir"] = sort_dir
     if page > 1:
         current["page"] = str(page)
-    if page_size and page_size != 20:
+    if page_size and page_size != 25:
         current["page_size"] = str(page_size)
 
     # Sort URLs: toggle dir on active column, set new column otherwise
-    sort_keys = ["tokens", "rounds", "tools", "subagents", "duration", "updated"]
+    sort_keys = [
+        "tokens", "rounds", "tools", "subagents", "duration",
+        "process-time", "failure", "created", "updated",
+    ]
     sort_urls = {}
     for sk in sort_keys:
         new_dir = "asc" if (sk == sort_key and sort_dir == "asc") else "desc"
@@ -107,7 +110,7 @@ def _build_view_actions(
 
     # Page size URLs
     page_size_urls = {}
-    for ps in ("20", "50", "100", "500", "all"):
+    for ps in ("25", "50", "100"):
         page_size_urls[ps] = build_sessions_url(
             current=current,
             updates={"page_size": ps},
@@ -116,7 +119,7 @@ def _build_view_actions(
 
     # Filter chip removal URLs
     remove_urls = {}
-    for fk in ("q", "agent", "model", "project"):
+    for fk in ("q", "agent", "model", "project", "status"):
         if filters.get(fk):
             remove_urls[fk] = build_sessions_url(
                 current=current,

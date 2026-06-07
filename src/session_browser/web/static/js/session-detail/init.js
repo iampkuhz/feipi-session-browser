@@ -28,9 +28,12 @@
   });
 
   document.addEventListener('DOMContentLoaded', function () {
-    // Initialize tab panels: trace visible, others hidden
+    // Initialize tab panels and Payload selector state.
     var page = document.querySelector('[data-trace-page]') || document;
-    switchTab(page, 'trace');
+    if (typeof initPayloadTab === 'function') initPayloadTab(page);
+    var params = new URLSearchParams(window.location.search || "");
+    var initialTab = (params.get("tab") === "payload" || params.get("payload_call_id")) ? "payload" : "trace";
+    switchTab(page, initialTab);
     qsa(document, '[data-trace-round-row]').forEach(function (round) {
       var button = qs(round, '[data-action="toggle-round"]');
       var open = round.classList.contains('is-open') || (button && button.getAttribute('aria-expanded') === 'true');

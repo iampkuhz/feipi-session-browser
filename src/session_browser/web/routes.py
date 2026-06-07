@@ -12,6 +12,8 @@ import os
 import re
 import time
 import urllib.parse
+import uuid
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -189,7 +191,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             logger.debug("Client disconnected before response: path=%s", path)
         except Exception as exc:
             logger.exception("HTTP request failed: method=GET path=%s query=%s", path, parsed.query)
-            self._send_500(str(exc))
+            self._send_500(exc, request_path=path)
 
     def log_message(self, format: str, *args) -> None:
         """Route BaseHTTPRequestHandler access logs through configured logging."""
@@ -224,9 +226,27 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
     def _send_404(self) -> None:
         self._send_html(self._render_template("404.html"), 404)
 
-    def _send_500(self, error: str) -> None:
+    def _send_500(self, error: Exception, *, request_path: str) -> None:
         logger.error("Rendering 500 response: %s", error)
-        self._send_html(self._render_template("error.html", error=error), 500)
+        details = {
+            "error_type": type(error).__name__,
+            "request_path": request_path,
+            "request_id": uuid.uuid4().hex[:12],
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "message_summary": self._summarize_error_message(error),
+        }
+        self._send_html(self._render_template("error.html", error_details=details, request_path=request_path), 500)
+
+    @staticmethod
+    def _summarize_error_message(error: Exception) -> str:
+        message = str(error) or type(error).__name__
+        message = re.sub(r"/Users/[^\s'\"<>]+", "[path]", message)
+        message = re.sub(r"/(?:[A-Za-z0-9._-]+/){2,}[A-Za-z0-9._-]+", "[path]", message)
+        message = re.sub(r"(?i)(token|secret|api[_-]?key|password)=([^\s&]+)", r"\1=[redacted]", message)
+        message = re.sub(r"\s+", " ", message).strip()
+        if len(message) > 240:
+            return message[:237].rstrip() + "..."
+        return message
 
     def _send_json(self, data: dict, status: int = 200) -> None:
         body = json.dumps(data, ensure_ascii=False, default=str)
@@ -1173,6 +1193,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             project_key=params["filter_project"],
             model=params["filter_model"],
             title_like=params["filter_q"],
+            failure_status=params["filter_status"],
         )
 
         pagination = compute_pagination(
@@ -1187,6 +1208,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             filter_model=params["filter_model"],
             filter_project=params["filter_project"],
             filter_q=params["filter_q"],
+            filter_status=params["filter_status"],
             sort_by=params["sort_by"],
             sort_dir=params["sort_dir"],
             limit=pagination["limit"],
@@ -1203,6 +1225,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             "agent": params["filter_agent"] or "",
             "model": params["filter_model"] or "",
             "project": params["filter_project"] or "",
+            "status": params["filter_status"] or "",
         }
         actions = _build_view_actions(
             filters=filters_for_actions,
@@ -1236,6 +1259,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 filter_agent=params["filter_agent"] or "",
                 filter_model=params["filter_model"] or "",
                 filter_project=params["filter_project"] or "",
+                filter_status=params["filter_status"] or "",
             )
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1259,6 +1283,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             filter_model=params["filter_model"] or "",
             filter_project=params["filter_project"] or "",
             filter_q=params["filter_q"] or "",
+            filter_status=params["filter_status"] or "",
             sort_by=ui_sort,
             sort_dir=params["sort_dir"],
             model_list=vm["model_list"],

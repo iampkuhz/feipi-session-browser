@@ -77,6 +77,390 @@ from dataclasses import asdict
 logger = logging.getLogger("session_browser.web.session_detail")
 
 
+def _format_duration_short(seconds: float) -> str:
+    seconds = float(seconds or 0)
+    if seconds <= 0:
+        return "0s"
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    if seconds < 3600:
+        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
+    return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
+
+
+def _format_ratio_pct(numerator: float, denominator: float) -> str:
+    if not denominator:
+        return "N/A"
+    return f"{numerator / denominator * 100:.1f}%"
+
+
+def _median(values: list[int]) -> float:
+    clean = sorted(v for v in values if v is not None)
+    if not clean:
+        return 0.0
+    mid = len(clean) // 2
+    if len(clean) % 2:
+        return float(clean[mid])
+    return (clean[mid - 1] + clean[mid]) / 2
+
+
+def _payload_status(request_id: str, response_id: str, result_ids: list[str], payload_map: dict) -> str:
+    ids = [pid for pid in [request_id, response_id, *result_ids] if pid]
+    if not ids:
+        return "missing"
+    available = [pid for pid in ids if pid in payload_map]
+    if not available:
+        return "missing"
+    if len(available) < len(ids):
+        return "partial"
+    return "available"
+
+
+def _payload_primary_id(request_id: str, response_id: str, result_ids: list[str], payload_map: dict) -> str:
+    for payload_id in (request_id, response_id, *result_ids):
+        if payload_id and payload_id in payload_map:
+            return payload_id
+    return ""
+
+
+def _append_payload_item(group: dict, item: dict, defaults: dict) -> None:
+    group["items"].append(item)
+    if item.get("status") == "error" and not defaults["failed"]:
+        defaults["failed"] = item["call_id"]
+    if item.get("kind") == "llm" and not defaults["llm"]:
+        defaults["llm"] = item["call_id"]
+    if item.get("primary_payload_id") and not defaults["available"]:
+        defaults["available"] = item["call_id"]
+
+
+def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list) -> dict:
+    """Build the persistent Payload tab selector from API-compatible payload IDs."""
+    payload_map = _build_payload_lookup(rounds, tool_calls, subagent_runs, truncate=True)
+    groups: list[dict] = []
+    group_by_round: dict[int, dict] = {}
+    defaults = {"failed": "", "llm": "", "available": ""}
+
+    for r_idx, r in enumerate(rounds):
+        rid = r_idx + 1
+        round_title = (r.preview_text or getattr(r.user_msg, "content", "") or "").strip()
+        if not round_title:
+            round_title = "Untitled round"
+        group = {
+            "round_id": rid,
+            "title": f"R{rid} · {round_title[:96]}",
+            "items": [],
+        }
+        groups.append(group)
+        group_by_round[rid] = group
+
+        seen_tool_payloads: set[str] = set()
+        for ix_idx, ix in enumerate(r.interactions):
+            call_index = ix_idx + 1
+            if getattr(ix, "scope", "main") == "subagent" and getattr(ix, "subagent_id", ""):
+                continue
+            request_id = f"llm-R{rid}-IX{call_index}-context"
+            response_id = f"llm-R{rid}-IX{call_index}-output"
+            usage_input = getattr(ix, "input_tokens", 0) or 0
+            usage_cache_read = getattr(ix, "cache_read_tokens", 0) or 0
+            usage_cache_write = getattr(ix, "cache_write_tokens", 0) or 0
+            usage_output = getattr(ix, "output_tokens", 0) or 0
+            input_side = usage_input + usage_cache_read + usage_cache_write
+            token_summary = (
+                f"{_format_compact_token(input_side)} in · {_format_compact_token(usage_output)} out"
+                if input_side or usage_output else "tokens unavailable"
+            )
+            ix_tools = [
+                tc for tc in (getattr(ix, "tool_calls", []) or [])
+                if not getattr(tc, "subagent_id", "")
+            ]
+            has_failed_tool = any(getattr(tc, "is_failed", False) for tc in ix_tools)
+            status = _payload_status(request_id, response_id, [], payload_map)
+            item_status = "error" if has_failed_tool else status
+            item = {
+                "call_id": f"llm-R{rid}-IX{call_index}",
+                "kind": "llm",
+                "round_id": rid,
+                "title": f"LLM Call #{call_index}",
+                "model": (getattr(ix, "model", "") or "unknown")[:40],
+                "call_status": "Failed" if has_failed_tool else "OK",
+                "status": item_status,
+                "request_payload_id": request_id if request_id in payload_map else "",
+                "response_payload_id": response_id if response_id in payload_map else "",
+                "result_payload_ids": [],
+                "primary_payload_id": _payload_primary_id(request_id, response_id, [], payload_map),
+                "token_summary": token_summary,
+                "timestamp": _to_local_time_hms(getattr(ix, "timestamp", "") or ""),
+                "meta": f"{(getattr(ix, 'model', '') or 'unknown')[:40]} · {token_summary} · {status}",
+            }
+            _append_payload_item(group, item, defaults)
+
+            for tc in ix_tools:
+                if not getattr(tc, "result", ""):
+                    continue
+                tc_global_idx = -1
+                for gi, gtc in enumerate(r.tool_calls):
+                    if gtc is tc:
+                        tc_global_idx = gi + 1
+                        break
+                if tc_global_idx == -1:
+                    tc_global_idx = len(seen_tool_payloads) + 1
+                payload_id = f"tool-R{rid}-T{tc_global_idx}"
+                if payload_id in seen_tool_payloads:
+                    continue
+                seen_tool_payloads.add(payload_id)
+                availability = "available" if payload_id in payload_map else "missing"
+                tool_status = "error" if getattr(tc, "is_failed", False) else availability
+                tool_item = {
+                    "call_id": f"tool-R{rid}-T{tc_global_idx}",
+                    "kind": "tool",
+                    "round_id": rid,
+                    "title": f"Tool Result · {getattr(tc, 'name', 'tool')}",
+                    "model": "",
+                    "call_status": "Failed" if getattr(tc, "is_failed", False) else "OK",
+                    "status": tool_status,
+                    "request_payload_id": "",
+                    "response_payload_id": "",
+                    "result_payload_ids": [payload_id] if payload_id in payload_map else [],
+                    "primary_payload_id": payload_id if payload_id in payload_map else "",
+                    "token_summary": payload_map.get(payload_id, {}).get("size", "—"),
+                    "timestamp": "",
+                    "meta": f"{getattr(tc, 'name', 'tool')} · {availability}",
+                }
+                _append_payload_item(group, tool_item, defaults)
+
+        if not r.interactions and r.tool_calls:
+            for tc_idx, tc in enumerate(r.tool_calls, start=1):
+                if getattr(tc, "subagent_id", "") or not getattr(tc, "result", ""):
+                    continue
+                payload_id = f"tool-R{rid}-T{tc_idx}"
+                availability = "available" if payload_id in payload_map else "missing"
+                tool_item = {
+                    "call_id": f"tool-R{rid}-T{tc_idx}",
+                    "kind": "tool",
+                    "round_id": rid,
+                    "title": f"Tool Result · {getattr(tc, 'name', 'tool')}",
+                    "model": "",
+                    "call_status": "Failed" if getattr(tc, "is_failed", False) else "OK",
+                    "status": "error" if getattr(tc, "is_failed", False) else availability,
+                    "request_payload_id": "",
+                    "response_payload_id": "",
+                    "result_payload_ids": [payload_id] if payload_id in payload_map else [],
+                    "primary_payload_id": payload_id if payload_id in payload_map else "",
+                    "token_summary": payload_map.get(payload_id, {}).get("size", "—"),
+                    "timestamp": "",
+                    "meta": f"{getattr(tc, 'name', 'tool')} · {availability}",
+                }
+                _append_payload_item(group, tool_item, defaults)
+
+    subagent_parent_round: dict[str, int] = {}
+    for run in subagent_runs:
+        summary = run.get("summary", {})
+        sa_id = summary.get("agent_id", "")
+        if not sa_id:
+            continue
+        for r_idx, r in enumerate(rounds):
+            for tc in r.tool_calls:
+                if (
+                    getattr(tc, "subagent_id", "") == sa_id
+                    or getattr(tc, "subagent_summary", {}).get("agent_id") == sa_id
+                ):
+                    subagent_parent_round[sa_id] = r_idx + 1
+                    break
+            if sa_id in subagent_parent_round:
+                break
+
+    for run in subagent_runs:
+        summary = run.get("summary", {})
+        sa_id = summary.get("agent_id", "")
+        if not sa_id:
+            continue
+        rid = subagent_parent_round.get(sa_id, 0)
+        group = group_by_round.get(rid)
+        if group is None:
+            group = next((g for g in groups if g.get("round_id") == 0), None)
+            if group is None:
+                group = {"round_id": 0, "title": "Subagents", "items": []}
+                groups.append(group)
+        agent_type = summary.get("agent_type", "") or "subagent"
+        for m_idx, message in enumerate(run.get("messages", []), start=1):
+            if getattr(message, "role", "") != "assistant":
+                continue
+            request_id = f"sub-{sa_id}-{m_idx}-ctx"
+            response_id = f"sub-{sa_id}-{m_idx}-rsp"
+            usage = getattr(message, "usage", {}) or {}
+            input_side = (
+                usage.get("input_tokens", 0)
+                + usage.get("cache_read_input_tokens", 0)
+                + usage.get("cache_creation_input_tokens", 0)
+            )
+            output_tokens = usage.get("output_tokens", 0)
+            token_summary = (
+                f"{_format_compact_token(input_side)} in · {_format_compact_token(output_tokens)} out"
+                if input_side or output_tokens else "tokens unavailable"
+            )
+            status = _payload_status(request_id, response_id, [], payload_map)
+            item = {
+                "call_id": f"sub-{sa_id}-IX{m_idx}",
+                "kind": "subagent",
+                "round_id": rid,
+                "title": f"Subagent · {agent_type}",
+                "model": (getattr(message, "model", "") or "unknown")[:40],
+                "call_status": "OK",
+                "status": status,
+                "request_payload_id": request_id if request_id in payload_map else "",
+                "response_payload_id": response_id if response_id in payload_map else "",
+                "result_payload_ids": [],
+                "primary_payload_id": _payload_primary_id(request_id, response_id, [], payload_map),
+                "token_summary": token_summary,
+                "timestamp": _to_local_time_hms(getattr(message, "timestamp", "") or ""),
+                "meta": f"{agent_type} · {token_summary} · {status}",
+            }
+            _append_payload_item(group, item, defaults)
+
+    groups = [group for group in groups if group["items"]]
+    return {
+        "groups": groups,
+        "default_call_id": defaults["failed"] or defaults["llm"] or defaults["available"],
+        "payload_count": sum(len(group["items"]) for group in groups),
+    }
+
+
+def _build_session_diagnostics(
+    session,
+    rounds: list,
+    tool_calls: list,
+    subagent_runs: list,
+    trace_rows: list,
+    session_anomalies,
+    fresh_tokens: int,
+    cache_read_tokens: int,
+    cache_write_tokens: int,
+    output_tokens: int,
+) -> dict:
+    input_side_tokens = fresh_tokens + cache_read_tokens + cache_write_tokens
+    token_rounds = []
+    for row in trace_rows:
+        round_input_side = (
+            row.get("token_input", 0)
+            + row.get("token_cache_read", 0)
+            + row.get("token_cache_write", 0)
+        )
+        token_rounds.append({
+            "round_id": row.get("round_id", 0),
+            "start_time": row.get("start_time", "—"),
+            "total": row.get("token_total_raw", 0),
+            "total_label": row.get("token_total", "—"),
+            "fresh": _format_compact_token(row.get("token_input", 0)),
+            "cache_read": _format_compact_token(row.get("token_cache_read", 0)),
+            "cache_write": _format_compact_token(row.get("token_cache_write", 0)),
+            "output": _format_compact_token(row.get("token_output", 0)),
+            "cache_read_ratio": _format_ratio_pct(row.get("token_cache_read", 0), round_input_side),
+            "mix": row.get("token_mix", {}),
+            "llm_calls": sum(1 for ix in rounds[row.get("round_id", 1) - 1].interactions)
+            if row.get("round_id") and row.get("round_id") <= len(rounds) else 0,
+            "tool_calls": row.get("tool_count", 0),
+        })
+
+    tool_stats: dict[str, dict] = {}
+    for tc in tool_calls:
+        name = getattr(tc, "name", "") or "tool"
+        stat = tool_stats.setdefault(name, {
+            "tool": name,
+            "calls": 0,
+            "failed": 0,
+            "token_estimate": 0,
+            "top_command": "",
+        })
+        stat["calls"] += 1
+        if getattr(tc, "is_failed", False):
+            stat["failed"] += 1
+        result = getattr(tc, "result", "") or ""
+        stat["token_estimate"] += max(len(result) // 4, 0)
+        if not stat["top_command"]:
+            stat["top_command"] = _build_tool_command_summary(name, getattr(tc, "parameters", {}) or {})[:120]
+
+    tool_summary = []
+    for stat in sorted(tool_stats.values(), key=lambda item: (-item["calls"], item["tool"]))[:5]:
+        tool_summary.append({
+            "tool": stat["tool"],
+            "calls": str(stat["calls"]),
+            "tokens": _format_compact_token(stat["token_estimate"]),
+            "failure": f"{stat['failed']} · {_format_ratio_pct(stat['failed'], stat['calls'])}",
+            "note": stat["top_command"],
+        })
+
+    signals = []
+    round_by_tool_id = {}
+    for r_idx, r in enumerate(rounds, start=1):
+        for tc in r.tool_calls:
+            key = getattr(tc, "tool_use_id", "") or id(tc)
+            round_by_tool_id[key] = r_idx
+        if getattr(r, "llm_error_count", 0):
+            signals.append({
+                "tone": "warning",
+                "signal": "LLM error",
+                "evidence": f"R{r_idx} · {r.llm_error_count} llm error(s)",
+                "seed": f"{session.session_id} + R{r_idx}",
+            })
+    for tc in tool_calls:
+        if not getattr(tc, "is_failed", False):
+            continue
+        key = getattr(tc, "tool_use_id", "") or id(tc)
+        rid = round_by_tool_id.get(key, 0)
+        evidence = f"{getattr(tc, 'name', 'tool')} · {getattr(tc, 'status', '') or 'failed'}"
+        if getattr(tc, "exit_code", None) is not None:
+            evidence = f"{getattr(tc, 'name', 'tool')} exit {tc.exit_code}"
+        signals.append({
+            "tone": "critical",
+            "signal": "Tool failure",
+            "evidence": evidence[:120],
+            "seed": f"{session.session_id} + R{rid or '?'} + {getattr(tc, 'tool_use_id', '') or 'tool'}",
+        })
+    for anomaly in getattr(session_anomalies, "anomalies", [])[:5]:
+        signals.append({
+            "tone": "warning",
+            "signal": getattr(anomaly, "label", "") or str(getattr(anomaly, "type", "Signal")),
+            "evidence": (getattr(anomaly, "reason", "") or "Session anomaly")[:120],
+            "seed": f"{session.session_id}",
+        })
+    signals = signals[:5]
+
+    tool_result_tokens = sum(max(len(getattr(tc, "result", "") or "") // 4, 0) for tc in tool_calls)
+    subagent_context_tokens = 0
+    for run in subagent_runs:
+        for message in run.get("messages", []):
+            usage = getattr(message, "usage", {}) or {}
+            subagent_context_tokens += (
+                usage.get("input_tokens", 0)
+                + usage.get("cache_read_input_tokens", 0)
+                + usage.get("cache_creation_input_tokens", 0)
+            )
+    segments = [
+        {"label": "System", "tokens": 0, "source": "unavailable", "precision": "unavailable"},
+        {"label": "History Messages", "tokens": cache_read_tokens, "source": "provider cache read", "precision": "exact"},
+        {"label": "Current User Prompt", "tokens": fresh_tokens, "source": "provider fresh input", "precision": "exact"},
+        {"label": "Tool Results", "tokens": tool_result_tokens, "source": "transcript result length", "precision": "estimated"},
+        {"label": "Subagent Context", "tokens": subagent_context_tokens, "source": "subagent usage", "precision": "estimated"},
+        {"label": "Output", "tokens": output_tokens, "source": "provider output", "precision": "exact"},
+    ]
+    segment_total = sum(s["tokens"] for s in segments)
+    for segment in segments:
+        segment["share"] = _format_ratio_pct(segment["tokens"], segment_total)
+        segment["tokens_label"] = _format_compact_token(segment["tokens"])
+
+    return {
+        "token_rounds": token_rounds,
+        "token_stats": [
+            {"label": "Input-side Tokens", "value": _format_compact_token(input_side_tokens)},
+            {"label": "Cache Read Ratio", "value": _format_ratio_pct(cache_read_tokens, input_side_tokens)},
+        ],
+        "tool_summary": tool_summary,
+        "signals": signals,
+        "context_segments": segments,
+        "context_scope": "Session-level",
+    }
+
+
 def _find_user_message_content(all_messages, msg_array, target_index):
     """Find the full text of a user_text message from all_messages."""
     user_text_entries = [
@@ -198,7 +582,8 @@ def _build_v11_view_model(
     )
     total_rounds = len(rounds)
     total_tools = sum(len(r.tool_calls) for r in rounds)
-    total_failed = session.failed_tool_count or 0
+    parsed_failed_tools = sum(1 for tc in tool_calls if getattr(tc, "is_failed", False))
+    total_failed = max(session.failed_tool_count or 0, parsed_failed_tools)
 
     # -- Issue links --
     issue_links = []
@@ -1256,7 +1641,60 @@ def _build_v11_view_model(
     if total_failed > 0:
         status_label = "Completed with issues"
 
-    total_llm_calls = sum(r.llm_call_count for r in rounds)
+    fresh_tokens = getattr(session, "fresh_input_tokens", 0) or session.input_tokens
+    cache_read_tokens = getattr(session, "cache_read_tokens", 0) or session.cached_input_tokens
+    cache_write_tokens = getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens
+    output_tokens = session.output_tokens
+    computed_total_tokens = fresh_tokens + cache_read_tokens + cache_write_tokens + output_tokens
+    input_side_tokens = fresh_tokens + cache_read_tokens + cache_write_tokens
+
+    round_fresh_values = [row.get("token_input", 0) for row in trace_rows]
+    median_fresh = _median(round_fresh_values)
+    fresh_spike_rounds = (
+        sum(1 for value in round_fresh_values if value > median_fresh * 2)
+        if median_fresh > 0 else 0
+    )
+    low_cache_rounds = 0
+    for row in trace_rows:
+        row_input_side = (
+            row.get("token_input", 0)
+            + row.get("token_cache_read", 0)
+            + row.get("token_cache_write", 0)
+        )
+        if row_input_side and (row.get("token_cache_read", 0) / row_input_side) < 0.2:
+            low_cache_rounds += 1
+
+    main_llm_calls = sum(
+        1 for r in rounds for ix in r.interactions
+        if getattr(ix, "scope", "main") != "subagent"
+    )
+    subagent_llm_calls = sum(
+        1 for run in subagent_runs
+        for message in run.get("messages", [])
+        if getattr(message, "role", "") == "assistant"
+    )
+    total_llm_calls = main_llm_calls + subagent_llm_calls
+    assistant_turns = sum(1 for r in rounds if r.assistant_msg and (r.assistant_msg.content or r.assistant_msg.content_blocks))
+    distinct_tools = len({getattr(tc, "name", "") or "tool" for tc in tool_calls})
+    duration_seconds = float(getattr(session, "duration_seconds", 0) or 0)
+    process_seconds = (
+        float(getattr(session, "model_execution_seconds", 0) or 0)
+        + float(getattr(session, "tool_execution_seconds", 0) or 0)
+    )
+    waiting_seconds = max(duration_seconds - process_seconds, 0)
+    payload_index = _build_payload_tab_index(rounds, tool_calls, subagent_runs)
+    diagnostics = _build_session_diagnostics(
+        session,
+        rounds,
+        tool_calls,
+        subagent_runs,
+        trace_rows,
+        session_anomalies,
+        fresh_tokens,
+        cache_read_tokens,
+        cache_write_tokens,
+        output_tokens,
+    )
 
     return {
         "session_summary": {
@@ -1275,24 +1713,39 @@ def _build_v11_view_model(
             "cache_write_pct": cache_write_pct,
         },
         "hero_metrics": {
-            "tokens": _format_compact_token(total_tokens),
-            "fresh": _format_compact_token(
-                getattr(session, "fresh_input_tokens", 0) or session.input_tokens
-            ),
-            "cache_read": _format_compact_token(
-                getattr(session, "cache_read_tokens", 0) or session.cached_input_tokens
-            ),
-            "cache_write": _format_compact_token(
-                getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens
-            ),
-            "output": _format_compact_token(session.output_tokens),
+            "tokens": _format_compact_token(computed_total_tokens),
+            "fresh": _format_compact_token(fresh_tokens),
+            "cache_read": _format_compact_token(cache_read_tokens),
+            "cache_write": _format_compact_token(cache_write_tokens),
+            "output": _format_compact_token(output_tokens),
+            "cache_reuse": _format_ratio_pct(cache_read_tokens, input_side_tokens),
+            "input_side_tokens": _format_compact_token(input_side_tokens),
+            "fresh_spike_rounds": str(fresh_spike_rounds),
+            "low_cache_rounds": str(low_cache_rounds),
             "rounds": str(total_rounds),
+            "user_prompts": str(manual_input_count),
+            "assistant_turns": str(assistant_turns or total_rounds),
+            "subagent_runs": str(subagent_count),
             "tools": str(total_tools),
+            "distinct_tools": str(distinct_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",
+            "failure_rate": _format_ratio_pct(total_failed, total_tools),
             "llm_calls": str(total_llm_calls),
+            "main_llm_calls": str(main_llm_calls),
+            "subagent_llm_calls": str(subagent_llm_calls),
+            "avg_tokens_per_call": (
+                _format_compact_token(computed_total_tokens // total_llm_calls)
+                if total_llm_calls else "N/A"
+            ),
+            "process_time": _format_duration_short(process_seconds),
+            "duration": _format_duration_short(duration_seconds),
+            "waiting_time": _format_duration_short(waiting_seconds),
+            "updated": _to_local_time(getattr(session, "ended_at", "") or "") or "—",
         },
         "issue_links": issue_links,
         "trace_rows": trace_rows,
+        "diagnostics": diagnostics,
+        "payload_index": payload_index,
         "payload_sources": payload_sources if not slim else [],
         "_slim": slim,
     }

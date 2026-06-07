@@ -116,6 +116,8 @@ class TestDashboardRoutePresenter:
             "agent_scope", "grain", "is_single_agent",
             "stats", "kpis", "trend", "prompt_activity",
             "all_agents_branch", "single_agent_branch",
+            "agent_sessions_total", "agent_sessions_page",
+            "agent_sessions_total_pages", "agent_sessions_page_size",
             "needs_attention", "cache_health",
             "active_page",
         }
@@ -159,6 +161,7 @@ class TestProjectsRoutePresenter:
 
         expected_keys = {
             "projects", "active_page", "page", "current_page", "page_size",
+            "filter_q", "sort_by", "sort_dir",
             "total_pages", "total_count", "page_start", "page_end",
             "has_prev", "has_next",
         }
@@ -166,7 +169,7 @@ class TestProjectsRoutePresenter:
         assert result["active_page"] == "projects"
         assert result["page"] == 1
         assert result["current_page"] == 1
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
         assert result["total_pages"] == 1
         assert result["total_count"] == 0
 
@@ -177,12 +180,17 @@ class TestProjectsRoutePresenter:
              patch("session_browser.web.presenters.projects.get_project_stats") as mock_stats, \
              patch("session_browser.web.presenters.projects.list_sessions") as mock_sessions:
             mock_count.return_value = 0
-            mock_stats.return_value = {"project_key": "test-proj", "session_count": 5}
+            mock_stats.return_value = {
+                "project_key": "test-proj",
+                "project_name": "Test Project",
+                "total_sessions": 5,
+            }
             mock_sessions.return_value = []
             result = build_project_detail_view_model(conn, "test-proj")
 
         expected_keys = {
-            "project", "sessions", "project_key", "active_page",
+            "project", "project_detail", "sessions", "project_key", "active_page",
+            "error", "filter_q", "sort_by", "sort_dir", "trend_grain",
             "page", "current_page", "page_size", "total_pages",
             "total_count", "page_start", "page_end", "has_prev", "has_next",
         }
@@ -244,7 +252,7 @@ class TestSessionsRoutePresenter:
             "sessions", "total_count", "page", "current_page",
             "page_size", "total_pages", "page_start", "page_end",
             "has_prev", "has_next", "filter_agent", "filter_model",
-            "filter_project", "filter_q", "sort_by", "sort_dir",
+            "filter_project", "filter_q", "filter_status", "sort_by", "sort_dir",
             "model_list", "project_list", "sessions_aggregate",
         }
         assert set(result.keys()) == expected_keys
@@ -272,10 +280,10 @@ class TestSessionsRoutePresenter:
                 "model_list": [],
                 "project_list": [],
             }
-            result = build_sessions_context({"page": ["3"], "page_size": ["20"]}, conn)
+            result = build_sessions_context({"page": ["3"], "page_size": ["25"]}, conn)
 
         assert result["page"] == 3
-        assert result["total_pages"] == 5
+        assert result["total_pages"] == 4
         assert result["has_prev"] is True
         assert result["has_next"] is True
 
@@ -315,9 +323,10 @@ class TestSessionsRoutePresenter:
                 filter_model=None,
                 filter_project=None,
                 filter_q=None,
+                filter_status=None,
                 sort_by="ended_at",
                 sort_dir="desc",
-                limit=20,
+                limit=25,
                 offset=0,
             )
 

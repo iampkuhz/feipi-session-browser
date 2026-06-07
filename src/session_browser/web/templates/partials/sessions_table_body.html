@@ -27,8 +27,11 @@
         data-rounds="{{ s.assistant_message_count }}"
         data-tool-count="{{ s.tool_call_count }}"
         data-duration="{{ s.duration_seconds }}"
+        data-process-time="{{ (s.model_execution_seconds | default(0)) + (s.tool_execution_seconds | default(0)) }}"
+        data-failed-tools="{{ s.failed_tool_count | default(0) }}"
+        data-created-at="{{ s.started_at }}"
         title="点击打开该 session detail 页面">
-        <td class="col-title">
+        <td class="col-session">
             <div class="title-main"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
             <div class="title-sub mono">
                 <span class="mono">{{ s.session_id[:12] }}</span>
@@ -37,11 +40,11 @@
         </td>
         <td class="col-project">
             <div class="project-cell">
-                <span class="project-name"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd | shorten_path }}">{{ s.project_name }}</a></span>
+                <span class="project-name"><a href="/projects/{{ s.project_key | urlencode }}" class="link-muted" data-project="{{ s.project_key }}" title="{{ s.cwd }}">{{ s.project_name }}</a></span>
             </div>
         </td>
         <td class="col-agent">{{ ui.agent_badge(s.agent) }}</td>
-        <td class="mono col-model">{{ s.model }}</td>
+        <td class="mono col-model" title="{{ s.model }}">{{ s.model or 'Unknown model' }}</td>
         {{ ui.token_cell(
             total=total_tokens | format_compact_token,
             fresh_pct=fresh_pct,
@@ -61,12 +64,18 @@
         <td class="num mono col-tools">{{ s.tool_call_count }}</td>
         <td class="num mono col-subagents">{{ s.subagent_instance_count | default(0) }}</td>
         <td class="mono col-duration" data-tooltip="{{ s.duration_seconds | int }}s">{{ s.duration_seconds | format_duration }}</td>
+        {% set process_seconds = (s.model_execution_seconds | default(0)) + (s.tool_execution_seconds | default(0)) %}
+        <td class="mono col-process-time" data-tooltip="active processing {{ process_seconds | int }}s">{{ process_seconds | format_duration }}</td>
+        <td class="col-failure {{ 'muted' if s.failed_tool_count == 0 else '' }}">
+            {% if s.failed_tool_count > 0 %}{{ s.failed_tool_count }} failed{% else %}No failures{% endif %}
+        </td>
+        <td class="mono col-created" title="{{ s.started_at }}">{{ s.started_at | local_time }}</td>
         <td class="muted col-updated">{{ s.ended_at | relative_time }}</td>
     </tr>
     {% endfor %}
     {% else %}
-    <tr><td colspan="10">
-        {% set has_active_filter = filter_q or filter_agent or filter_model or filter_project %}
+    <tr><td colspan="13">
+        {% set has_active_filter = filter_q or filter_agent or filter_model or filter_project or filter_status %}
         {% if has_active_filter %}
         <section class="state-strip" role="status" aria-live="polite">
             <div class="state-icon" aria-hidden="true">🔎</div>
@@ -80,7 +89,7 @@
             <div class="state-icon" aria-hidden="true">📭</div>
             <div>
                 <div class="state-title">No sessions indexed yet</div>
-                <div class="muted">Try adjusting your filters or search terms.</div>
+                <div class="muted">Run a scan to index local agent sessions.</div>
             </div>
         </section>
         {% endif %}

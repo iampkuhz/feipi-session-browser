@@ -108,6 +108,10 @@
                 return parseInt(row.dataset.totalTokens) || 0;
             case 'tools':
                 return parseInt(row.dataset.totalTools) || 0;
+            case 'failed':
+                return parseInt(row.dataset.totalFailed) || 0;
+            case 'first_seen':
+                return row.dataset.firstSeen || '';
             case 'last_active':
                 return row.dataset.lastSeen || '';
             default:
@@ -181,38 +185,56 @@
             arpStorage.remove('projects_search');
         }
         updateFilterChip('');
+        if (window.location.search) {
+            window.location.href = '/projects';
+        }
     };
 
     /* ── List page event binding ────────────────────────────── */
     function initListPage() {
         var searchEl = document.getElementById('project-search');
+        var serverSearchTimer = null;
 
-        var savedSearch = (typeof arpStorage !== 'undefined') ? arpStorage.get('projects_search') : null;
-        if (savedSearch && searchEl) { searchEl.value = savedSearch; }
+        function scheduleServerSearch() {
+            if (!searchEl) return;
+            clearTimeout(serverSearchTimer);
+            serverSearchTimer = setTimeout(function() {
+                var params = new URLSearchParams(window.location.search);
+                var q = searchEl.value.trim();
+                var currentQ = params.get('q') || '';
+                if (q === currentQ) return;
+                if (q) {
+                    params.set('q', q);
+                } else {
+                    params.delete('q');
+                }
+                params.delete('page');
+                var query = params.toString();
+                window.location.href = '/projects' + (query ? '?' + query : '');
+            }, 250);
+        }
 
         // Real-time search on input (preserved behavior)
         if (searchEl) {
             searchEl.addEventListener('input', function() {
-                if (typeof arpStorage !== 'undefined') {
-                    arpStorage.set('projects_search', searchEl.value);
-                }
                 filterProjects();
+                scheduleServerSearch();
             });
-            // Prevent form submit from causing page reload
             searchEl.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     filterProjects();
+                    scheduleServerSearch();
                 }
             });
         }
 
-        // Prevent the filter form from submitting (page reload)
         var filterForm = document.querySelector('.card.filter-card .filter-form, .filter-form');
         if (filterForm) {
             filterForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 filterProjects();
+                scheduleServerSearch();
             });
         }
 
@@ -262,7 +284,7 @@
             });
         });
 
-        if (savedSearch) {
+        if (searchEl && searchEl.value) {
             filterProjects();
         }
     }

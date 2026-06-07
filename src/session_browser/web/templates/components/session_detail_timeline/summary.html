@@ -34,22 +34,69 @@
         {% endif %}
       </div>
       <div class="sd-kpis">
-        <div class="sd-kpi-group sd-kpi-group--tokens" aria-label="Token analysis">
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div><div class="sd-kpi__label">Tokens</div></div>
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.fresh|default('—') }}</div><div class="sd-kpi__label">Fresh</div></div>
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.cache_read|default('—') }}</div><div class="sd-kpi__label">Cache R</div></div>
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.cache_write|default('—') }}</div><div class="sd-kpi__label">Cache W</div></div>
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.output|default('—') }}</div><div class="sd-kpi__label">Output</div></div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens">
+          <div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div>
+          <div class="sd-kpi__label">Total Tokens</div>
+          <div class="sd-kpi__subgrid">
+            <span>Fresh <b>{{ metrics.fresh|default('—') }}</b></span>
+            <span>Cache Read <b>{{ metrics.cache_read|default('—') }}</b></span>
+            <span>Cache Write <b>{{ metrics.cache_write|default('—') }}</b></span>
+            <span>Output <b>{{ metrics.output|default('—') }}</b></span>
+          </div>
         </div>
-        <div class="sd-kpi-group sd-kpi-group--calls" aria-label="Call count analysis">
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div><div class="sd-kpi__label">Rounds</div></div>
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div><div class="sd-kpi__label">Tools</div></div>
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.failed|default('—') }}</div><div class="sd-kpi__label">Failed</div></div>
-          <div class="sd-kpi"><div class="sd-kpi__value">{{ metrics.llm_calls|default('—') }}</div><div class="sd-kpi__label">LLM Calls</div></div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Cache Reuse">
+          <div class="sd-kpi__value">{{ metrics.cache_reuse|default('N/A') }}</div>
+          <div class="sd-kpi__label">Cache Reuse</div>
+          <div class="sd-kpi__subgrid">
+            <span>Input-side Tokens <b>{{ metrics.input_side_tokens|default('—') }}</b></span>
+            <span>Fresh Spike Rounds <b>{{ metrics.fresh_spike_rounds|default('0') }}</b></span>
+            <span>Low-cache Rounds <b>{{ metrics.low_cache_rounds|default('0') }}</b></span>
+          </div>
+        </div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Rounds">
+          <div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div>
+          <div class="sd-kpi__label">Rounds</div>
+          <div class="sd-kpi__subgrid">
+            <span>User Prompts <b>{{ metrics.user_prompts|default('0') }}</b></span>
+            <span>Assistant Turns <b>{{ metrics.assistant_turns|default('0') }}</b></span>
+            <span>Subagent Runs <b>{{ metrics.subagent_runs|default('0') }}</b></span>
+          </div>
+        </div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="LLM Calls">
+          <div class="sd-kpi__value">{{ metrics.llm_calls|default('—') }}</div>
+          <div class="sd-kpi__label">LLM Calls</div>
+          <div class="sd-kpi__subgrid">
+            <span>Main-agent Calls <b>{{ metrics.main_llm_calls|default('0') }}</b></span>
+            <span>Subagent Calls <b>{{ metrics.subagent_llm_calls|default('0') }}</b></span>
+            <span>Avg Tokens / Call <b>{{ metrics.avg_tokens_per_call|default('N/A') }}</b></span>
+          </div>
+        </div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Tool Calls">
+          <div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div>
+          <div class="sd-kpi__label">Tool Calls</div>
+          <div class="sd-kpi__subgrid">
+            <span>Distinct Tools <b>{{ metrics.distinct_tools|default('0') }}</b></span>
+            <span>Failed Tools <b>{{ metrics.failed|default('0') }}</b></span>
+            <span>Failure Rate <b>{{ metrics.failure_rate|default('N/A') }}</b></span>
+          </div>
+        </div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Time">
+          <div class="sd-kpi__value">{{ metrics.process_time|default('0s') }}</div>
+          <div class="sd-kpi__label">Time</div>
+          <div class="sd-kpi__subgrid">
+            <span>Duration <b>{{ metrics.duration|default('0s') }}</b></span>
+            <span>Waiting Time <b>{{ metrics.waiting_time|default('0s') }}</b></span>
+            <span>Updated <b>{{ metrics.updated|default('—') }}</b></span>
+          </div>
         </div>
       </div>
     </div>
     <div class="sd-summary-strip" data-summary-strip>
+      <div class="sd-summary-item">
+        <span class="sd-summary-icon" aria-hidden="true">&#x25CF;</span>
+        <b>Status</b>
+        <span>{{ summary.status_label|default('Completed') }}</span>
+      </div>
       <div class="sd-summary-item">
         <span class="sd-summary-icon" aria-hidden="true">&#x270D;&#xFE0F;</span>
         <b>User input 轮数</b>

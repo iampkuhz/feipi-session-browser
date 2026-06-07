@@ -2,7 +2,7 @@
 {% set active_page = 'glossary' %}
 {% set hide_sidebar_extra = true %}
 
-{% block title %}术语表 - Agent Run Profiler{% endblock %}
+{% block title %}Token Glossary - Agent Run Profiler{% endblock %}
 
 {% block shell_class %} no-inspector{% endblock %}
 
@@ -24,7 +24,7 @@
 <!-- Page head: canonical .page-head (T156) -->
 {{ ui.page_head(
     'Token Glossary',
-    '页面只保留必要术语说明。术语使用英文，解释使用中文，先做轻量 reference，不加入搜索和复杂扩展功能。'
+    '说明 token 口径、派生指标、provider 字段映射和 badge 语义。'
 ) }}
 
 <!-- Summary metric grid (T157) -->
@@ -34,7 +34,6 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Token Types</span>
-                <button class="icon-button icon-button--info" title="查看 token 分类说明" aria-label="Token Types 指标说明">ℹ️</button>
             </div>
             <div class="metric-card__value mono">6</div>
             <div class="metric-card__sub">Input / Output / Cache</div>
@@ -45,9 +44,8 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Derived Metrics</span>
-                <button class="icon-button icon-button--info" title="查看派生指标计算说明" aria-label="Derived Metrics 指标说明">ℹ️</button>
             </div>
-            <div class="metric-card__value mono">6</div>
+            <div class="metric-card__value mono">7</div>
             <div class="metric-card__sub">Total / Reuse / Rate</div>
         </div>
     </div>
@@ -56,10 +54,9 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Provider Fields</span>
-                <button class="icon-button icon-button--info" title="查看 provider 字段映射说明" aria-label="Provider Fields 指标说明">ℹ️</button>
             </div>
-            <div class="metric-card__value mono">12</div>
-            <div class="metric-card__sub">CC / CX / QD</div>
+            <div class="metric-card__value mono">5</div>
+            <div class="metric-card__sub">Anthropic / OpenAI / Codex / Qoder</div>
         </div>
     </div>
     <div class="metric-card">
@@ -67,10 +64,9 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row">
                 <span class="metric-card__label">Round Signals</span>
-                <button class="icon-button icon-button--info" title="查看 round / step 相关信号说明" aria-label="Round Signals 指标说明">ℹ️</button>
             </div>
             <div class="metric-card__value mono">6</div>
-            <div class="metric-card__sub">Round / Step / Batch</div>
+            <div class="metric-card__sub">Trace / Failure / Subagent</div>
         </div>
     </div>
 </div>
@@ -82,7 +78,7 @@
                id="glossary-search"
                class="input search"
                data-search="glossary-term"
-               placeholder="搜索术语、指标、Provider…"
+               placeholder="搜索术语、指标、provider、字段名"
                aria-label="Search glossary terms"
                autocomplete="off" />
         <span id="glossary-match-count" class="match-count"></span>
@@ -101,189 +97,168 @@
     </div>
 </div>
 
-<!-- Badge 规范示范 -->
 <section class="card section section-card full-width">
     <div class="section-head">
         <h2 class="section-title">Badge Reference</h2>
     </div>
-    <p class="section-desc">统一语义在不同页面颜色一致。所有 badge 高度 20px，透明浅底 + 深色文本 + 低对比边框。</p>
+    <p class="section-desc">不同页面复用相同视觉语义，badge 本身不提供交互。</p>
     <div class="mb-2">
-        <span class="text-sm glossary-label">状态：</span>
-        {{ status_success("成功") }}
-        {{ status_warning("警告") }}
-        {{ status_error("错误") }}
-        {{ status_info("信息") }}
-        {{ status_muted("不上报") }}
+        <span class="text-sm glossary-label">Status:</span>
+        {{ status_success("Success") }}
+        {{ status_warning("Warning") }}
+        {{ status_error("Error") }}
+        {{ status_info("Info") }}
+        {{ status_muted("Not reported") }}
+        <span class="badge badge-info">Estimated</span>
     </div>
     <div class="mb-2">
-        <span class="text-sm glossary-label">Token：</span>
+        <span class="text-sm glossary-label">Token:</span>
         {{ token_input("Input Fresh") }}
         {{ token_cache_read("Cache Read") }}
         {{ token_cache_write("Cache Write") }}
         {{ token_output("Output Visible") }}
     </div>
     <div class="mb-2">
-        <span class="text-sm glossary-label">Agent：</span>
-        {{ agent_claude("CC") }}
-        {{ agent_codex("CX") }}
-        {{ agent_qoder("QD") }}
-        <span class="text-xs text-muted">| 自动选择：</span>
-        {{ agent_for("claude_code") }}
-        {{ agent_for("qoder") }}
-        {{ agent_for("codex_cli") }}
-    </div>
-    <div class="mb-2">
-        <span class="text-sm glossary-label">Tool：</span>
-        {{ tool("Bash") }}
-        {{ tool("Read") }}
+        <span class="text-sm glossary-label">Agent:</span>
+        {{ agent_claude("Claude Code") }}
+        {{ agent_codex("Codex") }}
+        {{ agent_qoder("Qoder") }}
     </div>
     <div>
-        <span class="text-sm glossary-label">Anomaly：</span>
-        {{ anomaly("Long Duration", "warning") }}
-        {{ anomaly("Cache Creation", "info") }}
+        <span class="text-sm glossary-label">Signals:</span>
+        {{ tool("Tool") }}
+        {{ anomaly("Failure", "warning") }}
+        {{ anomaly("Subagent", "info") }}
     </div>
 </section>
 
-<!-- Token 概览（非表格，不参与搜索过滤） -->
-<section class="card section section-card full-width">
-    <div class="section-head">
-        <h2 class="section-title">Token 概览</h2>
-    </div>
-    <div class="glossary__intro">
-        <p>所有输入端 token 包含三个部分：<strong>fresh</strong>（全新、未缓存）、<strong>cache read</strong>（从缓存读取）和 <strong>cache write</strong>（写入缓存供后续使用）。Cache read 和 cache write 都是<strong>输入端</strong>概念——它们描述的是提示词/上下文的处理方式，而非模型的输出。</p>
-        <p>不同 Provider 上报的字段有所不同：Anthropic 上报全部三项；OpenAI 不上报 cache write；Codex 仅上报总量。详见下方 <a href="#provider-mapping" class="link">Provider 映射</a>。</p>
-    </div>
-</section>
-
-<!-- Token 组成 -->
 <section class="card section section-card full-width glossary-table-section">
     <div class="section-head">
-        <h2 class="section-title"><span class="token-badge token-badge--input text-xs">Token 组成</span></h2>
+        <h2 class="section-title">Token Types</h2>
     </div>
-    <p class="section-desc">Provider API 的原始 token 字段。输入端 = fresh + cache read + cache write。</p>
+    <p class="section-desc">输入端 token 分为 fresh、cache read、cache write；输出端 token 单独统计。</p>
 
     <div class="table-wrap">
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="token-name">指标 <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
-                <th>定义</th>
-                <th>公式</th>
-                <th>Anthropic</th>
-                <th>OpenAI</th>
+                <th class="sortable" data-action="sort" data-sort-key="metric">Metric <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                <th>Definition</th>
+                <th>Formula</th>
+                <th>Provider Fields</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><span class="token-badge token-badge--input">Input Fresh</span></td>
-                <td class="text-sm">未缓存的新 token，即实际的"新"输入成本。</td>
-                <td class="mono text-xs"><code>input_tokens</code></td>
-                <td class="mono text-xs"><code>input_tokens</code></td>
-                <td class="mono text-xs"><code>input_tokens − cached_tokens</code></td>
+                <td>{{ token_input("Input Fresh") }}</td>
+                <td class="text-sm">Provider fresh input tokens, excluding cache hits and cache writes.</td>
+                <td class="mono text-xs"><code>input_side_total - cache_read - cache_write</code></td>
+                <td class="text-sm">Anthropic: <code>input_tokens</code>; OpenAI: <code>input_tokens - cached_tokens</code>; Codex/Qoder: <span class="badge badge-info">Estimated</span></td>
             </tr>
             <tr>
-                <td><span class="token-badge token-badge--cache-read">Cache Read</span></td>
-                <td class="text-sm">缓存命中的输入 token，比 fresh 更便宜。</td>
-                <td class="mono text-xs"><code>cached_input_tokens</code></td>
+                <td>{{ token_cache_read("Cache Read") }}</td>
+                <td class="text-sm">Provider cache hit input tokens.</td>
                 <td class="mono text-xs"><code>cache_read_input_tokens</code></td>
-                <td class="mono text-xs"><code>cached_tokens</code>（prompt）</td>
+                <td class="text-sm">Anthropic: <code>cache_read_input_tokens</code>; OpenAI: <code>cached_tokens</code>; Codex/Qoder: <span class="badge badge-muted">Not reported</span></td>
             </tr>
             <tr>
-                <td><span class="token-badge token-badge--cache-write">Cache Write</span></td>
-                <td class="text-sm">写入缓存的输入 token，一次性成本。</td>
-                <td class="mono text-xs"><code>cached_output_tokens</code></td>
-                <td class="mono text-xs"><code>cache_creation_input_tokens</code></td>
-                <td class="mono text-xs"><span class="badge badge-muted">不上报</span></td>
-            </tr>
-            <tr class="is-subtotal">
-                <td><strong>输入端合计</strong></td>
-                <td class="text-sm">所有输入端分类之和。</td>
-                <td class="mono text-xs"><code>fresh + R + W</code></td>
-                <td class="mono text-xs">三项之和</td>
-                <td class="mono text-xs">求和（无 cache_W）</td>
+                <td>{{ token_cache_write("Cache Write") }}</td>
+                <td class="text-sm">Input tokens written into provider prompt cache for later reuse.</td>
+                <td class="mono text-xs"><code>cache_write_input_tokens</code></td>
+                <td class="text-sm">Anthropic: <code>cache_creation_input_tokens</code>; OpenAI/Codex/Qoder: <span class="badge badge-muted">Not reported</span></td>
             </tr>
             <tr>
-                <td><span class="token-badge token-badge--output">Output Visible</span></td>
-                <td class="text-sm">聊天输出中的 token（不含 reasoning）。</td>
+                <td>{{ token_output("Output Visible") }}</td>
+                <td class="text-sm">Visible model output tokens, excluding hidden reasoning where reported separately.</td>
                 <td class="mono text-xs"><code>output_tokens</code></td>
-                <td class="mono text-xs"><code>output_tokens</code></td>
-                <td class="mono text-xs"><code>completion_tokens − reasoning</code></td>
+                <td class="text-sm">Anthropic: <code>output_tokens</code>; OpenAI: <code>completion_tokens - reasoning_tokens</code>; Codex/Qoder: provider total output field when available.</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-primary">Input-side Total</span></td>
+                <td class="text-sm">All input-side token buckets combined.</td>
+                <td class="mono text-xs"><code>Input Fresh + Cache Read + Cache Write</code></td>
+                <td class="text-sm">Derived from available provider fields; missing buckets are not treated as zero unless the provider explicitly reports zero.</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-primary">Total Tokens</span></td>
+                <td class="text-sm">Input-side total plus visible output.</td>
+                <td class="mono text-xs"><code>Input-side Total + Output Visible</code></td>
+                <td class="text-sm">Used by Dashboard, Sessions, Project Detail, and Session Detail token cells.</td>
             </tr>
         </tbody>
     </table>
     </div>
 </section>
 
-<!-- 派生指标 -->
 <section class="card section section-card full-width glossary-table-section">
     <div class="section-head">
-        <h2 class="section-title">派生指标</h2>
+        <h2 class="section-title">Derived Metrics</h2>
     </div>
-    <p class="section-desc">由原始字段计算得出。全部定义在 <code>index/metrics.py</code> 中。除零时返回 <code>—</code>。</p>
+    <p class="section-desc">派生指标只解释聚合口径，不替代业务页面常驻指标。</p>
 
     <div class="table-wrap">
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="derived-metric">指标 <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
-                <th>公式</th>
-                <th>解读</th>
+                <th class="sortable" data-action="sort" data-sort-key="metric">Metric <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                <th>Formula</th>
+                <th>Interpretation</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><span class="badge badge-primary">Cache Reuse</span></td>
-                <td class="mono text-xs"><code>cache_read / (fresh + R + W)</code></td>
-                <td class="text-sm">输入中有多少来自缓存。越高越高效。</td>
+                <td><span class="badge badge-primary">Cache Read Ratio</span></td>
+                <td class="mono text-xs"><code>Cache Read / Input-side Total</code></td>
+                <td class="text-sm">cache reuse health; used in Dashboard token charts, Sessions token cell, and Session Detail KPIs.</td>
             </tr>
             <tr>
                 <td><span class="badge badge-primary">Cache Write Ratio</span></td>
-                <td class="mono text-xs"><code>cache_write / (fresh + R + W)</code></td>
-                <td class="text-sm">正在构建缓存的占比。高表示活跃构建缓存中。</td>
+                <td class="mono text-xs"><code>Cache Write / Input-side Total</code></td>
+                <td class="text-sm">Shows active prompt cache creation in Dashboard and Session Detail token diagnostics.</td>
             </tr>
             <tr>
                 <td><span class="badge badge-primary">Output Ratio</span></td>
-                <td class="mono text-xs"><code>output / (fresh + R + W)</code></td>
-                <td class="text-sm">输出与输入之比。过低（&lt;5%）可能意味着上下文膨胀。</td>
+                <td class="mono text-xs"><code>Output Visible / Input-side Total</code></td>
+                <td class="text-sm">Highlights output density in Dashboard charts and Session Detail payload analysis.</td>
             </tr>
             <tr>
-                <td><span class="badge badge-primary">Tools/Round</span></td>
-                <td class="mono text-xs"><code>tool_calls / assistant_msgs</code></td>
-                <td class="text-sm">每轮平均工具调用次数。高可能意味着任务较复杂。</td>
+                <td><span class="badge badge-primary">Tools / Round</span></td>
+                <td class="mono text-xs"><code>tool_calls / rounds</code></td>
+                <td class="text-sm">Used in Sessions and Session Detail to compare interaction density.</td>
             </tr>
             <tr>
-                <td><span class="badge badge-primary">Tokens/Round</span></td>
-                <td class="mono text-xs"><code>(input_side + output) / assistant_msgs</code></td>
-                <td class="text-sm">每轮平均 token 数。高表示上下文窗口较大。</td>
+                <td><span class="badge badge-primary">Tokens / Round</span></td>
+                <td class="mono text-xs"><code>Total Tokens / rounds</code></td>
+                <td class="text-sm">Used in Session Detail diagnostics to find oversized rounds.</td>
             </tr>
             <tr>
-                <td><span class="badge badge-primary">Tokens/Minute</span></td>
-                <td class="mono text-xs"><code>(input_side + output) / (duration / 60)</code></td>
-                <td class="text-sm">Token 吞吐量。低值 + 长耗时可能意味着存在空闲。</td>
+                <td><span class="badge badge-primary">Tokens / Minute</span></td>
+                <td class="mono text-xs"><code>Total Tokens / (duration_minutes)</code></td>
+                <td class="text-sm">Used in Dashboard throughput charts and Sessions duration comparisons.</td>
             </tr>
             <tr>
-                <td><span class="badge badge-primary">Failed/Session</span></td>
-                <td class="mono text-xs"><code>failed_tools / sessions</code></td>
-                <td class="text-sm">每会话平均失败工具调用次数，不是百分比。</td>
+                <td><span class="badge badge-primary">Failed / Session</span></td>
+                <td class="mono text-xs"><code>failed_tool_count / sessions</code></td>
+                <td class="text-sm">Used by Dashboard Failure Signals and Sessions failure sorting.</td>
             </tr>
         </tbody>
     </table>
     </div>
 </section>
 
-<!-- Provider 映射 -->
 <section class="card section section-card full-width glossary-table-section" id="provider-mapping">
     <div class="section-head">
-        <h2 class="section-title">Provider 映射</h2>
+        <h2 class="section-title">Provider Field Mapping</h2>
     </div>
+    <p class="section-desc">字段缺失时使用 Not reported；由其它字段推导时标记 Estimated。</p>
 
     <div class="table-wrap">
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="provider-name">Provider <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
-                <th>模型</th>
-                <th>Input Fresh</th>
+                <th class="sortable" data-action="sort" data-sort-key="provider">Provider <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                <th>Model Family</th>
+                <th>Fresh</th>
                 <th>Cache Read</th>
                 <th>Cache Write</th>
                 <th>Output</th>
@@ -292,179 +267,94 @@
         <tbody>
             <tr>
                 <td class="text-sm"><strong>Anthropic</strong></td>
-                <td class="mono text-xs">claude-*</td>
+                <td class="mono text-xs">Claude 4</td>
                 <td class="mono text-xs"><code>input_tokens</code></td>
-                <td class="mono text-xs"><code>cache_read_input</code></td>
-                <td class="mono text-xs"><code>cache_creation</code></td>
+                <td class="mono text-xs"><code>cache_read_input_tokens</code></td>
+                <td class="mono text-xs"><code>cache_creation_input_tokens</code></td>
                 <td class="mono text-xs"><code>output_tokens</code></td>
             </tr>
             <tr>
-                <td class="text-sm"><strong>qwen（Anthropic 兼容）</strong></td>
+                <td class="text-sm"><strong>qwen Anthropic compatible</strong></td>
                 <td class="mono text-xs">qwen*</td>
-                <td class="mono text-xs">同 Anthropic</td>
-                <td class="mono text-xs">同 Anthropic</td>
-                <td class="mono text-xs">同 Anthropic</td>
-                <td class="mono text-xs">同 Anthropic</td>
+                <td class="mono text-xs"><code>input_tokens</code></td>
+                <td class="mono text-xs"><code>cache_read_input_tokens</code></td>
+                <td class="mono text-xs"><code>cache_creation_input_tokens</code></td>
+                <td class="mono text-xs"><code>output_tokens</code></td>
             </tr>
             <tr>
                 <td class="text-sm"><strong>OpenAI</strong></td>
-                <td class="mono text-xs">gpt-*, o1, o3</td>
-                <td class="mono text-xs"><code>input − cached</code></td>
+                <td class="mono text-xs">gpt-* / o-series</td>
+                <td class="mono text-xs"><code>input_tokens - cached_tokens</code></td>
                 <td class="mono text-xs"><code>cached_tokens</code></td>
-                <td class="mono text-xs"><span class="badge badge-muted">不上报</span></td>
-                <td class="mono text-xs"><code>completion − reasoning</code></td>
+                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
+                <td class="mono text-xs"><code>completion_tokens - reasoning_tokens</code></td>
             </tr>
             <tr>
                 <td class="text-sm"><strong>Codex</strong></td>
-                <td class="mono text-xs">codex-*</td>
-                <td class="mono text-xs"><span class="badge badge-muted">估算</span></td>
-                <td class="mono text-xs"><span class="badge badge-muted">估算</span></td>
-                <td class="mono text-xs"><span class="badge badge-muted">不上报</span></td>
-                <td class="mono text-xs"><code>tokens_used</code>（总量）</td>
+                <td class="mono text-xs">gpt-* codex</td>
+                <td class="mono text-xs"><span class="badge badge-info">Estimated</span></td>
+                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
+                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
+                <td class="mono text-xs"><code>tokens_used</code> aggregate</td>
+            </tr>
+            <tr>
+                <td class="text-sm"><strong>Qoder</strong></td>
+                <td class="mono text-xs">custom models</td>
+                <td class="mono text-xs"><span class="badge badge-info">Estimated</span></td>
+                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
+                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
+                <td class="mono text-xs"><span class="badge badge-info">Estimated</span></td>
             </tr>
         </tbody>
     </table>
     </div>
 </section>
 
-<!-- 已知限制 -->
-<section class="card section section-card full-width glossary-table-section">
-    <div class="section-head">
-        <h2 class="section-title">已知限制</h2>
-    </div>
-
-    <div class="table-wrap">
-    <table class="data-table glossary-table" data-table-enhanced>
-        <thead>
-            <tr>
-                <th class="col-narrow">#</th>
-                <th class="sortable" data-action="sort" data-sort-key="limitation">限制 <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
-                <th>影响</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td class="text-muted">1</td>
-                <td class="text-sm"><strong>Token 计数因 Provider 而异</strong></td>
-                <td class="text-sm">Anthropic 使用 cl100k 编码，OpenAI 使用自己的编码器。跨 Provider 比较应视为近似值。</td>
-            </tr>
-            <tr>
-                <td class="text-muted">2</td>
-                <td class="text-sm"><strong>OpenAI/Codex 缺少 cache write</strong></td>
-                <td class="text-sm">这些 Provider 不上报 cache write 字段。输入端合计不包含此项——不是零，只是未上报。</td>
-            </tr>
-            <tr>
-                <td class="text-muted">3</td>
-                <td class="text-sm"><strong>部分解析失败的会话</strong></td>
-                <td class="text-sm">日志损坏或格式变更可能导致解析不完整。Token 计数可能被低估。</td>
-            </tr>
-            <tr>
-                <td class="text-muted">4</td>
-                <td class="text-sm"><strong>持续时间精度</strong></td>
-                <td class="text-sm">基于日志时间戳推算。可能包含进程挂起、笔记本休眠或轮转间隔导致的空闲时间。</td>
-            </tr>
-            <tr>
-                <td class="text-muted">5</td>
-                <td class="text-sm"><strong>Codex token 估算</strong></td>
-                <td class="text-sm">仅有 <code>tokens_used</code>（总量）。每轮明细为均匀分配——是一种近似。</td>
-            </tr>
-            <tr>
-                <td class="text-muted">6</td>
-                <td class="text-sm"><strong>异常阈值为经验值</strong></td>
-                <td class="text-sm">使用 P90/P95 且最低 20 会话样本。低于此值时使用回退值，可能不适用于所有工作流。</td>
-            </tr>
-        </tbody>
-    </table>
-    </div>
-</section>
-
-<!-- Session Anomalies -->
-<section class="card section section-card full-width glossary-table-section">
-    <div class="section-head">
-        <h2 class="section-title">Session Anomalies</h2>
-    </div>
-    <p class="section-desc">
-        检测整段 session 是否需要关注，用于 <code>/dashboard</code> 的 Needs Attention、<code>/sessions</code> 的异常筛选、session 详情顶部 anomaly banner。
-    </p>
-
-    <div class="table-wrap">
-    <table class="data-table glossary-table" data-table-enhanced>
-        <thead>
-            <tr>
-                <th class="sortable" data-action="sort" data-sort-key="anomaly-type">类型 <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
-                <th>规则</th>
-                <th>严重度</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><span class="anomaly-badge badge-anomaly-warning">Long Duration</span></td>
-                <td class="text-sm">总活跃时间（Model Exec + Tool Exec，合并并行重叠）&gt;= 1h（警告）/ &gt;= 2h（严重）</td>
-                <td class="text-sm">warning / critical</td>
-            </tr>
-            <tr>
-                <td><span class="anomaly-badge badge-anomaly-warning">Failed Tools</span></td>
-                <td class="text-sm">失败比例 &gt;= 15%（警告）；失败比例 &gt;= 25%（严重）。单次失败不会触发。</td>
-                <td class="text-sm">warning / critical</td>
-            </tr>
-            <tr>
-                <td><span class="anomaly-badge badge-anomaly-info">Cache Creation</span></td>
-                <td class="text-sm">Cache creation（cache_creation_input_tokens）&gt;= 200K（info）/ &gt;= 500K（warning）。表示该 session 向 prompt cache 写入了大量上下文，供后续 round 复用。是 info/warning 级别——不是问题指标。在 Hotspots 标签页中可查看每轮的写入分布。</td>
-                <td class="text-sm">info / warning</td>
-            </tr>
-        </tbody>
-    </table>
-    </div>
-</section>
-
-<!-- Round Signals -->
 <section class="card section section-card full-width glossary-table-section">
     <div class="section-head">
         <h2 class="section-title">Round Signals</h2>
     </div>
-    <p class="section-desc">
-        检测单个 ROUND 是否值得展开查看，用于 session 详情页 Timeline 表格的 SIGNALS 列。阈值与 session anomaly 不同，更敏感。
-    </p>
+    <p class="section-desc">Round-level signals explain what Session Detail Trace and Dashboard failure summaries highlight.</p>
 
     <div class="table-wrap">
     <table class="data-table glossary-table" data-table-enhanced>
         <thead>
             <tr>
-                <th class="sortable" data-action="sort" data-sort-key="signal-type">Signal <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
-                <th>规则</th>
-                <th>严重度</th>
+                <th class="sortable" data-action="sort" data-sort-key="signal">Signal <span class="c-data-table__sort-icon" aria-hidden="true"></span></th>
+                <th>Definition</th>
+                <th>Used In</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><span class="signal-badge signal-warning">failed tool</span></td>
-                <td class="text-sm">单轮有失败工具调用：1-2 个 warning，&gt;= 3 个 critical</td>
-                <td class="text-sm">warning / critical</td>
+                <td><span class="signal-badge signal-info">round</span></td>
+                <td class="text-sm">A grouped assistant interaction and its related model/tool activity.</td>
+                <td class="text-sm">Session Detail Trace / Sessions Rounds column</td>
             </tr>
             <tr>
-                <td><span class="signal-badge signal-warning">llm error</span></td>
-                <td class="text-sm">单轮有 LLM error：1-2 个 warning，&gt;= 3 个 critical</td>
-                <td class="text-sm">warning / critical</td>
+                <td><span class="signal-badge signal-info">step</span></td>
+                <td class="text-sm">A model call, tool call, or displayed trace item inside a round.</td>
+                <td class="text-sm">Session Detail Trace</td>
             </tr>
             <tr>
-                <td><span class="signal-badge signal-warning">long tool</span></td>
-                <td class="text-sm">单个工具耗时 &gt;= 5 min</td>
-                <td class="text-sm">warning</td>
+                <td><span class="signal-badge signal-info">batch</span></td>
+                <td class="text-sm">A set of tool calls grouped by timing or trace adjacency.</td>
+                <td class="text-sm">Session Detail Trace / Tool Hotspots</td>
             </tr>
             <tr>
-                <td><span class="signal-badge signal-warning">tool burst</span></td>
-                <td class="text-sm">单轮工具调用 &gt;= 20（排除 top 3 工具占 &gt;= 90% 的 tight loop）</td>
-                <td class="text-sm">warning</td>
+                <td><span class="signal-badge signal-warning">tool</span></td>
+                <td class="text-sm">Tool invocation count, duration, result, and failure status.</td>
+                <td class="text-sm">Session Detail Trace / Dashboard Tool Hotspots</td>
             </tr>
             <tr>
-                <td><span class="signal-badge signal-warning">high write</span></td>
-                <td class="text-sm">单轮 cache creation &gt;= 300K tokens（cache_creation_input_tokens，写入 prompt cache 供后续 round 复用）</td>
-                <td class="text-sm">warning</td>
+                <td><span class="signal-badge signal-info">subagent</span></td>
+                <td class="text-sm">Delegated agent activity attached to a parent session or tool result.</td>
+                <td class="text-sm">Session Detail Trace / Sessions Subagents column</td>
             </tr>
             <tr>
-                <td><span class="signal-badge signal-warning">large input</span></td>
-                <td class="text-sm">单轮 input &gt;= 200K 且占 session input &gt;= 50%</td>
-                <td class="text-sm">warning</td>
+                <td><span class="signal-badge signal-warning">failure</span></td>
+                <td class="text-sm">failed tool result, attribution error</td>
+                <td class="text-sm">Session Detail Trace / Dashboard Failure Signals</td>
             </tr>
         </tbody>
     </table>

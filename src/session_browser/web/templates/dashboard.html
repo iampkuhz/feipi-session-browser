@@ -439,7 +439,21 @@
         </div>
     </div>
     {% if single_agent_branch.model_rows %}
-    <div class="chart-container" id="model-mix-chart" data-dashboard-chart="model-mix"></div>
+    <div class="chart-container" id="model-mix-chart" data-dashboard-chart="model-mix">
+        <div class="dashboard-horizontal-chart" role="img" aria-label="Model Mix">
+            {% for row in single_agent_branch.model_rows[:8] %}
+            <div class="dashboard-horizontal-row"
+                 data-tooltip="Model: {{ row.model }} · Sessions {{ row.sessions }} · Session Share {{ row.session_share }} · Tokens {{ row.tokens | format_compact_token }} · Token Share {{ row.token_share }} · Cache {{ row.cache_read }} · Failed {{ row.failed_per_session }}">
+                <div class="dashboard-horizontal-row__label mono" title="{{ row.model }}">{{ row.model }}</div>
+                <div class="dashboard-horizontal-row__track" aria-hidden="true">
+                    <span class="dashboard-horizontal-row__bar dashboard-horizontal-row__bar--model"
+                          style="--bar-width: {{ row.token_share | replace('%', '') }}%"></span>
+                </div>
+                <div class="dashboard-horizontal-row__value tabular">{{ row.token_share }} · {{ row.sessions }} sessions</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
     {% else %}
     <p class="chart-empty">无模型数据。</p>
     {% endif %}
@@ -456,11 +470,12 @@
             <p class="chart-card__subtitle">Tool call frequency</p>
         </div>
     </div>
-    <div class="chart-container" id="tool-dist-chart" data-dashboard-chart="tool-dist"></div>
+    <div class="chart-container" id="tool-dist-chart" data-dashboard-chart="tool-dist">
+        <p class="chart-empty">Tool distribution data unavailable. Current index stores aggregate tool-call counts but not tool names.</p>
+    </div>
 </section>
 
 {# Failure Signals #}
-{% if needs_attention and needs_attention | length > 0 %}
 <section class="card table-card" aria-label="Failure Signals">
     <div class="table-toolbar">
         <div>
@@ -468,6 +483,7 @@
             <div class="card-sub">聚合异常信号</div>
         </div>
     </div>
+    {% if needs_attention and needs_attention | length > 0 %}
     <div class="table-wrap">
         <table class="data-table">
             <thead>
@@ -498,8 +514,10 @@
             </tbody>
         </table>
     </div>
+    {% else %}
+    <p class="chart-empty">No regression seed found</p>
+    {% endif %}
 </section>
-{% endif %}
 
 {# Model Efficiency Detail #}
 {% if single_agent_branch.efficiency_rows %}
@@ -547,7 +565,7 @@
             <div class="card-title">Agent Sessions</div>
             <div class="card-sub">{{ single_agent_branch.display_name }} 范围内的 sessions（分页展示，每页 20 条）</div>
         </div>
-        <a href="/sessions?agent={{ agent_scope }}" class="btn btn--sm btn--outline" data-action="view-sessions-full">View All Sessions</a>
+        <a href="/sessions?agent={{ agent_scope }}" class="btn btn--sm btn--outline" data-action="view-sessions-full">View Sessions</a>
     </div>
     <div class="table-wrap">
         <table class="data-table">

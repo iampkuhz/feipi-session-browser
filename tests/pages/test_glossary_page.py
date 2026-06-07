@@ -113,15 +113,15 @@ class TestGlossaryHeader:
     def test_subtitle_present(self):
         """page-head 必须有传递给宏的副标题。"""
         content = _read_template()
-        assert '必要术语说明' in content, \
-            "Glossary 的 page_head 必须有关于基本术语说明的副标题"
+        assert 'token 口径' in content and 'provider 字段映射' in content, \
+            "Glossary 的 page_head 必须说明 token 口径和 provider 字段映射"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_subtitle_text(self):
-        """副标题必须按 HIFI 描述术语表目的。"""
+        """副标题必须按页面规约描述术语表目的。"""
         content = _read_template()
-        assert "必要术语说明" in content, \
-            "副标题必须将术语表描述为基本术语参考"
+        assert "badge 语义" in content, \
+            "副标题必须说明 badge 语义"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_breadcrumb(self):
@@ -378,7 +378,23 @@ class TestGlossaryEmptyState:
 
 
 class TestGlossarySections:
-    """验证 8 个 card.section 元素。"""
+    """验证规约定义的 5 个内容分区。"""
+
+    EXPECTED_SECTIONS = [
+        "Badge Reference",
+        "Token Types",
+        "Derived Metrics",
+        "Provider Field Mapping",
+        "Round Signals",
+    ]
+
+    LEGACY_SECTIONS = [
+        "Token 概览",
+        "Token 组成",
+        "Provider 映射",
+        "已知限制",
+        "Session Anomalies",
+    ]
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_card_section_class(self):
@@ -388,48 +404,28 @@ class TestGlossarySections:
             "Glossary 必须使用 card.section.section-card.full-width 类"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_eight_sections(self):
-        """Glossary 必须恰好有 8 个 card.section 元素。"""
+    def test_five_sections(self):
+        """Glossary 必须恰好有 5 个内容分区。"""
         content = _read_template()
-        # 分区可能带有额外类如 glossary-table-section
         sections = re.findall(r'class="card section[^"]*"', content)
-        assert len(sections) == 8, \
-            f"Glossary 必须恰好有 8 个 card.section 元素，发现 {len(sections)} 个"
+        assert len(sections) == 5, \
+            f"Glossary 必须恰好有 5 个 card.section 元素，发现 {len(sections)} 个"
 
+    @pytest.mark.parametrize("section_name", EXPECTED_SECTIONS)
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_badge_reference_section(self):
-        """必须有 Badge Reference 分区。"""
+    def test_expected_section_exists(self, section_name):
+        """每个规约要求的分区必须存在。"""
         content = _read_template()
-        assert "Badge Reference" in content, \
-            "Glossary 必须有 Badge Reference 分区"
+        assert section_name in content, \
+            f"Glossary 必须有 '{section_name}' 分区"
 
+    @pytest.mark.parametrize("section_name", LEGACY_SECTIONS)
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_token_overview_section(self):
-        """必须有 Token 概览（Token Overview）分区。"""
+    def test_legacy_section_removed(self, section_name):
+        """旧版额外知识库分区不得保留。"""
         content = _read_template()
-        assert "Token 概览" in content, \
-            "Glossary 必须有 Token Overview 分区"
-
-    @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_token_composition_section(self):
-        """必须有 Token 组成（Token Composition）分区。"""
-        content = _read_template()
-        assert "Token 组成" in content, \
-            "Glossary 必须有 Token Composition 分区"
-
-    @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_derived_metrics_section(self):
-        """必须有 派生指标（Derived Metrics）分区。"""
-        content = _read_template()
-        assert "派生指标" in content, \
-            "Glossary 必须有 Derived Metrics 分区"
-
-    @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_provider_mapping_section(self):
-        """必须有 Provider 映射（Provider Mapping）分区。"""
-        content = _read_template()
-        assert "Provider 映射" in content or "Provider Mapping" in content, \
-            "Glossary 必须有 Provider Mapping 分区"
+        assert section_name not in content, \
+            f"Glossary 不应保留旧版分区 '{section_name}'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_provider_mapping_anchor_id(self):
@@ -439,45 +435,24 @@ class TestGlossarySections:
             "Provider mapping 分区必须有 id='provider-mapping'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_limitations_section(self):
-        """必须有 已知限制（Known Limitations）分区。"""
-        content = _read_template()
-        assert "已知限制" in content, \
-            "Glossary 必须有 Known Limitations 分区"
-
-    @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_session_anomalies_section(self):
-        """必须有 Session Anomalies 分区。"""
-        content = _read_template()
-        assert "Session Anomalies" in content, \
-            "Glossary 必须有 Session Anomalies 分区"
-
-    @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_round_signals_section(self):
-        """必须有 Round Signals 分区。"""
-        content = _read_template()
-        assert "Round Signals" in content, \
-            "Glossary 必须有 Round Signals 分区"
-
-    @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_section_head_elements(self):
         """每个分区必须有 section-head 元素。"""
         content = _read_template()
         heads = re.findall(r'class="section-head"', content)
-        assert len(heads) == 8, \
-            f"Glossary 必须有 8 个 section-head 元素，发现 {len(heads)} 个"
+        assert len(heads) == 5, \
+            f"Glossary 必须有 5 个 section-head 元素，发现 {len(heads)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_section_title_elements(self):
         """每个分区必须有 section-title 元素。"""
         content = _read_template()
         titles = re.findall(r'class="section-title"', content)
-        assert len(titles) == 8, \
-            f"Glossary 必须有 8 个 section-title 元素，发现 {len(titles)} 个"
+        assert len(titles) == 5, \
+            f"Glossary 必须有 5 个 section-title 元素，发现 {len(titles)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_section_sub_elements(self):
-        """分区必须有 section-desc 描述（HIFI 对齐别名）。"""
+    def test_section_desc_elements(self):
+        """分区必须有必要的 section-desc 描述。"""
         content = _read_template()
         subs = re.findall(r'class="section-desc"', content)
         assert len(subs) == 5, \
@@ -488,48 +463,62 @@ class TestGlossarySections:
 
 
 class TestGlossaryTables:
-    """验证 6 个 data-table 存在。"""
+    """验证 4 个规约 Compact Table。"""
 
     _TABLE_SECTIONS = [
-        ("Token 组成", "Token composition"),
-        ("派生指标", "Derived metrics"),
-        ("Provider 映射", "Provider mapping"),
-        ("已知限制", "Known limitations"),
-        ("Session Anomalies", "Anomalies"),
-        ("Round Signals", "Signals"),
+        "Token Types",
+        "Derived Metrics",
+        "Provider Field Mapping",
+        "Round Signals",
+    ]
+
+    _EXPECTED_HEADERS = [
+        ["Metric", "Definition", "Formula", "Provider Fields"],
+        ["Metric", "Formula", "Interpretation"],
+        ["Provider", "Model Family", "Fresh", "Cache Read", "Cache Write", "Output"],
+        ["Signal", "Definition", "Used In"],
     ]
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_six_data_tables(self):
-        """Glossary 必须恰好有 6 个 data-table 元素（可能带有 glossary-table 等附加类）。"""
+    def test_four_data_tables(self):
+        """Glossary 必须恰好有 4 个 data-table 元素。"""
         content = _read_template()
         tables = re.findall(r'class="data-table[^"]*"', content)
-        assert len(tables) == 6, \
-            f"Glossary 必须恰好有 6 个 data-table 元素，发现 {len(tables)} 个"
+        assert len(tables) == 4, \
+            f"Glossary 必须恰好有 4 个 data-table 元素，发现 {len(tables)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_all_tables_enhanced(self):
         """所有表格必须有 data-table-enhanced 属性。"""
         content = _read_template()
         enhanced = re.findall(r'data-table-enhanced', content)
-        assert len(enhanced) == 6, \
-            f"Glossary 必须有 6 个 data-table-enhanced 属性，发现 {len(enhanced)} 个"
+        assert len(enhanced) == 4, \
+            f"Glossary 必须有 4 个 data-table-enhanced 属性，发现 {len(enhanced)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_all_tables_in_wrap(self):
         """所有表格必须在 table-wrap 内。"""
         content = _read_template()
         wraps = re.findall(r'class="table-wrap"', content)
-        assert len(wraps) == 6, \
-            f"Glossary 必须有 6 个 table-wrap 元素，发现 {len(wraps)} 个"
+        assert len(wraps) == 4, \
+            f"Glossary 必须有 4 个 table-wrap 元素，发现 {len(wraps)} 个"
 
-    @pytest.mark.parametrize("section_name,_", _TABLE_SECTIONS)
+    @pytest.mark.parametrize("section_name", _TABLE_SECTIONS)
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_table_section_exists(self, section_name, _):
+    def test_table_section_exists(self, section_name):
         """每个预期的表格分区必须存在。"""
         content = _read_template()
         assert section_name in content, \
             f"Glossary 必须有 '{section_name}' 表格分区"
+
+    @pytest.mark.parametrize("headers", _EXPECTED_HEADERS)
+    @pytest.mark.contract_case("UI-GLOSSARY-001")
+    def test_fixed_table_headers_present(self, headers):
+        """规约要求的表头必须存在。"""
+        content = _read_template()
+        for header in headers:
+            assert f">{header}<" in content or f">{header} <" in content, \
+                f"Glossary 表格必须包含表头 '{header}'"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_token_composition_table_has_thead(self):
@@ -572,20 +561,17 @@ class TestGlossaryDataActions:
         """可排序表头必须有 data-action='sort'。"""
         content = _read_template()
         sorts = re.findall(r'data-action="sort"', content)
-        assert len(sorts) >= 6, \
-            f"Glossary 必须至少有 6 个可排序列，发现 {len(sorts)} 个"
+        assert len(sorts) == 4, \
+            f"Glossary 必须恰好有 4 个可排序列，发现 {len(sorts)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_sort_keys_present(self):
         """可排序列必须有 data-sort-key 属性。"""
         content = _read_template()
         expected_keys = [
-            "token-name",
-            "derived-metric",
-            "provider-name",
-            "limitation",
-            "anomaly-type",
-            "signal-type",
+            "metric",
+            "provider",
+            "signal",
         ]
         for sort_key in expected_keys:
             assert f'data-sort-key="{sort_key}"' in content, \
@@ -603,8 +589,8 @@ class TestGlossaryDataActions:
         """可排序列的 th 必须有 sortable 类。"""
         content = _read_template()
         sortable_ths = re.findall(r'class="sortable"', content)
-        assert len(sortable_ths) >= 6, \
-            f"Glossary 必须至少有 6 个 sortable th 元素，发现 {len(sortable_ths)} 个"
+        assert len(sortable_ths) == 4, \
+            f"Glossary 必须恰好有 4 个 sortable th 元素，发现 {len(sortable_ths)} 个"
 
 
 # -- TestGlossaryAccessibility ----------------------------------------------
@@ -836,8 +822,8 @@ class TestGlossaryPageDisplay:
     def test_sections_rendered(self, glossary_html):
         """Glossary 必须渲染分区卡片。"""
         sections = re.findall(r'class="card section', glossary_html)
-        assert len(sections) >= 6, \
-            f"Glossary 必须至少有 6 个分区卡片，发现 {len(sections)} 个"
+        assert len(sections) == 5, \
+            f"Glossary 必须渲染 5 个分区卡片，发现 {len(sections)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_data_tables_rendered(self, glossary_html):
@@ -847,28 +833,22 @@ class TestGlossaryPageDisplay:
             f"Glossary 必须至少有 4 个数据表格，发现 {len(tables)} 个"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_token_overview_section(self, glossary_html):
-        """必须渲染 Token 概览分区。"""
-        assert "Token 概览" in glossary_html, \
-            "Token Overview 分区必须可见"
-
-    @pytest.mark.contract_case("UI-GLOSSARY-001")
-    def test_token_composition_section(self, glossary_html):
-        """必须渲染 Token 组成分区。"""
-        assert "Token 组成" in glossary_html, \
-            "Token Composition 分区必须可见"
+    def test_token_types_section(self, glossary_html):
+        """必须渲染 Token Types 分区。"""
+        assert "Token Types" in glossary_html, \
+            "Token Types 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_derived_metrics_section(self, glossary_html):
-        """必须渲染 派生指标 分区。"""
-        assert "派生指标" in glossary_html, \
+        """必须渲染 Derived Metrics 分区。"""
+        assert "Derived Metrics" in glossary_html, \
             "Derived Metrics 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_provider_mapping_section(self, glossary_html):
-        """必须渲染 Provider 映射分区。"""
-        assert "Provider 映射" in glossary_html, \
-            "Provider Mapping 分区必须可见"
+        """必须渲染 Provider Field Mapping 分区。"""
+        assert "Provider Field Mapping" in glossary_html, \
+            "Provider Field Mapping 分区必须可见"
 
     @pytest.mark.contract_case("UI-GLOSSARY-001")
     def test_badge_reference_section(self, glossary_html):

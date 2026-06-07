@@ -4,7 +4,7 @@
     {% include "partials/sessions_table_body.html" %}
     {% if total_count is defined and total_count > 0 %}
     <div id="ajax-pagination">
-        {{ ui.pagination(page, total_pages, total_items=total_count, page_size=page_size) }}
+        {{ ui.pagination(page, total_pages, total_items=total_count, page_size=page_size, page_size_options=[25, 50, 100]) }}
     </div>
     {% endif %}
 </div>

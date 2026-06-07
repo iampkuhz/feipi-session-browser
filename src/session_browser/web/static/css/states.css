@@ -68,9 +68,21 @@
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
 }
 .state-panel__link:hover {
-  text-decoration: underline;
+  border-color: var(--purple);
+  text-decoration: none;
+}
+.state-panel__link--primary {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: #fff;
+}
+.state-panel__link--primary:hover {
+  color: #fff;
 }
 /* Collapsible details section (error page only) */
 .state-panel__details {

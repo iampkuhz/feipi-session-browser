@@ -27,7 +27,7 @@ class TestParseSessionsQueryParams:
     def test_defaults_empty_params(self):
         result = parse_sessions_query_params({})
         assert result["page"] == 1
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
         assert result["filter_agent"] is None
         assert result["filter_model"] is None
         assert result["filter_project"] is None
@@ -65,22 +65,22 @@ class TestParseSessionsQueryParams:
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_all(self):
         result = parse_sessions_query_params({"page_size": ["all"]})
-        assert result["page_size"] == "all"
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_page_size_ALL_uppercase(self):
         result = parse_sessions_query_params({"page_size": ["ALL"]})
-        assert result["page_size"] == "all"
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
-    def test_page_size_invalid_defaults_to_20(self):
+    def test_page_size_invalid_defaults_to_25(self):
         result = parse_sessions_query_params({"page_size": ["99"]})
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
-    def test_page_size_non_numeric_defaults_to_20(self):
+    def test_page_size_non_numeric_defaults_to_25(self):
         result = parse_sessions_query_params({"page_size": ["xyz"]})
-        assert result["page_size"] == 20
+        assert result["page_size"] == 25
 
     @pytest.mark.contract_case("DATA-PRESENTER-001")
     def test_filters_parsed(self):
@@ -356,7 +356,7 @@ class TestBuildSessionsContext:
         assert ctx["total_count"] == 0
         assert ctx["page"] == 1
         assert ctx["current_page"] == 1
-        assert ctx["page_size"] == 20
+        assert ctx["page_size"] == 25
         assert ctx["total_pages"] == 1
         assert ctx["page_start"] == 0
         assert ctx["page_end"] == 0
@@ -385,17 +385,17 @@ class TestBuildSessionsContext:
             "project_list": ["proj-a"],
         }
 
-        ctx = build_sessions_context({"page": ["2"], "page_size": ["20"]}, conn)
+        ctx = build_sessions_context({"page": ["2"], "page_size": ["25"]}, conn)
 
         assert ctx["page"] == 2
         assert ctx["current_page"] == 2
         assert ctx["total_count"] == 100
-        assert ctx["total_pages"] == 5
-        assert ctx["page_start"] == 21
-        assert ctx["page_end"] == 40
+        assert ctx["total_pages"] == 4
+        assert ctx["page_start"] == 26
+        assert ctx["page_end"] == 50
         assert ctx["has_prev"] is True
         assert ctx["has_next"] is True
-        assert ctx["page_size"] == 20
+        assert ctx["page_size"] == 25
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
@@ -455,7 +455,7 @@ class TestBuildSessionsContext:
         self, mock_fetch_vm, mock_count,
     ):
         conn = self._make_mock_conn()
-        mock_count.return_value = 50
+        mock_count.return_value = 100
         mock_fetch_vm.return_value = {
             "sessions_enriched": [],
             "total_count": 50,
@@ -464,12 +464,12 @@ class TestBuildSessionsContext:
             "project_list": [],
         }
 
-        build_sessions_context({"page": ["3"], "page_size": ["20"]}, conn)
+        build_sessions_context({"page": ["3"], "page_size": ["25"]}, conn)
 
-        # page=3, size=20 -> offset=40, limit=20
+        # page=3, size=25 -> offset=50, limit=25
         call_kwargs = mock_fetch_vm.call_args.kwargs
-        assert call_kwargs["limit"] == 20
-        assert call_kwargs["offset"] == 40
+        assert call_kwargs["limit"] == 25
+        assert call_kwargs["offset"] == 50
 
     @patch("session_browser.web.presenters.sessions.count_sessions")
     @patch("session_browser.web.presenters.sessions.fetch_sessions_view_model")
@@ -489,6 +489,6 @@ class TestBuildSessionsContext:
 
         ctx = build_sessions_context({"page_size": ["all"]}, conn)
 
-        assert ctx["page_size"] == "all"
-        assert ctx["total_pages"] == 1
+        assert ctx["page_size"] == 25
+        assert ctx["total_pages"] == 2
         assert ctx["page"] == 1
