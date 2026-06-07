@@ -236,8 +236,13 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self.wfile.write(body.encode("utf-8"))
 
     def _serve_dashboard(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        agent_scope = params.get("agent", ["all"])[0]
+        grain = params.get("grain", ["day"])[0]
+
         conn = _get_connection()
-        view_model = build_dashboard_view_model(conn)
+        view_model = build_dashboard_view_model(conn, agent_scope=agent_scope, grain=grain)
         conn.close()
 
         html = self._render_template("dashboard.html", **view_model)

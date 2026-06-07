@@ -119,6 +119,33 @@
 .metric-card__value.mono {
   font-family: var(--font-mono);
 }
+.metric-card__value.tabular {
+  font-variant-numeric: var(--tabular-nums, tabular-nums);
+}
+
+/* ── Secondary metrics (inside KPI cards) ───────────────────────────────── */
+.metric-card__secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+}
+.metric-card__secondary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text-subtle);
+  line-height: 1.4;
+}
+.metric-card__secondary-label {
+  font-weight: 500;
+}
+.metric-card__secondary-value {
+  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+  font-weight: 600;
+  text-align: right;
+}
 
 /* ── Subtitle ───────────────────────────────────────────────────────────── */
 /* min-height = 2 lines so cards align even when some have no subtitle. */

@@ -2,29 +2,23 @@
  * dashboard.js — canonical Dashboard page behavior for Feipi Session Browser.
  *
  * Responsibilities:
- *   - Chart scope switching (Day / Week / Month) via data-scope delegation
- *   - Chart range buttons (30d / 7d → 1d / 3d / 7d / 30d for Day scope)
+ *   - Agent scope selector (All agents / Claude Code / Qoder / Codex) → URL reload
+ *   - Time grain segmented control (Day / Week / Month) → URL reload
+ *   - Chart rendering (Session Trend, Token Trend, Prompt Activity)
  *   - Info button popover toggle (metric & chart card tooltips)
  *   - Settings drawer open / close
- *   - Density toggle (delegates to ViewState)
  *
  * Uses data-action event delegation — no inline event handlers.
  * Does NOT duplicate logic already in ui_primitives.js or view-state.js.
  *
  * Routing:
+ *   data-action="agent-scope"   -> switch agent scope, reload with ?agent=...
+ *   data-action="grain"         -> switch time grain, reload with ?grain=...
  *   data-action="open-settings"   -> open settings drawer
  *   data-action="close-settings"  -> close settings drawer
- *   data-action="density-toggle"  -> delegate to ViewState.toggleDensity()
- *   data-scope="day|week|month"   -> scope switch (Day/Week/Month)
- *
- * Consumes: UiPrimitives.showToast(), ViewState.toggleDensity()
- *
- * Target DOM elements (contract):
- *   - #infoPopover     — info tooltip overlay
- *   - #settingsDrawer  — settings slide-out drawer
- *   - .scope-switch__btn[data-scope] — scope switch buttons
- *   - .range-btn[data-range] / .range-btn[data-action="chart-range"] — range tabs
- *   - .icon-button--info[data-info] — info buttons
+ *   data-action="switch-agent-scope" -> click agent row to switch scope
+ *   data-action="go-sessions-agent-model" -> go to sessions with agent+model
+ *   data-action="go-session"    -> go to session detail
  */
 (function () {
     'use strict';
@@ -34,31 +28,55 @@
     var INFO_COPY = {
         'projects': {
             title: 'Projects',
-            text: 'Metric count across all indexed sessions.'
+            text: '当前 scope 下出现过 session 的 project key 去重数。二级指标：Active 24h（最近24小时有 session event 的项目数）、Active 7d（最近7天有 session event 的项目数）、New 7d（最近7天首次出现的项目数）。'
         },
         'sessions': {
             title: 'Sessions',
-            text: 'Total indexed sessions across all agents.'
+            text: '当前 scope 下已索引 session 总数。二级指标：Today（今日 session 数）、7d Avg（最近7天日均 session 数）、Median Duration（session 持续时间中位数）、Avg Rounds（平均每 session 轮数）。'
         },
-        'tokens': {
+        'total-tokens': {
             title: 'Total Tokens',
-            text: 'Combined input, output and cache tokens.'
+            text: 'Fresh + Cache Read + Cache Write + Output 的合计。二级指标分别展示四类 token 的绝对量。'
+        },
+        'prompt-activity': {
+            title: 'Prompt Activity',
+            text: '用户发起输入数量，按 user message 事件计数。二级指标：Assistant Turns（assistant message 总数）、Tool Calls（tool call 总数）、Prompts / Session（User Prompts / Sessions）。'
+        },
+        'cache-read-ratio': {
+            title: 'Cache Read Ratio',
+            text: 'Cache Read / Input-side Tokens，其中 Input-side = Fresh + Cache Read + Cache Write。二级指标：Eligible Sessions（Input-side > 0 的 session 数）、P50 Session Ratio（per-session cache read ratio 中位数）、Low-read Sessions（cache read ratio < 20% 的 session 数）。'
         },
         'failed-tools': {
             title: 'Failed Tools',
-            text: 'Tool calls that returned errors.'
+            text: '执行失败的工具调用次数。二级指标：Failure Rate（Failed Tools / Tool Calls）、Affected Sessions（failed > 0 的 session 数）、Repeated Failure Sessions（failed > 1 的 session 数）。'
         },
         'chart-sessions': {
             title: 'Session Trend',
-            text: 'Stacked bars show session volume per agent. Total appears only inside the hover tooltip and is not rendered as a gray bar.'
+            text: '纵向柱状图展示 session volume。All agents 下按 agent 分段堆叠（Claude Code、Qoder、Codex）。单 agent 下使用单一颜色。'
         },
         'chart-tokens': {
             title: 'Token Trend',
-            text: 'Stacked bars show token usage per agent. The range switch changes the chart horizon (e.g. 7 days vs 30 days).'
+            text: '折线图展示 total tokens 趋势。All agents 下 tooltip 展示三个 agent 的 token 贡献值和占比。单 agent 下展示四类 token 分段。'
         },
         'chart-prompts': {
             title: 'Prompt Activity Trend',
-            text: 'This chart tracks user-initiated inputs, approximating daily conversation starts or active prompt submissions.'
+            text: '纵向柱状图展示 user-initiated inputs。All agents 下按 agent 分段堆叠。'
+        },
+        'chart-composition': {
+            title: 'Token Trend by Composition',
+            text: '堆叠面积图展示 Fresh、Cache Read、Cache Write、Output 四类 token 随时间的变化。'
+        },
+        'chart-cache': {
+            title: 'Cache Health',
+            text: '单折线图展示 Cache Read Ratio (0%-100%)。红色三角标记 Fresh spike 异常点。'
+        },
+        'model-mix': {
+            title: 'Model Mix',
+            text: '横向柱状图展示当前 agent 下各模型的 token 分布。'
+        },
+        'tool-dist': {
+            title: 'Tool Distribution',
+            text: '横向柱状图展示各工具调用频率。'
         }
     };
 
@@ -76,7 +94,6 @@
         infoPopover = document.getElementById('infoPopover');
         menuPopover = document.getElementById('menuPopover');
         settingsDrawer = document.getElementById('settingsDrawer');
-        // Chart tooltip may use various IDs across template versions
         chartTooltip = document.getElementById('chartTooltip')
             || document.querySelector('.chart-tooltip');
     }
@@ -111,7 +128,6 @@
         var infoKey = button.getAttribute('data-info') || button.getAttribute('data-dashboard-info');
         var info = INFO_COPY[infoKey] || { title: 'Info', text: 'No description available.' };
 
-        // Clear previous content and build safely using DOM methods
         while (infoPopover.firstChild) infoPopover.removeChild(infoPopover.firstChild);
         var h4 = document.createElement('h4');
         h4.textContent = info.title;
@@ -209,7 +225,6 @@
         if (!settingsDrawer) return;
         settingsDrawer.setAttribute('aria-hidden', 'true');
         settingsDrawer.classList.remove('is-open');
-        // Use setTimeout to allow transition to complete
         setTimeout(function () {
             if (!settingsDrawer.classList.contains('is-open')) {
                 settingsDrawer.hidden = true;
@@ -217,131 +232,34 @@
         }, 300);
     }
 
-    /* ── Scope switching (Day / Week / Month) ──────────────────── */
+    /* ── Agent scope selector → URL reload ─────────────────────── */
 
-    function handleScopeSwitch(scopeBtn) {
-        var scope = scopeBtn.getAttribute('data-scope');
-        if (!scope) return;
-
-        // Update active state
-        var allBtns = document.querySelectorAll('.scope-switch__btn');
-        for (var i = 0; i < allBtns.length; i++) {
-            allBtns[i].classList.remove('is-active');
+    function handleAgentScope(scope) {
+        var params = new URLSearchParams(window.location.search);
+        if (scope === 'all') {
+            params.delete('agent');
+        } else {
+            params.set('agent', scope);
         }
-        scopeBtn.classList.add('is-active');
-
-        currentScope = scope;
-
-        // Update range buttons for the new scope
-        updateRangeButtonsForScope(scope);
-
-        // Dispatch custom event for chart re-render (consumed by template inline script)
-        document.dispatchEvent(new CustomEvent('dashboard-scope-change', {
-            detail: { scope: scope }
-        }));
-
-        // Show toast via UiPrimitives if available
-        var toastFn = (window.UiPrimitives && window.UiPrimitives.showToast)
-            ? window.UiPrimitives.showToast
-            : null;
-        if (toastFn) {
-            toastFn('Switched to ' + scope.toUpperCase() + ' view');
-        }
+        var url = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        window.location.href = url;
     }
 
-    /**
-     * Update range button labels based on scope.
-     * Day scope → 1d/3d/7d/30d, Week/Month scope → visual-only labels.
-     */
-    function updateRangeButtonsForScope(scope) {
-        var rangeContainers = document.querySelectorAll('.range-tabs');
-        for (var c = 0; c < rangeContainers.length; c++) {
-            var btns = rangeContainers[c].querySelectorAll('.range-btn');
-            for (var i = 0; i < btns.length; i++) {
-                var val = btns[i].getAttribute('data-range') || btns[i].textContent.trim().toLowerCase();
-                if (scope === 'day') {
-                    // Map existing labels to Day-scope labels
-                    if (val === '30d' || btns[i].textContent.trim() === '30d') {
-                        btns[i].textContent = '30d';
-                        btns[i].setAttribute('data-range', '30d');
-                    } else if (val === '7d' || btns[i].textContent.trim() === '7d') {
-                        btns[i].textContent = '7d';
-                        btns[i].setAttribute('data-range', '7d');
-                    }
-                } else if (scope === 'week') {
-                    if (val === '30d' || btns[i].textContent.trim() === '30d') {
-                        btns[i].textContent = '12w';
-                        btns[i].setAttribute('data-range', '12w');
-                    } else if (val === '7d' || btns[i].textContent.trim() === '7d') {
-                        btns[i].textContent = '4w';
-                        btns[i].setAttribute('data-range', '4w');
-                    }
-                } else if (scope === 'month') {
-                    if (val === '30d' || btns[i].textContent.trim() === '30d') {
-                        btns[i].textContent = '12m';
-                        btns[i].setAttribute('data-range', '12m');
-                    } else if (val === '7d' || btns[i].textContent.trim() === '7d') {
-                        btns[i].textContent = '3m';
-                        btns[i].setAttribute('data-range', '3m');
-                    }
-                }
-            }
-        }
-    }
+    /* ── Time grain control → URL reload ───────────────────────── */
 
-    /* ── Range button click ────────────────────────────────────── */
-
-    function handleRangeClick(rangeBtn) {
-        var range = rangeBtn.getAttribute('data-range')
-            || rangeBtn.getAttribute('data-dashboard-range')
-            || '30d';
-
-        // Parse days from range value
-        var days = 30;
-        var numMatch = range.match(/^(\d+)/);
-        if (numMatch) {
-            var num = parseInt(numMatch[1], 10);
-            var unit = range.replace(/^(\d+)/, '').toLowerCase();
-            if (unit === 'w') {
-                days = num * 7;
-            } else if (unit === 'm') {
-                days = num * 30;
-            } else {
-                days = num;
-            }
-        }
-
-        // Update visual active state within the same chart card
-        var chartCard = rangeBtn.closest('.chart-card');
-        if (chartCard) {
-            var siblings = chartCard.querySelectorAll('.range-btn');
-            for (var i = 0; i < siblings.length; i++) {
-                siblings[i].classList.remove('active');
-            }
-        }
-        rangeBtn.classList.add('active');
-
-        // Update data attribute on chart container
-        var chartContainer = rangeBtn.closest('[data-dashboard-chart]')
-            || (chartCard ? chartCard.querySelector('[data-dashboard-chart]') : null);
-        if (chartContainer) {
-            chartContainer.setAttribute('data-range', range);
-        }
-
-        // Dispatch custom event for chart re-render
-        document.dispatchEvent(new CustomEvent('dashboard-range-change', {
-            detail: { days: days, range: range, button: rangeBtn }
-        }));
+    function handleGrain(grain) {
+        var params = new URLSearchParams(window.location.search);
+        params.set('grain', grain);
+        var url = window.location.pathname + '?' + params.toString();
+        window.location.href = url;
     }
 
     /* ── Click outside popover closes it ───────────────────────── */
 
     function handleClickOutsidePopover(event) {
         var target = event.target;
-        // Don't close if clicking inside a popover
         if (infoPopover && infoPopover.contains(target)) return;
         if (menuPopover && menuPopover.contains(target)) return;
-        // Don't close if clicking the trigger button itself
         if (target.closest && target.closest('.icon-button--info')) return;
         hideFloating();
     }
@@ -350,11 +268,13 @@
 
     document.addEventListener('click', function (event) {
         var target = event.target;
-        var button = target.closest ? target.closest('button') : null;
+        var button = target.closest ? target.closest('button, a[data-action]') : null;
         if (!button) {
             var el = target;
             while (el && el.nodeType === 1) {
-                if (el.tagName === 'BUTTON') { button = el; break; }
+                if (el.tagName === 'BUTTON' || (el.tagName === 'A' && el.hasAttribute('data-action'))) {
+                    button = el; break;
+                }
                 el = el.parentElement;
             }
         }
@@ -366,15 +286,49 @@
         var action = button.getAttribute('data-action') || '';
         var hasScope = button.hasAttribute('data-scope');
         var hasInfo = button.hasAttribute('data-info') || button.hasAttribute('data-dashboard-info');
+        var hasGrain = button.hasAttribute('data-grain');
 
-        // Scope switch buttons (data-scope, may not have data-action)
-        if (hasScope) {
-            handleScopeSwitch(button);
+        // Agent scope buttons (data-scope + data-action="agent-scope")
+        if (action === 'agent-scope' && hasScope) {
+            event.preventDefault();
+            handleAgentScope(button.getAttribute('data-scope'));
+            return;
+        }
+
+        // Grain buttons (data-grain + data-action="grain")
+        if (action === 'grain' && hasGrain) {
+            event.preventDefault();
+            handleGrain(button.getAttribute('data-grain'));
+            return;
+        }
+
+        // Click agent row to switch scope
+        if (action === 'switch-agent-scope' && hasScope) {
+            event.preventDefault();
+            handleAgentScope(button.getAttribute('data-scope'));
+            return;
+        }
+
+        // Go to sessions with agent+model filter
+        if (action === 'go-sessions-agent-model') {
+            var agent = button.getAttribute('data-agent') || '';
+            var model = button.getAttribute('data-model') || '';
+            var url = '/sessions?agent=' + encodeURIComponent(agent) + '&model=' + encodeURIComponent(model);
+            window.location.href = url;
+            return;
+        }
+
+        // Go to session detail
+        if (action === 'go-session') {
+            var agent = button.getAttribute('data-agent') || '';
+            var sessionId = button.getAttribute('data-session') || '';
+            var url = '/sessions/' + agent + '/' + sessionId;
+            window.location.href = url;
             return;
         }
 
         // Info buttons (data-info or data-dashboard-info, may not have data-action)
-        if (hasInfo) {
+        if (hasInfo && action !== 'agent-scope' && action !== 'grain') {
             showInfoPopover(button);
             return;
         }
@@ -390,7 +344,6 @@
                 break;
 
             case 'density-toggle':
-                // Delegate to view-state.js
                 if (window.ViewState && typeof window.ViewState.toggleDensity === 'function') {
                     window.ViewState.toggleDensity();
                 }
@@ -399,7 +352,6 @@
             case 'chart-export':
             case 'chart-detail':
             case 'chart-copy-link':
-                // Menu item actions — show toast and close
                 var chartType = button.getAttribute('data-chart') || 'chart';
                 var labels = {
                     'chart-export': 'Export PNG preview',
@@ -414,9 +366,7 @@
                 break;
 
             default:
-                // Check for nav items with nav-* actions
                 if (action.indexOf('nav-') === 0 && button.classList.contains('nav-item')) {
-                    // Visual active state for preview
                     var allNav = document.querySelectorAll('.nav-item');
                     for (var i = 0; i < allNav.length; i++) {
                         allNav[i].classList.remove('is-active');
@@ -426,23 +376,9 @@
                     }
                     hideFloating();
                 }
-                // Let ui_primitives.js handle the default case via ui-action event
                 break;
         }
     });
-
-    /* ── Scope switch initialization ───────────────────────────── */
-
-    // Bind scope buttons via delegation — scan for data-scope on load
-    // This ensures buttons without inline handlers are captured
-    var scopeBtns = document.querySelectorAll('.scope-switch__btn[data-scope]');
-    // No individual binding needed — handled by document-level click above.
-    // Mark them as initialized for debugging.
-    for (var i = 0; i < scopeBtns.length; i++) {
-        scopeBtns[i].setAttribute('data-initialized', 'true');
-    }
-
-    /* ── Range button delegation ───────────────────────────────── */
 
     /* ── Settings drawer backdrop click ────────────────────────── */
 
@@ -484,16 +420,11 @@
 
     window.DashboardPage = {
         getScope: function () { return currentScope; },
-        setScope: function (scope) {
-            var btn = document.querySelector('.scope-switch__btn[data-scope="' + scope + '"]');
-            if (btn) handleScopeSwitch(btn);
-        },
         openSettings: openSettings,
         closeSettings: closeSettings,
         showInfoPopover: showInfoPopover,
         hideFloating: hideFloating
     };
-
 
     /* ── Init ──────────────────────────────────────────────────── */
 
@@ -507,238 +438,269 @@
 
 
 /**
- * dashboard-charts.js — Chart rendering extracted from dashboard.html inline script.
+ * dashboard-charts.js — Chart rendering for Dashboard.
  * Reads data from JSON data blocks injected by Jinja2 template.
- * Wrapped in DOMContentLoaded because the script loads in <head> before chart elements exist.
  */
 (function() {
     'use strict';
 
     document.addEventListener('DOMContentLoaded', function() {
-        var container = document.getElementById('trend-chart');
-        if (!container) return;
-
-        var rawDataEl = document.getElementById('dashboard-chart-data');
+        var rawDataEl = document.getElementById('dashboard-graph-data');
         var promptDataEl = document.getElementById('dashboard-prompt-data');
         var rawData = rawDataEl ? JSON.parse(rawDataEl.textContent || '[]') : [];
         var promptRawData = promptDataEl ? JSON.parse(promptDataEl.textContent || '[]') : [];
-        var currentDays = 30;
 
-    function weekKey(dateStr) {
-        var d = new Date(dateStr);
-        var dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
-        var weekNum = Math.floor(dayOfYear / 7) + 1;
-        return d.getFullYear() + '-W' + String(weekNum).padStart(2, '0');
-    }
+        if (!rawData.length && !promptRawData.length) return;
 
-    function monthKey(dateStr) {
-        return dateStr.substring(0, 7);
-    }
+        /* ── Utility functions ─────────────────────────────────── */
 
-    function aggregateByWeek(data, fields) {
-        var map = {};
-        var order = [];
-        data.forEach(function(d) {
-            var key = weekKey(d.date);
-            if (!map[key]) { map[key] = { date: key }; order.push(key); }
-            var row = map[key];
-            fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
-        });
-        return order.map(function(k) { return map[k]; });
-    }
+        function weekKey(dateStr) {
+            var d = new Date(dateStr);
+            var jan1 = new Date(d.getFullYear(), 0, 1);
+            var dayOfYear = Math.floor((d - jan1) / 86400000);
+            var weekNum = Math.floor(dayOfYear / 7) + 1;
+            return d.getFullYear() + '-W' + String(weekNum).padStart(2, '0');
+        }
 
-    function aggregateByMonth(data, fields) {
-        var map = {};
-        var order = [];
-        data.forEach(function(d) {
-            var key = monthKey(d.date);
-            if (!map[key]) { map[key] = { date: key + '-01' }; order.push(key); }
-            var row = map[key];
-            fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
-        });
-        return order.map(function(k) { return map[k]; });
-    }
+        function monthKey(dateStr) {
+            return dateStr.substring(0, 7);
+        }
 
-    function applyScope(data, days, fields) {
-        var scope = (window.DashboardPage && window.DashboardPage.getScope) ? window.DashboardPage.getScope() : 'day';
-        var sliced = data.slice(-days);
-        if (!sliced.length) return [];
-        var fieldList = fields || getTrendFields();
-        if (scope === 'week') return aggregateByWeek(sliced, fieldList);
-        if (scope === 'month') return aggregateByMonth(sliced, fieldList);
-        return sliced;
-    }
+        function aggregateByWeek(data, fields) {
+            var map = {};
+            var order = [];
+            data.forEach(function(d) {
+                var key = weekKey(d.date);
+                if (!map[key]) { map[key] = { date: key }; order.push(key); }
+                var row = map[key];
+                fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
+            });
+            return order.map(function(k) { return map[k]; });
+        }
 
-    function getTrendFields() {
-        return ['claude_count', 'codex_count', 'qoder_count', 'total_count',
-                'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens',
-                'tool_calls', 'failed_tools', 'total_tokens', 'claude_tokens', 'codex_tokens', 'qoder_tokens'];
-    }
+        function aggregateByMonth(data, fields) {
+            var map = {};
+            var order = [];
+            data.forEach(function(d) {
+                var key = monthKey(d.date);
+                if (!map[key]) { map[key] = { date: key + '-01' }; order.push(key); }
+                var row = map[key];
+                fields.forEach(function(f) { row[f] = (row[f] || 0) + (d[f] || 0); });
+            });
+            return order.map(function(k) { return map[k]; });
+        }
 
-    function getPromptFields() {
-        return ['claude_prompts', 'codex_prompts', 'qoder_prompts', 'total_prompts'];
-    }
+        function getGrain() {
+            var el = document.querySelector('.grain-control__btn.is-active');
+            return el ? (el.getAttribute('data-grain') || 'day') : 'day';
+        }
 
-    function formatDisplayDate(dateStr, days) {
-        var scope = (window.DashboardPage && window.DashboardPage.getScope) ? window.DashboardPage.getScope() : 'day';
-        if (!dateStr) return '';
-        if (scope === 'week') { var parts = dateStr.split('-W'); return parts.length > 1 ? 'W' + parts[1] : dateStr.substring(5); }
-        if (scope === 'month') return dateStr.substring(5, 7);
-        return dateStr.substring(5);
-    }
+        function applyScope(data, fields) {
+            var grain = getGrain();
+            var sliced = data.slice(-getDaysForGrain(grain));
+            if (!sliced.length) return [];
+            var fieldList = fields || getTrendFields();
+            if (grain === 'week') return aggregateByWeek(sliced, fieldList);
+            if (grain === 'month') return aggregateByMonth(sliced, fieldList);
+            return sliced;
+        }
 
-    function formatTokens(n) {
-        if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
-        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-        return String(n);
-    }
+        function getDaysForGrain(grain) {
+            if (grain === 'week') return 20 * 7;
+            if (grain === 'month') return 12 * 30;
+            return 30;
+        }
 
-    function buildSessionTooltip(label, d) {
-        return '<div class="dashboard-tooltip">' +
-            '<div class="tooltip-date">' + label + '</div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + d.claude_count + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + d.codex_count + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + d.qoder_count + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + d.total_count + '</b></div>' +
-            '</div>';
-    }
+        function getTrendFields() {
+            return ['claude_count', 'codex_count', 'qoder_count', 'total_count',
+                    'total_tokens', 'fresh_input_tokens', 'cache_read_tokens',
+                    'cache_write_tokens', 'output_tokens', 'tool_calls', 'failed_tools'];
+        }
 
-    function buildTokenTooltip(label, d) {
-        return '<div class="dashboard-tooltip">' +
-            '<div class="tooltip-date">' + label + '</div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + formatTokens(d.claude_tokens) + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + formatTokens(d.codex_tokens) + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + formatTokens(d.qoder_tokens) + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + formatTokens(d.total_tokens) + '</b></div>' +
-            '</div>';
-    }
+        function getPromptFields() {
+            return ['claude_prompts', 'codex_prompts', 'qoder_prompts', 'total_prompts'];
+        }
 
-    function buildPromptTooltip(label, d) {
-        return '<div class="dashboard-tooltip">' +
-            '<div class="tooltip-date">' + label + '</div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + d.claude_prompts + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + d.codex_prompts + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + d.qoder_prompts + '</b></div>' +
-            '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + d.total_prompts + '</b></div>' +
-            '</div>';
-    }
+        function formatDisplayDate(dateStr) {
+            var grain = getGrain();
+            if (!dateStr) return '';
+            if (grain === 'week') {
+                var parts = dateStr.split('-W');
+                return parts.length > 1 ? 'W' + parts[1] : dateStr.substring(5);
+            }
+            if (grain === 'month') return dateStr.substring(5, 7);
+            return dateStr.substring(5);
+        }
 
-    window.updateChart = function(days) {
-        currentDays = days;
-        var data = applyScope(rawData, days);
-        if (!data.length) { container.innerHTML = '<p class="text-muted text-sm">No data</p>'; return; }
-        var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_count; })) || 1;
-        var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
-        var yHtml = '<div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
-        var plotBars = '';
-        data.forEach(function(d) {
-            var dateStr = formatDisplayDate(d.date, days);
-            var pctH = (d.total_count / maxVal) * 100;
-            var claudePct = d.total_count > 0 ? (d.claude_count / d.total_count * 100) : 0;
-            var codexPct = d.total_count > 0 ? (d.codex_count / d.total_count * 100) : 0;
-            var qoderPct = d.total_count > 0 ? (d.qoder_count / d.total_count * 100) : 0;
-            var tip = buildSessionTooltip(dateStr, d);
-            plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
-            if (d.codex_count > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
-            if (d.claude_count > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
-            if (d.qoder_count > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
-            plotBars += '</div>' + tip + '</div>';
-        });
-        var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
-        var step = Math.max(Math.floor(data.length / 8), 1);
-        var xLabels = [];
-        data.forEach(function(d, i) {
-            xLabels.push('<span>' + (i % step === 0 ? formatDisplayDate(d.date, days) : '') + '</span>');
-        });
-        var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels.join('') + '</div>';
-        container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
-        renderTokenChart(currentDays);
-    };
+        function formatTokens(n) {
+            if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+            if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+            return String(n);
+        }
 
-    function renderTokenChart(days) {
-        var sliced = rawData.slice(-days);
-        if (!sliced.length) return;
-        sliced.forEach(function(d) {
-            d.input_tokens = d.fresh_input_tokens || d.input_tokens || 0;
-            d.total_tokens = d.input_tokens + d.output_tokens + d.cache_read_tokens + d.cache_write_tokens;
-            var tt = d.total_tokens, tc = d.total_count || 1;
-            d.claude_tokens = Math.round(tt * d.claude_count / tc);
-            d.codex_tokens = Math.round(tt * d.codex_count / tc);
-            d.qoder_tokens = Math.round(tt * d.qoder_count / tc);
-        });
-        var data = applyScope(sliced, days);
-        if (!data.length) return;
-        var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_tokens; })) || 1;
-        var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
-        var yHtml = '<div class="y-axis">' + yTicks.map(function(v) { return '<span>' + formatTokens(v) + '</span>'; }).join('') + '</div>';
-        var plotBars = '';
-        data.forEach(function(d) {
-            var dateStr = formatDisplayDate(d.date, days);
-            var pctH = (d.total_tokens / maxVal) * 100;
-            var claudePct = d.total_tokens > 0 ? (d.claude_tokens / d.total_tokens * 100) : 0;
-            var codexPct = d.total_tokens > 0 ? (d.codex_tokens / d.total_tokens * 100) : 0;
-            var qoderPct = d.total_tokens > 0 ? (d.qoder_tokens / d.total_tokens * 100) : 0;
-            var tip = buildTokenTooltip(dateStr, d);
-            plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
-            if (d.codex_tokens > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
-            if (d.claude_tokens > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
-            if (d.qoder_tokens > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
-            plotBars += '</div>' + tip + '</div>';
-        });
-        var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
-        var step = Math.max(Math.floor(data.length / 8), 1);
-        var xLabels = [];
-        data.forEach(function(d, i) {
-            xLabels.push('<span>' + (i % step === 0 ? formatDisplayDate(d.date, days) : '') + '</span>');
-        });
-        var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels.join('') + '</div>';
-        var tokenContainer = document.getElementById('token-trend-chart');
-        if (tokenContainer) tokenContainer.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
-    }
+        function formatNumber(n) {
+            if (n == null) return '0';
+            return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
 
-    function renderPromptChart(days) {
-        var data = applyScope(promptRawData, days, getPromptFields());
-        if (!data.length) return;
-        var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_prompts; })) || 1;
-        var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
-        var yHtml = '<div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
-        var plotBars = '';
-        data.forEach(function(d) {
-            var dateStr = formatDisplayDate(d.date, days);
-            var pctH = (d.total_prompts / maxVal) * 100;
-            var claudePct = d.total_prompts > 0 ? (d.claude_prompts / d.total_prompts * 100) : 0;
-            var codexPct = d.total_prompts > 0 ? (d.codex_prompts / d.total_prompts * 100) : 0;
-            var qoderPct = d.total_prompts > 0 ? (d.qoder_prompts / d.total_prompts * 100) : 0;
-            var tip = buildPromptTooltip(dateStr, d);
-            plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
-            if (d.codex_prompts > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
-            if (d.claude_prompts > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
-            if (d.qoder_prompts > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
-            plotBars += '</div>' + tip + '</div>';
-        });
-        var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
-        var step = Math.max(Math.floor(data.length / 8), 1);
-        var xLabels = [];
-        data.forEach(function(d, i) {
-            xLabels.push('<span>' + (i % step === 0 ? formatDisplayDate(d.date, days) : '') + '</span>');
-        });
-        var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels.join('') + '</div>';
-        var promptContainer = document.getElementById('prompt-activity-chart');
-        if (promptContainer) promptContainer.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
-    }
+        /* ── Tooltip builders ──────────────────────────────────── */
 
-    window.updateChart(30);
-    renderTokenChart(30);
-    renderPromptChart(30);
+        function buildSessionTooltip(label, d) {
+            var html = '<div class="dashboard-tooltip">';
+            html += '<div class="tooltip-date">' + label + '</div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + (d.claude_count || 0) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + (d.qoder_count || 0) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + (d.codex_count || 0) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + (d.total_count || 0) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--red"></i><span class="tooltip-label">Failed-tool sessions</span><b class="tooltip-value">' + (d.failed_tools || 0) + '</b></div>';
+            html += '</div>';
+            return html;
+        }
 
-    document.addEventListener('dashboard-scope-change', function(e) {
-        var days = 30;
-        if (e.detail.scope === 'week') days = 7 * 12;
-        else if (e.detail.scope === 'month') days = 30 * 12;
-        window.updateChart(days);
-        renderTokenChart(days);
-        renderPromptChart(days);
+        function buildTokenTooltip(label, d) {
+            var html = '<div class="dashboard-tooltip">';
+            html += '<div class="tooltip-date">' + label + '</div>';
+            var fresh = d.fresh_input_tokens || d.input_tokens || 0;
+            var read = d.cache_read_tokens || 0;
+            var write = d.cache_write_tokens || 0;
+            var out = d.output_tokens || 0;
+            var total = d.total_tokens || (fresh + read + write + out);
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--fresh"></i><span class="tooltip-label">Fresh</span><b class="tooltip-value">' + formatTokens(fresh) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--read"></i><span class="tooltip-label">Cache Read</span><b class="tooltip-value">' + formatTokens(read) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--write"></i><span class="tooltip-label">Cache Write</span><b class="tooltip-value">' + formatTokens(write) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--out"></i><span class="tooltip-label">Output</span><b class="tooltip-value">' + formatTokens(out) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + formatTokens(total) + '</b></div>';
+            html += '</div>';
+            return html;
+        }
+
+        function buildPromptTooltip(label, d) {
+            var html = '<div class="dashboard-tooltip">';
+            html += '<div class="tooltip-date">' + label + '</div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--claude"></i><span class="tooltip-label">Claude Code</span><b class="tooltip-value">' + (d.claude_prompts || 0) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--qoder"></i><span class="tooltip-label">Qoder</span><b class="tooltip-value">' + (d.qoder_prompts || 0) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--codex"></i><span class="tooltip-label">Codex</span><b class="tooltip-value">' + (d.codex_prompts || 0) + '</b></div>';
+            html += '<div class="tooltip-row"><i class="tooltip-dot tooltip-dot--total"></i><span class="tooltip-label">Total</span><b class="tooltip-value">' + (d.total_prompts || 0) + '</b></div>';
+            html += '</div>';
+            return html;
+        }
+
+        /* ── Chart renderers ───────────────────────────────────── */
+
+        function renderSessionChart() {
+            var container = document.getElementById('trend-chart');
+            if (!container) return;
+            var data = applyScope(rawData, getTrendFields());
+            if (!data.length) { container.innerHTML = '<p class="text-muted text-sm">No data</p>'; return; }
+
+            var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_count || 0; })) || 1;
+            var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
+            var yHtml = '<div class="y-axis-label">Y-axis: Sessions (count)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
+
+            var plotBars = '';
+            data.forEach(function(d) {
+                var dateStr = formatDisplayDate(d.date);
+                var pctH = (d.total_count / maxVal) * 100;
+                var tc = d.total_count || 1;
+                var claudePct = (d.claude_count || 0) / tc * 100;
+                var qoderPct = (d.qoder_count || 0) / tc * 100;
+                var codexPct = (d.codex_count || 0) / tc * 100;
+                var tip = buildSessionTooltip(dateStr, d);
+                plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
+                if (d.codex_count > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
+                if (d.claude_count > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
+                if (d.qoder_count > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
+                plotBars += '</div>' + tip + '</div>';
+            });
+            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
+
+            var step = Math.max(Math.floor(data.length / 8), 1);
+            var xLabels = data.map(function(d, i) {
+                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
+            }).join('');
+            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
+
+            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+        }
+
+        function renderTokenChart() {
+            var container = document.getElementById('token-trend-chart');
+            if (!container) return;
+            var data = applyScope(rawData, getTrendFields());
+            if (!data.length) { container.innerHTML = '<p class="text-muted text-sm">No data</p>'; return; }
+
+            var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_tokens || 0; })) || 1;
+            var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
+            var yHtml = '<div class="y-axis-label">Y-axis: Total Tokens (tokens)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + formatTokens(v) + '</span>'; }).join('') + '</div>';
+
+            // Line chart for total tokens
+            var plotBars = '';
+            data.forEach(function(d) {
+                var dateStr = formatDisplayDate(d.date);
+                var pctH = (d.total_tokens / maxVal) * 100;
+                var tip = buildTokenTooltip(dateStr, d);
+                plotBars += '<div class="bar bar--line" style="--h:' + pctH + '%">' + tip + '</div>';
+            });
+            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
+
+            var step = Math.max(Math.floor(data.length / 8), 1);
+            var xLabels = data.map(function(d, i) {
+                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
+            }).join('');
+            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
+
+            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+        }
+
+        function renderPromptChart() {
+            var container = document.getElementById('prompt-activity-chart');
+            if (!container) return;
+            var data = applyScope(promptRawData, getPromptFields());
+            if (!data.length) { container.innerHTML = '<p class="text-muted text-sm">No data</p>'; return; }
+
+            var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_prompts || 0; })) || 1;
+            var yTicks = [maxVal, Math.round(2/3*maxVal), Math.round(1/3*maxVal), 0];
+            var yHtml = '<div class="y-axis-label">Y-axis: User Prompts (count)</div><div class="y-axis">' + yTicks.map(function(v) { return '<span>' + v + '</span>'; }).join('') + '</div>';
+
+            var plotBars = '';
+            data.forEach(function(d) {
+                var dateStr = formatDisplayDate(d.date);
+                var pctH = (d.total_prompts / maxVal) * 100;
+                var tc = d.total_prompts || 1;
+                var claudePct = (d.claude_prompts || 0) / tc * 100;
+                var qoderPct = (d.qoder_prompts || 0) / tc * 100;
+                var codexPct = (d.codex_prompts || 0) / tc * 100;
+                var tip = buildPromptTooltip(dateStr, d);
+                plotBars += '<div class="bar" style="--h:' + pctH + '%"><div class="bar-stack">';
+                if (d.codex_prompts > 0) plotBars += '<span class="seg-codex" style="height:' + codexPct + '%"></span>';
+                if (d.claude_prompts > 0) plotBars += '<span class="seg-claude" style="height:' + claudePct + '%"></span>';
+                if (d.qoder_prompts > 0) plotBars += '<span class="seg-qoder" style="height:' + qoderPct + '%"></span>';
+                plotBars += '</div>' + tip + '</div>';
+            });
+            var plotHtml = '<div class="plot" style="--n:' + data.length + '">' + plotBars + '</div>';
+
+            var step = Math.max(Math.floor(data.length / 8), 1);
+            var xLabels = data.map(function(d, i) {
+                return '<span>' + (i % step === 0 ? formatDisplayDate(d.date) : '') + '</span>';
+            }).join('');
+            var xHtml = '<div class="x-axis" style="--n:' + data.length + '">' + xLabels + '</div>';
+
+            container.innerHTML = '<div class="chart">' + yHtml + plotHtml + xHtml + '</div>';
+        }
+
+        /* ── Initial render ────────────────────────────────────── */
+
+        renderSessionChart();
+        renderTokenChart();
+        renderPromptChart();
+
+        /* ── Public API for external re-render ─────────────────── */
+
+        window.renderDashboardCharts = function() {
+            renderSessionChart();
+            renderTokenChart();
+            renderPromptChart();
+        };
     });
-    }); // end DOMContentLoaded
 })();

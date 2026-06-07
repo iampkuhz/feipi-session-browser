@@ -55,7 +55,6 @@ _DASHBOARD_INDEXERS = [
     "list_projects",
     "get_trend_data",
     "get_prompt_activity_trend",
-    "get_model_distribution",
     "get_agent_distribution",
     "get_token_breakdown",
     "compute_aggregate_metrics",
@@ -63,6 +62,9 @@ _DASHBOARD_INDEXERS = [
     "compute_derived_metrics",
     "detect_all_anomalies",
     "get_needs_attention",
+    "list_agents",
+    "list_model_stats",
+    "_compute_kpis",
 ]
 
 
@@ -83,9 +85,6 @@ def _default_dashboard_mocks(patchers):
     patchers["list_projects"].return_value = []
     patchers["get_trend_data"].return_value = []
     patchers["get_prompt_activity_trend"].return_value = []
-    md = MagicMock()
-    md.distribution = {}
-    patchers["get_model_distribution"].return_value = md
     patchers["get_agent_distribution"].return_value = {}
     patchers["get_token_breakdown"].return_value = MagicMock(
         total_input=0, total_output=0,
@@ -97,6 +96,9 @@ def _default_dashboard_mocks(patchers):
     patchers["compute_derived_metrics"].side_effect = lambda d: d
     patchers["detect_all_anomalies"].return_value = {}
     patchers["get_needs_attention"].return_value = []
+    patchers["list_agents"].return_value = []
+    patchers["list_model_stats"].return_value = []
+    patchers["_compute_kpis"].return_value = []
 
 
 class TestDashboardRoutePresenter:
@@ -111,9 +113,11 @@ class TestDashboardRoutePresenter:
             result = build_dashboard_view_model(conn)
 
         expected_keys = {
-            "stats", "projects", "trend", "prompt_activity",
-            "model_dist", "agent_dist", "tokens", "aggregate",
-            "needs_attention", "active_page",
+            "agent_scope", "grain", "is_single_agent",
+            "stats", "kpis", "trend", "prompt_activity",
+            "all_agents_branch", "single_agent_branch",
+            "needs_attention", "cache_health",
+            "active_page",
         }
         assert set(result.keys()) == expected_keys
 

@@ -58,6 +58,14 @@
   {{- _card.section_card(title, content, subtitle, insight, extra_classes) -}}
 {%- endmacro %}
 
+{% macro kpi_card(label, value, secondary_metrics=None, icon=None, icon_color=None,
+                  tooltip_title=None, tooltip_definition=None, tooltip_formula=None,
+                  tooltip_scope=None, extra_classes=None) -%}
+  {{- _card.kpi_card(label, value, secondary_metrics, icon, icon_color,
+                     tooltip_title, tooltip_definition, tooltip_formula,
+                     tooltip_scope, extra_classes) -}}
+{%- endmacro %}
+
 {% macro table_card(title, subtitle=None, search_placeholder=None, toolbar_extra=None, insight=None, pagination_html=None, extra_classes=None) -%}
   {%- set classes = ['card', 'table-card'] -%}
   {%- if extra_classes -%}

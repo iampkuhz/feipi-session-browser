@@ -3,28 +3,6 @@
 {% set hide_sidebar_extra = true %}
 {% import "components/ui_primitives.html" as ui with context %}
 
-{% macro chart_card(chart_type, title, subtitle, data, chart_id) %}
-<section class="chart-card" data-chart-card="{{ chart_type }}">
-    <div class="chart-card__head">
-        <div>
-            <div class="chart-card__title-row">
-                <h2>{{ title }}</h2>
-                <button class="icon-button icon-button--info" data-action="info-chart-{{ chart_type }}" data-info="chart-{{ chart_type }}" title="{{ title }} 指标说明" aria-label="{{ title }} 图表说明">&#x2139;&#xFE0F;</button>
-            </div>
-            <p class="chart-card__subtitle" data-subtitle="{{ chart_type }}">{{ subtitle }}</p>
-        </div>
-        {% if data %}
-        {{ ui.chart_legend() }}
-        {% endif %}
-    </div>
-    {% if data %}
-    <div class="chart-container" id="{{ chart_id }}" data-dashboard-chart></div>
-    {% else %}
-    <p class="text-muted text-sm chart-empty">No trend data. Run <code class="mono">scan</code> first.</p>
-    {% endif %}
-</section>
-{% endmacro %}
-
 {% block title %}Dashboard - Agent Run Profiler{% endblock %}
 
 {% block shell_class %} no-inspector{% endblock %}
@@ -50,97 +28,586 @@
 
 {# ── Empty state (no sessions) ───────────────────────────────────── #}
 {% if stats.total_sessions == 0 %}
-{{ ui.empty_state('No sessions indexed yet', action_button=ui.button('Run Scan', variant='primary', href='/', data_action='run-scan')) }}
+{{ ui.empty_state('暂无已索引 session。请先运行 scan，或查看 Sessions 列表。', action_button=ui.button('运行 Scan', variant='primary', href='/', data_action='run-scan')) }}
 {% else %}
 
-{{ ui.page_head(
-    'Dashboard',
-    'Local agent session overview',
-    extra_content=ui.scope_switch(active='day')
-) }}
+{# ── Page Head: title + agent scope + grain + View Sessions ───────── #}
+<div class="dashboard-head page-head">
+    <div class="dashboard-head__title-area">
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">全局概览与单 agent 深度分析</p>
+    </div>
+    <div class="dashboard-head__controls">
+        {# Agent scope selector #}
+        <div class="scope-selector" aria-label="Agent Scope">
+            <span class="scope-selector__label">Scope</span>
+            <div class="scope-selector__group">
+                <button class="scope-selector__btn{% if agent_scope == 'all' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="all"
+                        {% if agent_scope == 'all' %}aria-current="true"{% endif %}>
+                    All agents
+                </button>
+                <button class="scope-selector__btn{% if agent_scope == 'claude-code' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="claude-code"
+                        {% if agent_scope == 'claude-code' %}aria-current="true"{% endif %}>
+                    Claude Code
+                </button>
+                <button class="scope-selector__btn{% if agent_scope == 'qoder' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="qoder"
+                        {% if agent_scope == 'qoder' %}aria-current="true"{% endif %}>
+                    Qoder
+                </button>
+                <button class="scope-selector__btn{% if agent_scope == 'codex' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="codex"
+                        {% if agent_scope == 'codex' %}aria-current="true"{% endif %}>
+                    Codex
+                </button>
+            </div>
+        </div>
+        {# Time grain segmented control #}
+        <div class="grain-control">
+            <button class="grain-control__btn{% if grain == 'day' %} is-active{% endif %}"
+                    data-action="grain" data-grain="day"
+                    {% if grain == 'day' %}aria-current="true"{% endif %}>Day</button>
+            <button class="grain-control__btn{% if grain == 'week' %} is-active{% endif %}"
+                    data-action="grain" data-grain="week"
+                    {% if grain == 'week' %}aria-current="true"{% endif %}>Week</button>
+            <button class="grain-control__btn{% if grain == 'month' %} is-active{% endif %}"
+                    data-action="grain" data-grain="month"
+                    {% if grain == 'month' %}aria-current="true"{% endif %}>Month</button>
+        </div>
+        {# View Sessions button #}
+        {% if agent_scope == 'all' %}
+        <a href="/sessions" class="btn btn--primary btn--sm" data-action="view-sessions">View Sessions</a>
+        {% else %}
+        <a href="/sessions?agent={{ agent_scope }}" class="btn btn--primary btn--sm" data-action="view-sessions">View Sessions</a>
+        {% endif %}
+    </div>
+</div>
 
-<!-- Metric grid: 4 cards bound to Jinja2 data -->
-<section class="metric-grid">
-    <article class="metric-card" aria-label="Projects">
-        <div class="metric-card__icon" aria-hidden="true">&#x1F4C1;</div>
+{# ── KPI 区: 6 cards ─────────────────────────────────────────────── #}
+<section class="kpi-grid">
+    {% for kpi in kpis %}
+    <article class="metric-card metric-card--kpi" aria-label="{{ kpi.label }}">
+        <div class="metric-icon {{ loop.index | kpi_icon_color }}" aria-hidden="true">{{ loop.index | kpi_icon }}</div>
         <div class="metric-card__body">
             <div class="metric-card__label-row">
-                <span class="metric-card__label">Projects</span>
-                <button class="icon-button icon-button--info" data-action="info-projects" data-info="projects" title="说明：所有已索引 Session 中的项目数量统计" aria-label="Projects 指标说明">&#x2139;&#xFE0F;</button>
+                <span class="metric-card__label">{{ kpi.label }}</span>
+                <button type="button" class="icon-button icon-button--info"
+                        data-action="kpi-info" data-kpi="{{ kpi.label | lower | replace(' ', '-') }}"
+                        title="{{ kpi.label }} 指标说明"
+                        aria-label="{{ kpi.label }} 指标说明">&#x2139;&#xFE0F;</button>
             </div>
-            <div class="metric-card__value">{{ stats.project_count }}</div>
+            <div class="metric-card__value tabular">{{ kpi.value }}</div>
+            {% if kpi.secondary and kpi.secondary | length > 0 %}
+            <div class="metric-card__secondary">
+                {% for sm in kpi.secondary %}
+                <div class="metric-card__secondary-row"
+                     data-secondary-tooltip="{{ sm.label }}"
+                     data-tooltip-def="{{ sm.label }} 定义与计算公式">
+                    <span class="metric-card__secondary-label">{{ sm.label }}</span>
+                    <span class="metric-card__secondary-value">{{ sm.value }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
     </article>
-    <article class="metric-card" aria-label="Sessions">
-        <div class="metric-card__icon" aria-hidden="true">&#x1F9ED;</div>
-        <div class="metric-card__body">
-            <div class="metric-card__label-row">
-                <span class="metric-card__label">Sessions</span>
-                <button class="icon-button icon-button--info" data-action="info-sessions" data-info="sessions" title="说明：所有 Agent 的已索引 Session 总数" aria-label="Sessions 指标说明">&#x2139;&#xFE0F;</button>
-            </div>
-            <div class="metric-card__value">{{ stats.total_sessions | format_number }}</div>
-        </div>
-    </article>
-    <article class="metric-card" aria-label="Total Tokens">
-        <div class="metric-card__icon" aria-hidden="true">&#x1FA99;</div>
-        <div class="metric-card__body">
-            <div class="metric-card__label-row">
-                <span class="metric-card__label">Total Tokens</span>
-                <button class="icon-button icon-button--info" data-action="info-tokens" data-info="tokens" title="说明：所有已索引 Session 中的输入、输出和缓存 Token 总量" aria-label="Total Tokens 指标说明">&#x2139;&#xFE0F;</button>
-            </div>
-            <div class="metric-card__value">{{ stats.total_tokens | default(0) | format_number }}</div>
-        </div>
-    </article>
-    <article class="metric-card" aria-label="Failed Tools">
-        <div class="metric-card__icon" aria-hidden="true">&#x1F6A8;</div>
-        <div class="metric-card__body">
-            <div class="metric-card__label-row">
-                <span class="metric-card__label">Failed Tools</span>
-                <button class="icon-button icon-button--info" data-action="info-failed-tools" data-info="failed-tools" title="说明：执行失败的工具调用次数统计" aria-label="Failed Tools 指标说明">&#x2139;&#xFE0F;</button>
-            </div>
-            <div class="metric-card__value">{{ stats.total_failed_tools | format_number }}</div>
-        </div>
-    </article>
+    {% endfor %}
 </section>
 
-<!-- Session Trend -->
-{{ chart_card(
-    chart_type="sessions",
-    title="Session Trend",
-    subtitle="Daily session count by agent",
-    data=trend,
-    chart_id="trend-chart"
-) }}
+{# ── Trend 总览区: 3 cards side-by-side ──────────────────────────── #}
+<section class="trend-section">
+    <div class="trend-grid">
+        {# Session Trend #}
+        <section class="chart-card" data-chart-card="sessions">
+            <div class="chart-card__head">
+                <div>
+                    <div class="chart-card__title-row">
+                        <h2>Session Trend</h2>
+                        <button class="icon-button icon-button--info" data-action="info-chart-sessions" data-info="chart-sessions" title="Session Trend 图表说明" aria-label="Session Trend 图表说明">&#x2139;&#xFE0F;</button>
+                    </div>
+                    <p class="chart-card__subtitle">Daily session count by agent</p>
+                </div>
+                <div class="chart-card__stats">
+                    <span class="chart-stat" data-stat="latest-sessions">Latest: {{ trend[-1].total_count if trend else '—' }}</span>
+                    <span class="chart-stat" data-stat="range-total-sessions">Range total: {{ trend | sum_attribute('total_count') }}</span>
+                </div>
+            </div>
+            {% if trend %}
+            <div class="chart-container" id="trend-chart" data-dashboard-chart="sessions"></div>
+            {% else %}
+            <p class="chart-empty">该时间窗口无数据。</p>
+            {% endif %}
+        </section>
 
-<!-- Token Trend -->
-{{ chart_card(
-    chart_type="tokens",
-    title="Token Trend",
-    subtitle="Daily token usage by agent",
-    data=trend,
-    chart_id="token-trend-chart"
-) }}
+        {# Token Trend #}
+        <section class="chart-card" data-chart-card="tokens">
+            <div class="chart-card__head">
+                <div>
+                    <div class="chart-card__title-row">
+                        <h2>Token Trend</h2>
+                        <button class="icon-button icon-button--info" data-action="info-chart-tokens" data-info="chart-tokens" title="Token Trend 图表说明" aria-label="Token Trend 图表说明">&#x2139;&#xFE0F;</button>
+                    </div>
+                    <p class="chart-card__subtitle">Daily total tokens</p>
+                </div>
+                <div class="chart-card__stats">
+                    <span class="chart-stat" data-stat="latest-tokens">Latest: {{ (trend[-1].total_tokens if trend else 0) | format_number }}</span>
+                    <span class="chart-stat" data-stat="range-total-tokens">Range total: {{ trend | sum_attribute('total_tokens') | format_number }}</span>
+                </div>
+            </div>
+            {% if trend %}
+            <div class="chart-container" id="token-trend-chart" data-dashboard-chart="tokens"></div>
+            {% else %}
+            <p class="chart-empty">该时间窗口无数据。</p>
+            {% endif %}
+        </section>
 
-<!-- Prompt Activity Trend -->
-{{ chart_card(
-    chart_type="prompts",
-    title="Prompt Activity Trend",
-    subtitle="Daily user-initiated inputs by agent",
-    data=prompt_activity,
-    chart_id="prompt-activity-chart"
-) }}
+        {# Prompt Activity Trend #}
+        <section class="chart-card" data-chart-card="prompts">
+            <div class="chart-card__head">
+                <div>
+                    <div class="chart-card__title-row">
+                        <h2>Prompt Activity Trend</h2>
+                        <button class="icon-button icon-button--info" data-action="info-chart-prompts" data-info="chart-prompts" title="Prompt Activity Trend 图表说明" aria-label="Prompt Activity Trend 图表说明">&#x2139;&#xFE0F;</button>
+                    </div>
+                    <p class="chart-card__subtitle">Daily user-initiated inputs</p>
+                </div>
+                <div class="chart-card__stats">
+                    <span class="chart-stat" data-stat="latest-prompts">Latest: {{ prompt_activity[-1].total_prompts if prompt_activity else '—' }}</span>
+                    <span class="chart-stat" data-stat="range-total-prompts">Range total: {{ prompt_activity | sum_attribute('total_prompts') }}</span>
+                </div>
+            </div>
+            {% if prompt_activity %}
+            <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
+            {% else %}
+            <p class="chart-empty">该时间窗口无数据。</p>
+            {% endif %}
+        </section>
+    </div>
+</section>
+
+{# ── Token 分析区 ───────────────────────────────────────────────── #}
+<section class="token-analysis-section">
+    <div class="token-analysis-grid">
+        {# Token Trend by Composition #}
+        <section class="chart-card chart-card--wide" data-chart-card="token-composition">
+            <div class="chart-card__head">
+                <div>
+                    <div class="chart-card__title-row">
+                        <h2>Token Trend by Composition</h2>
+                        <button class="icon-button icon-button--info" data-action="info-chart-composition" data-info="chart-composition" title="Token Trend by Composition 图表说明" aria-label="Token Trend by Composition 图表说明">&#x2139;&#xFE0F;</button>
+                    </div>
+                    <p class="chart-card__subtitle">Stacked area: Fresh, Cache Read, Cache Write, Output</p>
+                </div>
+                <div class="chart-card__stats">
+                    <span class="chart-stat" data-stat="latest-total">Latest total: {{ (trend[-1].total_tokens if trend else 0) | format_number }}</span>
+                    <span class="chart-stat" data-stat="range-total">Range total: {{ trend | sum_attribute('total_tokens') | format_number }}</span>
+                </div>
+            </div>
+            {% if trend %}
+            <div class="chart-container" id="token-composition-chart" data-dashboard-chart="composition"></div>
+            {% else %}
+            <p class="chart-empty">该时间窗口无数据。</p>
+            {% endif %}
+        </section>
+
+        {# Cache Health #}
+        <section class="chart-card" data-chart-card="cache-health">
+            <div class="chart-card__head">
+                <div>
+                    <div class="chart-card__title-row">
+                        <h2>Cache Health</h2>
+                        <button class="icon-button icon-button--info" data-action="info-chart-cache" data-info="chart-cache" title="Cache Health 图表说明" aria-label="Cache Health 图表说明">&#x2139;&#xFE0F;</button>
+                    </div>
+                    <p class="chart-card__subtitle">Cache read ratio over time</p>
+                </div>
+                <div class="chart-card__stats">
+                    <span class="chart-stat" data-stat="latest-ratio">Latest ratio: {{ cache_health.latest_ratio }}</span>
+                    <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: {{ cache_health.lowest_ratio }}</span>
+                    <span class="chart-stat" data-stat="fresh-spikes">Fresh spikes: {{ cache_health.fresh_spikes }}</span>
+                </div>
+            </div>
+            {% if trend %}
+            <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
+            {% else %}
+            <p class="chart-empty">该时间窗口无数据。</p>
+            {% endif %}
+        </section>
+    </div>
+</section>
+
+{# ── Scope 分支区: All agents vs Single agent ────────────────────── #}
+
+{% if not is_single_agent %}
+{# ════════ All agents 模式 ════════ #}
+
+{# Agent Contribution Comparison #}
+{% if all_agents_branch %}
+<section class="card section-card" aria-label="Agent Contribution Comparison">
+    <div class="section-head">
+        <div>
+            <div class="card-title">Agent Contribution Comparison</div>
+            <div class="card-sub">Session, token and prompt share across agents</div>
+        </div>
+    </div>
+    <div class="contribution-grid">
+        {# Session Share #}
+        <div class="contribution-card">
+            <h3 class="contribution-title">Session Share</h3>
+            <div class="hbar" data-hbar="session-share">
+                {% for agent in all_agents_branch.agent_rows %}
+                {% if agent.sessions > 0 %}
+                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}"
+                     style="--seg-width: {{ (agent.sessions / all_agents_branch.total_sessions_all * 100) if all_agents_branch.total_sessions_all > 0 else 0 }}%"
+                     data-agent="{{ agent.display }}"
+                     data-value="{{ agent.sessions }}"
+                     data-share="{{ agent.session_share }}">
+                    <span class="hbar-seg__label">{{ agent.display }}</span>
+                    <span class="hbar-seg__pct">{{ agent.session_share }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Token Share #}
+        <div class="contribution-card">
+            <h3 class="contribution-title">Token Share</h3>
+            <div class="hbar" data-hbar="token-share">
+                {% for agent in all_agents_branch.agent_rows %}
+                {% if agent.tokens != '0' %}
+                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}"
+                     style="--seg-width: {{ agent.token_share | replace('%', '') | float }}%"
+                     data-agent="{{ agent.display }}"
+                     data-value="{{ agent.tokens }}"
+                     data-share="{{ agent.token_share }}">
+                    <span class="hbar-seg__label">{{ agent.display }}</span>
+                    <span class="hbar-seg__pct">{{ agent.token_share }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Prompt Activity Share #}
+        <div class="contribution-card">
+            <h3 class="contribution-title">Prompt Activity Share</h3>
+            <div class="hbar" data-hbar="prompt-share">
+                {% for agent in all_agents_branch.agent_rows %}
+                {% if agent.prompts > 0 %}
+                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}"
+                     style="--seg-width: {{ (agent.prompts / all_agents_branch.total_prompts_all * 100) if all_agents_branch.total_prompts_all > 0 else 0 }}%"
+                     data-agent="{{ agent.display }}"
+                     data-value="{{ agent.prompts }}"
+                     data-share="{{ agent.prompt_share }}">
+                    <span class="hbar-seg__label">{{ agent.display }}</span>
+                    <span class="hbar-seg__pct">{{ agent.prompt_share }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {# Scope summary #}
+    {% set session_leader = all_agents_branch.agent_rows | sort(attribute='sessions', reverse=true) | first %}
+    {% set token_leader = all_agents_branch.agent_rows | sort(attribute='tokens', reverse=true) | first %}
+    {% set prompt_leader = all_agents_branch.agent_rows | sort(attribute='prompts', reverse=true) | first %}
+    <p class="scope-summary">
+        Dominant:
+        <span class="agent-name agent-name--{{ session_leader.db_agent if session_leader else '' }}">{{ session_leader.display if session_leader else '—' }}</span> leads sessions,
+        <span class="agent-name agent-name--{{ token_leader.db_agent if token_leader else '' }}">{{ token_leader.display if token_leader else '—' }}</span> leads tokens,
+        <span class="agent-name agent-name--{{ prompt_leader.db_agent if prompt_leader else '' }}">{{ prompt_leader.display if prompt_leader else '—' }}</span> leads prompts.
+    </p>
+{% endif %}
+
+{# All Agents table #}
+{% if all_agents_branch and all_agents_branch.agent_rows %}
+<section class="card table-card" aria-label="All Agents">
+    <div class="table-toolbar">
+        <div>
+            <div class="card-title">All Agents</div>
+            <div class="card-sub">Agent-level summary across all indexed sessions</div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th class="numeric">Sessions</th>
+                    <th class="numeric">Tokens</th>
+                    <th class="numeric">Prompt Activity</th>
+                    <th class="numeric">Projects</th>
+                    <th class="numeric">Failure</th>
+                    <th>Last Active</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for agent in all_agents_branch.agent_rows %}
+                <tr class="agent-row" data-action="switch-agent-scope" data-scope="{{ agent.db_agent | db_agent_to_scope }}">
+                    <td>
+                        <span class="agent-badge agent-badge--{{ agent.db_agent }}">{{ agent.display }}</span>
+                        <a href="/sessions?agent={{ agent.db_agent | db_agent_to_scope }}" class="row-link" data-action="view-agent-sessions" title="View {{ agent.display }} sessions">View Sessions</a>
+                    </td>
+                    <td class="numeric">
+                        {{ agent.sessions | format_number }}
+                        <span class="subtle">· {{ agent.session_share }}</span>
+                    </td>
+                    <td class="numeric">
+                        <span class="mono">{{ agent.tokens }}</span>
+                        <span class="subtle">· {{ agent.token_share }}</span>
+                    </td>
+                    <td class="numeric">
+                        {{ agent.prompts | format_number }}
+                        <span class="subtle">· {{ agent.prompt_share }}</span>
+                    </td>
+                    <td class="numeric">{{ agent.projects }}</td>
+                    <td class="numeric">
+                        {{ agent.failed | format_number }}
+                        <span class="subtle">· {{ agent.failure_rate }}</span>
+                    </td>
+                    <td>{{ agent.last_active }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{# Agent / Model Efficiency table #}
+{% if all_agents_branch and all_agents_branch.efficiency_rows %}
+<section class="card table-card" aria-label="Agent / Model Efficiency">
+    <div class="table-toolbar">
+        <div>
+            <div class="card-title">Agent / Model Efficiency</div>
+            <div class="card-sub">Per agent + model combination efficiency metrics</div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Model</th>
+                    <th class="numeric">Sessions</th>
+                    <th class="numeric">Tokens / Session</th>
+                    <th class="numeric">Cache Read</th>
+                    <th class="numeric">Failure</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in all_agents_branch.efficiency_rows %}
+                <tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="{{ row.db_agent | db_agent_to_scope }}" data-model="{{ row.model }}">
+                    <td><span class="agent-badge agent-badge--{{ row.db_agent }}">{{ row.agent }}</span></td>
+                    <td class="mono">{{ row.model }}</td>
+                    <td class="numeric">{{ row.sessions | format_number }}</td>
+                    <td class="numeric">{{ row.tokens_per_session }}</td>
+                    <td class="numeric">{{ row.cache_read }}</td>
+                    <td class="numeric">{{ row.failure }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{# ════════ 单 agent 模式 ════════ #}
+{% elif is_single_agent and single_agent_branch %}
+
+<section class="card section-card" aria-label="Agent Deep Dive">
+    <div class="section-head">
+        <div>
+            <div class="card-title">Agent Deep Dive — {{ single_agent_branch.display_name }}</div>
+            <div class="card-sub">模型、工具、失败信号与效率分析</div>
+        </div>
+    </div>
+</section>
+
+{# Model Mix #}
+<section class="chart-card" data-chart-card="model-mix">
+    <div class="chart-card__head">
+        <div>
+            <div class="chart-card__title-row">
+                <h2>Model Mix</h2>
+                <button class="icon-button icon-button--info" data-action="info-model-mix" data-info="model-mix" title="Model Mix 图表说明" aria-label="Model Mix 图表说明">&#x2139;&#xFE0F;</button>
+            </div>
+            <p class="chart-card__subtitle">Token distribution by model</p>
+        </div>
+    </div>
+    {% if single_agent_branch.model_rows %}
+    <div class="chart-container" id="model-mix-chart" data-dashboard-chart="model-mix"></div>
+    {% else %}
+    <p class="chart-empty">无模型数据。</p>
+    {% endif %}
+</section>
+
+{# Tool Distribution #}
+<section class="chart-card" data-chart-card="tool-dist">
+    <div class="chart-card__head">
+        <div>
+            <div class="chart-card__title-row">
+                <h2>Tool Distribution</h2>
+                <button class="icon-button icon-button--info" data-action="info-tool-dist" data-info="tool-dist" title="Tool Distribution 图表说明" aria-label="Tool Distribution 图表说明">&#x2139;&#xFE0F;</button>
+            </div>
+            <p class="chart-card__subtitle">Tool call frequency</p>
+        </div>
+    </div>
+    <div class="chart-container" id="tool-dist-chart" data-dashboard-chart="tool-dist"></div>
+</section>
+
+{# Failure Signals #}
+{% if needs_attention and needs_attention | length > 0 %}
+<section class="card table-card" aria-label="Failure Signals">
+    <div class="table-toolbar">
+        <div>
+            <div class="card-title">Failure Signals</div>
+            <div class="card-sub">聚合异常信号</div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Signal Type</th>
+                    <th>Severity</th>
+                    <th class="numeric">Count / Rate</th>
+                    <th>Representative Session</th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in needs_attention[:10] %}
+                <tr>
+                    <td>{{ item.label or item.type }}</td>
+                    <td><span class="badge badge--{{ item.severity | severity_variant }}">{{ item.severity }}</span></td>
+                    <td class="numeric">{{ item.count or '—' }}</td>
+                    <td>
+                        {% if item.session_key %}
+                        <a href="/sessions/{{ item.session_key }}">{{ item.session_id_short or '—' }}</a>
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td>{{ item.last_seen or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{# Model Efficiency Detail #}
+{% if single_agent_branch.efficiency_rows %}
+<section class="card table-card" aria-label="Model Efficiency Detail">
+    <div class="table-toolbar">
+        <div>
+            <div class="card-title">Model Efficiency Detail</div>
+            <div class="card-sub">Per model efficiency within {{ single_agent_branch.display_name }}</div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th class="numeric">Sessions</th>
+                    <th class="numeric">Avg Tokens</th>
+                    <th class="numeric">Cache / Tools</th>
+                    <th class="numeric">Failure</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in single_agent_branch.efficiency_rows %}
+                <tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="{{ agent_scope }}" data-model="{{ row.model }}">
+                    <td class="mono">{{ row.model }}</td>
+                    <td class="numeric">{{ row.sessions | format_number }}</td>
+                    <td class="numeric">{{ row.avg_tokens }}</td>
+                    <td class="numeric">{{ row.cache_tools }}</td>
+                    <td class="numeric">{{ row.failure }}</td>
+                    <td><span class="badge badge--info">{{ row.notes }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{# Agent Sessions table #}
+{% if single_agent_branch.agent_session_rows %}
+<section class="card table-card" aria-label="Agent Sessions">
+    <div class="table-toolbar">
+        <div>
+            <div class="card-title">Agent Sessions</div>
+            <div class="card-sub">{{ single_agent_branch.display_name }} 范围内的 sessions（前 2000 条）</div>
+        </div>
+        <a href="/sessions?agent={{ agent_scope }}" class="btn btn--sm btn--outline" data-action="view-sessions-full">View All Sessions</a>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Project</th>
+                    <th>Model</th>
+                    <th class="numeric">Tokens</th>
+                    <th class="numeric">Rounds</th>
+                    <th class="numeric">Tools</th>
+                    <th class="numeric">Subagents</th>
+                    <th class="numeric">Duration</th>
+                    <th class="numeric">Process Time</th>
+                    <th class="numeric">Failure</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in single_agent_branch.agent_session_rows[:500] %}
+                <tr class="clickable-row" data-action="go-session" data-agent="{{ agent_scope }}" data-session="{{ s.session_id }}">
+                    <td class="title-cell">
+                        <a href="/sessions/{{ agent_scope | scope_to_agent_url }}/{{ s.session_id }}">{{ s.title }}</a>
+                    </td>
+                    <td>
+                        <a href="/projects/{{ s.project | urlencode }}">{{ s.project_name }}</a>
+                    </td>
+                    <td class="mono">{{ s.model }}</td>
+                    <td class="numeric">
+                        <span class="mono">{{ s.tokens_display }}</span>
+                    </td>
+                    <td class="numeric">{{ s.rounds }}</td>
+                    <td class="numeric">{{ s.tools }}</td>
+                    <td class="numeric">{{ s.subagents }}</td>
+                    <td class="numeric">{{ s.duration }}</td>
+                    <td class="numeric">{{ s.process_time }}</td>
+                    <td class="numeric">{{ s.failure_display }}</td>
+                    <td>{{ s.updated }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{% endif %}{# /is_single_agent #}
 
 {% endif %}{# /stats.total_sessions == 0 #}
 {% endif %}{# /error #}
 
-<!-- Floating overlays for popovers and toast -->
+{# ── JSON data for JS charts ────────────────────────────────────── #}
+{% if trend is defined and trend %}
+<script type="application/json" id="dashboard-graph-data">{{ trend | tojson }}</script>
+<script type="application/json" id="dashboard-prompt-data">{{ prompt_activity | default([]) | tojson }}</script>
+{% endif %}
+
+{# Floating overlays #}
 <div class="tooltip" id="chartTooltip" hidden></div>
 <div class="popover" id="infoPopover" hidden></div>
 <div class="toast" id="toast"></div>
-
-{% if trend is defined and trend %}
-<script type="application/json" id="dashboard-chart-data">{{ trend | tojson }}</script>
-<script type="application/json" id="dashboard-prompt-data">{{ prompt_activity | default([]) | tojson }}</script>
-{% endif %}
 
 {% endblock %}

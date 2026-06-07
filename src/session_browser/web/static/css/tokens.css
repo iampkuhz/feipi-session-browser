@@ -227,4 +227,6 @@
   --motion-duration-normal: 200ms;
   --motion-duration-slow: 320ms;
   --motion-easing-standard: ease;
+  /* Tabular numbers for metrics and token values */
+  --tabular-nums: tabular-nums;
 }

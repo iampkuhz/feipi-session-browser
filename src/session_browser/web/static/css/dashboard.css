@@ -1,11 +1,165 @@
 /* Dashboard page styles. Shared primitives stay in ui-primitives.css. */
-.chart-card {
-  width: 100%;
-  max-width: min(100%, var(--max));
-  margin-left: auto;
-  margin-right: auto;
+
+/* ── Dashboard Head ====================================================== */
+.dashboard-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
-/* ── Chart Card ========================================================== */
+.dashboard-head__title-area {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dashboard-head__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Agent Scope Selector ================================================= */
+.scope-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scope-selector__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-subtle);
+}
+.scope-selector__group {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.scope-selector__btn {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  color: var(--text-subtle);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.scope-selector__btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.scope-selector__btn.is-active {
+  background: var(--brand);
+  color: white;
+}
+
+/* ── Grain Control ======================================================== */
+.grain-control {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.grain-control__btn {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  color: var(--text-subtle);
+  font-weight: 700;
+  font-size: 13px;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.grain-control__btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.grain-control__btn.is-active {
+  background: var(--brand);
+  color: white;
+}
+
+/* ── Buttons ============================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.btn--primary {
+  background: var(--brand);
+  color: white;
+}
+.btn--primary:hover {
+  background: #4a4bd0;
+  box-shadow: var(--shadow-md);
+}
+.btn--outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+.btn--outline:hover {
+  background: var(--surface-hover);
+}
+.btn--sm {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+/* ── KPI Grid ============================================================= */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1400px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Trend Section ======================================================== */
+.trend-section {
+  margin-bottom: 16px;
+}
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1200px) {
+  .trend-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Chart Card =========================================================== */
 .chart-card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -40,8 +194,41 @@
   color: var(--text-subtle);
   font-size: 12px;
 }
+.chart-card__stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.chart-stat {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Chart layout ========================================================= */
+.chart {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 0 8px;
+}
+.y-axis-label {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  font-size: 11px;
+  color: var(--text-subtle);
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  text-align: center;
+  padding-right: 4px;
+  align-self: center;
+  white-space: nowrap;
+}
 .y-axis {
-  height: 180px;
+  grid-column: 1;
+  height: 240px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -51,21 +238,15 @@
   color: var(--text-subtle);
   text-align: right;
 }
-/* Chart grid (y-axis + plot + x-axis) */
-.chart {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  grid-template-rows: 190px 28px;
-  gap: 0 8px;
-}
 .plot {
+  grid-column: 2;
   position: relative;
-  height: 190px;
+  height: 240px;
   border-bottom: 2px solid #dbe5f1;
   background:
-  linear-gradient(to bottom, transparent 0, transparent 24%, #edf2f7 24.5%, transparent 25%),
-  linear-gradient(to bottom, transparent 0, transparent 49%, #edf2f7 49.5%, transparent 50%),
-  linear-gradient(to bottom, transparent 0, transparent 74%, #edf2f7 74.5%, transparent 75%);
+    linear-gradient(to bottom, transparent 0, transparent 24%, #edf2f7 24.5%, transparent 25%),
+    linear-gradient(to bottom, transparent 0, transparent 49%, #edf2f7 49.5%, transparent 50%),
+    linear-gradient(to bottom, transparent 0, transparent 74%, #edf2f7 74.5%, transparent 75%);
   display: grid;
   grid-template-columns: repeat(var(--n, 27), 1fr);
   gap: 0;
@@ -81,6 +262,24 @@
   position: relative;
   min-width: 0;
   padding: 0 1px;
+}
+.bar--line {
+  border-radius: 0;
+  height: var(--h);
+  position: relative;
+}
+.bar--line::after {
+  content: '';
+  position: absolute;
+  bottom: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--brand);
+  border-radius: 1px;
+}
+.bar--line:hover {
+  box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.10);
 }
 .bar:hover {
   box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.10);
@@ -101,16 +300,224 @@
 .seg-qoder {
   background: var(--orange);
 }
-/* Ensure segments are visible even at very low percentages */
 .seg-claude, .seg-codex, .seg-qoder {
   min-height: 1px;
   display: block;
 }
-/* Chart container: allow tooltip overflow */
 .chart-container {
   overflow: visible;
 }
-/* Info icon hover tooltip (fast, lightweight) */
+.x-axis {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--n, 27), 1fr);
+  gap: 0;
+  padding: 8px 6px 0;
+  color: #91a1ba;
+  font: 12px var(--font-mono);
+}
+.x-axis > span {
+  text-align: center;
+  display: block;
+  min-width: 0;
+}
+.chart-empty {
+  padding: 12px;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
+/* ── Token Analysis Section ================================================= */
+.token-analysis-section {
+  margin-bottom: 16px;
+}
+.token-analysis-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .token-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.chart-card--wide {
+  /* takes 2/3 width in token analysis grid */
+}
+
+/* ── Contribution (horizontal bar) charts ================================= */
+.contribution-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (max-width: 1000px) {
+  .contribution-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.contribution-card {
+  background: var(--bg-app);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+}
+.contribution-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-subtle);
+  margin: 0 0 8px;
+}
+.hbar {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+}
+.hbar-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: var(--seg-width, 0%);
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  transition: width var(--motion-duration-normal) var(--motion-easing-standard);
+}
+.hbar-seg__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hbar-seg__pct {
+  margin-left: 4px;
+}
+.hbar-seg--claude_code {
+  background: var(--purple);
+}
+.hbar-seg--qoder {
+  background: var(--orange);
+}
+.hbar-seg--codex {
+  background: var(--green);
+}
+.hbar-seg[style*="--seg-width: 0%"],
+.hbar-seg[style*="--seg-width:0%"] {
+  display: none;
+}
+
+/* ── Scope Summary ======================================================== */
+.scope-summary {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-subtle);
+  text-align: center;
+}
+.agent-name {
+  font-weight: 700;
+  color: var(--text);
+}
+.agent-name--claude_code {
+  color: var(--purple);
+}
+.agent-name--qoder {
+  color: var(--orange);
+}
+.agent-name--codex {
+  color: var(--green);
+}
+
+/* ── Agent Badge ========================================================== */
+.agent-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+}
+.agent-badge--claude_code {
+  background: var(--agent-claude-bg);
+  color: var(--agent-claude);
+}
+.agent-badge--qoder {
+  background: var(--agent-qoder-bg);
+  color: var(--agent-qoder);
+}
+.agent-badge--codex {
+  background: var(--agent-codex-bg);
+  color: var(--agent-codex);
+}
+
+/* ── Agent row click behavior ============================================= */
+.agent-row {
+  cursor: pointer;
+}
+.agent-row:hover {
+  background: var(--table-row-hover-bg);
+}
+.row-link {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--brand);
+  text-decoration: none;
+}
+.row-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Clickable table row ================================================== */
+.clickable-row {
+  cursor: pointer;
+}
+.clickable-row:hover {
+  background: var(--table-row-hover-bg);
+}
+
+/* ── Badge variants ======================================================= */
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+}
+.badge--danger {
+  background: var(--status-error-bg);
+  color: var(--status-error);
+}
+.badge--warning {
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+}
+.badge--info {
+  background: var(--status-info-bg);
+  color: var(--status-info);
+}
+
+/* ── Tooltip dot colors for dashboard charts ============================== */
+.tooltip-dot--fresh {
+  background: var(--token-input-fresh);
+}
+.tooltip-dot--read {
+  background: var(--token-cache-read);
+}
+.tooltip-dot--write {
+  background: var(--token-cache-write);
+}
+.tooltip-dot--out {
+  background: var(--token-output-visible);
+}
+.tooltip-dot--red {
+  background: var(--status-error);
+}
+
+/* ── Info icon hover tooltip (fast, lightweight) ========================= */
 .info-hover-tooltip {
   position: fixed;
   z-index: 100;
@@ -130,7 +537,8 @@
   top: var(--tooltip-top, 0px);
   left: var(--tooltip-left, 0px);
 }
-/* Info popover */
+
+/* ── Info popover ========================================================= */
 #infoPopover {
   position: fixed;
   z-index: 101;
@@ -150,7 +558,8 @@
   left: var(--popover-left, 0px);
   top: var(--popover-top, 0px);
 }
-/* Tooltip (dark overlay on chart bars) */
+
+/* ── Tooltip (dark overlay on chart bars) ================================= */
 .dashboard-tooltip {
   position: absolute;
   left: 50%;
@@ -210,21 +619,54 @@
   font-weight: 850;
   text-align: right;
 }
-/* X-axis labels */
-.x-axis {
-  grid-column: 2;
-  display: grid;
-  grid-template-columns: repeat(var(--n, 27), 1fr);
-  gap: 0;
-  padding: 8px 6px 0;
-  color: #91a1ba;
-  font: 12px var(--font-mono);
+
+/* ── Table styles (overrides from shared) ================================= */
+.table-card {
+  margin-bottom: 12px;
 }
-.x-axis > span {
-  text-align: center;
-  display: block;
-  min-width: 0;
+.section-card {
+  margin-bottom: 12px;
 }
+.section-head {
+  padding: 12px 14px;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+}
+.card-sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+.numeric {
+  text-align: right;
+}
+.mono {
+  font-family: var(--font-mono);
+}
+.subtle {
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+.token-cell {
+  position: relative;
+}
+.title-cell a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+.title-cell a:hover {
+  color: var(--brand);
+}
+
+/* ── KPI card secondary metrics tooltip =================================== */
+.metric-card__secondary-row[data-secondary-tooltip] {
+  cursor: help;
+}
+
 /* ── Chart empty state ================================================== */
 .chart-empty {
   padding: 12px;

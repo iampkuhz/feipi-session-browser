@@ -82,6 +82,13 @@ def _make_page_env() -> jinja2.Environment:
     env.filters["truncate_path"] = lambda p: (p or "")[:40] + "…" if p and len(p) > 40 else (p or "")
     env.filters["relative_to_repo"] = lambda p: p or ""
     env.filters["shorten_path"] = lambda p: p or ""
+    # Dashboard KPI filters
+    env.filters["kpi_icon_color"] = lambda i: "blue"
+    env.filters["kpi_icon"] = lambda i: "📊"
+    env.filters["sum_attribute"] = lambda seq, attr, default=0: 0
+    env.filters["db_agent_to_scope"] = lambda a: a
+    env.filters["scope_to_agent_url"] = lambda s: s
+    env.filters["severity_variant"] = lambda s: "info"
     env.globals["max"] = max
 
     return env
@@ -140,19 +147,39 @@ class TestDashboardRender:
     @pytest.mark.contract_case("ROUTE-API-004")
     def test_dashboard_renders(self):
         html = _render_page("dashboard.html", {
+            "agent_scope": "all",
+            "grain": "day",
+            "is_single_agent": False,
             "stats": {
                 "total_sessions": 0,
+                "claude_sessions": 0,
+                "codex_sessions": 0,
+                "qoder_sessions": 0,
+                "project_count": 0,
                 "total_tokens": 0,
+                "total_fresh_input_tokens": 0,
+                "total_cache_read_tokens": 0,
+                "total_cache_write_tokens": 0,
+                "total_output_tokens": 0,
                 "total_tool_calls": 0,
                 "total_failed_tools": 0,
-                "project_count": 0,
+                "total_user_messages": 0,
+                "total_assistant_messages": 0,
             },
-            "top_agents": [],
-            "top_projects": [],
-            "top_models": [],
-            "model_breakdown": [],
-            "daily_sessions": [],
-            "daily_tokens": [],
+            "kpis": [],
+            "trend": [],
+            "prompt_activity": [],
+            "all_agents_branch": {
+                "agent_rows": [],
+                "efficiency_rows": [],
+                "total_sessions_all": 0,
+                "total_tokens_all": 0,
+                "total_prompts_all": 0,
+            },
+            "single_agent_branch": None,
+            "needs_attention": [],
+            "cache_health": {"latest_ratio": "N/A", "lowest_ratio": "N/A", "fresh_spikes": "0"},
+            "active_page": "dashboard",
             "error_count": 0,
         })
         assert "Dashboard" in html

@@ -45,6 +45,7 @@
 - 修改已有文件时优先局部编辑，避免整文件覆写。
 - 不覆盖用户未提交改动。
 - 不提交缓存、运行数据、真实 session 数据、密钥、token 或个人配置。
+- 不提交被 `.gitignore` 忽略的文件；例如 `openspec/changes/*` 是本地工作态，默认不得 `git add -f` 纳入提交，除非用户明确要求。
 - 仓库不维护“废弃”信息；不再需要的文档、契约用例和对应测试应直接删除，不保留“已废弃/Deprecated/历史保留”说明。
 - Claude Code、Codex、Qoder 可复用的 hook、subagent、skill 和质量门规则应沉淀到 `harness/` 或 `scripts/harness/`；`.claude/`、`.codex/`、`.qoder/` 只保留工具所需的薄入口。
 - 修改后检查 diff，确认没有引入无关文件。

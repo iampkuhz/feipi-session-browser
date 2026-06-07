@@ -309,3 +309,65 @@ env.filters["display_path"] = _display_path
 env.filters["precision_label"] = _precision_label
 env.globals["precision_label"] = _precision_label
 env.filters["format_coverage"] = _format_coverage
+
+# ─── Dashboard-specific filters ─────────────────────────────────────
+
+_KPI_ICON_COLORS = ['purple', 'blue', 'orange', 'green', 'red', 'purple']
+_KPI_ICONS = ['📁', '🧭', '🪙', '💬', '⚡', '🚨']
+
+
+def _kpi_icon_color(index: int) -> str:
+    """Map 1-based KPI index to icon color class."""
+    return _KPI_ICON_COLORS[(index - 1) % len(_KPI_ICON_COLORS)]
+
+
+def _kpi_icon(index: int) -> str:
+    """Map 1-based KPI index to icon emoji."""
+    return _KPI_ICONS[(index - 1) % len(_KPI_ICONS)]
+
+
+def _sum_attribute(seq, attr, default=0):
+    """Sum an attribute across a sequence of dicts."""
+    total = 0
+    for item in (seq or []):
+        val = item.get(attr, default) if isinstance(item, dict) else getattr(item, attr, default)
+        if val:
+            total += val
+    return total
+
+
+_DB_TO_SCOPE = {
+    'claude_code': 'claude-code',
+    'qoder': 'qoder',
+    'codex': 'codex',
+}
+
+
+def _db_agent_to_scope(db_agent: str) -> str:
+    """Convert DB agent value to URL scope parameter."""
+    return _DB_TO_SCOPE.get(db_agent, db_agent)
+
+
+def _scope_to_agent_url(scope: str) -> str:
+    """Convert URL scope to agent path segment for /sessions/<agent>/... URLs."""
+    if scope == 'all':
+        return 'claude_code'  # default; should not happen for single-agent rows
+    return _DB_TO_SCOPE.get(scope, scope).replace('-', '_') if '-' in scope else scope
+
+
+def _severity_variant(severity: str) -> str:
+    """Map severity string to badge variant class."""
+    s = (severity or '').lower()
+    if 'high' in s or 'error' in s:
+        return 'danger'
+    if 'medium' in s or 'warning' in s:
+        return 'warning'
+    return 'info'
+
+
+env.filters["kpi_icon_color"] = _kpi_icon_color
+env.filters["kpi_icon"] = _kpi_icon
+env.filters["sum_attribute"] = _sum_attribute
+env.filters["db_agent_to_scope"] = _db_agent_to_scope
+env.filters["scope_to_agent_url"] = _scope_to_agent_url
+env.filters["severity_variant"] = _severity_variant

@@ -44,6 +44,57 @@
   {%- endif -%}
 {%- endmacro %}
 
+{# ============================================================================
+   KPI Card — label + primary value + secondary metrics (2-4 rows) + tooltip
+   Follows common.md KPI Card contract:
+     - label, primary value, secondary metrics, definition tooltip
+     - secondary metrics: 2-4 compact rows, label left / value right
+     - tooltip: definition, formula, scope, source, precision
+#}
+{% macro kpi_card(label, value, secondary_metrics=None, icon=None, icon_color=None,
+                  tooltip_title=None, tooltip_definition=None, tooltip_formula=None,
+                  tooltip_scope=None, extra_classes=None) -%}
+  {%- set classes = ['metric-card', 'metric-card--kpi'] -%}
+  {%- if extra_classes -%}
+    {%- for cls in extra_classes.split() -%}
+      {%- set _ = classes.append(cls) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- set cls = classes | join(' ') -%}
+  {%- set has_secondary = secondary_metrics and secondary_metrics | length > 0 -%}
+  {%- set has_tooltip = tooltip_definition or tooltip_formula -%}
+<article class="{{ cls }}" aria-label="{{ label }}">
+  {%- if icon_color and icon -%}
+  <div class="metric-icon {{ icon_color }}" aria-hidden="true">{{ icon }}</div>
+  {%- endif %}
+  <div class="metric-card__body">
+    <div class="metric-card__label-row">
+      <span class="metric-card__label">{{ label }}</span>
+      {%- if has_tooltip %}
+      <button type="button" class="icon-button icon-button--info"
+              data-action="kpi-info" data-kpi="{{ label | lower | replace(' ', '-') }}"
+              title="{{ tooltip_definition | default(label ~ ' 指标说明') }}"
+              aria-label="{{ label }} 指标说明">
+        &#x2139;&#xFE0F;
+      </button>
+      {%- endif %}
+    </div>
+    <div class="metric-card__value tabular">{{ value }}</div>
+    {%- if has_secondary %}
+    <div class="metric-card__secondary">
+      {%- for sm in secondary_metrics %}
+      <div class="metric-card__secondary-row"
+           {%- if sm.tooltip %} data-tooltip="{{ sm.tooltip }}"{% endif %}>
+        <span class="metric-card__secondary-label">{{ sm.label }}</span>
+        <span class="metric-card__secondary-value">{{ sm.value }}</span>
+      </div>
+      {%- endfor %}
+    </div>
+    {%- endif %}
+  </div>
+</article>
+{%- endmacro %}
+
 {# --- MetricGrid ---
    Renders a grid of MetricCard elements.
    columns: None (auto-fit) or explicit integer (e.g. 4)

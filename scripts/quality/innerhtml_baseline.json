@@ -2,52 +2,40 @@
   "version": 1,
   "entries": [
     {
-      "file": "src/session_browser/web/static/js/app.js",
-      "line": 34,
-      "isClear": false,
-      "snippet": "btn.innerHTML = feedbackText;"
-    },
-    {
-      "file": "src/session_browser/web/static/js/app.js",
-      "line": 37,
-      "isClear": false,
-      "snippet": "btn.innerHTML = originalHTML;"
-    },
-    {
-      "file": "src/session_browser/web/static/js/app.js",
-      "line": 44,
-      "isClear": false,
-      "snippet": "btn.innerHTML = '!';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/app.js",
-      "line": 47,
-      "isClear": false,
-      "snippet": "btn.innerHTML = originalHTML;"
-    },
-    {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 630,
+      "line": 595,
       "isClear": false,
       "snippet": "if (!data.length) { container.innerHTML = '<p class=\"text-muted text-sm\">No data</p>'; return; }"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 655,
+      "line": 624,
       "isClear": false,
       "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 697,
+      "line": 631,
       "isClear": false,
-      "snippet": "if (tokenContainer) tokenContainer.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
+      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"text-muted text-sm\">No data</p>'; return; }"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 728,
+      "line": 653,
       "isClear": false,
-      "snippet": "if (promptContainer) promptContainer.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
+      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 660,
+      "isClear": false,
+      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"text-muted text-sm\">No data</p>'; return; }"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 689,
+      "isClear": false,
+      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
     },
     {
       "file": "src/session_browser/web/static/js/data-table.js",
@@ -164,5 +152,5 @@
       "snippet": "paginationDiv.innerHTML = newPagination.innerHTML;"
     }
   ],
-  "count": 28
+  "count": 25
 }

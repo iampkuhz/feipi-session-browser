@@ -276,11 +276,29 @@ def list_projects(
 
 # --- Dashboard queries --------------------------------------------------------
 
+# Agent scope mapping: URL value -> DB agent value
+_AGENT_SCOPE_MAP = {
+    "claude-code": "claude_code",
+    "qoder": "qoder",
+    "codex": "codex",
+}
 
-def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
-    """Get dashboard-level aggregated stats."""
+
+def _agent_clause(agent_scope: str | None) -> tuple[str, list]:
+    """Return SQL WHERE clause and params for agent scope filtering."""
+    if not agent_scope or agent_scope == "all":
+        return "", []
+    db_agent = _AGENT_SCOPE_MAP.get(agent_scope)
+    if db_agent:
+        return "WHERE agent = ?", [db_agent]
+    return "", []
+
+
+def get_dashboard_stats(conn: sqlite3.Connection, agent_scope: str | None = None) -> dict:
+    """Get dashboard-level aggregated stats, optionally scoped to a single agent."""
+    where, params = _agent_clause(agent_scope)
     row = conn.execute(
-        """
+        f"""
         SELECT
             COUNT(*) as total_sessions,
             SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_sessions,
@@ -293,9 +311,12 @@ def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
             COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
-            COALESCE(SUM(failed_tool_count), 0) as total_failed_tools
-        FROM sessions
-        """
+            COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
+            COALESCE(SUM(user_message_count), 0) as total_user_messages,
+            COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
+        FROM sessions {where}
+        """,
+        params,
     ).fetchone()
 
     return {
@@ -311,20 +332,27 @@ def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
         "total_output_tokens": row["total_output_tokens"],
         "total_tool_calls": row["total_tool_calls"],
         "total_failed_tools": row["total_failed_tools"],
+        "total_user_messages": row["total_user_messages"],
+        "total_assistant_messages": row["total_assistant_messages"],
     }
 
 
 def get_trend_data(
     conn: sqlite3.Connection,
     days: int = 30,
+    agent_scope: str | None = None,
 ) -> list[dict]:
     """Get daily session/trend counts for the last N days.
 
     Returns list of {date, claude_count, codex_count, input_tokens, output_tokens,
                       cache_read, cache_write, tool_calls, failed_tools}.
     """
+    where, params = _agent_clause(agent_scope)
+    # Convert WHERE to AND if needed
+    where_sql = where.replace("WHERE", "AND") if where else ""
+    params.append(f"-{days} days")
     rows = conn.execute(
-        """
+        f"""
         SELECT
             COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
             SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_count,
@@ -340,10 +368,11 @@ def get_trend_data(
             COUNT(*) as total_count
         FROM sessions
         WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
+        {where_sql}
         GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now'))
         ORDER BY day
         """,
-        (f"-{days} days",),
+        params,
     ).fetchall()
 
     return [
@@ -367,13 +396,16 @@ def get_trend_data(
     ]
 
 
-def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30) -> list[dict]:
+def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30, agent_scope: str | None = None) -> list[dict]:
     """Get daily user message counts for the last N days, broken down by agent.
 
     Returns list of {date, claude_prompts, codex_prompts, qoder_prompts, total_prompts}.
     """
+    where, params = _agent_clause(agent_scope)
+    where_sql = where.replace("WHERE", "AND") if where else ""
+    params.append(f"-{days} days")
     rows = conn.execute(
-        """
+        f"""
         SELECT
             COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
             COALESCE(SUM(CASE WHEN agent='claude_code' THEN user_message_count ELSE 0 END), 0) as claude_prompts,
@@ -382,10 +414,11 @@ def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30) -> list[
             COALESCE(SUM(user_message_count), 0) as total_prompts
         FROM sessions
         WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
+        {where_sql}
         GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now'))
         ORDER BY day
         """,
-        (f"-{days} days",),
+        params,
     ).fetchall()
 
     return [
@@ -429,6 +462,33 @@ def list_agents(conn: sqlite3.Connection) -> list[dict]:
         FROM sessions
         GROUP BY agent
         ORDER BY MAX(ended_at) DESC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_model_stats(conn: sqlite3.Connection) -> list[dict]:
+    """List per-model stats with agent info.
+
+    Returns list of {agent, model, total_sessions, total_tokens,
+                     input_tokens, output_tokens, cache_read_tokens,
+                     cache_write_tokens, failed_tools}.
+    """
+    rows = conn.execute(
+        """
+        SELECT
+            agent,
+            model,
+            COUNT(*) as total_sessions,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as input_tokens,
+            COALESCE(SUM(output_tokens), 0) as output_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+            COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens,
+            COALESCE(SUM(failed_tool_count), 0) as failed_tools
+        FROM sessions
+        WHERE model != ''
+        GROUP BY agent, model
         """
     ).fetchall()
     return [dict(r) for r in rows]

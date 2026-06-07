@@ -5,7 +5,7 @@
 - 统计数据从模拟 indexer 的数据流
 - 空数据场景
 - 会话列表截断（limit=2000）和 needs_attention 上限（limit=8）
-- model_dist.distribution 解包
+- agent_scope 和 grain 参数处理
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def _make_session_row(key: str, index: int) -> MagicMock:
 
 
 def _patch_all_indexers():
-    """返回 ExitStack，patch 所有外部依赖。
+    """返回 ExitStack，patch 所有外部依赖（含 KPI helpers）。
 
     用法：
         with _patch_all_indexers() as stack:
@@ -55,7 +55,6 @@ def _patch_all_indexers():
         "list_projects",
         "get_trend_data",
         "get_prompt_activity_trend",
-        "get_model_distribution",
         "get_agent_distribution",
         "get_token_breakdown",
         "compute_aggregate_metrics",
@@ -63,6 +62,10 @@ def _patch_all_indexers():
         "compute_derived_metrics",
         "detect_all_anomalies",
         "get_needs_attention",
+        "list_agents",
+        "list_model_stats",
+        # KPI helper functions that query DB directly
+        "_compute_kpis",
     ]
     stack = ExitStack()
     patchers = {}
@@ -72,6 +75,43 @@ def _patch_all_indexers():
 
     stack.get_patchers = lambda: patchers
     return stack
+
+
+def _setup_default_mocks(patchers):
+    """设置所有 mock 的默认返回值（空数据场景）。"""
+    patchers["get_dashboard_stats"].return_value = {
+        "total_sessions": 0,
+        "claude_sessions": 0,
+        "codex_sessions": 0,
+        "qoder_sessions": 0,
+        "project_count": 0,
+        "total_tokens": 0,
+        "total_fresh_input_tokens": 0,
+        "total_cache_read_tokens": 0,
+        "total_cache_write_tokens": 0,
+        "total_output_tokens": 0,
+        "total_tool_calls": 0,
+        "total_failed_tools": 0,
+        "total_user_messages": 0,
+        "total_assistant_messages": 0,
+    }
+    patchers["list_projects"].return_value = []
+    patchers["get_trend_data"].return_value = []
+    patchers["get_prompt_activity_trend"].return_value = []
+    patchers["get_agent_distribution"].return_value = []
+    patchers["get_token_breakdown"].return_value = MagicMock(
+        total_input=0, total_output=0,
+        total_cached_input=0, total_cached_output=0,
+        total_tool_calls=0, total_failed_tools=0,
+    )
+    patchers["compute_aggregate_metrics"].return_value = {}
+    patchers["list_sessions"].return_value = []
+    patchers["compute_derived_metrics"].side_effect = lambda d: d
+    patchers["detect_all_anomalies"].return_value = {}
+    patchers["get_needs_attention"].return_value = []
+    patchers["list_agents"].return_value = []
+    patchers["list_model_stats"].return_value = []
+    patchers["_compute_kpis"].return_value = []
 
 
 # ─── 测试 ─────────────────────────────────────────────────────────────
@@ -84,35 +124,16 @@ class TestBuildDashboardViewModelStructure:
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {
-                "total_sessions": 10,
-                "claude_sessions": 5,
-                "codex_sessions": 3,
-                "qoder_sessions": 2,
-                "project_count": 3,
-            }
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            patchers["get_model_distribution"].return_value.distribution = {}
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
+            _setup_default_mocks(patchers)
 
             result = build_dashboard_view_model(conn)
 
         expected_keys = {
-            "stats", "projects", "trend", "prompt_activity",
-            "model_dist", "agent_dist", "tokens", "aggregate",
-            "needs_attention", "active_page",
+            "agent_scope", "grain", "is_single_agent",
+            "stats", "kpis", "trend", "prompt_activity",
+            "all_agents_branch", "single_agent_branch",
+            "needs_attention", "cache_health",
+            "active_page",
         }
         assert set(result.keys()) == expected_keys
 
@@ -121,24 +142,7 @@ class TestBuildDashboardViewModelStructure:
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
+            _setup_default_mocks(patchers)
 
             result = build_dashboard_view_model(conn)
 
@@ -160,25 +164,26 @@ class TestStatisticsDataFlow:
                 "qoder_sessions": 7,
                 "project_count": 5,
                 "total_tokens": 999999,
+                "total_fresh_input_tokens": 500000,
+                "total_cache_read_tokens": 200000,
+                "total_cache_write_tokens": 100000,
+                "total_output_tokens": 199999,
+                "total_tool_calls": 500,
+                "total_failed_tools": 10,
+                "total_user_messages": 200,
+                "total_assistant_messages": 400,
             }
             patchers["get_dashboard_stats"].return_value = stats_data
+            patchers["_compute_kpis"].return_value = []
             patchers["list_projects"].return_value = []
             patchers["get_trend_data"].return_value = []
             patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
             patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
             patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
+            patchers["list_model_stats"].return_value = []
             patchers["detect_all_anomalies"].return_value = {}
             patchers["get_needs_attention"].return_value = []
+            patchers["list_agents"].return_value = []
 
             result = build_dashboard_view_model(conn)
 
@@ -186,94 +191,22 @@ class TestStatisticsDataFlow:
         assert result["stats"]["total_sessions"] == 42
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
-    def test_projects_passed_through(self):
-        conn = MagicMock()
-        with _patch_all_indexers() as stack:
-            patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            projects = [MagicMock(project_key="p1"), MagicMock(project_key="p2")]
-            patchers["list_projects"].return_value = projects
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
-
-            result = build_dashboard_view_model(conn)
-
-        assert result["projects"] is projects
-
-    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_trend_and_prompt_activity_passed_through(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
+            _setup_default_mocks(patchers)
             trend = [{"date": "2024-01-01", "total_count": 5}]
-            prompt = [{"date": "2024-01-01", "prompt_tokens": 100}]
+            prompt = [{"date": "2024-01-01", "total_prompts": 100}]
             patchers["get_trend_data"].return_value = trend
             patchers["get_prompt_activity_trend"].return_value = prompt
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
 
             result = build_dashboard_view_model(conn)
 
         assert result["trend"] is trend
         assert result["prompt_activity"] is prompt
-
-    @pytest.mark.contract_case("DATA-PRESENTER-002")
-    def test_model_distribution_unwrapped(self):
-        """result 中的 model_dist 应为 .distribution 字典，而非对象。"""
-        conn = MagicMock()
-        with _patch_all_indexers() as stack:
-            patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {"sonnet-4": 10, "opus-4": 5}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {"claude_code": 15}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
-
-            result = build_dashboard_view_model(conn)
-
-        assert result["model_dist"] == {"sonnet-4": 10, "opus-4": 5}
-        assert result["agent_dist"] == {"claude_code": 15}
+        # all_agents_branch should be computed (with mock data)
+        assert result["all_agents_branch"] is not None
 
 
 class TestEmptyDataScenario:
@@ -284,33 +217,94 @@ class TestEmptyDataScenario:
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
+            _setup_default_mocks(patchers)
 
             result = build_dashboard_view_model(conn)
 
         assert result["stats"]["total_sessions"] == 0
-        assert result["projects"] == []
+        assert result["kpis"] == []
         assert result["trend"] == []
-        assert result["model_dist"] == {}
-        assert result["agent_dist"] == {}
+        # all_agents_branch returns structure with default agents even with empty data
+        assert result["all_agents_branch"] is not None
+        assert "agent_rows" in result["all_agents_branch"]
+        assert "efficiency_rows" in result["all_agents_branch"]
+        assert result["single_agent_branch"] is None
         assert result["needs_attention"] == []
+        assert result["is_single_agent"] is False
+        assert result["agent_scope"] == "all"
+        assert result["grain"] == "day"
+
+
+class TestAgentScopeAndGrain:
+    """验证 agent_scope 和 grain 参数处理。"""
+
+    def test_default_scope_is_all(self):
+        conn = MagicMock()
+        with _patch_all_indexers() as stack:
+            patchers = stack.get_patchers()
+            _setup_default_mocks(patchers)
+
+            result = build_dashboard_view_model(conn)
+
+        assert result["agent_scope"] == "all"
+        assert result["is_single_agent"] is False
+
+    def test_single_agent_scope(self):
+        conn = MagicMock()
+        with _patch_all_indexers() as stack:
+            patchers = stack.get_patchers()
+            _setup_default_mocks(patchers)
+
+            result = build_dashboard_view_model(conn, agent_scope="claude-code")
+
+        assert result["agent_scope"] == "claude-code"
+        assert result["is_single_agent"] is True
+
+    def test_invalid_scope_defaults_to_all(self):
+        conn = MagicMock()
+        with _patch_all_indexers() as stack:
+            patchers = stack.get_patchers()
+            _setup_default_mocks(patchers)
+
+            result = build_dashboard_view_model(conn, agent_scope="unknown")
+
+        assert result["agent_scope"] == "all"
+
+    def test_default_grain_is_day(self):
+        conn = MagicMock()
+        with _patch_all_indexers() as stack:
+            patchers = stack.get_patchers()
+            _setup_default_mocks(patchers)
+
+            build_dashboard_view_model(conn)
+
+            patchers["get_trend_data"].assert_called_once()
+            call_kwargs = patchers["get_trend_data"].call_args.kwargs
+            assert call_kwargs.get("days") == 30
+
+    def test_week_grain_uses_140_days(self):
+        conn = MagicMock()
+        with _patch_all_indexers() as stack:
+            patchers = stack.get_patchers()
+            _setup_default_mocks(patchers)
+
+            build_dashboard_view_model(conn, grain="week")
+
+            patchers["get_trend_data"].assert_called_once()
+            call_kwargs = patchers["get_trend_data"].call_args.kwargs
+            assert call_kwargs.get("days") == 140
+
+    def test_month_grain_uses_360_days(self):
+        conn = MagicMock()
+        with _patch_all_indexers() as stack:
+            patchers = stack.get_patchers()
+            _setup_default_mocks(patchers)
+
+            build_dashboard_view_model(conn, grain="month")
+
+            patchers["get_trend_data"].assert_called_once()
+            call_kwargs = patchers["get_trend_data"].call_args.kwargs
+            assert call_kwargs.get("days") == 360
 
 
 class TestDataTruncation:
@@ -322,30 +316,19 @@ class TestDataTruncation:
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
+            _setup_default_mocks(patchers)
 
             build_dashboard_view_model(conn)
 
-            patchers["list_sessions"].assert_called_once_with(
-                conn, limit=2000, order_by="ended_at"
-            )
+            # list_sessions should be called for needs_attention computation
+            calls = patchers["list_sessions"].call_args_list
+            # Find the call without agent filter (for needs_attention)
+            needs_attention_call = None
+            for call in calls:
+                if call.kwargs.get("limit") == 2000:
+                    needs_attention_call = call
+                    break
+            assert needs_attention_call is not None
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_get_needs_attention_called_with_limit_8(self):
@@ -353,28 +336,10 @@ class TestDataTruncation:
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
+            _setup_default_mocks(patchers)
 
             build_dashboard_view_model(conn)
 
-            # get_needs_attention 被调用，参数为 (anomalies_map, sessions_lookup, limit=8)
             call_kwargs = patchers["get_needs_attention"].call_args.kwargs
             assert call_kwargs.get("limit") == 8
 
@@ -384,25 +349,8 @@ class TestDataTruncation:
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
+            _setup_default_mocks(patchers)
 
-            # 模拟 indexer 恰好返回 8 个（上限）
             capped = [{"session_key": f"sk-{i}"} for i in range(8)]
             patchers["get_needs_attention"].return_value = capped
 
@@ -416,88 +364,12 @@ class TestDataTruncation:
         conn = MagicMock()
         with _patch_all_indexers() as stack:
             patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 3}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
+            _setup_default_mocks(patchers)
+            patchers["get_dashboard_stats"].return_value["total_sessions"] = 3
 
             raw = [_make_session_row(f"sk-{i}", i) for i in range(3)]
             patchers["list_sessions"].return_value = raw
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
 
             build_dashboard_view_model(conn)
 
             assert patchers["compute_derived_metrics"].call_count == 3
-
-
-class TestTrendDataParameters:
-    """验证 trend 函数调用参数正确。"""
-
-    @pytest.mark.contract_case("DATA-PRESENTER-002")
-    def test_trend_data_called_with_365_days(self):
-        conn = MagicMock()
-        with _patch_all_indexers() as stack:
-            patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
-
-            build_dashboard_view_model(conn)
-
-            patchers["get_trend_data"].assert_called_once_with(conn, days=365)
-            patchers["get_prompt_activity_trend"].assert_called_once_with(conn, days=365)
-
-    @pytest.mark.contract_case("DATA-PRESENTER-002")
-    def test_list_projects_called_with_limit_10(self):
-        conn = MagicMock()
-        with _patch_all_indexers() as stack:
-            patchers = stack.get_patchers()
-            patchers["get_dashboard_stats"].return_value = {"total_sessions": 0}
-            patchers["list_projects"].return_value = []
-            patchers["get_trend_data"].return_value = []
-            patchers["get_prompt_activity_trend"].return_value = []
-            mock_model_dist = MagicMock()
-            mock_model_dist.distribution = {}
-            patchers["get_model_distribution"].return_value = mock_model_dist
-            patchers["get_agent_distribution"].return_value = {}
-            patchers["get_token_breakdown"].return_value = MagicMock(
-                total_input=0, total_output=0,
-                total_cached_input=0, total_cached_output=0,
-                total_tool_calls=0, total_failed_tools=0,
-            )
-            patchers["compute_aggregate_metrics"].return_value = {}
-            patchers["list_sessions"].return_value = []
-            patchers["compute_derived_metrics"].side_effect = lambda d: d
-            patchers["detect_all_anomalies"].return_value = {}
-            patchers["get_needs_attention"].return_value = []
-
-            build_dashboard_view_model(conn)
-
-            patchers["list_projects"].assert_called_once_with(conn, limit=10)
