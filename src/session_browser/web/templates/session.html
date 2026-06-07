@@ -16,7 +16,7 @@
 {% endblock %}
 
 {% block head_extra %}
-<meta name="payload-api-base" content="/api/sessions/{{ current_agent }}/{{ session.session_id }}">
+<meta name="payload-api-base" content="/api/sessions/{{ current_agent | urlencode('') }}/{{ session.session_id | urlencode('') }}">
 <meta name="session-id" content="{{ session.session_id }}">
 <meta name="slim-mode" content="{{ 'true' if slim_mode else 'false' }}">
 {% if export_mhtml %}
@@ -69,10 +69,10 @@
           {% for row in diagnostics.token_rounds %}
           <div class="sd-token-round" title="R{{ row.round_id }} · {{ row.start_time }} · Total {{ row.total_label }} · Cache Read Ratio {{ row.cache_read_ratio }}">
             <div class="sd-token-round__bar" aria-label="R{{ row.round_id }}">
-              <span class="sd-token-round__seg sd-token-round__seg--fresh" style="height: {{ row.mix.fresh|default(0) }}%"></span>
-              <span class="sd-token-round__seg sd-token-round__seg--read" style="height: {{ row.mix.read|default(0) }}%"></span>
-              <span class="sd-token-round__seg sd-token-round__seg--write" style="height: {{ row.mix.write|default(0) }}%"></span>
-              <span class="sd-token-round__seg sd-token-round__seg--out" style="height: {{ row.mix.out|default(0) }}%"></span>
+              <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ row.mix.fresh|default(0) }}%"></span>
+              <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ row.mix.read|default(0) }}%"></span>
+              <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ row.mix.write|default(0) }}%"></span>
+              <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ row.mix.out|default(0) }}%"></span>
             </div>
             <div class="sd-token-round__label">R{{ row.round_id }}</div>
           </div>
@@ -153,7 +153,7 @@
           <div class="sd-context-budget__row" title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}">
             <span>{{ segment.label }}</span>
             <div class="sd-context-budget__track">
-              <i style="width: {{ segment.share if segment.share != 'N/A' else '0%' }}"></i>
+              <i style="--seg-width: {{ segment.share if segment.share != 'N/A' else '0%' }}"></i>
             </div>
             <b>{{ segment.share }}</b>
           </div>

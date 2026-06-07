@@ -161,7 +161,7 @@
       "file": "src/session_browser/web/static/js/sessions-list.js",
       "line": 365,
       "isClear": false,
-      "snippet": "tbody.innerHTML = '<tr><td colspan=\"10\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td>"
+      "snippet": "tbody.innerHTML = '<tr><td colspan=\"13\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td>"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",

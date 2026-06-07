@@ -10,6 +10,7 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - Page Head 左侧显示 `Sessions` 和一句浏览说明；右侧不放全局搜索。
 - Page Head stat pills 固定展示 `Sessions`、`Projects`、`Total Tokens`。
 - Page Head 下方是 Filter Card，Filter Card 下方是 `All Sessions` 表格。
+- 标准宽度下内容区宽度随主栏变化；宽屏主栏可用宽度达到 1600px 以上时，Sessions 内容区必须继续扩展到宽屏最大宽度，不能保持窄桌面视觉宽度不变。
 - `All Sessions` 使用通用 `Data Table` 组件。
 - `All Sessions` 表格区域必须支持横向滚动，不能压缩列导致文本重叠。
 - `All Sessions` 底部分页器使用通用 `Pagination` 组件。
@@ -22,6 +23,8 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - Project 过滤候选项来自当前索引中出现过的 project，默认 `All Projects`。
 - Status/failure 过滤候选项固定为 `All`、`Failed`、`No failures`。
 - Reset 按钮清空搜索和过滤，保留默认排序。
+- Reset 按钮必须和搜索框、Agent、Model、Project、Status 下拉筛选框保持在同一行；标准桌面宽度下不得被挤到独立一行。
+- Agent、Model、Project、Status 下拉筛选框使用紧凑宽度，长值在控件内截断并保留原始下拉选项。
 - Page size selector 候选项固定为 25、50、100，默认值固定为 25。
 
 ## 文字内容
@@ -29,6 +32,7 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - 页面标题固定为 `Sessions`。
 - 表格标题固定为 `All Sessions`。
 - Active filters 使用字段名 + 当前值，例如 `Agent: Claude Code`。
+- Active filters 只展示 Agent、Model、Project、Status 过滤条件，不展示搜索框 `Search:` chip。
 - 过滤无结果文案必须说明当前过滤条件无匹配，并提供 Clear All Filters。
 - 默认空态文案必须说明未索引 session。
 
@@ -86,7 +90,8 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - 默认排序固定为 `Updated` 降序。
 - 点击可排序表头切换升序/降序，并保留搜索、过滤和 page size。
 - 翻页保留搜索、过滤、排序和 page size。
-- 点击 session 行进入 Session Detail。
+- 点击 session 行或 session 标题进入 Session Detail；点击后必须立即给当前行可见的打开中反馈，并发起详情页导航。
+- Session Detail 首屏必须优先返回 Hero KPI、诊断卡和 Trace 摘要行；重型 round detail、payload 和 attribution 内容按需加载，避免从列表页进入详情页时长时间停留在列表页。
 - 点击 Project 列链接进入 Project Detail。
 - 行内复制按钮只复制目标值，不触发行跳转。
 - `Tokenbar` hover 使用 `common.md` 的 `Chart Tooltip` 布局展示四类 token 数量、占比和总量。

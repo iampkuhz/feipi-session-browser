@@ -16,6 +16,7 @@ import re
 _SESSIONS_PATH = "src/session_browser/web/templates/sessions.html"
 _SESSIONS_CSS_PATH = "src/session_browser/web/static/css/sessions-list.css"
 _SESSIONS_JS_PATH = "src/session_browser/web/static/js/sessions-list.js"
+_SESSIONS_COMPONENTS_PATH = "src/session_browser/web/templates/components/sessions_list_components.html"
 _UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
 _UI_PRIMITIVES_DIR = "src/session_browser/web/templates/components/ui_primitives"
 
@@ -217,6 +218,23 @@ class TestSessionsFilterBar:
             "Clear All button must be conditional on active filters"
         assert "data_action='clear'" in content, \
             "Clear All must use data_action='clear'"
+
+    @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
+    def test_active_filters_excludes_search_chip(self):
+        content = _read(_SESSIONS_COMPONENTS_PATH)
+        assert "Search:" not in content, \
+            "Active filters must not render search as a filter chip"
+
+    @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
+    def test_filter_controls_have_compact_classes(self):
+        content = _read_sessions()
+        for cls in [
+            "sessions-filter-select--agent",
+            "sessions-filter-select--model",
+            "sessions-filter-select--project",
+            "sessions-filter-select--status",
+        ]:
+            assert cls in content, f"Missing compact filter class {cls}"
 
 
 # ── TestSessionsDataTable（数据表格）───────────────────────────────────────────
@@ -425,6 +443,24 @@ class TestSessionsRowData:
                 f"Session row must have {attr}"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
+    def test_row_has_encoded_detail_url(self):
+        content = _read("src/session_browser/web/templates/partials/sessions_table_body.html")
+        assert "data-detail-url" in content, \
+            "Session rows must expose a stable detail URL"
+        assert "urlencode('')" in content, \
+            "Session detail URLs must URL-encode agent and session id"
+        assert "data-session-link" in content, \
+            "Session title link must be identifiable for opening feedback"
+
+    @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
+    def test_row_click_opening_feedback(self):
+        js = _read(_SESSIONS_JS_PATH)
+        css = _read(_SESSIONS_CSS_PATH)
+        assert "markRowOpening" in js
+        assert "is-opening" in js
+        assert "is-opening" in css
+
+    @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_agent_badge(self):
         # Badge rendering logic lives in ui_primitives split module
         content = _read_ui_primitives()
@@ -433,6 +469,22 @@ class TestSessionsRowData:
         for badge_class in ["cc", "cx", "qd"]:
             assert badge_class in content, \
                 f"Must have agent badge class '{badge_class}'"
+
+
+class TestSessionsWideLayout:
+    """验证 Sessions 页面宽屏内容区契约。"""
+
+    @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
+    def test_wide_max_width_expands(self):
+        css = _read(_SESSIONS_CSS_PATH)
+        assert "max-width: 1880px" in css, \
+            "Sessions content must expand on wide screens"
+
+    @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
+    def test_page_css_does_not_define_body_shell_state(self):
+        css = _read(_SESSIONS_CSS_PATH)
+        assert "body.hide-left" not in css
+        assert "body.focus" not in css
 
 
 # ── TestSessionsBreadcrumb（面包屑导航）──────────────────────────────────────────

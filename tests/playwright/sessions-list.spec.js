@@ -46,7 +46,7 @@ test.describe('会话列表页', () => {
 
     const headerTexts = await headers.allTextContents();
     const combined = headerTexts.join(' ').toLowerCase();
-    expect(combined).toContain('title');
+    expect(combined).toContain('session');
     expect(combined).toContain('project');
     expect(combined).toContain('agent');
     expect(combined).toContain('model');

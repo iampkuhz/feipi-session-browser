@@ -16,11 +16,13 @@
     {% set read_pct = (cache_read / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
     {% set write_pct = (cache_write / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
     {% set output_pct = (output / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
+    {% set session_detail_url = '/sessions/' ~ (s.agent | urlencode('')) ~ '/' ~ (s.session_id | urlencode('')) %}
     <tr class="sessions-row" data-action="row"
         data-agent="{{ s.agent }}"
         data-model="{{ s.model }}"
         data-project="{{ s.project_key }}"
         data-session-id="{{ s.session_id }}"
+        data-detail-url="{{ session_detail_url }}"
         data-title="{{ s.title | lower }}"
         data-ended-at="{{ s.ended_at }}"
         data-total-tokens="{{ total_tokens }}"
@@ -32,7 +34,7 @@
         data-created-at="{{ s.started_at }}"
         title="点击打开该 session detail 页面">
         <td class="col-session">
-            <div class="title-main"><a href="/sessions/{{ s.agent }}/{{ s.session_id }}">{{ s.title[:80] or 'Untitled' }}</a></div>
+            <div class="title-main"><a href="{{ session_detail_url }}" data-session-link>{{ s.title[:80] or 'Untitled' }}</a></div>
             <div class="title-sub mono">
                 <span class="mono">{{ s.session_id[:12] }}</span>
                 {% if s.git_branch %}<span class="session-branch">· {{ s.git_branch }}</span>{% endif %}

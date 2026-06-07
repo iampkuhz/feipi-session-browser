@@ -7,6 +7,7 @@
 {% block title %}Sessions - Agent Run Profiler{% endblock %}
 
 {% block shell_class %} no-inspector{% endblock %}
+{% block main_attrs %} style="--max: 1880px"{% endblock %}
 
 {% block breadcrumb %}
 <a href="/dashboard">Dashboard</a>
@@ -46,9 +47,9 @@
         <input type="hidden" name="dir" value="{{ sort_dir }}"/>
         <input type="hidden" name="page_size" value="{{ page_size }}"/>
         {{ ui.filter_search(name='q', placeholder='Search title, project, agent, model, session id', value=filter_q, id='session-search', extra_classes='js-search') }}
-        {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent, id='filter-agent', all_label='All Agents') }}
-        {{ ui.filter_select(label='Model', name='model', options=model_list, selected=filter_model, id='filter-model', all_label='All Models') }}
-        {{ ui.filter_select(label='Project', name='project', options=project_list, selected=filter_project, id='filter-project', all_label='All Projects') }}
+        {{ ui.filter_select(label='Agent', name='agent', options=agent_options, selected=filter_agent, id='filter-agent', all_label='All Agents', extra_classes='sessions-filter-select sessions-filter-select--agent') }}
+        {{ ui.filter_select(label='Model', name='model', options=model_list, selected=filter_model, id='filter-model', all_label='All Models', extra_classes='sessions-filter-select sessions-filter-select--model') }}
+        {{ ui.filter_select(label='Project', name='project', options=project_list, selected=filter_project, id='filter-project', all_label='All Projects', extra_classes='sessions-filter-select sessions-filter-select--project') }}
         {{ ui.filter_select(
             label='Status',
             name='status',
@@ -58,7 +59,8 @@
             ],
             selected=filter_status,
             id='filter-status',
-            all_label='All'
+            all_label='All',
+            extra_classes='sessions-filter-select sessions-filter-select--status'
         ) }}
         <span class="filter-row__push"></span>
         {{ ui.button('Reset', variant='secondary', size='sm', href=actions.clear_all_url, extra_classes='js-clear-all', data_action='clear') }}

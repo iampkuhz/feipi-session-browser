@@ -12,7 +12,8 @@
   --sessions-row-h: 48px;
   --sessions-card-radius: 18px;
   --sessions-shadow: 0 10px 26px rgba(15, 23, 42, .065);
-  width: min(100%, 1524px);
+  width: 100%;
+  max-width: 1880px;
   margin-inline: auto;
 }
 
@@ -77,14 +78,16 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   padding: 10px 12px;
   border-bottom: 1px solid var(--sessions-line-soft);
   background: #fff;
 }
 
 .sessions-page .card.filter-card .filter-row__push {
-  margin-left: auto;
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: 0;
 }
 
 .sessions-page .card.filter-card .filter-footer {
@@ -97,12 +100,43 @@
 }
 
 .sessions-page .card.filter-card .input.search {
-  min-width: 260px;
+  flex: 1 1 240px;
+  min-width: 200px;
+  max-width: 420px;
   height: 30px;
 }
 
 .sessions-page .card.filter-card .ui-select {
+  flex: 0 0 auto;
   height: 30px;
+  min-width: 0;
+}
+
+.sessions-page .card.filter-card .ui-select__control {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--agent {
+  width: 126px;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--model {
+  width: 170px;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--project {
+  width: 188px;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--status {
+  width: 122px;
+}
+
+.sessions-page .card.filter-card .js-clear-all {
+  flex: 0 0 auto;
 }
 
 .sessions-page .sessions-search {
@@ -670,6 +704,24 @@ table-layout:fixed scales proportionally
   cursor: pointer;
 }
 
+.sessions-page .data-table tbody tr.sessions-row.is-opening td {
+  background: #f6f8ff;
+  cursor: progress;
+}
+
+.sessions-page .data-table tbody tr.sessions-row.is-opening td:first-child {
+  box-shadow: inset 3px 0 0 var(--sessions-brand);
+}
+
+.sessions-page .data-table tbody tr.sessions-row.is-opening .title-main::after {
+  content: "Opening...";
+  display: inline-flex;
+  margin-left: 8px;
+  color: var(--sessions-brand);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .sessions-page .data-table .title-main {
   font-weight: 790;
   color: var(--sessions-text);
@@ -877,6 +929,21 @@ table-layout:fixed scales proportionally
    Base positioning comes from ui-primitives.css (.token-tooltip).
    This adds the flip class so tooltip appears above the bar when
    viewport space below is limited (e.g. bottom rows in table). */
+
+@media (max-width: 899px) {
+  .sessions-page .card.filter-card .filter-row {
+    flex-wrap: wrap;
+  }
+
+  .sessions-page .card.filter-card .input.search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .sessions-page .card.filter-card .filter-row__push {
+    display: none;
+  }
+}
 
 .sessions-page .data-table .token-tooltip.token-tooltip--flip {
   top: auto;

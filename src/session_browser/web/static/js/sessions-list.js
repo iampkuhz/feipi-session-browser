@@ -506,6 +506,21 @@
 
   // ── Row click navigation ────────────────────────────────────────────────
 
+  function markRowOpening(row) {
+    if (!row) return;
+    row.classList.add('is-opening');
+    row.setAttribute('aria-busy', 'true');
+  }
+
+  function getDetailUrl(row) {
+    var explicitUrl = row.getAttribute('data-detail-url');
+    if (explicitUrl) return explicitUrl;
+    var agent = row.dataset.agent;
+    var sessionId = row.dataset.sessionId;
+    if (!agent || !sessionId) return '';
+    return '/sessions/' + encodeURIComponent(agent) + '/' + encodeURIComponent(sessionId);
+  }
+
   document.addEventListener('click', function (event) {
     var target = event.target;
     if (!target || target.nodeType !== 1) return;
@@ -513,7 +528,12 @@
     if (!row) return;
 
     // Don't navigate if clicking a link inside the row
-    if (target.closest('a')) return;
+    if (target.closest('a')) {
+      if (target.closest('[data-session-link]')) {
+        markRowOpening(row);
+      }
+      return;
+    }
 
     // Dispatch custom event for external handlers
     row.dispatchEvent(new CustomEvent('session-row-click', {
@@ -525,10 +545,10 @@
       }
     }));
 
-    var agent = row.dataset.agent;
-    var sessionId = row.dataset.sessionId;
-    if (agent && sessionId) {
-      window.location.href = '/sessions/' + agent + '/' + sessionId;
+    var detailUrl = getDetailUrl(row);
+    if (detailUrl) {
+      markRowOpening(row);
+      window.location.assign(detailUrl);
     }
   });
 

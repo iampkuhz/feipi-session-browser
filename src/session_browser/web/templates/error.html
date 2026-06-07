@@ -23,7 +23,7 @@
     <p class="state-panel__desc">An unexpected error occurred while processing your request.</p>
     <nav class="state-panel__links" aria-label="Navigation links">
         <a href="/dashboard" class="state-panel__link state-panel__link--primary">Go to Dashboard</a>
-        <a href="{{ request_path|default('#') }}" class="state-panel__link" data-action="reload-page" onclick="window.location.reload(); return false;">Reload page</a>
+        <a href="{{ request_path|default('#') }}" class="state-panel__link" data-action="reload-page">Reload page</a>
     </nav>
     {% if error_details %}
     <details class="state-panel__details">

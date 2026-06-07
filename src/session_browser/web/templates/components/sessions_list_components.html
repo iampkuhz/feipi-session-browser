@@ -35,13 +35,11 @@
 {%- endmacro %}
 
 {% macro active_filters(session_id='', agent='', project='', model='', status='', count_label='', remove_urls=None) -%}
-  {%- set has_active = session_id or agent or model or project or status -%}
+  {# Search is intentionally excluded: it updates dynamically and is not a durable filter chip. #}
+  {%- set has_active = agent or model or project or status -%}
   <div class="sessions-active-filters" aria-live="polite">
     {%- if has_active %}
     <span class="sessions-active-filters__label">Active filters</span>
-    {%- endif %}
-    {%- if session_id %}
-      <span class="ui-filter-chip">Search: {{ session_id }} <a href="{{ remove_urls.q if remove_urls else '#' }}" aria-label="Remove search filter">×</a></span>
     {%- endif %}
     {%- if agent %}
       <span class="ui-filter-chip">Agent: {{ agent }} <a href="{{ remove_urls.agent if remove_urls else '#' }}" aria-label="Remove agent filter">×</a></span>

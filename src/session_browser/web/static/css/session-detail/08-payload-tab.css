@@ -81,6 +81,7 @@
 .sd-token-round__seg {
   display: block;
   min-height: 0;
+  height: var(--seg-height, 0%);
 }
 
 .sd-token-round__seg--fresh { background: #2563eb; }
@@ -239,6 +240,7 @@
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #2563eb, #16a34a);
+  width: var(--seg-width, 0%);
 }
 
 .sd-context-note {

@@ -131,6 +131,9 @@
             if (typeof window.closeFullPayloadViewer === 'function') {
                 window.closeFullPayloadViewer();
             }
+        } else if (action === 'reload-page') {
+            event.preventDefault();
+            window.location.reload();
         }
     });
 

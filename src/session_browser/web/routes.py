@@ -162,6 +162,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 parts = path_only[len("/sessions/"):].split("/", 1)
                 if len(parts) == 2:
                     agent, session_id = parts
+                    agent = urllib.parse.unquote(agent)
+                    session_id = urllib.parse.unquote(session_id)
                     self._serve_session(agent, session_id, export_mhtml=export_mhtml)
                 else:
                     self._serve_all_sessions()
@@ -467,7 +469,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             current_agent=agent,
             session_anomalies=sa,
             active_page="session",
-            session_url=f"/sessions/{agent}/{session_id}",
+            session_url=(
+                f"/sessions/{urllib.parse.quote(agent, safe='')}/"
+                f"{urllib.parse.quote(session_id, safe='')}"
+            ),
             slim_mode=slim_mode,
             session_rounds=[
                 {"idx": i + 1, "name": r.preview_text or f"Round {i + 1}",
