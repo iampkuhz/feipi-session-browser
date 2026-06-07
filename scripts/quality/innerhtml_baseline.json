@@ -3,37 +3,67 @@
   "entries": [
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 595,
+      "line": 475,
       "isClear": false,
-      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"text-muted text-sm\">No data</p>'; return; }"
+      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 624,
-      "isClear": false,
-      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 631,
-      "isClear": false,
-      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"text-muted text-sm\">No data</p>'; return; }"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 653,
+      "line": 504,
       "isClear": false,
       "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 660,
+      "line": 511,
       "isClear": false,
-      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"text-muted text-sm\">No data</p>'; return; }"
+      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
     },
     {
       "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 689,
+      "line": 532,
+      "isClear": false,
+      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 539,
+      "isClear": false,
+      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 568,
+      "isClear": false,
+      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 577,
+      "isClear": false,
+      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 584,
+      "isClear": false,
+      "snippet": "if (!maxVal) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无 token 数据。</p>'; return; }"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 627,
+      "isClear": false,
+      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 636,
+      "isClear": false,
+      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
+    },
+    {
+      "file": "src/session_browser/web/static/js/dashboard.js",
+      "line": 699,
       "isClear": false,
       "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml + plotHtml + xHtml + '</div>';"
     },
@@ -152,5 +182,5 @@
       "snippet": "paginationDiv.innerHTML = newPagination.innerHTML;"
     }
   ],
-  "count": 25
+  "count": 30
 }

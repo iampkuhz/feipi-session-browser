@@ -240,9 +240,13 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         params = urllib.parse.parse_qs(parsed.query)
         agent_scope = params.get("agent", ["all"])[0]
         grain = params.get("grain", ["day"])[0]
+        page_param = params.get("page", [None])[0]
+        page = int(page_param) if page_param and page_param.isdigit() else None
 
         conn = _get_connection()
-        view_model = build_dashboard_view_model(conn, agent_scope=agent_scope, grain=grain)
+        view_model = build_dashboard_view_model(
+            conn, agent_scope=agent_scope, grain=grain, page=page,
+        )
         conn.close()
 
         html = self._render_template("dashboard.html", **view_model)

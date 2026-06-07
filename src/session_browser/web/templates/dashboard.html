@@ -127,7 +127,7 @@
                         <h2>Session Trend</h2>
                         <button class="icon-button icon-button--info" data-action="info-chart-sessions" data-info="chart-sessions" title="Session Trend 图表说明" aria-label="Session Trend 图表说明">&#x2139;&#xFE0F;</button>
                     </div>
-                    <p class="chart-card__subtitle">Daily session count by agent</p>
+                    <p class="chart-card__subtitle">{% if grain == "week" %}Weekly{% elif grain == "month" %}Monthly{% else %}Daily{% endif %} session count by agent</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-sessions">Latest: {{ trend[-1].total_count if trend else '—' }}</span>
@@ -149,7 +149,7 @@
                         <h2>Token Trend</h2>
                         <button class="icon-button icon-button--info" data-action="info-chart-tokens" data-info="chart-tokens" title="Token Trend 图表说明" aria-label="Token Trend 图表说明">&#x2139;&#xFE0F;</button>
                     </div>
-                    <p class="chart-card__subtitle">Daily total tokens</p>
+                    <p class="chart-card__subtitle">{% if grain == "week" %}Weekly{% elif grain == "month" %}Monthly{% else %}Daily{% endif %} total tokens</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-tokens">Latest: {{ (trend[-1].total_tokens if trend else 0) | format_number }}</span>
@@ -171,7 +171,7 @@
                         <h2>Prompt Activity Trend</h2>
                         <button class="icon-button icon-button--info" data-action="info-chart-prompts" data-info="chart-prompts" title="Prompt Activity Trend 图表说明" aria-label="Prompt Activity Trend 图表说明">&#x2139;&#xFE0F;</button>
                     </div>
-                    <p class="chart-card__subtitle">Daily user-initiated inputs</p>
+                    <p class="chart-card__subtitle">{% if grain == "week" %}Weekly{% elif grain == "month" %}Monthly{% else %}Daily{% endif %} user-initiated inputs</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-prompts">Latest: {{ prompt_activity[-1].total_prompts if prompt_activity else '—' }}</span>
@@ -545,7 +545,7 @@
     <div class="table-toolbar">
         <div>
             <div class="card-title">Agent Sessions</div>
-            <div class="card-sub">{{ single_agent_branch.display_name }} 范围内的 sessions（前 2000 条）</div>
+            <div class="card-sub">{{ single_agent_branch.display_name }} 范围内的 sessions（分页展示，每页 20 条）</div>
         </div>
         <a href="/sessions?agent={{ agent_scope }}" class="btn btn--sm btn--outline" data-action="view-sessions-full">View All Sessions</a>
     </div>
@@ -567,7 +567,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for s in single_agent_branch.agent_session_rows[:500] %}
+                {% for s in single_agent_branch.agent_session_rows %}
                 <tr class="clickable-row" data-action="go-session" data-agent="{{ agent_scope }}" data-session="{{ s.session_id }}">
                     <td class="title-cell">
                         <a href="/sessions/{{ agent_scope | scope_to_agent_url }}/{{ s.session_id }}">{{ s.title }}</a>
@@ -576,8 +576,15 @@
                         <a href="/projects/{{ s.project | urlencode }}">{{ s.project_name }}</a>
                     </td>
                     <td class="mono">{{ s.model }}</td>
-                    <td class="numeric">
-                        <span class="mono">{{ s.tokens_display }}</span>
+                    <td class="numeric token-cell">
+                        <span class="token-cell__value tabular">{{ s.tokens_display }}</span>
+                        <span class="tokenbar" title="Fresh {{ s.fresh | default(0) | format_number }} · Read {{ s.cache_read | default(0) | format_number }} · Write {{ s.cache_write | default(0) | format_number }} · Output {{ s.output | default(0) | format_number }}"
+                              style="--seg-fresh:{{ s.fresh_pct | default(0) }}%;--seg-read:{{ s.read_pct | default(0) }}%;--seg-write:{{ s.write_pct | default(0) }}%;--seg-output:{{ s.output_pct | default(0) }}%">
+                            <span class="tokenbar__seg tokenbar__seg--fresh"></span>
+                            <span class="tokenbar__seg tokenbar__seg--read"></span>
+                            <span class="tokenbar__seg tokenbar__seg--write"></span>
+                            <span class="tokenbar__seg tokenbar__seg--output"></span>
+                        </span>
                     </td>
                     <td class="numeric">{{ s.rounds }}</td>
                     <td class="numeric">{{ s.tools }}</td>
@@ -591,6 +598,33 @@
             </tbody>
         </table>
     </div>
+    {# Pagination footer #}
+    {% if agent_sessions_total_pages > 1 %}
+    <div class="pagination-footer">
+        <span class="pagination-info">
+            Showing {{ ((agent_sessions_page - 1) * agent_sessions_page_size) + 1 }}-{{ agent_sessions_page * agent_sessions_page_size if agent_sessions_page * agent_sessions_page_size < agent_sessions_total else agent_sessions_total }} of {{ agent_sessions_total }}
+        </span>
+        {% if agent_sessions_page > 1 %}
+        <a href="?agent={{ agent_scope }}&grain={{ grain }}&page={{ agent_sessions_page - 1 }}" class="pagination-btn" aria-label="Previous page">Previous</a>
+        {% else %}
+        <span class="pagination-btn pagination-btn--disabled" aria-disabled="true">Previous</span>
+        {% endif %}
+        {% for p in range(1, agent_sessions_total_pages + 1) %}
+            {% if p == agent_sessions_page %}
+            <span class="pagination-btn pagination-btn--active">{{ p }}</span>
+            {% elif p == 1 or p == agent_sessions_total_pages or (p >= agent_sessions_page - 2 and p <= agent_sessions_page + 2) %}
+            <a href="?agent={{ agent_scope }}&grain={{ grain }}&page={{ p }}" class="pagination-btn">{{ p }}</a>
+            {% elif p == agent_sessions_page - 3 or p == agent_sessions_page + 3 %}
+            <span class="pagination-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+        {% if agent_sessions_page < agent_sessions_total_pages %}
+        <a href="?agent={{ agent_scope }}&grain={{ grain }}&page={{ agent_sessions_page + 1 }}" class="pagination-btn" aria-label="Next page">Next</a>
+        {% else %}
+        <span class="pagination-btn pagination-btn--disabled" aria-disabled="true">Next</span>
+        {% endif %}
+    </div>
+    {% endif %}
 </section>
 {% endif %}
 

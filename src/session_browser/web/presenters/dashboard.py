@@ -99,6 +99,8 @@ def build_dashboard_view_model(
     conn: sqlite3.Connection,
     agent_scope: str | None = None,
     grain: str | None = None,
+    page: int | None = None,
+    page_size: int = 20,
 ) -> dict[str, Any]:
     """Build the complete view model for the dashboard page.
 
@@ -140,7 +142,9 @@ def build_dashboard_view_model(
     # ── Single agent branch data ───────────────────────────────────────
     single_agent_branch = None
     if is_single_agent and db_agent:
-        single_agent_branch = _compute_single_agent_branch(conn, db_agent, agent_scope)
+        single_agent_branch = _compute_single_agent_branch(
+            conn, db_agent, agent_scope, page=page, page_size=page_size,
+        )
 
     # ── Anomaly / needs attention (only for all agents) ────────────────
     needs_attention = []
@@ -157,6 +161,15 @@ def build_dashboard_view_model(
     # ── Cache Health stats ─────────────────────────────────────────
     cache_health = _compute_cache_health_stats(trend)
 
+    # ── Pagination for Agent Sessions (single agent only) ──────────
+    total_agent_sessions = 0
+    total_pages = 1
+    current_page = 1
+    if is_single_agent and db_agent:
+        total_agent_sessions = _count_agent_sessions(conn, db_agent)
+        current_page = max(1, page or 1)
+        total_pages = max(1, math.ceil(total_agent_sessions / page_size))
+
     return {
         "agent_scope": agent_scope,
         "grain": grain,
@@ -170,6 +183,10 @@ def build_dashboard_view_model(
         "needs_attention": needs_attention,
         "cache_health": cache_health,
         "active_page": "dashboard",
+        "agent_sessions_page": current_page,
+        "agent_sessions_total_pages": total_pages,
+        "agent_sessions_total": total_agent_sessions,
+        "agent_sessions_page_size": page_size,
     }
 
 
@@ -471,6 +488,15 @@ def _mad(values: list) -> float:
     return abs_devs[mid] if n % 2 == 1 else (abs_devs[mid - 1] + abs_devs[mid]) / 2
 
 
+
+def _count_agent_sessions(conn: sqlite3.Connection, db_agent: str) -> int:
+    """Count total sessions for a specific agent (for pagination)."""
+    row = conn.execute(
+        "SELECT COUNT(*) FROM sessions WHERE agent = ?", [db_agent],
+    ).fetchone()
+    return row[0] if row else 0
+
+
 def _build_agent_where(agent_scope: str) -> tuple[str, list]:
     """Build WHERE clause for agent filtering.
 
@@ -624,7 +650,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
     }
 
 
-def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_key: str) -> dict:
+def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_key: str, page: int | None = None, page_size: int = 20) -> dict:
     """Compute data for single agent mode: Model Mix, Tool Distribution, Failure Signals, etc."""
     display_name = _AGENT_DISPLAY.get(scope_key, db_agent)
 
@@ -671,8 +697,10 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
     model_rows.sort(key=lambda x: x["tokens"], reverse=True)
 
     # Agent Sessions table
+    pg = max(1, page or 1)
+    offset = (pg - 1) * page_size
     agent_sessions = list_sessions(
-        conn, agent=db_agent, limit=2000, order_by="ended_at",
+        conn, agent=db_agent, limit=page_size, offset=offset, order_by="ended_at",
     )
     agent_session_rows = []
     for s in agent_sessions:
@@ -698,6 +726,10 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
             "failure": s.failed_tool_count,
             "failure_display": f"{s.failed_tool_count} failed" if s.failed_tool_count > 0 else "No failures",
             "updated": s.ended_at,
+            "fresh_pct": round((s.fresh_input_tokens or s.input_tokens or 0) / max(1, total_tok) * 100, 1),
+            "read_pct": round((s.cache_read_tokens or s.cached_input_tokens or 0) / max(1, total_tok) * 100, 1),
+            "write_pct": round((s.cache_write_tokens or s.cached_output_tokens or 0) / max(1, total_tok) * 100, 1),
+            "output_pct": round((s.output_tokens or 0) / max(1, total_tok) * 100, 1),
             "created": s.started_at,
         })
 
@@ -718,9 +750,30 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
             avg_input = total_tok_val / sessions_count
             avg_output = 0  # would need more detailed query
 
-        # Determine notes
+        # Determine notes per spec
         notes = []
-        if sessions_count > 0:
+        avg_tokens_val = m["tokens"] // max(1, m["sessions"]) if m["sessions"] > 0 else 0
+        if sessions_count >= 10:
+            notes.append("Primary model")
+        if avg_tokens_val > 50000:
+            notes.append("High input")
+        cache_pct = m.get("cache_read", "0%").replace("%", "")
+        try:
+            cache_val = float(cache_pct)
+        except (ValueError, TypeError):
+            cache_val = 0
+        if cache_val < 20 and sessions_count >= 3:
+            notes.append("Low cache reuse")
+        failed_str = m.get("failed_per_session", "0/session")
+        try:
+            failed_val = float(failed_str.split("/")[0])
+        except (ValueError, IndexError):
+            failed_val = 0
+        if failed_val > 0.5:
+            notes.append("High failure")
+        if sessions_count < 3:
+            notes.append("Low sample")
+        if not notes:
             notes.append("Normal")
 
         eff_rows.append({
@@ -737,4 +790,6 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
         "model_rows": model_rows,
         "agent_session_rows": agent_session_rows,
         "efficiency_rows": eff_rows,
+        "page": pg,
+        "page_size": page_size,
     }

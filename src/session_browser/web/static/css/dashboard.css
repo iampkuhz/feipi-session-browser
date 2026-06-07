@@ -91,40 +91,7 @@
   color: white;
 }
 
-/* ── Buttons ============================================================== */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--radius-md);
-  font-weight: 700;
-  cursor: pointer;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
-              box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
-}
-.btn--primary {
-  background: var(--brand);
-  color: white;
-}
-.btn--primary:hover {
-  background: #4a4bd0;
-  box-shadow: var(--shadow-md);
-}
-.btn--outline {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--line);
-}
-.btn--outline:hover {
-  background: var(--surface-hover);
-}
-.btn--sm {
-  padding: 6px 14px;
-  font-size: 13px;
-}
+/* Button styles are in ui-primitives.css */
 
 /* ── KPI Grid ============================================================= */
 .kpi-grid {
@@ -479,26 +446,7 @@
   background: var(--table-row-hover-bg);
 }
 
-/* ── Badge variants ======================================================= */
-.badge {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 700;
-}
-.badge--danger {
-  background: var(--status-error-bg);
-  color: var(--status-error);
-}
-.badge--warning {
-  background: var(--status-warning-bg);
-  color: var(--status-warning);
-}
-.badge--info {
-  background: var(--status-info-bg);
-  color: var(--status-info);
-}
+/* Badge styles are in ui-primitives.css */
 
 /* ── Tooltip dot colors for dashboard charts ============================== */
 .tooltip-dot--fresh {
@@ -670,4 +618,94 @@
 /* ── Chart empty state ================================================== */
 .chart-empty {
   padding: 12px;
+}
+
+/* ── Pagination (Dashboard Agent Sessions) ================================= */
+.pagination-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.pagination-info {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-right: auto;
+}
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--surface);
+  cursor: pointer;
+}
+.pagination-btn:hover {
+  background: var(--surface-hover);
+}
+.pagination-btn--active {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+  cursor: default;
+}
+.pagination-btn--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.pagination-ellipsis {
+  font-size: 12px;
+  color: var(--text-subtle);
+  padding: 0 4px;
+}
+
+/* ── Token Cell (Dashboard Agent Sessions) ================================= */
+.token-cell {
+  position: relative;
+}
+.token-cell__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.tokenbar {
+  display: inline-flex;
+  width: 88px;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.tokenbar__seg {
+  height: 100%;
+  display: block;
+}
+.tokenbar__seg--fresh {
+  width: var(--seg-fresh, 0%);
+  background: var(--token-input-fresh, #3b82f6);
+}
+.tokenbar__seg--read {
+  width: var(--seg-read, 0%);
+  background: var(--token-cache-read, #22c55e);
+}
+.tokenbar__seg--write {
+  width: var(--seg-write, 0%);
+  background: var(--token-cache-write, #a855f7);
+}
+.tokenbar__seg--output {
+  width: var(--seg-output, 0%);
+  background: var(--token-output-visible, #f97316);
 }

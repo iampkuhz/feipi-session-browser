@@ -1,24 +1,5 @@
 {
   "version": 1,
-  "entries": [
-    {
-      "file": "src/session_browser/web/static/js/app.js",
-      "line": 60,
-      "source": "js",
-      "snippet": "ta.style.position = 'absolute';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/app.js",
-      "line": 61,
-      "source": "js",
-      "snippet": "ta.style.left = '-9999px';"
-    },
-    {
-      "file": "src/session_browser/web/static/js/ui_primitives.js",
-      "line": 621,
-      "source": "js",
-      "snippet": "els[i].style.maxHeight = els[i].dataset.scrollMax;"
-    }
-  ],
-  "count": 17
+  "entries": [],
+  "count": 0
 }

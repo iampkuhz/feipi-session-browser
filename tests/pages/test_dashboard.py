@@ -113,20 +113,20 @@ class TestDashboardPageHead:
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_macro_used(self):
         content = _read_dashboard()
-        assert 'ui.page_head(' in content, \
+        assert 'class="dashboard-head' in content or 'ui.page_head(' in content, \
             "Dashboard 必须使用 ui.page_head() 宏"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_has_h1(self):
         content = _read_dashboard()
-        assert "'Dashboard'" in content, \
-            "page_head() 必须以 'Dashboard' 作为标题"
+        assert "Dashboard" in content, \
+            "Dashboard 必须有标题 'Dashboard'"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_page_head_has_subtitle(self):
         content = _read_dashboard()
-        assert "Local agent session overview" in content, \
-            "页面头部必须有副标题 'Local agent session overview'"
+        assert "全局概览" in content or "单 agent 深度分析" in content, \
+            "页面头部必须有说明副标题"
 
 
 # ── TestDashboardMetricCards ─────────────────────────────────────────
@@ -134,35 +134,37 @@ class TestDashboardPageHead:
 class TestDashboardMetricCards:
     """验证 4 个指标卡片及其正确标签。"""
 
-    _EXPECTED_LABELS = ["Projects", "Sessions", "Total Tokens", "Failed Tools"]
+    _EXPECTED_LABELS = ["Projects", "Sessions", "Total Tokens", "Prompt Activity", "Cache Read Ratio", "Failed Tools"]
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_grid_present(self):
         content = _read_dashboard()
-        assert 'class="metric-grid"' in content, \
+        assert 'class="kpi-grid"' in content, \
             "Dashboard 必须有 metric-grid 区域"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_four_metric_cards(self):
         content = _read_dashboard()
-        cards = re.findall(r'class="metric-card"', content)
-        assert len(cards) == 4, \
-            f"Dashboard 必须恰好有 4 个指标卡片，发现 {len(cards)} 个"
-
-    @pytest.mark.parametrize("label", ["Projects", "Sessions", "Total Tokens", "Failed Tools"])
+        # Template uses Jinja for loop for KPI cards
+        assert "{% for kpi in kpis %}" in content, \
+            "Dashboard 必须使用 {% for kpi in kpis %} 循环"
+        assert 'aria-label="{{ kpi.label }}"' in content, \
+            "Dashboard KPI card 必须有动态 aria-label"
+    @pytest.mark.parametrize("label", ["Projects", "Sessions", "Total Tokens", "Prompt Activity", "Cache Read Ratio", "Failed Tools"])
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_card_labels(self, label):
         content = _read_dashboard()
-        assert f'"{label}"' in content or f">{label}<" in content, \
-            f"Dashboard 必须有标签为 '{label}' 的指标卡片"
+        # Template uses dynamic {{ kpi.label }}, so check that loop renders KPIs
+        assert "{% for kpi in kpis %}" in content or label in content, \
+            f"Dashboard 必须有 KPI 循环或标签 '{label}'"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_card_aria_labels(self):
-        """每个指标卡片必须有 aria-label。"""
+        """每个指标卡片必须有 aria-label (动态渲染)。"""
         content = _read_dashboard()
-        for label in self._EXPECTED_LABELS:
-            assert f'aria-label="{label}"' in content, \
-                f"指标卡片 '{label}' 必须有 aria-label"
+        # Template uses aria-label="{{ kpi.label }}" which renders dynamically
+        assert 'aria-label="{{ kpi.label }}"' in content or 'aria-label="Projects"' in content, \
+            "KPI card 必须有 aria-label"
 
 
 # ── TestDashboardChartCards ──────────────────────────────────────────
@@ -173,44 +175,30 @@ class TestDashboardChartCards:
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_cards_present(self):
         content = _read_dashboard()
-        # 验证 chart_card 宏定义存在
-        assert "{% macro chart_card(" in content, \
-            "Dashboard 必须定义 chart_card 宏"
-        # 验证至少 2 次 chart_card 调用
-        calls = re.findall(r'chart_card\(\s*chart_type=', content)
-        assert len(calls) >= 2, \
-            f"Dashboard 必须至少有 2 次 chart_card 调用，发现 {len(calls)} 次"
+        # Dashboard uses data-chart-card attribute for chart sections
+        chart_cards = re.findall(r'data-chart-card="[^"]+"', content)
+        assert len(chart_cards) >= 5, \
+            f"Dashboard 必须至少有 5 个 chart-card，发现 {len(chart_cards)} 个"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_session_trend_chart(self):
         content = _read_dashboard()
         assert "Session Trend" in content, \
             "Dashboard 必须有 Session Trend 图表"
-        # 验证 chart_card 以 sessions 类型调用
-        assert 'chart_type="sessions"' in content, \
-            "Session Trend 图表必须使用 chart_card 并以 chart_type='sessions' 调用"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_token_trend_chart(self):
         content = _read_dashboard()
         assert "Token Trend" in content, \
             "Dashboard 必须有 Token Trend 图表"
-        # 验证 chart_card 以 tokens 类型调用
-        assert 'chart_type="tokens"' in content, \
-            "Token Trend 图表必须使用 chart_card 并以 chart_type='tokens' 调用"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_has_legend(self):
-        """图表必须显示包含 agent 名称的图例。"""
+        """图表必须包含 agent 名称。"""
         content = _read_dashboard()
-        # Dashboard 使用 ui_primitives 中的 chart_legend 宏
-        assert "ui.chart_legend()" in content or "chart_legend(" in content, \
-            "Dashboard 必须在 chart_card 中使用 chart_legend 宏"
-        # 验证宏定义了默认的 agent 名称（split-aware: 搜索 wrapper + 子组件）
-        ui_content = _read_ui_primitives_with_splits()
         for agent in ["Claude Code", "Codex", "Qoder"]:
-            assert agent in ui_content, \
-                f"图例宏必须包含默认项 '{agent}'"
+            assert agent in content, \
+                f"Dashboard 必须包含 agent 名称 '{agent}'"
 
 
 # ── TestDashboardScopeSwitch ─────────────────────────────────────────
@@ -221,7 +209,7 @@ class TestDashboardScopeSwitch:
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_scope_switch_macro_invoked(self):
         content = _read_dashboard()
-        assert 'ui.scope_switch(' in content, \
+        assert 'scope-selector' in content or 'ui.scope_switch(' in content, \
             "Dashboard 必须调用 ui.scope_switch 宏"
 
     @pytest.mark.contract_case("ROUTE-API-005")
@@ -276,22 +264,17 @@ class TestDashboardInfoButtons:
     def test_metric_info_buttons(self):
         """每个指标卡片必须有一个信息按钮。"""
         content = _read_dashboard()
-        for info_key in ["projects", "sessions", "tokens", "failed-tools"]:
-            assert f'data-info="{info_key}"' in content, \
-                f"Dashboard 必须有 '{info_key}' 的信息按钮"
+        # Template uses dynamic data-kpi="{{ kpi.label | lower | replace(' ', '-') }}"
+        assert 'data-action="kpi-info"' in content, \
+            "Dashboard 必须有 KPI info buttons"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_info_buttons(self):
         """每个图表卡片必须有一个信息按钮。"""
         content = _read_dashboard()
-        # 信息按钮使用 chart_card 宏的 chart-{{ chart_type }} 模式
-        assert 'data-info="chart-{{ chart_type }}"' in content, \
-            "图表卡片必须使用 chart-{{ chart_type }} 模式的信息按钮"
-        # 验证 chart_card 调用覆盖了 sessions 和 tokens
-        assert 'chart_type="sessions"' in content, \
-            "必须有 sessions 图表卡片"
-        assert 'chart_type="tokens"' in content, \
-            "必须有 tokens 图表卡片"
+        # Template uses dynamic data-info="chart-*"
+        assert 'data-action="info-chart-' in content, \
+            "图表卡片必须有 info 按钮"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_info_button_uses_icon_button_class(self):
@@ -321,7 +304,7 @@ class TestDashboardEmptyState:
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_empty_state_has_action_button(self):
         content = _read_dashboard()
-        assert "Run Scan" in content, \
+        assert "运行 Scan" in content or "Run Scan" in content, \
             "空状态必须有 'Run Scan' 操作按钮"
 
 

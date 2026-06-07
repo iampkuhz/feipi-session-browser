@@ -1,44 +1,44 @@
-{"sessionId":"hifi-viz-session-001","project":"test-hifi-project","display":"Implement a new feature that adds token usage visualization to the dashboard","timestamp":1713952800000}
-{"sessionId": "mock-session-001", "project": "test-hifi-project", "display": "Implement token usage visualization", "timestamp": 1713952800000}
-{"sessionId": "mock-session-002", "project": "project-alpha", "display": "Fix session detail layout regression", "timestamp": 1713956400000}
-{"sessionId": "mock-session-003", "project": "project-beta", "display": "Add agent run duration tracking", "timestamp": 1713960000000}
-{"sessionId": "mock-session-004", "project": "project-gamma", "display": "Refactor token normalizer module", "timestamp": 1713963600000}
-{"sessionId": "mock-session-005", "project": "test-hifi-project", "display": "Improve dashboard metric cards", "timestamp": 1713967200000}
-{"sessionId": "mock-session-006", "project": "project-alpha", "display": "Fix pagination off-by-one bug", "timestamp": 1713970800000}
-{"sessionId": "mock-session-007", "project": "project-beta", "display": "Add dark mode support", "timestamp": 1713974400000}
-{"sessionId": "mock-session-008", "project": "project-gamma", "display": "Optimize database query performance", "timestamp": 1713978000000}
-{"sessionId": "mock-session-009", "project": "test-hifi-project", "display": "Implement session search feature", "timestamp": 1713981600000}
-{"sessionId": "mock-session-010", "project": "project-alpha", "display": "Add project-level aggregation", "timestamp": 1713985200000}
-{"sessionId": "mock-session-011", "project": "project-beta", "display": "Fix tool call linking logic", "timestamp": 1713988800000}
-{"sessionId": "mock-session-012", "project": "project-gamma", "display": "Add session export to MHTML", "timestamp": 1713992400000}
-{"sessionId": "mock-session-013", "project": "test-hifi-project", "display": "Improve error page UX", "timestamp": 1713996000000}
-{"sessionId": "mock-session-014", "project": "project-alpha", "display": "Add keyboard navigation support", "timestamp": 1713999600000}
-{"sessionId": "mock-session-015", "project": "project-beta", "display": "Refactor CSS architecture", "timestamp": 1714003200000}
-{"sessionId": "mock-session-016", "project": "project-gamma", "display": "Implement session comparison view", "timestamp": 1714006800000}
-{"sessionId": "mock-session-017", "project": "test-hifi-project", "display": "Add token cost estimation", "timestamp": 1714010400000}
-{"sessionId": "mock-session-018", "project": "project-alpha", "display": "Fix subagent run tracking", "timestamp": 1714014000000}
-{"sessionId": "mock-session-019", "project": "project-beta", "display": "Improve session list sort", "timestamp": 1714017600000}
-{"sessionId": "mock-session-020", "project": "project-gamma", "display": "Add session tag filtering", "timestamp": 1714021200000}
-{"sessionId": "mock-session-021", "project": "test-hifi-project", "display": "Implement anomaly detection", "timestamp": 1714024800000}
-{"sessionId": "mock-session-022", "project": "project-alpha", "display": "Fix hero section responsiveness", "timestamp": 1714028400000}
-{"sessionId": "mock-session-023", "project": "project-beta", "display": "Add session bookmarking", "timestamp": 1714032000000}
-{"sessionId": "mock-session-024", "project": "project-gamma", "display": "Optimize template rendering", "timestamp": 1714035600000}
-{"sessionId": "mock-session-025", "project": "test-hifi-project", "display": "Implement session diff view", "timestamp": 1714039200000}
-{"sessionId": "mock-session-026", "project": "project-alpha", "display": "Add agent model matrix", "timestamp": 1714042800000}
-{"sessionId": "mock-session-027", "project": "project-beta", "display": "Fix trace panel overflow", "timestamp": 1714046400000}
-{"sessionId": "mock-session-028", "project": "project-gamma", "display": "Add session replay feature", "timestamp": 1714050000000}
-{"sessionId": "mock-session-029", "project": "test-hifi-project", "display": "Improve payload viewer", "timestamp": 1714053600000}
-{"sessionId": "mock-session-030", "project": "project-alpha", "display": "Implement session archiving", "timestamp": 1714057200000}
-{"sessionId": "mock-session-031", "project": "project-beta", "display": "Add project health dashboard", "timestamp": 1714060800000}
-{"sessionId": "mock-session-032", "project": "project-gamma", "display": "Fix session detail tabs", "timestamp": 1714064400000}
-{"sessionId": "mock-session-033", "project": "test-hifi-project", "display": "Add batch session operations", "timestamp": 1714068000000}
-{"sessionId": "mock-session-034", "project": "project-alpha", "display": "Implement timeline compression", "timestamp": 1714071600000}
-{"sessionId": "mock-session-035", "project": "project-beta", "display": "Add session activity heatmap", "timestamp": 1714075200000}
-{"sessionId": "mock-session-036", "project": "project-gamma", "display": "Fix pagination state management", "timestamp": 1714078800000}
-{"sessionId": "mock-session-037", "project": "test-hifi-project", "display": "Add session duration histogram", "timestamp": 1714082400000}
-{"sessionId": "mock-session-038", "project": "project-alpha", "display": "Implement custom filter presets", "timestamp": 1714086000000}
-{"sessionId": "mock-session-039", "project": "project-beta", "display": "Add session quality metrics", "timestamp": 1714089600000}
-{"sessionId": "mock-session-040", "project": "project-gamma", "display": "Fix CSS loading order issue", "timestamp": 1714093200000}
-{"sessionId": "mock-session-041", "project": "test-hifi-project", "display": "Implement session export wizard", "timestamp": 1714096800000}
-{"sessionId": "mock-session-042", "project": "project-alpha", "display": "Add agent performance trends", "timestamp": 1714100400000}
-{"sessionId": "mock-session-043", "project": "project-beta", "display": "Fix mobile responsive layout", "timestamp": 1714104000000}
+{"sessionId": "hifi-viz-session-001", "project": "test-hifi-project", "display": "Implement a new feature that adds token usage visualization to the dashboard", "timestamp": 1846991538398}
+{"sessionId": "mock-session-001", "project": "test-hifi-project", "display": "Implement token usage visualization", "timestamp": 1846991538398}
+{"sessionId": "mock-session-002", "project": "project-alpha", "display": "Fix session detail layout regression", "timestamp": 1846995138398}
+{"sessionId": "mock-session-003", "project": "project-beta", "display": "Add agent run duration tracking", "timestamp": 1846998738398}
+{"sessionId": "mock-session-004", "project": "project-gamma", "display": "Refactor token normalizer module", "timestamp": 1847002338398}
+{"sessionId": "mock-session-005", "project": "test-hifi-project", "display": "Improve dashboard metric cards", "timestamp": 1847005938398}
+{"sessionId": "mock-session-006", "project": "project-alpha", "display": "Fix pagination off-by-one bug", "timestamp": 1847009538398}
+{"sessionId": "mock-session-007", "project": "project-beta", "display": "Add dark mode support", "timestamp": 1847013138398}
+{"sessionId": "mock-session-008", "project": "project-gamma", "display": "Optimize database query performance", "timestamp": 1847016738398}
+{"sessionId": "mock-session-009", "project": "test-hifi-project", "display": "Implement session search feature", "timestamp": 1847020338398}
+{"sessionId": "mock-session-010", "project": "project-alpha", "display": "Add project-level aggregation", "timestamp": 1847023938398}
+{"sessionId": "mock-session-011", "project": "project-beta", "display": "Fix tool call linking logic", "timestamp": 1847027538398}
+{"sessionId": "mock-session-012", "project": "project-gamma", "display": "Add session export to MHTML", "timestamp": 1847031138398}
+{"sessionId": "mock-session-013", "project": "test-hifi-project", "display": "Improve error page UX", "timestamp": 1847034738398}
+{"sessionId": "mock-session-014", "project": "project-alpha", "display": "Add keyboard navigation support", "timestamp": 1847038338398}
+{"sessionId": "mock-session-015", "project": "project-beta", "display": "Refactor CSS architecture", "timestamp": 1847041938398}
+{"sessionId": "mock-session-016", "project": "project-gamma", "display": "Implement session comparison view", "timestamp": 1847045538398}
+{"sessionId": "mock-session-017", "project": "test-hifi-project", "display": "Add token cost estimation", "timestamp": 1847049138398}
+{"sessionId": "mock-session-018", "project": "project-alpha", "display": "Fix subagent run tracking", "timestamp": 1847052738398}
+{"sessionId": "mock-session-019", "project": "project-beta", "display": "Improve session list sort", "timestamp": 1847056338398}
+{"sessionId": "mock-session-020", "project": "project-gamma", "display": "Add session tag filtering", "timestamp": 1847059938398}
+{"sessionId": "mock-session-021", "project": "test-hifi-project", "display": "Implement anomaly detection", "timestamp": 1847063538398}
+{"sessionId": "mock-session-022", "project": "project-alpha", "display": "Fix hero section responsiveness", "timestamp": 1847067138398}
+{"sessionId": "mock-session-023", "project": "project-beta", "display": "Add session bookmarking", "timestamp": 1847070738398}
+{"sessionId": "mock-session-024", "project": "project-gamma", "display": "Optimize template rendering", "timestamp": 1847074338398}
+{"sessionId": "mock-session-025", "project": "test-hifi-project", "display": "Implement session diff view", "timestamp": 1847077938398}
+{"sessionId": "mock-session-026", "project": "project-alpha", "display": "Add agent model matrix", "timestamp": 1847081538398}
+{"sessionId": "mock-session-027", "project": "project-beta", "display": "Fix trace panel overflow", "timestamp": 1847085138398}
+{"sessionId": "mock-session-028", "project": "project-gamma", "display": "Add session replay feature", "timestamp": 1847088738398}
+{"sessionId": "mock-session-029", "project": "test-hifi-project", "display": "Improve payload viewer", "timestamp": 1847092338398}
+{"sessionId": "mock-session-030", "project": "project-alpha", "display": "Implement session archiving", "timestamp": 1847095938398}
+{"sessionId": "mock-session-031", "project": "project-beta", "display": "Add project health dashboard", "timestamp": 1847099538398}
+{"sessionId": "mock-session-032", "project": "project-gamma", "display": "Fix session detail tabs", "timestamp": 1847103138398}
+{"sessionId": "mock-session-033", "project": "test-hifi-project", "display": "Add batch session operations", "timestamp": 1847106738398}
+{"sessionId": "mock-session-034", "project": "project-alpha", "display": "Implement timeline compression", "timestamp": 1847110338398}
+{"sessionId": "mock-session-035", "project": "project-beta", "display": "Add session activity heatmap", "timestamp": 1847113938398}
+{"sessionId": "mock-session-036", "project": "project-gamma", "display": "Fix pagination state management", "timestamp": 1847117538398}
+{"sessionId": "mock-session-037", "project": "test-hifi-project", "display": "Add session duration histogram", "timestamp": 1847121138398}
+{"sessionId": "mock-session-038", "project": "project-alpha", "display": "Implement custom filter presets", "timestamp": 1847124738398}
+{"sessionId": "mock-session-039", "project": "project-beta", "display": "Add session quality metrics", "timestamp": 1847128338398}
+{"sessionId": "mock-session-040", "project": "project-gamma", "display": "Fix CSS loading order issue", "timestamp": 1847131938398}
+{"sessionId": "mock-session-041", "project": "test-hifi-project", "display": "Implement session export wizard", "timestamp": 1847135538398}
+{"sessionId": "mock-session-042", "project": "project-alpha", "display": "Add agent performance trends", "timestamp": 1847139138398}
+{"sessionId": "mock-session-043", "project": "project-beta", "display": "Fix mobile responsive layout", "timestamp": 1847142738398}

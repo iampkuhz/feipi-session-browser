@@ -350,7 +350,8 @@ def get_trend_data(
     where, params = _agent_clause(agent_scope)
     # Convert WHERE to AND if needed
     where_sql = where.replace("WHERE", "AND") if where else ""
-    params.append(f"-{days} days")
+    # SQL has date('now', ?) before agent = ?, so date param must come first
+    params.insert(0, f"-{days} days")
     rows = conn.execute(
         f"""
         SELECT
@@ -386,8 +387,6 @@ def get_trend_data(
             "cache_write_tokens": r["cache_write_tokens"],
             "output_tokens": r["output_tokens"],
             "total_tokens": r["total_tokens"],
-            "cache_read_tokens": r["cache_read_tokens"],
-            "cache_write_tokens": r["cache_write_tokens"],
             "tool_calls": r["tool_calls"],
             "failed_tools": r["failed_tools"],
             "total_count": r["total_count"],
@@ -403,7 +402,8 @@ def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30, agent_sc
     """
     where, params = _agent_clause(agent_scope)
     where_sql = where.replace("WHERE", "AND") if where else ""
-    params.append(f"-{days} days")
+    # SQL has date('now', ?) before agent = ?, so date param must come first
+    params.insert(0, f"-{days} days")
     rows = conn.execute(
         f"""
         SELECT
