@@ -14,11 +14,11 @@ def _truncate_payload(text: str, limit: int) -> str:
     """Truncate payload text if it exceeds the byte limit."""
     if not text:
         return ""
-    if len(text.encode("utf-8")) > limit:
-        truncated = text
-        while len(truncated.encode("utf-8")) > limit:
-            truncated = truncated[:-1]
-        return truncated
+    if limit <= 0:
+        return ""
+    encoded = text.encode("utf-8")
+    if len(encoded) > limit:
+        return encoded[:limit].decode("utf-8", "ignore")
     return text
 
 
