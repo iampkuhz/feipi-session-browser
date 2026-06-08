@@ -33,12 +33,16 @@
     if (typeof initPayloadTab === 'function') initPayloadTab(page);
     var params = new URLSearchParams(window.location.search || "");
     var initialTab = (params.get("tab") === "payload" || params.get("payload_call_id")) ? "payload" : "trace";
-    switchTab(page, initialTab);
+    switchTab(page, initialTab, false);
     qsa(document, '[data-trace-round-row]').forEach(function (round) {
       var button = qs(round, '[data-action="toggle-round"]');
       var open = round.classList.contains('is-open') || (button && button.getAttribute('aria-expanded') === 'true');
       setRoundOpen(round, open);
     });
+    var initialTraceStatus = params.get("trace_status") || "all";
+    if (initialTraceStatus === "failed") setFilter(page, "failed");
+    var initialRound = params.get("round") || "";
+    if (initialRound) jumpRound(page, initialRound);
     // Sync toggle-all button text on load
     syncToggleAllButton(document);
     // Setup dynamic token tooltip positioning

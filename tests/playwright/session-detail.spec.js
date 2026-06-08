@@ -127,7 +127,14 @@ test.describe('会话详情 — Phase 1', () => {
       'collapse-all',
       'jump-round',
       'open-payload',
+      'open-payload-tab',
+      'open-trace-step',
+      'payload-filter',
+      'select-payload-call',
+      'copy',
       'close-payload',
+      'retry-attribution',
+      'retry-round',
       'payload-mode',
       'close-modal',
       'jump-anomaly',
@@ -138,8 +145,8 @@ test.describe('会话详情 — Phase 1', () => {
       'sort',
       'status-all',
       'status-failed',
-      'tab-metrics',
       'tab-trace',
+      'tab-payload',
       'toggle-all',
     ]);
 
@@ -187,7 +194,7 @@ test.describe('会话详情 — Phase 1', () => {
     expect(filteredOutAll).toBe(0);
 
     // 失败筛选：只有失败行可见
-    const totalFailed = await page.locator('.round-row[data-status="failed"]').count();
+    const totalFailed = await page.locator('.round-row[data-status="failed"], .round-row[data-has-issues="true"]').count();
     const failedChip = page.locator('.trace-panel__chip[data-status="failed"], [data-action="status-failed"]');
     await failedChip.first().click();
     await page.waitForTimeout(100);

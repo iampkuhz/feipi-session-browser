@@ -280,6 +280,60 @@
     parent.appendChild(section);
   }
 
+  function appendPayloadAttribution(parent, title, payloadId, kind) {
+    var section = makeEl("section", "sd-payload-detail-section sd-payload-detail-section--attribution");
+    section.appendChild(makeEl("h3", "", title));
+    var body = makeEl("div", "sd-payload-attribution-inline");
+    if (!payloadId) {
+      body.appendChild(makeEl("div", "sd-card-empty", title + " unavailable for this call."));
+      section.appendChild(body);
+      parent.appendChild(section);
+      return;
+    }
+    body.appendChild(makeEl("div", "sd-card-empty", "Loading " + title + "..."));
+    section.appendChild(body);
+    parent.appendChild(section);
+    fetchAttributionInline(payloadId, kind).then(function (html) {
+      setHtml(body, html);
+    }).catch(function (error) {
+      setHtml(body, '<div class="sd-payload-warning">' + escapeHtml(error && error.message ? error.message : "Attribution unavailable") + '</div>');
+    });
+  }
+
+  function fetchAttributionInline(payloadId, kind) {
+    if (!payloadId || typeof attributionApiUrl !== "function" || typeof renderAttributionSuccess !== "function") {
+      return Promise.resolve('<div class="sd-card-empty">Attribution renderer unavailable.</div>');
+    }
+    var fakeButton = {
+      getAttribute: function (name) {
+        if (name === "data-payload-id") return payloadId;
+        return "";
+      }
+    };
+    var url = attributionApiUrl(fakeButton, kind);
+    if (!url) {
+      return Promise.resolve('<div class="sd-card-empty">Attribution URL unavailable.</div>');
+    }
+    return fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().catch(function () { return null; }).then(function (payload) {
+            var msg = payload && payload.message ? payload.message : "Attribution request failed";
+            throw new Error(msg);
+          });
+        }
+        return response.json();
+      })
+      .then(function (payload) {
+        if (payload && payload.kind === "llm.attribution_error") {
+          throw new Error(payload.message || "Attribution unavailable");
+        }
+        var temp = document.createElement("div");
+        renderAttributionSuccess(temp, payload, kind, url);
+        return temp.innerHTML;
+      });
+  }
+
   function appendPayloadText(parent, title, payload) {
     payload = payload || {};
     var section = makeEl("section", "sd-payload-detail-section");
@@ -314,6 +368,8 @@
     var callId = button.getAttribute("data-call-id") || "";
     var requestId = button.getAttribute("data-request-payload-id") || "";
     var responseId = button.getAttribute("data-response-payload-id") || "";
+    var requestAttributionId = button.getAttribute("data-request-attribution-id") || "";
+    var responseAttributionId = button.getAttribute("data-response-attribution-id") || "";
     var resultIds = (button.getAttribute("data-result-payload-ids") || "")
       .split(",").map(function (value) { return value.trim(); }).filter(Boolean);
     var title = button.getAttribute("data-title") || callId || "Call";
@@ -342,8 +398,8 @@
     overview.appendChild(grid);
     stack.appendChild(overview);
 
-    appendPayloadUnavailable(stack, "Request Attribution", "Available from Trace attribution APIs; persistent Payload tab attribution matrix is not indexed yet.");
-    appendPayloadUnavailable(stack, "Response Attribution", "Available from Trace attribution APIs; persistent Payload tab attribution matrix is not indexed yet.");
+    appendPayloadAttribution(stack, "Request Attribution", requestAttributionId, "request");
+    appendPayloadAttribution(stack, "Response Attribution", responseAttributionId, "response");
 
     var payloadById = {};
     payloads.forEach(function (payload) {
@@ -380,6 +436,71 @@
     var callIdButton = qs(document, '[data-payload-copy="call-id"]');
     if (rawButton) rawButton.setAttribute("data-copy-text", raw || "No raw payload available");
     if (callIdButton) callIdButton.setAttribute("data-copy-text", callId || "");
+  }
+
+  function payloadCallMatchesFilter(button, filter) {
+    var availability = (button.getAttribute("data-availability") || button.getAttribute("data-filter-status") || "").toLowerCase();
+    var status = (button.getAttribute("data-status") || "").toLowerCase();
+    var requestAttribution = (button.getAttribute("data-request-attribution-status") || "").toLowerCase();
+    var responseAttribution = (button.getAttribute("data-response-attribution-status") || "").toLowerCase();
+    if (filter === "failed") return status.indexOf("failed") >= 0 || availability === "error";
+    if (filter === "missing") {
+      return availability === "missing" || availability === "partial" ||
+        requestAttribution === "missing" || requestAttribution === "partial" ||
+        responseAttribution === "missing" || responseAttribution === "partial";
+    }
+    if (filter === "error") {
+      return availability === "error" ||
+        requestAttribution === "error" || responseAttribution === "error";
+    }
+    return true;
+  }
+
+  function setPayloadFilter(page, filter, targetCallId, updateUrl) {
+    page = page || document;
+    filter = filter || "all";
+    if (updateUrl == null) updateUrl = true;
+    if (typeof switchTab === "function") switchTab(document, "payload", updateUrl);
+
+    qsa(page, ".sd-payload-filter [data-payload-filter]").forEach(function (button) {
+      button.classList.toggle("is-active", (button.getAttribute("data-payload-filter") || "all") === filter);
+    });
+
+    var firstVisible = null;
+    var targetVisible = null;
+    qsa(page, ".sd-payload-call").forEach(function (button) {
+      var visible = payloadCallMatchesFilter(button, filter);
+      button.hidden = !visible;
+      button.classList.toggle("is-filtered-out", !visible);
+      if (visible && !firstVisible) firstVisible = button;
+      if (visible && targetCallId && button.getAttribute("data-call-id") === targetCallId) {
+        targetVisible = button;
+      }
+    });
+
+    qsa(page, "[data-payload-group]").forEach(function (group) {
+      var hasVisible = false;
+      qsa(group, ".sd-payload-call").forEach(function (button) {
+        if (!button.hidden) hasVisible = true;
+      });
+      group.hidden = !hasVisible;
+    });
+
+    var selected = qs(page, ".sd-payload-call.is-active");
+    if ((selected && selected.hidden) || targetVisible || (!selected && firstVisible)) {
+      selectPayloadCall(targetVisible || firstVisible, updateUrl);
+    }
+
+    if (window.history && window.URLSearchParams && updateUrl) {
+      var url = new URL(window.location.href);
+      if (filter === "all") url.searchParams.delete("payload_filter");
+      else url.searchParams.set("payload_filter", filter);
+      window.history.replaceState({}, "", url.toString());
+    }
+    if (updateUrl) {
+      var panel = qs(document, "[data-payload-tab-panel]");
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
   }
 
   function selectPayloadCall(button, updateUrl) {
@@ -449,7 +570,9 @@
       var ids = [
         btn.getAttribute("data-primary-payload-id") || "",
         btn.getAttribute("data-request-payload-id") || "",
-        btn.getAttribute("data-response-payload-id") || ""
+        btn.getAttribute("data-response-payload-id") || "",
+        btn.getAttribute("data-request-attribution-id") || "",
+        btn.getAttribute("data-response-attribution-id") || ""
       ].concat((btn.getAttribute("data-result-payload-ids") || "").split(","));
       if (ids.map(function (value) { return value.trim(); }).indexOf(payloadId) >= 0) return btn;
     }
@@ -462,12 +585,14 @@
     if (!panel) return;
     var params = new URLSearchParams(window.location.search || "");
     var requested = params.get("payload_call_id") || "";
+    var initialFilter = params.get("payload_filter") || "all";
     var defaultId = panel.getAttribute("data-default-payload-call") || "";
     var button = requested ? qs(page, '.sd-payload-call[data-call-id="' + cssEscape(requested) + '"]') : null;
     if (!button && requested) button = findPayloadCallByPayloadId(requested);
     if (!button && defaultId) button = qs(page, '.sd-payload-call[data-call-id="' + cssEscape(defaultId) + '"]');
     if (!button) button = qs(page, ".sd-payload-call");
     if (button) selectPayloadCall(button, false);
+    setPayloadFilter(page, initialFilter, requested || defaultId || "", false);
   }
 
   function openPayloadTabForPayload(payloadId) {

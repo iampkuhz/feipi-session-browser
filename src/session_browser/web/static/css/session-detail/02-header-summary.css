@@ -149,7 +149,7 @@
 }
 .sd-kpis {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
 }
 .sd-kpi {
@@ -168,6 +168,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.sd-kpi--health .sd-kpi__value {
+  font-family: var(--sd-font);
+  font-size: 16px;
+  line-height: 1.15;
+  white-space: normal;
 }
 .sd-kpi__label {
   font-size: 11px;
@@ -321,8 +327,22 @@
   font-weight: 800;
   color: var(--sd-text);
 }
+.sd-summary-mono {
+  max-width: 280px;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sd-mono);
+}
 
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
+  .sd-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1040px) {
   .sd-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

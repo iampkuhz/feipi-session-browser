@@ -26,11 +26,12 @@ JS_DIR = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "js"
 # 关键 action 必须存在 handler
 CRITICAL_ACTIONS = {
     "toggle-all",       # Expand all / Collapse all
-    "toggle-failed",    # Failed filter
-    "lazy-round",       # Round lazy load
-    "attribution-request",  # Request attribution
-    "attribution-response", # Response attribution
+    "status-failed",    # Failed filter
+    "toggle-round",     # Round lazy load/toggle
+    "open-payload",     # Payload modal
+    "payload-filter",   # Payload tab filter / coverage matrix
     "tab-trace",        # Trace tab
+    "tab-payload",      # Payload tab
 }
 
 
@@ -55,12 +56,18 @@ def _extract_js_handlers() -> set[str]:
         found = re.findall(r'(?:data-action|getAttribute\(["\']data-action["\']\)|dataset\.action)\s*["\'=]\s*["\']?([a-z][a-z0-9_-]*)', text)
         # 更通用的：查找 action 字符串引用
         found2 = re.findall(r'["\']([a-z][a-z0-9_-]*)["\']\s*(?:===|==|\.includes|\.indexOf)', text)
+        found2b = re.findall(r'\baction\b\s*(?:===|==)\s*["\']([a-z][a-z0-9_-]*)["\']', text)
+        found2c = re.findall(r'\.dataset\.action\s*(?:===|==)\s*["\']([a-z][a-z0-9_-]*)["\']', text)
         found3 = re.findall(r'const\s+\w+Action\s*=\s*["\']([a-z][a-z0-9_-]*)["\']', text)
         found4 = re.findall(r'case\s+["\']([a-z][a-z0-9_-]*)["\']', text)
         handlers.update(found)
         handlers.update(found2)
+        handlers.update(found2b)
+        handlers.update(found2c)
         handlers.update(found3)
         handlers.update(found4)
+        if "action.indexOf('tab-')" in text or 'action.indexOf("tab-")' in text:
+            handlers.update({"tab-trace", "tab-payload", "tab-metrics"})
     return handlers
 
 
@@ -72,7 +79,7 @@ def main() -> None:
     built_in = {"sort", "page-input", "go-dashboard", "go-sessions", "run-scan",
                 "open-project", "open-project-link", "open-agent", "clear-search",
                 "info", "metric-info", "close-modal", "prev-page", "next-page",
-                "tab-trace", "nav-dashboard", "nav-projects",
+                "nav-dashboard", "nav-projects",
                 "nav-sessions", "nav-glossary", "payload-mode"}
 
     errors: list[str] = []

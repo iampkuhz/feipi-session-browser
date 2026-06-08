@@ -57,6 +57,14 @@
 
 {{ sdt.hero(session_summary, hero_metrics, issue_links, session_url) }}
 
+  {% set diag_cost_drivers = diagnostics.cost_drivers|default([]) %}
+  {% set diag_call_distribution = diagnostics.call_distribution|default([]) %}
+  {% set diag_tool_impact = diagnostics.tool_impact|default({}) %}
+  {% set diag_subagents = diagnostics.subagent_breakdown|default([]) %}
+  {% set diag_issues = diagnostics.issues|default([]) %}
+  {% set diag_issue_summary = diagnostics.issue_summary|default({}) %}
+  {% set diag_payload_coverage = diagnostics.payload_coverage|default({}) %}
+
   <section class="sd-diagnostics" data-session-diagnostics aria-label="Session diagnostics">
     <article class="sd-diagnostic-card sd-diagnostic-card--wide">
       <header class="sd-diagnostic-card__head">
@@ -66,17 +74,46 @@
       <div class="sd-diagnostic-card__body">
         {% if diagnostics.token_rounds %}
         <div class="sd-token-round-chart" aria-label="Round token composition">
-          {% for row in diagnostics.token_rounds %}
-          <div class="sd-token-round" title="R{{ row.round_id }} · {{ row.start_time }} · Total {{ row.total_label }} · Cache Read Ratio {{ row.cache_read_ratio }}">
-            <div class="sd-token-round__bar" aria-label="R{{ row.round_id }}">
-              <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ row.mix.fresh|default(0) }}%"></span>
-              <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ row.mix.read|default(0) }}%"></span>
-              <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ row.mix.write|default(0) }}%"></span>
-              <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ row.mix.out|default(0) }}%"></span>
-            </div>
-            <div class="sd-token-round__label">R{{ row.round_id }}</div>
+          <div class="sd-token-round-plot" style="--plot-width: {{ diagnostics.cache_line_plot_width|default(0) }}px; --ratio-line-left: {{ diagnostics.cache_line_left|default(22) }}px; --ratio-line-width: {{ diagnostics.cache_line_width|default(0) }}px">
+            {% if diagnostics.cache_line_points %}
+            <svg class="sd-token-ratio-line" viewBox="0 0 {{ diagnostics.cache_line_width|default(0) }} 100" preserveAspectRatio="none" aria-label="Cache read ratio line">
+              <polyline points="{{ diagnostics.cache_line_points }}" />
+            </svg>
+            {% endif %}
+            {% for row in diagnostics.token_rounds %}
+            <button
+              type="button"
+              class="sd-token-round"
+              data-action="jump-round"
+              data-round="{{ row.round_id }}"
+              aria-label="R{{ row.round_id }} token timeline"
+            >
+              <span class="sd-token-round__bar" aria-label="R{{ row.round_id }}">
+                <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ row.mix.fresh|default(0) }}%"></span>
+                <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ row.mix.read|default(0) }}%"></span>
+                <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ row.mix.write|default(0) }}%"></span>
+                <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ row.mix.out|default(0) }}%"></span>
+                <span class="sd-token-round__ratio-dot" style="--ratio-y: {{ row.ratio_y|default(100) }}%" aria-hidden="true"></span>
+              </span>
+              <span class="sd-token-round-tooltip" role="tooltip">
+                <b>R{{ row.round_id }} · {{ row.start_time }}</b>
+                <span><i class="sd-dot sd-dot--fresh"></i>Fresh <em>{{ row.fresh }}</em></span>
+                <span><i class="sd-dot sd-dot--read"></i>Cache Read <em>{{ row.cache_read }}</em></span>
+                <span><i class="sd-dot sd-dot--write"></i>Cache Write <em>{{ row.cache_write }}</em></span>
+                <span><i class="sd-dot sd-dot--out"></i>Output <em>{{ row.output }}</em></span>
+                <span><i class="sd-dot sd-dot--line"></i>Cache Read Ratio <em>{{ row.cache_read_ratio }}</em></span>
+              </span>
+              {% if row.badges %}
+              <span class="sd-token-round__badges">
+                {% for badge in row.badges[:2] %}
+                <span>{{ badge }}</span>
+                {% endfor %}
+              </span>
+              {% endif %}
+              <span class="sd-token-round__label">R{{ row.round_id }}</span>
+            </button>
+            {% endfor %}
           </div>
-          {% endfor %}
         </div>
         {% else %}
         <div class="sd-card-empty">No token timeline available</div>
@@ -85,29 +122,96 @@
           {% for stat in diagnostics.token_stats %}
           <div><span>{{ stat.label }}</span><b>{{ stat.value }}</b></div>
           {% endfor %}
-          <div><span>Fresh Spike Rounds</span><b>{{ hero_metrics.fresh_spike_rounds|default('0') }}</b></div>
-          <div><span>Low-cache Rounds</span><b>{{ hero_metrics.low_cache_rounds|default('0') }}</b></div>
         </div>
       </div>
     </article>
 
     <article class="sd-diagnostic-card">
       <header class="sd-diagnostic-card__head">
-        <h2>Tool Cost &amp; ROI</h2>
-        <span>{{ hero_metrics.tools|default('0') }} calls</span>
+        <h2>Top Cost Drivers</h2>
+        <span>Top 5</span>
+      </header>
+      <div class="sd-diagnostic-card__body">
+        {% if diag_cost_drivers %}
+        <table class="sd-compact-table sd-driver-table">
+          <thead><tr><th>Driver</th><th>Tokens</th><th>Share</th><th>Reason</th></tr></thead>
+          <tbody>
+            {% for row in diag_cost_drivers %}
+            <tr>
+              <td>
+                <button type="button" class="sd-link-btn" data-action="jump-round" data-round="{{ row.target_round|default('') }}">
+                  <span>{{ row.type }}</span>
+                  <b>{{ row.driver }}</b>
+                </button>
+              </td>
+              <td>{{ row.tokens_label }}</td>
+              <td>{{ row.share }}</td>
+              <td title="{{ row.reason }}">{{ row.reason }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="sd-card-empty">No token cost drivers indexed</div>
+        {% endif %}
+      </div>
+    </article>
+
+    <article class="sd-diagnostic-card">
+      <header class="sd-diagnostic-card__head">
+        <h2>Call Cost Distribution</h2>
+        <span>{{ diag_call_distribution|length }} calls</span>
+      </header>
+      <div class="sd-diagnostic-card__body">
+        {% if diag_call_distribution %}
+        <div class="sd-call-distribution" aria-label="LLM call token distribution">
+          {% for call in diag_call_distribution %}
+          <button
+            type="button"
+            class="sd-call-dot sd-call-dot--{{ call.lane }} {% if call.is_top %}is-top{% endif %}"
+            data-action="jump-round"
+            data-round="{{ call.target_round|default('') }}"
+            style="--bar-height: {{ call.height_pct|default(0) }}%"
+            title="#{{ call.index }} · {{ call.label }} · {{ call.tokens_label }} · {{ call.model }}"
+          >
+            <span></span>
+            <b>{{ call.index }}</b>
+          </button>
+          {% endfor %}
+        </div>
+        <div class="sd-chart-legend">
+          <span><i class="sd-legend-dot sd-legend-dot--main"></i>Main call</span>
+          <span><i class="sd-legend-dot sd-legend-dot--subagent"></i>Subagent call</span>
+          <span><i class="sd-legend-ring"></i>Top 3</span>
+        </div>
+        {% else %}
+        <div class="sd-card-empty">No LLM call distribution available</div>
+        {% endif %}
+      </div>
+    </article>
+
+    <article class="sd-diagnostic-card">
+      <header class="sd-diagnostic-card__head">
+        <h2>Tool Impact</h2>
+        <span title="Global total; split shown in row tooltip">{{ diag_tool_impact.all_tool_calls|default(0) }} calls</span>
       </header>
       <div class="sd-diagnostic-card__body">
         <div class="sd-compact-stats">
-          <div><span>Tool Calls</span><b>{{ hero_metrics.tools|default('0') }}</b></div>
-          <div><span>Distinct Tools</span><b>{{ hero_metrics.distinct_tools|default('0') }}</b></div>
-          <div><span>Failed Tools</span><b>{{ hero_metrics.failed|default('0') }}</b></div>
+          <div><span>All Tool Calls</span><b>{{ diag_tool_impact.all_tool_calls|default(0) }}</b></div>
+          <div><span>Failed Tools</span><b>{{ diag_tool_impact.failed_tools|default(0) }}</b></div>
+          <div><span>Distinct Tools</span><b>{{ diag_tool_impact.distinct_tools|default(0) }}</b></div>
         </div>
-        {% if diagnostics.tool_summary %}
+        {% if diag_tool_impact.rows %}
         <table class="sd-compact-table">
-          <thead><tr><th>Tool</th><th>Calls</th><th>Tokens</th><th>Failure</th></tr></thead>
+          <thead><tr><th>Tool</th><th>Calls</th><th>Result Tokens</th><th>Failures</th></tr></thead>
           <tbody>
-            {% for row in diagnostics.tool_summary %}
-            <tr title="{{ row.note }}"><td>{{ row.tool }}</td><td>{{ row.calls }}</td><td>{{ row.tokens }}</td><td>{{ row.failure }}</td></tr>
+            {% for row in diag_tool_impact.rows %}
+            <tr title="{{ row.split_note }} · {{ row.note }}">
+              <td>{{ row.tool }}</td>
+              <td>{{ row.calls }}</td>
+              <td>{{ row.tokens }}</td>
+              <td>{{ row.failures }}</td>
+            </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -119,25 +223,96 @@
 
     <article class="sd-diagnostic-card">
       <header class="sd-diagnostic-card__head">
-        <h2>Bug Mining &amp; Regression Seeds</h2>
-        <span>{{ diagnostics.signals|length }} signals</span>
+        <h2>Subagent Breakdown</h2>
+        <span>{{ diag_subagents|length }} runs</span>
       </header>
       <div class="sd-diagnostic-card__body">
+        {% if diag_subagents %}
+        <table class="sd-compact-table">
+          <thead><tr><th>Subagent</th><th>LLM Calls</th><th>Tokens</th><th>Tools</th><th>Failures</th><th>Result</th></tr></thead>
+          <tbody>
+            {% for row in diag_subagents %}
+            <tr>
+              <td>
+                <button type="button" class="sd-link-btn" data-action="jump-round" data-round="{{ row.round_id|default('') }}">
+                  <b>{{ row.subagent }}</b>
+                  <span>{{ row.short_id }}</span>
+                </button>
+              </td>
+              <td>{{ row.llm_calls }}</td>
+              <td title="{{ row.token_note|default('') }}">{{ row.tokens }}</td>
+              <td>{{ row.tools }}</td>
+              <td>{{ row.failures }}</td>
+              <td><span class="sd-result-pill sd-result-pill--{{ row.result }}">{{ row.result }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="sd-card-empty">No subagent runs indexed</div>
+        {% endif %}
+      </div>
+    </article>
+
+    <article class="sd-diagnostic-card">
+      <header class="sd-diagnostic-card__head">
+        <h2>Issues &amp; Repro Seeds</h2>
+        <span>{{ diag_issues|length }} issues</span>
+      </header>
+      <div class="sd-diagnostic-card__body">
+        <div class="sd-issue-type-grid">
+          <div><span>Tool failures</span><b>{{ diag_issue_summary.tool_failures|default(0) }}</b></div>
+          <div><span>LLM errors</span><b>{{ diag_issue_summary.llm_errors|default(0) }}</b></div>
+          <div><span>Payload gaps</span><b>{{ diag_issue_summary.payload_gaps|default(0) }}</b></div>
+          <div><span>Attribution errors</span><b>{{ diag_issue_summary.attribution_errors|default(0) }}</b></div>
+        </div>
         {% if diagnostics.signals %}
         <table class="sd-compact-table">
-          <thead><tr><th>Signal</th><th>Evidence</th><th>Seed</th></tr></thead>
+          <thead><tr><th>Issue</th><th>Evidence</th><th>Round</th><th>Seed</th></tr></thead>
           <tbody>
             {% for signal in diagnostics.signals %}
             <tr>
-              <td><span class="sd-signal-badge sd-signal-badge--{{ signal.tone }}">{{ signal.signal }}</span></td>
+              <td><span class="sd-signal-badge sd-signal-badge--{{ signal.tone }}">{{ signal.issue }}</span></td>
               <td>{{ signal.evidence }}</td>
+              <td>
+                {% if signal.round_id %}
+                <button type="button" class="sd-link-btn sd-link-btn--inline" data-action="jump-round" data-round="{{ signal.round_id }}">{{ signal.round_label }}</button>
+                {% else %}—{% endif %}
+              </td>
               <td><button type="button" class="sd-seed-btn" data-action="copy" data-copy-text="{{ signal.seed }}">{{ signal.seed }}</button></td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
-        <div class="sd-card-empty">No regression seed found</div>
+        <div class="sd-card-empty">No actionable issues detected</div>
+        {% endif %}
+      </div>
+    </article>
+
+    <article class="sd-diagnostic-card">
+      <header class="sd-diagnostic-card__head">
+        <h2>Payload Coverage</h2>
+        <span>{{ payload_index.payload_count|default(0) }} items</span>
+      </header>
+      <div class="sd-diagnostic-card__body">
+        {% if diag_payload_coverage.rows %}
+        <table class="sd-coverage-matrix">
+          <thead><tr><th></th><th>Available</th><th>Partial</th><th>Missing</th><th>Error</th></tr></thead>
+          <tbody>
+            {% for row in diag_payload_coverage.rows %}
+            <tr>
+              <th>{{ row.label }}</th>
+              <td><button type="button" data-action="payload-filter" data-payload-filter="all" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.available }}</button></td>
+              <td><button type="button" data-action="payload-filter" data-payload-filter="missing" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.partial }}</button></td>
+              <td><button type="button" data-action="payload-filter" data-payload-filter="missing" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.missing }}</button></td>
+              <td><button type="button" data-action="payload-filter" data-payload-filter="error" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.error }}</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="sd-card-empty">No payload coverage indexed</div>
         {% endif %}
       </div>
     </article>
@@ -148,32 +323,41 @@
         <span>{{ diagnostics.context_scope|default('Session-level') }}</span>
       </header>
       <div class="sd-diagnostic-card__body">
+        <div class="sd-context-segmented" aria-label="Context budget segmented bar">
+          {% for segment in diagnostics.context_segments %}
+          <span
+            class="sd-context-segment sd-context-segment--{{ segment.status }}"
+            style="--seg-width: {{ segment.share_value|default(0) }}%"
+            title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}"
+          ></span>
+          {% endfor %}
+        </div>
         <div class="sd-context-budget" aria-label="Session Context">
           {% for segment in diagnostics.context_segments %}
-          <div class="sd-context-budget__row" title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}">
+          <div class="sd-context-budget__row sd-context-budget__row--{{ segment.status }}" title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}">
             <span>{{ segment.label }}</span>
             <div class="sd-context-budget__track">
-              <i style="--seg-width: {{ segment.share if segment.share != 'N/A' else '0%' }}"></i>
+              <i style="--seg-width: {{ segment.share_value|default(0) }}%"></i>
             </div>
-            <b>{{ segment.share }}</b>
+            <b>{{ segment.tokens_label }} · {{ segment.share }}</b>
           </div>
           {% endfor %}
         </div>
-        <div class="sd-context-note">System segment is unavailable in the current index; tool result tokens are local estimates from transcript result length.</div>
+        <div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>
       </div>
     </article>
   </section>
 
-  <nav class="sd-tabs" data-session-tabs aria-label="Session view tabs">
-    <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace">
+  <nav class="sd-tabs" data-session-tabs aria-label="Session view tabs" role="tablist">
+    <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace" role="tab" aria-selected="true" aria-controls="sd-tab-panel-trace">
       <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
     </a>
-    <a class="sd-tab" href="#" data-action="tab-payload" data-tab="payload">
+    <a class="sd-tab" href="#" data-action="tab-payload" data-tab="payload" role="tab" aria-selected="false" aria-controls="sd-tab-panel-payload">
       <span class="sd-tab-icon" aria-hidden="true">&#x1F4E6;</span>Payload
     </a>
   </nav>
 
-  <section class="sd-trace-panel" data-trace-panel data-tab-panel="trace">
+  <section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
     {{ sdt.trace_header() }}
     {# ── Empty trace state: no rounds indexed ── #}
     {% if not trace_rows %}
@@ -213,8 +397,10 @@
 
   <section
     class="sd-payload-tab-panel"
+    id="sd-tab-panel-payload"
     data-payload-tab-panel
     data-tab-panel="payload"
+    role="tabpanel"
     data-default-payload-call="{{ payload_index.default_call_id|default('') }}"
     hidden
   >
@@ -224,10 +410,16 @@
           <h2>Call Selector</h2>
           <span>{{ payload_index.payload_count|default(0) }} items</span>
         </div>
+        <div class="sd-payload-filter" role="group" aria-label="Payload availability filter">
+          <button type="button" class="is-active" data-action="payload-filter" data-payload-filter="all">All</button>
+          <button type="button" data-action="payload-filter" data-payload-filter="failed">Failed</button>
+          <button type="button" data-action="payload-filter" data-payload-filter="missing">Missing</button>
+          <button type="button" data-action="payload-filter" data-payload-filter="error">Error</button>
+        </div>
         <div class="sd-payload-selector__list">
           {% if payload_index.groups %}
             {% for group in payload_index.groups %}
-            <section class="sd-payload-group">
+            <section class="sd-payload-group" data-payload-group>
               <h3>{{ group.title }}</h3>
               {% for item in group["items"] %}
               <button
@@ -241,10 +433,15 @@
                 data-model="{{ item.model }}"
                 data-status="{{ item.call_status }}"
                 data-availability="{{ item.status }}"
+                data-filter-status="{{ item.status }}"
                 data-token-summary="{{ item.token_summary }}"
                 data-timestamp="{{ item.timestamp }}"
                 data-request-payload-id="{{ item.request_payload_id }}"
                 data-response-payload-id="{{ item.response_payload_id }}"
+                data-request-attribution-id="{{ item.request_attribution_id|default('') }}"
+                data-response-attribution-id="{{ item.response_attribution_id|default('') }}"
+                data-request-attribution-status="{{ item.request_attribution_status|default('') }}"
+                data-response-attribution-status="{{ item.response_attribution_status|default('') }}"
                 data-result-payload-ids="{{ item.result_payload_ids|join(',') }}"
                 data-primary-payload-id="{{ item.primary_payload_id }}"
               >

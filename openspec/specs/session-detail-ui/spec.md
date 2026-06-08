@@ -4,17 +4,35 @@
 
 ### Requirement: Single trace-first debug page
 
-The session detail page SHALL provide a single Trace-first debugging experience as a stable, offline-capable debug page.
+The session detail page SHALL provide a run-analysis experience as a stable, offline-capable debug page. The first viewport SHALL summarize run health, token cost, cache health, workload, and active time. Trace and Payload SHALL remain drill-down workspaces.
 
 #### Scenario: Session summary display
 
 The page SHALL display:
 - Session title
-- Agent name and model
-- Start time and duration
-- KPI metrics grouped into token analysis and call-count analysis
-- Token analysis metrics: Tokens, Fresh, Cache R, Cache W, Output
-- Call-count analysis metrics: Rounds, Tools, Failed, LLM Calls
+- Agent name, model, project, created/updated timestamps, and session id
+- Exactly five primary KPI cards: Run Health, Total Tokens, Cache Health, Workload, Active Time
+- Run Health secondary metrics: Issue Rounds, Failed Tools, Payload Gaps, Attribution Gaps
+- Total Tokens secondary metrics: Fresh, Cache Read, Cache Write, Output
+- Cache Health secondary metrics: Input-side Tokens, Low-cache Rounds, Fresh Spike Rounds
+- Workload secondary metrics: Main Calls, Subagent Calls, Tool Calls, Subagent Runs
+- Active Time secondary metrics: Duration, Waiting Time, Model Time, Tool Time
+
+Each primary KPI card SHALL render no more than four secondary KPI values.
+
+#### Scenario: Analysis cards display
+
+The page SHALL display analysis cards for:
+- Token Timeline + Cache Health
+- Top Cost Drivers
+- Call Cost Distribution
+- Tool Impact
+- Subagent Breakdown
+- Issues & Repro Seeds
+- Payload Coverage
+- Context Budget
+
+Token Timeline + Cache Health and Context Budget SHALL span the full analysis grid width on desktop. Other analysis cards SHALL use the two-column grid on desktop and single-column layout on narrow screens.
 
 #### Scenario: Issue summary display
 
@@ -22,7 +40,7 @@ The page SHALL display issue cards for:
 - Failed rounds with aggregated failed tool call counts
 - Highest token round
 
-Issue cards SHALL be clickable buttons that jump to and expand the target round. When no issues exist, display "No actionable issues detected."
+Issue cards SHALL be clickable buttons that jump to and expand the target round. When no issues exist, display "No actionable issues detected." The Hero issue strip SHALL NOT display "No issues found" when any tool failure, LLM error, payload gap, or attribution error exists.
 
 #### Scenario: Trace list
 
@@ -32,6 +50,7 @@ The page SHALL display a vertical list of all rounds. Each round SHALL show:
 - Tool count and failure count
 - Token count
 - Time
+- Signals: Failed, Subagent, Payload Gap, Attribution Gap
 
 The first failed round SHALL be expanded by default; if no failures, expand R1.
 
@@ -40,6 +59,8 @@ The first failed round SHALL be expanded by default; if no failures, expand R1.
 The page SHALL provide:
 - All / Failed status filter
 - Expand All / Collapse All buttons
+
+The Failed filter SHALL show failed rounds and rounds containing any failure signal. The filter state SHALL be reflected in `trace_status` URL parameter. Selected round and selected tab SHALL be reflected in `round` and `tab` URL parameters.
 
 #### Scenario: Inline round detail
 
@@ -51,9 +72,16 @@ When a round is expanded, it SHALL show:
 - Failed tool error summaries
 - Payload buttons only when payload data exists
 
-#### Scenario: Payload modal
+#### Scenario: Payload tab and modal
 
-The page SHALL provide a modal dialog for viewing payloads with:
+The page SHALL provide a persistent Payload tab with:
+- Left call selector with All / Failed / Missing / Error filters
+- Right selected call detail
+- Detail sections in this fixed order: Overview, Request Attribution, Response Attribution, Raw Request, Raw Response, Related Results
+
+The selector SHALL keep an internal scroll area on desktop and narrow screens. Selecting a coverage matrix cell SHALL switch to the Payload tab, apply the corresponding selector filter, and select the first matching failed/missing/error call.
+
+The page SHALL also provide a modal dialog for viewing payloads with:
 - View Request / View Response / View Result buttons
 - Rendered / Raw display mode toggle
 - Multi-part segmented display
@@ -95,13 +123,21 @@ The page SHALL NOT render a `content-modal` element or any `data-content-modal` 
 Every visible `<button>` on the session detail page SHALL have a supported `data-action` value from this list:
 - `status-all`
 - `status-failed`
-- `expand-all`
-- `collapse-all`
+- `toggle-all`
+- `toggle-round`
 - `open-payload`
+- `open-payload-tab`
+- `open-trace-step`
+- `select-payload-call`
+- `payload-filter`
 - `payload-mode`
 - `close-modal`
+- `close-payload`
+- `copy`
 - `jump-round`
 - `jump-anomaly`
+- `retry-attribution`
+- `retry-round`
 - `md-toggle` (tool result markdown toggle)
 
 ### Requirement: No removed entries
@@ -119,7 +155,7 @@ The session detail page SHALL NOT render:
 - × Clear filter button
 - Independent Calls tab/table
 - Independent Hotspots tab/cards
-- Token Usage collapsed chart, round bar chart, or hover tooltip
+- Legacy Token Usage collapsed chart
 
 ### Requirement: Global shell simplification
 

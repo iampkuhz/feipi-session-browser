@@ -13,8 +13,10 @@ from session_browser.domain.models import (
     ChatMessage,
     ConversationRound,
     LLMCall,
+    TokenProvider,
     ToolCall,
 )
+from session_browser.domain.token_normalizer import normalize_tokens
 from session_browser.web.template_env import (
     _relative_to_repo,
     _shorten_path,
@@ -94,6 +96,63 @@ def _format_ratio_pct(numerator: float, denominator: float) -> str:
     return f"{numerator / denominator * 100:.1f}%"
 
 
+def _ratio_value(numerator: float, denominator: float) -> float:
+    if not denominator:
+        return 0.0
+    return max(0.0, min(100.0, numerator / denominator * 100))
+
+
+def _token_provider_for_agent(agent: str) -> str | None:
+    normalized = (agent or "").lower().replace("-", "_")
+    if normalized == "codex":
+        return TokenProvider.CODEX
+    if normalized == "qoder":
+        return TokenProvider.QODER
+    if normalized in ("claude_code", "claude"):
+        return TokenProvider.ANTHROPIC
+    return None
+
+
+def _usage_parts_from_mapping(usage: dict | None, *, agent: str = "", model: str = "") -> dict:
+    """Return canonical token parts from a raw usage dict.
+
+    Prefer normalized LLMCall values when available. This fallback keeps display
+    code from silently dropping aliases such as cached_input_tokens.
+    """
+    breakdown = normalize_tokens(
+        usage or {},
+        provider=_token_provider_for_agent(agent),
+        model=model or None,
+    )
+    return {
+        "fresh": int(breakdown.fresh_input_tokens or 0),
+        "cache_read": int(breakdown.cache_read_tokens or 0),
+        "cache_write": int(breakdown.cache_write_tokens or 0),
+        "output": int(breakdown.output_tokens or 0),
+        "total": int(breakdown.total_tokens or (
+            (breakdown.fresh_input_tokens or 0)
+            + (breakdown.cache_read_tokens or 0)
+            + (breakdown.cache_write_tokens or 0)
+            + (breakdown.output_tokens or 0)
+        )),
+    }
+
+
+def _usage_parts_from_call(call) -> dict:
+    fresh = int(getattr(call, "input_tokens", 0) or 0)
+    cache_read = int(getattr(call, "cache_read_tokens", 0) or 0)
+    cache_write = int(getattr(call, "cache_write_tokens", 0) or 0)
+    output = int(getattr(call, "output_tokens", 0) or 0)
+    total = int(getattr(call, "total_tokens", 0) or 0) or (fresh + cache_read + cache_write + output)
+    return {
+        "fresh": fresh,
+        "cache_read": cache_read,
+        "cache_write": cache_write,
+        "output": output,
+        "total": total,
+    }
+
+
 def _median(values: list[int]) -> float:
     clean = sorted(v for v in values if v is not None)
     if not clean:
@@ -127,18 +186,103 @@ def _append_payload_item(group: dict, item: dict, defaults: dict) -> None:
     group["items"].append(item)
     if item.get("status") == "error" and not defaults["failed"]:
         defaults["failed"] = item["call_id"]
+    if item.get("status") in ("missing", "error") and not defaults.get("problem"):
+        defaults["problem"] = item["call_id"]
     if item.get("kind") == "llm" and not defaults["llm"]:
         defaults["llm"] = item["call_id"]
     if item.get("primary_payload_id") and not defaults["available"]:
         defaults["available"] = item["call_id"]
 
 
-def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list) -> dict:
+def _coverage_bucket(status: str) -> str:
+    normalized = (status or "").lower()
+    if normalized == "available":
+        return "available"
+    if normalized == "partial":
+        return "partial"
+    if normalized == "error":
+        return "error"
+    return "missing"
+
+
+def _coverage_empty_counts() -> dict:
+    return {"available": 0, "partial": 0, "missing": 0, "error": 0}
+
+
+def _build_payload_coverage(groups: list[dict]) -> dict:
+    rows = {
+        "Request": _coverage_empty_counts(),
+        "Response": _coverage_empty_counts(),
+        "Tool Result": _coverage_empty_counts(),
+        "Request Attribution": _coverage_empty_counts(),
+        "Response Attribution": _coverage_empty_counts(),
+    }
+    problem_call_id = ""
+
+    for group in groups:
+        for item in group.get("items", []):
+            status = _coverage_bucket(item.get("status", "missing"))
+            kind = item.get("kind", "")
+            if kind in ("llm", "subagent"):
+                rows["Request"][_coverage_bucket("available" if item.get("request_payload_id") else status)] += 1
+                rows["Response"][_coverage_bucket("available" if item.get("response_payload_id") else status)] += 1
+                rows["Request Attribution"]["partial"] += 1
+                rows["Response Attribution"]["partial"] += 1
+            if kind == "tool":
+                result_status = "available" if item.get("result_payload_ids") else status
+                rows["Tool Result"][_coverage_bucket(result_status)] += 1
+            if status in ("missing", "error") and not problem_call_id:
+                problem_call_id = item.get("call_id", "")
+
+    matrix = []
+    for row_name, counts in rows.items():
+        total = sum(counts.values())
+        matrix.append({
+            "label": row_name,
+            "available": counts["available"],
+            "partial": counts["partial"],
+            "missing": counts["missing"],
+            "error": counts["error"],
+            "total": total,
+        })
+
+    totals = _coverage_empty_counts()
+    for row in matrix:
+        for key in totals:
+            totals[key] += row[key]
+
+    return {
+        "rows": matrix,
+        "totals": totals,
+        "problem_call_id": problem_call_id,
+        "payload_gaps": totals["missing"] + totals["error"],
+    }
+
+
+def _build_payload_tab_index(
+    rounds: list,
+    tool_calls: list,
+    subagent_runs: list,
+    llm_calls: list | None = None,
+    *,
+    agent: str = "",
+) -> dict:
     """Build the persistent Payload tab selector from API-compatible payload IDs."""
     payload_map = _build_payload_lookup(rounds, tool_calls, subagent_runs, truncate=True)
     groups: list[dict] = []
     group_by_round: dict[int, dict] = {}
-    defaults = {"failed": "", "llm": "", "available": ""}
+    defaults = {"failed": "", "problem": "", "llm": "", "available": ""}
+    global_call_num = 0
+    sub_calls_by_id = {
+        getattr(call, "id", ""): call
+        for call in (llm_calls or [])
+        if getattr(call, "scope", "") == "subagent" and getattr(call, "id", "")
+    }
+    sub_calls_by_agent: dict[str, list] = {}
+    for call in llm_calls or []:
+        if getattr(call, "scope", "") != "subagent":
+            continue
+        sub_calls_by_agent.setdefault(getattr(call, "subagent_id", "") or "", []).append(call)
 
     for r_idx, r in enumerate(rounds):
         rid = r_idx + 1
@@ -155,19 +299,19 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
 
         seen_tool_payloads: set[str] = set()
         for ix_idx, ix in enumerate(r.interactions):
-            call_index = ix_idx + 1
+            global_call_num += 1
+            call_index = global_call_num
             if getattr(ix, "scope", "main") == "subagent" and getattr(ix, "subagent_id", ""):
                 continue
             request_id = f"llm-R{rid}-IX{call_index}-context"
             response_id = f"llm-R{rid}-IX{call_index}-output"
-            usage_input = getattr(ix, "input_tokens", 0) or 0
-            usage_cache_read = getattr(ix, "cache_read_tokens", 0) or 0
-            usage_cache_write = getattr(ix, "cache_write_tokens", 0) or 0
-            usage_output = getattr(ix, "output_tokens", 0) or 0
-            input_side = usage_input + usage_cache_read + usage_cache_write
+            parts = _usage_parts_from_call(ix)
+            input_side = parts["fresh"] + parts["cache_read"] + parts["cache_write"]
+            request_attribution_id = f"llm-R{rid}-IX{ix_idx + 1}-request-attribution"
+            response_attribution_id = f"llm-R{rid}-IX{ix_idx + 1}-response-attribution"
             token_summary = (
-                f"{_format_compact_token(input_side)} in · {_format_compact_token(usage_output)} out"
-                if input_side or usage_output else "tokens unavailable"
+                f"{_format_compact_token(input_side)} in · {_format_compact_token(parts['output'])} out"
+                if input_side or parts["output"] else "tokens unavailable"
             )
             ix_tools = [
                 tc for tc in (getattr(ix, "tool_calls", []) or [])
@@ -186,6 +330,10 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
                 "status": item_status,
                 "request_payload_id": request_id if request_id in payload_map else "",
                 "response_payload_id": response_id if response_id in payload_map else "",
+                "request_attribution_id": request_attribution_id,
+                "response_attribution_id": response_attribution_id,
+                "request_attribution_status": "partial",
+                "response_attribution_status": "partial",
                 "result_payload_ids": [],
                 "primary_payload_id": _payload_primary_id(request_id, response_id, [], payload_map),
                 "token_summary": token_summary,
@@ -218,9 +366,11 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
                     "model": "",
                     "call_status": "Failed" if getattr(tc, "is_failed", False) else "OK",
                     "status": tool_status,
-                    "request_payload_id": "",
-                    "response_payload_id": "",
-                    "result_payload_ids": [payload_id] if payload_id in payload_map else [],
+                "request_payload_id": "",
+                "response_payload_id": "",
+                "request_attribution_status": "",
+                "response_attribution_status": "",
+                "result_payload_ids": [payload_id] if payload_id in payload_map else [],
                     "primary_payload_id": payload_id if payload_id in payload_map else "",
                     "token_summary": payload_map.get(payload_id, {}).get("size", "—"),
                     "timestamp": "",
@@ -244,6 +394,8 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
                     "status": "error" if getattr(tc, "is_failed", False) else availability,
                     "request_payload_id": "",
                     "response_payload_id": "",
+                    "request_attribution_status": "",
+                    "response_attribution_status": "",
                     "result_payload_ids": [payload_id] if payload_id in payload_map else [],
                     "primary_payload_id": payload_id if payload_id in payload_map else "",
                     "token_summary": payload_map.get(payload_id, {}).get("size", "—"),
@@ -282,23 +434,35 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
                 group = {"round_id": 0, "title": "Subagents", "items": []}
                 groups.append(group)
         agent_type = summary.get("agent_type", "") or "subagent"
+        sub_call_cursor = 0
+        agent_calls = sub_calls_by_agent.get(sa_id, [])
         for m_idx, message in enumerate(run.get("messages", []), start=1):
             if getattr(message, "role", "") != "assistant":
                 continue
+            matched_call = sub_calls_by_id.get(getattr(message, "llm_call_id", "") or "")
+            if not matched_call and sub_call_cursor < len(agent_calls):
+                matched_call = agent_calls[sub_call_cursor]
+            sub_call_cursor += 1
             request_id = f"sub-{sa_id}-{m_idx}-ctx"
             response_id = f"sub-{sa_id}-{m_idx}-rsp"
-            usage = getattr(message, "usage", {}) or {}
-            input_side = (
-                usage.get("input_tokens", 0)
-                + usage.get("cache_read_input_tokens", 0)
-                + usage.get("cache_creation_input_tokens", 0)
+            parts = (
+                _usage_parts_from_call(matched_call)
+                if matched_call
+                else _usage_parts_from_mapping(
+                    getattr(message, "usage", {}) or {},
+                    agent=agent,
+                    model=getattr(message, "model", "") or "",
+                )
             )
-            output_tokens = usage.get("output_tokens", 0)
+            input_side = parts["fresh"] + parts["cache_read"] + parts["cache_write"]
+            output_tokens = parts["output"]
             token_summary = (
                 f"{_format_compact_token(input_side)} in · {_format_compact_token(output_tokens)} out"
                 if input_side or output_tokens else "tokens unavailable"
             )
             status = _payload_status(request_id, response_id, [], payload_map)
+            request_attribution_id = f"sub-{sa_id}-IX{m_idx}-request-attribution"
+            response_attribution_id = f"sub-{sa_id}-IX{m_idx}-response-attribution"
             item = {
                 "call_id": f"sub-{sa_id}-IX{m_idx}",
                 "kind": "subagent",
@@ -309,6 +473,10 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
                 "status": status,
                 "request_payload_id": request_id if request_id in payload_map else "",
                 "response_payload_id": response_id if response_id in payload_map else "",
+                "request_attribution_id": request_attribution_id,
+                "response_attribution_id": response_attribution_id,
+                "request_attribution_status": "partial",
+                "response_attribution_status": "partial",
                 "result_payload_ids": [],
                 "primary_payload_id": _payload_primary_id(request_id, response_id, [], payload_map),
                 "token_summary": token_summary,
@@ -318,9 +486,11 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
             _append_payload_item(group, item, defaults)
 
     groups = [group for group in groups if group["items"]]
+    coverage = _build_payload_coverage(groups)
     return {
         "groups": groups,
-        "default_call_id": defaults["failed"] or defaults["llm"] or defaults["available"],
+        "default_call_id": defaults["failed"] or defaults["problem"] or defaults["llm"] or defaults["available"],
+        "coverage": coverage,
         "payload_count": sum(len(group["items"]) for group in groups),
     }
 
@@ -328,6 +498,7 @@ def _build_payload_tab_index(rounds: list, tool_calls: list, subagent_runs: list
 def _build_session_diagnostics(
     session,
     rounds: list,
+    llm_calls: list,
     tool_calls: list,
     subagent_runs: list,
     trace_rows: list,
@@ -336,15 +507,101 @@ def _build_session_diagnostics(
     cache_read_tokens: int,
     cache_write_tokens: int,
     output_tokens: int,
+    payload_index: dict,
+    payload_sources: list,
 ) -> dict:
     input_side_tokens = fresh_tokens + cache_read_tokens + cache_write_tokens
+    computed_total_tokens = input_side_tokens + output_tokens
+    sub_calls_by_agent: dict[str, list] = {}
+    for call in llm_calls or []:
+        if getattr(call, "scope", "") == "subagent":
+            sub_calls_by_agent.setdefault(getattr(call, "subagent_id", "") or "", []).append(call)
+
+    round_by_tool_id = {}
+    for r_idx, r in enumerate(rounds, start=1):
+        for tc in r.tool_calls:
+            key = getattr(tc, "tool_use_id", "") or id(tc)
+            round_by_tool_id[key] = r_idx
+
+    subagent_parent_round: dict[str, int] = {}
+    for run in subagent_runs:
+        summary = run.get("summary", {})
+        sa_id = summary.get("agent_id", "")
+        if not sa_id:
+            continue
+        for r_idx, r in enumerate(rounds, start=1):
+            for tc in r.tool_calls:
+                if (
+                    getattr(tc, "subagent_id", "") == sa_id
+                    or getattr(tc, "subagent_summary", {}).get("agent_id") == sa_id
+                ):
+                    subagent_parent_round[sa_id] = r_idx
+                    break
+            if sa_id in subagent_parent_round:
+                break
+
+    round_signals: dict[int, dict] = {
+        row.get("round_id", 0): {
+            "failed": False,
+            "payload_gap": False,
+            "attribution_gap": False,
+            "subagent": bool(row.get("has_subagent")),
+            "issues": [],
+        }
+        for row in trace_rows
+    }
+    issue_summary = {
+        "tool_failures": 0,
+        "llm_errors": 0,
+        "payload_gaps": 0,
+        "attribution_errors": 0,
+    }
+    issues: list[dict] = []
+
+    def add_issue(kind: str, label: str, evidence: str, round_id: int = 0,
+                  tone: str = "warning", seed: str = "", call_id: str = "",
+                  target_tab: str = "trace") -> None:
+        issue = {
+            "kind": kind,
+            "label": label,
+            "issue": label,
+            "evidence": evidence[:160],
+            "round_id": round_id,
+            "round_label": f"R{round_id}" if round_id else "—",
+            "tone": tone,
+            "seed": seed or f"{session.session_id} + {kind}",
+            "call_id": call_id,
+            "target_tab": target_tab,
+        }
+        issues.append(issue)
+        if round_id:
+            sig = round_signals.setdefault(round_id, {
+                "failed": False,
+                "payload_gap": False,
+                "attribution_gap": False,
+                "subagent": False,
+                "issues": [],
+            })
+            sig["issues"].append(issue)
+            if kind in ("tool_failure", "llm_error"):
+                sig["failed"] = True
+            if kind == "payload_gap":
+                sig["payload_gap"] = True
+            if kind == "attribution_error":
+                sig["attribution_gap"] = True
+
     token_rounds = []
+    round_fresh_values = [row.get("token_input", 0) for row in trace_rows]
+    median_fresh = _median(round_fresh_values)
     for row in trace_rows:
         round_input_side = (
             row.get("token_input", 0)
             + row.get("token_cache_read", 0)
             + row.get("token_cache_write", 0)
         )
+        cache_ratio_value = _ratio_value(row.get("token_cache_read", 0), round_input_side)
+        low_cache = bool(round_input_side and cache_ratio_value < 20)
+        fresh_spike = bool(median_fresh > 0 and row.get("token_input", 0) > median_fresh * 2)
         token_rounds.append({
             "round_id": row.get("round_id", 0),
             "start_time": row.get("start_time", "—"),
@@ -355,11 +612,126 @@ def _build_session_diagnostics(
             "cache_write": _format_compact_token(row.get("token_cache_write", 0)),
             "output": _format_compact_token(row.get("token_output", 0)),
             "cache_read_ratio": _format_ratio_pct(row.get("token_cache_read", 0), round_input_side),
+            "cache_read_ratio_value": round(cache_ratio_value, 1),
+            "ratio_y": round(100 - cache_ratio_value, 1),
             "mix": row.get("token_mix", {}),
             "llm_calls": sum(1 for ix in rounds[row.get("round_id", 1) - 1].interactions)
             if row.get("round_id") and row.get("round_id") <= len(rounds) else 0,
             "tool_calls": row.get("tool_count", 0),
+            "is_low_cache": low_cache,
+            "is_fresh_spike": fresh_spike,
+            "has_payload_gap": False,
         })
+
+    failed_tools = [tc for tc in tool_calls if getattr(tc, "is_failed", False)]
+    issue_summary["tool_failures"] = len(failed_tools)
+    for tc in failed_tools:
+        key = getattr(tc, "tool_use_id", "") or id(tc)
+        rid = round_by_tool_id.get(key, 0)
+        if not rid and getattr(tc, "subagent_id", ""):
+            rid = subagent_parent_round.get(getattr(tc, "subagent_id", ""), 0)
+        evidence = f"{getattr(tc, 'name', 'tool')} · {getattr(tc, 'status', '') or 'failed'}"
+        if getattr(tc, "exit_code", None) is not None:
+            evidence = f"{getattr(tc, 'name', 'tool')} exit {tc.exit_code}"
+        add_issue(
+            "tool_failure",
+            "Tool failure",
+            evidence,
+            round_id=rid,
+            tone="critical",
+            seed=f"{session.session_id} + R{rid or '?'} + {getattr(tc, 'tool_use_id', '') or 'tool'}",
+        )
+
+    for r_idx, r in enumerate(rounds, start=1):
+        llm_errors = getattr(r, "llm_error_count", 0) or 0
+        if not llm_errors:
+            continue
+        issue_summary["llm_errors"] += llm_errors
+        add_issue(
+            "llm_error",
+            "LLM error",
+            f"R{r_idx} · {llm_errors} llm error(s)",
+            round_id=r_idx,
+            tone="critical",
+            seed=f"{session.session_id} + R{r_idx}",
+        )
+
+    coverage = payload_index.get("coverage", {}) or {"rows": [], "totals": {}, "payload_gaps": 0}
+    issue_summary["payload_gaps"] = int(coverage.get("payload_gaps", 0) or 0)
+    for group in payload_index.get("groups", []):
+        for item in group.get("items", []):
+            if item.get("status") not in ("missing", "error"):
+                continue
+            rid = int(item.get("round_id") or 0)
+            add_issue(
+                "payload_gap",
+                "Payload gap",
+                f"{item.get('title', 'Call')} · {item.get('status', 'missing')}",
+                round_id=rid,
+                tone="warning" if item.get("status") == "missing" else "critical",
+                seed=f"{session.session_id} + {item.get('call_id', 'payload')}",
+                call_id=item.get("call_id", ""),
+                target_tab="payload",
+            )
+
+    for payload in payload_sources or []:
+        kind = str(payload.get("kind", ""))
+        if "attribution" not in kind:
+            continue
+        warning = str(payload.get("warning", ""))
+        if not warning or "unavailable" not in warning.lower():
+            continue
+        issue_summary["attribution_errors"] += 1
+        title = payload.get("title", "Attribution")
+        round_id = 0
+        if title.startswith("R"):
+            try:
+                round_id = int(title.split("·", 1)[0].strip()[1:])
+            except Exception:
+                round_id = 0
+        add_issue(
+            "attribution_error",
+            "Attribution error",
+            warning[:120] or "Attribution unavailable",
+            round_id=round_id,
+            tone="warning",
+            seed=f"{session.session_id} + {payload.get('payload_id', 'attribution')}",
+            target_tab="payload",
+        )
+
+    for anomaly in getattr(session_anomalies, "anomalies", [])[:5]:
+        add_issue(
+            "session_anomaly",
+            getattr(anomaly, "label", "") or str(getattr(anomaly, "type", "Signal")),
+            (getattr(anomaly, "reason", "") or "Session anomaly")[:120],
+            tone="warning",
+            seed=f"{session.session_id}",
+        )
+
+    for token_row in token_rounds:
+        sig = round_signals.get(token_row.get("round_id", 0), {})
+        token_row["has_payload_gap"] = bool(sig.get("payload_gap"))
+        badges = []
+        if token_row["is_low_cache"]:
+            badges.append("low cache")
+        if token_row["is_fresh_spike"]:
+            badges.append("fresh spike")
+        if token_row["has_payload_gap"]:
+            badges.append("payload gap")
+        token_row["badges"] = badges
+
+    if token_rounds:
+        step = 32
+        width = max(1, len(token_rounds) - 1) * step
+        plot_width = (len(token_rounds) * 32) + 12
+        for idx, token_row in enumerate(token_rounds):
+            token_row["line_x"] = idx * step
+            token_row["line_y"] = round(100 - (token_row.get("cache_read_ratio_value", 0) or 0), 1)
+        line_points = " ".join(f"{row['line_x']},{row['line_y']}" for row in token_rounds)
+    else:
+        width = 0
+        plot_width = 0
+        line_points = ""
 
     tool_stats: dict[str, dict] = {}
     for tc in tool_calls:
@@ -367,11 +739,17 @@ def _build_session_diagnostics(
         stat = tool_stats.setdefault(name, {
             "tool": name,
             "calls": 0,
+            "main_calls": 0,
+            "subagent_calls": 0,
             "failed": 0,
             "token_estimate": 0,
             "top_command": "",
         })
         stat["calls"] += 1
+        if getattr(tc, "subagent_id", "") or getattr(tc, "scope", "") == "subagent":
+            stat["subagent_calls"] += 1
+        else:
+            stat["main_calls"] += 1
         if getattr(tc, "is_failed", False):
             stat["failed"] += 1
         result = getattr(tc, "result", "") or ""
@@ -384,78 +762,288 @@ def _build_session_diagnostics(
         tool_summary.append({
             "tool": stat["tool"],
             "calls": str(stat["calls"]),
+            "main_calls": stat["main_calls"],
+            "subagent_calls": stat["subagent_calls"],
             "tokens": _format_compact_token(stat["token_estimate"]),
             "failure": f"{stat['failed']} · {_format_ratio_pct(stat['failed'], stat['calls'])}",
+            "failures": stat["failed"],
             "note": stat["top_command"],
+            "split_note": f"Main {stat['main_calls']} · Subagent {stat['subagent_calls']}",
         })
 
-    signals = []
-    round_by_tool_id = {}
-    for r_idx, r in enumerate(rounds, start=1):
-        for tc in r.tool_calls:
-            key = getattr(tc, "tool_use_id", "") or id(tc)
-            round_by_tool_id[key] = r_idx
-        if getattr(r, "llm_error_count", 0):
-            signals.append({
-                "tone": "warning",
-                "signal": "LLM error",
-                "evidence": f"R{r_idx} · {r.llm_error_count} llm error(s)",
-                "seed": f"{session.session_id} + R{r_idx}",
+    drivers = []
+    for row in trace_rows:
+        tokens = int(row.get("token_total_raw", 0) or 0)
+        if tokens:
+            drivers.append({
+                "type": "Round",
+                "driver": f"R{row.get('round_id')} · Round total",
+                "tokens": tokens,
+                "target_round": row.get("round_id"),
+                "target_tab": "trace",
+                "reason": "Round aggregate",
             })
+    global_call_num = 0
+    call_distribution = []
+    for r_idx, r in enumerate(rounds, start=1):
+        for ix in r.interactions:
+            global_call_num += 1
+            if getattr(ix, "scope", "main") == "subagent" and getattr(ix, "subagent_id", ""):
+                continue
+            call_tokens = (
+                (getattr(ix, "input_tokens", 0) or 0)
+                + (getattr(ix, "cache_read_tokens", 0) or 0)
+                + (getattr(ix, "cache_write_tokens", 0) or 0)
+                + (getattr(ix, "output_tokens", 0) or 0)
+            )
+            if call_tokens:
+                drivers.append({
+                    "type": "Main LLM Call",
+                    "driver": f"R{r_idx} · LLM #{global_call_num}",
+                    "tokens": call_tokens,
+                    "target_round": r_idx,
+                    "target_tab": "trace",
+                    "reason": (getattr(ix, "model", "") or "model")[:40],
+                })
+            call_distribution.append({
+                "index": len(call_distribution) + 1,
+                "label": f"R{r_idx} #{global_call_num}",
+                "tokens": call_tokens,
+                "tokens_label": _format_compact_token(call_tokens),
+                "lane": "main",
+                "target_round": r_idx,
+                "model": (getattr(ix, "model", "") or "unknown")[:40],
+                "is_top": False,
+                "height_pct": 0,
+            })
+
+    for run in subagent_runs:
+        summary = run.get("summary", {})
+        sa_id = summary.get("agent_id", "")
+        rid = subagent_parent_round.get(sa_id, 0)
+        agent_type = summary.get("agent_type", "") or "subagent"
+        call_count = 0
+        token_sum = 0
+        sub_calls = sub_calls_by_agent.get(sa_id, [])
+        if sub_calls:
+            source_calls = sub_calls
+        else:
+            source_calls = [
+                message for message in run.get("messages", [])
+                if getattr(message, "role", "") == "assistant"
+            ]
+        for source in source_calls:
+            call_count += 1
+            if isinstance(source, LLMCall):
+                parts = _usage_parts_from_call(source)
+                model = (getattr(source, "model", "") or "unknown")[:40]
+            else:
+                parts = _usage_parts_from_mapping(
+                    getattr(source, "usage", {}) or {},
+                    agent=getattr(session, "agent", "") or "",
+                    model=getattr(source, "model", "") or "",
+                )
+                model = (getattr(source, "model", "") or "unknown")[:40]
+            call_tokens = parts["total"]
+            token_sum += call_tokens
+            call_distribution.append({
+                "index": len(call_distribution) + 1,
+                "label": f"{agent_type} #{call_count}",
+                "tokens": call_tokens,
+                "tokens_label": _format_compact_token(call_tokens),
+                "lane": "subagent",
+                "target_round": rid,
+                "model": model,
+                "is_top": False,
+                "height_pct": 0,
+            })
+        if token_sum:
+            drivers.append({
+                "type": "Subagent",
+                "driver": f"{agent_type} · {sa_id[-8:] if sa_id else 'unknown'}",
+                "tokens": token_sum,
+                "target_round": rid,
+                "target_tab": "trace",
+                "reason": f"{call_count} LLM call{'s' if call_count != 1 else ''}",
+            })
+
     for tc in tool_calls:
-        if not getattr(tc, "is_failed", False):
+        result_tokens = max(len(getattr(tc, "result", "") or "") // 4, 0)
+        if not result_tokens:
             continue
         key = getattr(tc, "tool_use_id", "") or id(tc)
         rid = round_by_tool_id.get(key, 0)
-        evidence = f"{getattr(tc, 'name', 'tool')} · {getattr(tc, 'status', '') or 'failed'}"
-        if getattr(tc, "exit_code", None) is not None:
-            evidence = f"{getattr(tc, 'name', 'tool')} exit {tc.exit_code}"
-        signals.append({
-            "tone": "critical",
-            "signal": "Tool failure",
-            "evidence": evidence[:120],
-            "seed": f"{session.session_id} + R{rid or '?'} + {getattr(tc, 'tool_use_id', '') or 'tool'}",
+        if not rid and getattr(tc, "subagent_id", ""):
+            rid = subagent_parent_round.get(getattr(tc, "subagent_id", ""), 0)
+        drivers.append({
+            "type": "Tool Result",
+            "driver": f"{getattr(tc, 'name', 'tool')} result",
+            "tokens": result_tokens,
+            "target_round": rid,
+            "target_tab": "payload",
+            "reason": "large result" if result_tokens > 1000 else (getattr(tc, "status", "") or "result"),
         })
-    for anomaly in getattr(session_anomalies, "anomalies", [])[:5]:
-        signals.append({
-            "tone": "warning",
-            "signal": getattr(anomaly, "label", "") or str(getattr(anomaly, "type", "Signal")),
-            "evidence": (getattr(anomaly, "reason", "") or "Session anomaly")[:120],
-            "seed": f"{session.session_id}",
+
+    driver_total = max(computed_total_tokens, sum(item["tokens"] for item in drivers))
+    cost_drivers = []
+    for item in sorted(drivers, key=lambda value: (-value["tokens"], value["type"], value["driver"]))[:5]:
+        row = dict(item)
+        row["tokens_label"] = _format_compact_token(row["tokens"])
+        row["share"] = _format_ratio_pct(row["tokens"], driver_total)
+        cost_drivers.append(row)
+
+    max_call_tokens = max([item["tokens"] for item in call_distribution] or [0])
+    top_call_indexes = {
+        item["index"]
+        for item in sorted(call_distribution, key=lambda value: value["tokens"], reverse=True)[:3]
+        if item["tokens"] > 0
+    }
+    for item in call_distribution:
+        item["height_pct"] = round(_ratio_value(item["tokens"], max_call_tokens), 1) if max_call_tokens else 0
+        item["is_top"] = item["index"] in top_call_indexes
+
+    subagent_breakdown = []
+    for run in subagent_runs:
+        summary = run.get("summary", {})
+        sa_id = summary.get("agent_id", "")
+        agent_type = summary.get("agent_type", "") or "subagent"
+        sa_tools = [tc for tc in tool_calls if getattr(tc, "subagent_id", "") == sa_id]
+        parent_agent_tools = [
+            tc for tc in tool_calls
+            if getattr(tc, "name", "") == "Agent"
+            and getattr(tc, "subagent_summary", {}).get("agent_id") == sa_id
+        ]
+        parent_failed = any(
+            getattr(tc, "is_failed", False)
+            for tc in parent_agent_tools
+        )
+        failures = sum(1 for tc in sa_tools if getattr(tc, "is_failed", False)) + (1 if parent_failed else 0)
+        calls = 0
+        llm_tokens = 0
+        sub_calls = sub_calls_by_agent.get(sa_id, [])
+        if sub_calls:
+            calls = len(sub_calls)
+            llm_tokens = sum(_usage_parts_from_call(call)["total"] for call in sub_calls)
+        else:
+            for message in run.get("messages", []):
+                if getattr(message, "role", "") != "assistant":
+                    continue
+                calls += 1
+                parts = _usage_parts_from_mapping(
+                    getattr(message, "usage", {}) or {},
+                    agent=getattr(session, "agent", "") or "",
+                    model=getattr(message, "model", "") or "",
+                )
+                llm_tokens += parts["total"]
+        parent_result_tokens = sum(max(len(getattr(tc, "result", "") or "") // 4, 0) for tc in parent_agent_tools)
+        internal_tool_result_tokens = sum(max(len(getattr(tc, "result", "") or "") // 4, 0) for tc in sa_tools)
+        footprint_tokens = llm_tokens + parent_result_tokens + internal_tool_result_tokens
+        if failures:
+            result = "failed"
+        elif calls and llm_tokens:
+            result = "completed"
+        elif calls:
+            result = "partial"
+        else:
+            result = "unknown"
+        subagent_breakdown.append({
+            "subagent": agent_type,
+            "agent_id": sa_id,
+            "short_id": sa_id[-8:] if sa_id else "unknown",
+            "llm_calls": calls,
+            "tokens": _format_compact_token(footprint_tokens),
+            "tokens_raw": footprint_tokens,
+            "token_note": (
+                f"LLM {_format_compact_token(llm_tokens)} · "
+                f"Parent result {_format_compact_token(parent_result_tokens)} · "
+                f"Tool results {_format_compact_token(internal_tool_result_tokens)}"
+            ),
+            "tools": len(sa_tools),
+            "failures": failures,
+            "result": result,
+            "round_id": subagent_parent_round.get(sa_id, 0),
         })
-    signals = signals[:5]
+    subagent_breakdown.sort(key=lambda row: (-row["tokens_raw"], row["subagent"]))
 
     tool_result_tokens = sum(max(len(getattr(tc, "result", "") or "") // 4, 0) for tc in tool_calls)
     subagent_context_tokens = 0
     for run in subagent_runs:
-        for message in run.get("messages", []):
-            usage = getattr(message, "usage", {}) or {}
-            subagent_context_tokens += (
-                usage.get("input_tokens", 0)
-                + usage.get("cache_read_input_tokens", 0)
-                + usage.get("cache_creation_input_tokens", 0)
-            )
+        sa_id = (run.get("summary", {}) or {}).get("agent_id", "")
+        sub_calls = sub_calls_by_agent.get(sa_id, [])
+        if sub_calls:
+            for call in sub_calls:
+                parts = _usage_parts_from_call(call)
+                subagent_context_tokens += parts["fresh"] + parts["cache_read"] + parts["cache_write"]
+        else:
+            for message in run.get("messages", []):
+                if getattr(message, "role", "") != "assistant":
+                    continue
+                parts = _usage_parts_from_mapping(
+                    getattr(message, "usage", {}) or {},
+                    agent=getattr(session, "agent", "") or "",
+                    model=getattr(message, "model", "") or "",
+                )
+                subagent_context_tokens += parts["fresh"] + parts["cache_read"] + parts["cache_write"]
     segments = [
-        {"label": "System", "tokens": 0, "source": "unavailable", "precision": "unavailable"},
+        {"label": "System", "tokens": None, "source": "unavailable", "precision": "unavailable"},
         {"label": "History Messages", "tokens": cache_read_tokens, "source": "provider cache read", "precision": "exact"},
         {"label": "Current User Prompt", "tokens": fresh_tokens, "source": "provider fresh input", "precision": "exact"},
         {"label": "Tool Results", "tokens": tool_result_tokens, "source": "transcript result length", "precision": "estimated"},
         {"label": "Subagent Context", "tokens": subagent_context_tokens, "source": "subagent usage", "precision": "estimated"},
         {"label": "Output", "tokens": output_tokens, "source": "provider output", "precision": "exact"},
     ]
-    segment_total = sum(s["tokens"] for s in segments)
+    segment_total = sum(s["tokens"] or 0 for s in segments)
     for segment in segments:
-        segment["share"] = _format_ratio_pct(segment["tokens"], segment_total)
-        segment["tokens_label"] = _format_compact_token(segment["tokens"])
+        if segment["tokens"] is None:
+            segment["share"] = "unavailable"
+            segment["share_value"] = 0
+            segment["tokens_label"] = "N/A"
+            segment["status"] = "unavailable"
+        else:
+            segment["share"] = _format_ratio_pct(segment["tokens"], segment_total)
+            segment["share_value"] = round(_ratio_value(segment["tokens"], segment_total), 1)
+            segment["tokens_label"] = _format_compact_token(segment["tokens"])
+            segment["status"] = "available"
+
+    sorted_issues = sorted(
+        issues,
+        key=lambda issue: (
+            0 if issue["tone"] == "critical" else 1,
+            0 if issue.get("round_id") else 1,
+            issue.get("round_id") or 999999,
+        ),
+    )
 
     return {
         "token_rounds": token_rounds,
+        "cache_line_points": line_points,
+        "cache_line_width": width,
+        "cache_line_plot_width": plot_width,
+        "cache_line_left": 22,
         "token_stats": [
             {"label": "Input-side Tokens", "value": _format_compact_token(input_side_tokens)},
             {"label": "Cache Read Ratio", "value": _format_ratio_pct(cache_read_tokens, input_side_tokens)},
+            {"label": "Low-cache Rounds", "value": str(sum(1 for row in token_rounds if row.get("is_low_cache")))},
+            {"label": "Fresh Spike Rounds", "value": str(sum(1 for row in token_rounds if row.get("is_fresh_spike")))},
         ],
+        "tool_impact": {
+            "rows": tool_summary,
+            "all_tool_calls": len(tool_calls),
+            "failed_tools": len(failed_tools),
+            "distinct_tools": len(tool_stats),
+            "main_tools": sum(1 for tc in tool_calls if not getattr(tc, "subagent_id", "")),
+            "subagent_tools": sum(1 for tc in tool_calls if getattr(tc, "subagent_id", "")),
+        },
         "tool_summary": tool_summary,
-        "signals": signals,
+        "signals": sorted_issues[:5],
+        "issues": sorted_issues,
+        "issue_summary": issue_summary,
+        "issue_rounds": len([rid for rid, sig in round_signals.items() if sig.get("issues")]),
+        "round_signals": round_signals,
+        "cost_drivers": cost_drivers,
+        "call_distribution": call_distribution,
+        "subagent_breakdown": subagent_breakdown,
+        "payload_coverage": coverage,
         "context_segments": segments,
         "context_scope": "Session-level",
     }
@@ -581,7 +1169,7 @@ def _build_v11_view_model(
         session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
     )
     total_rounds = len(rounds)
-    total_tools = sum(len(r.tool_calls) for r in rounds)
+    total_tools = len(tool_calls)
     parsed_failed_tools = sum(1 for tc in tool_calls if getattr(tc, "is_failed", False))
     total_failed = max(session.failed_tool_count or 0, parsed_failed_tools)
 
@@ -686,6 +1274,17 @@ def _build_v11_view_model(
             return len([p for p in parsed if isinstance(p, dict) and p.get("type", "tool_use") == "tool_use"])
         return 0
 
+    sub_llm_calls_by_id = {
+        getattr(call, "id", ""): call
+        for call in llm_calls
+        if getattr(call, "scope", "") == "subagent" and getattr(call, "id", "")
+    }
+    sub_llm_calls_by_agent: dict[str, list] = {}
+    for call in llm_calls:
+        if getattr(call, "scope", "") != "subagent":
+            continue
+        sub_llm_calls_by_agent.setdefault(getattr(call, "subagent_id", "") or "", []).append(call)
+
     # -- Build subagent lookup --
     subagent_lookup = {}
     for run in subagent_runs:
@@ -701,17 +1300,50 @@ def _build_v11_view_model(
         )
         display_tools = sa_tools if sa_tools else ([parent_tc] if parent_tc else [])
         sa_messages = run.get("messages", [])
-        sa_input = sum((m.usage or {}).get("input_tokens", 0) for m in sa_messages)
-        sa_output = sum((m.usage or {}).get("output_tokens", 0) for m in sa_messages)
+        sa_calls = sub_llm_calls_by_agent.get(sa_id, [])
+        if sa_calls:
+            sa_input = sum(
+                _usage_parts_from_call(call)["fresh"]
+                + _usage_parts_from_call(call)["cache_read"]
+                + _usage_parts_from_call(call)["cache_write"]
+                for call in sa_calls
+            )
+            sa_output = sum(_usage_parts_from_call(call)["output"] for call in sa_calls)
+        else:
+            sa_input = 0
+            sa_output = 0
+            for m in sa_messages:
+                if getattr(m, "role", "") != "assistant":
+                    continue
+                parts = _usage_parts_from_mapping(
+                    getattr(m, "usage", {}) or {},
+                    agent=session.agent,
+                    model=getattr(m, "model", "") or "",
+                )
+                sa_input += parts["fresh"] + parts["cache_read"] + parts["cache_write"]
+                sa_output += parts["output"]
         sa_failed = sum(1 for tc in display_tools if tc.is_failed)
 
         sa_tool_by_id = {tc.tool_use_id: tc for tc in display_tools if tc.tool_use_id}
         matched_tool_ids = set()
 
         sub_rounds = []
+        sub_call_cursor = 0
         for m_idx, m in enumerate(sa_messages):
             if m.role == "assistant":
-                usage = m.usage or {}
+                matched_call = sub_llm_calls_by_id.get(getattr(m, "llm_call_id", "") or "")
+                if not matched_call and sub_call_cursor < len(sa_calls):
+                    matched_call = sa_calls[sub_call_cursor]
+                sub_call_cursor += 1
+                parts = (
+                    _usage_parts_from_call(matched_call)
+                    if matched_call
+                    else _usage_parts_from_mapping(
+                        getattr(m, "usage", {}) or {},
+                        agent=session.agent,
+                        model=getattr(m, "model", "") or "",
+                    )
+                )
                 call_ref = m.llm_call_id or f"sub-{sa_id}-{m_idx + 1}"
                 ctx_payload_id = f"sub-{sa_id}-{m_idx + 1}-ctx"
                 rsp_payload_id = f"sub-{sa_id}-{m_idx + 1}-rsp"
@@ -828,10 +1460,10 @@ def _build_v11_view_model(
                     "status_label": "OK",
                     "status_tone": "ok",
                     "usage": {
-                        "input": _format_compact_token(usage.get("input_tokens", 0)),
-                        "cache_read": _format_compact_token(usage.get("cache_read_input_tokens", 0)),
-                        "cache_write": _format_compact_token(usage.get("cache_creation_input_tokens", 0)),
-                        "output": _format_compact_token(usage.get("output_tokens", 0)),
+                        "input": _format_compact_token(parts["fresh"]) if parts["fresh"] else "—",
+                        "cache_read": _format_compact_token(parts["cache_read"]) if parts["cache_read"] else "—",
+                        "cache_write": _format_compact_token(parts["cache_write"]) if parts["cache_write"] else "—",
+                        "output": _format_compact_token(parts["output"]) if parts["output"] else "—",
                     },
                     "context_payload_id": ctx_payload_id,
                     "context_payload_title": f"Subagent · Request ({call_ref})",
@@ -897,10 +1529,10 @@ def _build_v11_view_model(
                 else:
                     is_open_for_round = False
 
-                st_input = usage.get("input_tokens", 0)
-                st_cache_read = usage.get("cache_read_input_tokens", 0)
-                st_cache_write = usage.get("cache_creation_input_tokens", 0)
-                st_output = usage.get("output_tokens", 0)
+                st_input = parts["fresh"]
+                st_cache_read = parts["cache_read"]
+                st_cache_write = parts["cache_write"]
+                st_output = parts["output"]
                 st_total = st_input + st_cache_read + st_cache_write + st_output
                 st_mix = {"fresh": 0, "read": 0, "write": 0, "out": 0}
                 if st_total > 0:
@@ -1116,7 +1748,8 @@ def _build_v11_view_model(
             for _ix_skip in r.interactions:
                 global_main_call_num += 1
             slim_has_subagent = any(
-                getattr(tc, "name", "") == "Agent" and getattr(tc, "subagent_id", "")
+                getattr(tc, "name", "") == "Agent"
+                and (getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id"))
                 for tc in r.tool_calls
             )
             trace_rows.append({
@@ -1539,8 +2172,8 @@ def _build_v11_view_model(
             items.extend(parallel_batches)
 
             for tc in ix_tool_calls_for_llm:
-                if tc.name == "Agent" and tc.subagent_id:
-                    sa_id = tc.subagent_id
+                sa_id = getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id", "")
+                if tc.name == "Agent" and sa_id:
                     sa_info = subagent_lookup.get(sa_id)
                     if sa_info:
                         round_has_subagent = True
@@ -1559,12 +2192,13 @@ def _build_v11_view_model(
         if not items and r.tool_calls:
             batch_tools = []
             for tc_idx, tc in enumerate(r.tool_calls):
-                if tc.subagent_id:
-                    sa_info = subagent_lookup.get(tc.subagent_id)
+                sa_id = getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id", "")
+                if sa_id:
+                    sa_info = subagent_lookup.get(sa_id)
                     if sa_info:
                         items.append({
                             "type": "subagent",
-                            "subagent_id": tc.subagent_id,
+                            "subagent_id": sa_id,
                             "name": sa_info["name"],
                             "status_label": sa_info["status_label"],
                             "status_tone": sa_info["status_tone"],
@@ -1668,11 +2302,13 @@ def _build_v11_view_model(
         1 for r in rounds for ix in r.interactions
         if getattr(ix, "scope", "main") != "subagent"
     )
-    subagent_llm_calls = sum(
-        1 for run in subagent_runs
-        for message in run.get("messages", [])
-        if getattr(message, "role", "") == "assistant"
-    )
+    subagent_llm_calls = sum(1 for call in llm_calls if getattr(call, "scope", "") == "subagent")
+    if not subagent_llm_calls:
+        subagent_llm_calls = sum(
+            1 for run in subagent_runs
+            for message in run.get("messages", [])
+            if getattr(message, "role", "") == "assistant"
+        )
     total_llm_calls = main_llm_calls + subagent_llm_calls
     assistant_turns = sum(1 for r in rounds if r.assistant_msg and (r.assistant_msg.content or r.assistant_msg.content_blocks))
     distinct_tools = len({getattr(tc, "name", "") or "tool" for tc in tool_calls})
@@ -1682,10 +2318,17 @@ def _build_v11_view_model(
         + float(getattr(session, "tool_execution_seconds", 0) or 0)
     )
     waiting_seconds = max(duration_seconds - process_seconds, 0)
-    payload_index = _build_payload_tab_index(rounds, tool_calls, subagent_runs)
+    payload_index = _build_payload_tab_index(
+        rounds,
+        tool_calls,
+        subagent_runs,
+        llm_calls,
+        agent=session.agent,
+    )
     diagnostics = _build_session_diagnostics(
         session,
         rounds,
+        llm_calls,
         tool_calls,
         subagent_runs,
         trace_rows,
@@ -1694,7 +2337,57 @@ def _build_v11_view_model(
         cache_read_tokens,
         cache_write_tokens,
         output_tokens,
+        payload_index,
+        payload_sources,
     )
+    round_signal_map = diagnostics.get("round_signals", {})
+    for row in trace_rows:
+        rid = row.get("round_id", 0)
+        signal = round_signal_map.get(rid, {})
+        issue_count = len(signal.get("issues", []))
+        row["has_failed_signal"] = bool(signal.get("failed")) or row.get("status_key") == "failed"
+        row["has_payload_gap"] = bool(signal.get("payload_gap"))
+        row["has_attribution_gap"] = bool(signal.get("attribution_gap"))
+        row["has_issues"] = bool(issue_count or row["has_failed_signal"] or row["has_payload_gap"] or row["has_attribution_gap"])
+        row["issue_count"] = issue_count
+        row["llm_call_count"] = (
+            len(rounds[rid - 1].interactions)
+            if rid and rid <= len(rounds) else 0
+        )
+
+    issue_summary = diagnostics.get("issue_summary", {})
+    issue_links = []
+    for issue in diagnostics.get("issues", []):
+        if not issue.get("round_id"):
+            continue
+        issue_links.append({
+            "round_id": issue["round_id"],
+            "label": f"{issue['round_label']} · {issue['label']}",
+            "tone": "err" if issue.get("tone") == "critical" else "warn",
+        })
+        if len(issue_links) >= 4:
+            break
+
+    has_run_issues = bool(
+        issue_summary.get("tool_failures")
+        or issue_summary.get("llm_errors")
+        or issue_summary.get("payload_gaps")
+        or issue_summary.get("attribution_errors")
+        or getattr(session_anomalies, "anomalies", [])
+    )
+    status_label = "Completed with issues" if has_run_issues else "Completed"
+
+    source_total = getattr(session, "total_tokens", 0) or total_tokens
+    token_total_matches = not source_total or source_total == computed_total_tokens
+    token_total_note = ""
+    if not token_total_matches:
+        token_total_note = (
+            f"component sum {_format_compact_token(computed_total_tokens)} "
+            f"does not match source total {_format_compact_token(source_total)}"
+        )
+
+    model_seconds = float(getattr(session, "model_execution_seconds", 0) or 0)
+    tool_seconds = float(getattr(session, "tool_execution_seconds", 0) or 0)
 
     return {
         "session_summary": {
@@ -1713,7 +2406,14 @@ def _build_v11_view_model(
             "cache_write_pct": cache_write_pct,
         },
         "hero_metrics": {
-            "tokens": _format_compact_token(computed_total_tokens),
+            "run_health": status_label,
+            "issue_rounds": str(diagnostics.get("issue_rounds", 0) or 0),
+            "failed_tools": str(issue_summary.get("tool_failures", 0) or 0),
+            "payload_gaps": str(issue_summary.get("payload_gaps", 0) or 0),
+            "attribution_gaps": str(issue_summary.get("attribution_errors", 0) or 0),
+            "tokens": _format_compact_token(computed_total_tokens) if token_total_matches else "N/A",
+            "tokens_note": token_total_note,
+            "tokens_component_sum": _format_compact_token(computed_total_tokens),
             "fresh": _format_compact_token(fresh_tokens),
             "cache_read": _format_compact_token(cache_read_tokens),
             "cache_write": _format_compact_token(cache_write_tokens),
@@ -1727,10 +2427,12 @@ def _build_v11_view_model(
             "assistant_turns": str(assistant_turns or total_rounds),
             "subagent_runs": str(subagent_count),
             "tools": str(total_tools),
+            "tool_calls": str(total_tools),
             "distinct_tools": str(distinct_tools),
             "failed": str(total_failed) if total_failed > 0 else "0",
             "failure_rate": _format_ratio_pct(total_failed, total_tools),
             "llm_calls": str(total_llm_calls),
+            "workload": str(total_llm_calls),
             "main_llm_calls": str(main_llm_calls),
             "subagent_llm_calls": str(subagent_llm_calls),
             "avg_tokens_per_call": (
@@ -1738,8 +2440,11 @@ def _build_v11_view_model(
                 if total_llm_calls else "N/A"
             ),
             "process_time": _format_duration_short(process_seconds),
+            "active_time": _format_duration_short(process_seconds),
             "duration": _format_duration_short(duration_seconds),
             "waiting_time": _format_duration_short(waiting_seconds),
+            "model_time": _format_duration_short(model_seconds) if model_seconds > 0 else "N/A",
+            "tool_time": _format_duration_short(tool_seconds) if tool_seconds > 0 else "N/A",
             "updated": _to_local_time(getattr(session, "ended_at", "") or "") or "—",
         },
         "issue_links": issue_links,

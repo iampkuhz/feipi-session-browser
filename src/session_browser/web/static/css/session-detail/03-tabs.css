@@ -40,7 +40,8 @@
 .sd-trace-panel {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 .sd-empty-state {
   padding: 20px;

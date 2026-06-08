@@ -1,4 +1,5 @@
   function setFilter(page, status) {
+    status = status || 'all';
     qsa(page, '[data-action="status-all"]').forEach(function (b) {
       b.classList.toggle('is-active', status === 'all');
     });
@@ -8,9 +9,17 @@
 
     // Toggle round-row visibility
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
-      var shouldShow = status === 'all' || (round.getAttribute('data-status') || '').toLowerCase() === status;
+      var rowStatus = (round.getAttribute('data-status') || '').toLowerCase();
+      var hasIssues = round.getAttribute('data-has-issues') === 'true';
+      var shouldShow = status === 'all' || rowStatus === status || (status === 'failed' && hasIssues);
       round.classList.toggle('is-filtered-out', !shouldShow);
     });
+    if (window.history && window.URLSearchParams) {
+      var url = new URL(window.location.href);
+      if (status === 'all') url.searchParams.delete('trace_status');
+      else url.searchParams.set('trace_status', status);
+      window.history.replaceState({}, '', url.toString());
+    }
   }
 
   function collapseAll(page) {
@@ -68,8 +77,15 @@
   function jumpRound(page, roundId) {
     var round = qs(page, '[data-trace-round-row][data-round="' + roundId + '"]');
     if (!round) return;
+    if (typeof switchTab === 'function') switchTab(page, 'trace', true);
     round.classList.remove('is-filtered-out');
     round.hidden = false;
+    if (window.history && window.URLSearchParams) {
+      var url = new URL(window.location.href);
+      url.searchParams.set('tab', 'trace');
+      url.searchParams.set('round', roundId);
+      window.history.replaceState({}, '', url.toString());
+    }
     var detailEl = document.getElementById('round-' + roundId + '-detail');
     // If detail not loaded and not pre-rendered, trigger lazy load then scroll after load
     if (round.getAttribute('data-detail-loaded') !== 'true' && !detailEl) {

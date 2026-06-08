@@ -35,10 +35,12 @@
 ## Session Detail
 
 - [ ] 目标主 tab 只有 Trace、Payload。
-- [ ] Hero 覆盖基础 KPI、Token Timeline + Cache Health、Tool Cost & ROI、Bug Mining、Context Budget。
+- [ ] Hero 固定 5 张一级 KPI：Run Health、Total Tokens、Cache Health、Workload、Active Time；每卡二级 KPI 不超过 4 个。
+- [ ] 诊断区覆盖 Token Timeline + Cache Health、Top Cost Drivers、Call Cost Distribution、Tool Impact、Subagent Breakdown、Issues & Repro Seeds、Payload Coverage、Context Budget。
 - [ ] Trace 无 sidecar；round 全宽；全局只有一个 Expand all / Collapse all。
+- [ ] Failed filter 覆盖 failed round 和含失败信号的 round，不允许 Hero/Issues 有问题但筛选为空。
 - [ ] Round 非按钮区域可 toggle；LLM/subagent call 有 request/response attribution 和 payload 入口。
-- [ ] Payload 左侧选择 call，右侧展示 attribution 与 raw request/response。
+- [ ] Payload 左侧 selector 支持 All / Failed / Missing / Error，右侧按 Overview、Request Attribution、Response Attribution、Raw Request、Raw Response、Related Results 展示。
 
 ## Projects
 

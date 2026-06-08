@@ -4,12 +4,13 @@
 {% import "components/session_detail_timeline/subagent.html" as sub with context %}
 
 {% macro round_row(row) -%}
-<tr class="round-row {% if row.is_open %}is-open{% endif %} {% if row.status_key == 'manual' %}manual{% endif %}" id="round-{{ row.round_id }}" data-trace-round-row data-round="{{ row.round_id }}" data-status="{{ row.status_key }}">
+<tr class="round-row {% if row.is_open %}is-open{% endif %} {% if row.status_key == 'manual' %}manual{% endif %}" id="round-{{ row.round_id }}" data-trace-round-row data-round="{{ row.round_id }}" data-status="{{ row.status_key }}" data-has-issues="{{ 'true' if row.has_issues else 'false' }}">
   <td><span class="round-id {% if row.status_key == 'manual' %}manual{% endif %} {% if 'fail' in row.status_key|default('') %}failed{% endif %}">R{{ row.round_id }}</span></td>
   <td><span class="summary-title">{{ row.preview_title }}</span></td>
   <td>
     <div class="metric-cell">
       <span class="metric-tools">{{ row.tool_count_label|default('0 tools') }}</span>
+      <span class="metric-tools">{{ row.llm_call_count|default(0) }} llm</span>
       <div class="token-group">
         <span class="metric-token">{{ row.token_total_raw|default(0)|format_compact_token }}</span>
         <span class="tokenbar-wrap" aria-hidden="true" tabindex="0">
@@ -51,13 +52,20 @@
     </div>
   </td>
   <td>
-    {% if row.status_key == 'manual' %}
-      <span class="badge badge-manual"><span aria-hidden="true">&#x270D;&#xFE0F;</span> Manual Input</span>
-    {% elif 'fail' in row.status_key|default('') %}
+    {% if row.has_failed_signal or ('fail' in row.status_key|default('')) %}
       <span class="badge badge-err">Failed</span>
     {% endif %}
     {% if row.has_subagent %}
-      <span class="badge badge-subagent"><span aria-hidden="true">&#x1F916;</span> Subagent</span>
+      <span class="badge badge-subagent">Subagent</span>
+    {% endif %}
+    {% if row.has_payload_gap %}
+      <span class="badge badge-warn">Payload Gap</span>
+    {% endif %}
+    {% if row.has_attribution_gap %}
+      <span class="badge badge-warn">Attribution Gap</span>
+    {% endif %}
+    {% if not row.has_failed_signal and not row.has_subagent and not row.has_payload_gap and not row.has_attribution_gap %}
+      <span class="badge badge-info">—</span>
     {% endif %}
   </td>
   <td>

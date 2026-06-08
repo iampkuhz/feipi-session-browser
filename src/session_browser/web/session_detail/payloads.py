@@ -90,6 +90,7 @@ def _build_payload_lookup(
                     )
 
     # -- Round-level payloads (user messages, tool results, LLM calls) --
+    global_llm_call_num = 0
     for r_idx, r in enumerate(rounds):
         rid = r_idx + 1
 
@@ -104,8 +105,9 @@ def _build_payload_lookup(
             )
 
         # Interaction-level payloads
-        for ix_idx, ix in enumerate(r.interactions):
-            iix = ix_idx + 1
+        for ix in r.interactions:
+            global_llm_call_num += 1
+            iix = global_llm_call_num
 
             # Subagent interactions — payloads already handled above
             if ix.scope == "subagent" and ix.subagent_id:

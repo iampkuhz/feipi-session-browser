@@ -130,7 +130,7 @@ async def run_smoke(base_url: str) -> list[str]:
                 # 测试 Failed filter
                 failed_result = await page.evaluate("""
                 () => {
-                    const btn = document.querySelector('[data-action="toggle-failed"]');
+                    const btn = document.querySelector('[data-action="status-failed"]');
                     if (btn) { btn.click(); return 'clicked'; }
                     return 'not-found';
                 }

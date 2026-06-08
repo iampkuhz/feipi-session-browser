@@ -114,8 +114,14 @@
         var expanded = qs(item, '.sd-bucket-detail-expanded');
         if (expanded) {
           var isOpen = !expanded.hasAttribute('hidden');
-          expanded.hidden = isOpen;
-          item.classList.toggle('is-expanded', !isOpen);
+          if (isOpen) {
+            expanded.hidden = true;
+            item.classList.remove('is-expanded');
+          } else {
+            if (typeof hydrateToolDetailItem === "function") hydrateToolDetailItem(item);
+            expanded.hidden = false;
+            item.classList.add('is-expanded');
+          }
         }
       }
       return;
@@ -171,6 +177,12 @@
         event.preventDefault();
         event.stopPropagation();
         selectPayloadCall(actionEl, true);
+      } else if (action === 'payload-filter') {
+        event.preventDefault();
+        event.stopPropagation();
+        var payloadFilter = actionEl.getAttribute('data-payload-filter') || 'all';
+        var payloadCall = actionEl.getAttribute('data-payload-call') || '';
+        setPayloadFilter(document, payloadFilter, payloadCall, true);
       } else if (action === 'open-payload-tab') {
         event.preventDefault();
         event.stopPropagation();

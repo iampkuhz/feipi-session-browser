@@ -134,6 +134,16 @@
         } else if (action === 'reload-page') {
             event.preventDefault();
             window.location.reload();
+        } else if (action === 'copy') {
+            event.preventDefault();
+            var copyText = actionEl.getAttribute('data-copy-text') || '';
+            if (copyText) {
+                window.arpCopy(actionEl, copyText, {
+                    feedback: 'Copied!',
+                    original: actionEl.textContent || 'Copy',
+                    duration: 1500
+                });
+            }
         }
     });
 

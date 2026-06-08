@@ -202,11 +202,12 @@
   box-shadow: 0 1px 2px rgba(15,23,42,.025);
 }
 .sd-card-head {
-  height: 36px;
+  min-height: 36px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 0 10px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--sd-line-soft);
   background: linear-gradient(180deg, #fff, #fbfcff);
 }
@@ -364,6 +365,10 @@
 .sd-tool-group__note {
   font-size: 12px;
   color: var(--sd-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sd-tool-table {
   display: flex;
@@ -372,7 +377,7 @@
 }
 .sd-tool-row {
   display: grid;
-  grid-template-columns: 58px minmax(400px, 1.2fr) minmax(200px, .6fr) 78px;
+  grid-template-columns: 58px minmax(0, 1.15fr) minmax(0, .85fr) auto auto;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -415,10 +420,9 @@
   justify-content: center;
   font-family: var(--sd-mono);
   font-weight: 780;
-  position: absolute;
-  right: 90px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  padding: 0 7px;
+  white-space: nowrap;
 }
 .sd-subagent {
   border: 1px solid #bae6fd;
@@ -428,20 +432,13 @@
 }
 /* Nested subagent under parent LLM call (Issues 3, 4) */
 .sd-subagent-nested {
-  margin-left: 24px;
+  margin-left: 0;
   margin-top: 4px;
   margin-bottom: 4px;
   position: relative;
 }
 .sd-subagent-nested::before {
-  content: "";
-  position: absolute;
-  left: -16px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #bae6fd;
-  border-radius: 1px;
+  display: none;
 }
 .sd-subagent__head {
   height: 36px;
@@ -628,7 +625,8 @@ shift dot left to align with the container timeline line */
   padding-left: 0;
 }
 .sd-sub-steps .sd-timeline-item .sd-timeline-dot {
-  left: -18px;
+  margin-left: -19px;
+  margin-right: 9px;
 }
 .sd-sub-step {
   position: relative;
@@ -793,6 +791,7 @@ shift dot left to align with the container timeline line */
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 .expanded-row td .sd-timeline:before {
   content: "";
@@ -803,6 +802,15 @@ shift dot left to align with the container timeline line */
   width: 2px;
   background: linear-gradient(#dbe5f1, #f3cad0);
   border-radius: 999px;
+}
+
+.expanded-row .sd-card,
+.expanded-row .sd-tool-group,
+.expanded-row .sd-subagent,
+.expanded-row .sd-llm-body,
+.expanded-row .sd-metrics,
+.expanded-row .sd-tool-table {
+  min-width: 0;
 }
 /* round-row base states */
 .round-row.is-filtered-out {

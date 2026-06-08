@@ -1,10 +1,12 @@
 {% macro hero(summary, metrics, issues=[], session_url='') -%}
   <section class="sd-hero" data-session-overview-hero>
+    {% set title_line = (summary.title|default('Untitled')).split('\n')[0]|replace('### ', '')|replace('## ', '')|replace('# ', '') %}
+    {% set has_hero_issues = (metrics.issue_rounds|default('0')|int > 0) or (metrics.failed_tools|default('0')|int > 0) or (metrics.payload_gaps|default('0')|int > 0) or (metrics.attribution_gaps|default('0')|int > 0) %}
     <div class="sd-hero__top">
       <div class="sd-hero__main">
         <div class="sd-hero__id">
           <span class="sd-agent-pill">{{ summary.agent_label|default('Claude') }}</span>
-          <h1 title="{{ summary.title }}">{{ summary.title }}</h1>
+          <h1 title="{{ summary.title }}">{{ title_line[:160] }}</h1>
         </div>
         {% if session_url %}
         <div class="sd-hero-url">
@@ -26,6 +28,11 @@
             <a class="sd-issue-link sd-issue-link--{{ issue.tone|default('neutral') }}" href="#round-{{ issue.round_id }}" data-action="jump-round" data-round="{{ issue.round_id }}">{{ issue.label }}</a>
           {% endfor %}
         </div>
+        {% elif has_hero_issues %}
+        <div class="sd-issue-strip" data-issue-strip>
+          <span class="sd-issue-title">Issues</span>
+          <span class="sd-issue-link sd-issue-link--warn">Open Issues &amp; Repro Seeds</span>
+        </div>
         {% else %}
         <div class="sd-issue-strip sd-issue-strip--ok" data-issue-strip>
           <span class="sd-issue-title">No issues found</span>
@@ -34,8 +41,18 @@
         {% endif %}
       </div>
       <div class="sd-kpis">
+        <div class="sd-kpi sd-kpi--stack sd-kpi--health" aria-label="Run Health">
+          <div class="sd-kpi__value">{{ metrics.run_health|default('Completed') }}</div>
+          <div class="sd-kpi__label">Run Health</div>
+          <div class="sd-kpi__subgrid">
+            <span>Issue Rounds <b>{{ metrics.issue_rounds|default('0') }}</b></span>
+            <span>Failed Tools <b>{{ metrics.failed_tools|default('0') }}</b></span>
+            <span>Payload Gaps <b>{{ metrics.payload_gaps|default('0') }}</b></span>
+            <span>Attribution Gaps <b>{{ metrics.attribution_gaps|default('0') }}</b></span>
+          </div>
+        </div>
         <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens">
-          <div class="sd-kpi__value">{{ metrics.tokens|default('—') }}</div>
+          <div class="sd-kpi__value" title="{{ metrics.tokens_note|default('') }}">{{ metrics.tokens|default('—') }}</div>
           <div class="sd-kpi__label">Total Tokens</div>
           <div class="sd-kpi__subgrid">
             <span>Fresh <b>{{ metrics.fresh|default('—') }}</b></span>
@@ -44,76 +61,58 @@
             <span>Output <b>{{ metrics.output|default('—') }}</b></span>
           </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Cache Reuse">
+        <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health">
           <div class="sd-kpi__value">{{ metrics.cache_reuse|default('N/A') }}</div>
-          <div class="sd-kpi__label">Cache Reuse</div>
+          <div class="sd-kpi__label">Cache Health</div>
           <div class="sd-kpi__subgrid">
             <span>Input-side Tokens <b>{{ metrics.input_side_tokens|default('—') }}</b></span>
-            <span>Fresh Spike Rounds <b>{{ metrics.fresh_spike_rounds|default('0') }}</b></span>
             <span>Low-cache Rounds <b>{{ metrics.low_cache_rounds|default('0') }}</b></span>
+            <span>Fresh Spike Rounds <b>{{ metrics.fresh_spike_rounds|default('0') }}</b></span>
           </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Rounds">
-          <div class="sd-kpi__value">{{ metrics.rounds|default('—') }}</div>
-          <div class="sd-kpi__label">Rounds</div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Workload">
+          <div class="sd-kpi__value">{{ metrics.workload|default(metrics.llm_calls|default('—')) }}</div>
+          <div class="sd-kpi__label">Workload</div>
           <div class="sd-kpi__subgrid">
-            <span>User Prompts <b>{{ metrics.user_prompts|default('0') }}</b></span>
-            <span>Assistant Turns <b>{{ metrics.assistant_turns|default('0') }}</b></span>
+            <span>Main Calls <b>{{ metrics.main_llm_calls|default('0') }}</b></span>
+            <span>Subagent Calls <b>{{ metrics.subagent_llm_calls|default('0') }}</b></span>
+            <span>Tool Calls <b title="Global tool calls; main-only split is shown in Tool Impact">{{ metrics.tool_calls|default(metrics.tools|default('0')) }}</b></span>
             <span>Subagent Runs <b>{{ metrics.subagent_runs|default('0') }}</b></span>
           </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="LLM Calls">
-          <div class="sd-kpi__value">{{ metrics.llm_calls|default('—') }}</div>
-          <div class="sd-kpi__label">LLM Calls</div>
-          <div class="sd-kpi__subgrid">
-            <span>Main-agent Calls <b>{{ metrics.main_llm_calls|default('0') }}</b></span>
-            <span>Subagent Calls <b>{{ metrics.subagent_llm_calls|default('0') }}</b></span>
-            <span>Avg Tokens / Call <b>{{ metrics.avg_tokens_per_call|default('N/A') }}</b></span>
-          </div>
-        </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Tool Calls">
-          <div class="sd-kpi__value">{{ metrics.tools|default('—') }}</div>
-          <div class="sd-kpi__label">Tool Calls</div>
-          <div class="sd-kpi__subgrid">
-            <span>Distinct Tools <b>{{ metrics.distinct_tools|default('0') }}</b></span>
-            <span>Failed Tools <b>{{ metrics.failed|default('0') }}</b></span>
-            <span>Failure Rate <b>{{ metrics.failure_rate|default('N/A') }}</b></span>
-          </div>
-        </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Time">
-          <div class="sd-kpi__value">{{ metrics.process_time|default('0s') }}</div>
-          <div class="sd-kpi__label">Time</div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Active Time">
+          <div class="sd-kpi__value">{{ metrics.active_time|default(metrics.process_time|default('0s')) }}</div>
+          <div class="sd-kpi__label">Active Time</div>
           <div class="sd-kpi__subgrid">
             <span>Duration <b>{{ metrics.duration|default('0s') }}</b></span>
             <span>Waiting Time <b>{{ metrics.waiting_time|default('0s') }}</b></span>
-            <span>Updated <b>{{ metrics.updated|default('—') }}</b></span>
+            <span>Model Time <b>{{ metrics.model_time|default('N/A') }}</b></span>
+            <span>Tool Time <b>{{ metrics.tool_time|default('N/A') }}</b></span>
           </div>
         </div>
       </div>
     </div>
     <div class="sd-summary-strip" data-summary-strip>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon" aria-hidden="true">&#x25CF;</span>
-        <b>Status</b>
-        <span>{{ summary.status_label|default('Completed') }}</span>
+        <b>session id</b>
+        <span class="sd-summary-mono">{{ summary.session_id|default('—') }}</span>
       </div>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon" aria-hidden="true">&#x270D;&#xFE0F;</span>
-        <b>User input 轮数</b>
-        <span>{{ summary.manual_input_count|default('0') }}</span>
+        <b>model</b>
+        <span>{{ summary.model|default('—') }}</span>
       </div>
       <div class="sd-summary-item">
-        <span class="sd-summary-icon" aria-hidden="true">&#x1F9F0;</span>
-        <b>Subagents</b>
-        <span>{{ summary.subagent_count|default('0') }} runs</span>
+        <b>project</b>
+        <span>{{ summary.project_name|default('—') }}</span>
       </div>
-      {% if summary.agent_key != "qoder" %}
       <div class="sd-summary-item">
-        <span class="sd-summary-icon" aria-hidden="true">&#x1F4BE;</span>
-        <b>Cache write</b>
-        <span>{{ summary.cache_write_pct|default('—') }}</span>
+        <b>created</b>
+        <span>{{ summary.date|default('—') }}</span>
       </div>
-      {% endif %}
+      <div class="sd-summary-item">
+        <b>updated</b>
+        <span>{{ metrics.updated|default('—') }}</span>
+      </div>
     </div>
   </section>
 {%- endmacro %}

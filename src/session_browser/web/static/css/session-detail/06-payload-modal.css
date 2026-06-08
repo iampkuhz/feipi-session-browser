@@ -126,6 +126,67 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   align-items: start;
 }
 
+.session-detail-page .sd-attribution-topgrid {
+  display: grid;
+  grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.session-detail-page .sd-attribution-topcard {
+  min-width: 0;
+  border: 1px solid var(--sd-line-soft, #e2e8f0);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.session-detail-page .sd-attribution-topcard h3 {
+  margin: 0;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--sd-line-soft, #e2e8f0);
+  background: #f8fafc;
+  color: var(--sd-muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.session-detail-page .sd-attribution-identity-grid,
+.session-detail-page .sd-attribution-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sd-attribution-topcard .sd-kv {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  border-bottom: 1px solid var(--sd-line-soft, #e2e8f0);
+}
+
+.sd-attribution-topcard .sd-kv span {
+  min-width: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.sd-attribution-topcard .sd-kv span:first-child {
+  background: #fbfcff;
+  color: var(--sd-muted);
+  font-family: var(--sd-mono, ui-monospace, monospace);
+  font-weight: 760;
+}
+
+.sd-attribution-topcard .sd-kv span:last-child {
+  color: var(--sd-text-2, #334155);
+  font-family: var(--sd-mono, ui-monospace, monospace);
+}
+
 /* Precision tag pills */
 .session-detail-page .sd-precision-tag {
   font-size: 10px;
@@ -282,13 +343,21 @@ These use .sd- page prefix only, not bare .payload-modal references. */
 }
 .session-detail-page .sd-attribution-segment:hover { opacity: 0.85; }
 .session-detail-page .sd-attribution-segment--0 { background: #2563eb; }
-.session-detail-page .sd-attribution-segment--1 { background: #059669; }
-.session-detail-page .sd-attribution-segment--2 { background: #d97706; }
-.session-detail-page .sd-attribution-segment--3 { background: #7c3aed; }
+.session-detail-page .sd-attribution-segment--1 { background: #16a34a; }
+.session-detail-page .sd-attribution-segment--2 { background: #f97316; }
+.session-detail-page .sd-attribution-segment--3 { background: #dc2626; }
 .session-detail-page .sd-attribution-segment--4 { background: #0891b2; }
-.session-detail-page .sd-attribution-segment--5 { background: #dc2626; }
-.session-detail-page .sd-attribution-segment--6 { background: #4f46e5; }
-.session-detail-page .sd-attribution-segment--7 { background: #64748b; }
+.session-detail-page .sd-attribution-segment--5 { background: #9333ea; }
+.session-detail-page .sd-attribution-segment--6 { background: #db2777; }
+.session-detail-page .sd-attribution-segment--7 { background: #0f766e; }
+.session-detail-page .sd-attribution-segment--8 { background: #64748b; }
+
+.session-detail-page .sd-attribution-distribution__note {
+  margin-top: 5px;
+  color: var(--sd-muted);
+  font-size: 11px;
+  font-family: var(--sd-mono, ui-monospace, monospace);
+}
 
 /* Legend */
 .session-detail-page .sd-attribution-legend {
@@ -311,13 +380,14 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   flex-shrink: 0;
 }
 .session-detail-page .sd-attribution-legend__dot--0 { background: #2563eb; }
-.session-detail-page .sd-attribution-legend__dot--1 { background: #059669; }
-.session-detail-page .sd-attribution-legend__dot--2 { background: #d97706; }
-.session-detail-page .sd-attribution-legend__dot--3 { background: #7c3aed; }
+.session-detail-page .sd-attribution-legend__dot--1 { background: #16a34a; }
+.session-detail-page .sd-attribution-legend__dot--2 { background: #f97316; }
+.session-detail-page .sd-attribution-legend__dot--3 { background: #dc2626; }
 .session-detail-page .sd-attribution-legend__dot--4 { background: #0891b2; }
-.session-detail-page .sd-attribution-legend__dot--5 { background: #dc2626; }
-.session-detail-page .sd-attribution-legend__dot--6 { background: #4f46e5; }
-.session-detail-page .sd-attribution-legend__dot--7 { background: #64748b; }
+.session-detail-page .sd-attribution-legend__dot--5 { background: #9333ea; }
+.session-detail-page .sd-attribution-legend__dot--6 { background: #db2777; }
+.session-detail-page .sd-attribution-legend__dot--7 { background: #0f766e; }
+.session-detail-page .sd-attribution-legend__dot--8 { background: #64748b; }
 .session-detail-page .sd-attribution-legend__label { font-weight: 700; color: #1e293b; }
 .session-detail-page .sd-attribution-legend__pct { font-family: var(--sd-mono, ui-monospace, monospace); color: #94a3b8; }
 .session-detail-page .sd-attribution-legend__tokens { font-family: var(--sd-mono, ui-monospace, monospace); font-weight: 600; color: #475569; }
@@ -360,13 +430,14 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   flex-shrink: 0;
 }
 .session-detail-page .sd-attribution-bucket__dot--0 { background: #2563eb; }
-.session-detail-page .sd-attribution-bucket__dot--1 { background: #059669; }
-.session-detail-page .sd-attribution-bucket__dot--2 { background: #d97706; }
-.session-detail-page .sd-attribution-bucket__dot--3 { background: #7c3aed; }
+.session-detail-page .sd-attribution-bucket__dot--1 { background: #16a34a; }
+.session-detail-page .sd-attribution-bucket__dot--2 { background: #f97316; }
+.session-detail-page .sd-attribution-bucket__dot--3 { background: #dc2626; }
 .session-detail-page .sd-attribution-bucket__dot--4 { background: #0891b2; }
-.session-detail-page .sd-attribution-bucket__dot--5 { background: #dc2626; }
-.session-detail-page .sd-attribution-bucket__dot--6 { background: #4f46e5; }
-.session-detail-page .sd-attribution-bucket__dot--7 { background: #64748b; }
+.session-detail-page .sd-attribution-bucket__dot--5 { background: #9333ea; }
+.session-detail-page .sd-attribution-bucket__dot--6 { background: #db2777; }
+.session-detail-page .sd-attribution-bucket__dot--7 { background: #0f766e; }
+.session-detail-page .sd-attribution-bucket__dot--8 { background: #64748b; }
 .session-detail-page .sd-attribution-bucket__meta {
   display: inline-flex;
   align-items: center;

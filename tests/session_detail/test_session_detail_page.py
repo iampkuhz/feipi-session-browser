@@ -96,25 +96,25 @@ class TestHeroArea:
             "KPI must render metrics.tokens value"
 
     @pytest.mark.contract_case("UI-SD-001")
-    def test_kpi_rounds(self, timeline):
-        """KPIs must include Rounds."""
-        assert "Rounds" in timeline, "Missing Rounds KPI label"
-        assert "metrics.rounds" in timeline, \
-            "KPI must render metrics.rounds value"
+    def test_kpi_run_health(self, timeline):
+        """KPIs must include Run Health."""
+        assert "Run Health" in timeline, "Missing Run Health KPI label"
+        assert "metrics.run_health" in timeline, \
+            "KPI must render metrics.run_health value"
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_tools(self, timeline):
         """KPIs must include Tools."""
         assert "Tools" in timeline, "Missing Tools KPI label"
-        assert "metrics.tools" in timeline, \
-            "KPI must render metrics.tools value"
+        assert "metrics.tool_calls" in timeline, \
+            "KPI must render global metrics.tool_calls value"
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_failed(self, timeline):
         """KPIs must include Failed."""
         assert "Failed" in timeline, "Missing Failed KPI label"
-        assert "metrics.failed" in timeline, \
-            "KPI must render metrics.failed value"
+        assert "metrics.failed_tools" in timeline, \
+            "KPI must render metrics.failed_tools value"
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_summary_strip_exists(self, timeline):
@@ -126,15 +126,13 @@ class TestHeroArea:
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_summary_strip_items(self, timeline):
-        """Summary strip must have status, manual input, subagents, cache write."""
+        """Summary strip must keep only short status metadata."""
         assert "sd-summary-item" in timeline, "Missing .sd-summary-item"
-        assert "status_label" in timeline, "Missing status in summary strip"
-        assert "manual_input_count" in timeline, \
-            "Missing manual input count in summary strip"
-        assert "subagent_count" in timeline, \
-            "Missing subagent count in summary strip"
-        assert "cache_write_pct" in timeline, \
-            "Missing cache write pct in summary strip"
+        assert "summary.session_id" in timeline, "Missing session id in summary strip"
+        assert "summary.model" in timeline, "Missing model in summary strip"
+        assert "summary.project_name" in timeline, "Missing project in summary strip"
+        assert "summary.date" in timeline, "Missing created date in summary strip"
+        assert "metrics.updated" in timeline, "Missing updated timestamp in summary strip"
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_issue_strip_in_hero(self, timeline):

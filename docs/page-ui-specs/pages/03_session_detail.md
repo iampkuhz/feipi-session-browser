@@ -2,15 +2,16 @@
 
 ## 定位
 
-Session Detail 是单个 session 的核心调试页，用于解释 trace、payload、request attribution、response attribution、失败信号、上下文成本和处理耗时。目标结构只保留 `Trace`、`Payload` 两个主 tab。
+Session Detail 是单个 session 的运行分析页，用于在首屏回答本次运行的健康状态、成本、缓存、工作量和耗时，并在诊断区解释成本来源、可疑 round/call/subagent、工具影响、payload 覆盖和上下文预算。目标结构只保留 `Trace`、`Payload` 两个主 tab，Trace/Payload 作为下钻工作区。
 
 ## 页面布局
 
 - 路由固定为 `/sessions/<agent>/<session_id>`；模板固定为 `session.html`；MHTML 导出参数固定为 `?export=mhtml`。
 - 面包屑固定为 `Dashboard / Sessions / <agent> / <short session id>`。
 - 首屏顺序固定为 Page Head、Hero KPI、诊断卡片区、主 tab。
-- Hero KPI 区展示 session 标题、agent、model、project、Created、Updated、Duration、Process Time、session id copy 和核心 KPI。
-- 诊断卡片区固定包含 `Token Timeline + Cache Health`、`Tool Cost & ROI`、`Bug Mining & Regression Seeds`、`Context Budget`。
+- Hero KPI 区展示 session 标题、agent、session id copy 和 5 张一级 KPI：`Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Active Time`。
+- Hero 下方 summary strip 只展示短状态信息：session id、model、project、created、updated。
+- 诊断卡片区固定包含 `Token Timeline + Cache Health`、`Top Cost Drivers`、`Call Cost Distribution`、`Tool Impact`、`Subagent Breakdown`、`Issues & Repro Seeds`、`Payload Coverage`、`Context Budget`。
 - 主内容区固定包含 `Trace`、`Payload` 两个 tab。
 - Trace tab 固定为筛选条加 trace round table；round 展开后展示按时间顺序排列的步骤卡片。
 - Payload tab 固定为左右布局：左侧 call selector，右侧 selected call detail。
@@ -19,14 +20,25 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 ## 文字内容
 
 - 主 tab 文案固定为 `Trace`、`Payload`。
-- Hero KPI label 固定为 `Total Tokens`、`Cache Reuse`、`Rounds`、`LLM Calls`、`Tool Calls`、`Time`。
-- 诊断卡标题固定为 `Token Timeline + Cache Health`、`Tool Cost & ROI`、`Bug Mining & Regression Seeds`、`Context Budget`。
+- Hero KPI label 固定为 `Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Active Time`。
+- 每张一级 KPI 下方二级 KPI 数量允许为 0-4；实际 Session Detail 首屏每张卡保留 3-4 个高信息量二级 KPI，不为了视觉对齐添加低价值指标。
+- 诊断卡标题固定为 `Token Timeline + Cache Health`、`Top Cost Drivers`、`Call Cost Distribution`、`Tool Impact`、`Subagent Breakdown`、`Issues & Repro Seeds`、`Payload Coverage`、`Context Budget`。
 - Trace table 列名固定为 `Round`、`Summary`、`Metrics`、`Signals`、`Time`。
 - Payload 右侧标题固定为 `Selected Call Detail`。
 - Round 标题使用 `R<round_number>` 加 summary；summary 缺失时显示 `Untitled round`。
 - 原文缺失时显示 unavailable 原因、precision 和 source，不用空白区域代替。
 
 ## Hero KPI
+
+### Run Health
+
+- 一级值固定为 `Completed`、`Completed with issues`、`Failed` 三选一。
+- 二级指标固定为 `Issue Rounds`、`Failed Tools`、`Payload Gaps`、`Attribution Gaps`。
+- `Issue Rounds` 表示含 tool failure、LLM error、payload gap、attribution gap 或 session anomaly 的 round 数。
+- `Failed Tools` 使用全局失败 tool call 口径。
+- `Payload Gaps` 表示 payload selector / coverage matrix 中 `missing` 或 `error` 的覆盖缺口数量。
+- `Attribution Gaps` 表示 request/response attribution 构建失败或不可用的数量。
+- 只要 Tool failure、LLM error、payload missing、attribution error 任一存在，Hero issue strip 不得显示 `No issues found`。
 
 ### Total Tokens
 
@@ -36,50 +48,35 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 - `Cache Read` 表示 provider reported cache read input token。
 - `Cache Write` 表示 provider reported cache creation/write input token。
 - `Output` 表示模型可见输出 token，不把隐藏 reasoning token 混入该值。
-- 四个二级指标合计必须等于一级值；无法对齐时一级值显示 `N/A`，tooltip 说明缺失字段、来源和精度。
+- 四个二级指标合计必须等于一级值；无法和来源总量对齐时一级值显示 `N/A`，tooltip 说明 component sum、source total、缺失字段、来源和精度。
 
-### Cache Reuse
+### Cache Health
 
 - 一级值：`Cache Read / (Fresh + Cache Read + Cache Write)`。
-- 二级指标固定为 `Input-side Tokens`、`Fresh Spike Rounds`、`Low-cache Rounds`。
+- 二级指标固定为 `Input-side Tokens`、`Low-cache Rounds`、`Fresh Spike Rounds`。
 - `Input-side Tokens` 表示 `Fresh + Cache Read + Cache Write`。
-- `Fresh Spike Rounds` 表示 fresh token 高于当前 session round fresh token 中位数 2 倍的 round 数。
 - `Low-cache Rounds` 表示 round-level cache read ratio 小于 20.0% 的 round 数。
+- `Fresh Spike Rounds` 表示 fresh token 高于当前 session round fresh token 中位数 2 倍的 round 数。
 - 分母为 0 时一级值显示 `N/A`，tooltip 展示 `Input-side Tokens = 0`。
 
-### Rounds
-
-- 一级值：assistant round 数。
-- 二级指标固定为 `User Prompts`、`Assistant Turns`、`Subagent Runs`。
-- `User Prompts` 表示人工输入触发的 user message 数。
-- `Assistant Turns` 表示主 agent assistant 输出轮数。
-- `Subagent Runs` 表示独立 subagent 上下文启动次数。
-
-### LLM Calls
+### Workload
 
 - 一级值：主 agent LLM call 加 subagent LLM call 总数。
-- 二级指标固定为 `Main-agent Calls`、`Subagent Calls`、`Avg Tokens / Call`。
-- `Main-agent Calls` 表示当前 session 主 agent 发起的 LLM call 数。
+- 二级指标固定为 `Main Calls`、`Subagent Calls`、`Tool Calls`、`Subagent Runs`。
+- `Main Calls` 表示当前 session 主 agent 发起的 LLM call 数。
 - `Subagent Calls` 表示 subagent 内部发起的 LLM call 数。
-- `Avg Tokens / Call` 表示 `Total Tokens / LLM Calls`，分母为 0 时显示 `N/A`。
+- `Tool Calls` 使用全局 tool call 总数；如需展示主 agent 口径，只在 tooltip 或 Tool Impact 中说明 `Main tools`。
+- `Subagent Runs` 表示独立 subagent 上下文启动次数。
 
-### Tool Calls
-
-- 一级值：tool call 总数。
-- 二级指标固定为 `Distinct Tools`、`Failed Tools`、`Failure Rate`。
-- `Distinct Tools` 表示出现过的 tool name 去重数量。
-- `Failed Tools` 表示失败 tool result 数。
-- `Failure Rate` 表示 `Failed Tools / Tool Calls`，分母为 0 时显示 `N/A`。
-- `Failed Tools` 不再作为独立一级 KPI，避免和该卡重复。
-
-### Time
+### Active Time
 
 - 一级值：`Process Time`。
-- 二级指标固定为 `Duration`、`Waiting Time`、`Updated`。
+- 二级指标固定为 `Duration`、`Waiting Time`、`Model Time`、`Tool Time`。
 - `Duration` 使用 `common.md` 的通用时间口径。
 - `Process Time` 使用 `common.md` 的主动处理耗时口径。
 - `Waiting Time = Duration - Process Time`。
-- `Updated` 表示 session 最新 indexed event timestamp。
+- `Model Time` 使用 session model execution seconds；不可得时显示 `N/A`，不隐藏。
+- `Tool Time` 使用 session tool execution seconds；不可得时显示 `N/A`，不隐藏。
 
 ## 诊断卡片
 
@@ -87,23 +84,24 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 
 - 宽屏 `>= 1440px`：诊断区使用 2 列 grid。
 - 宽屏第 1 行：`Token Timeline + Cache Health` 跨 2 列。
-- 宽屏第 2 行：左列 `Tool Cost & ROI`，右列 `Bug Mining & Regression Seeds`。
-- 宽屏第 3 行：`Context Budget` 跨 2 列。
-- 标准桌面 `1024px-1439px`：诊断区保持 2 列 grid；`Token Timeline + Cache Health` 和 `Context Budget` 跨 2 列，另外两张卡各占 1 列。
-- 窄屏 `< 1024px`：诊断区改为单列，四张卡按固定顺序纵向排列。
+- 中间行按固定顺序两列排布：`Top Cost Drivers`、`Call Cost Distribution`、`Tool Impact`、`Subagent Breakdown`、`Issues & Repro Seeds`、`Payload Coverage`。
+- 最后一行：`Context Budget` 跨 2 列。
+- 标准桌面 `1024px-1439px`：诊断区保持 2 列 grid；`Token Timeline + Cache Health` 和 `Context Budget` 跨 2 列，其他卡各占 1 列。
+- 窄屏 `< 1024px`：诊断区改为单列，全部卡片按固定顺序纵向排列。
 - 每张卡 header 高度固定为 44px，body 最小高度固定为 220px。
 - 诊断卡不嵌套子卡；内部 stat 使用 compact stat 行，表格使用 `common.md` 的 `Compact Table`。
 
 ### Token Timeline + Cache Health
 
 - 卡片定位：展示每个 round 的 token 构成和 cache reuse 健康度，是 Session Detail 的第一诊断入口。
-- 图表区域占卡片 body 高度的 72%；下方 compact stat 行占 28%。
 - 图表类型固定为按 round 顺序排列的堆叠柱状图。
 - x 轴显示 round number，标签格式固定为 `R1`、`R2`、`R3`。
 - 左 y 轴显示 total tokens，轴标题固定为 `Tokens`。
 - 右 y 轴显示 cache read ratio，轴标题固定为 `Cache Read %`，范围固定为 0% 到 100%。
 - 堆叠顺序固定为 Fresh、Cache Read、Cache Write、Output。
 - Cache Read Ratio 以折线叠加在柱状图上；折线只使用右 y 轴。
+- 低缓存 round、fresh spike round、payload missing/error round 必须在柱子附近显示小 badge。
+- 点击柱子跳到 Trace 对应 round，并写入 `tab=trace&round=<round_number>`。
 - 不渲染配套明细表；round 和 call 细节通过 `common.md` 的 `Chart Tooltip` 展示。
 - tooltip header 固定展示 round id 和 round start time。
 - tooltip 行顺序固定为 `Fresh`、`Cache Read`、`Cache Write`、`Output`、`Total`、`Cache Read Ratio`、`LLM Calls`、`Tool Calls`。
@@ -111,30 +109,64 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 - tooltip note 区展示 fallback、missing usage、fresh spike、low cache 中命中的诊断说明。
 - 下方 compact stat 固定显示 `Input-side Tokens`、`Cache Read Ratio`、`Fresh Spike Rounds`、`Low-cache Rounds`。
 
-### Tool Cost & ROI
+### Top Cost Drivers
 
-- 卡片定位：展示工具调用是否产生高成本、失败和重复调用压力。
-- 顶部 compact stat 固定显示 `Tool Calls`、`Distinct Tools`、`Failed Tools`。
-- 下方固定展示 `Tool Summary` `Compact Table`。
-- `Tool Summary` 行数固定为调用次数最高的 5 个工具。
-- `Tool Summary` 列固定为 `Tool`、`Calls`、`Tokens`、`Failure`。
-- `Tool` 示例值：`Read`、`Bash`、`Grep`、`WebFetch`。
-- `Calls` 示例值：`12`，表示该 tool 在当前 session 的调用次数。
-- `Tokens` 示例值：`42.1k`，表示该 tool 相关 context/result 估算 token。
-- `Failure` 示例值：`2 · 16.7%`，前者为失败次数，后者为失败率。
-- 表格长文本通过 `common.md` 的 `Chart Tooltip` 底部 note 样式展示完整 tool name、top command、失败摘要和来源。
+- 卡片定位：解释 token 成本由哪些 round、call、subagent 或 tool result 造成。
+- 行数固定为 token 贡献最高的 5 个 driver。
+- 行类型固定为 `Round`、`Main LLM Call`、`Subagent`、`Tool Result`。
+- 列固定为 `Driver`、`Tokens`、`Share`、`Reason`。
+- `Tokens` 使用 driver token 贡献；`Share` 使用 driver tokens / session total tokens。
+- subagent 内部 LLM call 聚合为一行 `Subagent` driver。
+- 点击 driver 跳到 Trace 对应 round；tool result driver 后续可扩展跳到 Payload。
 
-### Bug Mining & Regression Seeds
+### Call Cost Distribution
+
+- 卡片定位：解释 `LLM Calls` 是否由少数昂贵 call 拉高成本。
+- 图表类型固定为按 call 顺序排列的条形/散点分布图。
+- x 轴为 call 顺序；y 轴为 total tokens。
+- 主 agent call 与 subagent call 必须分色展示。
+- Top 3 expensive calls 必须有视觉标记。
+- hover/focus tooltip 展示 call index、round、lane、model、tokens。
+- 点击 call 跳到 Trace 对应 round。
+
+### Tool Impact
+
+- 卡片定位：展示工具调用体量、失败和结果 token 压力。
+- 顶部 compact stat 固定显示 `All Tool Calls`、`Failed Tools`、`Distinct Tools`。
+- `All Tool Calls` 使用全局 tool_calls 总数。
+- 表格行数固定为 top 5 tools，排序优先级为调用次数、result token、tool name。
+- 列固定为 `Tool`、`Calls`、`Result Tokens`、`Failures`。
+- tooltip 必须拆分 `Main` 与 `Subagent` 调用数，避免 Hero 和表格口径冲突。
+
+### Subagent Breakdown
+
+- 卡片定位：展示 subagent 是否贡献了主要成本、工具调用和失败。
+- 每个 subagent 一行。
+- 列固定为 `Subagent`、`LLM Calls`、`Tokens`、`Tools`、`Failures`、`Result`。
+- `Result` 固定为 `completed`、`failed`、`partial`、`unknown`。
+- 点击 subagent 跳到对应父 round；后续可扩展到 payload call。
+
+### Issues & Repro Seeds
 
 - 卡片定位：沉淀可复现缺陷线索，服务 UI 质量门、parser 回归和 payload 诊断。
-- 该卡只展示失败信号 `Compact Table`，不展示图表。
-- 行数固定为最高严重度的 5 条信号。
-- 列固定为 `Signal`、`Evidence`、`Seed`。
-- `Signal` 示例值：`Tool failure`、`Round API 500`、`Parser fallback`、`Payload unavailable`、`Attribution error`。
-- `Evidence` 示例值：`Bash exit 1 · /api/sessions/.../round/3`，最长 120 字符，超出后截断。
-- `Seed` 示例值：`session_id + R3 + call_2`，点击复制完整复现定位串。
-- severity 不单独占列，通过 `Signal` badge tone 表示：critical 使用红色，warning 使用琥珀色，info 使用灰色。
-- 没有信号时展示 `No regression seed found` 空态，空态保留卡片高度。
+- 顶部按类型聚合：`Tool failures`、`LLM errors`、`Payload gaps`、`Attribution errors`。
+- 表格行数固定为最高严重度的 5 条问题。
+- 列固定为 `Issue`、`Evidence`、`Round`、`Seed`。
+- `Issue` 示例值：`Tool failure`、`LLM error`、`Payload gap`、`Attribution error`。
+- `Evidence` 示例值：`Bash exit 1`，最长 160 字符，超出后截断。
+- `Round` 示例值：`R3`，点击跳到 Trace 对应 round。
+- `Seed` 示例值：`session_id + R3 + tool_use_id`，点击复制完整复现定位串。
+- severity 不单独占列，通过 `Issue` badge tone 表示：critical 使用红色，warning 使用琥珀色，info 使用灰色。
+- 没有问题时展示统一空态 `No actionable issues detected`；有失败时 Hero 不得显示 `No issues found`。
+
+### Payload Coverage
+
+- 卡片定位：展示 request、response、tool result 和 attribution 的覆盖情况。
+- 展示 coverage matrix。
+- 行固定为 `Request`、`Response`、`Tool Result`、`Request Attribution`、`Response Attribution`。
+- 列固定为 `Available`、`Partial`、`Missing`、`Error`。
+- 点击任意格子切到 Payload tab，并应用 `All / Failed / Missing / Error` selector filter。
+- 默认选中第一个 failed/missing/error call；没有问题 call 时选中第一个 LLM call。
 
 ### Context Budget
 
@@ -147,6 +179,7 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 - 不渲染配套明细表；细节通过 `common.md` 的 `Chart Tooltip` 展示。
 - tooltip 固定展示 `Segment`、`Tokens`、`Share`、`Source`、`Precision`。
 - 卡片标题栏右侧固定显示统计层级，候选值固定为 `Session-level`、`Selected round`。
+- `unavailable` 不得静默显示为 `0.0%`；必须灰显并标注 `unavailable`。
 
 ## Trace Tab
 
@@ -172,11 +205,11 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 - `Round` 列宽固定为 72px，展示 `R<round_number>` 和状态色。
 - `Summary` 列占剩余主宽，展示 round summary。
 - `Metrics` 列宽固定为 220px，展示 tool count、LLM call count、`Token Cell`。
-- `Signals` 列宽固定为 180px，展示 failed、manual input、subagent、payload missing、attribution error 的 badge。
+- `Signals` 列宽固定为 180px，固定展示 `Failed`、`Subagent`、`Payload Gap`、`Attribution Gap` 四类 badge；无信号时显示低强调空标记。
 - `Time` 列宽固定为 132px，展示 round start time。
 - `Summary` 示例值：`Fix template macro scope`，表示该 round 的主要动作摘要。
 - `Metrics` 示例值：`2 tools · 1 LLM · 24.1k`，token 数值后跟 `Tokenbar`。
-- `Signals` 示例值：`Failed`、`Subagent`、`Manual Input`。
+- `Signals` 示例值：`Failed`、`Subagent`、`Payload Gap`、`Attribution Gap`。
 - `Time` 示例值：`14:23:11`，tooltip 展示完整 timestamp、round duration、process time。
 - table header 中只有 `Metrics` 的 token 排序入口可点击，排序字段固定为 total tokens。
 - 当前展开 row 必须有明确背景色，并和下一行 expanded detail 视觉连在一起。
@@ -232,6 +265,7 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 - call selector 使用 sticky header，滚动区域只在左栏内部滚动。
 - selected call detail header sticky 在右栏顶部，内容区域内部滚动。
 - 左右两栏的滚动互不影响。
+- 窄屏 `< 1024px` 时 call selector 仍必须保留内部最大高度和滚动，不得把 selected call detail 推到几屏之后。
 
 ### Call Selector
 
@@ -241,7 +275,8 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 - call item 标题格式固定为 `LLM Call #<index>`、`Subagent · <name>`、`Tool Result · <tool name>`。
 - call item meta 固定展示 model、status、input token、output token、payload availability。
 - call item 右侧固定展示 status badge：`available`、`partial`、`missing`、`error`。
-- 默认选中第一个 failed call；没有 failed call 时选中第一个 LLM call。
+- selector filter 固定为 `All`、`Failed`、`Missing`、`Error`。
+- 默认选中第一个 failed/missing/error call；没有问题 call 时选中第一个 LLM call。
 - 当前选中项必须有左侧 active bar 和背景色。
 
 ### Selected Call Detail
@@ -303,13 +338,15 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 ### Payload 默认状态
 
 - 直接打开 Payload tab 时，默认选中 URL 中 `payload_call_id` 对应的 call。
-- URL 中没有 `payload_call_id` 时，默认选中第一个 failed call。
-- 没有 failed call 时，默认选中第一个 LLM call。
+- URL 中没有 `payload_call_id` 时，默认选中第一个 failed/missing/error call。
+- 没有问题 call 时，默认选中第一个 LLM call。
 - 没有 payload-capable call 时，右侧展示空态。
 
 ### Payload 操作
 
 - 点击 call selector item 更新右侧 detail，并写入 `payload_call_id` URL 参数。
+- 点击 `All / Failed / Missing / Error` 更新 selector 可见项，并写入 `payload_filter` URL 参数。
+- coverage matrix 点击后必须切到 Payload tab、应用对应 selector filter、并选中第一个匹配的问题 call。
 - `Copy raw` 复制当前 selected call 的 raw request 和 raw response 合并文本。
 - `Copy call id` 复制当前 selected call id。
 - `Open trace step` 切换到 Trace tab，展开对应 round，并滚动到对应 step card。
@@ -329,6 +366,8 @@ Session Detail 是单个 session 的核心调试页，用于解释 trace、paylo
 - Output 来自模型可见输出 token，不把 hidden reasoning token 混入可见输出。
 - Trace、Payload、payload modal 内的 token 值必须共享同一 usage source。
 - 不同来源数据产生差异时，必须展示 source、precision、fallback reason。
+- view model 必须提供统一分析对象：`run_health`、`cost_drivers`、`call_distribution`、`tool_impact`、`subagent_breakdown`、`payload_coverage`、`context_budget`。
+- 失败信号必须统一汇总 round、tool_calls、subagent_runs、payload availability、attribution errors，并反向驱动 Hero 状态、Issues 表和 Trace Failed filter。
 
 ## 状态
 
