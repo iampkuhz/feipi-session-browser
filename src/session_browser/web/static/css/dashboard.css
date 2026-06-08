@@ -4,6 +4,7 @@
 .main[data-page="dashboard"] {
   --max: 1760px;
   --dashboard-average-color: #111827;
+  --dashboard-prompt-average-color: #0f172a;
 }
 
 @media (min-width: 1920px) {
@@ -133,30 +134,39 @@
 
 .metric-card--kpi {
   align-items: flex-start;
+  min-height: 128px;
 }
 
 .metric-card__primary-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 18px 30px;
+  align-items: start;
+  gap: 4px 7px;
   min-width: 0;
-  flex-wrap: wrap;
-}
-
-.metric-card__primary-row .icon-button--info {
-  flex: 0 0 auto;
+  min-height: 54px;
 }
 
 .metric-card__value-group {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 7px;
   flex: 0 0 auto;
   white-space: nowrap;
+  min-height: 28px;
+  grid-column: 1 / -1;
+  grid-row: 2;
 }
 
 .metric-card__primary-row .metric-card__label {
-  line-height: 1;
+  line-height: 1.2;
+  min-height: 18px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .metric-card__primary-row .metric-card__value {
@@ -204,12 +214,32 @@
 }
 @media (min-width: 1440px) {
   .trend-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 720px) {
   .trend-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1440px) {
+  .trend-grid > [data-chart-card="sessions"],
+  .trend-grid > [data-chart-card="prompts"] {
+    grid-row: 1;
+  }
+
+  .trend-grid > [data-chart-card="sessions"] {
+    grid-column: 1;
+  }
+
+  .trend-grid > [data-chart-card="prompts"] {
+    grid-column: 2;
+  }
+
+  .trend-grid > [data-chart-card="tokens"] {
+    grid-column: 1;
+    grid-row: 2;
   }
 }
 
@@ -468,7 +498,7 @@
 }
 
 .line-series--prompt-average {
-  stroke: var(--status-info, var(--brand));
+  stroke: var(--dashboard-prompt-average-color);
   stroke-width: 2.4;
   stroke-dasharray: 4 4;
 }
@@ -515,6 +545,16 @@
   inset-inline: var(--plot-x-padding);
   pointer-events: none;
   z-index: 3;
+}
+
+.line-targets {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+}
+
+.line-targets--bar-aligned {
+  inset-inline: var(--plot-x-padding);
 }
 
 .prompt-line-markers .line-point {
@@ -579,7 +619,7 @@
 }
 
 .line-point--prompt-average {
-  background: var(--status-info, var(--brand));
+  background: var(--dashboard-prompt-average-color);
 }
 
 .chart-legend {
@@ -650,7 +690,7 @@
 }
 
 .chart-legend__line--prompt-average {
-  color: var(--status-info, var(--brand));
+  color: var(--dashboard-prompt-average-color);
   border-top-style: dashed;
 }
 .chart-legend__line--average {
@@ -815,7 +855,7 @@
 
 /* ── Cache Health Section ================================================= */
 .cache-health-section {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 /* ── Contribution (horizontal bar) charts ================================= */
@@ -1145,7 +1185,7 @@
   border-top: 2px dashed currentColor;
 }
 .tooltip-line-key--prompt-average {
-  color: var(--status-info, var(--brand));
+  color: var(--dashboard-prompt-average-color);
 }
 .tooltip-line-key--average {
   color: var(--dashboard-average-color);
@@ -1250,14 +1290,20 @@
   color: var(--brand);
 }
 
-/* ── KPI card secondary metrics tooltip =================================== */
-.metric-card__secondary-row[data-secondary-tooltip] {
+/* ── KPI card row tooltips ================================================ */
+.metric-card__tooltip-target[data-tooltip-def] {
   cursor: help;
   position: relative;
 }
 
-.metric-card__secondary-row[data-secondary-tooltip]:hover::after,
-.metric-card__secondary-row[data-secondary-tooltip]:focus-within::after {
+.metric-card__tooltip-target[data-tooltip-def]:focus-visible {
+  outline: 2px solid rgba(91, 92, 226, 0.35);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.metric-card__tooltip-target[data-tooltip-def]:hover::after,
+.metric-card__tooltip-target[data-tooltip-def]:focus-visible::after {
   content: attr(data-tooltip-def);
   position: absolute;
   left: 0;

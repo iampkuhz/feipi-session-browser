@@ -15,10 +15,10 @@
 ## Dashboard
 
 - [ ] 有 agent scope selector，并影响 KPI、trend、token 分析和 scope 分支区。
-- [ ] KPI 固定为 Projects、Sessions、Total Tokens、Prompt Activity、Cache Read Ratio、Failed Tools，每张卡有一级值和二级指标。
+- [ ] KPI 固定为 Projects、Sessions、Total Tokens、Prompt Activity、Cache Read Ratio、Failed Tools，每张卡有一级值和二级指标；KPI 卡内不展示 info icon，主指标行和每个二级指标行都有 hover/focus tooltip。
 - [ ] Day 显示最近 30 天，x 轴 `MM-DD`；Week 显示最近 20 个 ISO week；Month 显示最近 12 个月。
-- [ ] Trend 总览区固定为 Session Trend、Token Trend、Prompt Activity Trend 三张同级卡，只渲染全宽图表和 hover/focus tooltip。
-- [ ] Token 分析区固定为 Token Trend by Composition 和 Cache Health；Cache Health 只画 Cache Read Ratio 折线，Fresh spike 使用异常标记。
+- [ ] Trend 总览区固定为 2x2 chart card：第一行 Session Trend、Prompt Activity Trend，第二行 Token Trend、Cache Health；只渲染全宽图表和 hover/focus tooltip。
+- [ ] Token Trend 承载 token composition；Cache Health 只画 Cache Read Ratio 折线，缺失 cache 口径的点显示 N/A 并跨点连接，不展示 Fresh spike。
 - [ ] All agents scope 展示 Agent Contribution Comparison、All Agents、Agent / Model Efficiency。
 - [ ] 单 agent scope 展示 Model Mix、Tool Distribution、Failure Signals、Model Efficiency Detail、Agent Sessions。
 - [ ] Agent Sessions 表列完整：Title、Project、Model、Tokens、Rounds、Tools、Subagents、Duration、Process Time、Failure、Updated。

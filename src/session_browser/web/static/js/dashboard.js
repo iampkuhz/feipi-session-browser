@@ -7,7 +7,7 @@
  *   - 图表渲染（Session Trend、Token Trend、Prompt Activity Trend、
  *     Cache Health、Model Mix、Tool Distribution）
  *   - 图表 tooltip hover/focus
- *   - Info 按钮 popover
+ *   - Chart info popover
  *   - All Agents 行点击切换 scope
  *
  * 使用 data-action 事件委托，不绑定 inline handler。
@@ -19,30 +19,6 @@
     /* ── Info copy dictionary ──────────────────────────────────── */
 
     var INFO_COPY = {
-        'projects': {
-            title: 'Projects',
-            text: '当前 scope 下出现过 session 的 project key 去重数。Badge 显示最近 7 天新出现的项目数；二级指标展示最近 24 小时活跃、最近 7 天活跃和最近 7 天首次出现的项目数。'
-        },
-        'sessions': {
-            title: 'Sessions',
-            text: '当前 scope 下已索引 session 总数。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示今日 session、7 天日均、生命周期中位时长和平均 assistant 轮数。'
-        },
-        'total-tokens': {
-            title: 'Total Tokens',
-            text: 'Fresh、Cache Read、Cache Write、Output 的合计。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示四类 token 的绝对量。'
-        },
-        'prompt-activity': {
-            title: 'Prompt Activity',
-            text: '用户发起输入数量，按 user message 事件计数。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示 assistant turns、tool calls 和每个 session 平均 user prompts。'
-        },
-        'cache-read-ratio': {
-            title: 'Cache Read Ratio',
-            text: 'Cache Read / Input-side Tokens，其中 Input-side = Fresh + Cache Read + Cache Write。Badge 对比当前可见趋势窗口最后两个时间点；二级指标展示可计算样本数、session 级中位数和低缓存复用 session 数。'
-        },
-        'failed-tools': {
-            title: 'Failed Tools',
-            text: '执行失败的工具结果数量。Badge 对比当前可见趋势窗口最后两个时间点，下降为正向；二级指标展示失败率、受影响 session 数和重复失败 session 数。'
-        },
         'chart-sessions': {
             title: 'Session Trend',
             text: '按当前 Day、Week 或 Month 粒度展示 session 数。All agents 下按 Claude Code、Qoder、Codex 堆叠；单 agent 下只显示当前 agent。'
@@ -445,6 +421,7 @@
                     fields.push(prefix + '_' + metric);
                 });
             });
+            fields.push('qoder_unreported_input_side_tokens');
             return fields;
         }
 
@@ -488,6 +465,11 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function setChartMarkup(container, markup) {
+            var parsed = new DOMParser().parseFromString(markup, 'text/html');
+            container.replaceChildren.apply(container, Array.prototype.slice.call(parsed.body.childNodes));
         }
 
         function xPct(index, length) {
@@ -576,21 +558,34 @@
                 (d[prefix + '_cache_write_tokens'] || 0);
         }
 
+        function cacheMetricKnown(d, prefix) {
+            return d[prefix + '_cache_metric_known'] !== false;
+        }
+
         function cacheRatio(d, prefix) {
+            if (!cacheMetricKnown(d, prefix)) return null;
             var input = inputSide(d, prefix);
             if (!input) return null;
             return (d[prefix + '_cache_read_tokens'] || 0) / input * 100;
         }
 
+        function normalizeCacheMetricFlags(data) {
+            data.forEach(function(d) {
+                var qoderKnownInput = inputSide(d, 'qoder');
+                var qoderUnreported = d.qoder_unreported_input_side_tokens || 0;
+                d.qoder_cache_metric_known = !(qoderUnreported > 0 && qoderKnownInput <= 0);
+            });
+            return data;
+        }
+
         function linePath(data, maxVal, valueFn, xFn, yFn) {
             var parts = [];
             var open = false;
-            var resolveX = xFn || xPct;
+            var resolveX = xFn || xBandCenterPct;
             var resolveY = yFn || function(val) { return yPct(val, maxVal); };
             data.forEach(function(d, i) {
                 var val = valueFn(d, i);
                 if (val == null || !isFinite(val)) {
-                    open = false;
                     return;
                 }
                 var cmd = open ? 'L ' : 'M ';
@@ -603,14 +598,16 @@
         function isolatedLineMarkers(data, valueFn, xFn, yFn, className) {
             var resolveX = xFn || xPct;
             var markers = [];
+            var validIndexes = [];
             data.forEach(function(d, i) {
+                var value = valueFn(d, i);
+                if (value != null && isFinite(value)) validIndexes.push(i);
+            });
+            if (validIndexes.length !== 1) return '';
+            data.forEach(function(d, i) {
+                if (i !== validIndexes[0]) return;
                 var val = valueFn(d, i);
                 if (val == null || !isFinite(val)) return;
-                var prev = i > 0 ? valueFn(data[i - 1], i - 1) : null;
-                var next = i < data.length - 1 ? valueFn(data[i + 1], i + 1) : null;
-                var hasPrev = prev != null && isFinite(prev);
-                var hasNext = next != null && isFinite(next);
-                if (hasPrev || hasNext) return;
                 var x = resolveX(i, data.length);
                 var y = yFn(val);
                 markers.push('<line class="' + className + ' line-isolated-marker" x1="' +
@@ -694,7 +691,7 @@
             var container = document.getElementById('trend-chart');
             if (!container) return;
             var data = applyScope(rawData, getTrendFields());
-            if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
+            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
 
             var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_count || 0; })) || 1;
             var rangeTotal = data.reduce(function(sum, d) { return sum + (d.total_count || 0); }, 0);
@@ -715,19 +712,19 @@
                 bars += '</div>' + tip + '</div>';
             });
 
-            container.innerHTML = '<div class="chart">' + yHtml +
+            setChartMarkup(container, '<div class="chart">' + yHtml +
                 '<div class="plot" style="--n:' + data.length + '">' + bars + '</div>' +
-                xAxisHtml(data) + '</div>';
+                xAxisHtml(data) + '</div>');
         }
 
         function renderTokenChart() {
             var container = document.getElementById('token-trend-chart');
             if (!container) return;
             var data = applyScope(rawData, getTrendFields());
-            if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
+            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
 
             var maxVal = Math.max.apply(null, data.map(totalTokens)) || 1;
-            if (!maxVal) { container.innerHTML = '<p class="chart-empty">该时间窗口无 token 数据。</p>'; return; }
+            if (!maxVal) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无 token 数据。</p>'); return; }
             var rangeTotal = data.reduce(function(sum, d) { return sum + totalTokens(d); }, 0);
             var yHtml = yAxisHtml([maxVal, Math.round(2 / 3 * maxVal), Math.round(1 / 3 * maxVal), 0], formatTokens);
 
@@ -737,7 +734,7 @@
                 var upper = [];
                 var lower = [];
                 data.forEach(function(d, i) {
-                    var x = xPct(i, data.length);
+                    var x = xBandCenterPct(i, data.length);
                     var low = cumulative[i];
                     var high = low + (d[layer.key] || 0);
                     lower.push([x, yPct(low, maxVal)]);
@@ -755,7 +752,7 @@
             var targets = '';
             data.forEach(function(d, i) {
                 var total = totalTokens(d);
-                var x = xPct(i, data.length);
+                var x = xBandCenterPct(i, data.length);
                 var y = yPct(total, maxVal);
                 var tip = buildTokenTooltip(formatDisplayDate(d.date), d, rangeTotal, i > 0 ? data[i - 1] : null);
                 var edge = edgeClass(i, data.length, 'chart-hover-target');
@@ -768,9 +765,9 @@
                     escapeHtml(layer.label) + ' ' + escapeHtml(formatTokens(value)) + ' ' + escapeHtml(share(value, rangeTotal)) + '</span>';
             }).join('');
 
-            container.innerHTML = '<div class="chart">' + yHtml +
+            setChartMarkup(container, '<div class="chart">' + yHtml +
                 '<div class="plot plot--area" style="--n:' + data.length + '"><svg class="area-plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + '</svg>' + targets + '</div>' +
-                xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>';
+                xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>');
         }
 
         function renderPromptChart() {
@@ -778,7 +775,7 @@
             if (!container) return;
             var data = applyScope(promptRawData, getPromptFields());
             var trendData = applyScope(rawData, getTrendFields());
-            if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
+            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
 
             var trendByDate = {};
             trendData.forEach(function(d) { trendByDate[d.date] = d; });
@@ -816,9 +813,9 @@
             }).join('');
             var legend = '<span class="chart-legend__item"><i class="chart-legend__line chart-legend__line--prompt-average"></i>Avg Prompts / Session</span>';
 
-            container.innerHTML = '<div class="chart chart--dual-axis">' + yHtml +
+            setChartMarkup(container, '<div class="chart chart--dual-axis">' + yHtml +
                 '<div class="plot" style="--n:' + data.length + '">' + avgLine + '<div class="prompt-line-markers" aria-hidden="true">' + avgMarkers + '</div>' + bars + '</div>' +
-                yRightHtml + xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>';
+                yRightHtml + xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>');
         }
 
         function buildCacheTooltip(label, d, highlightPrefix) {
@@ -833,7 +830,15 @@
                 rows.push(tooltipLineRow(item.line, item.label, ratio == null ? 'N/A' : ratio.toFixed(1) + '%', item.prefix === highlightPrefix ? 'selected' : ''));
             });
             var input = inputSide(d, highlightPrefix);
-            rows.push(tooltipRow('total', 'Input-side Tokens', formatTokens(input), '', 'tooltip-row--total'));
+            if (!cacheMetricKnown(d, highlightPrefix)) {
+                rows.push(tooltipRow('total', 'Input-side Tokens', 'N/A', '', 'tooltip-row--total'));
+                var unreported = d[highlightPrefix + '_unreported_input_side_tokens'] || 0;
+                if (unreported > 0) {
+                    rows.push(tooltipRow('total', 'Unreported Input-side', formatTokens(unreported), ''));
+                }
+            } else {
+                rows.push(tooltipRow('total', 'Input-side Tokens', formatTokens(input), '', 'tooltip-row--total'));
+            }
             rows.push(tooltipRow('fresh', 'Fresh', formatTokens(d[highlightPrefix + '_fresh_input_tokens'] || 0), ''));
             rows.push(tooltipRow('read', 'Cache Read', formatTokens(d[highlightPrefix + '_cache_read_tokens'] || 0), ''));
             rows.push(tooltipRow('write', 'Cache Write', formatTokens(d[highlightPrefix + '_cache_write_tokens'] || 0), ''));
@@ -868,8 +873,8 @@
         function renderCacheHealthChart() {
             var container = document.getElementById('cache-health-chart');
             if (!container) return;
-            var data = applyScope(cacheRawData, getCacheFields());
-            if (!data.length) { container.innerHTML = '<p class="chart-empty">该时间窗口无数据。</p>'; return; }
+            var data = normalizeCacheMetricFlags(applyScope(cacheRawData, getCacheFields()));
+            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
 
             var activeScope = getActiveScope();
             var highlightPrefix = scopeToAgentKey(activeScope);
@@ -889,15 +894,15 @@
                 var highlight = spec.prefix === highlightPrefix;
                 var cls = 'line-series line-series--' + spec.prefix + (highlight ? ' line-series--highlight' : ' line-series--muted');
                 var valueFn = function(d) { return cacheRatio(d, spec.prefix); };
-                paths += '<path class="' + cls + '" d="' + linePath(data, 100, valueFn, null, cacheY) + '"></path>';
-                isolatedMarkers += isolatedLineMarkers(data, valueFn, xPct, cacheY, cls);
+                paths += '<path class="' + cls + '" d="' + linePath(data, 100, valueFn, xBandCenterPct, cacheY) + '"></path>';
+                isolatedMarkers += isolatedLineMarkers(data, valueFn, xBandCenterPct, cacheY, cls);
             });
 
             var targets = '';
             data.forEach(function(d, i) {
                 var ratio = cacheRatio(d, highlightPrefix);
                 var y = ratio == null ? cacheY(domain.min) : cacheY(ratio);
-                var x = xPct(i, data.length);
+                var x = xBandCenterPct(i, data.length);
                 var tip = buildCacheTooltip(formatDisplayDate(d.date), d, highlightPrefix);
                 var edge = edgeClass(i, data.length, 'chart-hover-target');
                 targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span><span class="line-point line-point--' + highlightPrefix + '"></span>' +
@@ -908,9 +913,9 @@
                 return '<span class="chart-legend__item"><i class="chart-legend__line chart-legend__line--' + spec.prefix + '"></i>' + escapeHtml(spec.label) + '</span>';
             }).join('');
 
-            container.innerHTML = '<div class="chart chart--cache-health">' + yHtml +
-                '<div class="plot plot--line plot--cache-health" style="--n:' + data.length + '">' + gridHtml + '<svg class="line-plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + isolatedMarkers + '</svg>' + targets + '</div>' +
-                xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>';
+            setChartMarkup(container, '<div class="chart chart--cache-health">' + yHtml +
+                '<div class="plot plot--line plot--cache-health" style="--n:' + data.length + '">' + gridHtml + '<svg class="line-plot line-plot--bar-aligned" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + isolatedMarkers + '</svg><div class="line-targets line-targets--bar-aligned">' + targets + '</div></div>' +
+                xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>');
         }
 
         renderSessionChart();

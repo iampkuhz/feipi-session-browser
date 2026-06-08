@@ -678,3 +678,19 @@ class TestUIPrimitivesJS:
         assert "UiPrimitives" in js
         assert "showToast" in js
         assert "closestTable" in js
+
+
+class TestUIPrimitivesCSS:
+    """ui_primitives table 样式契约。"""
+
+    CSS_PATH = pathlib.Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "ui-primitives" / "_tables.css"
+
+    @pytest.mark.contract_case("UI-VISUAL-012")
+    def test_sort_aria_state_uses_single_canonical_icon(self):
+        """aria-sort 状态只能驱动 canonical icon，不得追加第二个文本箭头。"""
+        css = self.CSS_PATH.read_text()
+        assert 'th[aria-sort="ascending"] .c-data-table__sort-icon' in css
+        assert 'th[aria-sort="descending"] .c-data-table__sort-icon' in css
+        assert 'content: " \\2191"' not in css
+        assert 'content: " \\2193"' not in css
+        assert "vertical-align: middle" in css

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
+from functools import lru_cache
 from typing import Any
 
 from session_browser.index.indexer import (
@@ -76,27 +77,54 @@ _MODEL_MIX_COLORS = [
     "#f97316",
 ]
 
+_KPI_PRIMARY_DESCRIPTIONS = {
+    "Projects": (
+        "当前 scope 下出现过 session 的 project key 去重数。"
+        "badge 显示最近 7 天开始的 project 数变化。"
+    ),
+    "Sessions": (
+        "当前 scope 下已索引 session 总数。"
+        "badge 对比当前趋势窗口最后两个时间点的 session 数增减。"
+    ),
+    "Total Tokens": (
+        "Fresh、Cache Read、Cache Write、Output 四类 token 的总和。"
+        "badge 对比当前趋势窗口最后两个时间点的总 token 百分比变化。"
+    ),
+    "Prompt Activity": (
+        "当前 scope 下 user message 事件总数，代表用户主动发起的 prompt 数。"
+        "badge 对比当前趋势窗口最后两个时间点的 user prompts 增减。"
+    ),
+    "Cache Read Ratio": (
+        "Cache Read / Input-side Tokens；Input-side Tokens = Fresh + Cache Read + Cache Write。"
+        "badge 对比当前趋势窗口最后两个可计算时间点的比例变化。"
+    ),
+    "Failed Tools": (
+        "明确失败的 tool result 总数，不等同于失败 session 数。"
+        "badge 对比当前趋势窗口最后两个时间点的失败工具数，下降显示为正向。"
+    ),
+}
+
 _KPI_SECONDARY_DESCRIPTIONS = {
-    "Active 24h": "最近 24 小时内至少有一个 session event 的 project 去重数。",
-    "Active 7d": "最近 7 个自然日内至少有一个 session event 的 project 去重数。",
-    "New 7d": "first seen timestamp 落在最近 7 个自然日内的 project 去重数。",
-    "Today": "first user message timestamp 落在当前自然日内的 session 数。",
-    "7d Avg": "最近 7 个自然日每日 session 数的算术平均值。",
-    "Median Duration": "session 生命周期中位数，使用最后 event timestamp 减去第一个 event timestamp。",
-    "Avg Rounds": "当前 scope 下每个 session 的 assistant message 平均数量。",
-    "Fresh": "模型输入侧新消耗 token 数，不含 cache read 和 cache write。",
-    "Cache Read": "从缓存读取并计入输入侧的 token 数。",
-    "Cache Write": "写入缓存并计入输入侧的 token 数。",
-    "Output": "模型输出 token 数。",
-    "Assistant Turns": "assistant message 事件总数。",
-    "Tool Calls": "tool call 事件总数，不区分成功和失败。",
-    "Prompts / Session": "User Prompts / Sessions；sessions 为 0 时显示 N/A。",
-    "Eligible Sessions": "Input-side Tokens > 0 的 session 数，也是 cache read ratio 的样本数。",
-    "P50 Session Ratio": "eligible sessions 的 per-session cache read ratio 中位数。",
-    "Low-read Sessions": "eligible sessions 中 per-session cache read ratio 小于 20.0% 的 session 数。",
-    "Failure Rate": "Failed Tools / Tool Calls；tool calls 为 0 时显示 N/A。",
-    "Affected Sessions": "failed tool result 数量大于 0 的 session 数。",
-    "Repeated Failure Sessions": "failed tool result 数量大于 1 的 session 数。",
+    "Active 24h": "最近 24 小时内结束过 session 的 project 去重数；同一个 project 只算一次。",
+    "Active 7d": "最近 7 天内结束过 session 的 project 去重数；同一个 project 只算一次。",
+    "New 7d": "最近 7 天内开始过 session 的 project 去重数；用于提示近期新增活跃项目。",
+    "Today": "今天开始的 session 数，按 session started_at 的日期统计。",
+    "7d Avg": "最近 7 天内结束的 session 总数除以 7，得到每日平均 session 数。",
+    "Median Duration": "duration_seconds 大于 0 的 session 生命周期中位数。",
+    "Avg Rounds": "assistant message 总数除以 session 总数，表示每个 session 的平均 assistant 轮数。",
+    "Fresh": "输入侧新计算 token 数，不含从缓存读取或写入缓存的 token。",
+    "Cache Read": "输入侧从 provider 缓存命中的 token 数；会计入总 token。",
+    "Cache Write": "输入侧写入 provider 缓存的 token 数；会计入总 token。",
+    "Output": "模型输出给用户或工具链的 token 数。",
+    "Assistant Turns": "assistant message 事件总数，表示模型回复轮次。",
+    "Tool Calls": "tool call 事件总数，包含成功和失败的工具调用。",
+    "Prompts / Session": "User Prompts / Sessions；没有 session 时显示 N/A。",
+    "Eligible Sessions": "Input-side Tokens > 0 的 session 数，是 session 级缓存复用统计的样本。",
+    "P50 Session Ratio": "eligible sessions 中每个 session 的 Cache Read / Input-side Tokens 的中位数。",
+    "Low-read Sessions": "eligible sessions 中 cache read ratio 小于 20.0% 的 session 数。",
+    "Failure Rate": "Failed Tools / Tool Calls；没有 tool call 时显示 N/A。",
+    "Affected Sessions": "failed_tool_count 大于 0 的 session 数。",
+    "Repeated Failure Sessions": "failed_tool_count 大于 1 的 session 数。",
 }
 
 
@@ -133,6 +161,13 @@ def _safe_ratio_float(num: int | float, den: int | float) -> float | None:
     if not den or den == 0:
         return None
     return num / den
+
+
+def _fmt_percent_share(value: float) -> str:
+    """Format a share while preserving non-zero tiny contributors."""
+    if value > 0 and value < 0.1:
+        return "<0.1%"
+    return f"{value:.1f}%"
 
 
 def build_dashboard_view_model(
@@ -352,6 +387,12 @@ def _compute_kpis(
 
 def _attach_kpi_descriptions(kpi: dict[str, Any]) -> dict[str, Any]:
     """Attach concrete tooltip descriptions to KPI secondary metrics."""
+    kpi = dict(kpi)
+    label = kpi.get("label", "")
+    kpi["description"] = _KPI_PRIMARY_DESCRIPTIONS.get(
+        label,
+        f"{label or 'KPI'} 的统计口径。",
+    )
     secondary = []
     for item in kpi.get("secondary", []):
         enriched = dict(item)
@@ -360,7 +401,6 @@ def _attach_kpi_descriptions(kpi: dict[str, Any]) -> dict[str, Any]:
             f"{item.get('label', 'Metric')} 的统计口径。",
         )
         secondary.append(enriched)
-    kpi = dict(kpi)
     kpi["secondary"] = secondary
     return kpi
 
@@ -607,6 +647,30 @@ def _build_model_donut_gradient(model_rows: list[dict[str, Any]]) -> str:
     return "conic-gradient(" + ", ".join(stops) + ")"
 
 
+_QODER_CACHE_METRIC_KEYS = (
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+    "cached_tokens",
+    "cached_input_tokens",
+    "qoder_input_tokens_total",
+)
+
+
+@lru_cache(maxsize=4096)
+def _qoder_file_reports_cache_metrics(file_path: str) -> bool:
+    """Return whether a Qoder raw session contains provider cache fields."""
+    if not file_path:
+        return False
+    try:
+        with open(file_path, encoding="utf-8") as fh:
+            for line in fh:
+                if any(key in line for key in _QODER_CACHE_METRIC_KEYS):
+                    return True
+    except OSError:
+        return False
+    return False
+
+
 def _compute_cache_health_series(conn: sqlite3.Connection, days: int) -> list[dict]:
     """Compute daily token inputs for Average and each known agent."""
     agent_keys = ["claude_code", "qoder", "codex"]
@@ -617,13 +681,13 @@ def _compute_cache_health_series(conn: sqlite3.Connection, days: int) -> list[di
             SELECT
                 COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
                 agent,
-                COALESCE(SUM(fresh_input_tokens), 0) as fresh_input_tokens,
-                COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
-                COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens
+                COALESCE(fresh_input_tokens, 0) as fresh_input_tokens,
+                COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+                COALESCE(cache_write_tokens, 0) as cache_write_tokens,
+                COALESCE(file_path, '') as file_path
             FROM sessions
             WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
               AND agent IN ('claude_code', 'qoder', 'codex')
-            GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')), agent
             ORDER BY day
             """,
             [f"-{days} days"],
@@ -636,9 +700,15 @@ def _compute_cache_health_series(conn: sqlite3.Connection, days: int) -> list[di
         day = row["day"]
         point = by_day.setdefault("{}".format(day), {"date": day})
         agent = row["agent"]
+        input_side = sum(row[field] or 0 for field in fields)
+        if agent == "qoder" and not _qoder_file_reports_cache_metrics(row["file_path"]):
+            point["qoder_unreported_input_side_tokens"] = (
+                point.get("qoder_unreported_input_side_tokens", 0) + input_side
+            )
+            continue
         for field in fields:
             value = row[field] or 0
-            point[f"{agent}_{field}"] = value
+            point[f"{agent}_{field}"] = point.get(f"{agent}_{field}", 0) + value
             point[f"average_{field}"] = point.get(f"average_{field}", 0) + value
 
     series = []
@@ -647,6 +717,12 @@ def _compute_cache_health_series(conn: sqlite3.Connection, days: int) -> list[di
         for agent in agent_keys:
             for field in fields:
                 point.setdefault(f"{agent}_{field}", 0)
+        qoder_known_input = sum(point.get(f"qoder_{field}", 0) for field in fields)
+        qoder_unreported = point.get("qoder_unreported_input_side_tokens", 0)
+        if qoder_unreported > 0 and qoder_known_input == 0:
+            point["qoder_cache_metric_known"] = False
+        else:
+            point.setdefault("qoder_cache_metric_known", True)
         for field in fields:
             point.setdefault(f"average_{field}", 0)
         series.append(point)
@@ -662,6 +738,8 @@ def _compute_cache_health_stats(series: list[dict], agent_scope: str) -> dict:
     values = []
     latest_ratio = None
     for point in series:
+        if point.get(f"{prefix}_cache_metric_known") is False:
+            continue
         fresh = point.get(f"{prefix}_fresh_input_tokens", 0)
         read = point.get(f"{prefix}_cache_read_tokens", 0)
         write = point.get(f"{prefix}_cache_write_tokens", 0)
@@ -781,10 +859,11 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "db_agent": db_agent,
             "sessions": a["sessions"],
             "sessions_raw": a["sessions"],
-            "session_share": f"{session_share:.1f}%",
+            "session_share": _fmt_percent_share(session_share),
             "tokens": _fmt_compact(a["tokens"]),
             "tokens_raw": a["tokens"],
-            "token_share": f"{token_share:.1f}%",
+            "token_share": _fmt_percent_share(token_share),
+            "token_share_value": token_share,
             "token_fresh": _fmt_compact(a.get("fresh", 0)),
             "token_cache_read": _fmt_compact(a.get("cache_read", 0)),
             "token_cache_write": _fmt_compact(a.get("cache_write", 0)),
@@ -795,7 +874,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "output_pct": round(a.get("output", 0) / max(1, a["tokens"]) * 100, 1),
             "prompts": a.get("prompts", 0),
             "prompts_raw": a.get("prompts", 0),
-            "prompt_share": f"{prompt_share:.1f}%",
+            "prompt_share": _fmt_percent_share(prompt_share),
             "projects": a.get("projects", 0),
             "projects_raw": a.get("projects", 0),
             "failed": a["failed"],

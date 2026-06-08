@@ -15,6 +15,7 @@ from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 from session_browser.web.presenters.dashboard import build_dashboard_view_model
+from session_browser.web.presenters import dashboard as dashboard_presenter
 
 
 # ─── 辅助函数 ───────────────────────────────────────────────────────────
@@ -193,6 +194,38 @@ class TestStatisticsDataFlow:
         assert result["stats"]["total_sessions"] == 42
 
     @pytest.mark.contract_case("DATA-PRESENTER-002")
+    def test_all_agents_preserves_tiny_token_share(self):
+        """非零但小于 0.1% 的 agent token share 不应显示成 0.0%。"""
+        conn = MagicMock()
+        with patch.object(dashboard_presenter, "list_agents") as list_agents, \
+             patch.object(dashboard_presenter, "get_prompt_activity_trend") as prompt_trend, \
+             patch.object(dashboard_presenter, "list_model_stats") as model_stats:
+            list_agents.return_value = [
+                {
+                    "agent": "claude_code", "session_count": 10, "total_tokens": 1_000_000_000,
+                    "total_fresh_input_tokens": 1_000_000_000, "total_cache_read_tokens": 0,
+                    "total_cache_write_tokens": 0, "total_output_tokens": 0,
+                    "total_tool_calls": 0, "total_failed_tools": 0,
+                    "total_assistant_messages": 0, "project_count": 1, "last_active": "",
+                },
+                {
+                    "agent": "qoder", "session_count": 1, "total_tokens": 100,
+                    "total_fresh_input_tokens": 100, "total_cache_read_tokens": 0,
+                    "total_cache_write_tokens": 0, "total_output_tokens": 0,
+                    "total_tool_calls": 0, "total_failed_tools": 0,
+                    "total_assistant_messages": 0, "project_count": 1, "last_active": "",
+                },
+            ]
+            prompt_trend.return_value = []
+            model_stats.return_value = []
+
+            result = dashboard_presenter._compute_all_agents_branch(conn)
+
+        qoder = next(row for row in result["agent_rows"] if row["db_agent"] == "qoder")
+        assert qoder["token_share"] == "<0.1%"
+        assert qoder["token_share_value"] > 0
+
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
     def test_trend_and_prompt_activity_passed_through(self):
         conn = MagicMock()
         with _patch_all_indexers() as stack:
@@ -235,6 +268,109 @@ class TestEmptyDataScenario:
         assert result["is_single_agent"] is False
         assert result["agent_scope"] == "all"
         assert result["grain"] == "day"
+
+
+class TestCacheHealthSeries:
+    """验证 Cache Health 聚合对 Qoder cache 可用性的处理。"""
+
+    def _make_conn(self, rows):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """
+            CREATE TABLE sessions (
+                ended_at TEXT,
+                agent TEXT,
+                fresh_input_tokens INTEGER,
+                cache_read_tokens INTEGER,
+                cache_write_tokens INTEGER,
+                file_path TEXT
+            )
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO sessions (
+                ended_at, agent, fresh_input_tokens, cache_read_tokens,
+                cache_write_tokens, file_path
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
+        return conn
+
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
+    def test_qoder_basic_token_only_cache_health_is_unknown(self, tmp_path):
+        raw = tmp_path / "qoder-basic.jsonl"
+        raw.write_text('{"message":{"usage":{"input_tokens":100,"output_tokens":10}}}\n')
+        dashboard_presenter._qoder_file_reports_cache_metrics.cache_clear()
+        conn = self._make_conn([
+            ("", "qoder", 100, 0, 0, str(raw)),
+        ])
+
+        series = dashboard_presenter._compute_cache_health_series(conn, 10000)
+
+        assert series[0]["qoder_cache_metric_known"] is False
+        assert series[0]["qoder_unreported_input_side_tokens"] == 100
+        assert series[0]["qoder_fresh_input_tokens"] == 0
+        stats = dashboard_presenter._compute_cache_health_stats(series, "qoder")
+        assert stats["latest_ratio"] == "N/A"
+
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
+    def test_qoder_reported_zero_cache_health_stays_zero(self, tmp_path):
+        raw = tmp_path / "qoder-reported-zero.jsonl"
+        raw.write_text('{"message":{"usage":{"input_tokens":100,"cache_read_input_tokens":0,"output_tokens":10}}}\n')
+        dashboard_presenter._qoder_file_reports_cache_metrics.cache_clear()
+        conn = self._make_conn([
+            ("", "qoder", 100, 0, 0, str(raw)),
+        ])
+
+        series = dashboard_presenter._compute_cache_health_series(conn, 10000)
+
+        assert series[0]["qoder_cache_metric_known"] is True
+        assert series[0]["qoder_fresh_input_tokens"] == 100
+        stats = dashboard_presenter._compute_cache_health_stats(series, "qoder")
+        assert stats["latest_ratio"] == "0.0%"
+
+
+class TestKpiDescriptions:
+    """验证 KPI 行级 tooltip 文案口径。"""
+
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
+    def test_primary_and_secondary_kpi_descriptions_are_specific(self):
+        kpi = dashboard_presenter._attach_kpi_descriptions({
+            "label": "Failed Tools",
+            "value": "3",
+            "secondary": [
+                {"label": "Failure Rate", "value": "4.1%"},
+                {"label": "Repeated Failure Sessions", "value": "2"},
+            ],
+        })
+
+        assert "tool result" in kpi["description"]
+        assert "失败 session" in kpi["description"]
+        for row in kpi["secondary"]:
+            assert row["description"]
+            assert "定义与计算公式" not in row["description"]
+            assert "统计口径" not in row["description"]
+
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
+    def test_all_dashboard_kpi_labels_have_primary_descriptions(self):
+        for label in [
+            "Projects",
+            "Sessions",
+            "Total Tokens",
+            "Prompt Activity",
+            "Cache Read Ratio",
+            "Failed Tools",
+        ]:
+            kpi = dashboard_presenter._attach_kpi_descriptions({
+                "label": label,
+                "value": "1",
+                "secondary": [],
+            })
+            assert kpi["description"]
+            assert "统计口径" not in kpi["description"]
 
 
 class TestAgentScopeAndGrain:

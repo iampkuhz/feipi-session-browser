@@ -86,7 +86,12 @@
     <article class="metric-card metric-card--kpi" aria-label="{{ kpi.label }}">
         <div class="metric-icon {{ loop.index | kpi_icon_color }}" aria-hidden="true">{{ loop.index | kpi_icon }}</div>
         <div class="metric-card__body">
-            <div class="metric-card__primary-row">
+            <div class="metric-card__primary-row metric-card__tooltip-target"
+                 data-kpi-tooltip="{{ kpi.label }}"
+                 data-tooltip-def="{{ kpi.description }}"
+                 title="{{ kpi.description }}"
+                 tabindex="0"
+                 aria-label="{{ kpi.label }}：{{ kpi.description }}">
                 <span class="metric-card__label">{{ kpi.label }}</span>
                 <span class="metric-card__value-group">
                     <span class="metric-card__value tabular">{{ kpi.value }}</span>
@@ -94,20 +99,16 @@
                     <span class="metric-card__badge metric-card__badge--{{ kpi.badge_tone | default('neutral') }}">{{ kpi.badge }}</span>
                     {% endif %}
                 </span>
-                <button type="button" class="icon-button icon-button--info"
-                        data-action="kpi-info"
-                        data-info="{{ kpi.label | lower | replace(' ', '-') }}"
-                        data-kpi="{{ kpi.label | lower | replace(' ', '-') }}"
-                        title="{{ kpi.label }} 指标说明"
-                        aria-label="{{ kpi.label }} 指标说明">&#x2139;&#xFE0F;</button>
             </div>
             {% if kpi.secondary and kpi.secondary | length > 0 %}
             <div class="metric-card__secondary">
                 {% for sm in kpi.secondary %}
-                <div class="metric-card__secondary-row"
+                <div class="metric-card__secondary-row metric-card__tooltip-target"
                      data-secondary-tooltip="{{ sm.label }}"
                      data-tooltip-def="{{ sm.description | default(sm.label ~ ' 定义与计算公式') }}"
-                     title="{{ sm.description | default(sm.label ~ ' 定义与计算公式') }}">
+                     title="{{ sm.description | default(sm.label ~ ' 定义与计算公式') }}"
+                     tabindex="0"
+                     aria-label="{{ sm.label }}：{{ sm.description | default(sm.label ~ ' 定义与计算公式') }}">
                     <span class="metric-card__secondary-label">{{ sm.label }}</span>
                     <span class="metric-card__secondary-value">{{ sm.value }}</span>
                 </div>
@@ -119,7 +120,7 @@
     {% endfor %}
 </section>
 
-{# ── Trend 总览区: 3 cards side-by-side ──────────────────────────── #}
+{# ── Trend 总览区: 2x2 chart matrix ───────────────────────────────── #}
 <section class="trend-section">
     <div class="trend-grid">
         {# Session Trend #}
@@ -138,6 +139,27 @@
             </div>
             {% if trend %}
             <div class="chart-container" id="trend-chart" data-dashboard-chart="sessions"></div>
+            {% else %}
+            <p class="chart-empty">该时间窗口无数据。</p>
+            {% endif %}
+        </section>
+
+        {# Prompt Activity Trend #}
+        <section class="chart-card" data-chart-card="prompts">
+            <div class="chart-card__head">
+                <div>
+                    <div class="chart-card__title-row">
+                        <h2>Prompt Activity Trend</h2>
+                        <button class="icon-button icon-button--info" data-action="info-chart-prompts" data-info="chart-prompts" title="Prompt Activity Trend 图表说明" aria-label="Prompt Activity Trend 图表说明">&#x2139;&#xFE0F;</button>
+                    </div>
+                </div>
+                <div class="chart-card__stats">
+                    <span class="chart-stat" data-stat="latest-prompts">Latest: {{ prompt_activity[-1].total_prompts if prompt_activity else '—' }}</span>
+                    <span class="chart-stat" data-stat="range-total-prompts">Range total: {{ prompt_activity | sum_attribute('total_prompts') }}</span>
+                </div>
+            </div>
+            {% if prompt_activity %}
+            <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
             {% else %}
             <p class="chart-empty">该时间窗口无数据。</p>
             {% endif %}
@@ -164,50 +186,27 @@
             {% endif %}
         </section>
 
-        {# Prompt Activity Trend #}
-        <section class="chart-card" data-chart-card="prompts">
+        {# Cache Health #}
+        <section class="chart-card cache-health-section" data-chart-card="cache-health">
             <div class="chart-card__head">
                 <div>
                     <div class="chart-card__title-row">
-                        <h2>Prompt Activity Trend</h2>
-                        <button class="icon-button icon-button--info" data-action="info-chart-prompts" data-info="chart-prompts" title="Prompt Activity Trend 图表说明" aria-label="Prompt Activity Trend 图表说明">&#x2139;&#xFE0F;</button>
+                        <h2>Cache Health</h2>
+                        <button class="icon-button icon-button--info" data-action="info-chart-cache" data-info="chart-cache" title="Cache Health 图表说明" aria-label="Cache Health 图表说明">&#x2139;&#xFE0F;</button>
                     </div>
                 </div>
                 <div class="chart-card__stats">
-                    <span class="chart-stat" data-stat="latest-prompts">Latest: {{ prompt_activity[-1].total_prompts if prompt_activity else '—' }}</span>
-                    <span class="chart-stat" data-stat="range-total-prompts">Range total: {{ prompt_activity | sum_attribute('total_prompts') }}</span>
+                    <span class="chart-stat" data-stat="latest-ratio">Latest ratio: {{ cache_health.latest_ratio }}</span>
+                    <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: {{ cache_health.lowest_ratio }}</span>
                 </div>
             </div>
-            {% if prompt_activity %}
-            <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
+            {% if cache_health.series %}
+            <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
             {% else %}
             <p class="chart-empty">该时间窗口无数据。</p>
             {% endif %}
         </section>
     </div>
-</section>
-
-{# ── Cache Health 区 ──────────────────────────────────────────────── #}
-<section class="cache-health-section">
-    <section class="chart-card" data-chart-card="cache-health">
-        <div class="chart-card__head">
-            <div>
-                <div class="chart-card__title-row">
-                    <h2>Cache Health</h2>
-                    <button class="icon-button icon-button--info" data-action="info-chart-cache" data-info="chart-cache" title="Cache Health 图表说明" aria-label="Cache Health 图表说明">&#x2139;&#xFE0F;</button>
-                </div>
-            </div>
-            <div class="chart-card__stats">
-                <span class="chart-stat" data-stat="latest-ratio">Latest ratio: {{ cache_health.latest_ratio }}</span>
-                <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: {{ cache_health.lowest_ratio }}</span>
-            </div>
-        </div>
-        {% if cache_health.series %}
-        <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
-        {% else %}
-        <p class="chart-empty">该时间窗口无数据。</p>
-        {% endif %}
-    </section>
 </section>
 
 {# ── Scope 分支区: All agents vs Single agent ────────────────────── #}
@@ -257,7 +256,7 @@
             <div class="hbar" data-hbar="token-share">
                 {% for agent in all_agents_branch.agent_rows %}
                 {% if agent.tokens != '0' %}
-                {% set share_value = agent.token_share | replace('%', '') | float %}
+                {% set share_value = agent.token_share_value %}
                 <div class="hbar-seg hbar-seg--{{ agent.db_agent }}{% if share_value < 8 %} hbar-seg--tiny{% elif share_value < 18 %} hbar-seg--small{% endif %}"
                      style="--seg-width: {{ share_value }}%"
                      data-agent="{{ agent.display }}"
@@ -306,7 +305,7 @@
 
     {# Scope summary #}
     {% set session_leader = all_agents_branch.agent_rows | sort(attribute='sessions', reverse=true) | first %}
-    {% set token_leader = all_agents_branch.agent_rows | sort(attribute='tokens', reverse=true) | first %}
+    {% set token_leader = all_agents_branch.agent_rows | sort(attribute='tokens_raw', reverse=true) | first %}
     {% set prompt_leader = all_agents_branch.agent_rows | sort(attribute='prompts', reverse=true) | first %}
     <p class="scope-summary">
         Dominant:

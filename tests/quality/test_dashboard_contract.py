@@ -119,6 +119,7 @@ class TestDashboardCSSContract:
         assert ".chart-legend__line--prompt-average" in css
         assert ".line-plot--bar-aligned" in css
         assert ".prompt-line-markers" in css
+        assert "--dashboard-prompt-average-color" in css
 
     @pytest.mark.contract_case("DASHBOARD-CSS-005")
     def test_average_series_uses_neutral_color(self):
@@ -178,6 +179,17 @@ class TestDashboardCSSContract:
         assert 'class="line-plot line-plot--bar-aligned"' in body
         assert 'class="prompt-line-markers"' in body
 
+    @pytest.mark.contract_case("DASHBOARD-JS-002")
+    def test_line_path_connects_across_missing_points(self):
+        """折线缺失点应跳过并连接前后有效点，而不是断线。"""
+        js = _read(_JS_PATH)
+        start = js.index("function linePath")
+        end = js.index("function isolatedLineMarkers", start)
+        body = js[start:end]
+        missing_branch = body[body.index("if (val == null || !isFinite(val))"):body.index("var cmd = open")]
+        assert "open = false" not in missing_branch
+        assert "var resolveX = xFn || xBandCenterPct;" in body
+
     @pytest.mark.contract_case("DASHBOARD-JS-003")
     def test_prompt_activity_tooltip_separates_bars_and_line(self):
         """Prompt Activity tooltip 不得把柱状图和折线值合并到同一 agent 行。"""
@@ -206,8 +218,10 @@ class TestDashboardCSSContract:
         assert "var cacheY = function(value) { return yPctRange(value, domain.min, domain.max, 5); };" in body
         assert "plotGridHtml(domain.ticks, cacheY)" in body
         assert "var isolatedMarkers = '';" in body
-        assert "isolatedLineMarkers(data, valueFn, xPct, cacheY, cls)" in body
+        assert "isolatedLineMarkers(data, valueFn, xBandCenterPct, cacheY, cls)" in body
         assert "paths + isolatedMarkers" in body
+        assert 'class="line-plot line-plot--bar-aligned"' in body
+        assert "normalizeCacheMetricFlags(applyScope(cacheRawData, getCacheFields()))" in body
         assert 'class="chart-legend__line chart-legend__line--' in body
         assert 'class="chart-legend__dot chart-legend__dot--' not in body
         assert "tooltipLineRow(item.line" in js[js.index("function buildCacheTooltip"):start]
@@ -222,6 +236,14 @@ class TestDashboardCSSContract:
         assert "Fresh spike" not in js
         assert "fresh-spike-marker" not in js
         assert "fresh-spike-marker" not in css
+
+    @pytest.mark.contract_case("DASHBOARD-CSS-002")
+    def test_kpi_metric_rows_have_hover_tooltip_styles(self):
+        """KPI 主指标和二级指标行必须共用行级 tooltip 样式。"""
+        css = _read(_CSS_PATH)
+        assert ".metric-card__tooltip-target[data-tooltip-def]" in css
+        assert ".metric-card__tooltip-target[data-tooltip-def]:hover::after" in css
+        assert ".metric-card__tooltip-target[data-tooltip-def]:focus-visible::after" in css
 
 
 class TestDashboardTemplateContract:
@@ -275,3 +297,29 @@ class TestDashboardTemplateContract:
             'data-sort-key="cache-read"',
         ]:
             assert key in tmpl, f"Dashboard sortable table missing {key}"
+
+    @pytest.mark.contract_case("DASHBOARD-TEMPLATE-003")
+    def test_token_trend_pairs_with_cache_health_in_trend_grid(self):
+        """Token Trend 和 Cache Health 必须在同一个 trend grid 中同级渲染。"""
+        tmpl = _read(_TEMPLATE_PATH)
+        start = tmpl.index('<div class="trend-grid">')
+        end = tmpl.index('{# ── Scope 分支区', start)
+        body = tmpl[start:end]
+        assert 'data-chart-card="tokens"' in body
+        assert 'data-chart-card="cache-health"' in body
+        assert 'class="chart-card cache-health-section"' in body
+        assert body.index('data-chart-card="tokens"') < body.index('data-chart-card="cache-health"')
+
+    @pytest.mark.contract_case("DASHBOARD-TEMPLATE-004")
+    def test_kpi_cards_use_row_tooltips_not_info_buttons(self):
+        """KPI 卡片不得保留 info icon，主指标和二级指标行必须有 tooltip。"""
+        tmpl = _read(_TEMPLATE_PATH)
+        start = tmpl.index('<section class="kpi-grid">')
+        end = tmpl.index('{# ── Trend 总览区', start)
+        body = tmpl[start:end]
+        assert 'icon-button--info' not in body
+        assert 'data-action="kpi-info"' not in body
+        assert 'data-kpi-tooltip="{{ kpi.label }}"' in body
+        assert 'data-tooltip-def="{{ kpi.description }}"' in body
+        assert 'metric-card__secondary-row metric-card__tooltip-target' in body
+        assert 'tabindex="0"' in body

@@ -28,14 +28,15 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - KPI 区固定为 6 张 metric card。
 - 超宽屏 `>=1680px` 下固定 6 列；普通桌面宽度固定 3 列 2 行；每张卡高度一致，主数字和 badge 不得裁切。
 - 每张 KPI card 固定为两层结构：
-  - 第一层：一级指标 label、一级指标 value、单位、变化 badge、info icon 必须在同一紧凑主行内展示；变化 badge 视觉上必须贴近一级指标 value，不得漂到卡片最右侧造成口径断裂。
+  - 第一层：一级指标 label、一级指标 value、单位、变化 badge 必须在同一紧凑主行内展示；变化 badge 视觉上必须贴近一级指标 value，不得漂到卡片最右侧造成口径断裂。
   - 第二层：2 到 4 个二级指标，使用紧凑行展示，label 左对齐，value 右对齐。
+- KPI card 内不得保留独立 info icon；解释说明必须下沉到指标行本身。
 - 变化 badge 使用紧凑 badged text 展示相对变化或当前窗口辅助变化值，例如 `+6.0%`、`+10`、`N/A`。
 - 变化 badge 的口径必须可解释：Sessions、Total Tokens、Prompt Activity、Cache Read Ratio、Failed Tools 默认对比当前可见窗口最后两个 range point；Projects 默认展示 `New 7d`。
-- 每张 KPI card 必须提供一级指标 tooltip，说明一级值、变化 badge 和二级指标的统计口径。
+- 每张 KPI card 的一级指标行必须提供 hover/focus tooltip，说明一级值和变化 badge 的统计口径。
 - KPI 使用当前 agent scope 下的全部已索引数据重算；时间粒度 segmented control 不影响 KPI。
 - 数值必须使用 tabular number；token 缩写保留一位小数；百分比保留一位小数。
-- 二级指标必须有 tooltip，tooltip 固定说明定义、计算公式、统计范围；tooltip 必须使用具体字段口径，不得只写 `定义与计算公式` 这类占位文案。
+- 二级指标行必须有 hover/focus tooltip，tooltip 固定说明定义、计算公式、统计范围；tooltip 必须使用具体字段口径，不得只写 `定义与计算公式` 这类占位文案。
 
 固定 6 张 KPI card 如下：
 
@@ -84,15 +85,15 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 
 ### Trend 总览区
 
-- Trend 总览区固定为一个 section，section 内固定 3 张同级 trend card，顺序固定为 `Session Trend`、`Token Trend`、`Prompt Activity Trend`。
-- 三张 trend card 不使用 tab 切换；三张卡必须同时可见。
-- 每张 trend card 的内容布局固定为顶部标题栏加全宽图表，不渲染静态明细表。
-- 每张 trend card 的标题栏右侧固定显示 `Latest` 和 `Range total` 两个紧凑 stat。
+- Trend 总览区固定为一个 section，section 内固定 4 张同级 chart card，宽屏顺序固定为第一行 `Session Trend`、`Prompt Activity Trend`，第二行 `Token Trend`、`Cache Health`。
+- `Session Trend`、`Token Trend`、`Prompt Activity Trend`、`Cache Health` 不使用 tab 切换；四张卡必须同时可见。
+- 每张 chart card 的内容布局固定为顶部标题栏加全宽图表，不渲染静态明细表。
+- `Session Trend`、`Token Trend`、`Prompt Activity Trend` 的标题栏右侧固定显示 `Latest` 和 `Range total` 两个紧凑 stat；`Cache Health` 的标题栏右侧固定显示 `Latest ratio`、`Lowest ratio` 两个紧凑 stat。
 - 所有 chart card 不展示 subtitle；图表口径、维度解释和注意事项全部放入 title 旁 info icon 的 tooltip。
-- 每张 trend card 的图表宽度占卡片内容宽度 100%；图表绘图区高度固定为 240px 到 280px。
-- 每张 trend card 的 y 轴只显示刻度值；不得显示可见的 `Y-axis: <metric name> (<unit>)` 纵向标题文字。
-- 每张 trend card 的所有 range point 细节都通过 `common.md` 的 `Chart Tooltip` 展示，不把每个 range point 的数值同时铺成表格。
-- 宽屏 `>=1440px` 时 trend card 每行固定 3 张；标准桌面和窄宽兜底优先每行 2 张，空间不足时再降为单列，任何断点下文字不得溢出或重叠。
+- 每张 chart card 的图表宽度占卡片内容宽度 100%；图表绘图区高度固定为 240px 到 280px。
+- 每张 chart card 的 y 轴只显示刻度值；不得显示可见的 `Y-axis: <metric name> (<unit>)` 纵向标题文字。
+- 每张 chart card 的所有 range point 细节都通过 `common.md` 的 `Chart Tooltip` 展示，不把每个 range point 的数值同时铺成表格。
+- 宽屏 `>=1440px` 时 chart card 固定为 2 列 2 行；标准桌面和窄宽兜底优先每行 2 张，空间不足时再降为单列，任何断点下文字不得溢出或重叠。
 - 时间粒度控制固定影响三张 trend card、Cache Health 区和 all agents 占比柱状图。
 - 时间粒度的数据窗口固定如下：
   - `Day`：最近 30 个自然日，x 轴标签格式 `MM-DD`。
@@ -102,6 +103,8 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - `Range total` stat 展示当前可见窗口内所有 range point 的 y 轴真实值合计。
 - Hover 图表点必须高亮当前 range point，并在最近的 range point 处显示一条竖向虚线参考线；tooltip 使用 `Chart Tooltip` 的 header、label、value、share 三列布局，并展示该点的 y 轴真实值、占比、辅助指标。
 - 折线图和面积图的 marker、hover target、竖向虚线必须与 SVG path 使用同一套 x/y 坐标基准；marker 必须落在折线真实相交点上，不得相对折线左偏或右偏。
+- 折线图的 x 坐标必须落在对应 range point 的 label 中心；不得使用 plot 两端 0%/100% 作为首尾点位导致折线、marker、hover 竖线与 x 轴文字错位。
+- 折线图遇到中间缺失值时必须跳过缺失点，并从上一个可计算点直接连接到下一个可计算点；tooltip 中该缺失点的折线值显示 `N/A`，不得把未知值画成真实 `0%` 或 `0`。
 - Hover tooltip 的绘制层级必须高于图表中的 marker、竖向虚线和其它未 hover 的 range point；不得出现点位覆盖在 tooltip 上或显示在 tooltip 内部。
 - tooltip 中分 agent、分 token 类型或分来源的明细行与 `Total` 行之间必须有水平分隔线。
 - Chart Tooltip 必须根据文本内容自适应排版：label 可以换行，数值和占比列不换行，tooltip 不得出现文字重叠、截断或横向溢出视口；靠近图表左右边缘时 tooltip 必须向图表内侧对齐。
@@ -154,11 +157,9 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - `Auxiliary` 段只展示 `Assistant Turns` 和 `Tool Calls`。
 - tooltip 示例固定包含 `06-06 · User Prompts 318 · Assistant Turns 301 · Tool Calls 1,482 · Prompts / Session 7.6`。
 
-### Cache Health 区
+### Cache Health
 
-Cache Health 区固定为一张 `Cache Health` 卡片；`Token Trend by Composition` 不再作为独立卡片存在。
-
-#### Cache Health
+Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Trend by Composition` 不再作为独立卡片存在。
 
 - 图表类型固定为多折线图。
 - x 轴显示当前时间粒度的 range point。
@@ -170,6 +171,7 @@ Cache Health 区固定为一张 `Cache Health` 卡片；`Token Trend by Composit
 - `Average` / `All agents` 的颜色固定使用中性黑灰，不得使用品牌紫或 Claude Code 紫色，避免和 Claude Code 系列混淆。
 - Cache Health 的 legend 和 tooltip 中，折线系列示意必须使用对应颜色的短横线，不得使用圆点；圆点只用于柱状图或面积分层类别。
 - 当某个 agent 在可见窗口内只有孤立的可计算 ratio、无法形成连续折线段时，该点必须以同色短横线展示，不得因为 SVG path 只有 `M` 命令而完全不可见。
+- 当某个 agent 的 session 只有 input/output token 但原始 usage 未上报 cache read/write 字段时，该 agent 在该 range point 的 Cache Read Ratio 视为不可计算，折线跳过该点，tooltip 显示 `N/A` 和未上报 input-side token 数；不得把未上报 cache 字段渲染为真实 `0%`。
 - tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 `Range point`、`Cache Read Ratio`、`Input-side Tokens`、`Fresh`、`Cache Read`、`Cache Write`。
 - Dashboard 是聚合统计页，不计算、不统计、不标记 Fresh spike；Fresh spike 只允许在 Session Detail 的 round 级视图中体现。
