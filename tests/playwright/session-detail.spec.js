@@ -45,6 +45,18 @@ function resolveSessionUrl() {
   return null;
 }
 
+function sessionUrlWithParams(baseUrl, params) {
+  const url = new URL(baseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') {
+      url.searchParams.delete(key);
+    } else {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url.toString();
+}
+
 /**
  * 确保截图目录存在。
  */
@@ -539,6 +551,98 @@ test.describe('会话详情 — Phase 1', () => {
       'Cache Read Ratio marker 应为横线',
     ).toBeGreaterThan(geometry.markers.line.height * 2);
     expect(geometry.markers.line.height, 'Cache Read Ratio marker 应保持细横线').toBeLessThanOrEqual(3);
+  });
+
+  test('[UI-SD-032] call cost distribution 轴保持紧凑且 hover 展示时间 tooltip', async ({ page }) => {
+    if (!sessionUrl) {
+      console.log('无测试会话 URL；跳过 call cost tooltip 测试。');
+      test.skip();
+    }
+
+    await page.setViewportSize({ width: 2048, height: 768 });
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    const chart = page.locator('.sd-call-distribution');
+    await expect(chart).toBeVisible({ timeout: 10000 });
+
+    await expect(page.locator('.sd-call-dot__time')).toHaveCount(0);
+    const firstCall = page.locator('.sd-call-dot').first();
+    const callBox = await firstCall.boundingBox();
+    expect(callBox.width, `call bar 宽度 ${callBox.width}px 不应因时间标签变宽`).toBeLessThanOrEqual(24);
+
+    const firstTitle = await firstCall.getAttribute('title');
+    expect(firstTitle, '不应依赖浏览器原生 title tooltip').toBeNull();
+
+    await firstCall.hover();
+    const tooltip = firstCall.locator('.sd-call-tooltip');
+    await expect(tooltip).toBeVisible({ timeout: 3000 });
+    const tooltipText = await tooltip.innerText();
+    expect(tooltipText, 'tooltip 必须展示 call 时间').toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(tooltipText, 'tooltip 必须展示 token 信息').toContain('Tokens');
+  });
+
+  test('[UI-SD-033] trace 深链定位 round 顶部和 subagent round', async ({ page }) => {
+    if (!sessionUrl) {
+      console.log('无测试会话 URL；跳过 trace 深链测试。');
+      test.skip();
+    }
+
+    await page.setViewportSize({ width: 1440, height: 760 });
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+
+    const rows = page.locator('[data-trace-round-row]');
+    const rowCount = await rows.count();
+    if (rowCount < 4) {
+      console.log('trace round 不足；跳过顶部定位测试。');
+      return;
+    }
+    const targetRow = rows.nth(Math.min(2, rowCount - 2));
+    const roundId = await targetRow.getAttribute('data-round');
+    await page.goto(sessionUrlWithParams(sessionUrl, { tab: 'trace', round: roundId }), { waitUntil: 'domcontentloaded' });
+
+    const deepLinkedRow = page.locator(`[data-trace-round-row][data-round="${roundId}"]`);
+    await expect(deepLinkedRow).toHaveClass(/is-open/, { timeout: 5000 });
+    await expect(deepLinkedRow).toHaveClass(/is-jump-target/, { timeout: 5000 });
+    const roundTop = await deepLinkedRow.evaluate((el) => el.getBoundingClientRect().top);
+    expect(roundTop, `round ${roundId} 应靠近视口顶部`).toBeLessThanOrEqual(24);
+    expect(roundTop, `round ${roundId} 不应滚出视口顶部`).toBeGreaterThanOrEqual(0);
+
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    const subagentCall = page.locator('.sd-call-dot[data-subagent]:not([data-subagent=""])').first();
+    if (await subagentCall.count() === 0) {
+      console.log('无 subagent call 分布点；跳过 subagent 深链测试。');
+      return;
+    }
+    const target = await subagentCall.evaluate((el) => ({
+      round: el.getAttribute('data-round') || '',
+      subagent: el.getAttribute('data-subagent') || '',
+      subagentRound: el.getAttribute('data-subagent-round') || '',
+    }));
+    if (!target.round || !target.subagent || !target.subagentRound) {
+      console.log('subagent call 缺少定位参数；跳过 subagent 深链测试。');
+      return;
+    }
+
+    await subagentCall.click();
+    await page.waitForFunction(({ subagent, subagentRound }) => {
+      const block = document.querySelector(`[data-subagent-block][data-subagent-id="${CSS.escape(subagent)}"]`);
+      const targetEl = block && block.querySelector(`[data-sub-round-id="${CSS.escape(subagentRound)}"]`);
+      return Boolean(targetEl && targetEl.classList.contains('is-jump-target'));
+    }, target, { timeout: 5000 });
+
+    const currentUrl = new URL(page.url());
+    expect(currentUrl.searchParams.get('tab')).toBe('trace');
+    expect(currentUrl.searchParams.get('round')).toBe(target.round);
+    expect(currentUrl.searchParams.get('subagent')).toBe(target.subagent);
+    expect(currentUrl.searchParams.get('subagentround')).toBe(target.subagentRound);
+
+    const subRoundTop = await page.evaluate(({ subagent, subagentRound }) => {
+      const block = document.querySelector(`[data-subagent-block][data-subagent-id="${CSS.escape(subagent)}"]`);
+      const targetEl = block && block.querySelector(`[data-sub-round-id="${CSS.escape(subagentRound)}"]`);
+      return targetEl ? targetEl.getBoundingClientRect().top : -1;
+    }, target);
+    expect(subRoundTop, `subagent ${target.subagent} SR${target.subagentRound} 应靠近视口顶部`).toBeLessThanOrEqual(24);
+    expect(subRoundTop, `subagent ${target.subagent} SR${target.subagentRound} 不应滚出视口顶部`).toBeGreaterThanOrEqual(0);
   });
 
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────

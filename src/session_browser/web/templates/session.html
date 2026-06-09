@@ -143,7 +143,14 @@
             <tr>
               <td>{{ row.type }}</td>
               <td>
-                <button type="button" class="sd-link-btn" data-action="jump-round" data-round="{{ row.target_round|default('') }}">
+                <button
+                  type="button"
+                  class="sd-link-btn"
+                  data-action="jump-round"
+                  data-round="{{ row.target_round|default('') }}"
+                  data-subagent="{{ row.target_subagent|default('') }}"
+                  data-subagent-round="{{ row.target_subagent_round|default('') }}"
+                >
                   <b>{{ row.driver }}</b>
                 </button>
               </td>
@@ -167,7 +174,7 @@
       </header>
       <div class="sd-diagnostic-card__body">
         {% if diag_call_distribution %}
-        <div class="sd-chart-note">x = LLM call timestamp · y = total tokens · each subagent instance is listed in the legend.</div>
+        <div class="sd-chart-note">x = LLM call order · y = total tokens · hover for timestamp; each subagent instance is listed in the legend.</div>
         <div class="sd-call-distribution" aria-label="LLM call token distribution">
           {% for call in diag_call_distribution %}
           <button
@@ -175,13 +182,20 @@
             class="sd-call-dot sd-call-dot--{{ call.lane }} {% if call.subagent_color %}sd-call-dot--{{ call.subagent_color }}{% endif %} {% if call.is_top %}is-top{% endif %}"
             data-action="jump-round"
             data-round="{{ call.target_round|default('') }}"
+            data-subagent="{{ call.target_subagent|default('') }}"
+            data-subagent-round="{{ call.target_subagent_round|default('') }}"
             style="--bar-height: {{ call.height_pct|default(0) }}%"
             aria-label="#{{ call.index }} {{ call.time_label|default('—') }} {{ call.label }} {{ call.lane_label|default(call.lane) }} {{ call.tokens_label }}"
-            title="#{{ call.index }} · {{ call.time_label|default('—') }} · {{ call.label }} · {{ call.lane_label|default(call.lane) }} · {{ call.tokens_label }} · {{ call.model }}"
           >
-            <span></span>
+            <span class="sd-call-dot__bar"></span>
             <b>#{{ call.index }}</b>
-            <small class="sd-call-dot__time">{{ call.time_label|default('—') }}</small>
+            <span class="sd-call-tooltip" role="tooltip" aria-hidden="true">
+              <strong>#{{ call.index }} · {{ call.time_label|default('—') }}</strong>
+              <span><small>Call</small><em>{{ call.label }}</em></span>
+              <span><small>Lane</small><em>{{ call.lane_label|default(call.lane) }}</em></span>
+              <span><small>Tokens</small><em>{{ call.tokens_label }}</em></span>
+              <span><small>Model</small><em>{{ call.model }}</em></span>
+            </span>
           </button>
           {% endfor %}
         </div>
@@ -248,7 +262,14 @@
             {% for row in diag_subagents %}
             <tr>
               <td>
-                <button type="button" class="sd-link-btn" data-action="jump-round" data-round="{{ row.round_id|default('') }}">
+                <button
+                  type="button"
+                  class="sd-link-btn"
+                  data-action="jump-round"
+                  data-round="{{ row.round_id|default('') }}"
+                  data-subagent="{{ row.subagent_id|default('') }}"
+                  data-subagent-round="{{ row.target_subagent_round|default('') }}"
+                >
                   <b>{{ row.subagent }}</b>
                 </button>
               </td>
@@ -438,6 +459,8 @@
                 data-call-id="{{ item.call_id }}"
                 data-kind="{{ item.kind }}"
                 data-round="{{ item.round_id }}"
+                data-subagent="{{ item.subagent_id|default('') }}"
+                data-subagent-round="{{ item.subagent_round_id|default('') }}"
                 data-title="{{ item.title }}"
                 data-model="{{ item.model }}"
                 data-status="{{ item.call_status }}"

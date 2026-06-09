@@ -260,16 +260,17 @@ class TestAttributionTemplateRendering:
         html = _render_payload_sources([_make_req_data()])
         assert "sd-payload-shell--attribution" in html
         assert "Request 归因" not in html  # buttons are in card, not payload
-        assert "请求摘要" in html  # left rail summary card
+        assert "请求摘要" in html
+        assert "sd-attribution-topgrid" in html
         assert "claude_code" in html
         assert "claude-sonnet-4" in html
-        assert "5000" in html
+        assert "5.0K" in html
 
     def test_response_attribution_renders_with_data(self):
         html = _render_payload_sources([_make_resp_data()])
         assert "sd-payload-shell--attribution" in html
-        assert "请求摘要" in html or "响应摘要" in html
-        assert "响应总览" in html
+        assert "响应摘要" in html
+        assert "sd-attribution-topgrid" in html
 
     def test_attribution_error_renders_with_data(self):
         html = _render_payload_sources([_make_err_data()])
@@ -342,7 +343,7 @@ class TestAttributionTemplateRendering:
             ],
         )
         html = _render_payload_sources([req_data])
-        assert "sd-attribution-rail__note" in html or "归因备注" in html
+        assert "sd-attribution-topnote" in html or "归因备注" in html
         assert "Cache tokens are estimated" in html
         assert "Model inferred" in html
 
@@ -757,10 +758,10 @@ class TestFormatAndLabelUpdates:
         assert "响应返回" in html
         assert "耗时" in html
 
-    def test_dingwei_rate_label_present(self):
-        """定位率 label should appear in summary section."""
+    def test_coverage_rate_label_present(self):
+        """覆盖率 label should appear in topgrid summary."""
         html = _render_payload_sources([_make_req_data()])
-        assert "定位率" in html
+        assert "覆盖率" in html
 
     def test_weidingwei_label_present(self):
         """未定位 label should appear in summary section."""
@@ -778,7 +779,7 @@ class TestFormatAndLabelUpdates:
 
 
 class TestAttributionModalNewLayout:
-    """Verify the redesigned two-column attribution modal layout."""
+    """Verify the attribution modal topgrid layout."""
 
     def _make_req_with_rich_data(self):
         return _make_req_data(
@@ -841,10 +842,11 @@ class TestAttributionModalNewLayout:
         html = _render_payload_sources([self._make_req_with_rich_data()])
         assert "sd-payload-shell--attribution" in html
 
-    def test_left_rail_class_present(self):
-        """Left metadata rail must have sd-attribution-rail class."""
+    def test_topgrid_present_without_left_rail(self):
+        """Attribution metadata should live in topgrid, not a left rail."""
         html = _render_payload_sources([self._make_req_with_rich_data()])
-        assert "sd-attribution-rail" in html
+        assert "sd-attribution-topgrid" in html
+        assert "sd-attribution-rail" not in html
 
     @pytest.mark.skip(reason="label changed to '总 token 消耗' instead of '总输入' (pre-existing)")
     def test_chinese_labels_in_summary(self):
@@ -857,16 +859,17 @@ class TestAttributionModalNewLayout:
     def test_confidence_not_displayed_in_buckets(self):
         """Confidence labels should NOT be rendered in bucket cards."""
         # The bucket-level confidence_label field is not displayed
-        # in the new two-column layout's bucket card headers
+        # in the new topgrid layout's bucket card headers
         req = self._make_req_with_rich_data()
         # Verify the data has confidence_label but JS doesn't render it
         bucket = req["data"]["buckets"][0]
         assert "confidence_label" in bucket  # data still has it
         # The JS renderAttributionSuccess no longer outputs confidence_label
 
-    def test_timing_in_rail_not_standalone(self):
-        """Timing should be in left rail, not a standalone section."""
+    def test_timing_in_topgrid_not_standalone(self):
+        """Timing should be in topgrid, not a standalone section."""
         html = _render_payload_sources([self._make_req_with_rich_data()])
+        assert "sd-attribution-topgrid" in html
         assert "时间线" in html
         assert "请求发起" in html
         assert "响应返回" in html

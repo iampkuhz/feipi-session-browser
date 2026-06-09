@@ -498,6 +498,8 @@ def _build_payload_tab_index(
                 "call_id": f"sub-{sa_id}-IX{m_idx}",
                 "kind": "subagent",
                 "round_id": rid,
+                "subagent_id": sa_id,
+                "subagent_round_id": m_idx,
                 "title": f"Subagent · {agent_type}",
                 "model": (getattr(message, "model", "") or "unknown")[:40],
                 "call_status": "OK",
@@ -544,9 +546,35 @@ def _build_session_diagnostics(
     input_side_tokens = fresh_tokens + cache_read_tokens + cache_write_tokens
     computed_total_tokens = input_side_tokens + output_tokens
     sub_calls_by_agent: dict[str, list] = {}
+    sub_calls_by_id = {
+        getattr(call, "id", ""): call
+        for call in llm_calls or []
+        if getattr(call, "scope", "") == "subagent" and getattr(call, "id", "")
+    }
     for call in llm_calls or []:
         if getattr(call, "scope", "") == "subagent":
             sub_calls_by_agent.setdefault(getattr(call, "subagent_id", "") or "", []).append(call)
+    sub_round_by_call_id: dict[str, int] = {}
+    sub_round_by_agent_sequence: dict[tuple[str, int], int] = {}
+    for run in subagent_runs:
+        summary = run.get("summary", {})
+        sa_id = summary.get("agent_id", "")
+        if not sa_id:
+            continue
+        agent_calls = sub_calls_by_agent.get(sa_id, [])
+        sub_call_cursor = 0
+        assistant_seq = 0
+        for m_idx, message in enumerate(run.get("messages", []), start=1):
+            if getattr(message, "role", "") != "assistant":
+                continue
+            assistant_seq += 1
+            matched_call = sub_calls_by_id.get(getattr(message, "llm_call_id", "") or "")
+            if not matched_call and sub_call_cursor < len(agent_calls):
+                matched_call = agent_calls[sub_call_cursor]
+            sub_call_cursor += 1
+            sub_round_by_agent_sequence[(sa_id, assistant_seq)] = m_idx
+            if matched_call and getattr(matched_call, "id", ""):
+                sub_round_by_call_id[getattr(matched_call, "id", "")] = m_idx
 
     round_by_tool_id = {}
     for r_idx, r in enumerate(rounds, start=1):
@@ -902,6 +930,8 @@ def _build_session_diagnostics(
                 "sort_key": _timestamp_sort_key(source_ts),
                 "_order": call_distribution_order,
                 "target_round": r_idx,
+                "target_subagent": "",
+                "target_subagent_round": "",
                 "model": (getattr(ix, "model", "") or "unknown")[:40],
                 "is_top": False,
                 "height_pct": 0,
@@ -916,13 +946,22 @@ def _build_session_diagnostics(
         token_sum = 0
         sub_calls = sub_calls_by_agent.get(sa_id, [])
         if sub_calls:
-            source_calls = sub_calls
+            source_records = [
+                (
+                    call,
+                    sub_round_by_call_id.get(getattr(call, "id", ""))
+                    or sub_round_by_agent_sequence.get((sa_id, idx))
+                    or idx,
+                )
+                for idx, call in enumerate(sub_calls, start=1)
+            ]
         else:
-            source_calls = [
-                message for message in run.get("messages", [])
+            source_records = [
+                (message, m_idx)
+                for m_idx, message in enumerate(run.get("messages", []), start=1)
                 if getattr(message, "role", "") == "assistant"
             ]
-        for source in source_calls:
+        for source, sub_round_id in source_records:
             call_count += 1
             if isinstance(source, LLMCall):
                 parts = _usage_parts_from_call(source)
@@ -951,6 +990,8 @@ def _build_session_diagnostics(
                 "sort_key": _timestamp_sort_key(source_ts),
                 "_order": call_distribution_order,
                 "target_round": rid,
+                "target_subagent": sa_id,
+                "target_subagent_round": sub_round_id,
                 "model": model,
                 "is_top": False,
                 "height_pct": 0,
@@ -961,6 +1002,8 @@ def _build_session_diagnostics(
                 "driver": f"{agent_type} · {sa_id[-8:] if sa_id else 'unknown'}",
                 "tokens": token_sum,
                 "target_round": rid,
+                "target_subagent": sa_id,
+                "target_subagent_round": "",
                 "target_tab": "trace",
                 "reason": f"{call_count} LLM call{'s' if call_count != 1 else ''}",
             })
@@ -1051,6 +1094,7 @@ def _build_session_diagnostics(
         subagent_breakdown.append({
             "subagent": agent_type,
             "agent_id": sa_id,
+            "subagent_id": sa_id,
             "short_id": sa_id[-8:] if sa_id else "unknown",
             "color": f"subagent-{subagent_color_map.get(sa_id, 0)}",
             "llm_calls": calls,
@@ -1067,6 +1111,7 @@ def _build_session_diagnostics(
             "failure_tone": _ratio_tone(_ratio_value(failures, len(sa_tools) + len(parent_agent_tools))),
             "result": result,
             "round_id": subagent_parent_round.get(sa_id, 0),
+            "target_subagent_round": "",
         })
     subagent_breakdown.sort(key=lambda row: (-row["tokens_raw"], row["subagent"]))
 

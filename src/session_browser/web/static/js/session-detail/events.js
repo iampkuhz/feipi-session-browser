@@ -164,7 +164,10 @@
       } else if (action === 'jump-round') {
         event.preventDefault();
         event.stopPropagation();
-        jumpRound(page, actionEl.getAttribute('data-round'));
+        jumpRound(page, actionEl.getAttribute('data-round'), {
+          subagent: actionEl.getAttribute('data-subagent') || '',
+          subagentRound: actionEl.getAttribute('data-subagent-round') || ''
+        });
       } else if (action === 'open-payload') {
         event.preventDefault();
         event.stopPropagation();

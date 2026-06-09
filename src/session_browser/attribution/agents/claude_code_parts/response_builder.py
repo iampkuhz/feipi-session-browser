@@ -18,17 +18,30 @@ from session_browser.attribution.contracts import (
     ValueSource,
 )
 from session_browser.attribution.token_estimator import estimate_tokens_from_text
-from session_browser.attribution.agents.claude_code_tool_schemas import (
-    get_cached_schemas,
-)
 from session_browser.attribution.agents.claude_code_parts.utils import (
     _pct,
-    tool_description,
     truncate_preview,
 )
 
 if TYPE_CHECKING:
     from session_browser.attribution.agents.base import BaseAttributionBuilder
+
+
+def _tool_command_preview(name: str, input_obj) -> str:
+    """Return the local command/action preview represented by a tool_use block."""
+    if isinstance(input_obj, dict):
+        command = input_obj.get("command")
+        if command:
+            return str(command)
+        for key in ("file_path", "path", "url", "pattern", "query", "prompt", "description"):
+            value = input_obj.get(key)
+            if value:
+                return f"{name} {value}"
+        if input_obj:
+            return f"{name} {json.dumps(input_obj, ensure_ascii=False)}"
+    elif input_obj:
+        return f"{name} {input_obj}"
+    return name
 
 
 def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
@@ -41,56 +54,41 @@ def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
     response_text = lc.response_full or ""
     visible_text_tokens = estimate_tokens_from_text(response_text)
 
-    # Tool use blocks — include both tool definition (description + input_schema)
-    # and actual call (tool_use content block) for accurate token accounting.
-    schemas = get_cached_schemas()
-    tool_use_schema_tokens = 0      # definition (description + input_schema)
-    tool_use_call_tokens = 0        # actual tool_use block (name + input)
+    # Response-side tool usage is the actual command/action emitted by the model.
+    # Tool definitions and schemas belong to request attribution, not response output.
+    tool_use_call_tokens = 0
     tool_use_json_parts = []
     tool_use_detail_items = []
 
     for cb in (lc.content_blocks or []):
         if cb.get("type") == "tool_use":
             tname = cb.get("name", "unknown")
-            # 1. Tool definition tokens (schema: description + input_schema)
-            schema_text = json.dumps(schemas.get(tname, {}), ensure_ascii=False) if tname in schemas else ""
-            schema_tok = estimate_tokens_from_text(schema_text) if schema_text else 0
-            tool_use_schema_tokens += schema_tok
-
-            # 2. Tool call tokens (actual tool_use content block)
+            tool_input = cb.get("input", cb.get("parameters", {}))
             call_text = json.dumps(cb, ensure_ascii=False)
             call_tok = estimate_tokens_from_text(call_text)
             tool_use_call_tokens += call_tok
             tool_use_json_parts.append(call_text)
 
-            # 3. Per-tool detail for bucket display
-            tool_def = schemas.get(tname, {})
-            desc_preview = tool_def.get("description", tool_description(tname))[:200]
-            input_props = tool_def.get("input_schema", {}).get("properties", {})
-            input_schema_preview = ""
-            if input_props:
-                input_schema_preview = ", ".join(list(input_props.keys())[:5])
-                if len(input_props) > 5:
-                    input_schema_preview += f", ...(+{len(input_props) - 5})"
-
+            input_json = json.dumps(tool_input or {}, ensure_ascii=False, indent=2)
             tool_use_detail_items.append({
                 "name": tname,
                 "tool_use_id": cb.get("id", ""),
-                "schema_tokens": schema_tok,
                 "call_tokens": call_tok,
-                "total_tokens": schema_tok + call_tok,
-                "description_preview": desc_preview,
-                "input_schema_properties": input_schema_preview,
-                "call_input_preview": truncate_preview(
-                    json.dumps(cb.get("input", {}), ensure_ascii=False)[:200], 120,
+                "estimated_tokens": call_tok,
+                "command_preview": truncate_preview(
+                    _tool_command_preview(tname, tool_input),
+                    220,
                 ),
+                "input_preview": truncate_preview(input_json, 180),
+                "input_json": input_json,
+                "call_json": json.dumps(cb, ensure_ascii=False, indent=2),
             })
 
     # Fallback: use tool_calls_raw if content_blocks unavailable
     if not tool_use_json_parts and lc.tool_calls_raw:
         tool_use_call_tokens = estimate_tokens_from_text(lc.tool_calls_raw)
 
-    tool_use_tokens = tool_use_schema_tokens + tool_use_call_tokens
+    tool_use_tokens = tool_use_call_tokens
 
     # Metadata tokens: small heuristic value for non-content fields
     metadata_tokens = 0
@@ -141,19 +139,17 @@ def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
     if tool_use_tokens > 0:
         # Per-tool breakdown (children, contributes_to_total=False)
         block_refs = []
+        tool_item_count = len(tool_use_detail_items) or (1 if lc.tool_calls_raw else 0)
         for item in tool_use_detail_items:
             buckets.append(ResponseAttributionBucket(
                 key=f"tool_use:{item['name']}",
-                label=f"tool_use: {item['name']}",
-                tokens=item['total_tokens'],
+                label=f"tool_cmd: {item['name']}",
+                tokens=item["call_tokens"],
                 percent=0.0,
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="中",
-                summary=(
-                    f"工具定义 {item['schema_tokens']} tokens + "
-                    f"调用参数 {item['call_tokens']} tokens"
-                ),
+                summary=f"本地待执行工具命令，约 {item['call_tokens']} tokens。",
                 contributes_to_total=False,
                 parent_key="tool_use",
                 display_group="tool_use",
@@ -161,24 +157,23 @@ def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
             block_refs.append(item['tool_use_id'])
 
         tool_use_details = {
-            "kind": "tool_use",
-            "total_schema_tokens": tool_use_schema_tokens,
+            "kind": "tool_commands",
             "total_call_tokens": tool_use_call_tokens,
-            "total_items": len(tool_use_detail_items),
+            "total_items": tool_item_count,
             "items": tool_use_detail_items,
+            "raw_preview": truncate_preview(lc.tool_calls_raw or "", 500) if lc.tool_calls_raw else "",
         }
         buckets.append(ResponseAttributionBucket(
             key="tool_use",
-            label="Tool use (total)",
+            label="Tool command (total)",
             tokens=tool_use_tokens,
             percent=_pct(tool_use_tokens, total_output_val),
             precision=ValuePrecision.ESTIMATED,
             source=ValueSource.TRANSCRIPT,
             confidence_label="中",
             summary=(
-                f"工具使用：{tool_use_schema_tokens} tokens 定义 + "
-                f"{tool_use_call_tokens} tokens 调用参数，"
-                f"共 {len(tool_use_detail_items)} 个工具调用。"
+                f"工具命令：{tool_use_call_tokens} tokens，"
+                f"共 {tool_item_count} 个本地工具调用。"
             ),
             block_refs=block_refs,
             contributes_to_total=True,
@@ -288,7 +283,7 @@ def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
             unit="tokens",
             precision=ValuePrecision.ESTIMATED,
             source=ValueSource.TRANSCRIPT,
-            fill_strategy="estimate_tokens_from_text(serialized tool_use blocks)",
+            fill_strategy="estimate_tokens_from_text(serialized tool command blocks)",
         ),
         metadata=AttributedValue(
             value=metadata_tokens,

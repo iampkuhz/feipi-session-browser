@@ -375,6 +375,8 @@
     var title = button.getAttribute("data-title") || callId || "Call";
     var kind = button.getAttribute("data-kind") || "payload";
     var round = button.getAttribute("data-round") || "";
+    var subagent = button.getAttribute("data-subagent") || "";
+    var subagentRound = button.getAttribute("data-subagent-round") || "";
     var status = button.getAttribute("data-status") || "—";
     var availability = button.getAttribute("data-availability") || "missing";
     var model = button.getAttribute("data-model") || "—";
@@ -423,6 +425,8 @@
 
     tab.setAttribute("data-selected-call-id", callId);
     tab.setAttribute("data-selected-round", round);
+    tab.setAttribute("data-selected-subagent", subagent);
+    tab.setAttribute("data-selected-subagent-round", subagentRound);
     tab.setAttribute("data-selected-raw", allRaw.join("\n\n"));
     syncSelectedPayloadCopyButtons(tab);
     body.replaceChildren(stack);
@@ -516,6 +520,8 @@
     var callId = button.getAttribute("data-call-id") || "";
     var title = button.getAttribute("data-title") || callId || "Call";
     var round = button.getAttribute("data-round") || "";
+    var subagent = button.getAttribute("data-subagent") || "";
+    var subagentRound = button.getAttribute("data-subagent-round") || "";
     var status = button.getAttribute("data-status") || "—";
     var model = button.getAttribute("data-model") || "—";
     var tokenSummary = button.getAttribute("data-token-summary") || "—";
@@ -536,6 +542,8 @@
     body.replaceChildren(makeEl("div", "sd-card-empty", "Loading selected payload..."));
     tab.setAttribute("data-selected-call-id", callId);
     tab.setAttribute("data-selected-round", round);
+    tab.setAttribute("data-selected-subagent", subagent);
+    tab.setAttribute("data-selected-subagent-round", subagentRound);
     tab.setAttribute("data-selected-raw", "");
     syncSelectedPayloadCopyButtons(tab);
     var ids = [
@@ -623,9 +631,11 @@
   function openSelectedPayloadTraceStep() {
     var tab = qs(document, "[data-payload-tab]");
     var round = tab ? tab.getAttribute("data-selected-round") : "";
+    var subagent = tab ? tab.getAttribute("data-selected-subagent") : "";
+    var subagentRound = tab ? tab.getAttribute("data-selected-subagent-round") : "";
     if (!round) return;
     switchTab(document, "trace");
-    jumpRound(document, round);
+    jumpRound(document, round, { subagent: subagent, subagentRound: subagentRound });
   }
 
   function hydrateFullPayload(modal, payloadId) {

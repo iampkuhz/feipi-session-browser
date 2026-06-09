@@ -305,7 +305,7 @@
 }
 
 .sd-call-distribution {
-  height: 190px;
+  height: 176px;
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -322,9 +322,10 @@
 }
 
 .sd-call-dot {
-  width: 46px;
-  min-width: 46px;
-  height: 164px;
+  position: relative;
+  width: 18px;
+  min-width: 18px;
+  height: 150px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -336,24 +337,24 @@
   cursor: pointer;
 }
 
-.sd-call-dot span {
+.sd-call-dot__bar {
   width: 10px;
   height: max(5px, var(--bar-height, 0%));
   border-radius: 999px 999px 3px 3px;
   background: #2563eb;
 }
 
-.sd-call-dot--subagent span {
+.sd-call-dot--subagent .sd-call-dot__bar {
   background: #7c3aed;
 }
 
-.sd-call-dot--subagent-0 span { background: #7c3aed; }
-.sd-call-dot--subagent-1 span { background: #0891b2; }
-.sd-call-dot--subagent-2 span { background: #ea580c; }
-.sd-call-dot--subagent-3 span { background: #059669; }
-.sd-call-dot--subagent-4 span { background: #be123c; }
+.sd-call-dot--subagent-0 .sd-call-dot__bar { background: #7c3aed; }
+.sd-call-dot--subagent-1 .sd-call-dot__bar { background: #0891b2; }
+.sd-call-dot--subagent-2 .sd-call-dot__bar { background: #ea580c; }
+.sd-call-dot--subagent-3 .sd-call-dot__bar { background: #059669; }
+.sd-call-dot--subagent-4 .sd-call-dot__bar { background: #be123c; }
 
-.sd-call-dot.is-top span {
+.sd-call-dot.is-top .sd-call-dot__bar {
   box-shadow: 0 0 0 2px #f59e0b;
 }
 
@@ -365,15 +366,71 @@
   font-weight: 750;
 }
 
-.sd-call-dot__time {
-  max-width: 46px;
+.sd-call-tooltip {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 238px;
+  display: none;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  border: 1px solid var(--sd-line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(15,23,42,.18);
+  color: var(--sd-text);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+  transform: translateX(-50%);
+  z-index: 30;
+  pointer-events: none;
+}
+
+.sd-call-dot:first-of-type .sd-call-tooltip {
+  left: 0;
+  transform: none;
+}
+
+.sd-call-dot:last-of-type .sd-call-tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.sd-call-dot:hover .sd-call-tooltip,
+.sd-call-dot:focus-visible .sd-call-tooltip {
+  display: grid;
+}
+
+.sd-call-tooltip strong {
+  color: var(--sd-text);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.sd-call-tooltip span {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
   color: var(--sd-muted);
+}
+
+.sd-call-tooltip small {
+  font-size: 10.5px;
+  font-weight: 760;
+}
+
+.sd-call-tooltip em {
+  min-width: 0;
+  color: var(--sd-text);
   font-family: var(--sd-mono);
-  font-size: 8px;
-  line-height: 1;
+  font-style: normal;
+  font-weight: 760;
   overflow: hidden;
-  text-align: center;
-  text-overflow: clip;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

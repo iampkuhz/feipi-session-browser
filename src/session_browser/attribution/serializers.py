@@ -73,6 +73,50 @@ def _response_bucket_to_dict(b: ResponseAttributionBucket) -> dict:
     }
 
 
+def _num(value) -> float:
+    """Best-effort numeric conversion for UI distribution math."""
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _normalize_bucket_percents_for_display(buckets: list[dict]) -> list[dict]:
+    """Normalize bucket percentages used by attribution bars and legends.
+
+    Builders may compute percent against provider totals or intermediate
+    denominators. The modal distribution needs a stable visual share where no
+    bucket exceeds 100% and contributing buckets add up to the displayed stack.
+    """
+    contributing = [
+        b for b in buckets
+        if b.get("contributes_to_total", True)
+    ]
+    total_tokens = sum(max(_num(b.get("tokens")), 0.0) for b in contributing)
+    if total_tokens <= 0:
+        for b in buckets:
+            b["raw_percent"] = b.get("percent", 0.0)
+            if b.get("contributes_to_total", True):
+                b["percent"] = 0.0
+        return buckets
+
+    running = 0.0
+    for idx, b in enumerate(contributing):
+        b["raw_percent"] = b.get("percent", 0.0)
+        tokens = max(_num(b.get("tokens")), 0.0)
+        if idx == len(contributing) - 1:
+            percent = max(0.0, 100.0 - running)
+        else:
+            percent = round((tokens / total_tokens) * 100.0, 1)
+            running += percent
+        b["percent"] = round(min(percent, 100.0), 1)
+
+    for b in buckets:
+        if "raw_percent" not in b:
+            b["raw_percent"] = b.get("percent", 0.0)
+    return buckets
+
+
 def availability_row_to_dict(row: AvailabilityRow | dict) -> dict:
     """Convert an AvailabilityRow or legacy dict row to a serializable dict."""
     if isinstance(row, dict):
@@ -136,7 +180,9 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
             "coverage": attributed_value_to_dict(attr.coverage),
             "unknown": attributed_value_to_dict(attr.unknown),
         },
-        "buckets": [_request_bucket_to_dict(b) for b in attr.buckets],
+        "buckets": _normalize_bucket_percents_for_display([
+            _request_bucket_to_dict(b) for b in attr.buckets
+        ]),
         "captured_context_preview": attr.captured_context_preview,
         "attribution_notes": list(attr.attribution_notes),
         "availability_rows": [availability_row_to_dict(r) for r in attr.availability_rows],
@@ -197,7 +243,9 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
             "unknown": attributed_value_to_dict(attr.unknown),
             "finish_reason": attributed_value_to_dict(attr.finish_reason),
         },
-        "buckets": [_response_bucket_to_dict(b) for b in attr.buckets],
+        "buckets": _normalize_bucket_percents_for_display([
+            _response_bucket_to_dict(b) for b in attr.buckets
+        ]),
         "blocks": list(attr.blocks),
         "captured_output_preview": attr.captured_output_preview,
         "attribution_notes": list(attr.attribution_notes),

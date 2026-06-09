@@ -7,9 +7,9 @@
 
   function lazyLoadRoundDetail(row) {
     var roundId = row.getAttribute('data-round');
-    if (!roundId) return;
+    if (!roundId) return null;
     var apiBase = getApiBase();
-    if (!apiBase) return;
+    if (!apiBase) return null;
     var url = apiBase.replace(/\/$/, '') + '/round/' + encodeURIComponent(roundId);
 
     // Insert loading indicator using DOM APIs
@@ -27,7 +27,7 @@
 
     setRoundOpen(row, true);
 
-    fetch(url, { headers: { 'Accept': 'application/json' } })
+    return fetch(url, { headers: { 'Accept': 'application/json' } })
       .then(function (resp) {
         if (!resp.ok) {
           var status = resp.status;
@@ -90,6 +90,7 @@
           loadingRow.appendChild(tdError);
         }
         setRoundOpen(row, false);
+        throw err;
       });
   }
 
@@ -120,4 +121,3 @@
       container.appendChild(tpl);
     }
   }
-

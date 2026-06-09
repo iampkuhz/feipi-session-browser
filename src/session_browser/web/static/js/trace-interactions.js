@@ -63,6 +63,7 @@
       qsa(page, "[data-trace-round-row]").filter(r => !r.hidden).forEach(r => setRoundOpen(r, shouldExpand));
       updateToggleAll(page);
     } else if(action === "jump-round"){
+      if(closest(actionEl, "[data-trace-page]")) return;
       event.preventDefault();
       jumpRound(page, actionEl.dataset.round);
     }

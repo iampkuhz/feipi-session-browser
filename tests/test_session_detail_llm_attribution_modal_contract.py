@@ -2,7 +2,7 @@
 
 Verifies:
 1. Template renders the correct payload-kind attribute for each attribution type.
-2. Attribution modal content is structured with left meta rail + right main area.
+2. Attribution modal content is structured with topgrid metadata + full-width main content.
 3. No "(No rendered content)" or "(No raw content)" fallbacks for attribution payloads.
 4. Response attribution modal has response-specific sections.
 5. Error modal has correct diagnostic structure.
@@ -111,8 +111,8 @@ class TestAttributionModalContract:
         assert "No rendered content" not in html
         assert "No raw content" not in html
 
-    def test_left_meta_rail_present(self):
-        """Attribution modal should have a left meta rail (aside)."""
+    def test_topgrid_metadata_present_without_left_rail(self):
+        """Attribution modal should place metadata in topgrid, not a left rail."""
         req_data = {
             "kind": "llm.request_attribution",
             "data": {
@@ -131,7 +131,8 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([req_data])
-        assert 'class="sd-attribution-rail"' in html
+        assert 'class="sd-attribution-topgrid"' in html
+        assert 'class="sd-attribution-rail"' not in html
         assert "摘要" in html
 
     def test_right_main_area_present(self):
@@ -157,7 +158,7 @@ class TestAttributionModalContract:
         assert 'class="sd-attribution-canvas"' in html
 
     def test_request_modal_has_request_specific_sections(self):
-        """Request attribution should have '请求总览' section."""
+        """Request attribution should have topgrid request summary."""
         req_data = {
             "kind": "llm.request_attribution",
             "data": {
@@ -176,10 +177,11 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([req_data])
-        assert "请求总览" in html
+        assert "请求摘要" in html
+        assert "用量分布" not in html
 
     def test_response_modal_has_response_specific_sections(self):
-        """Response attribution should have '响应总览' section."""
+        """Response attribution should have topgrid response summary."""
         resp_data = {
             "kind": "llm.response_attribution",
             "data": {
@@ -200,7 +202,7 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([resp_data])
-        assert "响应总览" in html
+        assert "响应摘要" in html
 
     def test_error_modal_has_diagnostic_header(self):
         """Error modal should have '归因诊断' header."""
@@ -270,8 +272,8 @@ class TestAttributionModalContract:
         html = _render_payload_sources(payloads)
         # Count template occurrences - each should be rendered
         assert html.count("sd-payload-shell--attribution") >= 3
-        assert "请求总览" in html
-        assert "响应总览" in html
+        assert "请求摘要" in html
+        assert "响应摘要" in html
         assert "归因诊断" in html
 
     @pytest.mark.skip(reason="residual precision tag not rendered for unknown bucket (pre-existing)")
@@ -366,7 +368,7 @@ class TestAttributionModalContract:
         assert "sd-attribution-avail--no" in html  # not available -> 不可用
 
     def test_response_attribution_meta_has_response_fields(self):
-        """Response attribution meta rail should show total_output, visible_text, etc."""
+        """Response attribution topgrid should show total output, visible text, etc."""
         resp_data = {
             "kind": "llm.response_attribution",
             "data": {
@@ -387,10 +389,10 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([resp_data])
-        assert "Total output" in html
-        assert "Visible text" in html
-        assert "Tool use" in html
-        assert "Metadata" in html
+        assert "总输出" in html
+        assert "可见文本" in html
+        assert "工具命令" in html
+        assert "元数据" in html
         assert "Finish reason" in html
 
     def test_response_finish_reason_optional(self):

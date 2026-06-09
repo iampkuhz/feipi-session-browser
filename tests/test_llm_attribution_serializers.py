@@ -20,7 +20,13 @@ from session_browser.attribution.serializers import (
     response_attribution_to_payload,
     attribution_error_to_payload,
 )
-from session_browser.attribution.contracts import AttributedValue, ValuePrecision, ValueSource
+from session_browser.attribution.contracts import (
+    AttributedValue,
+    LLMRequestAttribution,
+    RequestAttributionBucket,
+    ValuePrecision,
+    ValueSource,
+)
 
 
 def _make_lc(**kwargs):
@@ -239,3 +245,74 @@ def test_response_bucket_serialized_with_contributes_to_total():
 
     for b in payload["buckets"]:
         assert "contributes_to_total" in b, f"Bucket {b['key']} missing contributes_to_total"
+
+
+def test_request_bucket_display_percent_normalized_and_capped():
+    """UI bucket percentages should not inherit invalid builder denominators."""
+    value = AttributedValue(
+        value=100, unit="tokens", precision=ValuePrecision.ESTIMATED,
+        source=ValueSource.HEURISTIC,
+    )
+    attr = LLMRequestAttribution(
+        agent="claude_code",
+        model="test-model",
+        request_id="req-1",
+        call_id="call-1",
+        source_label="local logs",
+        confidence_label="中",
+        raw_body_available=False,
+        total_input=value,
+        fresh_input=value,
+        cache_read=value,
+        cache_write=value,
+        coverage=AttributedValue(
+            value=0.25, unit="ratio", precision=ValuePrecision.ESTIMATED,
+            source=ValueSource.HEURISTIC,
+        ),
+        unknown=AttributedValue(
+            value=200, unit="tokens", precision=ValuePrecision.RESIDUAL,
+            source=ValueSource.RESIDUAL,
+        ),
+        buckets=[
+            RequestAttributionBucket(
+                key="known", label="Known", tokens=100, percent=100.0,
+            ),
+            RequestAttributionBucket(
+                key="unlocated_residual", label="未定位", tokens=200, percent=185.7,
+                precision=ValuePrecision.RESIDUAL, source=ValueSource.RESIDUAL,
+            ),
+        ],
+        captured_context_preview="",
+        attribution_notes=[],
+        availability_rows=[],
+    )
+
+    payload = request_attribution_to_payload(attr)
+    residual = next(b for b in payload["buckets"] if b["key"] == "unlocated_residual")
+    assert residual["raw_percent"] == 185.7
+    assert 0 <= residual["percent"] <= 100
+    assert sum(b["percent"] for b in payload["buckets"] if b["contributes_to_total"]) == 100.0
+
+
+def test_response_tool_bucket_details_show_actual_command_not_schema():
+    lc = _make_lc(
+        output_tokens=120,
+        finish_reason="tool_use",
+        content_blocks=[
+            {
+                "type": "tool_use",
+                "name": "Bash",
+                "id": "tu-bash-001",
+                "input": {"command": "pytest -q", "description": "Run tests"},
+            },
+        ],
+    )
+    attr = build_llm_response_attribution("claude_code", lc, _make_ro())
+    payload = response_attribution_to_payload(attr)
+
+    tool_bucket = next(b for b in payload["buckets"] if b["key"] == "tool_use")
+    assert tool_bucket["label"] == "Tool command (total)"
+    assert tool_bucket["details"]["kind"] == "tool_commands"
+    assert tool_bucket["details"]["items"][0]["command_preview"] == "pytest -q"
+    assert "total_schema_tokens" not in tool_bucket["details"]
+    assert "description_preview" not in tool_bucket["details"]["items"][0]

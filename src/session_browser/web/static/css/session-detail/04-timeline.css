@@ -429,6 +429,7 @@
   background: #f0f9ff;
   border-radius: var(--sd-radius-card);
   overflow: visible;
+  scroll-margin-top: 12px;
 }
 /* Nested subagent under parent LLM call (Issues 3, 4) */
 .sd-subagent-nested {
@@ -468,6 +469,7 @@
   border-radius: 12px;
   margin-bottom: 7px;
   overflow: visible;
+  scroll-margin-top: 12px;
 }
 .sd-sub-round:last-child {
   margin-bottom: 0;
@@ -766,6 +768,7 @@ shift dot left to align with the container timeline line */
 .round-row {
   border-bottom: 1px solid var(--sd-line-soft);
   cursor: pointer;
+  scroll-margin-top: 12px;
 }
 .round-row td {
   padding: 0 12px;
@@ -822,6 +825,12 @@ shift dot left to align with the container timeline line */
 }
 .round-row:not(.is-open):hover {
   background: #fbfdff;
+}
+.round-row.is-jump-target,
+.sd-subagent.is-jump-target,
+.sd-sub-round.is-jump-target {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
 }
 .round-row .sd-round-summary {
   width: 100%;

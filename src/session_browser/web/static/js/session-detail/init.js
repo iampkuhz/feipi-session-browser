@@ -88,7 +88,13 @@
       setFilter(page, initialTraceStatus);
     }
     var initialRound = params.get("round") || "";
-    if (initialRound) jumpRound(page, initialRound);
+    if (initialRound) {
+      jumpRound(page, initialRound, {
+        subagent: params.get("subagent") || "",
+        subagentRound: params.get("subagentround") || params.get("subagent_round") || "",
+        smooth: false
+      });
+    }
     // Sync toggle-all button text on load
     syncToggleAllButton(document);
     // Setup dynamic token tooltip positioning

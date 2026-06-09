@@ -122,8 +122,8 @@ These use .sd- page prefix only, not bare .payload-modal references. */
 
 /* Attribution modal layout */
 .session-detail-page .sd-payload-shell--attribution {
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   align-items: start;
 }
 
@@ -140,6 +140,10 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   border-radius: 10px;
   background: #fff;
   overflow: hidden;
+}
+
+.session-detail-page .sd-attribution-topcard--wide {
+  grid-column: 1 / -1;
 }
 
 .session-detail-page .sd-attribution-topcard h3 {
@@ -186,6 +190,15 @@ These use .sd- page prefix only, not bare .payload-modal references. */
 .sd-attribution-topcard .sd-kv span:last-child {
   color: var(--sd-text-2, #334155);
   font-family: var(--sd-mono, ui-monospace, monospace);
+}
+
+.session-detail-page .sd-attribution-availability--topgrid {
+  max-height: 190px;
+  overflow: auto;
+}
+
+.session-detail-page .sd-attribution-availability--topgrid .sd-attribution-avail-row {
+  grid-template-columns: minmax(130px, 1fr) auto auto minmax(90px, .8fr);
 }
 
 /* Precision tag pills */
@@ -510,10 +523,8 @@ These use .sd- page prefix only, not bare .payload-modal references. */
 
 /* ── Attribution two-column layout ── */
 .sd-attribution-layout {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 12px;
-  align-items: start;
+  display: block;
+  min-width: 0;
 }
 
 .sd-attribution-canvas {

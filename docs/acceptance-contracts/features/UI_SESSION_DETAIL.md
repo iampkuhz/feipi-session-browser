@@ -23,6 +23,7 @@
 | UI-SD-008 | P0 | interaction | Payload 弹窗正常打开和关闭 | 点击 `button[data-action="open-payload"]` | 弹窗 `dialog.payload-modal` 获得 `open` 属性，点击关闭后隐藏 | Playwright | — | `tests/playwright/session-detail.spec.js` |
 | UI-SD-009 | P0 | visual | Payload 弹窗是居中 panel（非全屏） | 打开弹窗后测量 panel boundingBox | panel 宽度 < 视口 95%，高度 < 视口 90%，宽度 >= 480px，中心点在视口内，无水平滚动 | Playwright | — | `tests/playwright/session-detail.spec.js` |
 | UI-SD-010 | P0 | interaction | Metrics tab 切换 | 点击 `[data-tab="metrics"]` | metrics tab 有 `is-active` 类，`[data-tab-panel="metrics"]` 可见，trace 面板隐藏 | Playwright | — | `tests/playwright/session-detail.spec.js` |
+| UI-SD-011 | P0 | visual | Token Timeline tooltip 不被裁剪 | hover 中间 token round 后测量 tooltip 和 chart/card boundingBox | tooltip 可见，顶部不越过 chart 顶部，底部不越过 chart/card 底部 | Playwright | — | `tests/playwright/session-detail.spec.js` |
 | UI-SD-012 | P0 | interaction | Trace tab 恢复 | 先切 metrics 再切回 trace | trace tab 有 `is-active` 类，trace 面板可见，metrics 面板隐藏 | Playwright | — | `tests/playwright/session-detail.spec.js` |
 | UI-SD-013 | P0 | visual | 1440x1100 视口外壳布局正确 | 检查 `.shell` 的 grid-template-columns | 无水平滚动，`.main` 宽度 > 1200px，`.session-detail-page` > 1100px，标题在 KPI 上方 | Playwright | snapshot 更新条件：当 shell CSS grid 变更时需更新快照 | `tests/playwright/session-detail-layout.spec.js` |
 | UI-SD-014 | P0 | visual | Shell 四种状态矩阵（normal/hide-left/hide-right/focus）| 通过 JS 设置 body class，测量 grid | normal: sidebar+main>0; hide-left: sidebar=0, main>900; hide-right: inspector=0; focus: sidebar+inspector=0, main>1100 | Playwright | snapshot 更新条件：当 shell.css 变更时需更新快照 | `tests/playwright/shell-states.spec.js` |
@@ -31,7 +32,7 @@
 | UI-SD-017 | P1 | visual | Trace DOM 契约 | 检查 trace 区域 DOM 结构 | trace 行含正确的 data 属性，round detail 含 `data-round-detail` | pytest | — | `tests/session_detail/test_session_detail_trace_dom_contract.py` |
 | UI-SD-018 | P1 | visual | Trace 布局契约 | 检查 trace 面板布局 | trace 面板无水平溢出，轮次行间距一致 | pytest | — | `tests/session_detail/test_session_detail_trace_layout_contract.py` |
 | UI-SD-019 | P1 | visual | Trace 预览契约 | 检查 trace 预览渲染 | 预览行含 tool 命令摘要，状态图标正确 | pytest | — | `tests/session_detail/test_session_detail_trace_preview_contract.py` |
-| UI-SD-020 | P1 | visual | Payload 模态渲染器契约 | 检查 payload modal 渲染 | modal 含 payload 内容，归因 modal 结构和 fallback 文案符合预期 | pytest | — | `tests/test_session_detail_llm_attribution_modal_contract.py` |
+| UI-SD-020 | P1 | visual | Payload 模态渲染器契约 | 检查 payload modal 渲染 | modal 含 payload 内容；归因 modal 使用 topgrid 元信息与全宽分布/明细，fallback 文案符合预期 | pytest | — | `tests/test_session_detail_llm_attribution_modal_contract.py` |
 | UI-SD-021 | P1 | visual | 工具结果渲染 | 检查 tool result 渲染格式 | 不同 tool 类型的结果有正确的格式化展示 | pytest | — | `tests/rendering/test_tool_result_render.py` |
 | UI-SD-022 | P1 | visual | Trace 头部契约 | 检查 trace 区域头部 | 含标题、筛选 chip、expand/collapse 按钮 | pytest | — | `tests/rendering/test_trace_header_contract.py` |
 | UI-SD-023 | P1 | visual | Session Detail tab 契约 | 检查三个 tab 渲染结构 | metrics/payloads/trace tab 均存在，含 data-tab 属性 | pytest | — | `tests/rendering/test_session_detail_tabs_contract.py` |
@@ -43,3 +44,5 @@
 | UI-SD-029 | P2 | visual | 噪声和无障碍静态检查 | 检查模板噪声和 a11y | 无多余 console.log 占位，HTML 含基本 aria 属性 | pytest | — | `tests/session_detail/test_session_detail_noise_and_a11y.py` |
 | UI-SD-030 | P2 | visual | HiFi 视觉契约 | HiFi 测试会话的完整视觉检查 | 页面含预期的高保真数据展示 | pytest | — | `tests/session_detail/test_session_detail_hifi_contract.py` |
 | UI-SD-031 | P1 | data | Hero subagent 计数 | 构造含 subagent_runs 的 view model | `session_summary.subagent_count == len(subagent_runs)`，slim mode 不依赖 timeline_items | pytest | — | `tests/session_detail/test_hero_subagent_count.py` |
+| UI-SD-032 | P1 | visual | Call Cost Distribution hover tooltip | hover call cost bar | 横轴不显示时间标签，bar 宽度保持紧凑，不依赖原生 title，hover 后自绘 tooltip 展示 timestamp 和 tokens | Playwright | — | `tests/playwright/session-detail.spec.js` |
+| UI-SD-033 | P1 | interaction | Trace 深链定位 round 与 subagent round | 打开 `?tab=trace&round=...` 和 subagent call 跳转 | round 靠近视口顶部；subagent call 写入 `subagent`/`subagentround` 参数并滚动到对应 `SRx` | Playwright | — | `tests/playwright/session-detail.spec.js` |

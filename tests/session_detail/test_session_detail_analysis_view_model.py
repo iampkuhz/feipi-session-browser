@@ -225,6 +225,30 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
     assert row["tokens_raw"] == expected_footprint
     assert "Parent result" in row["token_note"]
     assert "Tool results" in row["token_note"]
+    assert row["subagent_id"] == "sa-1"
+
+    subagent_call_row = next(
+        item for item in vm["diagnostics"]["call_distribution"]
+        if item["lane"] == "subagent"
+    )
+    assert subagent_call_row["target_round"] == 1
+    assert subagent_call_row["target_subagent"] == "sa-1"
+    assert subagent_call_row["target_subagent_round"] == 2
+
+    subagent_driver = next(
+        item for item in vm["diagnostics"]["cost_drivers"]
+        if item["type"] == "Subagent"
+    )
+    assert subagent_driver["target_subagent"] == "sa-1"
+
+    payload_items = [
+        item
+        for group in vm["payload_index"]["groups"]
+        for item in group["items"]
+        if item["kind"] == "subagent"
+    ]
+    assert payload_items[0]["subagent_id"] == "sa-1"
+    assert payload_items[0]["subagent_round_id"] == 1
 
 
 def test_call_distribution_time_labels_and_per_subagent_legend():

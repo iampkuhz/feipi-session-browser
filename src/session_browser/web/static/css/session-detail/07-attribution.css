@@ -16,11 +16,13 @@
   white-space: nowrap;
 }
 
-/* Notes in rail */
+/* Notes in attribution topgrid */
+.sd-attribution-topnotes,
 .sd-attribution-rail__notes {
   padding: 8px 10px;
 }
 
+.sd-attribution-topnote,
 .sd-attribution-rail__note {
   font-size: 11px;
   color: var(--sd-muted);
@@ -29,6 +31,7 @@
   border-bottom: 1px solid var(--sd-line-soft);
 }
 
+.sd-attribution-topnote:last-child,
 .sd-attribution-rail__note:last-child {
   border-bottom: none;
 }
