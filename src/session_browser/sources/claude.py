@@ -91,6 +91,19 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
     can combine ``input_tokens`` from a thinking fragment with cache fields
     from a later tool fragment, producing a token total that never existed in
     the raw log.  Prefer the most complete whole snapshot instead.
+
+    However, the final fragment (with output_tokens > 0) often reports
+    ``input_tokens`` as only the non-cached delta of the streaming chunk
+    (e.g. 6 tokens), while earlier fragments report the true full request
+    size (e.g. 9482 tokens).  To handle this, we always derive
+    ``input_tokens`` from the fragment with the largest non-zero value,
+    and take output/cache fields from the highest-scoring whole snapshot.
+
+    Accounting snapshot selection priority (high to low):
+    1. output_tokens > 0
+    2. Cache field presence (key exists in dict, value 0 counts)
+    3. Higher component sum (input + cache_read + cache_write + output)
+    4. Later row in JSONL order
     """
     if not usages:
         return {}
@@ -102,18 +115,30 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
         "cache_creation_input_tokens",
     }
 
+    cache_keys = ("cache_read_input_tokens", "cache_creation_input_tokens")
+
     def score(index_and_usage: tuple[int, dict]) -> tuple[int, int, int, int]:
         index, usage = index_and_usage
-        cache_field_count = sum(
-            1
-            for key in ("cache_read_input_tokens", "cache_creation_input_tokens")
-            if _usage_int(usage, key) > 0
-        )
+        # Priority 2: cache field PRESENCE — key exists, value 0 counts
+        cache_field_count = sum(1 for key in cache_keys if key in usage)
         output_present = 1 if _usage_int(usage, "output_tokens") > 0 else 0
         token_total = sum(_usage_int(usage, key) for key in numeric_keys)
         return (output_present, cache_field_count, token_total, index)
 
     _, best_usage = max(enumerate(usages), key=score)
+
+    # Derive input_tokens from the fragment with the largest non-zero value.
+    # This avoids picking the final fragment's streaming-delta input_tokens
+    # (often just ~6 tokens) when earlier fragments report the true request
+    # size (thousands of tokens).
+    max_input = max(
+        (_usage_int(u, "input_tokens") for u in usages),
+        default=0,
+    )
+    if max_input > 0:
+        best_usage = dict(best_usage)
+        best_usage["input_tokens"] = max_input
+
     return dict(best_usage)
 
 

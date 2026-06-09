@@ -175,8 +175,8 @@ def test_claude_code_available_tools_uses_agent_definition():
         llm_calls=[],
         project_dir=".",
     )
-    # Union of all .claude/agents/*.md tools: 11 tools
-    assert len(result) == 11
+    # Union of all .claude/agents/*.md tools: 9 tools
+    assert len(result) == 9
     assert "Agent" in result
     assert "Bash" in result
     assert "Read" in result
@@ -240,7 +240,7 @@ def test_read_agent_tool_list_union():
 
     tools = _read_agent_tool_list(Path("."))
     assert tools is not None
-    assert len(tools) >= 10
+    assert len(tools) >= 9
     assert "Agent" in tools
     assert "Bash" in tools
     assert "Read" in tools

@@ -246,7 +246,7 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert summary.assistant_message_count == 1
     assert summary.tool_call_count == 3
     assert summary.failed_tool_count == 1
-    assert summary.input_tokens == 111  # 父 100 + 子 final snapshot 5 + 子 6
+    assert summary.input_tokens == 306  # 父 100 + 子 msg-child-1 max input 200 + 子 msg-child-2 6
     assert summary.cached_input_tokens == 300
     assert summary.cached_output_tokens == 300
 
@@ -323,7 +323,7 @@ def test_same_message_usage_fragments_keep_whole_provider_snapshot():
 
     assert len(records) == 1
     assert records[0]["usage"] == {
-        "input_tokens": 6,
+        "input_tokens": 26029,
         "cache_creation_input_tokens": 3672,
         "cache_read_input_tokens": 23985,
         "output_tokens": 75,
