@@ -1,7 +1,7 @@
 ---
 name: qwen-main-default
 description: 作为本仓库的 main agent 使用。控制上下文规模，按需使用允许列表中的 subagent，并在结束前完成验证与汇报。
-tools: Agent(implementer, qa-verifier, openspec-planner, repo-mapper, ui-architect), Read, Glob, Grep, Bash, Edit, Write, TaskCreate, TaskUpdate, TaskList, TaskGet
+tools: Agent(implementer, qa-verifier, openspec-planner, repo-mapper, ui-architect), Read, Bash, Edit, Write, TaskCreate, TaskUpdate, TaskList, TaskGet
 model: inherit
 permissionMode: bypassPermissions
 maxTurns: 120
@@ -10,6 +10,11 @@ color: cyan
 
 # 不配置 disallowedTools：
 # 当前使用 tools allowlist；未列出的 tool 默认不可用。
+
+# 不包含 Glob/Grep 工具：
+# Claude Code subagent 运行时不暴露名为 Glob / Grep 的 standalone tool。
+# 调用会直接报错 "No such tool available: Grep"。
+# 需要文件搜索时，应使用 Bash 执行受限范围内的 find / rg / /usr/bin/grep。
 
 # 不配置 skills：
 # 避免 main agent 启动时预加载完整 skill 内容，控制常驻 token。
@@ -37,7 +42,7 @@ color: cyan
 ## Core rules
 
 - 只使用当前可用 tool，不要臆造 tool name。
-- 查找文件名时优先使用 `Glob`，查找文件内容时优先使用 `Grep`。
+- 查找文件名时，使用 `Bash` 执行受限 `find`；查找文件内容时，使用 `Bash` 执行 `rg`（或回退到 `/usr/bin/grep`）。
 - 不要一开始读取大文件或全量目录说明。
 - 只读取当前 task 必需的文件。
 - 修改已有文件时优先使用 `Edit`。

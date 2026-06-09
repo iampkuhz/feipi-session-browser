@@ -1,13 +1,15 @@
 ---
 name: repo-mapper
 description: Use for read-only repository mapping before migration, refactor, or unfamiliar module work. Return relevant structure, entry points, file ownership, and risk areas. Do not edit files.
-tools: Read, Glob, Grep, Bash
+tools: Read, Bash
 model: inherit
 permissionMode: bypassPermissions
 maxTurns: 60
 background: false
 color: blue
 # 不配置 disallowedTools：当前使用 tools allowlist，未列出的 tool 默认不可用。
+# 不包含 Glob/Grep 工具：Claude Code subagent 运行时不暴露名为 Glob / Grep 的 standalone tool，
+# 调用会报错 "No such tool available: Grep"。需要搜索时通过 Bash 使用 find / rg / /usr/bin/grep。
 # 不配置 skills：避免把完整 skill 注入 subagent context；需要时由 main agent 提供 Required context files。
 # 不配置 mcpServers：默认只处理本地仓库文件，避免扩大 tool 面。
 # 不配置 hooks：项目级硬约束由 .claude/settings.json 和 .claude/hooks/ 统一管理。
@@ -31,7 +33,7 @@ color: blue
 
 ## Reading rules
 
-- 先用 `Glob` / `Grep` 缩小范围。
+- 使用 `Bash` 执行受限范围内的 `find` / `rg` 缩小范围。
 - 只读取与 `Scope` 和 `Questions` 直接相关的文件片段。
 - 不主动读取完整 `CLAUDE.md`、完整 `AGENTS.md`、大型日志、真实 session data 或无关目录。
 - 不编辑文件。

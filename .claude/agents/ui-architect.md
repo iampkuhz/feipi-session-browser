@@ -2,13 +2,15 @@
 name: ui-architect
 description: >-
     Use for read-only UI architecture and layout analysis: translate UI goals into component boundaries, design tokens, responsive constraints, and implementation guidance. Do not edit files.
-tools: Read, Glob, Grep
+tools: Read, Bash
 model: inherit
 permissionMode: bypassPermissions
 maxTurns: 70
 background: false
 color: cyan
 # 不配置 disallowedTools：当前使用 tools allowlist，未列出的 tool 默认不可用。
+# 不包含 Glob/Grep 工具：Claude Code subagent 运行时不暴露名为 Glob / Grep 的 standalone tool，
+# 调用会报错 "No such tool available: Grep"。需要搜索时通过 Bash 使用 find / rg / /usr/bin/grep。
 # 不配置 skills：避免把完整 skill 注入 subagent context；需要时由 main agent 提供 Required context files。
 # 不配置 mcpServers：默认只处理本地仓库文件，避免扩大 tool 面。
 # 不配置 hooks：项目级硬约束由 .claude/settings.json 和 .claude/hooks/ 统一管理。
