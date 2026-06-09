@@ -2,7 +2,8 @@
 
 Codex defaults to session jsonl / response items processing.
 Do NOT assume raw body availability.  Cache semantics are OpenAI/Codex style:
-input_tokens is inclusive total, cached_input_tokens is subset, no cache_write.
+input_tokens is the request input size, cached_input_tokens is cache read,
+no cache_write.
 """
 
 from __future__ import annotations
@@ -116,7 +117,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
     """Request / response attribution for Codex sessions.
 
     Codex provides session usage totals with OpenAI/Codex semantics:
-    - input_tokens is inclusive total (contains cached_input_tokens)
+    - input_tokens is the logical request input size shown as Fresh
     - cached_input_tokens is cache read hit
     - No Anthropic-style cache_write
     - reasoning_output_tokens is part of output but hidden
@@ -267,6 +268,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
         # ── Step 1: total input from best available source ───────────────
         raw_input_total = 0
+        request_input_tokens = 0
         cache_read_tokens = 0
         cache_write_tokens = 0
         precision_total = ValuePrecision.UNAVAILABLE
@@ -275,19 +277,20 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         # Priority 1: token_breakdown_normalized
         if lc.token_breakdown_normalized:
             bd = lc.token_breakdown_normalized
-            raw_input_total = bd.fresh_input_tokens + bd.cache_read_tokens
+            request_input_tokens = bd.fresh_input_tokens
             cache_read_tokens = bd.cache_read_tokens
             cache_write_tokens = bd.cache_write_tokens
+            raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
             precision_total = ValuePrecision.PROVIDER_REPORTED
             source_total = ValueSource.PROVIDER_USAGE
         # Priority 2: llm_call fields
         elif lc.input_tokens > 0:
-            raw_input_total = lc.input_tokens
+            request_input_tokens = lc.input_tokens
             cache_read_tokens = lc.cache_read_tokens
             cache_write_tokens = lc.cache_write_tokens
-            if cache_read_tokens > 0:
-                precision_total = ValuePrecision.PROVIDER_REPORTED
-                source_total = ValueSource.PROVIDER_USAGE
+            raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
+            precision_total = ValuePrecision.PROVIDER_REPORTED
+            source_total = ValueSource.PROVIDER_USAGE
         # Priority 3: assistant_msg.usage
         elif lc.round_index >= 0 and self.round_obj and self.round_obj.assistant_msg:
             msg_usage = self.round_obj.assistant_msg.usage
@@ -295,8 +298,9 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 from session_browser.sources.codex import _extract_codex_usage
                 extracted = _extract_codex_usage(msg_usage)
                 if extracted:
-                    raw_input_total = extracted.get("input_tokens", 0)
+                    request_input_tokens = extracted.get("input_tokens", 0)
                     cache_read_tokens = extracted.get("cached_input_tokens", 0)
+                    raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
                     precision_total = ValuePrecision.PROVIDER_REPORTED
                     source_total = ValueSource.PROVIDER_USAGE
         # Priority 4: raw response payload usage
@@ -305,12 +309,13 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             if resp_body:
                 usage = _extract_codex_usage_from_raw(resp_body)
                 if usage:
-                    raw_input_total = usage.get("input_tokens", 0)
+                    request_input_tokens = usage.get("input_tokens", 0)
                     cache_read_tokens = usage.get("cached_input_tokens", 0)
+                    raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
                     precision_total = ValuePrecision.PROVIDER_REPORTED
                     source_total = ValueSource.PROVIDER_USAGE
 
-        fresh_input_tokens = max(raw_input_total - cache_read_tokens - cache_write_tokens, 0)
+        fresh_input_tokens = request_input_tokens
 
         total_input = AttributedValue(
             value=raw_input_total,
@@ -321,14 +326,11 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         )
 
         fresh_input = AttributedValue(
-            value=fresh_input_tokens if cache_read_tokens > 0 else (
-                fresh_input_tokens if precision_total != ValuePrecision.UNAVAILABLE else None
-            ),
+            value=fresh_input_tokens if precision_total != ValuePrecision.UNAVAILABLE else None,
             unit="tokens",
-            precision=precision_total if cache_read_tokens > 0 else ValuePrecision.UNAVAILABLE,
-            source=source_total if cache_read_tokens > 0 else ValueSource.HEURISTIC,
-            fill_strategy="input_tokens - cached_input_tokens" if cache_read_tokens > 0
-            else "Codex/OpenAI reports cached_input_tokens as subset of input_tokens",
+            precision=precision_total,
+            source=source_total,
+            fill_strategy="input_tokens request input size",
         )
 
         cache_read = AttributedValue(
@@ -671,11 +673,10 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                         source=source_total,
                         fill_strategy="token_breakdown_normalized or session usage"),
             self._avail("fresh_input", "Fresh input tokens",
-                        cache_read_tokens > 0,
-                        precision=precision_total if cache_read_tokens > 0 else ValuePrecision.UNAVAILABLE,
-                        source=source_total if cache_read_tokens > 0 else ValueSource.HEURISTIC,
-                        fill_strategy="input_tokens - cached_input_tokens" if cache_read_tokens > 0
-                        else "Codex/OpenAI reports cached_input_tokens as subset of input_tokens"),
+                        fresh_input_tokens > 0,
+                        precision=precision_total,
+                        source=source_total,
+                        fill_strategy="input_tokens request input size"),
             self._avail("cache_read", "Cache read tokens",
                         cache_read_tokens > 0,
                         precision=precision_total if cache_read_tokens > 0 else ValuePrecision.UNAVAILABLE,
@@ -726,13 +727,14 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         notes = []
         if cache_read_tokens > 0:
             notes.append(
-                f"input_tokens={raw_input_total} 是总量，包含 cached_input_tokens={cache_read_tokens}；"
-                f"fresh_input={fresh_input_tokens}。"
+                f"input_tokens={fresh_input_tokens} 作为 Fresh request input；"
+                f"cached_input_tokens={cache_read_tokens} 作为 Cache Read；"
+                f"input-side total={raw_input_total}。"
             )
         else:
             notes.append(
-                "Codex/OpenAI input_tokens 是 inclusive total，cache_read 是其子集。"
-                "本次调用未报告 cached_input_tokens，fresh/cache 按 unknown 处理。"
+                "Codex/OpenAI input_tokens 作为 Fresh request input；"
+                "本次调用未报告 cached_input_tokens，Cache Read 不可用。"
             )
         notes.append(
             "OpenAI/Codex 不提供 Anthropic-style cache_write/cache_creation tokens。"

@@ -112,7 +112,7 @@ _KPI_SECONDARY_DESCRIPTIONS = {
     "7d Avg": "最近 7 天内结束的 session 总数除以 7，得到每日平均 session 数。",
     "Median Duration": "duration_seconds 大于 0 的 session 生命周期中位数。",
     "Avg Rounds": "assistant message 总数除以 session 总数，表示每个 session 的平均 assistant 轮数。",
-    "Fresh": "输入侧新计算 token 数，不含从缓存读取或写入缓存的 token。",
+    "Fresh": "本次请求实际新增/发送的输入规模，Cache Read/Write 单独展示。",
     "Cache Read": "输入侧从 provider 缓存命中的 token 数；会计入总 token。",
     "Cache Write": "输入侧写入 provider 缓存的 token 数；会计入总 token。",
     "Output": "模型输出给用户或工具链的 token 数。",

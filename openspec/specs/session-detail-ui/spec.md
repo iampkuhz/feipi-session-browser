@@ -20,6 +20,17 @@ The page SHALL display:
 
 Each primary KPI card SHALL render no more than four secondary KPI values.
 
+#### Scenario: Token component extraction
+
+Token metrics SHALL use exactly five component fields:
+- Fresh: provider-reported request input size for the call
+- Cache Read: provider-reported cache read input tokens
+- Cache Write: provider-reported cache creation/write input tokens
+- Output: provider-reported visible output tokens
+- Total: Fresh + Cache Read + Cache Write + Output
+
+Fresh SHALL NOT subtract Cache Read or Cache Write. When one logical LLM call has multiple usage fragments, Fresh SHALL come from the largest non-zero request input snapshot, while Cache Read, Cache Write, and Output SHALL come from one final accounting snapshot.
+
 #### Scenario: Analysis cards display
 
 The page SHALL display analysis cards for:

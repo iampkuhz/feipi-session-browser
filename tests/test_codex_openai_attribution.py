@@ -23,6 +23,7 @@ from session_browser.attribution.agents.codex import (
 )
 from session_browser.attribution.contracts import ValuePrecision
 from session_browser.sources.codex import _extract_codex_usage
+from session_browser.web.presenters.session_detail import _normalize_codex_usage
 
 
 def _make_lc(**kwargs):
@@ -77,11 +78,11 @@ class TestCodexFlatUsage:
             "total_tokens": 24885,
         }
         bd = normalize_tokens(usage, provider="codex")
-        assert bd.fresh_input_tokens == 315  # 24763 - 24448
+        assert bd.fresh_input_tokens == 24763
         assert bd.cache_read_tokens == 24448
         assert bd.cache_write_tokens == 0
         assert bd.output_tokens == 122
-        assert bd.total_tokens == 24885
+        assert bd.total_tokens == 49333
         assert bd.raw_fields.get("reasoning_output_tokens") == 10
         assert bd.precision == TokenPrecision.PROVIDER_REPORTED
 
@@ -96,7 +97,7 @@ class TestCodexFlatUsage:
         }
         extracted = _extract_codex_usage(usage)
         bd = normalize_tokens(extracted, provider="codex")
-        assert bd.fresh_input_tokens == 315
+        assert bd.fresh_input_tokens == 24763
         assert bd.cache_read_tokens == 24448
         assert bd.cache_write_tokens == 0
         assert bd.output_tokens == 122
@@ -133,11 +134,11 @@ class TestOpenAINestedUsage:
             "total_tokens": 1080,
         }
         bd = normalize_tokens(usage, provider="codex")
-        assert bd.fresh_input_tokens == 300  # 1000 - 700
+        assert bd.fresh_input_tokens == 1000
         assert bd.cache_read_tokens == 700
         assert bd.cache_write_tokens == 0
         assert bd.output_tokens == 80
-        assert bd.total_tokens == 1080
+        assert bd.total_tokens == 1780
         # raw_fields captures flat numeric fields; nested details are consumed
         assert bd.raw_fields.get("input_tokens") == 1000
         assert bd.raw_fields.get("output_tokens") == 80
@@ -331,7 +332,7 @@ class TestReasoningTokensNotVisible:
         }
         bd = normalize_tokens(usage, provider="codex")
         assert bd.output_tokens == 80  # fallback to reasoning
-        assert bd.fresh_input_tokens == 500
+        assert bd.fresh_input_tokens == 1000
 
 
 # ── 8.7 Flat Codex usage variants ───────────────────────────────────────────
@@ -353,9 +354,28 @@ class TestFlatCodexUsageVariants:
         assert extracted["reasoning_output_tokens"] == 0
 
         bd = normalize_tokens(usage, provider="codex")
-        assert bd.fresh_input_tokens == 2000
+        assert bd.fresh_input_tokens == 5000
         assert bd.cache_read_tokens == 3000
         assert bd.output_tokens == 2000
+        assert bd.total_tokens == 10000
+
+    def test_codex_cumulative_delta_keeps_request_input_size(self):
+        cumulative = {
+            "input_tokens": 5000,
+            "cached_input_tokens": 3000,
+            "output_tokens": 2000,
+        }
+        state = {
+            "input_tokens": 4200,
+            "cached_input_tokens": 2500,
+            "output_tokens": 1800,
+        }
+
+        delta = _normalize_codex_usage(cumulative, state)
+
+        assert delta["input_tokens"] == 800
+        assert delta["cache_read_input_tokens"] == 500
+        assert delta["output_tokens"] == 200
 
     def test_existing_codex_attribution_test_still_passes(self):
         """Ensure existing test patterns still work with new builder."""
@@ -401,8 +421,8 @@ class TestFlatCodexUsageVariants:
         assert bd.output_tokens == 300
         assert bd.total_tokens == 3800
 
-    def test_openai_normalization_unchanged(self):
-        """Ensure OpenAI normalization is untouched."""
+    def test_openai_normalization_uses_request_input(self):
+        """OpenAI Fresh keeps request input and tracks cached tokens separately."""
         usage = {
             "input_tokens": 4000,
             "output_tokens": 600,
@@ -411,9 +431,10 @@ class TestFlatCodexUsageVariants:
         }
         from session_browser.domain.models import TokenProvider
         bd = normalize_tokens(usage, provider=TokenProvider.OPENAI)
-        assert bd.fresh_input_tokens == 2000
+        assert bd.fresh_input_tokens == 4000
         assert bd.cache_read_tokens == 2000
         assert bd.output_tokens == 600
+        assert bd.total_tokens == 6600
 
 
 # ── Context builder Codex fixes ─────────────────────────────────────────────

@@ -231,7 +231,7 @@ class TestRealUsagePreserved:
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_qoder_provider_usage_normalized_to_canonical_buckets(self):
-        """Qoder provider input total 不应与 cache read 双算。
+        """Qoder provider input_tokens 应保留为 Fresh request input size。
 
         关键：provider-reported cache_creation_input_tokens=0 不能被下一条
         cache_read 差值覆盖。推断值只进入 qoder_cache_write_inferred_tokens。
@@ -262,24 +262,25 @@ class TestRealUsagePreserved:
         ]
 
         records = _assistant_records(events)
-        # Call 1: fresh = 1000 - 0 - 0 = 1000，cache_write 保持 provider-reported 0
+        # Call 1: Fresh 保留 provider request input，cache_write 保持 provider-reported 0
         assert records[0]["usage"]["input_tokens"] == 1000
         assert records[0]["usage"]["cache_creation_input_tokens"] == 0  # 不被推断覆盖
         assert records[0]["usage"]["qoder_input_tokens_total"] == 1000
         # 推断值进入单独字段
         assert records[0]["usage"].get("qoder_cache_write_inferred_tokens") == 990
         assert records[0]["usage"].get("qoder_cache_write_inferred") is True
-        # Call 2: fresh = 1200 - 990 - 0 = 210
-        assert records[1]["usage"]["input_tokens"] == 210
+        # Call 2: Fresh 仍为 request input，不扣减 cache read
+        assert records[1]["usage"]["input_tokens"] == 1200
         assert records[1]["usage"]["cache_read_input_tokens"] == 990
 
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
-        # input_tokens 是各 call fresh 之和: 1000 + 210 = 1210
-        assert summary.input_tokens == 1210
+        # input_tokens 是各 call Fresh 之和: 1000 + 1200 = 2200
+        assert summary.input_tokens == 2200
         assert summary.cached_input_tokens == 990
         # cached_output_tokens 是 cache_creation_input_tokens 之和: 0 + 0 = 0
         assert summary.cached_output_tokens == 0
         assert summary.output_tokens == 30
+        assert summary.total_tokens == 3220
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
     def test_extract_messages_uses_normalized_qoder_provider_usage(self):
@@ -301,10 +302,39 @@ class TestRealUsagePreserved:
         assistant_msgs = [m for m in messages if m.role == "assistant"]
         assert len(assistant_msgs) == 1
         usage = assistant_msgs[0].usage
-        assert usage["input_tokens"] == 50
+        assert usage["input_tokens"] == 1000
         assert usage["cache_read_input_tokens"] == 900
         assert usage["cache_creation_input_tokens"] == 50
         assert usage["qoder_input_tokens_total"] == 1000
+
+    @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
+    def test_qoder_same_message_fragments_use_request_input_and_accounting_snapshot(self):
+        events = [
+            _user_event("hello"),
+            _assistant_event(
+                text="thinking",
+                msg_id="msg-1",
+                usage={"input_tokens": 5000, "output_tokens": 0},
+            ),
+            _assistant_event(
+                text="tool",
+                msg_id="msg-1",
+                usage={
+                    "input_tokens": 6,
+                    "cache_read_input_tokens": 1100,
+                    "cache_creation_input_tokens": 250,
+                    "output_tokens": 70,
+                },
+            ),
+        ]
+
+        records = _assistant_records(events)
+
+        assert len(records) == 1
+        assert records[0]["usage"]["input_tokens"] == 5000
+        assert records[0]["usage"]["cache_read_input_tokens"] == 1100
+        assert records[0]["usage"]["cache_creation_input_tokens"] == 250
+        assert records[0]["usage"]["output_tokens"] == 70
 
 
 # ─── 测试：长文本处理 ────────────────────────────────────────────────

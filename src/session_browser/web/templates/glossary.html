@@ -151,9 +151,9 @@
         <tbody>
             <tr>
                 <td>{{ token_input("Input Fresh") }}</td>
-                <td class="text-sm">Provider fresh input tokens, excluding cache hits and cache writes.</td>
-                <td class="mono text-xs"><code>input_side_total - cache_read - cache_write</code></td>
-                <td class="text-sm">Anthropic: <code>input_tokens</code>; OpenAI: <code>input_tokens - cached_tokens</code>; Codex/Qoder: <span class="badge badge-info">Estimated</span></td>
+                <td class="text-sm">Provider request input size for this call; cache buckets are displayed separately.</td>
+                <td class="mono text-xs"><code>input_tokens</code> / <code>prompt_tokens</code></td>
+                <td class="text-sm">Anthropic: <code>input_tokens</code>; OpenAI/Codex: <code>input_tokens</code>; Qoder: <code>input_tokens</code> when reported.</td>
             </tr>
             <tr>
                 <td>{{ token_cache_read("Cache Read") }}</td>
@@ -284,7 +284,7 @@
             <tr>
                 <td class="text-sm"><strong>OpenAI</strong></td>
                 <td class="mono text-xs">gpt-* / o-series</td>
-                <td class="mono text-xs"><code>input_tokens - cached_tokens</code></td>
+                <td class="mono text-xs"><code>input_tokens</code></td>
                 <td class="mono text-xs"><code>cached_tokens</code></td>
                 <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
                 <td class="mono text-xs"><code>completion_tokens - reasoning_tokens</code></td>
@@ -292,18 +292,18 @@
             <tr>
                 <td class="text-sm"><strong>Codex</strong></td>
                 <td class="mono text-xs">gpt-* codex</td>
-                <td class="mono text-xs"><span class="badge badge-info">Estimated</span></td>
-                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
+                <td class="mono text-xs"><code>input_tokens</code></td>
+                <td class="mono text-xs"><code>cached_input_tokens</code></td>
                 <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
                 <td class="mono text-xs"><code>tokens_used</code> aggregate</td>
             </tr>
             <tr>
                 <td class="text-sm"><strong>Qoder</strong></td>
                 <td class="mono text-xs">custom models</td>
-                <td class="mono text-xs"><span class="badge badge-info">Estimated</span></td>
-                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
-                <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
-                <td class="mono text-xs"><span class="badge badge-info">Estimated</span></td>
+                <td class="mono text-xs"><code>input_tokens</code></td>
+                <td class="mono text-xs"><code>cache_read_input_tokens</code> / <code>cached_tokens</code></td>
+                <td class="mono text-xs"><code>cache_creation_input_tokens</code> when reported</td>
+                <td class="mono text-xs"><code>output_tokens</code> / <code>completion_tokens</code></td>
             </tr>
         </tbody>
     </table>

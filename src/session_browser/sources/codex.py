@@ -444,17 +444,16 @@ def _build_summary_from_events(
 
         last_ts = ts
 
-    # Codex: input_tokens is inclusive, cached is subset; no cache_write
-    raw_input_total = sum_fresh + sum_cache_read
+    # Codex: input_tokens is the logical request input size; cached is reported separately.
+    raw_input_total = sum_fresh
     cache_read = sum_cache_read
     fresh = sum_fresh
     output = sum_output
 
-    # Use SQLite tokens_used as authoritative total (event deltas may have rounding)
-    if tokens_used > 0:
-        total = tokens_used
-    else:
-        total = raw_input_total + output
+    # UI token composition uses component sum. SQLite tokens_used is a raw
+    # fallback only when component fields are unavailable.
+    component_total = fresh + cache_read + output
+    total = component_total if component_total > 0 else tokens_used
 
     # Get metadata from thread_info (priority from DB)
     cwd = thread_info.get("cwd", "")

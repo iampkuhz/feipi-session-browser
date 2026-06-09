@@ -326,12 +326,9 @@ def _build_summary_from_events(
     actual_project = cwd if (cwd and cwd != "." and not cwd.startswith("./")) else project_key
     project_name = PurePosixPath(actual_project).name if actual_project else "unknown"
 
-    # Unified 5-field breakdown: Qoder input_tokens is often inclusive total
-    # fresh = input_tokens - cache_read - cache_write (when input >= cache_read + cache_write)
-    if input_tokens >= cached_tokens + cache_write_tokens:
-        fresh_input_tokens = input_tokens - cached_tokens - cache_write_tokens
-    else:
-        fresh_input_tokens = input_tokens
+    # Unified 5-field breakdown: Qoder input_tokens is Fresh request input size.
+    # Cache read/write stay as separate accounting fields and are not subtracted.
+    fresh_input_tokens = input_tokens
     cache_read_tokens_session = cached_tokens
     cache_write_tokens_session = cache_write_tokens
     total_tokens = fresh_input_tokens + cache_read_tokens_session + cache_write_tokens_session + output_tokens

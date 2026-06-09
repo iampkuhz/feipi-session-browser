@@ -1,7 +1,7 @@
 """Codex specific attribution tests.
 
 Verifies:
-1. Codex cache split is unknown — no fake cache_read/cache_write.
+1. Codex Fresh uses input_tokens; missing cache fields stay unknown.
 2. Codex uses session jsonl / response items.
 3. Bucket tokens sum does not exceed total input.
 4. Repository/file context estimation works.
@@ -45,9 +45,8 @@ def test_codex_cache_split_unknown():
     builder = CodexAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    # fresh/cache_read should be UNAVAILABLE (no per-call cached_input_tokens in this fixture)
-    assert result.fresh_input.value is None or result.fresh_input.precision == ValuePrecision.UNAVAILABLE
-    assert result.fresh_input.precision == ValuePrecision.UNAVAILABLE
+    assert result.fresh_input.value == 10000
+    assert result.fresh_input.precision == ValuePrecision.PROVIDER_REPORTED
     assert result.cache_read.value is None or result.cache_read.precision == ValuePrecision.UNAVAILABLE
     assert result.cache_read.precision == ValuePrecision.UNAVAILABLE
     # cache_write is 0 with UNAVAILABLE precision — OpenAI/Codex does not expose cache_write
@@ -120,5 +119,7 @@ def test_codex_availability_notes_cache_unknown():
     for row in result.availability_rows:
         field_val = row.field if hasattr(row, "field") else row["field"]
         avail_val = row.available if hasattr(row, "available") else row["available"]
-        if field_val in ("fresh_input", "cache_read", "cache_write"):
+        if field_val == "fresh_input":
+            assert avail_val is True
+        if field_val in ("cache_read", "cache_write"):
             assert avail_val is False

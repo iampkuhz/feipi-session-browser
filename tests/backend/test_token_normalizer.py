@@ -121,7 +121,8 @@ class TestOpenAINormalization:
         result = normalize_tokens(usage, provider=TokenProvider.OPENAI)
 
         assert result.cache_read_tokens == 3000
-        assert result.fresh_input_tokens == 2000  # 5000 - 3000
+        assert result.fresh_input_tokens == 5000
+        assert result.total_tokens == 8300
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_with_reasoning_tokens(self):
@@ -144,7 +145,7 @@ class TestOpenAINormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.OPENAI)
 
-        assert result.fresh_input_tokens == 2000  # 4000 - 2000
+        assert result.fresh_input_tokens == 4000
         assert result.cache_read_tokens == 2000
         assert result.output_tokens == 600
 
@@ -155,7 +156,7 @@ class TestOpenAINormalization:
 class TestCodexNormalization:
     """测试 Codex 用量归一化。
 
-    语义：input_tokens 是包含缓存的总量；cached_input_tokens 是子集。
+    语义：input_tokens 是本次请求输入规模；cached_input_tokens 单独展示。
     """
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
@@ -175,10 +176,11 @@ class TestCodexNormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.CODEX)
 
-        assert result.fresh_input_tokens == 2000  # 5000 - 3000
+        assert result.fresh_input_tokens == 5000
         assert result.cache_read_tokens == 3000
         assert result.output_tokens == 2000
-        assert result.total_semantics == TokenTotalSemantics.REPORTED_CUMULATIVE_DELTA
+        assert result.total_tokens == 10000
+        assert result.total_semantics == TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_delta_values(self):
@@ -189,9 +191,10 @@ class TestCodexNormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.CODEX)
 
-        assert result.fresh_input_tokens == 600  # 800 - 200
+        assert result.fresh_input_tokens == 800
         assert result.cache_read_tokens == 200
         assert result.output_tokens == 400
+        assert result.total_tokens == 1400
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_empty_usage(self):
@@ -206,7 +209,7 @@ class TestCodexNormalization:
 class TestQoderNormalization:
     """测试 Qoder 用量归一化。
 
-    语义：input_tokens 通常是包含缓存的总量，需要分解为 fresh。
+    语义：input_tokens 是本次请求输入规模，cache read/write 单独展示。
     """
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
@@ -219,11 +222,11 @@ class TestQoderNormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.QODER)
 
-        assert result.fresh_input_tokens == 2500  # 5000 - 2000 - 500
+        assert result.fresh_input_tokens == 5000
         assert result.cache_read_tokens == 2000
         assert result.cache_write_tokens == 500
         assert result.output_tokens == 1500
-        assert result.total_tokens == 6500  # 2500 + 2000 + 500 + 1500
+        assert result.total_tokens == 9000
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qoder_no_cache(self):
@@ -248,9 +251,10 @@ class TestQoderNormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.QODER)
 
-        assert result.fresh_input_tokens == 100  # capped at input_tokens
+        assert result.fresh_input_tokens == 100
         assert result.cache_read_tokens == 500
         assert result.cache_write_tokens == 200
+        assert result.total_tokens == 850
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qoder_estimated_precision(self):
@@ -262,7 +266,7 @@ class TestQoderNormalization:
 
         assert result.fresh_input_tokens == 500
         assert result.output_tokens == 200
-        assert result.precision == TokenPrecision.PROVIDER_REPORTED_NORMALIZED
+        assert result.precision == TokenPrecision.PROVIDER_REPORTED
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_qoder_empty_usage(self):
@@ -289,8 +293,8 @@ class TestQoderSQLiteNormalization:
         assert result.cache_read_tokens == 4000
         assert result.cache_write_tokens == 0
         assert result.output_tokens == 3000
-        assert result.fresh_input_tokens == 6000  # 10000 - 4000
-        assert result.total_tokens == 13000  # 6000 + 4000 + 0 + 3000
+        assert result.fresh_input_tokens == 10000
+        assert result.total_tokens == 17000
         assert result.source_kind == TokenSourceKind.QODER_SQLITE_TOKEN_INFO
 
     def test_sqlite_empty(self):

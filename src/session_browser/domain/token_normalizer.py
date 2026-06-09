@@ -4,15 +4,15 @@ Maps provider-specific usage fields into a unified NormalizedTokenBreakdown
 with a canonical 5-field breakdown.
 
 Provider mappings:
-- Claude Code: input_tokens=fresh, cache_read/cache_creation=separate buckets, total=sum of 4
-- Codex: input_tokens is inclusive total, cached_input_tokens is subset, total != sum
-- Qoder: structured logs / SQLite / transcript estimation with inclusive input handling
+- Claude Code: input_tokens=fresh request input, cache_read/cache_creation=separate buckets
+- Codex/OpenAI: input_tokens is request input; cached_input_tokens is reported separately
+- Qoder: input_tokens is request input; cache read/write stay separate when reported
 
 Rules:
 1. Every session/LLM call gets 5 int fields: fresh_input, cache_read, cache_write, output, total.
 2. No null/undefined/NaN — all fields default to 0.
 3. Direct fields take priority; aliases are normalized.
-4. Inclusive inputs are decomposed: fresh = raw_input - cache_read - cache_write.
+4. Fresh input means the logical request input size. Do not subtract cache buckets.
 5. Metadata records precision, source_kind, total_semantics, and notes.
 """
 
@@ -169,11 +169,11 @@ def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
 
 
 def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
-    """Codex: input_tokens is inclusive total; cached_input_tokens is a subset.
+    """Codex: input_tokens is the logical request input size.
 
     Supports both flat Codex aliases and OpenAI Responses nested aliases.
-    fresh = raw_input_total - cache_read
-    total = raw_total if > 0 else raw_input_total + output
+    Fresh must remain the request input size; cache read is tracked separately.
+    UI totals are component sums, not provider raw totals.
     Cache Write always 0.
     """
     raw_input_total = _get_int(usage, "input_tokens", "prompt_tokens", "input")
@@ -190,8 +190,8 @@ def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
         or _get_nested_int(usage, "completion_tokens_details", "reasoning_tokens")
     )
 
-    cache_read = min(raw_cache_read, raw_input_total)
-    fresh = max(raw_input_total - cache_read, 0)
+    cache_read = min(raw_cache_read, raw_input_total) if raw_input_total else raw_cache_read
+    fresh = raw_input_total
     cache_write = 0
 
     # If only reasoning tokens and no output tokens, use reasoning as output fallback
@@ -199,22 +199,22 @@ def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
     if raw_output == 0 and raw_reasoning > 0:
         output = raw_reasoning
 
-    if raw_total > 0:
-        total = raw_total
-    else:
-        total = raw_input_total + output
-
-    # Consistency check: if component sum != reported total
     component_sum = fresh + cache_read + cache_write + output
-    semantics = TokenTotalSemantics.REPORTED_CUMULATIVE_DELTA if raw_total == 0 else TokenTotalSemantics.REPORTED_TOTAL
+    total = raw_total if component_sum == 0 and raw_total > 0 else component_sum
+    semantics = (
+        TokenTotalSemantics.REPORTED_TOTAL
+        if component_sum == 0 and raw_total > 0
+        else TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
+    )
     notes: list[str] = []
 
     if raw_total > 0 and component_sum != raw_total:
-        # Use reported total but note the inconsistency
         notes.append(
-            f"Component sum ({component_sum}) differs from reported total ({raw_total}); "
-            f"using reported total."
+            f"Raw reported total ({raw_total}) differs from component sum ({component_sum}); "
+            "using component sum for UI token composition."
         )
+        if component_sum > 0:
+            semantics = TokenTotalSemantics.RECOMPUTED_DUE_TO_INCONSISTENT_RAW_TOTAL
 
     return NormalizedTokenBreakdown(
         fresh_input_tokens=fresh,
@@ -261,10 +261,10 @@ def _normalize_codex_from_delta(
 
 
 def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
-    """Qoder structured logs: input_tokens is often inclusive total.
+    """Qoder structured logs: input_tokens is the logical request input size.
 
-    fresh = raw_input - cache_read - cache_write (if raw_input >= cache_read + cache_write)
-    total = fresh + cache_read + cache_write + output
+    Fresh must remain the request input size. Cache read/write fields are
+    reported separately and are not subtracted from Fresh.
     """
     raw_input = _get_int(usage, "input_tokens", "prompt_tokens")
     raw_cache_read = _get_int(usage, "cache_read_input_tokens", "cache_read_tokens", "cached_tokens")
@@ -276,12 +276,8 @@ def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
     cache_read = raw_cache_read
     cache_write = raw_cache_write
 
-    if raw_input >= raw_cache_read + raw_cache_write:
-        fresh = raw_input - raw_cache_read - raw_cache_write
-        precision = TokenPrecision.PROVIDER_REPORTED_NORMALIZED
-    else:
-        fresh = raw_input
-        precision = TokenPrecision.PROVIDER_REPORTED
+    fresh = raw_input
+    precision = TokenPrecision.PROVIDER_REPORTED
 
     # Output: include thinking tokens unless it would bloat the total
     output = raw_output
@@ -308,20 +304,20 @@ def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
 
 
 def normalize_qoder_sqlite_unified(token_info: dict) -> NormalizedTokenBreakdown:
-    """Qoder SQLite token_info: prompt_tokens includes cached_tokens.
+    """Qoder SQLite token_info: prompt_tokens is the request input size.
 
-    fresh = prompt_tokens - cached_tokens
-    total = prompt_tokens + completion_tokens
+    cached_tokens is tracked separately as cache read. UI total is the component
+    sum so the tokenbar uses the same semantics as JSONL-derived Qoder usage.
     """
     raw_prompt = _get_int(token_info, "prompt_tokens")
     raw_cached = _get_int(token_info, "cached_tokens")
     raw_completion = _get_int(token_info, "completion_tokens")
 
     cache_read = min(raw_cached, raw_prompt)
-    fresh = max(raw_prompt - cache_read, 0)
+    fresh = raw_prompt
     cache_write = 0
     output = raw_completion
-    total = raw_prompt + raw_completion
+    total = fresh + cache_read + cache_write + output
 
     return NormalizedTokenBreakdown(
         fresh_input_tokens=fresh,
@@ -334,7 +330,7 @@ def normalize_qoder_sqlite_unified(token_info: dict) -> NormalizedTokenBreakdown
         source_kind=TokenSourceKind.QODER_SQLITE_TOKEN_INFO,
         raw_fields={k: v for k, v in token_info.items() if isinstance(v, (int, float))},
         notes=[
-            "Qoder SQLite prompt_tokens includes cached_tokens; Fresh Input is prompt_tokens - cached_tokens.",
+            "Qoder SQLite prompt_tokens is used as Fresh request input size.",
             "Cache Write unavailable in Qoder SQLite; zero-filled.",
         ],
     )
@@ -371,7 +367,7 @@ def _normalize_qoder_with_text(
 
 
 def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
-    """OpenAI: prompt_tokens is inclusive; cached_tokens is a subset."""
+    """OpenAI: prompt_tokens/input_tokens is the logical request input size."""
     input_tokens = _get_int(usage, "input_tokens") or _get_int(usage, "prompt_tokens")
     output_tokens = _get_int(usage, "output_tokens") or _get_int(usage, "completion_tokens")
 
@@ -380,12 +376,10 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
     reasoning = (_get_nested_int(usage, "output_tokens_details", "reasoning_tokens")
                  or _get_nested_int(usage, "completion_tokens_details", "reasoning_tokens"))
 
-    fresh = input_tokens - cached if cached > 0 else input_tokens
-    if fresh < 0:
-        fresh = 0
+    fresh = input_tokens
 
     cache_write = 0
-    total = input_tokens + output_tokens
+    total = fresh + cached + cache_write + output_tokens
 
     return NormalizedTokenBreakdown(
         fresh_input_tokens=fresh,
@@ -415,8 +409,14 @@ def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
 
     if raw_input or raw_cache_read or raw_cache_write or raw_output:
         # Has some breakdown — compute from components
-        fresh = max(raw_input - raw_cache_read - raw_cache_write, 0)
-        total = total_only if total_only > 0 else (fresh + raw_cache_read + raw_cache_write + raw_output)
+        fresh = raw_input
+        total = fresh + raw_cache_read + raw_cache_write + raw_output
+        notes = []
+        if total_only > 0 and total_only != total:
+            notes.append(
+                f"Raw reported total ({total_only}) differs from component sum ({total}); "
+                "using component sum for UI token composition."
+            )
         return NormalizedTokenBreakdown(
             fresh_input_tokens=fresh,
             cache_read_tokens=raw_cache_read,
@@ -427,6 +427,7 @@ def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
             total_semantics=TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM,
             source_kind=TokenSourceKind.UNKNOWN,
             raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
+            notes=notes,
         )
 
     if total_only > 0:

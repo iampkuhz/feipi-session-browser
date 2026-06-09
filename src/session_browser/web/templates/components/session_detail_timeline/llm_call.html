@@ -14,7 +14,7 @@
       </div>
       <div class="sd-llm-body">
         <div class="sd-metrics">
-          {{ sdp.metric_cell('Fresh', call.usage.input|default('—'), hint='Provider-reported uncached input_tokens. This can be much smaller than the reconstructed Request text when prompt cache is active.') }}
+          {{ sdp.metric_cell('Fresh', call.usage.input|default('—'), hint='Provider-reported request input size for this call; cache read/write are displayed separately.') }}
           {{ sdp.metric_cell('Cache Read', call.usage.cache_read|default('—'), hint='Provider-reported cache_read_input_tokens reused from prompt cache.') }}
           {{ sdp.metric_cell('Cache Write', call.usage.cache_write|default('—'), hint='Provider-reported cache_creation_input_tokens written to prompt cache.') }}
           {{ sdp.metric_cell('Output', call.usage.output|default('—'), hint='Provider-reported visible output_tokens for this LLM call.') }}

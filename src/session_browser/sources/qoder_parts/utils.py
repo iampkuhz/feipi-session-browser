@@ -111,39 +111,58 @@ def _assistant_message_key(ev: dict) -> str:
 
 
 def _merge_usage_dicts(usages: list[dict]) -> dict:
-    """Merge duplicated usage snapshots for one logical response."""
+    """Normalize duplicated usage snapshots for one logical response.
+
+    Qoder can emit multiple assistant fragments for one ``message.id``. Fresh
+    input uses the largest request input snapshot, while cache/output fields
+    come from one accounting snapshot so cache fields are not field-wise mixed
+    across unrelated fragments.
+    """
     if not usages:
         return {}
 
-    merged: dict = {}
     numeric_keys = {
         "input_tokens",
         "output_tokens",
         "cache_read_input_tokens",
         "cache_creation_input_tokens",
     }
-    for usage in usages:
-        for key, value in usage.items():
-            if key in numeric_keys and isinstance(value, (int, float)):
-                merged[key] = max(int(value), int(merged.get(key, 0)))
-            elif key not in merged:
-                merged[key] = value
+    cache_keys = ("cache_read_input_tokens", "cache_creation_input_tokens")
+
+    def usage_int(usage: dict, key: str) -> int:
+        value = usage.get(key, 0)
+        if isinstance(value, (int, float)):
+            return int(value)
+        return 0
+
+    def score(index_and_usage: tuple[int, dict]) -> tuple[int, int, int, int]:
+        index, usage = index_and_usage
+        output_present = 1 if usage_int(usage, "output_tokens") > 0 else 0
+        cache_field_count = sum(1 for key in cache_keys if key in usage)
+        token_total = sum(usage_int(usage, key) for key in numeric_keys)
+        return (output_present, cache_field_count, token_total, index)
+
+    _, best_usage = max(enumerate(usages), key=score)
+    merged = dict(best_usage)
+    max_input = max((usage_int(u, "input_tokens") for u in usages), default=0)
+    if max_input > 0:
+        merged["input_tokens"] = max_input
     return merged
 
 
 def _normalize_qoder_provider_usage(records: list[dict]) -> None:
     """Normalize Qoder provider usage into canonical token buckets.
 
-    Qoder logs observed from GUI sessions report ``input_tokens`` as an
-    inclusive request input total. The rest of the app expects ``input_tokens``
-    to mean fresh input only, with cache read/write stored separately.
+    Qoder provider ``input_tokens`` is the logical request input size. It must
+    remain Fresh for UI analysis. Cache read/write are tracked as separate
+    accounting fields and are not subtracted from ``input_tokens``.
 
     关键语义：
-    - 保留原始 ``input_tokens`` total 到 ``qoder_input_tokens_total``。
+    - 保留原始 ``input_tokens`` 到 ``qoder_input_tokens_total`` 便于追溯。
     - **不**把 "下一条 cache_read - 当前 cache_read" 写回
       ``cache_creation_input_tokens``。provider-reported 值必须保留。
     - 如需保留跨 call 推断，写入单独的 inferred 字段，不污染原始 provider usage。
-    - ``input_tokens`` 改写为 fresh，以符合当前 domain model。
+    - ``input_tokens`` 保持为 Fresh request input size。
     """
     usages: list[dict] = []
     for rec in records:
@@ -170,12 +189,9 @@ def _normalize_qoder_provider_usage(records: list[dict]) -> None:
                 inferred_cache_write = next_cache_read - cache_read
                 inferred = True
 
-        fresh = max(raw_input_total - cache_read - cache_write, 0)
-
-        # 保存原始 total marker
+        # 保存原始 input marker
         usage["qoder_input_tokens_total"] = raw_input_total
-        # 改写 input_tokens 为 fresh
-        usage["input_tokens"] = fresh
+        usage["input_tokens"] = raw_input_total
         usage["cache_read_input_tokens"] = cache_read
         # 保留 provider-reported cache_write，不覆盖
         usage["cache_creation_input_tokens"] = cache_write

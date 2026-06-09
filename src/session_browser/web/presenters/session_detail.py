@@ -179,8 +179,9 @@ def _normalize_codex_usage(
     delta_output = max(output - prev_output, 0)
     delta_cache_write = max(cache_write - prev_cache_write, 0)
 
-    # Fresh input = delta_input - delta_cached (cached is part of input)
-    delta_fresh = max(delta_input - delta_cached, 0)
+    # Fresh input is the logical request input size for this call. Cache read
+    # is tracked separately and must not be subtracted from Fresh.
+    delta_fresh = delta_input
 
     # Update cumulative state for next call
     cumulative_state["input_tokens"] = raw_input

@@ -49,21 +49,21 @@ API_FAMILY_CAPABILITIES: dict[str, dict] = {
         "cache_read_field": "input_tokens_details.cached_tokens",
         "cache_write_field": None,
         "fresh_field": "input_tokens",
-        "total_input_formula": "input_tokens (inclusive total)",
+        "total_input_formula": "input_tokens + input_tokens_details.cached_tokens",
     },
     "openai_chat": {
         "cache_write_available": False,
         "cache_read_field": "prompt_tokens_details.cached_tokens",
         "cache_write_field": None,
         "fresh_field": "prompt_tokens",
-        "total_input_formula": "prompt_tokens (inclusive total)",
+        "total_input_formula": "prompt_tokens + prompt_tokens_details.cached_tokens",
     },
     "openai_like": {
         "cache_write_available": False,
         "cache_read_field": "cached_tokens",
         "cache_write_field": None,
         "fresh_field": "input_tokens",
-        "total_input_formula": "input_tokens (inclusive total)",
+        "total_input_formula": "input_tokens + cached_tokens",
     },
     "qoder_broker": {
         "cache_write_available": True,  # 动态由 underlying family 决定

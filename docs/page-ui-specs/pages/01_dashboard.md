@@ -57,7 +57,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 3. `Total Tokens`
    - 一级值：`Fresh + Cache Read + Cache Write + Output` 的合计。
    - 二级指标固定为 `Fresh`、`Cache Read`、`Cache Write`、`Output`。
-   - `Fresh`：模型输入侧新消耗 token 数，不含 cache read 和 cache write。
+   - `Fresh`：本次请求实际新增/发送的输入规模，cache read 和 cache write 作为独立组件展示，不从 Fresh 扣减。
    - `Cache Read`：从缓存读取并计入输入侧的 token 数。
    - `Cache Write`：写入缓存并计入输入侧的 token 数。
    - `Output`：模型输出 token 数。

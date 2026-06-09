@@ -1,7 +1,7 @@
 """Qoder attribution builder.
 
 Qoder 是 broker/runtime。通过标准化后的 LLMCall 字段获取真实 usage 数据：
-- ``lc.input_tokens`` 经 normalizer 改写后为 fresh input
+- ``lc.input_tokens`` 为本次请求输入规模，作为 Fresh
 - ``lc.cache_read_tokens`` 对应 cache_read_input_tokens
 - ``lc.cache_write_tokens`` 对应 cache_creation_input_tokens（provider-reported）
 - total = fresh + cache_read + cache_write
@@ -72,23 +72,23 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         ro = self.round_obj
 
         # ── Step 1: 从标准化后的 LLMCall 获取真实 usage ─────────────
-        # normalizer 已将 input_tokens 改写为 fresh，保留 cache 字段
+        # input_tokens 表示 Fresh request input size，cache 字段单独展示。
         fresh_input = lc.input_tokens or 0
         cache_read = lc.cache_read_tokens or 0
         cache_write = lc.cache_write_tokens or 0
-        total_input = fresh_input + cache_read + cache_write
 
-        # 也尝试从 session_context 或 round usage 获取 total marker
+        # marker 只用于兼容旧记录中缺失 lc.input_tokens 的情况，不覆盖组件合计。
         ctx = self.session_context or {}
         qoder_total = ctx.get("qoder_input_tokens_total")
-        if qoder_total is not None:
-            total_input = int(qoder_total)
-        # 也检查 assistant_msg.usage 中是否有 total marker
-        elif ro and getattr(ro, "assistant_msg", None) and ro.assistant_msg.usage:
+        if fresh_input <= 0 and qoder_total is not None:
+            fresh_input = int(qoder_total)
+        elif fresh_input <= 0 and ro and getattr(ro, "assistant_msg", None) and ro.assistant_msg.usage:
             raw_usage = ro.assistant_msg.usage
             marker = raw_usage.get("qoder_input_tokens_total")
             if marker is not None:
-                total_input = int(marker)
+                fresh_input = int(marker)
+
+        total_input = fresh_input + cache_read + cache_write
 
         precision_total = (ValuePrecision.PROVIDER_REPORTED if total_input > 0
                            else ValuePrecision.UNAVAILABLE)
@@ -108,7 +108,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             value=fresh_input, unit="tokens",
             precision=ValuePrecision.PROVIDER_REPORTED if total_input > 0 else ValuePrecision.UNAVAILABLE,
             source=ValueSource.PROVIDER_USAGE if total_input > 0 else ValueSource.HEURISTIC,
-            fill_strategy="from normalized usage (input_tokens after normalization)",
+            fill_strategy="from normalized usage (input_tokens request input size)",
         )
         cache_read_val = AttributedValue(
             value=cache_read, unit="tokens",
@@ -311,7 +311,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             self._avail("fresh_input", "Fresh input tokens", has_usage,
                         precision=ValuePrecision.PROVIDER_REPORTED if has_usage else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.PROVIDER_USAGE if has_usage else ValueSource.HEURISTIC,
-                        fill_strategy="from normalized usage (input_tokens after normalization)"),
+                        fill_strategy="from normalized usage (input_tokens request input size)"),
             self._avail("cache_read", "Cache read tokens", has_usage,
                         precision=ValuePrecision.PROVIDER_REPORTED if has_usage else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.PROVIDER_USAGE if has_usage else ValueSource.HEURISTIC,
