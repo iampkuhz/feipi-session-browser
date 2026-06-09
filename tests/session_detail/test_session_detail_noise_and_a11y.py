@@ -173,7 +173,15 @@ def test_filter_buttons_exist():
         r'<button[^>]*data-action="status-failed"[^>]*>',
         timeline
     )
-    assert len(chips_all) > 0 and len(chips_failed) > 0, "Filter status chips must exist"
+    chips_low_cache = re.findall(
+        r'<button[^>]*data-action="status-low-cache"[^>]*>',
+        timeline
+    )
+    assert (
+        len(chips_all) > 0
+        and len(chips_failed) > 0
+        and len(chips_low_cache) > 0
+    ), "Filter status chips must exist"
 
 
 # ── Payload tabs accessibility ──────────────────────────────────────

@@ -153,14 +153,10 @@
         var tabName = actionEl.getAttribute('data-tab');
         if (tabName) switchTab(document, tabName);
         return;
-      } else if (action === 'status-all') {
+      } else if (action.indexOf('status-') === 0) {
         event.preventDefault();
         event.stopPropagation();
-        setFilter(page, 'all');
-      } else if (action === 'status-failed') {
-        event.preventDefault();
-        event.stopPropagation();
-        setFilter(page, 'failed');
+        setFilter(page, action.replace('status-', '').toLowerCase());
       } else if (action === 'toggle-all') {
         event.preventDefault();
         event.stopPropagation();

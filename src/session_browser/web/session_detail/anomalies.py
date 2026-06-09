@@ -150,9 +150,11 @@ def _merge_raw_into_db_summary(
 ) -> "SessionSummary":
     """Merge raw parse summary into DB canonical summary.
 
-    DB summary is authoritative. Raw values are only used when the DB field
-    is empty/null/zero, so that list-page and detail-page counts stay
-    consistent (SD-14 fix).
+    DB structural counts remain authoritative. Raw values are only used when
+    the DB field is empty/null/zero, so list-page and detail-page round counts
+    stay consistent (SD-14 fix). Claude Code detail token components are the
+    exception: raw parsing includes subagent sidechain totals and can be more
+    complete than older indexed summary rows.
 
     Returns the (possibly mutated) db_summary object.
     """
@@ -167,14 +169,38 @@ def _merge_raw_into_db_summary(
         db_summary.tool_call_count = raw_summary.tool_call_count
     if not db_summary.failed_tool_count:
         db_summary.failed_tool_count = raw_summary.failed_tool_count
-    if not db_summary.input_tokens:
+    raw_token_total = (
+        (raw_summary.fresh_input_tokens or raw_summary.input_tokens or 0)
+        + (raw_summary.cache_read_tokens or raw_summary.cached_input_tokens or 0)
+        + (raw_summary.cache_write_tokens or raw_summary.cached_output_tokens or 0)
+        + (raw_summary.output_tokens or 0)
+    )
+    if db_summary.agent == "claude_code" and raw_token_total:
         db_summary.input_tokens = raw_summary.input_tokens
-    if not db_summary.output_tokens:
         db_summary.output_tokens = raw_summary.output_tokens
-    if not db_summary.cached_input_tokens:
         db_summary.cached_input_tokens = raw_summary.cached_input_tokens
-    if not db_summary.cached_output_tokens:
         db_summary.cached_output_tokens = raw_summary.cached_output_tokens
+        db_summary.fresh_input_tokens = raw_summary.fresh_input_tokens or raw_summary.input_tokens
+        db_summary.cache_read_tokens = raw_summary.cache_read_tokens or raw_summary.cached_input_tokens
+        db_summary.cache_write_tokens = raw_summary.cache_write_tokens or raw_summary.cached_output_tokens
+        db_summary.total_tokens = raw_summary.total_tokens or raw_token_total
+    else:
+        if not db_summary.input_tokens:
+            db_summary.input_tokens = raw_summary.input_tokens
+        if not db_summary.output_tokens:
+            db_summary.output_tokens = raw_summary.output_tokens
+        if not db_summary.cached_input_tokens:
+            db_summary.cached_input_tokens = raw_summary.cached_input_tokens
+        if not db_summary.cached_output_tokens:
+            db_summary.cached_output_tokens = raw_summary.cached_output_tokens
+        if not db_summary.fresh_input_tokens:
+            db_summary.fresh_input_tokens = raw_summary.fresh_input_tokens
+        if not db_summary.cache_read_tokens:
+            db_summary.cache_read_tokens = raw_summary.cache_read_tokens
+        if not db_summary.cache_write_tokens:
+            db_summary.cache_write_tokens = raw_summary.cache_write_tokens
+        if not db_summary.total_tokens:
+            db_summary.total_tokens = raw_summary.total_tokens
     db_summary.duration_seconds = raw_summary.duration_seconds or db_summary.duration_seconds
 
     return db_summary

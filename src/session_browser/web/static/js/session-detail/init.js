@@ -23,6 +23,50 @@
     });
   }
 
+  function positionTokenRoundTooltip(round) {
+    var tooltip = qs(round, '.sd-token-round-tooltip');
+    var chart = round.closest('.sd-token-round-chart');
+    if (!tooltip || !chart) return;
+
+    tooltip.style.setProperty('--token-round-tooltip-y', '0px');
+    window.requestAnimationFrame(function () {
+      var tooltipRect = tooltip.getBoundingClientRect();
+      var chartRect = chart.getBoundingClientRect();
+      var minTop = chartRect.top + 8;
+      var maxBottom = chartRect.bottom - 8;
+      var maxTop = maxBottom - tooltipRect.height;
+      var targetTop = Math.min(tooltipRect.top, maxTop);
+      targetTop = Math.max(targetTop, minTop);
+      tooltip.style.setProperty(
+        '--token-round-tooltip-y',
+        Math.round(targetTop - tooltipRect.top) + 'px'
+      );
+    });
+  }
+
+  function resetTokenRoundTooltip(round) {
+    var tooltip = qs(round, '.sd-token-round-tooltip');
+    if (!tooltip) return;
+    tooltip.style.removeProperty('--token-round-tooltip-y');
+  }
+
+  function setupTokenRoundTooltips() {
+    qsa(document, '.sd-token-round').forEach(function (round) {
+      round.addEventListener('mouseenter', function () {
+        positionTokenRoundTooltip(round);
+      });
+      round.addEventListener('focusin', function () {
+        positionTokenRoundTooltip(round);
+      });
+      round.addEventListener('mouseleave', function () {
+        resetTokenRoundTooltip(round);
+      });
+      round.addEventListener('focusout', function () {
+        resetTokenRoundTooltip(round);
+      });
+    });
+  }
+
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closePayload();
   });
@@ -40,11 +84,14 @@
       setRoundOpen(round, open);
     });
     var initialTraceStatus = params.get("trace_status") || "all";
-    if (initialTraceStatus === "failed") setFilter(page, "failed");
+    if (initialTraceStatus === "failed" || initialTraceStatus === "low-cache") {
+      setFilter(page, initialTraceStatus);
+    }
     var initialRound = params.get("round") || "";
     if (initialRound) jumpRound(page, initialRound);
     // Sync toggle-all button text on load
     syncToggleAllButton(document);
     // Setup dynamic token tooltip positioning
     setupTokenTooltips();
+    setupTokenRoundTooltips();
   });

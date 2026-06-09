@@ -353,6 +353,12 @@ class TestFilterButtons:
             "Missing status-failed button"
 
     @pytest.mark.contract_case("UI-SD-001")
+    def test_status_low_cache_button(self, timeline):
+        """Must have status-low-cache button."""
+        assert 'data-action="status-low-cache"' in timeline, \
+            "Missing status-low-cache button"
+
+    @pytest.mark.contract_case("UI-SD-001")
     def test_collapse_all_button(self, timeline):
         """Must NOT have separate collapse-all button; toggle-all is the single control."""
         assert 'data-action="collapse-all"' not in timeline, \

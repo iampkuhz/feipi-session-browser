@@ -22,9 +22,9 @@
   >{{ label }}</button>
 {%- endmacro %}
 
-{% macro metric_cell(label, value, tone='default') -%}
-  <div class="sd-mcell sd-mcell--{{ tone }}">
-    <span>{{ label }}</span>
+{% macro metric_cell(label, value, tone='default', hint='') -%}
+  <div class="sd-mcell sd-mcell--{{ tone }}" {% if hint %}title="{{ hint }}" aria-label="{{ label }}: {{ hint }}"{% endif %}>
+    <span {% if hint %}title="{{ hint }}"{% endif %}>{{ label }}</span>
     <b>{{ value }}</b>
   </div>
 {%- endmacro %}

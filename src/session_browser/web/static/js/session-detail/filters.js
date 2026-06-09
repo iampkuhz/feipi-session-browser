@@ -6,12 +6,21 @@
     qsa(page, '[data-action="status-failed"]').forEach(function (b) {
       b.classList.toggle('is-active', status === 'failed');
     });
+    qsa(page, '[data-action="status-low-cache"]').forEach(function (b) {
+      b.classList.toggle('is-active', status === 'low-cache');
+    });
 
     // Toggle round-row visibility
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
       var rowStatus = (round.getAttribute('data-status') || '').toLowerCase();
       var hasIssues = round.getAttribute('data-has-issues') === 'true';
-      var shouldShow = status === 'all' || rowStatus === status || (status === 'failed' && hasIssues);
+      var isLowCache = round.getAttribute('data-is-low-cache') === 'true';
+      var shouldShow = (
+        status === 'all'
+        || rowStatus === status
+        || (status === 'failed' && hasIssues)
+        || (status === 'low-cache' && isLowCache)
+      );
       round.classList.toggle('is-filtered-out', !shouldShow);
     });
     if (window.history && window.URLSearchParams) {

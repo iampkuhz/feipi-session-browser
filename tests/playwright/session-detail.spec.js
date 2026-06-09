@@ -145,6 +145,7 @@ test.describe('会话详情 — Phase 1', () => {
       'sort',
       'status-all',
       'status-failed',
+      'status-low-cache',
       'tab-trace',
       'tab-payload',
       'toggle-all',
@@ -458,6 +459,86 @@ test.describe('会话详情 — Phase 1', () => {
     // 关闭弹窗（event-driven）
     await page.locator('[data-action="close-modal"], [data-action="close-payload"]').first().click();
     await expect(modal).toBeHidden({ timeout: 5000 });
+  });
+
+  test('[UI-SD-011] token timeline tooltip 不被图表裁剪', async ({ page }) => {
+    if (!sessionUrl) {
+      console.log('无测试会话 URL；跳过 token timeline tooltip 测试。');
+      test.skip();
+    }
+
+    await page.setViewportSize({ width: 2048, height: 768 });
+    await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.sd-token-round-chart')).toBeVisible({ timeout: 10000 });
+
+    const rounds = page.locator('.sd-token-round');
+    const roundCount = await rounds.count();
+    if (roundCount === 0) {
+      console.log('无 token round；跳过 token timeline tooltip 测试。');
+      return;
+    }
+
+    const targetIndex = Math.min(8, roundCount - 1);
+    const targetRound = rounds.nth(targetIndex);
+    await targetRound.hover();
+    await expect(targetRound.locator('.sd-token-round-tooltip')).toBeVisible({ timeout: 3000 });
+
+    const geometry = await targetRound.evaluate((round) => {
+      const tooltip = round.querySelector('.sd-token-round-tooltip');
+      const chart = round.closest('.sd-token-round-chart');
+      const card = round.closest('.sd-diagnostic-card');
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const chartRect = chart.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const markerRect = (selector) => {
+        const marker = tooltip.querySelector(selector);
+        const rect = marker.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      };
+      return {
+        tooltipBottom: tooltipRect.bottom,
+        tooltipTop: tooltipRect.top,
+        chartBottom: chartRect.bottom,
+        chartTop: chartRect.top,
+        cardBottom: cardRect.bottom,
+        markers: {
+          fresh: markerRect('.sd-tooltip-mark--fresh'),
+          read: markerRect('.sd-tooltip-mark--read'),
+          write: markerRect('.sd-tooltip-mark--write'),
+          out: markerRect('.sd-tooltip-mark--out'),
+          line: markerRect('.sd-tooltip-mark--line'),
+        },
+      };
+    });
+
+    expect(
+      geometry.tooltipTop,
+      `tooltip 顶部 ${geometry.tooltipTop}px 不应越过 chart 顶部 ${geometry.chartTop}px`,
+    ).toBeGreaterThanOrEqual(geometry.chartTop - 1);
+    expect(
+      geometry.tooltipBottom,
+      `tooltip 底部 ${geometry.tooltipBottom}px 不应被 chart 底部 ${geometry.chartBottom}px 裁剪`,
+    ).toBeLessThanOrEqual(geometry.chartBottom + 1);
+    expect(
+      geometry.tooltipBottom,
+      `tooltip 底部 ${geometry.tooltipBottom}px 不应越过 card 底部 ${geometry.cardBottom}px`,
+    ).toBeLessThanOrEqual(geometry.cardBottom + 1);
+
+    for (const [name, rect] of Object.entries({
+      fresh: geometry.markers.fresh,
+      read: geometry.markers.read,
+      write: geometry.markers.write,
+      out: geometry.markers.out,
+    })) {
+      expect(rect.width, `${name} marker 应为方块色块`).toBeGreaterThanOrEqual(7);
+      expect(rect.height, `${name} marker 应为方块色块`).toBeGreaterThanOrEqual(7);
+      expect(Math.abs(rect.width - rect.height), `${name} marker 宽高应接近`).toBeLessThanOrEqual(1);
+    }
+    expect(
+      geometry.markers.line.width,
+      'Cache Read Ratio marker 应为横线',
+    ).toBeGreaterThan(geometry.markers.line.height * 2);
+    expect(geometry.markers.line.height, 'Cache Read Ratio marker 应保持细横线').toBeLessThanOrEqual(3);
   });
 
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────

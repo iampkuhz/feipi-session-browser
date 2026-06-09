@@ -140,12 +140,15 @@ class TestDashboardMetrics:
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_has_info_buttons(self, dashboard_html):
-        """每个指标卡片必须有一个信息按钮。"""
+        """每个指标卡片必须有 row tooltip，不保留 KPI info button。"""
         if "暂无已索引 session" in dashboard_html:
             pytest.skip("Fixture 未产生数据，页面渲染空态")
-        # Template uses dynamic data-kpi attribute
-        assert 'data-action="kpi-info"' in dashboard_html, \
-            "Dashboard 必须有 KPI info buttons"
+        assert 'data-action="kpi-info"' not in dashboard_html, \
+            "Dashboard KPI 不得保留已废弃的 KPI info button"
+        assert 'data-kpi-tooltip=' in dashboard_html, \
+            "Dashboard KPI 主指标必须有 tooltip target"
+        assert 'data-secondary-tooltip=' in dashboard_html, \
+            "Dashboard KPI 二级指标必须有 tooltip target"
 
 
 # ── TestDashboardCharts ──────────────────────────────────────────────

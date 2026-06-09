@@ -434,6 +434,82 @@ class TestDbCanonicalMergeStrategy:
         assert result.output_tokens == 60, "DB output_tokens must be preserved"
 
     @pytest.mark.contract_case("DATA-PRESENTER-011")
+    def test_claude_raw_token_components_refresh_stale_db_fields(self):
+        """Claude detail page token components should come from raw sidechain parsing."""
+        from session_browser.domain.models import SessionSummary
+        from session_browser.web.routes import _merge_raw_into_db_summary
+
+        db_summary = SessionSummary(
+            agent="claude_code",
+            session_id="claude-session-002",
+            title="Claude Session",
+            project_key="claude-project",
+            project_name="Claude Project",
+            cwd="/tmp/claude",
+            started_at="2026-05-02T14:00:00Z",
+            ended_at="2026-05-02T14:05:00Z",
+            duration_seconds=300.0,
+            model_execution_seconds=250.0,
+            tool_execution_seconds=50.0,
+            model="qwen3.6-plus",
+            git_branch="main",
+            source="",
+            user_message_count=5,
+            assistant_message_count=8,
+            tool_call_count=10,
+            input_tokens=168,
+            output_tokens=11_659,
+            cached_input_tokens=1_149_424,
+            cached_output_tokens=66_746,
+            fresh_input_tokens=168,
+            cache_read_tokens=1_149_424,
+            cache_write_tokens=66_746,
+            total_tokens=1_224_289,
+            failed_tool_count=1,
+            file_path="/tmp/claude.jsonl",
+        )
+
+        raw_summary = SessionSummary(
+            agent="claude_code",
+            session_id="claude-session-002",
+            title="",
+            project_key="",
+            project_name="",
+            cwd="",
+            started_at="",
+            ended_at="",
+            duration_seconds=0,
+            model_execution_seconds=0,
+            tool_execution_seconds=0,
+            model="",
+            git_branch="",
+            source="",
+            user_message_count=0,
+            assistant_message_count=0,
+            tool_call_count=0,
+            input_tokens=10_412,
+            output_tokens=11_659,
+            cached_input_tokens=1_315_472,
+            cached_output_tokens=140_698,
+            fresh_input_tokens=10_412,
+            cache_read_tokens=1_315_472,
+            cache_write_tokens=140_698,
+            total_tokens=1_478_241,
+            failed_tool_count=0,
+            file_path="",
+        )
+
+        result = _merge_raw_into_db_summary(db_summary, raw_summary)
+
+        assert result.assistant_message_count == 8, "DB round count must remain canonical"
+        assert result.tool_call_count == 10, "DB tool count must remain canonical"
+        assert result.fresh_input_tokens == 10_412
+        assert result.cache_read_tokens == 1_315_472
+        assert result.cache_write_tokens == 140_698
+        assert result.output_tokens == 11_659
+        assert result.total_tokens == 1_478_241
+
+    @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_supplements_empty_db_fields(self):
         """raw_summary must fill in DB fields that are zero/empty."""
         from session_browser.domain.models import SessionSummary

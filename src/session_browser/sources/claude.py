@@ -980,6 +980,15 @@ def _apply_subagent_totals(
         summary.output_tokens += s.get("output_tokens", 0)
         summary.cached_input_tokens += s.get("cache_read_input_tokens", 0)
         summary.cached_output_tokens += s.get("cache_creation_input_tokens", 0)
+    summary.fresh_input_tokens = summary.input_tokens
+    summary.cache_read_tokens = summary.cached_input_tokens
+    summary.cache_write_tokens = summary.cached_output_tokens
+    summary.total_tokens = (
+        summary.fresh_input_tokens
+        + summary.cache_read_tokens
+        + summary.cache_write_tokens
+        + summary.output_tokens
+    )
 
 
 def _extract_tool_calls(

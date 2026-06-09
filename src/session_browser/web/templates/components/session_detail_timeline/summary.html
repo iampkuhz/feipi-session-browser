@@ -17,9 +17,10 @@
         </div>
         {% endif %}
         <div class="sd-hero__meta">
-          <span class="sd-chip sd-chip--mono">{{ summary.model|default('—') }}</span>
+          <span class="sd-chip sd-chip--mono" title="Model used by the first indexed assistant call">{{ summary.model|default('—') }}</span>
           {% if summary.project_name %}<span class="sd-chip">{{ summary.project_name }}</span>{% endif %}
-          <span class="sd-chip">{{ summary.date|default('—') }}</span>
+          <span class="sd-chip" title="Session created date">{{ summary.date|default('—') }}</span>
+          {% if metrics.updated %}<span class="sd-chip" title="Last indexed event time">Updated {{ metrics.updated }}</span>{% endif %}
         </div>
         {% if issues %}
         <div class="sd-issue-strip" data-issue-strip>
@@ -41,78 +42,68 @@
         {% endif %}
       </div>
       <div class="sd-kpis">
-        <div class="sd-kpi sd-kpi--stack sd-kpi--health" aria-label="Run Health">
-          <div class="sd-kpi__value">{{ metrics.run_health|default('Completed') }}</div>
-          <div class="sd-kpi__label">Run Health</div>
+        <div class="sd-kpi sd-kpi--stack sd-kpi--health" aria-label="Run Health" title="Overall session outcome derived from failed tools, LLM errors, payload gaps and attribution gaps.">
+          <div class="sd-kpi__value" title="Completed with issues when any actionable failure/gap is present.">{{ metrics.run_health|default('Completed') }}</div>
+          <div class="sd-kpi__label" title="Overall session outcome derived from issue signals.">Run Health</div>
           <div class="sd-kpi__subgrid">
-            <span>Issue Rounds <b>{{ metrics.issue_rounds|default('0') }}</b></span>
-            <span>Failed Tools <b>{{ metrics.failed_tools|default('0') }}</b></span>
-            <span>Payload Gaps <b>{{ metrics.payload_gaps|default('0') }}</b></span>
-            <span>Attribution Gaps <b>{{ metrics.attribution_gaps|default('0') }}</b></span>
+            <span title="Rounds containing tool failures, LLM errors, payload gaps, attribution gaps or session anomalies.">Issue Rounds <b>{{ metrics.issue_rounds|default('0') }}</b></span>
+            <span title="Failed tool calls / all tool calls.">Failed Tools <b class="sd-kpi-tone sd-kpi-tone--{{ metrics.failed_tools_tone|default('ok') }}">{{ metrics.failed_tools|default('0') }} · {{ metrics.failed_tools_rate|default('N/A') }}</b></span>
+            <span title="Payload selector or coverage entries marked missing/error.">Payload Gaps <b>{{ metrics.payload_gaps|default('0') }}</b></span>
+            <span title="Request/response attribution payloads that are unavailable or errored.">Attribution Gaps <b>{{ metrics.attribution_gaps|default('0') }}</b></span>
           </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens">
-          <div class="sd-kpi__value" title="{{ metrics.tokens_note|default('') }}">{{ metrics.tokens|default('—') }}</div>
-          <div class="sd-kpi__label">Total Tokens</div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="Fresh + Cache Read + Cache Write + Output. Shares are relative to this total.">
+          <div class="sd-kpi__value" title="{{ metrics.tokens_note or 'Component sum of Fresh, Cache Read, Cache Write and Output' }}">{{ metrics.tokens|default('—') }}</div>
+          <div class="sd-kpi__label" title="Total provider-reported token components across main and subagent LLM calls.">Total Tokens</div>
           <div class="sd-kpi__subgrid">
-            <span>Fresh <b>{{ metrics.fresh|default('—') }}</b></span>
-            <span>Cache Read <b>{{ metrics.cache_read|default('—') }}</b></span>
-            <span>Cache Write <b>{{ metrics.cache_write|default('—') }}</b></span>
-            <span>Output <b>{{ metrics.output|default('—') }}</b></span>
+            <span title="Provider reported uncached/billed input tokens. This is not the full reconstructed request text size.">Fresh <b class="sd-kpi-token-share sd-kpi-token-share--{{ metrics.fresh_share_tone|default('minor') }}">{{ metrics.fresh|default('—') }} · {{ metrics.fresh_share|default('N/A') }}</b></span>
+            <span title="Provider reported cache read input tokens.">Cache Read <b class="sd-kpi-token-share sd-kpi-token-share--{{ metrics.cache_read_share_tone|default('minor') }}">{{ metrics.cache_read|default('—') }} · {{ metrics.cache_read_share|default('N/A') }}</b></span>
+            <span title="Provider reported cache creation/write input tokens.">Cache Write <b class="sd-kpi-token-share sd-kpi-token-share--{{ metrics.cache_write_share_tone|default('minor') }}">{{ metrics.cache_write|default('—') }} · {{ metrics.cache_write_share|default('N/A') }}</b></span>
+            <span title="Model visible output tokens.">Output <b class="sd-kpi-token-share sd-kpi-token-share--{{ metrics.output_share_tone|default('minor') }}">{{ metrics.output|default('—') }} · {{ metrics.output_share|default('N/A') }}</b></span>
           </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health">
-          <div class="sd-kpi__value">{{ metrics.cache_reuse|default('N/A') }}</div>
-          <div class="sd-kpi__label">Cache Health</div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health" title="Cache Read / (Fresh + Cache Read + Cache Write).">
+          <div class="sd-kpi__value" title="Session-level cache read ratio on input-side tokens.">{{ metrics.cache_reuse|default('N/A') }}</div>
+          <div class="sd-kpi__label" title="Input-side cache reuse health.">Cache Health</div>
           <div class="sd-kpi__subgrid">
-            <span>Input-side Tokens <b>{{ metrics.input_side_tokens|default('—') }}</b></span>
-            <span>Low-cache Rounds <b>{{ metrics.low_cache_rounds|default('0') }}</b></span>
-            <span>Fresh Spike Rounds <b>{{ metrics.fresh_spike_rounds|default('0') }}</b></span>
+            <span title="Fresh + Cache Read + Cache Write.">Input-side Tokens <b>{{ metrics.input_side_tokens|default('—') }}</b></span>
+            <span title="Rounds whose cache read ratio is below 20%. Use the Trace Low cache filter to locate them.">Low-cache Rounds <b>{{ metrics.low_cache_rounds|default('0') }}</b></span>
+            <span title="Rounds whose fresh input is more than 2x the session median fresh input.">Fresh Spike Rounds <b>{{ metrics.fresh_spike_rounds|default('0') }}</b></span>
           </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Workload">
-          <div class="sd-kpi__value">{{ metrics.workload|default(metrics.llm_calls|default('—')) }}</div>
-          <div class="sd-kpi__label">Workload</div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Workload" title="Main-agent and subagent LLM call volume.">
+          <div class="sd-kpi__value" title="Main LLM calls + subagent LLM calls.">{{ metrics.workload|default(metrics.llm_calls|default('—')) }}</div>
+          <div class="sd-kpi__label" title="Session LLM call workload.">Workload</div>
           <div class="sd-kpi__subgrid">
-            <span>Main Calls <b>{{ metrics.main_llm_calls|default('0') }}</b></span>
-            <span>Subagent Calls <b>{{ metrics.subagent_llm_calls|default('0') }}</b></span>
-            <span>Tool Calls <b title="Global tool calls; main-only split is shown in Tool Impact">{{ metrics.tool_calls|default(metrics.tools|default('0')) }}</b></span>
-            <span>Subagent Runs <b>{{ metrics.subagent_runs|default('0') }}</b></span>
+            <span title="LLM calls issued by the main session.">Main Calls <b>{{ metrics.main_llm_calls|default('0') }}</b></span>
+            <span title="LLM calls issued inside subagent sidechains.">Subagent Calls <b>{{ metrics.subagent_llm_calls|default('0') }}</b></span>
+            <span title="Global tool calls across main and subagent contexts.">Tool Calls <b>{{ metrics.tool_calls|default(metrics.tools|default('0')) }}</b></span>
+            <span title="Independent subagent contexts started by Agent tool calls.">Subagent Runs <b>{{ metrics.subagent_runs|default('0') }}</b></span>
           </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Active Time">
-          <div class="sd-kpi__value">{{ metrics.active_time|default(metrics.process_time|default('0s')) }}</div>
-          <div class="sd-kpi__label">Active Time</div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Active Time" title="Merged model and tool execution time, excluding idle wait.">
+          <div class="sd-kpi__value" title="Model execution time + tool/subagent execution time.">{{ metrics.active_time|default(metrics.process_time|default('0s')) }}</div>
+          <div class="sd-kpi__label" title="Active processing time.">Active Time</div>
           <div class="sd-kpi__subgrid">
-            <span>Duration <b>{{ metrics.duration|default('0s') }}</b></span>
-            <span>Waiting Time <b>{{ metrics.waiting_time|default('0s') }}</b></span>
-            <span>Model Time <b>{{ metrics.model_time|default('N/A') }}</b></span>
-            <span>Tool Time <b>{{ metrics.tool_time|default('N/A') }}</b></span>
+            <span title="Wall-clock time from first event to last event.">Duration <b>{{ metrics.duration|default('0s') }}</b></span>
+            <span title="Duration minus active processing time.">Waiting Time <b>{{ metrics.waiting_time|default('0s') }}</b></span>
+            <span title="Merged user-to-assistant response intervals.">Model Time <b>{{ metrics.model_time|default('N/A') }}</b></span>
+            <span title="Merged tool_use to tool_result intervals, including subagent sidechains.">Tool Time <b>{{ metrics.tool_time|default('N/A') }}</b></span>
           </div>
         </div>
       </div>
     </div>
     <div class="sd-summary-strip" data-summary-strip>
       <div class="sd-summary-item">
-        <b>session id</b>
-        <span class="sd-summary-mono">{{ summary.session_id|default('—') }}</span>
-      </div>
-      <div class="sd-summary-item">
-        <b>model</b>
-        <span>{{ summary.model|default('—') }}</span>
-      </div>
-      <div class="sd-summary-item">
-        <b>project</b>
-        <span>{{ summary.project_name|default('—') }}</span>
-      </div>
-      <div class="sd-summary-item">
-        <b>created</b>
-        <span>{{ summary.date|default('—') }}</span>
-      </div>
-      <div class="sd-summary-item">
         <b>updated</b>
         <span>{{ metrics.updated|default('—') }}</span>
       </div>
+      {% if summary.branch %}
+      <div class="sd-summary-item">
+        <b>branch</b>
+        <span>{{ summary.branch }}</span>
+      </div>
+      {% endif %}
     </div>
   </section>
 {%- endmacro %}
@@ -126,6 +117,7 @@
       <div class="sd-seg" role="group" aria-label="Trace status filter">
         <button type="button" class="sd-seg-btn is-active" data-action="status-all">All</button>
         <button type="button" class="sd-seg-btn" data-action="status-failed">Failed</button>
+        <button type="button" class="sd-seg-btn" data-action="status-low-cache" title="Show rounds whose cache read ratio is below 20%">Low cache</button>
       </div>
       <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-toggle-all-btn" data-action="toggle-all" data-state="collapse">Expand all</button>
     </div>

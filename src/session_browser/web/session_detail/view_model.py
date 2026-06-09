@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 
 from session_browser.domain.models import (
     ChatMessage,
@@ -100,6 +101,36 @@ def _ratio_value(numerator: float, denominator: float) -> float:
     if not denominator:
         return 0.0
     return max(0.0, min(100.0, numerator / denominator * 100))
+
+
+def _ratio_tone(value: float) -> str:
+    if value >= 10:
+        return "bad"
+    if value > 0:
+        return "warn"
+    return "ok"
+
+
+def _token_share_tone(value: float) -> str:
+    if value >= 50:
+        return "major"
+    if value >= 20:
+        return "mid"
+    return "minor"
+
+
+def _timestamp_sort_key(value: str) -> tuple[int, str]:
+    if not value:
+        return (1, "")
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return (0, parsed.isoformat())
+    except (ValueError, TypeError):
+        return (0, str(value))
+
+
+def _call_time_label(value: str) -> str:
+    return _to_local_time_hms(value or "") or "—"
 
 
 def _token_provider_for_agent(agent: str) -> str | None:
@@ -594,24 +625,33 @@ def _build_session_diagnostics(
     round_fresh_values = [row.get("token_input", 0) for row in trace_rows]
     median_fresh = _median(round_fresh_values)
     for row in trace_rows:
+        fresh_raw = row.get("token_input", 0)
+        cache_read_raw = row.get("token_cache_read", 0)
+        cache_write_raw = row.get("token_cache_write", 0)
+        output_raw = row.get("token_output", 0)
+        total_raw = row.get("token_total_raw", 0)
         round_input_side = (
-            row.get("token_input", 0)
-            + row.get("token_cache_read", 0)
-            + row.get("token_cache_write", 0)
+            fresh_raw
+            + cache_read_raw
+            + cache_write_raw
         )
-        cache_ratio_value = _ratio_value(row.get("token_cache_read", 0), round_input_side)
+        cache_ratio_value = _ratio_value(cache_read_raw, round_input_side)
         low_cache = bool(round_input_side and cache_ratio_value < 20)
-        fresh_spike = bool(median_fresh > 0 and row.get("token_input", 0) > median_fresh * 2)
+        fresh_spike = bool(median_fresh > 0 and fresh_raw > median_fresh * 2)
         token_rounds.append({
             "round_id": row.get("round_id", 0),
             "start_time": row.get("start_time", "—"),
-            "total": row.get("token_total_raw", 0),
+            "total": total_raw,
             "total_label": row.get("token_total", "—"),
-            "fresh": _format_compact_token(row.get("token_input", 0)),
-            "cache_read": _format_compact_token(row.get("token_cache_read", 0)),
-            "cache_write": _format_compact_token(row.get("token_cache_write", 0)),
-            "output": _format_compact_token(row.get("token_output", 0)),
-            "cache_read_ratio": _format_ratio_pct(row.get("token_cache_read", 0), round_input_side),
+            "fresh": _format_compact_token(fresh_raw),
+            "cache_read": _format_compact_token(cache_read_raw),
+            "cache_write": _format_compact_token(cache_write_raw),
+            "output": _format_compact_token(output_raw),
+            "fresh_share": _format_ratio_pct(fresh_raw, total_raw),
+            "cache_read_share": _format_ratio_pct(cache_read_raw, total_raw),
+            "cache_write_share": _format_ratio_pct(cache_write_raw, total_raw),
+            "output_share": _format_ratio_pct(output_raw, total_raw),
+            "cache_read_ratio": _format_ratio_pct(cache_read_raw, round_input_side),
             "cache_read_ratio_value": round(cache_ratio_value, 1),
             "ratio_y": round(100 - cache_ratio_value, 1),
             "mix": row.get("token_mix", {}),
@@ -721,12 +761,14 @@ def _build_session_diagnostics(
         token_row["badges"] = badges
 
     if token_rounds:
+        max_round_tokens = max([row.get("total", 0) for row in token_rounds] or [0])
         step = 32
         width = max(1, len(token_rounds) - 1) * step
         plot_width = (len(token_rounds) * 32) + 12
         for idx, token_row in enumerate(token_rounds):
             token_row["line_x"] = idx * step
             token_row["line_y"] = round(100 - (token_row.get("cache_read_ratio_value", 0) or 0), 1)
+            token_row["bar_height_pct"] = round(_ratio_value(token_row.get("total", 0), max_round_tokens), 1)
         line_points = " ".join(f"{row['line_x']},{row['line_y']}" for row in token_rounds)
     else:
         width = 0
@@ -759,6 +801,7 @@ def _build_session_diagnostics(
 
     tool_summary = []
     for stat in sorted(tool_stats.values(), key=lambda item: (-item["calls"], item["tool"]))[:5]:
+        failure_rate_value = _ratio_value(stat["failed"], stat["calls"])
         tool_summary.append({
             "tool": stat["tool"],
             "calls": str(stat["calls"]),
@@ -767,6 +810,8 @@ def _build_session_diagnostics(
             "tokens": _format_compact_token(stat["token_estimate"]),
             "failure": f"{stat['failed']} · {_format_ratio_pct(stat['failed'], stat['calls'])}",
             "failures": stat["failed"],
+            "failure_rate": _format_ratio_pct(stat["failed"], stat["calls"]),
+            "failure_tone": _ratio_tone(failure_rate_value),
             "note": stat["top_command"],
             "split_note": f"Main {stat['main_calls']} · Subagent {stat['subagent_calls']}",
         })
@@ -783,13 +828,52 @@ def _build_session_diagnostics(
                 "target_tab": "trace",
                 "reason": "Round aggregate",
             })
+    subagent_runs_by_time = sorted(
+        subagent_runs,
+        key=lambda run: _timestamp_sort_key((run.get("summary", {}) or {}).get("started_at", "")),
+    )
+    subagent_color_map = {
+        (run.get("summary", {}) or {}).get("agent_id", ""): idx % 5
+        for idx, run in enumerate(subagent_runs_by_time)
+        if (run.get("summary", {}) or {}).get("agent_id", "")
+    }
+    call_legend = [{
+        "kind": "main",
+        "color": "main",
+        "label": "Main call",
+        "title": "Main session LLM calls",
+    }]
+    for run in subagent_runs_by_time:
+        summary = run.get("summary", {}) or {}
+        sa_id = summary.get("agent_id", "")
+        if not sa_id:
+            continue
+        agent_type = summary.get("agent_type", "") or "subagent"
+        short_id = sa_id[-8:] if sa_id else "unknown"
+        call_legend.append({
+            "kind": "subagent",
+            "color": f"subagent-{subagent_color_map.get(sa_id, 0)}",
+            "label": f"{agent_type} · {sa_id}",
+            "title": f"{agent_type} · {sa_id}",
+            "name": agent_type,
+            "agent_id": sa_id,
+            "short_id": short_id,
+        })
+    call_legend.append({
+        "kind": "top",
+        "color": "top",
+        "label": "Top 3",
+        "title": "Top 3 token-heavy calls",
+    })
     global_call_num = 0
     call_distribution = []
+    call_distribution_order = 0
     for r_idx, r in enumerate(rounds, start=1):
         for ix in r.interactions:
             global_call_num += 1
             if getattr(ix, "scope", "main") == "subagent" and getattr(ix, "subagent_id", ""):
                 continue
+            call_distribution_order += 1
             call_tokens = (
                 (getattr(ix, "input_tokens", 0) or 0)
                 + (getattr(ix, "cache_read_tokens", 0) or 0)
@@ -805,12 +889,18 @@ def _build_session_diagnostics(
                     "target_tab": "trace",
                     "reason": (getattr(ix, "model", "") or "model")[:40],
                 })
+            source_ts = getattr(ix, "timestamp", "") or ""
             call_distribution.append({
                 "index": len(call_distribution) + 1,
                 "label": f"R{r_idx} #{global_call_num}",
+                "time_label": _call_time_label(source_ts),
                 "tokens": call_tokens,
                 "tokens_label": _format_compact_token(call_tokens),
                 "lane": "main",
+                "lane_label": "Main",
+                "subagent_color": "",
+                "sort_key": _timestamp_sort_key(source_ts),
+                "_order": call_distribution_order,
                 "target_round": r_idx,
                 "model": (getattr(ix, "model", "") or "unknown")[:40],
                 "is_top": False,
@@ -837,6 +927,7 @@ def _build_session_diagnostics(
             if isinstance(source, LLMCall):
                 parts = _usage_parts_from_call(source)
                 model = (getattr(source, "model", "") or "unknown")[:40]
+                source_ts = getattr(source, "timestamp", "") or summary.get("started_at", "")
             else:
                 parts = _usage_parts_from_mapping(
                     getattr(source, "usage", {}) or {},
@@ -844,14 +935,21 @@ def _build_session_diagnostics(
                     model=getattr(source, "model", "") or "",
                 )
                 model = (getattr(source, "model", "") or "unknown")[:40]
+                source_ts = getattr(source, "timestamp", "") or summary.get("started_at", "")
             call_tokens = parts["total"]
             token_sum += call_tokens
+            call_distribution_order += 1
             call_distribution.append({
                 "index": len(call_distribution) + 1,
-                "label": f"{agent_type} #{call_count}",
+                "label": f"{agent_type} {sa_id or 'unknown'} #{call_count}",
+                "time_label": _call_time_label(source_ts),
                 "tokens": call_tokens,
                 "tokens_label": _format_compact_token(call_tokens),
                 "lane": "subagent",
+                "lane_label": f"Subagent {agent_type} {sa_id or 'unknown'}",
+                "subagent_color": f"subagent-{subagent_color_map.get(sa_id, 0)}",
+                "sort_key": _timestamp_sort_key(source_ts),
+                "_order": call_distribution_order,
                 "target_round": rid,
                 "model": model,
                 "is_top": False,
@@ -894,13 +992,17 @@ def _build_session_diagnostics(
 
     max_call_tokens = max([item["tokens"] for item in call_distribution] or [0])
     top_call_indexes = {
-        item["index"]
+        id(item)
         for item in sorted(call_distribution, key=lambda value: value["tokens"], reverse=True)[:3]
         if item["tokens"] > 0
     }
-    for item in call_distribution:
+    call_distribution.sort(key=lambda value: (value.get("sort_key", (1, "")), value.get("_order", 0)))
+    for idx, item in enumerate(call_distribution, start=1):
+        item["index"] = idx
         item["height_pct"] = round(_ratio_value(item["tokens"], max_call_tokens), 1) if max_call_tokens else 0
-        item["is_top"] = item["index"] in top_call_indexes
+        item["is_top"] = id(item) in top_call_indexes
+        item.pop("sort_key", None)
+        item.pop("_order", None)
 
     subagent_breakdown = []
     for run in subagent_runs:
@@ -950,16 +1052,19 @@ def _build_session_diagnostics(
             "subagent": agent_type,
             "agent_id": sa_id,
             "short_id": sa_id[-8:] if sa_id else "unknown",
+            "color": f"subagent-{subagent_color_map.get(sa_id, 0)}",
             "llm_calls": calls,
             "tokens": _format_compact_token(footprint_tokens),
             "tokens_raw": footprint_tokens,
             "token_note": (
-                f"LLM {_format_compact_token(llm_tokens)} · "
+                f"Footprint = LLM {_format_compact_token(llm_tokens)} · "
                 f"Parent result {_format_compact_token(parent_result_tokens)} · "
                 f"Tool results {_format_compact_token(internal_tool_result_tokens)}"
             ),
             "tools": len(sa_tools),
             "failures": failures,
+            "failure_rate": _format_ratio_pct(failures, len(sa_tools) + len(parent_agent_tools)),
+            "failure_tone": _ratio_tone(_ratio_value(failures, len(sa_tools) + len(parent_agent_tools))),
             "result": result,
             "round_id": subagent_parent_round.get(sa_id, 0),
         })
@@ -1020,16 +1125,13 @@ def _build_session_diagnostics(
         "cache_line_width": width,
         "cache_line_plot_width": plot_width,
         "cache_line_left": 22,
-        "token_stats": [
-            {"label": "Input-side Tokens", "value": _format_compact_token(input_side_tokens)},
-            {"label": "Cache Read Ratio", "value": _format_ratio_pct(cache_read_tokens, input_side_tokens)},
-            {"label": "Low-cache Rounds", "value": str(sum(1 for row in token_rounds if row.get("is_low_cache")))},
-            {"label": "Fresh Spike Rounds", "value": str(sum(1 for row in token_rounds if row.get("is_fresh_spike")))},
-        ],
+        "token_stats": [],
         "tool_impact": {
             "rows": tool_summary,
             "all_tool_calls": len(tool_calls),
             "failed_tools": len(failed_tools),
+            "failed_tools_rate": _format_ratio_pct(len(failed_tools), len(tool_calls)),
+            "failed_tools_tone": _ratio_tone(_ratio_value(len(failed_tools), len(tool_calls))),
             "distinct_tools": len(tool_stats),
             "main_tools": sum(1 for tc in tool_calls if not getattr(tc, "subagent_id", "")),
             "subagent_tools": sum(1 for tc in tool_calls if getattr(tc, "subagent_id", "")),
@@ -1042,6 +1144,7 @@ def _build_session_diagnostics(
         "round_signals": round_signals,
         "cost_drivers": cost_drivers,
         "call_distribution": call_distribution,
+        "call_legend": call_legend,
         "subagent_breakdown": subagent_breakdown,
         "payload_coverage": coverage,
         "context_segments": segments,
@@ -1254,7 +1357,7 @@ def _build_v11_view_model(
         return {
             "tool_id": tool_id,
             "kind": (getattr(tc, "name", "tool") or "tool")[:4].upper(),
-            "command": str(command)[:100],
+            "command": str(command)[:180],
             "result_summary": result_summary,
             "exit_label": f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
             "status_tone": "fail" if getattr(tc, "is_failed", False) else ("warn" if getattr(tc, "has_nonzero_exit", False) else "ok"),
@@ -2341,13 +2444,20 @@ def _build_v11_view_model(
         payload_sources,
     )
     round_signal_map = diagnostics.get("round_signals", {})
+    token_round_map = {
+        token_row.get("round_id"): token_row
+        for token_row in diagnostics.get("token_rounds", [])
+    }
     for row in trace_rows:
         rid = row.get("round_id", 0)
         signal = round_signal_map.get(rid, {})
+        token_row = token_round_map.get(rid, {})
         issue_count = len(signal.get("issues", []))
         row["has_failed_signal"] = bool(signal.get("failed")) or row.get("status_key") == "failed"
         row["has_payload_gap"] = bool(signal.get("payload_gap"))
         row["has_attribution_gap"] = bool(signal.get("attribution_gap"))
+        row["is_low_cache"] = bool(token_row.get("is_low_cache"))
+        row["is_fresh_spike"] = bool(token_row.get("is_fresh_spike"))
         row["has_issues"] = bool(issue_count or row["has_failed_signal"] or row["has_payload_gap"] or row["has_attribution_gap"])
         row["issue_count"] = issue_count
         row["llm_call_count"] = (
@@ -2357,9 +2467,20 @@ def _build_v11_view_model(
 
     issue_summary = diagnostics.get("issue_summary", {})
     issue_links = []
+    issue_link_counts: dict[tuple[int, str], int] = {}
     for issue in diagnostics.get("issues", []):
         if not issue.get("round_id"):
             continue
+        key = (int(issue["round_id"]), str(issue["label"]))
+        issue_link_counts[key] = issue_link_counts.get(key, 0) + 1
+    seen_issue_links: set[tuple[int, str]] = set()
+    for issue in diagnostics.get("issues", []):
+        if not issue.get("round_id"):
+            continue
+        key = (int(issue["round_id"]), str(issue["label"]))
+        if key in seen_issue_links:
+            continue
+        seen_issue_links.add(key)
         issue_links.append({
             "round_id": issue["round_id"],
             "label": f"{issue['round_label']} · {issue['label']}",
@@ -2367,6 +2488,11 @@ def _build_v11_view_model(
         })
         if len(issue_links) >= 4:
             break
+    for link in issue_links:
+        key = (int(link["round_id"]), link["label"].split(" · ", 1)[-1])
+        count = issue_link_counts.get(key, 1)
+        if count > 1:
+            link["label"] = f"{link['label']} ×{count}"
 
     has_run_issues = bool(
         issue_summary.get("tool_failures")
@@ -2409,15 +2535,25 @@ def _build_v11_view_model(
             "run_health": status_label,
             "issue_rounds": str(diagnostics.get("issue_rounds", 0) or 0),
             "failed_tools": str(issue_summary.get("tool_failures", 0) or 0),
+            "failed_tools_rate": _format_ratio_pct(issue_summary.get("tool_failures", 0) or 0, total_tools),
+            "failed_tools_tone": _ratio_tone(_ratio_value(issue_summary.get("tool_failures", 0) or 0, total_tools)),
             "payload_gaps": str(issue_summary.get("payload_gaps", 0) or 0),
             "attribution_gaps": str(issue_summary.get("attribution_errors", 0) or 0),
-            "tokens": _format_compact_token(computed_total_tokens) if token_total_matches else "N/A",
+            "tokens": _format_compact_token(computed_total_tokens),
             "tokens_note": token_total_note,
             "tokens_component_sum": _format_compact_token(computed_total_tokens),
             "fresh": _format_compact_token(fresh_tokens),
+            "fresh_share": _format_ratio_pct(fresh_tokens, computed_total_tokens),
+            "fresh_share_tone": _token_share_tone(_ratio_value(fresh_tokens, computed_total_tokens)),
             "cache_read": _format_compact_token(cache_read_tokens),
+            "cache_read_share": _format_ratio_pct(cache_read_tokens, computed_total_tokens),
+            "cache_read_share_tone": _token_share_tone(_ratio_value(cache_read_tokens, computed_total_tokens)),
             "cache_write": _format_compact_token(cache_write_tokens),
+            "cache_write_share": _format_ratio_pct(cache_write_tokens, computed_total_tokens),
+            "cache_write_share_tone": _token_share_tone(_ratio_value(cache_write_tokens, computed_total_tokens)),
             "output": _format_compact_token(output_tokens),
+            "output_share": _format_ratio_pct(output_tokens, computed_total_tokens),
+            "output_share_tone": _token_share_tone(_ratio_value(output_tokens, computed_total_tokens)),
             "cache_reuse": _format_ratio_pct(cache_read_tokens, input_side_tokens),
             "input_side_tokens": _format_compact_token(input_side_tokens),
             "fresh_spike_rounds": str(fresh_spike_rounds),

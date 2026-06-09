@@ -544,7 +544,7 @@ class TestDeadButtonGate:
         return BeautifulSoup(html, "html.parser"), html
 
     SUPPORTED_ACTIONS = {
-        "status-all", "status-failed", "toggle-all", "expand-all", "expand-visible", "collapse-all",
+        "status-all", "status-failed", "status-low-cache", "toggle-all", "expand-all", "expand-visible", "collapse-all",
         "open-payload", "payload-mode", "open-payload-tab", "close-modal", "close-payload", "payload-tab",
         "select-payload-call", "open-trace-step", "payload-filter",
         "jump-round", "jump-anomaly", "md-toggle",

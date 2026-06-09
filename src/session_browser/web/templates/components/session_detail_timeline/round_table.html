@@ -4,7 +4,7 @@
 {% import "components/session_detail_timeline/subagent.html" as sub with context %}
 
 {% macro round_row(row) -%}
-<tr class="round-row {% if row.is_open %}is-open{% endif %} {% if row.status_key == 'manual' %}manual{% endif %}" id="round-{{ row.round_id }}" data-trace-round-row data-round="{{ row.round_id }}" data-status="{{ row.status_key }}" data-has-issues="{{ 'true' if row.has_issues else 'false' }}">
+<tr class="round-row {% if row.is_open %}is-open{% endif %} {% if row.status_key == 'manual' %}manual{% endif %}" id="round-{{ row.round_id }}" data-trace-round-row data-round="{{ row.round_id }}" data-status="{{ row.status_key }}" data-has-issues="{{ 'true' if row.has_issues else 'false' }}" data-is-low-cache="{{ 'true' if row.is_low_cache else 'false' }}" data-is-fresh-spike="{{ 'true' if row.is_fresh_spike else 'false' }}">
   <td><span class="round-id {% if row.status_key == 'manual' %}manual{% endif %} {% if 'fail' in row.status_key|default('') %}failed{% endif %}">R{{ row.round_id }}</span></td>
   <td><span class="summary-title">{{ row.preview_title }}</span></td>
   <td>
@@ -23,22 +23,22 @@
           <div class="token-tooltip" aria-hidden="true">
             <div class="token-tooltip__title">Token Breakdown</div>
             <div class="token-tooltip__row">
-              <span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh</span></span>
+              <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--fresh"></span><span class="token-tooltip__type-name">Fresh</span></span>
               <span class="token-tooltip__value">{{ row.token_input|default(0)|format_compact_token }}</span>
               <span class="token-tooltip__pct">{{ row.token_mix.fresh|default(0) }}%</span>
             </div>
             <div class="token-tooltip__row">
-              <span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
+              <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
               <span class="token-tooltip__value">{{ row.token_cache_read|default(0)|format_compact_token }}</span>
               <span class="token-tooltip__pct">{{ row.token_mix.read|default(0) }}%</span>
             </div>
             <div class="token-tooltip__row">
-              <span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
+              <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
               <span class="token-tooltip__value">{{ row.token_cache_write|default(0)|format_compact_token }}</span>
               <span class="token-tooltip__pct">{{ row.token_mix.write|default(0) }}%</span>
             </div>
             <div class="token-tooltip__row">
-              <span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span>
+              <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--out"></span><span class="token-tooltip__type-name">Output</span></span>
               <span class="token-tooltip__value">{{ row.token_output|default(0)|format_compact_token }}</span>
               <span class="token-tooltip__pct">{{ row.token_mix.out|default(0) }}%</span>
             </div>

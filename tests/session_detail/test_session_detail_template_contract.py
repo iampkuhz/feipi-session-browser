@@ -276,6 +276,8 @@ class TestTracePanel:
             "Trace must have status-all action"
         assert 'data-action="status-failed"' in source, \
             "Trace must have status-failed action"
+        assert 'data-action="status-low-cache"' in source, \
+            "Trace must have status-low-cache action"
 
     @pytest.mark.contract_case("UI-SD-016")
     def test_has_collapse_all_button(self):

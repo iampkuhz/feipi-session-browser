@@ -115,8 +115,9 @@ These use .sd- page prefix only, not bare .payload-modal references. */
 .session-detail-page .sd-llm-body {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+  padding: 10px;
 }
 
 /* Attribution modal layout */

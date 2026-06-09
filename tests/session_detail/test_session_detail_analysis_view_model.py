@@ -60,7 +60,7 @@ def _llm(round_index: int, suffix: str, **kwargs) -> LLMCall:
         round_index=round_index,
         parent_id=kwargs.get("parent_id", ""),
         parent_tool_name=kwargs.get("parent_tool_name", ""),
-        timestamp="2026-01-01T00:00:01Z",
+        timestamp=kwargs.get("timestamp", "2026-01-01T00:00:01Z"),
         status="ok",
         input_tokens=kwargs.get("input_tokens", 100),
         cache_read_tokens=kwargs.get("cache_read_tokens", 50),
@@ -123,6 +123,7 @@ def test_analysis_cards_view_model_fields_renderable():
     for key in [
         "cost_drivers",
         "call_distribution",
+        "call_legend",
         "tool_impact",
         "subagent_breakdown",
         "payload_coverage",
@@ -131,6 +132,8 @@ def test_analysis_cards_view_model_fields_renderable():
         assert key in diagnostics
     assert diagnostics["payload_coverage"]["rows"]
     assert len(diagnostics["token_stats"]) <= 4
+    assert diagnostics["call_distribution"][0]["time_label"]
+    assert diagnostics["call_legend"][0]["label"] == "Main call"
     first_payload_item = vm["payload_index"]["groups"][0]["items"][0]
     assert first_payload_item["request_attribution_status"] == "partial"
     assert first_payload_item["response_attribution_status"] == "partial"
@@ -224,6 +227,60 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
     assert "Tool results" in row["token_note"]
 
 
+def test_call_distribution_time_labels_and_per_subagent_legend():
+    main_ix = _llm(0, "main", timestamp="2026-01-01T01:02:03")
+    rounds = [_round(1, main_ix, [])]
+    subagent_runs = []
+    subagent_calls = []
+    for idx in range(6):
+        sa_num = idx + 1
+        sa_id = f"agent_{sa_num:03d}"
+        agent_type = f"agent-{sa_num}"
+        started_at = f"2026-01-01T01:02:{sa_num + 3:02d}"
+        subagent_runs.append({
+            "summary": {
+                "agent_id": sa_id,
+                "agent_type": agent_type,
+                "started_at": started_at,
+            },
+            "messages": [],
+        })
+        subagent_calls.append(_llm(
+            0,
+            f"sub-{sa_num}",
+            scope="subagent",
+            subagent_id=sa_id,
+            timestamp=started_at,
+            input_tokens=100 + idx,
+            cache_read_tokens=20,
+            cache_write_tokens=10,
+            output_tokens=5,
+        ))
+
+    vm = _build_v11_view_model(
+        session=_FakeSession(total_tokens=1200),
+        rounds=rounds,
+        llm_calls=[main_ix, *subagent_calls],
+        tool_calls=[],
+        subagent_runs=subagent_runs,
+        session_anomalies=_FakeAnomalies(),
+        slim=True,
+    )
+
+    distribution = vm["diagnostics"]["call_distribution"]
+    assert distribution[0]["time_label"] == "01:02:03"
+    assert all(row["time_label"] for row in distribution)
+
+    legend = vm["diagnostics"]["call_legend"]
+    subagent_items = [item for item in legend if item["kind"] == "subagent"]
+    assert len(subagent_items) == 6
+    assert subagent_items[0]["label"] == "agent-1 · agent_001"
+    assert subagent_items[0]["agent_id"] == "agent_001"
+    assert subagent_items[5]["label"] == "agent-6 · agent_006"
+    assert subagent_items[5]["agent_id"] == "agent_006"
+    assert subagent_items[0]["color"] == subagent_items[5]["color"]
+
+
 def test_run_analysis_template_sections_exist():
     session_html = (ROOT / "src/session_browser/web/templates/session.html").read_text(encoding="utf-8")
     summary_html = (
@@ -237,7 +294,7 @@ def test_run_analysis_template_sections_exist():
         "Tool Impact",
         "Subagent Breakdown",
         "Issues &amp; Repro Seeds",
-        "Payload Coverage",
+        "Payload Availability",
         "Context Budget",
     ]:
         assert title in session_html

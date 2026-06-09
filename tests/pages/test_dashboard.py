@@ -258,15 +258,18 @@ def _render_scope_switch() -> str:
 # ── TestDashboardInfoButtons ────────────────────────────────────────
 
 class TestDashboardInfoButtons:
-    """验证每个指标和图表上的信息按钮（ℹ️）。"""
+    """验证每个指标的 tooltip 和图表上的信息按钮。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_info_buttons(self):
-        """每个指标卡片必须有一个信息按钮。"""
+        """每个指标卡片必须有 tooltip target，不保留 KPI info button。"""
         content = _read_dashboard()
-        # Template uses dynamic data-kpi="{{ kpi.label | lower | replace(' ', '-') }}"
-        assert 'data-action="kpi-info"' in content, \
-            "Dashboard 必须有 KPI info buttons"
+        assert 'data-action="kpi-info"' not in content, \
+            "Dashboard KPI 不得保留已废弃的 KPI info button"
+        assert 'data-kpi-tooltip="{{ kpi.label }}"' in content, \
+            "Dashboard KPI 主指标必须有 tooltip target"
+        assert 'data-secondary-tooltip="{{ sm.label }}"' in content, \
+            "Dashboard KPI 二级指标必须有 tooltip target"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_info_buttons(self):
