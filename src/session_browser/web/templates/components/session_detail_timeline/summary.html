@@ -48,7 +48,7 @@
           <div class="sd-kpi__subgrid">
             <span title="Rounds containing tool failures, LLM errors, payload gaps, attribution gaps or session anomalies.">Issue Rounds <b>{{ metrics.issue_rounds|default('0') }}</b></span>
             <span title="Failed tool calls / all tool calls.">Failed Tools <b class="sd-kpi-tone sd-kpi-tone--{{ metrics.failed_tools_tone|default('ok') }}">{{ metrics.failed_tools|default('0') }} · {{ metrics.failed_tools_rate|default('N/A') }}</b></span>
-            <span title="Payload selector or coverage entries marked missing/error.">Payload Gaps <b>{{ metrics.payload_gaps|default('0') }}</b></span>
+            <span title="Payload selector items marked missing/error.">Payload Gaps <b>{{ metrics.payload_gaps|default('0') }}</b></span>
             <span title="Request/response attribution payloads that are unavailable or errored.">Attribution Gaps <b>{{ metrics.attribution_gaps|default('0') }}</b></span>
           </div>
         </div>

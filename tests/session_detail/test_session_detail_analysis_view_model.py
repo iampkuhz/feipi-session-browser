@@ -121,16 +121,15 @@ def test_analysis_cards_view_model_fields_renderable():
 
     diagnostics = vm["diagnostics"]
     for key in [
-        "cost_drivers",
         "call_distribution",
         "call_legend",
         "tool_impact",
         "subagent_breakdown",
-        "payload_coverage",
+        "subagent_timelines",
         "context_segments",
     ]:
         assert key in diagnostics
-    assert diagnostics["payload_coverage"]["rows"]
+    assert "payload_coverage" not in diagnostics
     assert len(diagnostics["token_stats"]) <= 4
     assert diagnostics["call_distribution"][0]["time_label"]
     assert diagnostics["call_legend"][0]["label"] == "Main call"
@@ -214,6 +213,9 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
         slim=True,
     )
 
+    token_round = vm["diagnostics"]["token_rounds"][0]
+    assert any("cost driver R1" in badge for badge in token_round["badges"])
+
     assert vm["hero_metrics"]["subagent_llm_calls"] == "1"
     assert vm["hero_metrics"]["workload"] == "2"
     row = vm["diagnostics"]["subagent_breakdown"][0]
@@ -226,6 +228,17 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
     assert "Parent result" in row["token_note"]
     assert "Tool results" in row["token_note"]
     assert row["subagent_id"] == "sa-1"
+    assert row["is_selected"] is True
+    assert row["cost_share"] != "N/A"
+    assert "LLM call" in row["cost_reason"]
+
+    assert "call_summary" not in token_round
+
+    subagent_timeline = vm["diagnostics"]["subagent_timelines"][0]
+    assert subagent_timeline["subagent_id"] == "sa-1"
+    assert subagent_timeline["is_selected"] is True
+    assert subagent_timeline["token_rounds"][0]["round_label"] == "SR2"
+    assert subagent_timeline["token_rounds"][0]["parent_round"] == 1
 
     subagent_call_row = next(
         item for item in vm["diagnostics"]["call_distribution"]
@@ -234,12 +247,6 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
     assert subagent_call_row["target_round"] == 1
     assert subagent_call_row["target_subagent"] == "sa-1"
     assert subagent_call_row["target_subagent_round"] == 2
-
-    subagent_driver = next(
-        item for item in vm["diagnostics"]["cost_drivers"]
-        if item["type"] == "Subagent"
-    )
-    assert subagent_driver["target_subagent"] == "sa-1"
 
     payload_items = [
         item
@@ -312,13 +319,10 @@ def test_run_analysis_template_sections_exist():
     ).read_text(encoding="utf-8")
 
     for title in [
-        "Token Timeline + Cache Health",
-        "Top Cost Drivers",
-        "Call Cost Distribution",
+        "Main Agent Breakdown",
         "Tool Impact",
         "Subagent Breakdown",
         "Issues &amp; Repro Seeds",
-        "Payload Availability",
         "Context Budget",
     ]:
         assert title in session_html
@@ -326,8 +330,30 @@ def test_run_analysis_template_sections_exist():
     for label in ["Run Health", "Total Tokens", "Cache Health", "Workload", "Active Time"]:
         assert label in summary_html
 
-    assert "sd-coverage-matrix" in session_html
+    assert "Payload Availability" not in session_html
+    assert "sd-coverage-matrix" not in session_html
+    assert "Call Cost Distribution" not in session_html
+    assert "Top Cost Drivers" not in session_html
+    assert "sd-driver-table" not in session_html
+    assert "sd-subagent-workbench" in session_html
+    assert 'data-action="select-subagent"' in session_html
+    assert "sd-subagent-timeline" in session_html
+    assert "Call Selector" in session_html
     assert 'data-action="payload-filter"' in session_html
     assert 'data-payload-filter="failed"' in session_html
     assert 'data-request-attribution-status=' in session_html
     assert 'data-response-attribution-status=' in session_html
+
+
+def test_subagent_breakdown_list_is_single_line_and_scroll_limited():
+    css = (
+        ROOT / "src/session_browser/web/static/css/session-detail/08-payload-tab.css"
+    ).read_text(encoding="utf-8")
+
+    assert "--sd-subagent-row-height: 40px" in css
+    assert "max-height: calc((var(--sd-subagent-row-height) * 5) + (6px * 4))" in css
+    assert "overflow-y: auto" in css
+    assert ".sd-subagent-select {\n" in css
+    assert "grid-template-columns:" in css
+    assert ".sd-subagent-select__main {\n  min-width: 0;\n  display: contents;" in css
+    assert ".sd-subagent-select__metrics {\n  display: contents;" in css

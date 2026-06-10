@@ -225,71 +225,6 @@ def _append_payload_item(group: dict, item: dict, defaults: dict) -> None:
         defaults["available"] = item["call_id"]
 
 
-def _coverage_bucket(status: str) -> str:
-    normalized = (status or "").lower()
-    if normalized == "available":
-        return "available"
-    if normalized == "partial":
-        return "partial"
-    if normalized == "error":
-        return "error"
-    return "missing"
-
-
-def _coverage_empty_counts() -> dict:
-    return {"available": 0, "partial": 0, "missing": 0, "error": 0}
-
-
-def _build_payload_coverage(groups: list[dict]) -> dict:
-    rows = {
-        "Request": _coverage_empty_counts(),
-        "Response": _coverage_empty_counts(),
-        "Tool Result": _coverage_empty_counts(),
-        "Request Attribution": _coverage_empty_counts(),
-        "Response Attribution": _coverage_empty_counts(),
-    }
-    problem_call_id = ""
-
-    for group in groups:
-        for item in group.get("items", []):
-            status = _coverage_bucket(item.get("status", "missing"))
-            kind = item.get("kind", "")
-            if kind in ("llm", "subagent"):
-                rows["Request"][_coverage_bucket("available" if item.get("request_payload_id") else status)] += 1
-                rows["Response"][_coverage_bucket("available" if item.get("response_payload_id") else status)] += 1
-                rows["Request Attribution"]["partial"] += 1
-                rows["Response Attribution"]["partial"] += 1
-            if kind == "tool":
-                result_status = "available" if item.get("result_payload_ids") else status
-                rows["Tool Result"][_coverage_bucket(result_status)] += 1
-            if status in ("missing", "error") and not problem_call_id:
-                problem_call_id = item.get("call_id", "")
-
-    matrix = []
-    for row_name, counts in rows.items():
-        total = sum(counts.values())
-        matrix.append({
-            "label": row_name,
-            "available": counts["available"],
-            "partial": counts["partial"],
-            "missing": counts["missing"],
-            "error": counts["error"],
-            "total": total,
-        })
-
-    totals = _coverage_empty_counts()
-    for row in matrix:
-        for key in totals:
-            totals[key] += row[key]
-
-    return {
-        "rows": matrix,
-        "totals": totals,
-        "problem_call_id": problem_call_id,
-        "payload_gaps": totals["missing"] + totals["error"],
-    }
-
-
 def _build_payload_tab_index(
     rounds: list,
     tool_calls: list,
@@ -519,11 +454,9 @@ def _build_payload_tab_index(
             _append_payload_item(group, item, defaults)
 
     groups = [group for group in groups if group["items"]]
-    coverage = _build_payload_coverage(groups)
     return {
         "groups": groups,
         "default_call_id": defaults["failed"] or defaults["problem"] or defaults["llm"] or defaults["available"],
-        "coverage": coverage,
         "payload_count": sum(len(group["items"]) for group in groups),
     }
 
@@ -724,12 +657,12 @@ def _build_session_diagnostics(
             seed=f"{session.session_id} + R{r_idx}",
         )
 
-    coverage = payload_index.get("coverage", {}) or {"rows": [], "totals": {}, "payload_gaps": 0}
-    issue_summary["payload_gaps"] = int(coverage.get("payload_gaps", 0) or 0)
+    payload_gap_count = 0
     for group in payload_index.get("groups", []):
         for item in group.get("items", []):
             if item.get("status") not in ("missing", "error"):
                 continue
+            payload_gap_count += 1
             rid = int(item.get("round_id") or 0)
             add_issue(
                 "payload_gap",
@@ -741,6 +674,7 @@ def _build_session_diagnostics(
                 call_id=item.get("call_id", ""),
                 target_tab="payload",
             )
+    issue_summary["payload_gaps"] = payload_gap_count
 
     for payload in payload_sources or []:
         kind = str(payload.get("kind", ""))
@@ -1026,12 +960,29 @@ def _build_session_diagnostics(
         })
 
     driver_total = max(computed_total_tokens, sum(item["tokens"] for item in drivers))
-    cost_drivers = []
-    for item in sorted(drivers, key=lambda value: (-value["tokens"], value["type"], value["driver"]))[:5]:
+    ranked_drivers = sorted(drivers, key=lambda value: (-value["tokens"], value["type"], value["driver"]))
+    subagent_cost_by_id: dict[str, dict] = {}
+    token_round_map = {
+        token_row.get("round_id"): token_row
+        for token_row in token_rounds
+    }
+    for rank, item in enumerate(ranked_drivers, start=1):
         row = dict(item)
         row["tokens_label"] = _format_compact_token(row["tokens"])
         row["share"] = _format_ratio_pct(row["tokens"], driver_total)
-        cost_drivers.append(row)
+        row["rank"] = rank
+        if row.get("type") == "Subagent":
+            subagent_cost_by_id[str(row.get("target_subagent", ""))] = row
+        elif row.get("type") == "Main LLM Call" and rank <= 5:
+            target_round = row.get("target_round")
+            token_round = token_round_map.get(target_round)
+            if not token_round:
+                continue
+            badge = (
+                f"cost driver {row['driver']} · "
+                f"{row['tokens_label']} · {row['share']} · {row['reason']}"
+            )
+            token_round.setdefault("badges", []).append(badge)
 
     max_call_tokens = max([item["tokens"] for item in call_distribution] or [0])
     top_call_indexes = {
@@ -1047,6 +998,7 @@ def _build_session_diagnostics(
         item.pop("sort_key", None)
         item.pop("_order", None)
 
+    subagent_timeline_map: dict[str, dict] = {}
     subagent_breakdown = []
     for run in subagent_runs:
         summary = run.get("summary", {})
@@ -1091,6 +1043,121 @@ def _build_session_diagnostics(
             result = "partial"
         else:
             result = "unknown"
+
+        timeline_records = []
+        if sub_calls:
+            for idx, call in enumerate(sub_calls, start=1):
+                sub_round_id = (
+                    sub_round_by_call_id.get(getattr(call, "id", ""))
+                    or sub_round_by_agent_sequence.get((sa_id, idx))
+                    or idx
+                )
+                timeline_records.append({
+                    "sub_round_id": sub_round_id,
+                    "start_time": _call_time_label(getattr(call, "timestamp", "") or summary.get("started_at", "")),
+                    "parts": _usage_parts_from_call(call),
+                    "model": (getattr(call, "model", "") or "unknown")[:40],
+                })
+        else:
+            assistant_idx = 0
+            for m_idx, message in enumerate(run.get("messages", []), start=1):
+                if getattr(message, "role", "") != "assistant":
+                    continue
+                assistant_idx += 1
+                timeline_records.append({
+                    "sub_round_id": m_idx,
+                    "start_time": _call_time_label(getattr(message, "timestamp", "") or summary.get("started_at", "")),
+                    "parts": _usage_parts_from_mapping(
+                        getattr(message, "usage", {}) or {},
+                        agent=getattr(session, "agent", "") or "",
+                        model=getattr(message, "model", "") or "",
+                    ),
+                    "model": (getattr(message, "model", "") or "unknown")[:40],
+                })
+
+        timeline_rows = []
+        median_sub_fresh = _median([record["parts"].get("fresh", 0) for record in timeline_records])
+        for record in timeline_records:
+            parts = record["parts"]
+            total_raw = int(parts.get("total", 0) or 0)
+            input_side = int(parts.get("fresh", 0) or 0) + int(parts.get("cache_read", 0) or 0) + int(parts.get("cache_write", 0) or 0)
+            cache_ratio_value = _ratio_value(parts.get("cache_read", 0), input_side)
+            badges = []
+            if input_side and cache_ratio_value < 20:
+                badges.append("low cache")
+            if median_sub_fresh > 0 and (parts.get("fresh", 0) or 0) > median_sub_fresh * 2:
+                badges.append("fresh spike")
+            sub_round_id = record["sub_round_id"]
+            timeline_rows.append({
+                "round_id": sub_round_id,
+                "round_label": f"SR{sub_round_id}",
+                "parent_round": subagent_parent_round.get(sa_id, 0),
+                "subagent_id": sa_id,
+                "subagent_round": sub_round_id,
+                "start_time": record["start_time"],
+                "total": total_raw,
+                "total_label": _format_compact_token(total_raw),
+                "fresh": _format_compact_token(parts.get("fresh", 0)),
+                "cache_read": _format_compact_token(parts.get("cache_read", 0)),
+                "cache_write": _format_compact_token(parts.get("cache_write", 0)),
+                "output": _format_compact_token(parts.get("output", 0)),
+                "fresh_share": _format_ratio_pct(parts.get("fresh", 0), total_raw),
+                "cache_read_share": _format_ratio_pct(parts.get("cache_read", 0), total_raw),
+                "cache_write_share": _format_ratio_pct(parts.get("cache_write", 0), total_raw),
+                "output_share": _format_ratio_pct(parts.get("output", 0), total_raw),
+                "cache_read_ratio": _format_ratio_pct(parts.get("cache_read", 0), input_side),
+                "cache_read_ratio_value": round(cache_ratio_value, 1),
+                "ratio_y": round(100 - cache_ratio_value, 1),
+                "mix": {
+                    "fresh": _ratio_value(parts.get("fresh", 0), total_raw),
+                    "read": _ratio_value(parts.get("cache_read", 0), total_raw),
+                    "write": _ratio_value(parts.get("cache_write", 0), total_raw),
+                    "out": _ratio_value(parts.get("output", 0), total_raw),
+                },
+                "llm_calls": 1,
+                "tool_calls": 0,
+                "model": record["model"],
+                "badges": badges,
+            })
+
+        if timeline_rows:
+            max_sub_tokens = max([row.get("total", 0) for row in timeline_rows] or [0])
+            step = 32
+            sub_width = max(1, len(timeline_rows) - 1) * step
+            sub_plot_width = (len(timeline_rows) * 32) + 12
+            for idx, token_row in enumerate(timeline_rows):
+                token_row["line_x"] = idx * step
+                token_row["line_y"] = round(100 - (token_row.get("cache_read_ratio_value", 0) or 0), 1)
+                token_row["bar_height_pct"] = round(_ratio_value(token_row.get("total", 0), max_sub_tokens), 1)
+            sub_line_points = " ".join(f"{row['line_x']},{row['line_y']}" for row in timeline_rows)
+        else:
+            sub_width = 0
+            sub_plot_width = 0
+            sub_line_points = ""
+
+        subagent_timeline_map[sa_id] = {
+            "subagent": agent_type,
+            "subagent_id": sa_id,
+            "short_id": sa_id[-8:] if sa_id else "unknown",
+            "color": f"subagent-{subagent_color_map.get(sa_id, 0)}",
+            "parent_round": subagent_parent_round.get(sa_id, 0),
+            "token_rounds": timeline_rows,
+            "cache_line_points": sub_line_points,
+            "cache_line_width": sub_width,
+            "cache_line_plot_width": sub_plot_width,
+            "cache_line_left": 22,
+            "summary": (
+                f"{calls} LLM · {_format_compact_token(llm_tokens)} LLM tokens · "
+                f"{len(sa_tools)} tools · {failures} failures"
+            ),
+        }
+        subagent_cost = subagent_cost_by_id.get(sa_id, {})
+        subagent_cost_label = subagent_cost.get("tokens_label") or _format_compact_token(llm_tokens)
+        subagent_cost_share = subagent_cost.get("share") or _format_ratio_pct(llm_tokens, driver_total)
+        subagent_cost_reason = subagent_cost.get("reason") or f"{calls} LLM call{'s' if calls != 1 else ''}"
+        subagent_cost_note = (
+            f"Cost driver = {subagent_cost_label} · {subagent_cost_share} · {subagent_cost_reason}"
+        )
         subagent_breakdown.append({
             "subagent": agent_type,
             "agent_id": sa_id,
@@ -1103,8 +1170,13 @@ def _build_session_diagnostics(
             "token_note": (
                 f"Footprint = LLM {_format_compact_token(llm_tokens)} · "
                 f"Parent result {_format_compact_token(parent_result_tokens)} · "
-                f"Tool results {_format_compact_token(internal_tool_result_tokens)}"
+                f"Tool results {_format_compact_token(internal_tool_result_tokens)} · "
+                f"{subagent_cost_note}"
             ),
+            "cost_tokens": subagent_cost_label,
+            "cost_share": subagent_cost_share,
+            "cost_reason": subagent_cost_reason,
+            "cost_rank": subagent_cost.get("rank", 0),
             "tools": len(sa_tools),
             "failures": failures,
             "failure_rate": _format_ratio_pct(failures, len(sa_tools) + len(parent_agent_tools)),
@@ -1114,6 +1186,16 @@ def _build_session_diagnostics(
             "target_subagent_round": "",
         })
     subagent_breakdown.sort(key=lambda row: (-row["tokens_raw"], row["subagent"]))
+    for idx, row in enumerate(subagent_breakdown):
+        row["is_selected"] = idx == 0
+
+    subagent_timelines = [
+        subagent_timeline_map[row["subagent_id"]]
+        for row in subagent_breakdown
+        if row.get("subagent_id") in subagent_timeline_map
+    ]
+    for idx, timeline in enumerate(subagent_timelines):
+        timeline["is_selected"] = idx == 0
 
     tool_result_tokens = sum(max(len(getattr(tc, "result", "") or "") // 4, 0) for tc in tool_calls)
     subagent_context_tokens = 0
@@ -1187,11 +1269,10 @@ def _build_session_diagnostics(
         "issue_summary": issue_summary,
         "issue_rounds": len([rid for rid, sig in round_signals.items() if sig.get("issues")]),
         "round_signals": round_signals,
-        "cost_drivers": cost_drivers,
         "call_distribution": call_distribution,
         "call_legend": call_legend,
         "subagent_breakdown": subagent_breakdown,
-        "payload_coverage": coverage,
+        "subagent_timelines": subagent_timelines,
         "context_segments": segments,
         "context_scope": "Session-level",
     }

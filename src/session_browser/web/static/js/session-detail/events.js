@@ -168,6 +168,10 @@
           subagent: actionEl.getAttribute('data-subagent') || '',
           subagentRound: actionEl.getAttribute('data-subagent-round') || ''
         });
+      } else if (action === 'select-subagent') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof selectSubagent === 'function') selectSubagent(actionEl);
       } else if (action === 'open-payload') {
         event.preventDefault();
         event.stopPropagation();

@@ -271,6 +271,72 @@ class TestSessionDetailRender:
         assert "Trace" in html
         _assert_page_content_ok(html, "Trace")
 
+    @pytest.mark.contract_case("UI-SD-011")
+    def test_token_round_diagnostic_tags_render_as_spike_marker(self):
+        html = _render_page("session.html", {
+            "session": type("S", (), {
+                "title": "Test",
+                "session_id": "abc123",
+            })(),
+            "session_summary": {
+                "title": "Test Session",
+                "agent_label": "Codex",
+                "model": "test-model",
+                "project_name": "test-project",
+                "date": "2025-01-01",
+                "session_id": "abc123",
+                "manual_input_count": 0,
+                "subagent_count": 0,
+                "cache_write_pct": "0%",
+            },
+            "hero_metrics": {"tokens": "0", "rounds": "1", "tools": "0", "failed": "0"},
+            "diagnostics": {
+                "token_rounds": [{
+                    "round_id": 1,
+                    "start_time": "12:34:56",
+                    "bar_height_pct": 100,
+                    "mix": {"fresh": 40, "read": 50, "write": 5, "out": 5},
+                    "fresh": "10K",
+                    "cache_read": "12K",
+                    "cache_write": "1K",
+                    "output": "1K",
+                    "fresh_share": "41.7%",
+                    "cache_read_share": "50.0%",
+                    "cache_write_share": "4.2%",
+                    "output_share": "4.2%",
+                    "total_label": "24K",
+                    "cache_read_ratio": "52.2%",
+                    "llm_calls": 1,
+                    "tool_calls": 2,
+                    "badges": ["low cache", "fresh spike", "payload gap"],
+                }],
+                "token_stats": [],
+                "tool_summary": [],
+                "signals": [],
+                "context_scope": "Session-level",
+                "context_segments": [],
+            },
+            "issue_links": [],
+            "session_url": "",
+            "trace_rows": [],
+            "payload_sources": [],
+            "payload_index": {
+                "default_call_id": "",
+                "payload_count": 0,
+                "groups": [],
+            },
+            "current_agent": "codex",
+            "session_data": "{}",
+            "slim_mode": False,
+        })
+
+        assert "sd-token-round__signal-slot" in html
+        assert "sd-token-round__spike" in html
+        assert "sd-token-round__badges" not in html
+        assert "Badge Text" in html
+        assert "Diagnostic Tags" not in html
+        assert "low cache, fresh spike, payload gap" in html
+
 
 class TestProjectRender:
     """project.html 必须在无过滤器/模板错误的情况下渲染。"""

@@ -473,7 +473,7 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(modal).toBeHidden({ timeout: 5000 });
   });
 
-  test('[UI-SD-011] token timeline tooltip 不被图表裁剪', async ({ page }) => {
+  test('[UI-SD-011] token timeline tooltip 不遮挡 hover 内容且不被裁剪', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 token timeline tooltip 测试。');
       test.skip();
@@ -483,25 +483,37 @@ test.describe('会话详情 — Phase 1', () => {
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sd-token-round-chart')).toBeVisible({ timeout: 10000 });
 
-    const rounds = page.locator('.sd-token-round');
+    const rounds = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent) .sd-token-round');
     const roundCount = await rounds.count();
     if (roundCount === 0) {
       console.log('无 token round；跳过 token timeline tooltip 测试。');
       return;
     }
+    await expect(page.locator('.sd-token-round__badges')).toHaveCount(0);
+
+    const hoverRound = async (round) => {
+      const box = await round.boundingBox();
+      expect(box, 'token round 应有可测量 bounding box').not.toBeNull();
+      const position = {
+        x: Math.max(4, Math.min(box.width - 4, box.width / 2)),
+        y: Math.max(4, Math.min(box.height - 4, Math.min(24, box.height / 2))),
+      };
+      await round.hover({ position });
+      return {
+        x: box.x + position.x,
+        y: box.y + position.y,
+      };
+    };
 
     const targetIndex = Math.min(8, roundCount - 1);
     const targetRound = rounds.nth(targetIndex);
-    await targetRound.hover();
+    const pointer = await hoverRound(targetRound);
     await expect(targetRound.locator('.sd-token-round-tooltip')).toBeVisible({ timeout: 3000 });
 
     const geometry = await targetRound.evaluate((round) => {
       const tooltip = round.querySelector('.sd-token-round-tooltip');
-      const chart = round.closest('.sd-token-round-chart');
-      const card = round.closest('.sd-diagnostic-card');
       const tooltipRect = tooltip.getBoundingClientRect();
-      const chartRect = chart.getBoundingClientRect();
-      const cardRect = card.getBoundingClientRect();
+      const tooltipPosition = window.getComputedStyle(tooltip).position;
       const markerRect = (selector) => {
         const marker = tooltip.querySelector(selector);
         const rect = marker.getBoundingClientRect();
@@ -510,9 +522,11 @@ test.describe('会话详情 — Phase 1', () => {
       return {
         tooltipBottom: tooltipRect.bottom,
         tooltipTop: tooltipRect.top,
-        chartBottom: chartRect.bottom,
-        chartTop: chartRect.top,
-        cardBottom: cardRect.bottom,
+        tooltipLeft: tooltipRect.left,
+        tooltipRight: tooltipRect.right,
+        tooltipPosition,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
         markers: {
           fresh: markerRect('.sd-tooltip-mark--fresh'),
           read: markerRect('.sd-tooltip-mark--read'),
@@ -523,18 +537,23 @@ test.describe('会话详情 — Phase 1', () => {
       };
     });
 
+    expect(geometry.tooltipPosition, 'tooltip 应使用 viewport 级浮层，避免被 chart/card overflow 裁剪').toBe('fixed');
     expect(
       geometry.tooltipTop,
-      `tooltip 顶部 ${geometry.tooltipTop}px 不应越过 chart 顶部 ${geometry.chartTop}px`,
-    ).toBeGreaterThanOrEqual(geometry.chartTop - 1);
+      `tooltip 顶部 ${geometry.tooltipTop}px 不应越过视口顶部`,
+    ).toBeGreaterThanOrEqual(-1);
+    expect(
+      geometry.tooltipRight,
+      `tooltip 右侧 ${geometry.tooltipRight}px 不应溢出视口 ${geometry.viewportWidth}px`,
+    ).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+    expect(
+      geometry.tooltipLeft,
+      `tooltip 左侧 ${geometry.tooltipLeft}px 不应被视口裁剪`,
+    ).toBeGreaterThanOrEqual(-1);
     expect(
       geometry.tooltipBottom,
-      `tooltip 底部 ${geometry.tooltipBottom}px 不应被 chart 底部 ${geometry.chartBottom}px 裁剪`,
-    ).toBeLessThanOrEqual(geometry.chartBottom + 1);
-    expect(
-      geometry.tooltipBottom,
-      `tooltip 底部 ${geometry.tooltipBottom}px 不应越过 card 底部 ${geometry.cardBottom}px`,
-    ).toBeLessThanOrEqual(geometry.cardBottom + 1);
+      `tooltip 底部 ${geometry.tooltipBottom}px 应在鼠标 y=${pointer.y}px 上方，避免遮挡 hover 内容`,
+    ).toBeLessThanOrEqual(pointer.y - 8);
 
     for (const [name, rect] of Object.entries({
       fresh: geometry.markers.fresh,
@@ -551,33 +570,113 @@ test.describe('会话详情 — Phase 1', () => {
       'Cache Read Ratio marker 应为横线',
     ).toBeGreaterThan(geometry.markers.line.height * 2);
     expect(geometry.markers.line.height, 'Cache Read Ratio marker 应保持细横线').toBeLessThanOrEqual(3);
+
+    const edgeIndex = Math.min(4, roundCount - 1);
+    const mainChart = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent)').first();
+    await mainChart.evaluate((chart, index) => {
+      const round = chart.querySelectorAll('.sd-token-round')[index];
+      if (round) chart.scrollLeft = Math.max(0, round.offsetLeft - 6);
+    }, edgeIndex);
+    const edgeRound = rounds.nth(edgeIndex);
+    const edgePointer = await hoverRound(edgeRound);
+    await expect(edgeRound.locator('.sd-token-round-tooltip')).toBeVisible({ timeout: 3000 });
+
+    const edgeGeometry = await edgeRound.evaluate((round) => {
+      const tooltip = round.querySelector('.sd-token-round-tooltip');
+      const rect = tooltip.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        position: window.getComputedStyle(tooltip).position,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    expect(edgeGeometry.position, '靠近左边缘时 tooltip 仍应脱离卡片裁剪层').toBe('fixed');
+    expect(
+      edgeGeometry.left,
+      `靠近左边缘时 tooltip 应开到鼠标右上方，left=${edgeGeometry.left}px pointer=${edgePointer.x}px`,
+    ).toBeGreaterThanOrEqual(edgePointer.x + 8);
+    expect(
+      edgeGeometry.left,
+      `靠近左边缘时 tooltip 左侧 ${edgeGeometry.left}px 不应被视口裁剪`,
+    ).toBeGreaterThanOrEqual(-1);
+    expect(
+      edgeGeometry.right,
+      `靠近左边缘时 tooltip 右侧 ${edgeGeometry.right}px 不应溢出视口 ${edgeGeometry.viewportWidth}px`,
+    ).toBeLessThanOrEqual(edgeGeometry.viewportWidth + 1);
+
+    const rightEdgeIndex = roundCount - 1;
+    await mainChart.evaluate((chart, index) => {
+      const round = chart.querySelectorAll('.sd-token-round')[index];
+      if (round) chart.scrollLeft = Math.max(0, round.offsetLeft - chart.clientWidth + round.offsetWidth + 6);
+    }, rightEdgeIndex);
+    const rightEdgeRound = rounds.nth(rightEdgeIndex);
+    const rightEdgePointer = await hoverRound(rightEdgeRound);
+    await expect(rightEdgeRound.locator('.sd-token-round-tooltip')).toBeVisible({ timeout: 3000 });
+    const rightEdgeGeometry = await rightEdgeRound.evaluate((round) => {
+      const tooltip = round.querySelector('.sd-token-round-tooltip');
+      const rect = tooltip.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    expect(
+      rightEdgeGeometry.right,
+      `靠近右边缘时 tooltip 应开到鼠标左上方，right=${rightEdgeGeometry.right}px pointer=${rightEdgePointer.x}px`,
+    ).toBeLessThanOrEqual(rightEdgePointer.x - 8);
+    expect(
+      rightEdgeGeometry.left,
+      `靠近右边缘时 tooltip 左侧 ${rightEdgeGeometry.left}px 不应被视口裁剪`,
+    ).toBeGreaterThanOrEqual(-1);
+    expect(
+      rightEdgeGeometry.right,
+      `靠近右边缘时 tooltip 右侧 ${rightEdgeGeometry.right}px 不应溢出视口 ${rightEdgeGeometry.viewportWidth}px`,
+    ).toBeLessThanOrEqual(rightEdgeGeometry.viewportWidth + 1);
+
+    const taggedRounds = rounds.filter({ has: page.locator('.sd-token-round__spike') });
+    const taggedRoundCount = await taggedRounds.count();
+    if (taggedRoundCount > 0) {
+      const taggedRound = taggedRounds.first();
+      await taggedRound.hover();
+      await expect(taggedRound.locator('.sd-token-round-tooltip__tags')).toBeVisible({ timeout: 3000 });
+      const tagText = await taggedRound.locator('.sd-token-round-tooltip__tags').innerText();
+      expect(tagText, '带诊断标签的 round tooltip 应展示 Badge Text 标签').toContain('Badge Text');
+      expect(
+        tagText,
+        '带诊断标签的 round tooltip 应展示至少一种完整 badge text，而不是截断 badge 文本',
+      ).toMatch(/low cache|fresh spike|payload gap|cost driver/);
+    }
   });
 
-  test('[UI-SD-032] call cost distribution 轴保持紧凑且 hover 展示时间 tooltip', async ({ page }) => {
+  test('[UI-SD-032] main agent breakdown 承载主成本信号且无独立成本卡', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('无测试会话 URL；跳过 call cost tooltip 测试。');
+      console.log('无测试会话 URL；跳过 token call cost tooltip 测试。');
       test.skip();
     }
 
     await page.setViewportSize({ width: 2048, height: 768 });
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
-    const chart = page.locator('.sd-call-distribution');
-    await expect(chart).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.sd-call-distribution')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Call Cost Distribution' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Top Cost Drivers' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Main Agent Breakdown' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Context Budget' })).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('.sd-call-dot__time')).toHaveCount(0);
-    const firstCall = page.locator('.sd-call-dot').first();
-    const callBox = await firstCall.boundingBox();
-    expect(callBox.width, `call bar 宽度 ${callBox.width}px 不应因时间标签变宽`).toBeLessThanOrEqual(24);
-
-    const firstTitle = await firstCall.getAttribute('title');
-    expect(firstTitle, '不应依赖浏览器原生 title tooltip').toBeNull();
-
-    await firstCall.hover();
-    const tooltip = firstCall.locator('.sd-call-tooltip');
+    const rounds = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent) .sd-token-round');
+    await expect(rounds.first()).toBeVisible({ timeout: 10000 });
+    const firstRound = rounds.first();
+    await firstRound.hover();
+    const tooltip = firstRound.locator('.sd-token-round-tooltip');
     await expect(tooltip).toBeVisible({ timeout: 3000 });
     const tooltipText = await tooltip.innerText();
-    expect(tooltipText, 'tooltip 必须展示 call 时间').toMatch(/\d{2}:\d{2}:\d{2}/);
-    expect(tooltipText, 'tooltip 必须展示 token 信息').toContain('Tokens');
+    expect(tooltipText, 'Main Agent Breakdown tooltip 应保留 Calls 摘要').toContain('Calls');
+    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示 Call Tokens 行').not.toContain('Call Tokens');
+    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示 Call Cost fallback 行').not.toContain('Call Cost');
+    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示难以理解的 Top Call 行').not.toContain('Top Call');
+    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示难以理解的 Top Lane 行').not.toContain('Top Lane');
+    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示 main/subagent split').not.toMatch(/\d+\s+main\s+·\s+\d+\s+sub/);
   });
 
   test('[UI-SD-033] trace 深链定位 round 顶部和 subagent round', async ({ page }) => {
@@ -608,9 +707,17 @@ test.describe('会话详情 — Phase 1', () => {
     expect(roundTop, `round ${roundId} 不应滚出视口顶部`).toBeGreaterThanOrEqual(0);
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
-    const subagentCall = page.locator('.sd-call-dot[data-subagent]:not([data-subagent=""])').first();
+    const subagentSelector = page.locator('[data-action="select-subagent"][data-subagent]:not([data-subagent=""])').first();
+    if (await subagentSelector.count() === 0) {
+      console.log('无 subagent 选择项；跳过 subagent 深链测试。');
+      return;
+    }
+    await subagentSelector.click();
+    await expect(subagentSelector).toHaveAttribute('aria-pressed', 'true');
+
+    const subagentCall = page.locator('.sd-subagent-timeline.is-active .sd-token-round--subagent[data-subagent]:not([data-subagent=""])').first();
     if (await subagentCall.count() === 0) {
-      console.log('无 subagent call 分布点；跳过 subagent 深链测试。');
+      console.log('无 subagent timeline round；跳过 subagent 深链测试。');
       return;
     }
     const target = await subagentCall.evaluate((el) => ({

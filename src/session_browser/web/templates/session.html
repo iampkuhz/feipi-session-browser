@@ -57,19 +57,17 @@
 
 {{ sdt.hero(session_summary, hero_metrics, issue_links, session_url) }}
 
-  {% set diag_cost_drivers = diagnostics.cost_drivers|default([]) %}
-  {% set diag_call_distribution = diagnostics.call_distribution|default([]) %}
   {% set diag_tool_impact = diagnostics.tool_impact|default({}) %}
   {% set diag_subagents = diagnostics.subagent_breakdown|default([]) %}
+  {% set diag_subagent_timelines = diagnostics.subagent_timelines|default([]) %}
   {% set diag_issues = diagnostics.issues|default([]) %}
   {% set diag_issue_summary = diagnostics.issue_summary|default({}) %}
-  {% set diag_payload_coverage = diagnostics.payload_coverage|default({}) %}
 
   <section class="sd-diagnostics" data-session-diagnostics aria-label="Session diagnostics">
     <article class="sd-diagnostic-card sd-diagnostic-card--wide">
       <header class="sd-diagnostic-card__head">
-        <h2>Token Timeline + Cache Health</h2>
-        <span title="Bars use total tokens on the left axis; line uses cache read ratio on the right axis.">Tokens + Cache Read %</span>
+        <h2>Main Agent Breakdown</h2>
+        <span title="Bars use main-agent round tokens on the left axis; line uses cache read ratio on the right axis.">Main tokens + Cache Read %</span>
       </header>
       <div class="sd-diagnostic-card__body">
         {% if diagnostics.token_rounds %}
@@ -103,14 +101,15 @@
                 <span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>{{ row.total_label }}</em><strong>100.0%</strong></span>
                 <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read Ratio</small><em>{{ row.cache_read }}</em><strong>{{ row.cache_read_ratio }}</strong></span>
                 <span><i></i><small>Calls</small><em>{{ row.llm_calls }} LLM</em><strong>{{ row.tool_calls }} tools</strong></span>
+                {% if row.badges %}
+                <span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>{{ row.badges|join(', ') }}</em></span>
+                {% endif %}
               </span>
-              {% if row.badges %}
-              <span class="sd-token-round__badges">
-                {% for badge in row.badges[:2] %}
-                <span>{{ badge }}</span>
-                {% endfor %}
+              <span class="sd-token-round__signal-slot" aria-hidden="true">
+                {% if row.badges %}
+                <span class="sd-token-round__spike"></span>
+                {% endif %}
               </span>
-              {% endif %}
               <span class="sd-token-round__label">R{{ row.round_id }}</span>
             </button>
             {% endfor %}
@@ -131,89 +130,31 @@
 
     <article class="sd-diagnostic-card">
       <header class="sd-diagnostic-card__head">
-        <h2>Top Cost Drivers</h2>
-        <span>Top 5</span>
+        <h2>Context Budget</h2>
+        <span>{{ diagnostics.context_scope|default('Session-level') }}</span>
       </header>
       <div class="sd-diagnostic-card__body">
-        {% if diag_cost_drivers %}
-        <table class="sd-compact-table sd-driver-table">
-          <thead><tr><th>Type</th><th>Driver</th><th>Tokens</th><th>Share</th><th>Reason</th></tr></thead>
-          <tbody>
-            {% for row in diag_cost_drivers %}
-            <tr>
-              <td>{{ row.type }}</td>
-              <td>
-                <button
-                  type="button"
-                  class="sd-link-btn"
-                  data-action="jump-round"
-                  data-round="{{ row.target_round|default('') }}"
-                  data-subagent="{{ row.target_subagent|default('') }}"
-                  data-subagent-round="{{ row.target_subagent_round|default('') }}"
-                >
-                  <b>{{ row.driver }}</b>
-                </button>
-              </td>
-              <td>{{ row.tokens_label }}</td>
-              <td>{{ row.share }}</td>
-              <td title="{{ row.reason }}">{{ row.reason }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <div class="sd-card-empty">No token cost drivers indexed</div>
-        {% endif %}
-      </div>
-    </article>
-
-    <article class="sd-diagnostic-card">
-      <header class="sd-diagnostic-card__head">
-        <h2>Call Cost Distribution</h2>
-        <span title="Chronological order; y-axis is total tokens per LLM call.">{{ diag_call_distribution|length }} calls · time order</span>
-      </header>
-      <div class="sd-diagnostic-card__body">
-        {% if diag_call_distribution %}
-        <div class="sd-chart-note">x = LLM call order · y = total tokens · hover for timestamp; each subagent instance is listed in the legend.</div>
-        <div class="sd-call-distribution" aria-label="LLM call token distribution">
-          {% for call in diag_call_distribution %}
-          <button
-            type="button"
-            class="sd-call-dot sd-call-dot--{{ call.lane }} {% if call.subagent_color %}sd-call-dot--{{ call.subagent_color }}{% endif %} {% if call.is_top %}is-top{% endif %}"
-            data-action="jump-round"
-            data-round="{{ call.target_round|default('') }}"
-            data-subagent="{{ call.target_subagent|default('') }}"
-            data-subagent-round="{{ call.target_subagent_round|default('') }}"
-            style="--bar-height: {{ call.height_pct|default(0) }}%"
-            aria-label="#{{ call.index }} {{ call.time_label|default('—') }} {{ call.label }} {{ call.lane_label|default(call.lane) }} {{ call.tokens_label }}"
-          >
-            <span class="sd-call-dot__bar"></span>
-            <b>#{{ call.index }}</b>
-            <span class="sd-call-tooltip" role="tooltip" aria-hidden="true">
-              <strong>#{{ call.index }} · {{ call.time_label|default('—') }}</strong>
-              <span><small>Call</small><em>{{ call.label }}</em></span>
-              <span><small>Lane</small><em>{{ call.lane_label|default(call.lane) }}</em></span>
-              <span><small>Tokens</small><em>{{ call.tokens_label }}</em></span>
-              <span><small>Model</small><em>{{ call.model }}</em></span>
-            </span>
-          </button>
+        <div class="sd-context-segmented" aria-label="Context budget segmented bar">
+          {% for segment in diagnostics.context_segments %}
+          <span
+            class="sd-context-segment sd-context-segment--{{ segment.status }}"
+            style="--seg-width: {{ segment.share_value|default(0) }}%"
+            title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}"
+          ></span>
           {% endfor %}
         </div>
-        <div class="sd-chart-legend sd-chart-legend--call">
-          {% for item in diagnostics.call_legend|default([]) %}
-          <span class="sd-chart-legend__item" title="{{ item.title|default(item.label) }}">
-            {% if item.kind == 'top' %}
-            <i class="sd-legend-ring"></i>
-            {% else %}
-            <i class="sd-legend-dot sd-legend-dot--{{ item.color|default('main') }}"></i>
-            {% endif %}
-            <b>{{ item.label }}</b>
-          </span>
+        <div class="sd-context-budget" aria-label="Session Context">
+          {% for segment in diagnostics.context_segments %}
+          <div class="sd-context-budget__row sd-context-budget__row--{{ segment.status }}" title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}">
+            <span>{{ segment.label }}</span>
+            <div class="sd-context-budget__track">
+              <i style="--seg-width: {{ segment.share_value|default(0) }}%"></i>
+            </div>
+            <b>{{ segment.tokens_label }} · {{ segment.share }}</b>
+          </div>
           {% endfor %}
         </div>
-        {% else %}
-        <div class="sd-card-empty">No LLM call distribution available</div>
-        {% endif %}
+        <div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>
       </div>
     </article>
 
@@ -249,39 +190,105 @@
       </div>
     </article>
 
-    <article class="sd-diagnostic-card">
+    <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--subagents">
       <header class="sd-diagnostic-card__head">
         <h2>Subagent Breakdown</h2>
         <span>{{ diag_subagents|length }} runs</span>
       </header>
       <div class="sd-diagnostic-card__body">
         {% if diag_subagents %}
-        <table class="sd-compact-table">
-          <thead><tr><th>Subagent</th><th>Instance</th><th>LLM Calls</th><th>Footprint Tokens</th><th>Tools</th><th>Failures</th></tr></thead>
-          <tbody>
+        <div class="sd-subagent-workbench" data-subagent-workbench>
+          <div class="sd-subagent-list" aria-label="Subagent runs">
             {% for row in diag_subagents %}
-            <tr>
-              <td>
-                <button
-                  type="button"
-                  class="sd-link-btn"
-                  data-action="jump-round"
-                  data-round="{{ row.round_id|default('') }}"
-                  data-subagent="{{ row.subagent_id|default('') }}"
-                  data-subagent-round="{{ row.target_subagent_round|default('') }}"
-                >
-                  <b>{{ row.subagent }}</b>
-                </button>
-              </td>
-              <td><span class="sd-subagent-instance sd-subagent-instance--{{ row.color|default('subagent-0') }}">{{ row.short_id }}</span></td>
-              <td>{{ row.llm_calls }}</td>
-              <td title="{{ row.token_note|default('') }}">{{ row.tokens }}</td>
-              <td>{{ row.tools }}</td>
-              <td><span class="sd-rate sd-rate--{{ row.failure_tone|default('ok') }}">{{ row.failures }} · {{ row.failure_rate }}</span></td>
-            </tr>
+            <button
+              type="button"
+              class="sd-subagent-select {% if row.is_selected %}is-active{% endif %}"
+              data-action="select-subagent"
+              data-subagent="{{ row.subagent_id|default('') }}"
+              aria-pressed="{% if row.is_selected %}true{% else %}false{% endif %}"
+            >
+              <span class="sd-subagent-select__main">
+                <b>{{ row.subagent }}</b>
+                <span class="sd-subagent-instance sd-subagent-instance--{{ row.color|default('subagent-0') }}">{{ row.short_id }}</span>
+              </span>
+              <span class="sd-subagent-select__metrics">
+                <span title="Subagent internal LLM calls">{{ row.llm_calls }} LLM</span>
+                <span title="{{ row.token_note|default('') }}">{{ row.tokens }} · {{ row.cost_share|default('N/A') }}</span>
+                <span>{{ row.tools }} tools</span>
+                <span><b class="sd-rate sd-rate--{{ row.failure_tone|default('ok') }}">{{ row.failures }} · {{ row.failure_rate }}</b></span>
+              </span>
+            </button>
             {% endfor %}
-          </tbody>
-        </table>
+          </div>
+          <div class="sd-subagent-timeline-area">
+            {% for timeline in diag_subagent_timelines %}
+            <section
+              class="sd-subagent-timeline {% if timeline.is_selected %}is-active{% endif %}"
+              data-subagent-timeline-panel
+              data-subagent="{{ timeline.subagent_id }}"
+              {% if not timeline.is_selected %}hidden{% endif %}
+            >
+              <div class="sd-subagent-timeline__head">
+                <div>
+                  <b>{{ timeline.subagent }}</b>
+                  <span>{{ timeline.short_id }} · parent R{{ timeline.parent_round|default('—') }}</span>
+                </div>
+                <small>{{ timeline.summary }}</small>
+              </div>
+              {% if timeline.token_rounds %}
+              <div class="sd-token-round-chart sd-token-round-chart--subagent" aria-label="{{ timeline.subagent }} token composition">
+                <div class="sd-token-round-plot" style="--plot-width: {{ timeline.cache_line_plot_width|default(0) }}px; --ratio-line-left: {{ timeline.cache_line_left|default(22) }}px; --ratio-line-width: {{ timeline.cache_line_width|default(0) }}px">
+                  {% if timeline.cache_line_points %}
+                  <svg class="sd-token-ratio-line" viewBox="0 0 {{ timeline.cache_line_width|default(0) }} 100" preserveAspectRatio="none" aria-label="Subagent cache read ratio line">
+                    <polyline points="{{ timeline.cache_line_points }}" />
+                  </svg>
+                  {% endif %}
+                  {% for row in timeline.token_rounds %}
+                  <button
+                    type="button"
+                    class="sd-token-round sd-token-round--subagent"
+                    data-action="jump-round"
+                    data-round="{{ row.parent_round|default('') }}"
+                    data-subagent="{{ row.subagent_id|default('') }}"
+                    data-subagent-round="{{ row.subagent_round|default('') }}"
+                    aria-label="{{ row.round_label|default('SR') }} token timeline"
+                  >
+                    <span class="sd-token-round__bar" aria-label="{{ row.round_label|default('SR') }}" style="--bar-height-px: {{ ((row.bar_height_pct|default(0)) / 100 * 118)|round(1) }}px">
+                      <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ row.mix.fresh|default(0) }}%"></span>
+                      <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ row.mix.read|default(0) }}%"></span>
+                      <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ row.mix.write|default(0) }}%"></span>
+                      <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ row.mix.out|default(0) }}%"></span>
+                    </span>
+                    <span class="sd-token-round-tooltip" role="tooltip">
+                      <b>{{ row.round_label|default('SR') }} · R{{ row.parent_round|default('—') }} · {{ row.start_time }}</b>
+                      <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ row.fresh }}</em><strong>{{ row.fresh_share }}</strong></span>
+                      <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ row.cache_read }}</em><strong>{{ row.cache_read_share }}</strong></span>
+                      <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ row.cache_write }}</em><strong>{{ row.cache_write_share }}</strong></span>
+                      <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ row.output }}</em><strong>{{ row.output_share }}</strong></span>
+                      <span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>{{ row.total_label }}</em><strong>100.0%</strong></span>
+                      <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read Ratio</small><em>{{ row.cache_read }}</em><strong>{{ row.cache_read_ratio }}</strong></span>
+                      <span><i></i><small>Calls</small><em>{{ row.llm_calls }} LLM</em><strong>{{ row.model }}</strong></span>
+                      {% if row.badges %}
+                      <span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>{{ row.badges|join(', ') }}</em></span>
+                      {% endif %}
+                    </span>
+                    <span class="sd-token-round__signal-slot" aria-hidden="true">
+                      {% if row.badges %}
+                      <span class="sd-token-round__spike"></span>
+                      {% endif %}
+                    </span>
+                    <span class="sd-token-round__label">{{ row.round_label|default('SR') }}</span>
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+              {% else %}
+              <div class="sd-card-empty">No subagent token timeline available</div>
+              {% endif %}
+            </section>
+            {% endfor %}
+          </div>
+        </div>
         {% else %}
         <div class="sd-card-empty">No subagent runs indexed</div>
         {% endif %}
@@ -319,63 +326,6 @@
       </div>
     </article>
 
-    <article class="sd-diagnostic-card">
-      <header class="sd-diagnostic-card__head">
-        <h2>Payload Availability</h2>
-        <span title="Request payloads are reconstructed from transcript and attribution, not raw provider requests.">{{ payload_index.payload_count|default(0) }} items</span>
-      </header>
-      <div class="sd-diagnostic-card__body">
-        <div class="sd-chart-note">This matrix tracks available transcript payloads and attribution. Raw provider request bodies are not available in Claude Code logs.</div>
-        {% if diag_payload_coverage.rows %}
-        <table class="sd-coverage-matrix">
-          <thead><tr><th></th><th>Available</th><th>Partial</th><th>Missing</th><th>Error</th></tr></thead>
-          <tbody>
-            {% for row in diag_payload_coverage.rows %}
-            <tr>
-              <th>{{ row.label }}</th>
-              <td><button type="button" data-action="payload-filter" data-payload-filter="all" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.available }}</button></td>
-              <td><button type="button" data-action="payload-filter" data-payload-filter="missing" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.partial }}</button></td>
-              <td><button type="button" data-action="payload-filter" data-payload-filter="missing" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.missing }}</button></td>
-              <td><button type="button" data-action="payload-filter" data-payload-filter="error" data-payload-call="{{ diag_payload_coverage.problem_call_id|default('') }}">{{ row.error }}</button></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <div class="sd-card-empty">No payload coverage indexed</div>
-        {% endif %}
-      </div>
-    </article>
-
-    <article class="sd-diagnostic-card sd-diagnostic-card--wide">
-      <header class="sd-diagnostic-card__head">
-        <h2>Context Budget</h2>
-        <span>{{ diagnostics.context_scope|default('Session-level') }}</span>
-      </header>
-      <div class="sd-diagnostic-card__body">
-        <div class="sd-context-segmented" aria-label="Context budget segmented bar">
-          {% for segment in diagnostics.context_segments %}
-          <span
-            class="sd-context-segment sd-context-segment--{{ segment.status }}"
-            style="--seg-width: {{ segment.share_value|default(0) }}%"
-            title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}"
-          ></span>
-          {% endfor %}
-        </div>
-        <div class="sd-context-budget" aria-label="Session Context">
-          {% for segment in diagnostics.context_segments %}
-          <div class="sd-context-budget__row sd-context-budget__row--{{ segment.status }}" title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}">
-            <span>{{ segment.label }}</span>
-            <div class="sd-context-budget__track">
-              <i style="--seg-width: {{ segment.share_value|default(0) }}%"></i>
-            </div>
-            <b>{{ segment.tokens_label }} · {{ segment.share }}</b>
-          </div>
-          {% endfor %}
-        </div>
-        <div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>
-      </div>
-    </article>
   </section>
 
   <nav class="sd-tabs" data-session-tabs aria-label="Session view tabs" role="tablist">

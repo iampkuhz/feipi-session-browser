@@ -23,37 +23,69 @@
     });
   }
 
-  function positionTokenRoundTooltip(round) {
+  function positionTokenRoundTooltip(round, event) {
     var tooltip = qs(round, '.sd-token-round-tooltip');
-    var chart = round.closest('.sd-token-round-chart');
-    if (!tooltip || !chart) return;
+    if (!tooltip) return;
 
-    tooltip.style.setProperty('--token-round-tooltip-y', '0px');
+    if (tooltip.getAttribute('data-positioned') !== 'true') {
+      tooltip.removeAttribute('data-positioned');
+      tooltip.style.removeProperty('--token-round-tooltip-left');
+      tooltip.style.removeProperty('--token-round-tooltip-top');
+    }
     window.requestAnimationFrame(function () {
-      var tooltipRect = tooltip.getBoundingClientRect();
-      var chartRect = chart.getBoundingClientRect();
-      var minTop = chartRect.top + 8;
-      var maxBottom = chartRect.bottom - 8;
-      var maxTop = maxBottom - tooltipRect.height;
-      var targetTop = Math.min(tooltipRect.top, maxTop);
-      targetTop = Math.max(targetTop, minTop);
+      var roundRect = round.getBoundingClientRect();
+      var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+      var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      var viewportMargin = 8;
+      var pointerGap = 12;
+      var tooltipWidth = tooltip.offsetWidth || 260;
+      var tooltipHeight = tooltip.offsetHeight || tooltip.getBoundingClientRect().height;
+      var pointerX = event && typeof event.clientX === 'number'
+        ? event.clientX
+        : roundRect.left + (roundRect.width / 2);
+      var pointerY = event && typeof event.clientY === 'number'
+        ? event.clientY
+        : roundRect.top;
+      var spaceLeft = pointerX - viewportMargin;
+      var spaceRight = viewportWidth - viewportMargin - pointerX;
+      var shouldOpenRight = spaceRight >= spaceLeft;
+      var targetLeft = shouldOpenRight
+        ? pointerX + pointerGap
+        : pointerX - tooltipWidth - pointerGap;
+      var minLeft = viewportMargin;
+      var maxLeft = viewportWidth - viewportMargin - tooltipWidth;
+      if (maxLeft >= minLeft) {
+        targetLeft = Math.min(Math.max(targetLeft, minLeft), maxLeft);
+      }
+      var targetTop = pointerY - tooltipHeight - pointerGap;
+      var minTop = viewportMargin;
+      var maxTop = viewportHeight - viewportMargin - tooltipHeight;
+      if (maxTop >= minTop) targetTop = Math.min(Math.max(targetTop, minTop), maxTop);
+      else targetTop = minTop;
       tooltip.style.setProperty(
-        '--token-round-tooltip-y',
-        Math.round(targetTop - tooltipRect.top) + 'px'
+        '--token-round-tooltip-left',
+        Math.round(targetLeft) + 'px'
       );
+      tooltip.style.setProperty('--token-round-tooltip-top', Math.round(targetTop) + 'px');
+      tooltip.setAttribute('data-positioned', 'true');
     });
   }
 
   function resetTokenRoundTooltip(round) {
     var tooltip = qs(round, '.sd-token-round-tooltip');
     if (!tooltip) return;
-    tooltip.style.removeProperty('--token-round-tooltip-y');
+    tooltip.removeAttribute('data-positioned');
+    tooltip.style.removeProperty('--token-round-tooltip-left');
+    tooltip.style.removeProperty('--token-round-tooltip-top');
   }
 
   function setupTokenRoundTooltips() {
     qsa(document, '.sd-token-round').forEach(function (round) {
-      round.addEventListener('mouseenter', function () {
-        positionTokenRoundTooltip(round);
+      round.addEventListener('mouseenter', function (event) {
+        positionTokenRoundTooltip(round, event);
+      });
+      round.addEventListener('mousemove', function (event) {
+        positionTokenRoundTooltip(round, event);
       });
       round.addEventListener('focusin', function () {
         positionTokenRoundTooltip(round);
@@ -66,6 +98,29 @@
       });
     });
   }
+
+  function selectSubagent(button) {
+    if (!button) return;
+    var workbench = button.closest('[data-subagent-workbench]');
+    if (!workbench) return;
+    var subagent = button.getAttribute('data-subagent') || "";
+    qsa(workbench, '[data-action="select-subagent"]').forEach(function (item) {
+      var isActive = item === button;
+      item.classList.toggle('is-active', isActive);
+      item.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    qsa(workbench, '[data-subagent-timeline-panel]').forEach(function (panel) {
+      var isActive = panel.getAttribute('data-subagent') === subagent;
+      panel.classList.toggle('is-active', isActive);
+      if (isActive) {
+        panel.removeAttribute('hidden');
+      } else {
+        panel.setAttribute('hidden', '');
+      }
+    });
+  }
+
+  window.selectSubagent = selectSubagent;
 
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closePayload();
