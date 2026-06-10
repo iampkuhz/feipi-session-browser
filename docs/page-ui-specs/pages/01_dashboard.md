@@ -171,7 +171,7 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 - `Average` / `All agents` 的颜色固定使用中性黑灰，不得使用品牌紫或 Claude Code 紫色，避免和 Claude Code 系列混淆。
 - Cache Health 的 legend 和 tooltip 中，折线系列示意必须使用对应颜色的短横线，不得使用圆点；圆点只用于柱状图或面积分层类别。
 - 当某个 agent 在可见窗口内只有孤立的可计算 ratio、无法形成连续折线段时，该点必须以同色短横线展示，不得因为 SVG path 只有 `M` 命令而完全不可见。
-- 当某个 agent 的 session 只有 input/output token 但原始 usage 未上报 cache read/write 字段时，该 agent 在该 range point 的 Cache Read Ratio 视为不可计算，折线跳过该点，tooltip 显示 `N/A` 和未上报 input-side token 数；不得把未上报 cache 字段渲染为真实 `0%`。
+- 当某个 agent 的 session 只有 input/output token 但原始 usage 未上报 cache read/write 字段，或该 agent 在该 range point 没有 input-side token 数据时，该 agent 的 Cache Read Ratio 视为不可计算，折线和 marker 都跳过该点；tooltip 显示 `N/A` 和未上报或缺失的 input-side token 数；不得把不可计算点渲染为真实 `0%`，也不得在坐标轴底部补虚假点。
 - tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
 - tooltip 固定展示 `Range point`、`Cache Read Ratio`、`Input-side Tokens`、`Fresh`、`Cache Read`、`Cache Write`。
 - Dashboard 是聚合统计页，不计算、不统计、不标记 Fresh spike；Fresh spike 只允许在 Session Detail 的 round 级视图中体现。

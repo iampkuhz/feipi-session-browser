@@ -901,12 +901,17 @@
             var targets = '';
             data.forEach(function(d, i) {
                 var ratio = cacheRatio(d, highlightPrefix);
-                var y = ratio == null ? cacheY(domain.min) : cacheY(ratio);
                 var x = xBandCenterPct(i, data.length);
+                var pointStyle = '';
+                var pointHtml = '';
+                if (ratio != null && isFinite(ratio)) {
+                    pointStyle = '--point-y:' + cacheY(ratio).toFixed(2) + '%;';
+                    pointHtml = '<span class="line-point line-point--' + highlightPrefix + '"></span>';
+                }
                 var tip = buildCacheTooltip(formatDisplayDate(d.date), d, highlightPrefix);
                 var edge = edgeClass(i, data.length, 'chart-hover-target');
-                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span><span class="line-point line-point--' + highlightPrefix + '"></span>' +
-                    tip + '</span>';
+                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;' + pointStyle + '"><span class="chart-hover-guide"></span>' +
+                    pointHtml + tip + '</span>';
             });
 
             var legend = specs.map(function(spec) {

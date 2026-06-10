@@ -153,6 +153,7 @@ class TestQualityGateRuntime:
         cmd = run_quality_gate.gate_command("browserLayout", tmp_path, "session-detail")
 
         assert "dashboard-chart-coordinates" in cmd
+        assert "--workers=1" in cmd
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_fixture_gate_blocks_without_running_playwright(self, monkeypatch, tmp_path):

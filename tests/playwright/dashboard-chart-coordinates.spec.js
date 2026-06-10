@@ -106,4 +106,53 @@ test.describe('Dashboard chart coordinates', () => {
       pathSelector: 'path.line-series--highlight',
     });
   });
+
+  test('[DASHBOARD-CHART-002] Cache Health does not render markers for missing highlighted ratios', async ({ page }) => {
+    await page.setViewportSize({ width: 1880, height: 1400 });
+    const scopes = [
+      { query: 'codex', prefix: 'codex' },
+      { query: 'qoder', prefix: 'qoder' },
+      { query: 'claude-code', prefix: 'claude_code' },
+    ];
+    let result = null;
+
+    for (const scope of scopes) {
+      await page.goto(`/dashboard?agent=${scope.query}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const hasCacheChart = await page.locator('#cache-health-chart svg.line-plot--bar-aligned').count();
+      if (!hasCacheChart) continue;
+
+      const scopeResult = await page.evaluate(({ prefix }) => {
+        const dataEl = document.getElementById('dashboard-cache-health-data');
+        const data = JSON.parse(dataEl ? dataEl.textContent || '[]' : '[]');
+        const targets = Array.from(document.querySelectorAll('#cache-health-chart .line-targets--bar-aligned .chart-hover-target'));
+        const inputSide = (point) => (
+          Number(point[prefix + '_fresh_input_tokens'] || 0) +
+          Number(point[prefix + '_cache_read_tokens'] || 0) +
+          Number(point[prefix + '_cache_write_tokens'] || 0)
+        );
+        const missingIndexes = data
+          .map((point, index) => ({ index, missing: inputSide(point) <= 0 }))
+          .filter((item) => item.missing)
+          .map((item) => item.index);
+
+        return {
+          prefix,
+          missingIndexes,
+          markerByIndex: targets.map((target) => Boolean(target.querySelector('.line-point--' + prefix))),
+          pointYByIndex: targets.map((target) => target.style.getPropertyValue('--point-y')),
+        };
+      }, { prefix: scope.prefix });
+
+      if (scopeResult.missingIndexes.length > 0) {
+        result = scopeResult;
+        break;
+      }
+    }
+
+    test.skip(!result, 'fixture has no highlighted Cache Health scope with missing ratio points');
+    for (const index of result.missingIndexes) {
+      expect(result.markerByIndex[index], `missing ${result.prefix} ratio at index ${index} must not render a marker`).toBe(false);
+      expect(result.pointYByIndex[index], `missing ${result.prefix} ratio at index ${index} must not pin tooltip to bottom`).toBe('');
+    }
+  });
 });

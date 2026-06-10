@@ -233,6 +233,9 @@ class TestDashboardCSSContract:
         assert "paths + isolatedMarkers" in body
         assert 'class="line-plot line-plot--bar-aligned"' in body
         assert "normalizeCacheMetricFlags(applyScope(cacheRawData, getCacheFields()))" in body
+        assert "ratio == null ? cacheY(domain.min)" not in body
+        assert "var pointHtml = '';" in body
+        assert "if (ratio != null && isFinite(ratio))" in body
         assert 'class="chart-legend__line chart-legend__line--' in body
         assert 'class="chart-legend__dot chart-legend__dot--' not in body
         assert "tooltipLineRow(item.line" in js[js.index("function buildCacheTooltip"):start]

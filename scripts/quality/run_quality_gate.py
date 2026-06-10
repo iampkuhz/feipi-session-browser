@@ -318,7 +318,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return [python, "scripts/quality/check_css_ownership.py"]
     if gate == "browserLayout":
         if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
-            return ["npx", "playwright", "test", "session-detail-layout", "shell-states", "dashboard-chart-coordinates"]
+            return ["npx", "playwright", "test", "session-detail-layout", "shell-states", "dashboard-chart-coordinates", "--workers=1"]
         return []
     if gate == "browserInteraction":
         if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
