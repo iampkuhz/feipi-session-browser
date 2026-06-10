@@ -94,6 +94,17 @@ class TestDashboardCSSContract:
             css,
             re.S,
         ), "line/area plot 必须使用完整 plot 坐标系"
+        bar_aligned = re.search(
+            r"\.line-plot--bar-aligned\s*\{(?P<body>[^}]*)\}",
+            css,
+            re.S,
+        )
+        assert bar_aligned, "bar-aligned 折线层必须显式声明坐标空间"
+        body = bar_aligned.group("body")
+        assert "width: auto" not in body, "bar-aligned 折线层不得退回 SVG 1:1 auto 宽度"
+        assert "width: calc(100% - var(--plot-x-padding) - var(--plot-x-padding));" in body
+        assert "inset-inline-start: var(--plot-x-padding);" in body
+        assert "inset-inline-end: auto;" in body
 
     @pytest.mark.contract_case("DASHBOARD-CSS-003")
     def test_chart_tooltip_renders_above_markers(self):

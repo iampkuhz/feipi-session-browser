@@ -453,8 +453,9 @@
 }
 
 .line-plot--bar-aligned {
-  inset-inline: var(--plot-x-padding);
-  width: auto;
+  inset-inline-start: var(--plot-x-padding);
+  inset-inline-end: auto;
+  width: calc(100% - var(--plot-x-padding) - var(--plot-x-padding));
 }
 
 .line-series {

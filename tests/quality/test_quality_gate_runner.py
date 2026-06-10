@@ -145,6 +145,16 @@ class TestQualityGateRuntime:
         assert cmd[:4] == ["/tmp/dev-python", "-m", "pytest", "-q"]
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_browser_layout_gate_includes_dashboard_chart_coordinates(self, tmp_path):
+        (tmp_path / "tests" / "playwright").mkdir(parents=True)
+        (tmp_path / "playwright.config.js").write_text("", encoding="utf-8")
+        (tmp_path / "node_modules").mkdir()
+
+        cmd = run_quality_gate.gate_command("browserLayout", tmp_path, "session-detail")
+
+        assert "dashboard-chart-coordinates" in cmd
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_fixture_gate_blocks_without_running_playwright(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             run_quality_gate,
