@@ -86,6 +86,7 @@
           {% set cw = usage.cache_write|default({}) %}
           {% set cv = usage.coverage|default({}) %}
           {% set un = usage.unknown|default({}) %}
+          {% set request_denominator = (fi.value|default(0, true)|int) + (cr.value|default(0, true)|int) %}
           {% set call_identity = payload.data.call_identity|default({}) %}
           <main class="sd-attribution-canvas">
             <div class="sd-attribution-banner">基于本地日志重建，不等同于真实 provider request/response body。</div>
@@ -104,7 +105,7 @@
               <section class="sd-attribution-topcard">
                 <h3>请求摘要</h3>
                 <div class="sd-attribution-summary-grid">
-                  <div class="sd-kv"><span>输入分母</span><span>{{ ti.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ ti.precision|default('unavailable') }}">{{ precision_label(ti.precision|default('unavailable')) }}</span></span></div>
+                  <div class="sd-kv"><span>输入分母</span><span>{{ request_denominator|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ ti.precision|default('unavailable') }}">{{ precision_label(ti.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>新鲜输入</span><span>{{ fi.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>缓存读取</span><span>{{ cr.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cr.precision|default('unavailable') }}">{{ precision_label(cr.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>缓存写入</span><span>{{ cw.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cw.precision|default('unavailable') }}">{{ precision_label(cw.precision|default('unavailable')) }}</span></span></div>
@@ -142,8 +143,8 @@
               <div class="sd-attribution-distribution" data-attribution-distribution>
                 <div class="sd-attribution-distribution__bar">
                   {% set req_buckets = payload.data.buckets | selectattr('contributes_to_total') | list %}
-                  {% for b in req_buckets %}
-                    {% set color_idx = 7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8 %}
+                  {% for b in req_buckets if b.key not in ['unlocated_residual', 'unknown_overhead', 'unknown'] %}
+                    {% set color_idx = loop.index0 % 8 %}
                     <span class="sd-attribution-segment sd-attribution-segment--{{ color_idx }}"
                           style="--seg-w: {{ b.percent|default(0) }}%;"
                           title="{{ b.label }} {{ b.tokens|format_compact_token }} ({{ b.percent|default(0) }}%)">
@@ -154,9 +155,10 @@
                     <div class="sd-empty-state">暂无可用于总览图归因的 bucket。</div>
                   {% endif %}
                 </div>
+                <div class="sd-attribution-distribution__note">分母 Fresh + Cache Read = {{ request_denominator|format_compact_token }}</div>
                 <div class="sd-attribution-legend">
-                  {% for b in payload.data.buckets if b.contributes_to_total %}
-                    {% set legend_color_idx = 7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8 %}
+                  {% for b in payload.data.buckets if b.contributes_to_total and b.key not in ['unlocated_residual', 'unknown_overhead', 'unknown'] %}
+                    {% set legend_color_idx = loop.index0 % 8 %}
                     <span class="sd-attribution-legend-item">
                       <span class="sd-attribution-legend__dot sd-attribution-legend__dot--{{ legend_color_idx }}"></span>
                       <span class="sd-attribution-legend__label">{{ b.label }}</span>

@@ -247,11 +247,23 @@ def test_response_bucket_serialized_with_contributes_to_total():
         assert "contributes_to_total" in b, f"Bucket {b['key']} missing contributes_to_total"
 
 
-def test_request_bucket_display_percent_normalized_and_capped():
-    """UI bucket percentages should not inherit invalid builder denominators."""
-    value = AttributedValue(
-        value=100, unit="tokens", precision=ValuePrecision.ESTIMATED,
-        source=ValueSource.HEURISTIC,
+def test_request_bucket_display_percent_uses_request_denominator():
+    """Request bucket percentages use Fresh + Cache Read, not Cache Write or residual totals."""
+    total_value = AttributedValue(
+        value=28700, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+    )
+    fresh_value = AttributedValue(
+        value=13900, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+    )
+    zero_value = AttributedValue(
+        value=0, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+    )
+    cache_write_value = AttributedValue(
+        value=14800, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
     )
     attr = LLMRequestAttribution(
         agent="claude_code",
@@ -261,24 +273,24 @@ def test_request_bucket_display_percent_normalized_and_capped():
         source_label="local logs",
         confidence_label="中",
         raw_body_available=False,
-        total_input=value,
-        fresh_input=value,
-        cache_read=value,
-        cache_write=value,
+        total_input=total_value,
+        fresh_input=fresh_value,
+        cache_read=zero_value,
+        cache_write=cache_write_value,
         coverage=AttributedValue(
             value=0.25, unit="ratio", precision=ValuePrecision.ESTIMATED,
             source=ValueSource.HEURISTIC,
         ),
         unknown=AttributedValue(
-            value=200, unit="tokens", precision=ValuePrecision.RESIDUAL,
+            value=800, unit="tokens", precision=ValuePrecision.RESIDUAL,
             source=ValueSource.RESIDUAL,
         ),
         buckets=[
             RequestAttributionBucket(
-                key="known", label="Known", tokens=100, percent=100.0,
+                key="current_user_message", label="当前用户输入", tokens=4400, percent=15.5,
             ),
             RequestAttributionBucket(
-                key="unlocated_residual", label="未定位", tokens=200, percent=185.7,
+                key="unlocated_residual", label="未定位", tokens=800, percent=2.8,
                 precision=ValuePrecision.RESIDUAL, source=ValueSource.RESIDUAL,
             ),
         ],
@@ -288,10 +300,11 @@ def test_request_bucket_display_percent_normalized_and_capped():
     )
 
     payload = request_attribution_to_payload(attr)
+    current_user = next(b for b in payload["buckets"] if b["key"] == "current_user_message")
     residual = next(b for b in payload["buckets"] if b["key"] == "unlocated_residual")
-    assert residual["raw_percent"] == 185.7
-    assert 0 <= residual["percent"] <= 100
-    assert sum(b["percent"] for b in payload["buckets"] if b["contributes_to_total"]) == 100.0
+    assert current_user["raw_percent"] == 15.5
+    assert current_user["percent"] == 31.7
+    assert residual["percent"] == 5.8
 
 
 def test_response_tool_bucket_details_show_actual_command_not_schema():

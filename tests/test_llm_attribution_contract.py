@@ -152,13 +152,15 @@ def test_bucket_sums_not_exceed_total_output(agent):
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_unknown_equals_residual(agent):
-    """Unknown should be residual: total - known buckets."""
+    """Unknown should be residual against the agent's request distribution total."""
     lc = _make_llm_call(input_tokens=10000, output_tokens=5000,
                          cache_read=5000, cache_write=1000,
                          response_full="assistant response text here")
     ro = _make_round(user_content="test user message content")
     req = build_llm_request_attribution(agent, lc, ro)
     total_req = req.total_input.value or 0
+    if agent == "claude_code":
+        total_req = (req.fresh_input.value or 0) + (req.cache_read.value or 0)
     known_req = sum(b.tokens for b in req.buckets if b.key not in ("unknown_overhead", "unlocated_residual"))
     assert req.unknown.value == total_req - known_req
 

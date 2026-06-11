@@ -117,6 +117,33 @@ def _normalize_bucket_percents_for_display(buckets: list[dict]) -> list[dict]:
     return buckets
 
 
+def _request_distribution_denominator(attr: LLMRequestAttribution) -> float:
+    """Return the request distribution denominator used by the UI.
+
+    Cache Write is provider accounting for cache creation and is shown in the
+    summary, but request attribution percentages are based on the tokens
+    actually present in the request context: Fresh + Cache Read.
+    """
+    denominator = _num(attr.fresh_input.value) + _num(attr.cache_read.value)
+    if denominator > 0:
+        return denominator
+    return _num(attr.total_input.value)
+
+
+def _normalize_request_bucket_percents_for_display(
+    buckets: list[dict],
+    denominator: float,
+) -> list[dict]:
+    """Compute request bucket percentages against Fresh + Cache Read."""
+    for b in buckets:
+        b["raw_percent"] = b.get("percent", 0.0)
+        if not b.get("contributes_to_total", True):
+            continue
+        tokens = max(_num(b.get("tokens")), 0.0)
+        b["percent"] = round((tokens / denominator) * 100.0, 1) if denominator > 0 else 0.0
+    return buckets
+
+
 def availability_row_to_dict(row: AvailabilityRow | dict) -> dict:
     """Convert an AvailabilityRow or legacy dict row to a serializable dict."""
     if isinstance(row, dict):
@@ -180,9 +207,10 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
             "coverage": attributed_value_to_dict(attr.coverage),
             "unknown": attributed_value_to_dict(attr.unknown),
         },
-        "buckets": _normalize_bucket_percents_for_display([
-            _request_bucket_to_dict(b) for b in attr.buckets
-        ]),
+        "buckets": _normalize_request_bucket_percents_for_display(
+            [_request_bucket_to_dict(b) for b in attr.buckets],
+            _request_distribution_denominator(attr),
+        ),
         "captured_context_preview": attr.captured_context_preview,
         "attribution_notes": list(attr.attribution_notes),
         "availability_rows": [availability_row_to_dict(r) for r in attr.availability_rows],

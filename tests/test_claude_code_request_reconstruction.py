@@ -216,16 +216,16 @@ def test_hidden_builtin_system_heuristic_label():
     assert builtin_bucket.content_preview == ""
 
 
-# ── 9. unlocated_residual = total_input - located ──────────────────────
+# ── 9. unlocated_residual = request distribution input - located ────────
 
 def test_unlocated_residual_equals_total_minus_located():
-    """unlocated_residual should be total_input minus sum of all other buckets."""
+    """unlocated_residual should use Fresh + Cache Read, excluding Cache Write."""
     lc = _make_lc(input_tokens=8200, cache_read_tokens=5000, cache_write_tokens=500)
     ro = _make_ro(user_content="hello world")
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    total = result.total_input.value
+    total = (result.fresh_input.value or 0) + (result.cache_read.value or 0)
     residual_bucket = next(b for b in result.buckets if b.key == "unlocated_residual")
     other_sum = sum(b.tokens for b in result.buckets if b.key != "unlocated_residual")
 

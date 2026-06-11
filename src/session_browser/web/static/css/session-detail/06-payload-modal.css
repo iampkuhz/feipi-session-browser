@@ -354,6 +354,7 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   padding: 0 4px;
   transition: opacity 120ms ease;
   width: var(--seg-w, 0%);
+  flex: 0 0 var(--seg-w, 0%);
 }
 .session-detail-page .sd-attribution-segment:hover { opacity: 0.85; }
 .session-detail-page .sd-attribution-segment--0 { background: #2563eb; }

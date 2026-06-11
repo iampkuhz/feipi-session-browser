@@ -250,10 +250,12 @@
       // Distribution bar
       html += '<div class="sd-attribution-section-label">用量分布</div>';
       html += '<div class="sd-attribution-distribution__bar">';
-      var contributingBuckets = buckets.filter(function (b) { return b.contributes_to_total !== false && b.key !== "unlocated_residual" && b.key !== "unknown_overhead" && b.key !== "unknown"; });
+      var residualKeys = { "unlocated_residual": true, "unknown_overhead": true, "unknown": true };
+      var isResidualBucket = function (b) { return !!(b && residualKeys[b.key]); };
+      var contributingBuckets = buckets.filter(function (b) { return b.contributes_to_total !== false && !isResidualBucket(b); });
       var totalForPct = 0;
       contributingBuckets.forEach(function (b) { totalForPct += (b.tokens || 0); });
-      var residualBucket = buckets.find(function (b) { return b.key === "unlocated_residual" || b.key === "unknown_overhead" || b.key === "unknown"; });
+      var residualBucket = buckets.find(isResidualBucket);
       var grandTotal = totalForPct + (residualBucket ? (residualBucket.tokens || 0) : 0);
       var denominatorLabel = "分母 = " + formatCompactToken(grandTotal);
       if (kind === "request") {
@@ -267,11 +269,11 @@
         var pct = grandTotal > 0 ? (b.tokens / grandTotal * 100) : 0;
         var widthPct = Math.max(0, Math.min(100, pct));
         var colorIdx = getBucketColorIndex(b.key);
-        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--' + colorIdx + '" style="width:' + widthPct.toFixed(1) + '%" title="' + escapeHtml(b.label) + ': ' + b.tokens + ' tokens · ' + pct.toFixed(1) + '%"></div>';
+        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--' + colorIdx + '" style="width:' + widthPct.toFixed(1) + '%;flex:0 0 ' + widthPct.toFixed(1) + '%" title="' + escapeHtml(b.label) + ': ' + b.tokens + ' tokens · ' + pct.toFixed(1) + '%"></div>';
       });
-      if (residualBucket && residualBucket.tokens > 0) {
+      if (kind !== "request" && residualBucket && residualBucket.tokens > 0) {
         var unkPct2 = grandTotal > 0 ? (residualBucket.tokens / grandTotal * 100) : 0;
-        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--8" style="width:' + Math.min(100, unkPct2).toFixed(1) + '%" title="' + escapeHtml(residualBucket.label) + ': ' + residualBucket.tokens + ' tokens · ' + unkPct2.toFixed(1) + '%"></div>';
+        html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--8" style="width:' + Math.min(100, unkPct2).toFixed(1) + '%;flex:0 0 ' + Math.min(100, unkPct2).toFixed(1) + '%" title="' + escapeHtml(residualBucket.label) + ': ' + residualBucket.tokens + ' tokens · ' + unkPct2.toFixed(1) + '%"></div>';
       }
       html += '</div>';
       html += '<div class="sd-attribution-distribution__note">' + escapeHtml(denominatorLabel) + '</div>';
