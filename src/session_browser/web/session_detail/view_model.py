@@ -1208,6 +1208,82 @@ def _build_session_diagnostics(
     for idx, timeline in enumerate(subagent_timelines):
         timeline["is_selected"] = idx == 0
 
+    main_llm_call_count = sum(
+        1
+        for r in rounds
+        for ix in r.interactions
+        if getattr(ix, "scope", "main") != "subagent"
+    )
+    main_tool_calls = [
+        tc
+        for tc in tool_calls
+        if not getattr(tc, "subagent_id", "") and getattr(tc, "scope", "main") != "subagent"
+    ]
+    main_failed_tools = [tc for tc in main_tool_calls if getattr(tc, "is_failed", False)]
+    main_tokens = sum(int(row.get("total", 0) or 0) for row in token_rounds)
+    main_fresh_tokens = sum(int(row.get("token_input", 0) or 0) for row in trace_rows)
+    main_cache_read_tokens = sum(int(row.get("token_cache_read", 0) or 0) for row in trace_rows)
+    main_cache_write_tokens = sum(int(row.get("token_cache_write", 0) or 0) for row in trace_rows)
+    main_output_tokens = sum(int(row.get("token_output", 0) or 0) for row in trace_rows)
+    main_agent_row = {
+        "scope": "main",
+        "subagent": "main agent",
+        "agent_id": "",
+        "subagent_id": "",
+        "short_id": "main",
+        "color": "main",
+        "llm_calls": main_llm_call_count,
+        "tokens": _format_compact_token(main_tokens),
+        "tokens_raw": main_tokens,
+        "token_note": (
+            f"Main round tokens = {_format_compact_token(main_tokens)} · "
+            f"Fresh {_format_compact_token(main_fresh_tokens)} · "
+            f"Cache Read {_format_compact_token(main_cache_read_tokens)} · "
+            f"Cache Write {_format_compact_token(main_cache_write_tokens)} · "
+            f"Output {_format_compact_token(main_output_tokens)}"
+        ),
+        "cost_tokens": _format_compact_token(main_tokens),
+        "cost_share": _format_ratio_pct(main_tokens, driver_total),
+        "cost_reason": f"{main_llm_call_count} main LLM call{'s' if main_llm_call_count != 1 else ''}",
+        "cost_rank": 0,
+        "tools": len(main_tool_calls),
+        "failures": len(main_failed_tools),
+        "failure_rate": _format_ratio_pct(len(main_failed_tools), len(main_tool_calls)),
+        "failure_tone": _ratio_tone(_ratio_value(len(main_failed_tools), len(main_tool_calls))),
+        "result": "completed" if main_llm_call_count else "unknown",
+        "round_id": token_rounds[0].get("round_id", 0) if token_rounds else 0,
+        "target_subagent_round": "",
+        "is_selected": True,
+    }
+    main_agent_timeline = {
+        "scope": "main",
+        "subagent": "main agent",
+        "subagent_id": "",
+        "short_id": "main",
+        "color": "main",
+        "parent_round": "",
+        "token_rounds": token_rounds,
+        "cache_line_points": line_points,
+        "cache_line_width": width,
+        "cache_line_plot_width": plot_width,
+        "cache_line_left": 22,
+        "summary": (
+            f"{main_llm_call_count} LLM · {_format_compact_token(main_tokens)} tokens · "
+            f"{len(main_tool_calls)} tools · {len(main_failed_tools)} failures"
+        ),
+        "is_selected": True,
+    }
+    agent_breakdown = [main_agent_row]
+    agent_breakdown.extend([
+        {**row, "scope": "subagent", "is_selected": False}
+        for row in subagent_breakdown
+    ])
+    agent_timelines = [main_agent_timeline]
+    agent_timelines.extend([
+        {**timeline, "scope": "subagent", "is_selected": False}
+        for timeline in subagent_timelines
+    ])
+
     tool_result_tokens = sum(max(len(getattr(tc, "result", "") or "") // 4, 0) for tc in tool_calls)
     subagent_context_tokens = 0
     for run in subagent_runs:
@@ -1282,6 +1358,8 @@ def _build_session_diagnostics(
         "round_signals": round_signals,
         "call_distribution": call_distribution,
         "call_legend": call_legend,
+        "agent_breakdown": agent_breakdown,
+        "agent_timelines": agent_timelines,
         "subagent_breakdown": subagent_breakdown,
         "subagent_timelines": subagent_timelines,
         "context_segments": segments,

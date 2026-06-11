@@ -36,7 +36,7 @@
 
 - [ ] 目标主 tab 只有 Trace、Payload。
 - [ ] Hero 固定 5 张一级 KPI：Run Health、Total Tokens、Cache Health、Workload、Active Time；每卡二级 KPI 不超过 4 个。
-- [ ] 诊断区覆盖 Main Agent Breakdown、Context Budget、Tool Impact、Subagent Breakdown、Issues & Repro Seeds；Top Cost Drivers、Call Cost Distribution 和 Payload Availability 不再独立渲染。
+- [ ] 诊断区覆盖 Agents Breakdown、Context Budget、Tool Impact、Issues & Repro Seeds；Top Cost Drivers、Call Cost Distribution 和 Payload Availability 不再独立渲染。
 - [ ] Trace 无 sidecar；round 全宽；全局只有一个 Expand all / Collapse all。
 - [ ] Failed filter 覆盖 failed round 和含失败信号的 round，不允许 Hero/Issues 有问题但筛选为空。
 - [ ] Round 非按钮区域可 toggle；LLM/subagent call 有 request/response attribution 和 payload 入口。

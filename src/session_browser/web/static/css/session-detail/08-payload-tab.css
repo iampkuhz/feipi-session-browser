@@ -413,6 +413,16 @@
 .sd-subagent-instance--subagent-2 { background: #ea580c; }
 .sd-subagent-instance--subagent-3 { background: #059669; }
 .sd-subagent-instance--subagent-4 { background: #be123c; }
+.sd-subagent-instance--main { background: #334155; }
+
+.sd-diagnostic-card--agents {
+  order: -1;
+}
+
+.sd-diagnostic-card--agents .sd-diagnostic-card__body {
+  display: grid;
+  align-items: center;
+}
 
 .sd-diagnostic-card--subagents .sd-diagnostic-card__body {
   min-height: 336px;
@@ -423,6 +433,11 @@
   grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr);
   gap: 14px;
   align-items: stretch;
+}
+
+.sd-diagnostic-card--agents .sd-subagent-workbench {
+  width: 100%;
+  align-items: center;
 }
 
 .sd-subagent-list {
@@ -546,6 +561,14 @@
 }
 
 .sd-token-round-chart--subagent .sd-token-round-plot {
+  height: 174px;
+}
+
+.sd-diagnostic-card--agents .sd-token-round-chart {
+  height: 228px;
+}
+
+.sd-diagnostic-card--agents .sd-token-round-plot {
   height: 174px;
 }
 

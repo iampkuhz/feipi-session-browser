@@ -650,7 +650,7 @@ test.describe('会话详情 — Phase 1', () => {
     }
   });
 
-  test('[UI-SD-032] main agent breakdown 承载主成本信号且无独立成本卡', async ({ page }) => {
+  test('[UI-SD-032] agents breakdown 承载 main/subagent 成本信号且无独立成本卡', async ({ page }) => {
     if (!sessionUrl) {
       console.log('无测试会话 URL；跳过 token call cost tooltip 测试。');
       test.skip();
@@ -661,7 +661,10 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.locator('.sd-call-distribution')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Call Cost Distribution' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Top Cost Drivers' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Main Agent Breakdown' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Main Agent Breakdown' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Subagent Breakdown' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-action="select-subagent"][data-agent-scope="main"]')).toContainText('main agent');
     await expect(page.getByRole('heading', { name: 'Context Budget' })).toBeVisible({ timeout: 10000 });
 
     const rounds = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent) .sd-token-round');
@@ -671,12 +674,12 @@ test.describe('会话详情 — Phase 1', () => {
     const tooltip = firstRound.locator('.sd-token-round-tooltip');
     await expect(tooltip).toBeVisible({ timeout: 3000 });
     const tooltipText = await tooltip.innerText();
-    expect(tooltipText, 'Main Agent Breakdown tooltip 应保留 Calls 摘要').toContain('Calls');
-    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示 Call Tokens 行').not.toContain('Call Tokens');
-    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示 Call Cost fallback 行').not.toContain('Call Cost');
-    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示难以理解的 Top Call 行').not.toContain('Top Call');
-    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示难以理解的 Top Lane 行').not.toContain('Top Lane');
-    expect(tooltipText, 'Main Agent Breakdown tooltip 不应展示 main/subagent split').not.toMatch(/\d+\s+main\s+·\s+\d+\s+sub/);
+    expect(tooltipText, 'Agents Breakdown main tooltip 应保留 Calls 摘要').toContain('Calls');
+    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 Call Tokens 行').not.toContain('Call Tokens');
+    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 Call Cost fallback 行').not.toContain('Call Cost');
+    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示难以理解的 Top Call 行').not.toContain('Top Call');
+    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示难以理解的 Top Lane 行').not.toContain('Top Lane');
+    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 main/subagent split').not.toMatch(/\d+\s+main\s+·\s+\d+\s+sub/);
   });
 
   test('[UI-SD-033] trace 深链定位 round 顶部和 subagent round', async ({ page }) => {
@@ -707,7 +710,7 @@ test.describe('会话详情 — Phase 1', () => {
     expect(roundTop, `round ${roundId} 不应滚出视口顶部`).toBeGreaterThanOrEqual(0);
 
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
-    const subagentSelector = page.locator('[data-action="select-subagent"][data-subagent]:not([data-subagent=""])').first();
+    const subagentSelector = page.locator('[data-action="select-subagent"][data-agent-scope="subagent"][data-subagent]:not([data-subagent=""])').first();
     if (await subagentSelector.count() === 0) {
       console.log('无 subagent 选择项；跳过 subagent 深链测试。');
       return;

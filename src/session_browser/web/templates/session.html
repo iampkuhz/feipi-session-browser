@@ -58,76 +58,12 @@
 {{ sdt.hero(session_summary, hero_metrics, issue_links, session_url) }}
 
   {% set diag_tool_impact = diagnostics.tool_impact|default({}) %}
-  {% set diag_subagents = diagnostics.subagent_breakdown|default([]) %}
-  {% set diag_subagent_timelines = diagnostics.subagent_timelines|default([]) %}
+  {% set diag_agents = diagnostics.agent_breakdown|default([]) %}
+  {% set diag_agent_timelines = diagnostics.agent_timelines|default([]) %}
   {% set diag_issues = diagnostics.issues|default([]) %}
   {% set diag_issue_summary = diagnostics.issue_summary|default({}) %}
 
   <section class="sd-diagnostics" data-session-diagnostics aria-label="Session diagnostics">
-    <article class="sd-diagnostic-card sd-diagnostic-card--wide">
-      <header class="sd-diagnostic-card__head">
-        <h2>Main Agent Breakdown</h2>
-        <span title="Bars use main-agent round tokens on the left axis; line uses cache read ratio on the right axis.">Main tokens + Cache Read %</span>
-      </header>
-      <div class="sd-diagnostic-card__body">
-        {% if diagnostics.token_rounds %}
-        <div class="sd-token-round-chart" aria-label="Round token composition">
-          <div class="sd-token-round-plot" style="--plot-width: {{ diagnostics.cache_line_plot_width|default(0) }}px; --ratio-line-left: {{ diagnostics.cache_line_left|default(22) }}px; --ratio-line-width: {{ diagnostics.cache_line_width|default(0) }}px">
-            {% if diagnostics.cache_line_points %}
-            <svg class="sd-token-ratio-line" viewBox="0 0 {{ diagnostics.cache_line_width|default(0) }} 100" preserveAspectRatio="none" aria-label="Cache read ratio line">
-              <polyline points="{{ diagnostics.cache_line_points }}" />
-            </svg>
-            {% endif %}
-            {% for row in diagnostics.token_rounds %}
-            <button
-              type="button"
-              class="sd-token-round"
-              data-action="jump-round"
-              data-round="{{ row.round_id }}"
-              aria-label="R{{ row.round_id }} token timeline"
-            >
-              <span class="sd-token-round__bar" aria-label="R{{ row.round_id }}" style="--bar-height-px: {{ ((row.bar_height_pct|default(0)) / 100 * 118)|round(1) }}px">
-                <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ row.mix.fresh|default(0) }}%"></span>
-                <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ row.mix.read|default(0) }}%"></span>
-                <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ row.mix.write|default(0) }}%"></span>
-                <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ row.mix.out|default(0) }}%"></span>
-              </span>
-              <span class="sd-token-round-tooltip" role="tooltip">
-                <b>R{{ row.round_id }} · {{ row.start_time }}</b>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ row.fresh }}</em><strong>{{ row.fresh_share }}</strong></span>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ row.cache_read }}</em><strong>{{ row.cache_read_share }}</strong></span>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ row.cache_write }}</em><strong>{{ row.cache_write_share }}</strong></span>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ row.output }}</em><strong>{{ row.output_share }}</strong></span>
-                <span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>{{ row.total_label }}</em><strong>100.0%</strong></span>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read Ratio</small><em>{{ row.cache_read }}</em><strong>{{ row.cache_read_ratio }}</strong></span>
-                <span><i></i><small>Calls</small><em>{{ row.llm_calls }} LLM</em><strong>{{ row.tool_calls }} tools</strong></span>
-                {% if row.badges %}
-                <span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>{{ row.badges|join(', ') }}</em></span>
-                {% endif %}
-              </span>
-              <span class="sd-token-round__signal-slot" aria-hidden="true">
-                {% if row.badges %}
-                <span class="sd-token-round__spike"></span>
-                {% endif %}
-              </span>
-              <span class="sd-token-round__label">R{{ row.round_id }}</span>
-            </button>
-            {% endfor %}
-          </div>
-        </div>
-        {% else %}
-        <div class="sd-card-empty">No token timeline available</div>
-        {% endif %}
-        {% if diagnostics.token_stats %}
-        <div class="sd-compact-stats">
-          {% for stat in diagnostics.token_stats %}
-          <div><span>{{ stat.label }}</span><b>{{ stat.value }}</b></div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-    </article>
-
     <article class="sd-diagnostic-card">
       <header class="sd-diagnostic-card__head">
         <h2>Context Budget</h2>
@@ -192,21 +128,22 @@
       </div>
     </article>
 
-    <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--subagents">
+    <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--subagents sd-diagnostic-card--agents">
       <header class="sd-diagnostic-card__head">
-        <h2>Subagent Breakdown</h2>
-        <span>{{ diag_subagents|length }} runs</span>
+        <h2>Agents Breakdown</h2>
+        <span>{{ diag_agents|length }} agents</span>
       </header>
       <div class="sd-diagnostic-card__body">
-        {% if diag_subagents %}
+        {% if diag_agents %}
         <div class="sd-subagent-workbench" data-subagent-workbench>
-          <div class="sd-subagent-list" aria-label="Subagent runs">
-            {% for row in diag_subagents %}
+          <div class="sd-subagent-list" aria-label="Agent candidates">
+            {% for row in diag_agents %}
             <button
               type="button"
               class="sd-subagent-select {% if row.is_selected %}is-active{% endif %}"
               data-action="select-subagent"
               data-subagent="{{ row.subagent_id|default('') }}"
+              data-agent-scope="{{ row.scope|default('subagent') }}"
               aria-pressed="{% if row.is_selected %}true{% else %}false{% endif %}"
             >
               <span class="sd-subagent-select__main">
@@ -214,7 +151,7 @@
                 <span class="sd-subagent-instance sd-subagent-instance--{{ row.color|default('subagent-0') }}">{{ row.short_id }}</span>
               </span>
               <span class="sd-subagent-select__metrics">
-                <span title="Subagent internal LLM calls">{{ row.llm_calls }} LLM</span>
+                <span title="{% if row.scope|default('subagent') == 'main' %}Main agent LLM calls{% else %}Subagent internal LLM calls{% endif %}">{{ row.llm_calls }} LLM</span>
                 <span title="{{ row.token_note|default('') }}">{{ row.tokens }} · {{ row.cost_share|default('N/A') }}</span>
                 <span>{{ row.tools }} tools</span>
                 <span><b class="sd-rate sd-rate--{{ row.failure_tone|default('ok') }}">{{ row.failures }} · {{ row.failure_rate }}</b></span>
@@ -223,53 +160,54 @@
             {% endfor %}
           </div>
           <div class="sd-subagent-timeline-area">
-            {% for timeline in diag_subagent_timelines %}
+            {% for timeline in diag_agent_timelines %}
             <section
               class="sd-subagent-timeline {% if timeline.is_selected %}is-active{% endif %}"
               data-subagent-timeline-panel
               data-subagent="{{ timeline.subagent_id }}"
+              data-agent-scope="{{ timeline.scope|default('subagent') }}"
               {% if not timeline.is_selected %}hidden{% endif %}
             >
               <div class="sd-subagent-timeline__head">
                 <div>
                   <b>{{ timeline.subagent }}</b>
-                  <span>{{ timeline.short_id }} · parent R{{ timeline.parent_round|default('—') }}</span>
+                  <span>{% if timeline.scope|default('subagent') == 'main' %}{{ timeline.short_id }} · session rounds{% else %}{{ timeline.short_id }} · parent R{{ timeline.parent_round|default('—') }}{% endif %}</span>
                 </div>
                 <small>{{ timeline.summary }}</small>
               </div>
               {% if timeline.token_rounds %}
-              <div class="sd-token-round-chart sd-token-round-chart--subagent" aria-label="{{ timeline.subagent }} token composition">
+              <div class="sd-token-round-chart{% if timeline.scope|default('subagent') != 'main' %} sd-token-round-chart--subagent{% endif %}" aria-label="{{ timeline.subagent }} token composition">
                 <div class="sd-token-round-plot" style="--plot-width: {{ timeline.cache_line_plot_width|default(0) }}px; --ratio-line-left: {{ timeline.cache_line_left|default(22) }}px; --ratio-line-width: {{ timeline.cache_line_width|default(0) }}px">
                   {% if timeline.cache_line_points %}
-                  <svg class="sd-token-ratio-line" viewBox="0 0 {{ timeline.cache_line_width|default(0) }} 100" preserveAspectRatio="none" aria-label="Subagent cache read ratio line">
+                  <svg class="sd-token-ratio-line" viewBox="0 0 {{ timeline.cache_line_width|default(0) }} 100" preserveAspectRatio="none" aria-label="Agent cache read ratio line">
                     <polyline points="{{ timeline.cache_line_points }}" />
                   </svg>
                   {% endif %}
                   {% for row in timeline.token_rounds %}
+                  {% set is_main_timeline = timeline.scope|default('subagent') == 'main' %}
                   <button
                     type="button"
-                    class="sd-token-round sd-token-round--subagent"
+                    class="sd-token-round{% if not is_main_timeline %} sd-token-round--subagent{% endif %}"
                     data-action="jump-round"
-                    data-round="{{ row.parent_round|default('') }}"
-                    data-subagent="{{ row.subagent_id|default('') }}"
-                    data-subagent-round="{{ row.subagent_round|default('') }}"
-                    aria-label="{{ row.round_label|default('SR') }} token timeline"
+                    data-round="{% if is_main_timeline %}{{ row.round_id }}{% else %}{{ row.parent_round|default('') }}{% endif %}"
+                    {% if not is_main_timeline %}data-subagent="{{ row.subagent_id|default('') }}" data-subagent-round="{{ row.subagent_round|default('') }}"{% endif %}
+                    aria-label="{% if is_main_timeline %}R{{ row.round_id }}{% else %}{{ row.round_label|default('SR') }}{% endif %} token timeline"
                   >
-                    <span class="sd-token-round__bar" aria-label="{{ row.round_label|default('SR') }}" style="--bar-height-px: {{ ((row.bar_height_pct|default(0)) / 100 * 118)|round(1) }}px">
+                    <span class="sd-token-round__bar" aria-label="{% if is_main_timeline %}R{{ row.round_id }}{% else %}{{ row.round_label|default('SR') }}{% endif %}" style="--bar-height-px: {{ ((row.bar_height_pct|default(0)) / 100 * 118)|round(1) }}px">
                       <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ row.mix.fresh|default(0) }}%"></span>
                       <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ row.mix.read|default(0) }}%"></span>
                       <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ row.mix.write|default(0) }}%"></span>
                       <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ row.mix.out|default(0) }}%"></span>
                     </span>
                     <span class="sd-token-round-tooltip" role="tooltip">
-                      <b>{{ row.round_label|default('SR') }} · R{{ row.parent_round|default('—') }} · {{ row.start_time }}</b>
+                      <b>{% if is_main_timeline %}R{{ row.round_id }} · {{ row.start_time }}{% else %}{{ row.round_label|default('SR') }} · R{{ row.parent_round|default('—') }} · {{ row.start_time }}{% endif %}</b>
                       <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ row.fresh }}</em><strong>{{ row.fresh_share }}</strong></span>
                       <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ row.cache_read }}</em><strong>{{ row.cache_read_share }}</strong></span>
                       <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ row.cache_write }}</em><strong>{{ row.cache_write_share }}</strong></span>
                       <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ row.output }}</em><strong>{{ row.output_share }}</strong></span>
                       <span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>{{ row.total_label }}</em><strong>100.0%</strong></span>
                       <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read Ratio</small><em>{{ row.cache_read }}</em><strong>{{ row.cache_read_ratio }}</strong></span>
-                      <span><i></i><small>Calls</small><em>{{ row.llm_calls }} LLM</em><strong>{{ row.model }}</strong></span>
+                      <span><i></i><small>Calls</small><em>{{ row.llm_calls }} LLM</em><strong>{% if is_main_timeline %}{{ row.tool_calls }} tools{% else %}{{ row.model }}{% endif %}</strong></span>
                       {% if row.badges %}
                       <span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>{{ row.badges|join(', ') }}</em></span>
                       {% endif %}
@@ -279,20 +217,20 @@
                       <span class="sd-token-round__spike"></span>
                       {% endif %}
                     </span>
-                    <span class="sd-token-round__label">{{ row.round_label|default('SR') }}</span>
+                    <span class="sd-token-round__label">{% if is_main_timeline %}R{{ row.round_id }}{% else %}{{ row.round_label|default('SR') }}{% endif %}</span>
                   </button>
                   {% endfor %}
                 </div>
               </div>
               {% else %}
-              <div class="sd-card-empty">No subagent token timeline available</div>
+              <div class="sd-card-empty">No agent token timeline available</div>
               {% endif %}
             </section>
             {% endfor %}
           </div>
         </div>
         {% else %}
-        <div class="sd-card-empty">No subagent runs indexed</div>
+        <div class="sd-card-empty">No agent runs indexed</div>
         {% endif %}
       </div>
     </article>
@@ -356,6 +294,7 @@
         <col class="col-round"/>
         <col class="col-summary"/>
         <col class="col-metrics"/>
+        <col class="col-attribution"/>
         <col class="col-status"/>
         <col class="col-time"/>
       </colgroup>
@@ -364,6 +303,7 @@
           <th class="round-col">Round</th>
           <th>Summary</th>
           <th class="metrics-col sortable" data-action="sort" data-sort="tokens">Metrics</th>
+          <th class="attribution-col">Attribution</th>
           <th class="status-col">Signals</th>
           <th class="time-col">Time</th>
         </tr>

@@ -126,6 +126,8 @@ def test_analysis_cards_view_model_fields_renderable():
         "call_distribution",
         "call_legend",
         "tool_impact",
+        "agent_breakdown",
+        "agent_timelines",
         "subagent_breakdown",
         "subagent_timelines",
         "context_segments",
@@ -236,6 +238,20 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
 
     assert "call_summary" not in token_round
 
+    agent_rows = vm["diagnostics"]["agent_breakdown"]
+    assert agent_rows[0]["scope"] == "main"
+    assert agent_rows[0]["subagent"] == "main agent"
+    assert agent_rows[0]["is_selected"] is True
+    assert agent_rows[1]["scope"] == "subagent"
+    assert agent_rows[1]["subagent_id"] == "sa-1"
+
+    agent_timelines = vm["diagnostics"]["agent_timelines"]
+    assert agent_timelines[0]["scope"] == "main"
+    assert agent_timelines[0]["is_selected"] is True
+    assert agent_timelines[0]["token_rounds"][0]["round_id"] == 1
+    assert agent_timelines[1]["scope"] == "subagent"
+    assert agent_timelines[1]["is_selected"] is False
+
     subagent_timeline = vm["diagnostics"]["subagent_timelines"][0]
     assert subagent_timeline["subagent_id"] == "sa-1"
     assert subagent_timeline["is_selected"] is True
@@ -321,9 +337,8 @@ def test_run_analysis_template_sections_exist():
     ).read_text(encoding="utf-8")
 
     for title in [
-        "Main Agent Breakdown",
+        "Agents Breakdown",
         "Tool Impact",
-        "Subagent Breakdown",
         "Issues &amp; Repro Seeds",
         "Context Budget",
     ]:
@@ -336,6 +351,8 @@ def test_run_analysis_template_sections_exist():
     assert "sd-coverage-matrix" not in session_html
     assert "Call Cost Distribution" not in session_html
     assert "Top Cost Drivers" not in session_html
+    assert "Main Agent Breakdown" not in session_html
+    assert "Subagent Breakdown" not in session_html
     assert "sd-driver-table" not in session_html
     assert "sd-subagent-workbench" in session_html
     assert 'data-action="select-subagent"' in session_html

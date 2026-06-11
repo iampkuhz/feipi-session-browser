@@ -36,16 +36,12 @@ Fresh SHALL NOT subtract Cache Read or Cache Write. When one logical LLM call ha
 #### Scenario: Analysis cards display
 
 The page SHALL display analysis cards for:
-- Token Timeline + Cache Health
-- Top Cost Drivers
-- Call Cost Distribution
-- Tool Impact
-- Subagent Breakdown
-- Issues & Repro Seeds
-- Payload Coverage
+- Agents Breakdown
 - Context Budget
+- Tool Impact
+- Issues & Repro Seeds
 
-Token Timeline + Cache Health and Context Budget SHALL span the full analysis grid width on desktop. Other analysis cards SHALL use the two-column grid on desktop and single-column layout on narrow screens.
+Agents Breakdown SHALL span the full analysis grid width on desktop and SHALL include `main agent` as the first selectable candidate followed by subagent runs. Selecting a candidate SHALL switch the token/cache timeline in the same card. Context Budget, Tool Impact, and Issues & Repro Seeds SHALL use the two-column grid on desktop and single-column layout on narrow screens.
 
 #### Scenario: Issue summary display
 
