@@ -155,6 +155,63 @@ class TestDashboardCSSContract:
         assert average_blocks
         assert all("var(--brand)" not in block and "var(--purple)" not in block for block in average_blocks)
 
+    @pytest.mark.contract_case("DASHBOARD-CSS-005")
+    def test_scope_selector_agent_active_colors_use_agent_tokens(self):
+        """Agent scope 选中态必须复用各 agent 默认色，不得统一使用品牌色。"""
+        css = _read(_CSS_PATH)
+        expected = {
+            r"\.scope-selector__btn\[data-scope=\"claude-code\"\]\.is-active": (
+                "--agent-claude"
+            ),
+            r"\.scope-selector__btn\[data-scope=\"qoder\"\]\.is-active": (
+                "--agent-qoder"
+            ),
+            r"\.scope-selector__btn\[data-scope=\"codex\"\]\.is-active": (
+                "--agent-codex"
+            ),
+        }
+        for selector, token in expected.items():
+            pattern = (
+                selector
+                + r"\s*\{[^}]*background:\s*var\("
+                + re.escape(token)
+                + r"\);"
+            )
+            assert re.search(pattern, css, re.S), f"{selector} must use {token}"
+
+        scope_blocks = re.findall(
+            r"\.scope-selector__btn[^{]*\.is-active\s*\{[^}]*\}",
+            css,
+            re.S,
+        )
+        assert scope_blocks
+        assert all(
+            "var(--brand)" not in block and "var(--purple)" not in block
+            for block in scope_blocks
+        )
+
+    @pytest.mark.contract_case("DASHBOARD-CSS-005")
+    def test_grain_control_active_color_is_neutral(self):
+        """Day/Week/Month 选中态必须使用中性色，不得复用 agent 或品牌色。"""
+        css = _read(_CSS_PATH)
+        assert "--dashboard-grain-active-color: var(--gray-900);" in css
+        match = re.search(
+            r"\.grain-control__btn\.is-active\s*\{(?P<body>[^}]*)\}",
+            css,
+            re.S,
+        )
+        assert match, "grain control active block must exist"
+        body = match.group("body")
+        assert "background: var(--dashboard-grain-active-color);" in body
+        for token in [
+            "--agent-claude",
+            "--agent-qoder",
+            "--agent-codex",
+            "--brand",
+            "--purple",
+        ]:
+            assert f"var({token})" not in body
+
     @pytest.mark.contract_case("DASHBOARD-CSS-006")
     def test_cache_health_line_series_use_line_keys(self):
         """Cache Health 折线图例和 tooltip key 必须用短线，不用圆点。"""

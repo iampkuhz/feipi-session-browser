@@ -5,6 +5,7 @@
   --max: 1760px;
   --dashboard-average-color: #111827;
   --dashboard-prompt-average-color: #0f172a;
+  --dashboard-grain-active-color: var(--gray-900);
 }
 
 @media (min-width: 1920px) {
@@ -70,11 +71,22 @@
   background: var(--surface-hover);
 }
 .scope-selector__btn.is-active {
-  background: var(--brand);
+  background: var(--dashboard-average-color);
   color: white;
 }
 .scope-selector__btn[data-scope="all"].is-active {
   background: var(--dashboard-average-color);
+}
+.scope-selector__btn[data-scope="claude-code"].is-active {
+  background: var(--agent-claude);
+}
+.scope-selector__btn[data-scope="qoder"].is-active {
+  background: var(--agent-qoder);
+  color: var(--dashboard-average-color);
+}
+.scope-selector__btn[data-scope="codex"].is-active {
+  background: var(--agent-codex);
+  color: var(--dashboard-average-color);
 }
 
 /* ── Grain Control ======================================================== */
@@ -103,7 +115,7 @@
   background: var(--surface-hover);
 }
 .grain-control__btn.is-active {
-  background: var(--brand);
+  background: var(--dashboard-grain-active-color);
   color: white;
 }
 

@@ -311,7 +311,7 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 - selector label 固定为 `Scope`。
 - 候选项固定为 `All agents`、`Claude Code`、`Qoder`、`Codex`。
 - 默认选中 `All agents`。
-- `All agents` 选中态使用中性黑灰；Claude Code 保持紫色系，二者不得共用近似紫色。
+- `All agents` 选中态使用中性黑灰；Claude Code、Qoder、Codex 选中态分别使用全局 agent 默认色 `--agent-claude`、`--agent-qoder`、`--agent-codex`，不得统一回退到品牌紫色。
 - 切换 scope 后，KPI 区、Trend 总览区、Cache Health 区、Scope 分支区全部重算。
 - scope 必须反映到 URL 查询参数 `agent`：
   - `All agents` 使用 `/dashboard`，不写 `agent` 参数。
@@ -323,6 +323,7 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 
 - 候选项固定为 `Day`、`Week`、`Month`。
 - 默认选中 `Day`。
+- 选中态固定使用中性黑灰，禁止复用 Claude Code、Qoder、Codex 的 agent 色或品牌紫色，避免和 agent scope selector 混淆。
 - 切换时间粒度只影响 Trend 总览区、Cache Health 区、`Agent Contribution Comparison`。
 - 时间粒度必须反映到 URL 查询参数 `grain`，取值固定为 `day`、`week`、`month`。
 
