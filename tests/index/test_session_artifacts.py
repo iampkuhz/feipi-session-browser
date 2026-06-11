@@ -17,6 +17,29 @@ from session_browser.normalized.artifacts import (
 from session_browser.normalized.schema import NORMALIZED_SCHEMA_VERSION
 
 
+def _minimal_normalized(agent: str, session_id: str) -> dict:
+    return {
+        "schema_version": NORMALIZED_SCHEMA_VERSION,
+        "agent": agent,
+        "source": {
+            "agent": agent,
+            "files": [],
+            "artifact": {"kind": "normalized_session_json", "model": "llm_call_semantic"},
+        },
+        "session": {
+            "session_key": f"{agent}:{session_id}",
+            "session_id": session_id,
+            "agent": agent,
+        },
+        "context_sources": [],
+        "calls": [],
+        "tool_executions": [],
+        "payload_index": {"items": []},
+        "diagnostics": {"token_timeline": []},
+        "parse_diagnostics": {"warnings": []},
+    }
+
+
 def test_persist_normalized_session_artifact_writes_file_and_db_row(tmp_path):
     db_path = tmp_path / "index.sqlite"
     index_dir = tmp_path / "index"
@@ -46,19 +69,7 @@ def test_persist_normalized_session_artifact_writes_file_and_db_row(tmp_path):
         file_path=str(source_path),
     )
 
-    normalized = {
-        "schema_version": NORMALIZED_SCHEMA_VERSION,
-        "agent": "codex",
-        "session": {
-            "session_key": "codex:session/unsafe",
-            "session_id": "session/unsafe",
-            "agent": "codex",
-        },
-        "rounds": [],
-        "tool_result_links": [],
-        "payload_index": {"items": []},
-        "diagnostics": {"token_timeline": []},
-    }
+    normalized = _minimal_normalized("codex", "session/unsafe")
     artifact_path = persist_normalized_session_artifact(
         conn,
         normalized,
@@ -113,19 +124,7 @@ def test_persist_current_normalized_artifact_reference_reuses_matching_sidecar(t
         ended_at="2026-06-10T00:01:00+00:00",
     )
     upsert_session(conn, summary, file_mtime=source_mtime, file_path=str(source_path))
-    normalized = {
-        "schema_version": NORMALIZED_SCHEMA_VERSION,
-        "agent": "codex",
-        "session": {
-            "session_key": "codex:reuse",
-            "session_id": "reuse",
-            "agent": "codex",
-        },
-        "rounds": [],
-        "tool_result_links": [],
-        "payload_index": {"items": []},
-        "diagnostics": {"token_timeline": []},
-    }
+    normalized = _minimal_normalized("codex", "reuse")
     artifact_path = persist_normalized_session_artifact(
         conn,
         normalized,

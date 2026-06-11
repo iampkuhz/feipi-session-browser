@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from session_browser.normalized.schema import NORMALIZED_SCHEMA_VERSION
+from session_browser.normalized.semantic import build_normalized_session_model
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -88,8 +88,6 @@ class _CodexBuildState:
         self.segment_system_signals: list[dict] = []
 
         self.rounds: list[dict] = []
-        self.tool_result_links: list[dict] = []
-        self.payload_items: list[dict] = []
         self.parse_warnings: list[dict] = []
 
     def accept_session_meta(self, payload: dict, timestamp: str) -> None:
@@ -204,26 +202,20 @@ class _CodexBuildState:
             "git_branch": self.thread_info.get("git_branch") or (self.session_meta.get("git") or {}).get("branch", ""),
             "source": self.thread_info.get("source") or self.session_meta.get("source") or "",
         }
-        return {
-            "schema_version": NORMALIZED_SCHEMA_VERSION,
-            "agent": "codex",
-            "session": session,
-            "source_files": [{
+        source_files = [{
                 "role": "codex_rollout",
                 "path": self.source_path,
                 "status": "available" if self.source_path else "unknown",
-            }],
-            "rounds": self.rounds,
-            "tool_result_links": self.tool_result_links,
-            "payload_index": {"items": self.payload_items},
-            "diagnostics": {
-                "token_timeline": [_token_timeline_row(r) for r in self.rounds],
-                "warnings": self.parse_warnings,
-            },
-            "parse_diagnostics": {
-                "warnings": self.parse_warnings,
-            },
-        }
+        }]
+        return build_normalized_session_model(
+            agent="codex",
+            session=session,
+            source_files=source_files,
+            call_drafts=self.rounds,
+            parse_warnings=self.parse_warnings,
+            extra_parse_diagnostics={},
+            context_sources=_codex_context_sources(self.session_meta, self.latest_turn_context, source_files),
+        )
 
     def _close_llm_call(self, token_payload: dict, timestamp: str) -> None:
         usage = _extract_token_count_usage(token_payload)
@@ -245,13 +237,6 @@ class _CodexBuildState:
         response = _collect_response(self.segment_response_items, self.segment_agent_messages)
         tools = _collect_tools(self.segment_response_items, self.segment_tool_events)
 
-        for tool_result in request_tool_results:
-            self.tool_result_links.append({
-                "source_tool_call_id": tool_result.get("tool_call_id", ""),
-                "consumed_by_call_id": call_id,
-                "consumed_by_round_id": round_id,
-            })
-
         round_obj = _build_round(
             round_id=round_id,
             call_id=call_id,
@@ -268,7 +253,6 @@ class _CodexBuildState:
             system_signals=list(self.segment_system_signals),
         )
         self.rounds.append(round_obj)
-        self._append_payload_index(round_obj, tools)
 
         self.pending_request_messages = []
         self.pending_user_messages = []
@@ -278,34 +262,6 @@ class _CodexBuildState:
         self.segment_tool_events = []
         self.segment_agent_messages = []
         self.segment_system_signals = []
-
-    def _append_payload_index(self, round_obj: dict, tools: list[dict]) -> None:
-        rid = round_obj["round_id"]
-        call_id = round_obj["main_call"]["call_id"]
-        refs = round_obj["payload_refs"]
-        for kind, ref_field, title in (
-            ("request", "request_payload_id", "Raw Request"),
-            ("response", "response_payload_id", "Raw Response"),
-            ("llm.request_attribution", "request_attribution_id", "Request Attribution"),
-            ("llm.response_attribution", "response_attribution_id", "Response Attribution"),
-        ):
-            self.payload_items.append({
-                "payload_id": refs[ref_field],
-                "kind": kind,
-                "title": f"R{rid} · {title}",
-                "target": {"round_id": rid, "call_id": call_id},
-            })
-        for tool in tools:
-            if tool.get("payload_id"):
-                self.payload_items.append({
-                    "payload_id": tool["payload_id"],
-                    "kind": "tool_result",
-                    "title": f"R{rid} · Tool Result · {tool.get('name') or 'tool'}",
-                    "target": {
-                        "round_id": rid,
-                        "tool_call_id": tool.get("tool_call_id", ""),
-                    },
-                })
 
     def _touch(self, timestamp: str) -> None:
         if timestamp and not self.first_ts:
@@ -882,6 +838,104 @@ def _request_bucket_for_message(role: str, text: str) -> str:
     return "Current user prompt"
 
 
+def _codex_context_sources(
+    session_meta: dict,
+    turn_context: dict,
+    source_files: list[dict],
+) -> list[dict]:
+    source_path = ""
+    if source_files:
+        source_path = str(source_files[0].get("path") or "")
+    base_instructions = session_meta.get("base_instructions") if isinstance(session_meta.get("base_instructions"), dict) else {}
+    dynamic_tools = session_meta.get("dynamic_tools") if isinstance(session_meta.get("dynamic_tools"), list) else []
+    workspace_roots = turn_context.get("workspace_roots") if isinstance(turn_context.get("workspace_roots"), list) else []
+    runtime_keys = [
+        key for key in (
+            "current_date",
+            "timezone",
+            "approval_policy",
+            "sandbox_policy",
+            "model",
+            "effort",
+        )
+        if key in turn_context
+    ]
+    return [
+        _context_source(
+            "system_base_prompt",
+            "System/base prompt",
+            "session_meta.base_instructions",
+            "available" if base_instructions.get("text") else "not_observable",
+            source_path,
+            {"text_preview": _truncate_text(_stringify(base_instructions.get("text")), 120)},
+        ),
+        _context_source(
+            "runtime_policy_context",
+            "Runtime policy context",
+            "turn_context",
+            "available" if runtime_keys else "not_observable",
+            source_path,
+            {"fields": runtime_keys},
+        ),
+        _context_source(
+            "tool_definitions",
+            "Tool definitions",
+            "session_meta.dynamic_tools",
+            "available" if dynamic_tools else "not_observable",
+            source_path,
+            {"tool_count": len(dynamic_tools)},
+        ),
+        _context_source(
+            "skills_and_agents",
+            "Skills and agents",
+            "turn_context or developer context",
+            "not_observable",
+            source_path,
+            {},
+        ),
+        _context_source(
+            "project_context",
+            "Project/environment context",
+            "turn_context.workspace_roots",
+            "available" if workspace_roots else "not_observable",
+            source_path,
+            {"workspace_roots": workspace_roots},
+        ),
+        _context_source("current_user_input", "Current user input", "event_msg.user_message", "derived", source_path, {}),
+        _context_source("tool_results", "Tool results", "local tool outputs", "derived", source_path, {}),
+        _context_source("conversation_history", "Conversation history", "retained or compacted context", "partial", source_path, {}),
+        _context_source(
+            "unknown_retained_context",
+            "Unknown retained context",
+            "provider usage residual",
+            "estimated_partial",
+            source_path,
+            {},
+        ),
+    ]
+
+
+def _context_source(
+    canonical_category: str,
+    label: str,
+    source: str,
+    status: str,
+    source_path: str,
+    details: dict,
+) -> dict:
+    return {
+        "canonical_category": canonical_category,
+        "label": label,
+        "source": source,
+        "status": status,
+        "source_ref": {
+            "path": source_path,
+            "payload_path": source,
+        },
+        "details": details,
+    }
+
+
 def _tool_result_for_next_request(tool: dict) -> dict:
     result = tool.get("result") or {}
     rendered = result.get("rendered") or {}
@@ -915,15 +969,6 @@ def _issues_from_tools(round_id: int, tools: list[dict]) -> list[dict]:
                 "target": {"round_id": round_id, "tool_call_id": tool.get("tool_call_id"), "payload_id": tool.get("payload_id")},
             })
     return issues
-
-
-def _token_timeline_row(round_obj: dict) -> dict:
-    tokens = round_obj["metrics"]["tokens"]
-    return {
-        "round_id": round_obj["round_id"],
-        "tokens": tokens,
-        "cache_read_ratio": round_obj["metrics"]["cache_read_ratio"],
-    }
 
 
 def _tool_status(result_info: dict) -> str:

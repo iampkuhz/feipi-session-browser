@@ -38,26 +38,24 @@ def test_qoder_tool_loop_normalized_semantics():
 
     validate_normalized_session(actual)
 
-    assert len(actual["rounds"]) == 2
-    r1, r2 = actual["rounds"]
+    assert len(actual["calls"]) == 2
+    c1, c2 = actual["calls"]
 
-    assert r1["main_call"]["call_id"] == "qoder-msg-1"
-    assert r1["response"]["rendered"]["blocks"][0]["type"] == "thinking"
-    assert [b["bucket"] for b in r1["response_attribution"]["buckets"]] == [
-        "Visible text",
-        "Thinking",
-        "Tool use",
-        "Unknown output",
+    assert c1["call_id"] == "qoder-msg-1"
+    assert c1["response"]["content_refs"][0]["payload_type"] == "thinking"
+    assert [b["canonical_category"] for b in c1["response"]["token_sources"]] == [
+        "visible_text",
+        "thinking",
+        "tool_use",
+        "unknown_output",
     ]
-    assert r1["metrics"]["tokens"]["raw_fields"]["qoder_input_tokens_total"] == 800
-    assert r1["steps"][2]["tools"][0]["files_touched"] == ["diagram.puml"]
+    assert c1["usage"]["raw_fields"]["qoder_input_tokens_total"] == 800
+    assert actual["tool_executions"][0]["files_touched"] == ["diagram.puml"]
 
-    assert r2["request_attribution"]["buckets"][0]["bucket"] == "Tool results"
-    assert actual["tool_result_links"] == [{
-        "source_tool_call_id": "toolu_qoder_write",
-        "consumed_by_call_id": "qoder-msg-2",
-        "consumed_by_round_id": 2,
-    }]
+    assert c2["request"]["token_sources"][6]["agent_bucket"] == "Tool results"
+    assert actual["tool_executions"][0]["tool_call_id"] == "toolu_qoder_write"
+    assert actual["tool_executions"][0]["declared_by_call_id"] == "qoder-msg-1"
+    assert actual["tool_executions"][0]["result_consumed_by_call_id"] == "qoder-msg-2"
 
 
 def test_qoder_source_file_entrypoint_matches_adapter_snapshot():

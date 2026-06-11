@@ -1,749 +1,1082 @@
 {
-  "schema_version": "session-detail.normalized.v1",
   "agent": "codex",
-  "session": {
-    "session_key": "codex:codex-fixture-tool-loop",
-    "session_id": "codex-fixture-tool-loop",
-    "title": "Codex fixture tool loop",
-    "agent": "codex",
-    "model": "gpt-5.5",
-    "cwd": "/repo",
-    "started_at": "2026-06-10T00:00:00.000Z",
-    "ended_at": "2026-06-10T00:00:07.500Z",
-    "git_branch": "main",
-    "source": "fixture"
-  },
-  "source_files": [
+  "calls": [
     {
-      "role": "codex_rollout",
-      "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
-      "status": "available"
-    }
-  ],
-  "rounds": [
-    {
-      "round_id": 1,
-      "round_key": "R1",
-      "main_call": {
-        "call_id": "codex-call-0001",
-        "turn_id": "turn-001",
-        "model": "gpt-5.5",
-        "timestamp": "2026-06-10T00:00:05.500Z",
-        "source": "codex_rollout_token_count"
-      },
-      "summary": "I will inspect and run tests.",
-      "status": "ok",
-      "timing": {
-        "started_at": "2026-06-10T00:00:05.500Z",
-        "ended_at": "2026-06-10T00:00:05.500Z",
-        "duration_seconds": 0,
-        "process_seconds": 0,
-        "waiting_seconds": 0
-      },
-      "metrics": {
-        "tokens": {
-          "fresh": 100,
-          "cache_read": 40,
-          "cache_write": 0,
-          "output": 30,
-          "total": 170,
-          "source_total": 130,
-          "total_semantics": "component_sum",
-          "quality": {
-            "source": "event_msg.token_count.info.last_token_usage",
-            "precision": "provider_reported",
-            "status": "available"
-          }
-        },
-        "cache_read_ratio": 0.2857,
-        "llm_call_count": 1,
-        "tool_call_count": 1,
-        "failed_tool_count": 0,
-        "subagent_count": 0
-      },
-      "signals": {
-        "failed": false,
-        "low_cache": false,
-        "fresh_spike": false,
-        "payload_gap": false,
-        "attribution_gap": false,
-        "items": []
-      },
+      "call_id": "codex-call-0001",
+      "call_index": 1,
+      "call_key": "C1",
+      "model": "gpt-5.5",
+      "parent_call_id": "",
+      "parent_tool_call_id": "",
       "request": {
-        "rendered": {
-          "text": "developer: Developer: be precise.\n\nuser: # AGENTS.md instructions\nUse pytest.\n<environment_context><cwd>/repo</cwd></environment_context>\n\nuser: Run tests",
-          "blocks": [
-            {
-              "type": "message",
-              "role": "developer",
-              "bucket": "Developer instructions",
-              "text": "Developer: be precise."
-            },
-            {
-              "type": "message",
-              "role": "user",
-              "bucket": "Project/environment context",
-              "text": "# AGENTS.md instructions\nUse pytest.\n<environment_context><cwd>/repo</cwd></environment_context>"
-            },
-            {
-              "type": "message",
-              "role": "user",
-              "bucket": "Current user prompt",
-              "text": "Run tests"
-            }
-          ],
-          "quality": {
-            "source": "codex_rollout_reconstruction",
-            "precision": "estimated_partial",
-            "status": "partial",
-            "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
-          }
-        },
-        "raw": null,
         "availability": {
+          "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout.",
+          "precision": "estimated_partial",
           "source": "codex_rollout_reconstruction",
-          "precision": "estimated_partial",
-          "status": "partial",
-          "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
-        },
-        "size_bytes": 154
-      },
-      "response": {
-        "rendered": {
-          "text": "I will inspect and run tests.",
-          "blocks": [
-            {
-              "type": "reasoning",
-              "summary": [],
-              "encrypted": true
-            },
-            {
-              "type": "output_text",
-              "text": "I will inspect and run tests."
-            },
-            {
-              "type": "tool_use",
-              "id": "call_run_tests",
-              "name": "exec_command",
-              "input": {
-                "cmd": "pytest tests/unit",
-                "workdir": "/repo"
-              }
-            }
-          ],
-          "quality": {
-            "source": "codex_rollout_response_items",
-            "precision": "exact",
-            "status": "available"
-          }
-        },
-        "raw": {
-          "blocks": [
-            {
-              "type": "reasoning",
-              "summary": [],
-              "encrypted": true
-            },
-            {
-              "type": "output_text",
-              "text": "I will inspect and run tests."
-            },
-            {
-              "type": "tool_use",
-              "id": "call_run_tests",
-              "name": "exec_command",
-              "input": {
-                "cmd": "pytest tests/unit",
-                "workdir": "/repo"
-              }
-            }
-          ]
-        },
-        "availability": {
-          "source": "codex_rollout_response_items",
-          "precision": "exact",
-          "status": "available"
-        },
-        "size_bytes": 29
-      },
-      "request_attribution": {
-        "status": "partial",
-        "summary": {
-          "total_input": 140,
-          "fresh_input": 100,
-          "cache_read": 40,
-          "visible_estimated_tokens": 33,
-          "coverage": 0.2357
-        },
-        "buckets": [
-          {
-            "bucket": "Developer instructions",
-            "tokens": 6,
-            "share": 0.0429,
-            "source": "response_item.message",
-            "precision": "estimated",
-            "preview": "Developer: be precise."
-          },
-          {
-            "bucket": "Project/environment context",
-            "tokens": 24,
-            "share": 0.1714,
-            "source": "response_item.message",
-            "precision": "estimated",
-            "preview": "# AGENTS.md instructions Use pytest. <environment_context><cwd>/repo</cwd></environment_context>"
-          },
-          {
-            "bucket": "Current user prompt",
-            "tokens": 3,
-            "share": 0.0214,
-            "source": "response_item.message",
-            "precision": "estimated",
-            "preview": "Run tests"
-          },
-          {
-            "bucket": "Unknown / retained context",
-            "tokens": 107,
-            "share": 0.7643,
-            "source": "provider usage residual",
-            "precision": "estimated_partial",
-            "preview": "server-side retained context or hidden request data"
-          }
-        ],
-        "quality": {
-          "source": "codex normalized adapter",
-          "precision": "estimated_partial",
           "status": "partial"
-        }
-      },
-      "response_attribution": {
-        "status": "available",
-        "summary": {
-          "total_output": 30,
-          "visible_estimated_tokens": 8,
-          "tool_use_estimated_tokens": 14,
-          "reasoning_output_tokens": 8,
-          "coverage": 1.0
         },
-        "buckets": [
+        "content_refs": [
           {
-            "bucket": "Visible text",
-            "tokens": 8,
-            "share": 0.2667,
-            "source": "response_item.message role=assistant",
-            "precision": "estimated",
-            "preview": "I will inspect and run tests."
+            "event_type": "request_content",
+            "payload_id": "llm-R1-C1-request",
+            "payload_path": "rendered.blocks[0]",
+            "payload_type": "message",
+            "ref_id": "llm-R1-C1-request:rendered.blocks[0]",
+            "role": "developer",
+            "text_preview": "Developer: be precise.",
+            "tool_call_id": ""
           },
           {
-            "bucket": "Tool use",
-            "tokens": 14,
-            "share": 0.4667,
-            "source": "response_item.function_call",
-            "precision": "estimated",
-            "preview": "[{\"name\": \"exec_command\", \"parameters\": {\"cmd\": \"pytest tests/unit\", \"workdir\": \"/repo\"}}]"
+            "event_type": "request_content",
+            "payload_id": "llm-R1-C1-request",
+            "payload_path": "rendered.blocks[1]",
+            "payload_type": "message",
+            "ref_id": "llm-R1-C1-request:rendered.blocks[1]",
+            "role": "user",
+            "text_preview": "# AGENTS.md instructions\nUse pytest.\n<environment_context><cwd>/repo</cwd></environment_context>",
+            "tool_call_id": ""
           },
           {
-            "bucket": "Reasoning",
-            "tokens": 8,
-            "share": 0.2667,
-            "source": "event_msg.token_count.reasoning_output_tokens",
-            "precision": "provider_reported",
-            "preview": "encrypted reasoning payload"
+            "event_type": "request_content",
+            "payload_id": "llm-R1-C1-request",
+            "payload_path": "rendered.blocks[2]",
+            "payload_type": "message",
+            "ref_id": "llm-R1-C1-request:rendered.blocks[2]",
+            "role": "user",
+            "text_preview": "Run tests",
+            "tool_call_id": ""
           }
         ],
-        "quality": {
-          "source": "codex normalized adapter",
-          "precision": "estimated",
-          "status": "available"
-        }
-      },
-      "payload_refs": {
-        "request_payload_id": "llm-R1-C1-request",
-        "response_payload_id": "llm-R1-C1-response",
-        "request_attribution_id": "llm-R1-C1-request-attribution",
-        "response_attribution_id": "llm-R1-C1-response-attribution",
-        "related_result_payload_ids": [
-          "tool-call_run_tests-result"
-        ]
-      },
-      "steps": [
-        {
-          "type": "user_context",
-          "step_id": "R1-user-1",
-          "timestamp": "2026-06-10T00:00:01.500Z",
-          "content": {
-            "text": "Run tests",
-            "blocks": [
+        "payload_ref": "llm-R1-C1-request",
+        "token_source_ref": "llm-R1-C1-request-attribution",
+        "token_sources": [
+          {
+            "agent_bucket": "",
+            "canonical_category": "system_base_prompt",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
               {
-                "type": "text",
-                "text": "Run tests"
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "system_base_prompt"
               }
             ],
-            "quality": {
-              "source": "event_msg.user_message",
-              "precision": "exact",
-              "status": "available"
-            }
-          }
-        },
-        {
-          "type": "llm_call",
-          "step_id": "R1-main-call",
-          "call_id": "codex-call-0001",
-          "scope": "main",
-          "model": "gpt-5.5",
-          "status": "ok",
-          "timestamp": "2026-06-10T00:00:05.500Z",
-          "usage": {
-            "fresh": 100,
-            "cache_read": 40,
-            "cache_write": 0,
-            "output": 30,
-            "total": 170,
-            "source_total": 130,
-            "total_semantics": "component_sum",
-            "quality": {
-              "source": "event_msg.token_count",
-              "precision": "provider_reported",
-              "status": "available"
-            }
+            "tokens": 0
           },
-          "payload_refs": {
-            "request_payload_id": "llm-R1-C1-request",
-            "response_payload_id": "llm-R1-C1-response",
-            "request_attribution_id": "llm-R1-C1-request-attribution",
-            "response_attribution_id": "llm-R1-C1-response-attribution",
-            "related_result_payload_ids": [
-              "tool-call_run_tests-result"
-            ]
-          }
-        },
-        {
-          "type": "tool_batch",
-          "step_id": "R1-tool-batch-1",
-          "started_at": "2026-06-10T00:00:05.500Z",
-          "ended_at": "2026-06-10T00:00:05.500Z",
-          "duration_ms": 2000,
-          "tools": [
-            {
-              "tool_call_id": "call_run_tests",
-              "name": "exec_command",
-              "type": "function_call",
-              "parameters": {
-                "cmd": "pytest tests/unit",
-                "workdir": "/repo"
-              },
-              "status": "completed",
-              "exit_code": 0,
-              "duration_ms": 2000,
-              "result": {
-                "rendered": {
-                  "text": "2 passed",
-                  "blocks": [
-                    {
-                      "type": "text",
-                      "text": "2 passed"
-                    }
-                  ],
-                  "quality": {
-                    "source": "exec_command_end",
-                    "precision": "exact",
-                    "status": "available"
-                  }
-                },
-                "raw": {
-                  "stdout": "2 passed",
-                  "stderr": "",
-                  "exit_code": 0,
-                  "command": [
-                    "/bin/zsh",
-                    "-lc",
-                    "pytest tests/unit"
-                  ]
-                },
-                "availability": {
-                  "source": "exec_command_end",
-                  "precision": "exact",
-                  "status": "available"
-                },
-                "size_bytes": 8
-              },
-              "payload_id": "tool-call_run_tests-result"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "round_id": 2,
-      "round_key": "R2",
-      "main_call": {
-        "call_id": "codex-call-0002",
-        "turn_id": "turn-001",
-        "model": "gpt-5.5",
-        "timestamp": "2026-06-10T00:00:07.000Z",
-        "source": "codex_rollout_token_count"
-      },
-      "summary": "Tests passed.",
-      "status": "ok",
-      "timing": {
-        "started_at": "2026-06-10T00:00:07.000Z",
-        "ended_at": "2026-06-10T00:00:07.000Z",
-        "duration_seconds": 0,
-        "process_seconds": 0,
-        "waiting_seconds": 0
-      },
-      "metrics": {
-        "tokens": {
-          "fresh": 80,
-          "cache_read": 20,
-          "cache_write": 0,
-          "output": 16,
-          "total": 116,
-          "source_total": 96,
-          "total_semantics": "component_sum",
-          "quality": {
-            "source": "event_msg.token_count.info.last_token_usage",
-            "precision": "provider_reported",
-            "status": "available"
-          }
-        },
-        "cache_read_ratio": 0.2,
-        "llm_call_count": 1,
-        "tool_call_count": 0,
-        "failed_tool_count": 0,
-        "subagent_count": 0
-      },
-      "signals": {
-        "failed": false,
-        "low_cache": false,
-        "fresh_spike": false,
-        "payload_gap": false,
-        "attribution_gap": false,
-        "items": []
-      },
-      "request": {
-        "rendered": {
-          "text": "tool_result call_run_tests: 2 passed",
-          "blocks": [
-            {
-              "type": "tool_result",
-              "tool_call_id": "call_run_tests",
-              "text": "2 passed"
-            }
-          ],
-          "quality": {
-            "source": "codex_rollout_reconstruction",
+          {
+            "agent_bucket": "Developer instructions",
+            "canonical_category": "runtime_policy_context",
+            "precision": "estimated",
+            "preview": "Developer: be precise.",
+            "share": 0.0429,
+            "source": "response_item.message",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Developer instructions"
+              }
+            ],
+            "tokens": 6
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "tool_definitions",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "tool_definitions"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "skills_and_agents",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "skills_and_agents"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "Project/environment context",
+            "canonical_category": "project_context",
+            "precision": "estimated",
+            "preview": "# AGENTS.md instructions Use pytest. <environment_context><cwd>/repo</cwd></environment_context>",
+            "share": 0.1714,
+            "source": "response_item.message",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Project/environment context"
+              }
+            ],
+            "tokens": 24
+          },
+          {
+            "agent_bucket": "Current user prompt",
+            "canonical_category": "current_user_input",
+            "precision": "estimated",
+            "preview": "Run tests",
+            "share": 0.0214,
+            "source": "response_item.message",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Current user prompt"
+              }
+            ],
+            "tokens": 3
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "tool_results",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "tool_results"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "conversation_history",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "conversation_history"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "Unknown / retained context",
+            "canonical_category": "unknown_retained_context",
             "precision": "estimated_partial",
-            "status": "partial",
-            "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
+            "preview": "server-side retained context or hidden request data",
+            "share": 0.7643,
+            "source": "provider usage residual",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R1-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Unknown / retained context"
+              }
+            ],
+            "tokens": 107
           }
-        },
-        "raw": null,
-        "availability": {
-          "source": "codex_rollout_reconstruction",
-          "precision": "estimated_partial",
-          "status": "partial",
-          "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
-        },
-        "size_bytes": 36
+        ],
+        "tool_result_ids": []
       },
       "response": {
-        "rendered": {
-          "text": "Tests passed.",
-          "blocks": [
-            {
-              "type": "reasoning",
-              "summary": [],
-              "encrypted": true
-            },
-            {
-              "type": "output_text",
-              "text": "Tests passed."
-            }
-          ],
-          "quality": {
-            "source": "codex_rollout_response_items",
-            "precision": "exact",
-            "status": "available"
-          }
-        },
-        "raw": {
-          "blocks": [
-            {
-              "type": "reasoning",
-              "summary": [],
-              "encrypted": true
-            },
-            {
-              "type": "output_text",
-              "text": "Tests passed."
-            }
-          ]
-        },
         "availability": {
-          "source": "codex_rollout_response_items",
           "precision": "exact",
+          "source": "codex_rollout_response_items",
           "status": "available"
         },
-        "size_bytes": 13
-      },
-      "request_attribution": {
-        "status": "partial",
-        "summary": {
-          "total_input": 100,
-          "fresh_input": 80,
-          "cache_read": 20,
-          "visible_estimated_tokens": 2,
-          "coverage": 0.02
-        },
-        "buckets": [
+        "content_refs": [
           {
-            "bucket": "Tool results",
-            "tokens": 2,
+            "event_type": "response_content",
+            "payload_id": "llm-R1-C1-response",
+            "payload_path": "rendered.blocks[0]",
+            "payload_type": "reasoning",
+            "ref_id": "llm-R1-C1-response:rendered.blocks[0]",
+            "role": "",
+            "text_preview": "",
+            "tool_call_id": ""
+          },
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R1-C1-response",
+            "payload_path": "rendered.blocks[1]",
+            "payload_type": "output_text",
+            "ref_id": "llm-R1-C1-response:rendered.blocks[1]",
+            "role": "",
+            "text_preview": "I will inspect and run tests.",
+            "tool_call_id": ""
+          },
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R1-C1-response",
+            "payload_path": "rendered.blocks[2]",
+            "payload_type": "tool_use",
+            "ref_id": "llm-R1-C1-response:rendered.blocks[2]",
+            "role": "",
+            "text_preview": "",
+            "tool_call_id": "call_run_tests"
+          }
+        ],
+        "message_refs": [
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R1-C1-response",
+            "payload_path": "rendered.blocks[1]",
+            "payload_type": "output_text",
+            "ref_id": "llm-R1-C1-response:rendered.blocks[1]",
+            "role": "",
+            "text_preview": "I will inspect and run tests.",
+            "tool_call_id": ""
+          }
+        ],
+        "payload_ref": "llm-R1-C1-response",
+        "reasoning_refs": [
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R1-C1-response",
+            "payload_path": "rendered.blocks[0]",
+            "payload_type": "reasoning",
+            "ref_id": "llm-R1-C1-response:rendered.blocks[0]",
+            "role": "",
+            "text_preview": "",
+            "tool_call_id": ""
+          }
+        ],
+        "token_source_ref": "llm-R1-C1-response-attribution",
+        "token_sources": [
+          {
+            "agent_bucket": "Visible text",
+            "canonical_category": "visible_text",
+            "precision": "estimated",
+            "preview": "I will inspect and run tests.",
+            "share": 0.2667,
+            "source": "response_item.message role=assistant",
+            "source_refs": [
+              {
+                "event_type": "response_token_source",
+                "payload_id": "llm-R1-C1-response-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Visible text"
+              }
+            ],
+            "tokens": 8
+          },
+          {
+            "agent_bucket": "Tool use",
+            "canonical_category": "tool_use",
+            "precision": "estimated",
+            "preview": "[{\"name\": \"exec_command\", \"parameters\": {\"cmd\": \"pytest tests/unit\", \"workdir\": \"/repo\"}}]",
+            "share": 0.4667,
+            "source": "response_item.function_call",
+            "source_refs": [
+              {
+                "event_type": "response_token_source",
+                "payload_id": "llm-R1-C1-response-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Tool use"
+              }
+            ],
+            "tokens": 14
+          },
+          {
+            "agent_bucket": "Reasoning",
+            "canonical_category": "reasoning",
+            "precision": "provider_reported",
+            "preview": "encrypted reasoning payload",
+            "share": 0.2667,
+            "source": "event_msg.token_count.reasoning_output_tokens",
+            "source_refs": [
+              {
+                "event_type": "response_token_source",
+                "payload_id": "llm-R1-C1-response-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Reasoning"
+              }
+            ],
+            "tokens": 8
+          }
+        ],
+        "tool_use_ids": [
+          "call_run_tests"
+        ],
+        "tool_use_refs": [
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R1-C1-response",
+            "payload_path": "rendered.blocks[2]",
+            "payload_type": "tool_use",
+            "ref_id": "llm-R1-C1-response:rendered.blocks[2]",
+            "role": "",
+            "text_preview": "",
+            "tool_call_id": "call_run_tests"
+          }
+        ]
+      },
+      "scope": "main",
+      "signals": {
+        "attribution_gap": false,
+        "failed": false,
+        "fresh_spike": false,
+        "items": [],
+        "low_cache": false,
+        "payload_gap": false
+      },
+      "source": "codex_rollout_token_count",
+      "status": "ok",
+      "summary": "I will inspect and run tests.",
+      "timestamp": "2026-06-10T00:00:05.500Z",
+      "timing": {
+        "duration_seconds": 0,
+        "ended_at": "2026-06-10T00:00:05.500Z",
+        "process_seconds": 0,
+        "started_at": "2026-06-10T00:00:05.500Z",
+        "waiting_seconds": 0
+      },
+      "turn_id": "turn-001",
+      "usage": {
+        "cache_read": 40,
+        "cache_write": 0,
+        "fresh": 100,
+        "output": 30,
+        "quality": {
+          "precision": "provider_reported",
+          "source": "event_msg.token_count.info.last_token_usage",
+          "status": "available"
+        },
+        "raw_fields": {},
+        "source_total": 130,
+        "total": 170,
+        "total_semantics": "component_sum"
+      }
+    },
+    {
+      "call_id": "codex-call-0002",
+      "call_index": 2,
+      "call_key": "C2",
+      "model": "gpt-5.5",
+      "parent_call_id": "",
+      "parent_tool_call_id": "",
+      "request": {
+        "availability": {
+          "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout.",
+          "precision": "estimated_partial",
+          "source": "codex_rollout_reconstruction",
+          "status": "partial"
+        },
+        "content_refs": [
+          {
+            "event_type": "request_content",
+            "payload_id": "llm-R2-C1-request",
+            "payload_path": "rendered.blocks[0]",
+            "payload_type": "tool_result",
+            "ref_id": "llm-R2-C1-request:rendered.blocks[0]",
+            "role": "",
+            "text_preview": "2 passed",
+            "tool_call_id": "call_run_tests"
+          }
+        ],
+        "payload_ref": "llm-R2-C1-request",
+        "token_source_ref": "llm-R2-C1-request-attribution",
+        "token_sources": [
+          {
+            "agent_bucket": "",
+            "canonical_category": "system_base_prompt",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "system_base_prompt"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "runtime_policy_context",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "runtime_policy_context"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "tool_definitions",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "tool_definitions"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "skills_and_agents",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "skills_and_agents"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "project_context",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "project_context"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "",
+            "canonical_category": "current_user_input",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "current_user_input"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "Tool results",
+            "canonical_category": "tool_results",
+            "precision": "estimated",
+            "preview": "2 passed",
             "share": 0.02,
             "source": "previous tool output",
-            "precision": "estimated",
-            "preview": "2 passed"
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Tool results"
+              }
+            ],
+            "tokens": 2
           },
           {
-            "bucket": "Unknown / retained context",
-            "tokens": 98,
+            "agent_bucket": "",
+            "canonical_category": "conversation_history",
+            "precision": "unavailable",
+            "preview": "",
+            "share": 0,
+            "source": "not_observable_in_local_log",
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "conversation_history"
+              }
+            ],
+            "tokens": 0
+          },
+          {
+            "agent_bucket": "Unknown / retained context",
+            "canonical_category": "unknown_retained_context",
+            "precision": "estimated_partial",
+            "preview": "server-side retained context or hidden request data",
             "share": 0.98,
             "source": "provider usage residual",
-            "precision": "estimated_partial",
-            "preview": "server-side retained context or hidden request data"
+            "source_refs": [
+              {
+                "event_type": "request_token_source",
+                "payload_id": "llm-R2-C1-request-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Unknown / retained context"
+              }
+            ],
+            "tokens": 98
           }
         ],
-        "quality": {
-          "source": "codex normalized adapter",
-          "precision": "estimated_partial",
-          "status": "partial"
-        }
+        "tool_result_ids": [
+          "call_run_tests"
+        ]
       },
-      "response_attribution": {
-        "status": "available",
-        "summary": {
-          "total_output": 16,
-          "visible_estimated_tokens": 4,
-          "tool_use_estimated_tokens": 0,
-          "reasoning_output_tokens": 4,
-          "coverage": 0.5
+      "response": {
+        "availability": {
+          "precision": "exact",
+          "source": "codex_rollout_response_items",
+          "status": "available"
         },
-        "buckets": [
+        "content_refs": [
           {
-            "bucket": "Visible text",
-            "tokens": 4,
+            "event_type": "response_content",
+            "payload_id": "llm-R2-C1-response",
+            "payload_path": "rendered.blocks[0]",
+            "payload_type": "reasoning",
+            "ref_id": "llm-R2-C1-response:rendered.blocks[0]",
+            "role": "",
+            "text_preview": "",
+            "tool_call_id": ""
+          },
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R2-C1-response",
+            "payload_path": "rendered.blocks[1]",
+            "payload_type": "output_text",
+            "ref_id": "llm-R2-C1-response:rendered.blocks[1]",
+            "role": "",
+            "text_preview": "Tests passed.",
+            "tool_call_id": ""
+          }
+        ],
+        "message_refs": [
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R2-C1-response",
+            "payload_path": "rendered.blocks[1]",
+            "payload_type": "output_text",
+            "ref_id": "llm-R2-C1-response:rendered.blocks[1]",
+            "role": "",
+            "text_preview": "Tests passed.",
+            "tool_call_id": ""
+          }
+        ],
+        "payload_ref": "llm-R2-C1-response",
+        "reasoning_refs": [
+          {
+            "event_type": "response_content",
+            "payload_id": "llm-R2-C1-response",
+            "payload_path": "rendered.blocks[0]",
+            "payload_type": "reasoning",
+            "ref_id": "llm-R2-C1-response:rendered.blocks[0]",
+            "role": "",
+            "text_preview": "",
+            "tool_call_id": ""
+          }
+        ],
+        "token_source_ref": "llm-R2-C1-response-attribution",
+        "token_sources": [
+          {
+            "agent_bucket": "Visible text",
+            "canonical_category": "visible_text",
+            "precision": "estimated",
+            "preview": "Tests passed.",
             "share": 0.25,
             "source": "response_item.message role=assistant",
-            "precision": "estimated",
-            "preview": "Tests passed."
+            "source_refs": [
+              {
+                "event_type": "response_token_source",
+                "payload_id": "llm-R2-C1-response-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Visible text"
+              }
+            ],
+            "tokens": 4
           },
           {
-            "bucket": "Reasoning",
-            "tokens": 4,
+            "agent_bucket": "Reasoning",
+            "canonical_category": "reasoning",
+            "precision": "provider_reported",
+            "preview": "encrypted reasoning payload",
             "share": 0.25,
             "source": "event_msg.token_count.reasoning_output_tokens",
-            "precision": "provider_reported",
-            "preview": "encrypted reasoning payload"
+            "source_refs": [
+              {
+                "event_type": "response_token_source",
+                "payload_id": "llm-R2-C1-response-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Reasoning"
+              }
+            ],
+            "tokens": 4
           },
           {
-            "bucket": "Unknown output",
-            "tokens": 8,
+            "agent_bucket": "Unknown output",
+            "canonical_category": "unknown_output",
+            "precision": "estimated_partial",
+            "preview": "output tokens not explained by visible rollout items",
             "share": 0.5,
             "source": "provider usage residual",
-            "precision": "estimated_partial",
-            "preview": "output tokens not explained by visible rollout items"
+            "source_refs": [
+              {
+                "event_type": "response_token_source",
+                "payload_id": "llm-R2-C1-response-attribution",
+                "payload_path": "buckets[]",
+                "payload_type": "Unknown output"
+              }
+            ],
+            "tokens": 8
           }
         ],
+        "tool_use_ids": [],
+        "tool_use_refs": []
+      },
+      "scope": "main",
+      "signals": {
+        "attribution_gap": false,
+        "failed": false,
+        "fresh_spike": false,
+        "items": [],
+        "low_cache": false,
+        "payload_gap": false
+      },
+      "source": "codex_rollout_token_count",
+      "status": "ok",
+      "summary": "Tests passed.",
+      "timestamp": "2026-06-10T00:00:07.000Z",
+      "timing": {
+        "duration_seconds": 0,
+        "ended_at": "2026-06-10T00:00:07.000Z",
+        "process_seconds": 0,
+        "started_at": "2026-06-10T00:00:07.000Z",
+        "waiting_seconds": 0
+      },
+      "turn_id": "turn-001",
+      "usage": {
+        "cache_read": 20,
+        "cache_write": 0,
+        "fresh": 80,
+        "output": 16,
         "quality": {
-          "source": "codex normalized adapter",
-          "precision": "estimated",
+          "precision": "provider_reported",
+          "source": "event_msg.token_count.info.last_token_usage",
           "status": "available"
-        }
-      },
-      "payload_refs": {
-        "request_payload_id": "llm-R2-C1-request",
-        "response_payload_id": "llm-R2-C1-response",
-        "request_attribution_id": "llm-R2-C1-request-attribution",
-        "response_attribution_id": "llm-R2-C1-response-attribution",
-        "related_result_payload_ids": []
-      },
-      "steps": [
-        {
-          "type": "llm_call",
-          "step_id": "R2-main-call",
-          "call_id": "codex-call-0002",
-          "scope": "main",
-          "model": "gpt-5.5",
-          "status": "ok",
-          "timestamp": "2026-06-10T00:00:07.000Z",
-          "usage": {
-            "fresh": 80,
-            "cache_read": 20,
-            "cache_write": 0,
-            "output": 16,
-            "total": 116,
-            "source_total": 96,
-            "total_semantics": "component_sum",
-            "quality": {
-              "source": "event_msg.token_count",
-              "precision": "provider_reported",
-              "status": "available"
-            }
-          },
-          "payload_refs": {
-            "request_payload_id": "llm-R2-C1-request",
-            "response_payload_id": "llm-R2-C1-response",
-            "request_attribution_id": "llm-R2-C1-request-attribution",
-            "response_attribution_id": "llm-R2-C1-response-attribution",
-            "related_result_payload_ids": []
-          }
-        }
-      ]
-    }
-  ],
-  "tool_result_links": [
-    {
-      "source_tool_call_id": "call_run_tests",
-      "consumed_by_call_id": "codex-call-0002",
-      "consumed_by_round_id": 2
-    }
-  ],
-  "payload_index": {
-    "items": [
-      {
-        "payload_id": "llm-R1-C1-request",
-        "kind": "request",
-        "title": "R1 · Raw Request",
-        "target": {
-          "round_id": 1,
-          "call_id": "codex-call-0001"
-        }
-      },
-      {
-        "payload_id": "llm-R1-C1-response",
-        "kind": "response",
-        "title": "R1 · Raw Response",
-        "target": {
-          "round_id": 1,
-          "call_id": "codex-call-0001"
-        }
-      },
-      {
-        "payload_id": "llm-R1-C1-request-attribution",
-        "kind": "llm.request_attribution",
-        "title": "R1 · Request Attribution",
-        "target": {
-          "round_id": 1,
-          "call_id": "codex-call-0001"
-        }
-      },
-      {
-        "payload_id": "llm-R1-C1-response-attribution",
-        "kind": "llm.response_attribution",
-        "title": "R1 · Response Attribution",
-        "target": {
-          "round_id": 1,
-          "call_id": "codex-call-0001"
-        }
-      },
-      {
-        "payload_id": "tool-call_run_tests-result",
-        "kind": "tool_result",
-        "title": "R1 · Tool Result · exec_command",
-        "target": {
-          "round_id": 1,
-          "tool_call_id": "call_run_tests"
-        }
-      },
-      {
-        "payload_id": "llm-R2-C1-request",
-        "kind": "request",
-        "title": "R2 · Raw Request",
-        "target": {
-          "round_id": 2,
-          "call_id": "codex-call-0002"
-        }
-      },
-      {
-        "payload_id": "llm-R2-C1-response",
-        "kind": "response",
-        "title": "R2 · Raw Response",
-        "target": {
-          "round_id": 2,
-          "call_id": "codex-call-0002"
-        }
-      },
-      {
-        "payload_id": "llm-R2-C1-request-attribution",
-        "kind": "llm.request_attribution",
-        "title": "R2 · Request Attribution",
-        "target": {
-          "round_id": 2,
-          "call_id": "codex-call-0002"
-        }
-      },
-      {
-        "payload_id": "llm-R2-C1-response-attribution",
-        "kind": "llm.response_attribution",
-        "title": "R2 · Response Attribution",
-        "target": {
-          "round_id": 2,
-          "call_id": "codex-call-0002"
-        }
+        },
+        "raw_fields": {},
+        "source_total": 96,
+        "total": 116,
+        "total_semantics": "component_sum"
       }
-    ]
-  },
+    }
+  ],
+  "context_sources": [
+    {
+      "canonical_category": "system_base_prompt",
+      "details": {
+        "text_preview": "You are Codex."
+      },
+      "label": "System/base prompt",
+      "source": "session_meta.base_instructions",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "session_meta.base_instructions"
+      },
+      "status": "available"
+    },
+    {
+      "canonical_category": "runtime_policy_context",
+      "details": {
+        "fields": [
+          "current_date",
+          "timezone",
+          "approval_policy",
+          "sandbox_policy",
+          "model",
+          "effort"
+        ]
+      },
+      "label": "Runtime policy context",
+      "source": "turn_context",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "turn_context"
+      },
+      "status": "available"
+    },
+    {
+      "canonical_category": "tool_definitions",
+      "details": {
+        "tool_count": 1
+      },
+      "label": "Tool definitions",
+      "source": "session_meta.dynamic_tools",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "session_meta.dynamic_tools"
+      },
+      "status": "available"
+    },
+    {
+      "canonical_category": "skills_and_agents",
+      "details": {},
+      "label": "Skills and agents",
+      "source": "turn_context or developer context",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "turn_context or developer context"
+      },
+      "status": "not_observable"
+    },
+    {
+      "canonical_category": "project_context",
+      "details": {
+        "workspace_roots": [
+          "/repo"
+        ]
+      },
+      "label": "Project/environment context",
+      "source": "turn_context.workspace_roots",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "turn_context.workspace_roots"
+      },
+      "status": "available"
+    },
+    {
+      "canonical_category": "current_user_input",
+      "details": {},
+      "label": "Current user input",
+      "source": "event_msg.user_message",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "event_msg.user_message"
+      },
+      "status": "derived"
+    },
+    {
+      "canonical_category": "tool_results",
+      "details": {},
+      "label": "Tool results",
+      "source": "local tool outputs",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "local tool outputs"
+      },
+      "status": "derived"
+    },
+    {
+      "canonical_category": "conversation_history",
+      "details": {},
+      "label": "Conversation history",
+      "source": "retained or compacted context",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "retained or compacted context"
+      },
+      "status": "partial"
+    },
+    {
+      "canonical_category": "unknown_retained_context",
+      "details": {},
+      "label": "Unknown retained context",
+      "source": "provider usage residual",
+      "source_ref": {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "payload_path": "provider usage residual"
+      },
+      "status": "estimated_partial"
+    }
+  ],
   "diagnostics": {
     "token_timeline": [
       {
-        "round_id": 1,
-        "tokens": {
-          "fresh": 100,
+        "cache_read_ratio": 0.2857,
+        "call_id": "codex-call-0001",
+        "call_index": 1,
+        "scope": "main",
+        "usage": {
           "cache_read": 40,
           "cache_write": 0,
+          "fresh": 100,
           "output": 30,
-          "total": 170,
-          "source_total": 130,
-          "total_semantics": "component_sum",
           "quality": {
-            "source": "event_msg.token_count.info.last_token_usage",
             "precision": "provider_reported",
+            "source": "event_msg.token_count.info.last_token_usage",
             "status": "available"
-          }
-        },
-        "cache_read_ratio": 0.2857
+          },
+          "raw_fields": {},
+          "source_total": 130,
+          "total": 170,
+          "total_semantics": "component_sum"
+        }
       },
       {
-        "round_id": 2,
-        "tokens": {
-          "fresh": 80,
+        "cache_read_ratio": 0.2,
+        "call_id": "codex-call-0002",
+        "call_index": 2,
+        "scope": "main",
+        "usage": {
           "cache_read": 20,
           "cache_write": 0,
+          "fresh": 80,
           "output": 16,
-          "total": 116,
-          "source_total": 96,
-          "total_semantics": "component_sum",
           "quality": {
-            "source": "event_msg.token_count.info.last_token_usage",
             "precision": "provider_reported",
+            "source": "event_msg.token_count.info.last_token_usage",
             "status": "available"
-          }
-        },
-        "cache_read_ratio": 0.2
+          },
+          "raw_fields": {},
+          "source_total": 96,
+          "total": 116,
+          "total_semantics": "component_sum"
+        }
       }
     ],
     "warnings": []
   },
   "parse_diagnostics": {
-    "warnings": [],
     "jsonl": {
-      "total_lines": 19,
-      "non_empty_lines": 19,
+      "error_count": 0,
       "events_parsed": 19,
       "events_skipped": 0,
-      "warning_count": 0,
-      "error_count": 0
+      "non_empty_lines": 19,
+      "total_lines": 19,
+      "warning_count": 0
+    },
+    "warnings": []
+  },
+  "payload_index": {
+    "items": [
+      {
+        "kind": "request",
+        "payload_id": "llm-R1-C1-request",
+        "target": {
+          "call_id": "codex-call-0001",
+          "call_index": 1,
+          "scope": "main"
+        },
+        "title": "C1 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-R1-C1-response",
+        "target": {
+          "call_id": "codex-call-0001",
+          "call_index": 1,
+          "scope": "main"
+        },
+        "title": "C1 · Raw Response"
+      },
+      {
+        "kind": "llm.request_token_sources",
+        "payload_id": "llm-R1-C1-request-attribution",
+        "target": {
+          "call_id": "codex-call-0001",
+          "call_index": 1,
+          "scope": "main"
+        },
+        "title": "C1 · Request Token Sources"
+      },
+      {
+        "kind": "llm.response_token_sources",
+        "payload_id": "llm-R1-C1-response-attribution",
+        "target": {
+          "call_id": "codex-call-0001",
+          "call_index": 1,
+          "scope": "main"
+        },
+        "title": "C1 · Response Token Sources"
+      },
+      {
+        "kind": "tool_result",
+        "payload_id": "tool-call_run_tests-result",
+        "target": {
+          "call_id": "codex-call-0001",
+          "call_index": 1,
+          "tool_call_id": "call_run_tests"
+        },
+        "title": "C1 · Tool Result · exec_command"
+      },
+      {
+        "kind": "request",
+        "payload_id": "llm-R2-C1-request",
+        "target": {
+          "call_id": "codex-call-0002",
+          "call_index": 2,
+          "scope": "main"
+        },
+        "title": "C2 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-R2-C1-response",
+        "target": {
+          "call_id": "codex-call-0002",
+          "call_index": 2,
+          "scope": "main"
+        },
+        "title": "C2 · Raw Response"
+      },
+      {
+        "kind": "llm.request_token_sources",
+        "payload_id": "llm-R2-C1-request-attribution",
+        "target": {
+          "call_id": "codex-call-0002",
+          "call_index": 2,
+          "scope": "main"
+        },
+        "title": "C2 · Request Token Sources"
+      },
+      {
+        "kind": "llm.response_token_sources",
+        "payload_id": "llm-R2-C1-response-attribution",
+        "target": {
+          "call_id": "codex-call-0002",
+          "call_index": 2,
+          "scope": "main"
+        },
+        "title": "C2 · Response Token Sources"
+      }
+    ]
+  },
+  "schema_version": "session-detail.normalized.v1",
+  "session": {
+    "agent": "codex",
+    "cwd": "/repo",
+    "ended_at": "2026-06-10T00:00:07.500Z",
+    "git_branch": "main",
+    "model": "gpt-5.5",
+    "session_id": "codex-fixture-tool-loop",
+    "session_key": "codex:codex-fixture-tool-loop",
+    "source": "fixture",
+    "started_at": "2026-06-10T00:00:00.000Z",
+    "title": "Codex fixture tool loop"
+  },
+  "source": {
+    "agent": "codex",
+    "artifact": {
+      "kind": "normalized_session_json",
+      "model": "llm_call_semantic"
+    },
+    "files": [
+      {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "role": "codex_rollout",
+        "status": "available"
+      }
+    ]
+  },
+  "tool_executions": [
+    {
+      "call_ref": {
+        "event_type": "response_content",
+        "payload_id": "llm-R1-C1-response",
+        "payload_path": "rendered.blocks[]",
+        "payload_type": "tool_use"
+      },
+      "declared_by_call_id": "codex-call-0001",
+      "declared_by_call_index": 1,
+      "duration_ms": 2000,
+      "exit_code": 0,
+      "files_touched": [],
+      "llm_call_count": 0,
+      "llm_error_count": 0,
+      "name": "exec_command",
+      "parameters": {
+        "cmd": "pytest tests/unit",
+        "workdir": "/repo"
+      },
+      "result": {
+        "availability": {
+          "precision": "exact",
+          "source": "exec_command_end",
+          "status": "available"
+        },
+        "raw": {
+          "command": [
+            "/bin/zsh",
+            "-lc",
+            "pytest tests/unit"
+          ],
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "2 passed"
+        },
+        "rendered": {
+          "blocks": [
+            {
+              "text": "2 passed",
+              "type": "text"
+            }
+          ],
+          "quality": {
+            "precision": "exact",
+            "source": "exec_command_end",
+            "status": "available"
+          },
+          "text": "2 passed"
+        },
+        "size_bytes": 8
+      },
+      "result_consumed_by_call_id": "codex-call-0002",
+      "result_consumed_by_call_index": 2,
+      "result_ref": {
+        "event_type": "tool_result",
+        "payload_id": "tool-call_run_tests-result",
+        "payload_path": "result",
+        "payload_type": "tool_result"
+      },
+      "scope": "main",
+      "status": "completed",
+      "subagent_failed_tool_count": 0,
+      "subagent_id": "",
+      "subagent_summary": {},
+      "subagent_tool_call_count": 0,
+      "timestamp": "",
+      "tool_call_id": "call_run_tests",
+      "type": "function_call"
     }
-  }
+  ]
 }

@@ -1,8 +1,8 @@
 """Lightweight validation for normalized session JSON.
 
 This module intentionally avoids a JSON Schema dependency. The normalized JSON
-contract is still evolving, so first-stage tests use focused semantic checks
-that protect the important boundaries.
+contract is still evolving, so tests use focused semantic checks that protect
+the important boundaries.
 """
 
 from __future__ import annotations
@@ -27,12 +27,11 @@ def _as_list(value: Any) -> list:
 
 
 def validate_normalized_session(data: dict) -> None:
-    """Validate the first-stage normalized session contract.
+    """Validate the current normalized session contract.
 
-    The checks are intentionally semantic rather than exhaustive. They guard the
-    boundaries that matter for importer and snapshot tests:
-    one main LLM call per round, direct attribution fields, payload refs, and
-    tool-result handoff references.
+    The checks are intentionally semantic rather than exhaustive. They guard
+    LLM-call boundaries, request/response separation, token source shape,
+    payload refs, and tool result handoff references.
     """
     errors: list[str] = []
 
@@ -59,97 +58,93 @@ def validate_normalized_session(data: dict) -> None:
             errors,
         )
 
-    rounds = data.get("rounds")
-    _require(isinstance(rounds, list), "rounds must be an array", errors)
+    source = data.get("source")
+    _require(isinstance(source, dict), "source must be an object", errors)
+
+    context_sources = data.get("context_sources")
+    _require(isinstance(context_sources, list), "context_sources must be an array", errors)
+
+    calls = data.get("calls")
+    _require(isinstance(calls, list), "calls must be an array", errors)
 
     known_payload_ids: set[str] = set()
-    known_tool_ids: set[str] = set()
-    known_round_ids: set[int] = set()
+    known_call_ids: set[str] = set()
+    declared_tool_ids_by_call: dict[str, set[str]] = {}
+    consumed_tool_ids_by_call: dict[str, set[str]] = {}
 
-    for idx, round_obj in enumerate(_as_list(rounds), 1):
-        prefix = f"rounds[{idx - 1}]"
-        _require(isinstance(round_obj, dict), f"{prefix} must be an object", errors)
-        if not isinstance(round_obj, dict):
+    for idx, call_obj in enumerate(_as_list(calls), 1):
+        prefix = f"calls[{idx - 1}]"
+        _require(isinstance(call_obj, dict), f"{prefix} must be an object", errors)
+        if not isinstance(call_obj, dict):
             continue
 
-        rid = round_obj.get("round_id")
-        known_round_ids.add(rid)
-        _require(rid == idx, f"{prefix}.round_id must be sequential starting at 1", errors)
-        _require(round_obj.get("round_key") == f"R{idx}", f"{prefix}.round_key mismatch", errors)
+        call_id = str(call_obj.get("call_id") or "")
+        _require(bool(call_id), f"{prefix}.call_id is required", errors)
+        if call_id:
+            _require(call_id not in known_call_ids, f"{prefix}.call_id must be unique", errors)
+            known_call_ids.add(call_id)
 
-        for field in (
-            "main_call",
-            "request",
-            "response",
-            "request_attribution",
-            "response_attribution",
-            "payload_refs",
-            "steps",
-        ):
-            _require(field in round_obj, f"{prefix}.{field} is required", errors)
+        _require(call_obj.get("call_index") == idx, f"{prefix}.call_index must be sequential starting at 1", errors)
+        _require(call_obj.get("call_key") == f"C{idx}", f"{prefix}.call_key mismatch", errors)
 
-        payload_refs = round_obj.get("payload_refs") or {}
-        for ref_field in (
-            "request_payload_id",
-            "response_payload_id",
-            "request_attribution_id",
-            "response_attribution_id",
-        ):
-            ref = payload_refs.get(ref_field)
-            _require(bool(ref), f"{prefix}.payload_refs.{ref_field} is required", errors)
-            if ref:
-                known_payload_ids.add(ref)
+        for field in ("request", "response", "usage"):
+            _require(field in call_obj, f"{prefix}.{field} is required", errors)
 
-        steps = _as_list(round_obj.get("steps"))
-        main_steps = [
-            s for s in steps
-            if isinstance(s, dict)
-            and s.get("type") == "llm_call"
-            and s.get("scope") == "main"
-        ]
-        _require(len(main_steps) == 1, f"{prefix} must contain exactly one main llm_call step", errors)
-        if main_steps:
+        request = call_obj.get("request") if isinstance(call_obj.get("request"), dict) else {}
+        response = call_obj.get("response") if isinstance(call_obj.get("response"), dict) else {}
+        _validate_call_side(prefix, "request", request, known_payload_ids, errors)
+        _validate_call_side(prefix, "response", response, known_payload_ids, errors)
+
+        usage = call_obj.get("usage") if isinstance(call_obj.get("usage"), dict) else {}
+        expected_total = (
+            int(usage.get("fresh") or 0)
+            + int(usage.get("cache_read") or 0)
+            + int(usage.get("cache_write") or 0)
+            + int(usage.get("output") or 0)
+        )
+        _require(usage.get("total") == expected_total, f"{prefix}.usage.total mismatch", errors)
+
+        declared_tool_ids_by_call[call_id] = set(_as_list(response.get("tool_use_ids")))
+        consumed_tool_ids_by_call[call_id] = set(_as_list(request.get("tool_result_ids")))
+
+    known_tool_ids: set[str] = set()
+    for idx, tool in enumerate(_as_list(data.get("tool_executions"))):
+        prefix = f"tool_executions[{idx}]"
+        _require(isinstance(tool, dict), f"{prefix} must be an object", errors)
+        if not isinstance(tool, dict):
+            continue
+
+        tool_id = str(tool.get("tool_call_id") or "")
+        declared_by = str(tool.get("declared_by_call_id") or "")
+        consumed_by = str(tool.get("result_consumed_by_call_id") or "")
+
+        _require(bool(tool_id), f"{prefix}.tool_call_id is required", errors)
+        _require(tool_id not in known_tool_ids, f"{prefix}.tool_call_id must be unique", errors)
+        if tool_id:
+            known_tool_ids.add(tool_id)
+
+        _require(declared_by in known_call_ids, f"{prefix}.declared_by_call_id not found", errors)
+        if declared_by in declared_tool_ids_by_call:
             _require(
-                main_steps[0].get("call_id") == (round_obj.get("main_call") or {}).get("call_id"),
-                f"{prefix} main llm_call step must reference main_call.call_id",
+                tool_id in declared_tool_ids_by_call[declared_by],
+                f"{prefix}.tool_call_id not referenced by declaring call response",
                 errors,
             )
+        if consumed_by:
+            _require(consumed_by in known_call_ids, f"{prefix}.result_consumed_by_call_id not found", errors)
+            if consumed_by in consumed_tool_ids_by_call:
+                _require(
+                    tool_id in consumed_tool_ids_by_call[consumed_by],
+                    f"{prefix}.tool_call_id not referenced by consuming call request",
+                    errors,
+                )
 
-        for step in steps:
-            if not isinstance(step, dict):
-                continue
-            if step.get("type") == "tool_batch":
-                for tool in _as_list(step.get("tools")):
-                    if isinstance(tool, dict):
-                        tid = tool.get("tool_call_id")
-                        if tid:
-                            known_tool_ids.add(tid)
-                        payload_id = tool.get("payload_id")
-                        if payload_id:
-                            known_payload_ids.add(payload_id)
-            if step.get("type") == "subagent_run":
-                for sub_round in _as_list(step.get("sub_rounds")):
-                    _validate_sub_round(sub_round, f"{prefix}.sub_rounds", errors, known_payload_ids)
+        result_ref = tool.get("result_ref") if isinstance(tool.get("result_ref"), dict) else {}
+        result_payload_id = result_ref.get("payload_id")
+        if result_payload_id:
+            known_payload_ids.add(result_payload_id)
 
-        tokens = (round_obj.get("metrics") or {}).get("tokens") or {}
-        if tokens:
-            expected_total = (
-                int(tokens.get("fresh") or 0)
-                + int(tokens.get("cache_read") or 0)
-                + int(tokens.get("cache_write") or 0)
-                + int(tokens.get("output") or 0)
-            )
-            _require(tokens.get("total") == expected_total, f"{prefix}.metrics.tokens.total mismatch", errors)
-
-    for link in _as_list(data.get("tool_result_links")):
-        if not isinstance(link, dict):
-            continue
-        source = link.get("source_tool_call_id")
-        consumed_by = link.get("consumed_by_call_id")
-        _require(source in known_tool_ids, f"tool_result_links source {source!r} not found", errors)
-        _require(bool(consumed_by), "tool_result_links.consumed_by_call_id is required", errors)
-
-    for payload in _as_list(data.get("payload_index", {}).get("items")):
+    for payload in _as_list((data.get("payload_index") or {}).get("items")):
         if not isinstance(payload, dict):
             continue
         pid = payload.get("payload_id")
@@ -158,48 +153,37 @@ def validate_normalized_session(data: dict) -> None:
     for row in _as_list((data.get("diagnostics") or {}).get("token_timeline")):
         if not isinstance(row, dict):
             continue
-        _require(row.get("round_id") in known_round_ids, "token_timeline round_id not found", errors)
+        _require(row.get("call_id") in known_call_ids, "token_timeline call_id not found", errors)
 
     if errors:
         raise NormalizedValidationError("; ".join(errors))
 
 
-def _validate_sub_round(
-    sub_round: Any,
+def _validate_call_side(
     prefix: str,
-    errors: list[str],
+    side_name: str,
+    side: dict,
     known_payload_ids: set[str],
+    errors: list[str],
 ) -> None:
-    if not isinstance(sub_round, dict):
-        errors.append(f"{prefix} item must be an object")
-        return
-    for field in (
-        "call_id",
-        "request",
-        "response",
-        "request_attribution",
-        "response_attribution",
-        "payload_refs",
-        "steps",
-    ):
-        _require(field in sub_round, f"{prefix}.{field} is required", errors)
-    payload_refs = sub_round.get("payload_refs") or {}
-    for ref_field in (
-        "request_payload_id",
-        "response_payload_id",
-        "request_attribution_id",
-        "response_attribution_id",
-    ):
-        ref = payload_refs.get(ref_field)
-        _require(bool(ref), f"{prefix}.payload_refs.{ref_field} is required", errors)
-        if ref:
-            known_payload_ids.add(ref)
-    for step in _as_list(sub_round.get("steps")):
-        if not isinstance(step, dict) or step.get("type") != "tool_batch":
+    side_prefix = f"{prefix}.{side_name}"
+    _require(isinstance(side.get("content_refs"), list), f"{side_prefix}.content_refs must be an array", errors)
+    _require(isinstance(side.get("token_sources"), list), f"{side_prefix}.token_sources must be an array", errors)
+
+    payload_ref = side.get("payload_ref")
+    token_source_ref = side.get("token_source_ref")
+    _require(bool(payload_ref), f"{side_prefix}.payload_ref is required", errors)
+    _require(bool(token_source_ref), f"{side_prefix}.token_source_ref is required", errors)
+    if payload_ref:
+        known_payload_ids.add(payload_ref)
+    if token_source_ref:
+        known_payload_ids.add(token_source_ref)
+
+    for idx, source in enumerate(_as_list(side.get("token_sources"))):
+        source_prefix = f"{side_prefix}.token_sources[{idx}]"
+        _require(isinstance(source, dict), f"{source_prefix} must be an object", errors)
+        if not isinstance(source, dict):
             continue
-        for tool in _as_list(step.get("tools")):
-            if not isinstance(tool, dict):
-                continue
-            payload_id = tool.get("payload_id")
-            if payload_id:
-                known_payload_ids.add(payload_id)
+        _require(bool(source.get("canonical_category")), f"{source_prefix}.canonical_category is required", errors)
+        _require("agent_bucket" in source, f"{source_prefix}.agent_bucket is required", errors)
+        _require("tokens" in source, f"{source_prefix}.tokens is required", errors)

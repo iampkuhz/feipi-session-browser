@@ -44,36 +44,39 @@ def test_codex_tool_loop_normalized_semantics():
 
     validate_normalized_session(actual)
 
-    assert len(actual["rounds"]) == 2
-    assert [r["main_call"]["call_id"] for r in actual["rounds"]] == [
+    assert len(actual["calls"]) == 2
+    assert [c["call_id"] for c in actual["calls"]] == [
         "codex-call-0001",
         "codex-call-0002",
     ]
 
-    r1, r2 = actual["rounds"]
-    assert r1["request_attribution"]["buckets"][0]["bucket"] == "Developer instructions"
-    assert r1["request_attribution"]["buckets"][1]["bucket"] == "Project/environment context"
-    assert r1["request_attribution"]["buckets"][2]["bucket"] == "Current user prompt"
-    assert {b["bucket"] for b in r1["response_attribution"]["buckets"]} == {
-        "Visible text",
-        "Tool use",
-        "Reasoning",
+    c1, c2 = actual["calls"]
+    assert [s["canonical_category"] for s in c1["request"]["token_sources"]] == [
+        "system_base_prompt",
+        "runtime_policy_context",
+        "tool_definitions",
+        "skills_and_agents",
+        "project_context",
+        "current_user_input",
+        "tool_results",
+        "conversation_history",
+        "unknown_retained_context",
+    ]
+    assert c1["request"]["token_sources"][1]["agent_bucket"] == "Developer instructions"
+    assert c1["request"]["token_sources"][4]["agent_bucket"] == "Project/environment context"
+    assert c1["request"]["token_sources"][5]["agent_bucket"] == "Current user prompt"
+    assert {b["canonical_category"] for b in c1["response"]["token_sources"]} == {
+        "visible_text",
+        "tool_use",
+        "reasoning",
     }
-    assert r1["steps"][0]["type"] == "user_context"
-    assert r1["steps"][1]["type"] == "llm_call"
-    assert r1["steps"][2]["type"] == "tool_batch"
-
-    assert r2["request"]["rendered"]["blocks"] == [{
-        "type": "tool_result",
-        "tool_call_id": "call_run_tests",
-        "text": "2 passed",
-    }]
-    assert r2["request_attribution"]["buckets"][0]["bucket"] == "Tool results"
-    assert actual["tool_result_links"] == [{
-        "source_tool_call_id": "call_run_tests",
-        "consumed_by_call_id": "codex-call-0002",
-        "consumed_by_round_id": 2,
-    }]
+    assert c1["response"]["tool_use_ids"] == ["call_run_tests"]
+    assert c2["request"]["tool_result_ids"] == ["call_run_tests"]
+    assert c2["request"]["token_sources"][6]["agent_bucket"] == "Tool results"
+    assert actual["tool_executions"][0]["tool_call_id"] == "call_run_tests"
+    assert actual["tool_executions"][0]["declared_by_call_id"] == "codex-call-0001"
+    assert actual["tool_executions"][0]["result_consumed_by_call_id"] == "codex-call-0002"
+    assert actual["tool_executions"][0]["result_ref"]["payload_path"] == "result"
 
 
 def test_codex_source_file_entrypoint_matches_adapter_snapshot():

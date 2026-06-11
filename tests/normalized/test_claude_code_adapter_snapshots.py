@@ -38,12 +38,16 @@ def test_claude_code_subagent_normalized_semantics():
 
     validate_normalized_session(actual)
 
-    assert len(actual["rounds"]) == 2
-    r1, r2 = actual["rounds"]
+    assert [(c["call_id"], c["scope"], c["parent_call_id"], c["parent_tool_call_id"]) for c in actual["calls"]] == [
+        ("msg-main-1", "main", "", ""),
+        ("msg-child-1", "subagent", "msg-main-1", "toolu_agent_1"),
+        ("msg-child-2", "subagent", "msg-main-1", "toolu_agent_1"),
+        ("msg-main-2", "main", "", ""),
+    ]
+    c1, child1, child2, c2 = actual["calls"]
 
-    assert r1["main_call"]["call_id"] == "msg-main-1"
-    assert r1["metrics"]["subagent_count"] == 1
-    assert r1["metrics"]["tokens"] == {
+    assert c1["call_id"] == "msg-main-1"
+    assert c1["usage"] == {
         "fresh": 1000,
         "cache_read": 100,
         "cache_write": 200,
@@ -64,43 +68,14 @@ def test_claude_code_subagent_normalized_semantics():
         },
     }
 
-    subagent_step = r1["steps"][-1]
-    assert subagent_step["type"] == "subagent_run"
-    assert subagent_step["parent_tool_call_id"] == "toolu_agent_1"
-    assert subagent_step["subagent_id"] == "child"
-    assert [sr["main_call"]["call_id"] for sr in subagent_step["sub_rounds"]] == [
-        "msg-child-1",
-        "msg-child-2",
-    ]
-    first_sub_llm_step = next(
-        step for step in subagent_step["sub_rounds"][0]["steps"]
-        if step["type"] == "llm_call"
-    )
-    assert first_sub_llm_step["scope"] == "subagent"
-
-    assert r2["request"]["rendered"]["blocks"] == [
-        {
-            "type": "tool_result",
-            "tool_call_id": "toolu_bash_1",
-            "text": "README.md\nsrc\ntests",
-        },
-        {
-            "type": "tool_result",
-            "tool_call_id": "toolu_agent_1",
-            "text": "子 agent 完成测试范围总结。",
-        },
-    ]
-    assert actual["tool_result_links"] == [
-        {
-            "source_tool_call_id": "toolu_bash_1",
-            "consumed_by_call_id": "msg-main-2",
-            "consumed_by_round_id": 2,
-        },
-        {
-            "source_tool_call_id": "toolu_agent_1",
-            "consumed_by_call_id": "msg-main-2",
-            "consumed_by_round_id": 2,
-        },
+    assert child1["scope"] == "subagent"
+    assert child2["scope"] == "subagent"
+    assert c2["request"]["tool_result_ids"] == ["toolu_bash_1", "toolu_agent_1"]
+    assert c2["request"]["token_sources"][6]["agent_bucket"] == "Tool results"
+    assert [(t["tool_call_id"], t["declared_by_call_id"], t["result_consumed_by_call_id"], t["subagent_id"]) for t in actual["tool_executions"]] == [
+        ("toolu_bash_1", "msg-main-1", "msg-main-2", ""),
+        ("toolu_agent_1", "msg-main-1", "msg-main-2", "child"),
+        ("toolu_child_read", "msg-child-1", "msg-child-2", "child"),
     ]
 
 
