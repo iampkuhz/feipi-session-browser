@@ -13,17 +13,45 @@ TIER_WARM_SECONDS = 24 * 3600    # ended_at 30min~24h -> scan every 5min
 TIER_WARM_INTERVAL = 5 * 60       # seconds between warm scans
 
 
+SESSION_ARTIFACTS_SCHEMA_SQL = """
+    CREATE TABLE IF NOT EXISTS session_artifacts (
+        session_key TEXT NOT NULL,
+        artifact_type TEXT NOT NULL,
+        path TEXT NOT NULL,
+        schema_version TEXT NOT NULL DEFAULT '',
+        source_path TEXT NOT NULL DEFAULT '',
+        source_mtime REAL NOT NULL DEFAULT 0,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        created_at REAL NOT NULL DEFAULT 0,
+        updated_at REAL NOT NULL DEFAULT 0,
+        PRIMARY KEY(session_key, artifact_type),
+        FOREIGN KEY(session_key) REFERENCES sessions(session_key) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_artifacts_type
+        ON session_artifacts(artifact_type);
+    CREATE INDEX IF NOT EXISTS idx_session_artifacts_path
+        ON session_artifacts(path);
+"""
+
+
 def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     """Get a SQLite connection to the index database."""
     from session_browser.config import INDEX_PATH, ensure_index_dir
 
     ensure_index_dir()
     path = db_path or INDEX_PATH
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+def ensure_session_artifacts_schema(conn: sqlite3.Connection) -> None:
+    """Create the session artifact side table without touching session rows."""
+    conn.executescript(SESSION_ARTIFACTS_SCHEMA_SQL)
 
 
 def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
@@ -36,6 +64,7 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
         conn = _get_connection()
 
     conn.executescript("""
+        DROP TABLE IF EXISTS session_artifacts;
         DROP TABLE IF EXISTS sessions;
         DROP TABLE IF EXISTS scan_log;
 
@@ -90,5 +119,6 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
             status TEXT DEFAULT 'running'
         );
     """)
+    ensure_session_artifacts_schema(conn)
     conn.commit()
     return conn

@@ -312,6 +312,114 @@ def parse_session_detail(
     return summary, messages, tool_calls, []
 
 
+def parse_session_detail_with_normalized(
+    session_id: str,
+    threads_db: dict | None = None,
+    verbose: bool = False,
+) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict], dict, Path | None]:
+    """Parse one Codex session and normalized JSON from a single event pass."""
+    from session_browser.index.diagnostics import (
+        ParseDiagnostics,
+        ParseIssue,
+        ParseIssueItem,
+        ParseSeverity,
+        build_parse_diagnostics,
+    )
+    from session_browser.normalized.agents.codex import parse_codex_events
+
+    thread_info = (threads_db or {}).get(session_id, {})
+    rollout_path = thread_info.get("rollout_path", "")
+    session_file = _find_session_file(session_id, rollout_path)
+    if session_file is None:
+        summary = _empty_session(session_id, thread_info)
+        summary.parse_diagnostics = ParseDiagnostics(
+            session_key=summary.session_key,
+            issues=[ParseIssueItem(
+                issue=ParseIssue.FILE_NOT_FOUND,
+                severity=ParseSeverity.WARNING,
+                message="Session file not found",
+            )],
+        ).to_dict()
+        return summary, [], [], [], {}, None
+
+    events, jsonl_diag = parse_jsonl_events(session_file, verbose=verbose)
+
+    session_meta = {}
+    for ev in events:
+        if ev.get("type") == "session_meta":
+            session_meta = ev.get("payload", {})
+            break
+
+    summary = _build_summary_from_events(
+        events, session_id, thread_info, session_meta
+    )
+    model_from_db = thread_info.get("model", "") or session_meta.get("model_provider", "")
+    messages = _extract_messages(events, model=model_from_db)
+    tool_calls = _extract_tool_calls(events)
+
+    parse_diag = build_parse_diagnostics(
+        session_key=summary.session_key,
+        file_path=str(session_file),
+        jsonl_diag=jsonl_diag,
+    )
+    summary.parse_diagnostics = parse_diag.to_dict()
+
+    normalized_thread_info = dict(thread_info)
+    normalized_thread_info.setdefault("id", summary.session_id)
+    normalized_thread_info.setdefault("title", summary.title)
+    normalized_thread_info.setdefault("cwd", summary.cwd)
+    normalized_thread_info.setdefault("git_branch", summary.git_branch)
+    normalized_thread_info.setdefault("model", summary.model)
+    normalized = parse_codex_events(
+        events,
+        source_path=str(session_file),
+        thread_info=normalized_thread_info,
+    )
+    normalized["parse_diagnostics"]["jsonl"] = {
+        "total_lines": jsonl_diag.total_lines,
+        "non_empty_lines": jsonl_diag.non_empty_lines,
+        "events_parsed": jsonl_diag.events_parsed,
+        "events_skipped": jsonl_diag.events_skipped,
+        "warning_count": jsonl_diag.warning_count,
+        "error_count": jsonl_diag.error_count,
+    }
+    return summary, messages, tool_calls, [], normalized, session_file
+
+
+def parse_session_detail_normalized(
+    session_id: str,
+    threads_db: dict | None = None,
+) -> dict:
+    """Parse a Codex session into the normalized intermediate JSON contract.
+
+    This is the first-stage adapter entry point used by snapshot tests and the
+    future importer path. It intentionally does not replace parse_session_detail
+    yet, so existing Session Detail behavior remains unchanged while the
+    normalized contract is hardened.
+    """
+    from session_browser.normalized.agents.codex import parse_codex_rollout_file
+
+    thread_info = (threads_db or {}).get(session_id, {})
+    session_file = _find_session_file(session_id, thread_info.get("rollout_path", ""))
+    if session_file is None:
+        raise FileNotFoundError(f"Codex rollout file not found for session {session_id}")
+    return parse_codex_rollout_file(session_file, thread_info=thread_info)
+
+
+def parse_normalized_session_file(
+    session_file: str | Path,
+    thread_info: dict | None = None,
+) -> dict:
+    """Parse a Codex rollout file directly into normalized JSON.
+
+    Tests use this file-level entry point to avoid touching the user's live
+    Codex data directory.
+    """
+    from session_browser.normalized.agents.codex import parse_codex_rollout_file
+
+    return parse_codex_rollout_file(session_file, thread_info=thread_info or {})
+
+
 def _empty_session(session_id: str, thread_info: dict) -> SessionSummary:
     from pathlib import PurePosixPath
     cwd = thread_info.get("cwd", "")

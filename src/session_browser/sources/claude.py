@@ -308,6 +308,79 @@ def parse_session_detail(
     return summary, messages, tool_calls, subagent_runs
 
 
+def parse_session_detail_normalized(
+    project_key: str,
+    session_id: str,
+    history_entry: dict | None = None,
+) -> dict:
+    """Parse a Claude Code session into the normalized intermediate contract."""
+    from session_browser.normalized.agents.claude_code import parse_claude_code_session_file
+
+    project_dir = CLAUDE_DATA_DIR / "projects" / _normalize_project_segment(project_key)
+    session_file = project_dir / f"{session_id}.jsonl"
+    if not session_file.exists():
+        session_file = _find_session_file(project_key, session_id)
+    if session_file is None:
+        raise FileNotFoundError(f"Claude Code session file not found for session {session_id}")
+
+    project = project_key or (history_entry or {}).get("project", "")
+    return parse_claude_code_session_file(
+        session_file,
+        project_key=project,
+        session_id=session_id,
+    )
+
+
+def parse_normalized_session_file(
+    session_file: str | Path,
+    project_key: str = "",
+    session_id: str | None = None,
+) -> dict:
+    """Parse a Claude Code JSONL file directly into normalized JSON."""
+    from session_browser.normalized.agents.claude_code import parse_claude_code_session_file
+
+    return parse_claude_code_session_file(
+        session_file,
+        project_key=project_key,
+        session_id=session_id,
+    )
+
+
+def build_normalized_session(
+    *,
+    summary: SessionSummary,
+    messages: list[ChatMessage],
+    tool_calls: list[ToolCall],
+    subagent_runs: list[dict],
+    source_path: str,
+) -> dict:
+    """Build normalized JSON from the models already parsed for indexing."""
+    from session_browser.normalized.agents.claude_code import build_claude_code_normalized_session
+
+    return build_claude_code_normalized_session(
+        summary=summary,
+        messages=messages,
+        tool_calls=tool_calls,
+        source_path=source_path,
+        subagent_runs=subagent_runs,
+        jsonl_diagnostics=_jsonl_diagnostics_from_summary(summary),
+    )
+
+
+def _jsonl_diagnostics_from_summary(summary: SessionSummary) -> dict:
+    diagnostics = summary.parse_diagnostics or {}
+    if not isinstance(diagnostics, dict):
+        return {}
+    return {
+        "issues": diagnostics.get("issues", []),
+        "total_lines": diagnostics.get("total_lines", 0),
+        "events_parsed": diagnostics.get("events_parsed", 0),
+        "events_skipped": diagnostics.get("events_skipped", 0),
+        "warning_count": diagnostics.get("warning_count", 0),
+        "error_count": diagnostics.get("critical_count", 0),
+    }
+
+
 def _normalize_project_segment(project_key: str) -> str:
     """Convert a full project path to the directory name used in ~/.claude/projects/."""
     if not project_key:

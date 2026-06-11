@@ -63,6 +63,9 @@ from session_browser.sources.qoder_parts.discovery import (
 # parse
 from session_browser.sources.qoder_parts.parse import (
     parse_session_detail,
+    parse_session_detail_normalized,
+    parse_normalized_session_file,
+    build_normalized_session,
     scan_all_sessions,
     _find_session_file,
     _empty_session,
@@ -113,6 +116,9 @@ __all__ = [
     "_build_canonical_id_map",
     # parse
     "parse_session_detail",
+    "parse_session_detail_normalized",
+    "parse_normalized_session_file",
+    "build_normalized_session",
     "scan_all_sessions",
     "_find_session_file",
     "_empty_session",

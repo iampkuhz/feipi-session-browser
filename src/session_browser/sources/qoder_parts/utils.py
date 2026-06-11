@@ -246,6 +246,7 @@ def _assistant_records(events: list[dict]) -> list[dict]:
                 "raw_model": "",
                 "text_parts": [],
                 "tool_calls": [],
+                "content_blocks": [],
                 "usage_rows": [],
                 "stop_reason": "",
                 "row_count": 0,
@@ -279,12 +280,20 @@ def _assistant_records(events: list[dict]) -> list[dict]:
                     text = item.get("text", "")
                     if text:
                         rec["text_parts"].append(text)
+                    rec["content_blocks"].append({"type": "text", "content": text})
+                elif item.get("type") == "thinking":
+                    thinking = item.get("thinking", "")
+                    if thinking:
+                        rec["text_parts"].append(thinking)
+                    rec["content_blocks"].append({"type": "thinking", "content": thinking})
                 elif item.get("type") == "tool_use":
-                    rec["tool_calls"].append({
+                    tool_block = {
                         "id": item.get("id", ""),
                         "name": item.get("name", ""),
                         "parameters": item.get("input", {}),
-                    })
+                    }
+                    rec["tool_calls"].append(tool_block)
+                    rec["content_blocks"].append({"type": "tool_use", **tool_block})
                 # Priority 4: look for explicit model field in request/response content
                 if isinstance(item, dict) and item.get("model"):
                     rec["raw_model"] = item.get("model", "")

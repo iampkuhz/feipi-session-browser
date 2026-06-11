@@ -1,0 +1,749 @@
+{
+  "schema_version": "session-detail.normalized.v1",
+  "agent": "codex",
+  "session": {
+    "session_key": "codex:codex-fixture-tool-loop",
+    "session_id": "codex-fixture-tool-loop",
+    "title": "Codex fixture tool loop",
+    "agent": "codex",
+    "model": "gpt-5.5",
+    "cwd": "/repo",
+    "started_at": "2026-06-10T00:00:00.000Z",
+    "ended_at": "2026-06-10T00:00:07.500Z",
+    "git_branch": "main",
+    "source": "fixture"
+  },
+  "source_files": [
+    {
+      "role": "codex_rollout",
+      "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+      "status": "available"
+    }
+  ],
+  "rounds": [
+    {
+      "round_id": 1,
+      "round_key": "R1",
+      "main_call": {
+        "call_id": "codex-call-0001",
+        "turn_id": "turn-001",
+        "model": "gpt-5.5",
+        "timestamp": "2026-06-10T00:00:05.500Z",
+        "source": "codex_rollout_token_count"
+      },
+      "summary": "I will inspect and run tests.",
+      "status": "ok",
+      "timing": {
+        "started_at": "2026-06-10T00:00:05.500Z",
+        "ended_at": "2026-06-10T00:00:05.500Z",
+        "duration_seconds": 0,
+        "process_seconds": 0,
+        "waiting_seconds": 0
+      },
+      "metrics": {
+        "tokens": {
+          "fresh": 100,
+          "cache_read": 40,
+          "cache_write": 0,
+          "output": 30,
+          "total": 170,
+          "source_total": 130,
+          "total_semantics": "component_sum",
+          "quality": {
+            "source": "event_msg.token_count.info.last_token_usage",
+            "precision": "provider_reported",
+            "status": "available"
+          }
+        },
+        "cache_read_ratio": 0.2857,
+        "llm_call_count": 1,
+        "tool_call_count": 1,
+        "failed_tool_count": 0,
+        "subagent_count": 0
+      },
+      "signals": {
+        "failed": false,
+        "low_cache": false,
+        "fresh_spike": false,
+        "payload_gap": false,
+        "attribution_gap": false,
+        "items": []
+      },
+      "request": {
+        "rendered": {
+          "text": "developer: Developer: be precise.\n\nuser: # AGENTS.md instructions\nUse pytest.\n<environment_context><cwd>/repo</cwd></environment_context>\n\nuser: Run tests",
+          "blocks": [
+            {
+              "type": "message",
+              "role": "developer",
+              "bucket": "Developer instructions",
+              "text": "Developer: be precise."
+            },
+            {
+              "type": "message",
+              "role": "user",
+              "bucket": "Project/environment context",
+              "text": "# AGENTS.md instructions\nUse pytest.\n<environment_context><cwd>/repo</cwd></environment_context>"
+            },
+            {
+              "type": "message",
+              "role": "user",
+              "bucket": "Current user prompt",
+              "text": "Run tests"
+            }
+          ],
+          "quality": {
+            "source": "codex_rollout_reconstruction",
+            "precision": "estimated_partial",
+            "status": "partial",
+            "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
+          }
+        },
+        "raw": null,
+        "availability": {
+          "source": "codex_rollout_reconstruction",
+          "precision": "estimated_partial",
+          "status": "partial",
+          "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
+        },
+        "size_bytes": 154
+      },
+      "response": {
+        "rendered": {
+          "text": "I will inspect and run tests.",
+          "blocks": [
+            {
+              "type": "reasoning",
+              "summary": [],
+              "encrypted": true
+            },
+            {
+              "type": "output_text",
+              "text": "I will inspect and run tests."
+            },
+            {
+              "type": "tool_use",
+              "id": "call_run_tests",
+              "name": "exec_command",
+              "input": {
+                "cmd": "pytest tests/unit",
+                "workdir": "/repo"
+              }
+            }
+          ],
+          "quality": {
+            "source": "codex_rollout_response_items",
+            "precision": "exact",
+            "status": "available"
+          }
+        },
+        "raw": {
+          "blocks": [
+            {
+              "type": "reasoning",
+              "summary": [],
+              "encrypted": true
+            },
+            {
+              "type": "output_text",
+              "text": "I will inspect and run tests."
+            },
+            {
+              "type": "tool_use",
+              "id": "call_run_tests",
+              "name": "exec_command",
+              "input": {
+                "cmd": "pytest tests/unit",
+                "workdir": "/repo"
+              }
+            }
+          ]
+        },
+        "availability": {
+          "source": "codex_rollout_response_items",
+          "precision": "exact",
+          "status": "available"
+        },
+        "size_bytes": 29
+      },
+      "request_attribution": {
+        "status": "partial",
+        "summary": {
+          "total_input": 140,
+          "fresh_input": 100,
+          "cache_read": 40,
+          "visible_estimated_tokens": 33,
+          "coverage": 0.2357
+        },
+        "buckets": [
+          {
+            "bucket": "Developer instructions",
+            "tokens": 6,
+            "share": 0.0429,
+            "source": "response_item.message",
+            "precision": "estimated",
+            "preview": "Developer: be precise."
+          },
+          {
+            "bucket": "Project/environment context",
+            "tokens": 24,
+            "share": 0.1714,
+            "source": "response_item.message",
+            "precision": "estimated",
+            "preview": "# AGENTS.md instructions Use pytest. <environment_context><cwd>/repo</cwd></environment_context>"
+          },
+          {
+            "bucket": "Current user prompt",
+            "tokens": 3,
+            "share": 0.0214,
+            "source": "response_item.message",
+            "precision": "estimated",
+            "preview": "Run tests"
+          },
+          {
+            "bucket": "Unknown / retained context",
+            "tokens": 107,
+            "share": 0.7643,
+            "source": "provider usage residual",
+            "precision": "estimated_partial",
+            "preview": "server-side retained context or hidden request data"
+          }
+        ],
+        "quality": {
+          "source": "codex normalized adapter",
+          "precision": "estimated_partial",
+          "status": "partial"
+        }
+      },
+      "response_attribution": {
+        "status": "available",
+        "summary": {
+          "total_output": 30,
+          "visible_estimated_tokens": 8,
+          "tool_use_estimated_tokens": 14,
+          "reasoning_output_tokens": 8,
+          "coverage": 1.0
+        },
+        "buckets": [
+          {
+            "bucket": "Visible text",
+            "tokens": 8,
+            "share": 0.2667,
+            "source": "response_item.message role=assistant",
+            "precision": "estimated",
+            "preview": "I will inspect and run tests."
+          },
+          {
+            "bucket": "Tool use",
+            "tokens": 14,
+            "share": 0.4667,
+            "source": "response_item.function_call",
+            "precision": "estimated",
+            "preview": "[{\"name\": \"exec_command\", \"parameters\": {\"cmd\": \"pytest tests/unit\", \"workdir\": \"/repo\"}}]"
+          },
+          {
+            "bucket": "Reasoning",
+            "tokens": 8,
+            "share": 0.2667,
+            "source": "event_msg.token_count.reasoning_output_tokens",
+            "precision": "provider_reported",
+            "preview": "encrypted reasoning payload"
+          }
+        ],
+        "quality": {
+          "source": "codex normalized adapter",
+          "precision": "estimated",
+          "status": "available"
+        }
+      },
+      "payload_refs": {
+        "request_payload_id": "llm-R1-C1-request",
+        "response_payload_id": "llm-R1-C1-response",
+        "request_attribution_id": "llm-R1-C1-request-attribution",
+        "response_attribution_id": "llm-R1-C1-response-attribution",
+        "related_result_payload_ids": [
+          "tool-call_run_tests-result"
+        ]
+      },
+      "steps": [
+        {
+          "type": "user_context",
+          "step_id": "R1-user-1",
+          "timestamp": "2026-06-10T00:00:01.500Z",
+          "content": {
+            "text": "Run tests",
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Run tests"
+              }
+            ],
+            "quality": {
+              "source": "event_msg.user_message",
+              "precision": "exact",
+              "status": "available"
+            }
+          }
+        },
+        {
+          "type": "llm_call",
+          "step_id": "R1-main-call",
+          "call_id": "codex-call-0001",
+          "scope": "main",
+          "model": "gpt-5.5",
+          "status": "ok",
+          "timestamp": "2026-06-10T00:00:05.500Z",
+          "usage": {
+            "fresh": 100,
+            "cache_read": 40,
+            "cache_write": 0,
+            "output": 30,
+            "total": 170,
+            "source_total": 130,
+            "total_semantics": "component_sum",
+            "quality": {
+              "source": "event_msg.token_count",
+              "precision": "provider_reported",
+              "status": "available"
+            }
+          },
+          "payload_refs": {
+            "request_payload_id": "llm-R1-C1-request",
+            "response_payload_id": "llm-R1-C1-response",
+            "request_attribution_id": "llm-R1-C1-request-attribution",
+            "response_attribution_id": "llm-R1-C1-response-attribution",
+            "related_result_payload_ids": [
+              "tool-call_run_tests-result"
+            ]
+          }
+        },
+        {
+          "type": "tool_batch",
+          "step_id": "R1-tool-batch-1",
+          "started_at": "2026-06-10T00:00:05.500Z",
+          "ended_at": "2026-06-10T00:00:05.500Z",
+          "duration_ms": 2000,
+          "tools": [
+            {
+              "tool_call_id": "call_run_tests",
+              "name": "exec_command",
+              "type": "function_call",
+              "parameters": {
+                "cmd": "pytest tests/unit",
+                "workdir": "/repo"
+              },
+              "status": "completed",
+              "exit_code": 0,
+              "duration_ms": 2000,
+              "result": {
+                "rendered": {
+                  "text": "2 passed",
+                  "blocks": [
+                    {
+                      "type": "text",
+                      "text": "2 passed"
+                    }
+                  ],
+                  "quality": {
+                    "source": "exec_command_end",
+                    "precision": "exact",
+                    "status": "available"
+                  }
+                },
+                "raw": {
+                  "stdout": "2 passed",
+                  "stderr": "",
+                  "exit_code": 0,
+                  "command": [
+                    "/bin/zsh",
+                    "-lc",
+                    "pytest tests/unit"
+                  ]
+                },
+                "availability": {
+                  "source": "exec_command_end",
+                  "precision": "exact",
+                  "status": "available"
+                },
+                "size_bytes": 8
+              },
+              "payload_id": "tool-call_run_tests-result"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "round_id": 2,
+      "round_key": "R2",
+      "main_call": {
+        "call_id": "codex-call-0002",
+        "turn_id": "turn-001",
+        "model": "gpt-5.5",
+        "timestamp": "2026-06-10T00:00:07.000Z",
+        "source": "codex_rollout_token_count"
+      },
+      "summary": "Tests passed.",
+      "status": "ok",
+      "timing": {
+        "started_at": "2026-06-10T00:00:07.000Z",
+        "ended_at": "2026-06-10T00:00:07.000Z",
+        "duration_seconds": 0,
+        "process_seconds": 0,
+        "waiting_seconds": 0
+      },
+      "metrics": {
+        "tokens": {
+          "fresh": 80,
+          "cache_read": 20,
+          "cache_write": 0,
+          "output": 16,
+          "total": 116,
+          "source_total": 96,
+          "total_semantics": "component_sum",
+          "quality": {
+            "source": "event_msg.token_count.info.last_token_usage",
+            "precision": "provider_reported",
+            "status": "available"
+          }
+        },
+        "cache_read_ratio": 0.2,
+        "llm_call_count": 1,
+        "tool_call_count": 0,
+        "failed_tool_count": 0,
+        "subagent_count": 0
+      },
+      "signals": {
+        "failed": false,
+        "low_cache": false,
+        "fresh_spike": false,
+        "payload_gap": false,
+        "attribution_gap": false,
+        "items": []
+      },
+      "request": {
+        "rendered": {
+          "text": "tool_result call_run_tests: 2 passed",
+          "blocks": [
+            {
+              "type": "tool_result",
+              "tool_call_id": "call_run_tests",
+              "text": "2 passed"
+            }
+          ],
+          "quality": {
+            "source": "codex_rollout_reconstruction",
+            "precision": "estimated_partial",
+            "status": "partial",
+            "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
+          }
+        },
+        "raw": null,
+        "availability": {
+          "source": "codex_rollout_reconstruction",
+          "precision": "estimated_partial",
+          "status": "partial",
+          "fallback_reason": "OpenAI raw request body is not persisted in Codex rollout."
+        },
+        "size_bytes": 36
+      },
+      "response": {
+        "rendered": {
+          "text": "Tests passed.",
+          "blocks": [
+            {
+              "type": "reasoning",
+              "summary": [],
+              "encrypted": true
+            },
+            {
+              "type": "output_text",
+              "text": "Tests passed."
+            }
+          ],
+          "quality": {
+            "source": "codex_rollout_response_items",
+            "precision": "exact",
+            "status": "available"
+          }
+        },
+        "raw": {
+          "blocks": [
+            {
+              "type": "reasoning",
+              "summary": [],
+              "encrypted": true
+            },
+            {
+              "type": "output_text",
+              "text": "Tests passed."
+            }
+          ]
+        },
+        "availability": {
+          "source": "codex_rollout_response_items",
+          "precision": "exact",
+          "status": "available"
+        },
+        "size_bytes": 13
+      },
+      "request_attribution": {
+        "status": "partial",
+        "summary": {
+          "total_input": 100,
+          "fresh_input": 80,
+          "cache_read": 20,
+          "visible_estimated_tokens": 2,
+          "coverage": 0.02
+        },
+        "buckets": [
+          {
+            "bucket": "Tool results",
+            "tokens": 2,
+            "share": 0.02,
+            "source": "previous tool output",
+            "precision": "estimated",
+            "preview": "2 passed"
+          },
+          {
+            "bucket": "Unknown / retained context",
+            "tokens": 98,
+            "share": 0.98,
+            "source": "provider usage residual",
+            "precision": "estimated_partial",
+            "preview": "server-side retained context or hidden request data"
+          }
+        ],
+        "quality": {
+          "source": "codex normalized adapter",
+          "precision": "estimated_partial",
+          "status": "partial"
+        }
+      },
+      "response_attribution": {
+        "status": "available",
+        "summary": {
+          "total_output": 16,
+          "visible_estimated_tokens": 4,
+          "tool_use_estimated_tokens": 0,
+          "reasoning_output_tokens": 4,
+          "coverage": 0.5
+        },
+        "buckets": [
+          {
+            "bucket": "Visible text",
+            "tokens": 4,
+            "share": 0.25,
+            "source": "response_item.message role=assistant",
+            "precision": "estimated",
+            "preview": "Tests passed."
+          },
+          {
+            "bucket": "Reasoning",
+            "tokens": 4,
+            "share": 0.25,
+            "source": "event_msg.token_count.reasoning_output_tokens",
+            "precision": "provider_reported",
+            "preview": "encrypted reasoning payload"
+          },
+          {
+            "bucket": "Unknown output",
+            "tokens": 8,
+            "share": 0.5,
+            "source": "provider usage residual",
+            "precision": "estimated_partial",
+            "preview": "output tokens not explained by visible rollout items"
+          }
+        ],
+        "quality": {
+          "source": "codex normalized adapter",
+          "precision": "estimated",
+          "status": "available"
+        }
+      },
+      "payload_refs": {
+        "request_payload_id": "llm-R2-C1-request",
+        "response_payload_id": "llm-R2-C1-response",
+        "request_attribution_id": "llm-R2-C1-request-attribution",
+        "response_attribution_id": "llm-R2-C1-response-attribution",
+        "related_result_payload_ids": []
+      },
+      "steps": [
+        {
+          "type": "llm_call",
+          "step_id": "R2-main-call",
+          "call_id": "codex-call-0002",
+          "scope": "main",
+          "model": "gpt-5.5",
+          "status": "ok",
+          "timestamp": "2026-06-10T00:00:07.000Z",
+          "usage": {
+            "fresh": 80,
+            "cache_read": 20,
+            "cache_write": 0,
+            "output": 16,
+            "total": 116,
+            "source_total": 96,
+            "total_semantics": "component_sum",
+            "quality": {
+              "source": "event_msg.token_count",
+              "precision": "provider_reported",
+              "status": "available"
+            }
+          },
+          "payload_refs": {
+            "request_payload_id": "llm-R2-C1-request",
+            "response_payload_id": "llm-R2-C1-response",
+            "request_attribution_id": "llm-R2-C1-request-attribution",
+            "response_attribution_id": "llm-R2-C1-response-attribution",
+            "related_result_payload_ids": []
+          }
+        }
+      ]
+    }
+  ],
+  "tool_result_links": [
+    {
+      "source_tool_call_id": "call_run_tests",
+      "consumed_by_call_id": "codex-call-0002",
+      "consumed_by_round_id": 2
+    }
+  ],
+  "payload_index": {
+    "items": [
+      {
+        "payload_id": "llm-R1-C1-request",
+        "kind": "request",
+        "title": "R1 · Raw Request",
+        "target": {
+          "round_id": 1,
+          "call_id": "codex-call-0001"
+        }
+      },
+      {
+        "payload_id": "llm-R1-C1-response",
+        "kind": "response",
+        "title": "R1 · Raw Response",
+        "target": {
+          "round_id": 1,
+          "call_id": "codex-call-0001"
+        }
+      },
+      {
+        "payload_id": "llm-R1-C1-request-attribution",
+        "kind": "llm.request_attribution",
+        "title": "R1 · Request Attribution",
+        "target": {
+          "round_id": 1,
+          "call_id": "codex-call-0001"
+        }
+      },
+      {
+        "payload_id": "llm-R1-C1-response-attribution",
+        "kind": "llm.response_attribution",
+        "title": "R1 · Response Attribution",
+        "target": {
+          "round_id": 1,
+          "call_id": "codex-call-0001"
+        }
+      },
+      {
+        "payload_id": "tool-call_run_tests-result",
+        "kind": "tool_result",
+        "title": "R1 · Tool Result · exec_command",
+        "target": {
+          "round_id": 1,
+          "tool_call_id": "call_run_tests"
+        }
+      },
+      {
+        "payload_id": "llm-R2-C1-request",
+        "kind": "request",
+        "title": "R2 · Raw Request",
+        "target": {
+          "round_id": 2,
+          "call_id": "codex-call-0002"
+        }
+      },
+      {
+        "payload_id": "llm-R2-C1-response",
+        "kind": "response",
+        "title": "R2 · Raw Response",
+        "target": {
+          "round_id": 2,
+          "call_id": "codex-call-0002"
+        }
+      },
+      {
+        "payload_id": "llm-R2-C1-request-attribution",
+        "kind": "llm.request_attribution",
+        "title": "R2 · Request Attribution",
+        "target": {
+          "round_id": 2,
+          "call_id": "codex-call-0002"
+        }
+      },
+      {
+        "payload_id": "llm-R2-C1-response-attribution",
+        "kind": "llm.response_attribution",
+        "title": "R2 · Response Attribution",
+        "target": {
+          "round_id": 2,
+          "call_id": "codex-call-0002"
+        }
+      }
+    ]
+  },
+  "diagnostics": {
+    "token_timeline": [
+      {
+        "round_id": 1,
+        "tokens": {
+          "fresh": 100,
+          "cache_read": 40,
+          "cache_write": 0,
+          "output": 30,
+          "total": 170,
+          "source_total": 130,
+          "total_semantics": "component_sum",
+          "quality": {
+            "source": "event_msg.token_count.info.last_token_usage",
+            "precision": "provider_reported",
+            "status": "available"
+          }
+        },
+        "cache_read_ratio": 0.2857
+      },
+      {
+        "round_id": 2,
+        "tokens": {
+          "fresh": 80,
+          "cache_read": 20,
+          "cache_write": 0,
+          "output": 16,
+          "total": 116,
+          "source_total": 96,
+          "total_semantics": "component_sum",
+          "quality": {
+            "source": "event_msg.token_count.info.last_token_usage",
+            "precision": "provider_reported",
+            "status": "available"
+          }
+        },
+        "cache_read_ratio": 0.2
+      }
+    ],
+    "warnings": []
+  },
+  "parse_diagnostics": {
+    "warnings": [],
+    "jsonl": {
+      "total_lines": 19,
+      "non_empty_lines": 19,
+      "events_parsed": 19,
+      "events_skipped": 0,
+      "warning_count": 0,
+      "error_count": 0
+    }
+  }
+}

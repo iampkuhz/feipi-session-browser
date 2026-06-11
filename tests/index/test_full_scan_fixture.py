@@ -5,6 +5,7 @@
 """
 
 import pytest
+import json
 import os
 import shutil
 import sqlite3
@@ -124,6 +125,35 @@ class TestFullScanClaudeBasic:
         conn.close()
 
         assert count == 2, f"Expected 2 rows in sessions table, got {count}"
+
+    @pytest.mark.contract_case("DATA-INDEX-001")
+    def test_full_scan_writes_normalized_artifacts(self, tmp_path):
+        """full_scan 应为每个已索引 session 写入 normalized JSON artifact。"""
+        data_dir = tmp_path / "claude_data"
+        shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
+
+        db_path = str(tmp_path / "index.sqlite")
+        _run_full_scan(str(data_dir), db_path)
+
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT * FROM session_artifacts
+            WHERE artifact_type = 'normalized_session_json'
+            ORDER BY session_key
+            """
+        ).fetchall()
+        conn.close()
+
+        assert len(rows) == 2
+        for row in rows:
+            artifact_path = Path(row["path"])
+            assert artifact_path.is_file()
+            assert artifact_path.is_relative_to(tmp_path)
+            data = json.loads(artifact_path.read_text(encoding="utf-8"))
+            assert data["schema_version"] == row["schema_version"]
+            assert data["session"]["session_key"] == row["session_key"]
 
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_all_columns_populated(self, tmp_path):

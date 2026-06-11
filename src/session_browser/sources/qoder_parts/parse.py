@@ -98,7 +98,14 @@ def parse_session_detail(
 
     if is_cache_format:
         # Cache format: build summary via _parse_cache_session, then extract messages
-        summary = _parse_cache_session(project_key, session_id, session_file)
+        file_mtime = os.path.getmtime(session_file) if session_file.exists() else 0
+        summary = _parse_cache_session(
+            project_key,
+            session_id,
+            session_file,
+            file_mtime=file_mtime,
+            events=events,
+        )
         messages = _extract_messages(events)
         tool_calls = []
         subagent_runs = []
@@ -117,6 +124,74 @@ def parse_session_detail(
     summary.parse_diagnostics = parse_diag.to_dict()
 
     return summary, messages, tool_calls, subagent_runs
+
+
+def parse_session_detail_normalized(
+    project_key: str,
+    session_id: str,
+    session_file: Path | None = None,
+) -> dict:
+    """Parse a Qoder session into the normalized intermediate contract."""
+    from session_browser.normalized.agents.qoder import parse_qoder_session_file
+
+    target_file = session_file or _find_session_file(project_key, session_id)
+    if target_file is None:
+        raise FileNotFoundError(f"Qoder session file not found for session {session_id}")
+    return parse_qoder_session_file(
+        target_file,
+        project_key=project_key,
+        session_id=session_id,
+    )
+
+
+def parse_normalized_session_file(
+    session_file: str | Path,
+    project_key: str = "",
+    session_id: str | None = None,
+) -> dict:
+    """Parse a Qoder JSONL file directly into normalized JSON."""
+    from session_browser.normalized.agents.qoder import parse_qoder_session_file
+
+    return parse_qoder_session_file(
+        session_file,
+        project_key=project_key,
+        session_id=session_id,
+    )
+
+
+def build_normalized_session(
+    *,
+    summary: SessionSummary,
+    messages: list[ChatMessage],
+    tool_calls: list[ToolCall],
+    subagent_runs: list[dict],
+    source_path: str,
+) -> dict:
+    """Build normalized JSON from the models already parsed for indexing."""
+    from session_browser.normalized.agents.qoder import build_qoder_normalized_session
+
+    return build_qoder_normalized_session(
+        summary=summary,
+        messages=messages,
+        tool_calls=tool_calls,
+        source_path=source_path,
+        subagent_runs=subagent_runs,
+        jsonl_diagnostics=_jsonl_diagnostics_from_summary(summary),
+    )
+
+
+def _jsonl_diagnostics_from_summary(summary: SessionSummary) -> dict:
+    diagnostics = summary.parse_diagnostics or {}
+    if not isinstance(diagnostics, dict):
+        return {}
+    return {
+        "issues": diagnostics.get("issues", []),
+        "total_lines": diagnostics.get("total_lines", 0),
+        "events_parsed": diagnostics.get("events_parsed", 0),
+        "events_skipped": diagnostics.get("events_skipped", 0),
+        "warning_count": diagnostics.get("warning_count", 0),
+        "error_count": diagnostics.get("critical_count", 0),
+    }
 
 
 def _find_session_file(project_key: str, session_id: str) -> Path | None:
@@ -438,9 +513,10 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
             rec = assistant_by_id.get(key, {})
             text_parts = rec.get("text_parts", [])
             tool_calls = rec.get("tool_calls", [])
+            content_blocks = rec.get("content_blocks", [])
             usage = rec.get("usage", {})
             model = rec.get("model", "")
-            if text_parts or tool_calls:
+            if text_parts or tool_calls or content_blocks:
                 # Use real usage if present, otherwise fall back to estimates
                 if usage and usage.get("input_tokens"):
                     final_usage = usage
@@ -477,6 +553,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                     llm_call_id=rec.get("id", ""),
                     request_full=request_full,
                     stop_reason=rec.get("stop_reason", ""),
+                    content_blocks=content_blocks,
                 ))
 
     return messages
@@ -631,6 +708,7 @@ def _parse_cache_session(
     session_id: str,
     session_file: Path,
     file_mtime: float = 0,
+    events: list[dict] | None = None,
 ) -> SessionSummary:
     """Parse a cache-format JSONL session into a minimal SessionSummary.
 
@@ -638,7 +716,8 @@ def _parse_cache_session(
     with no timestamps, tool calls, or usage data. Returns best-effort summary.
     When events lack timestamps, uses file_mtime for started_at/ended_at.
     """
-    events, _ = parse_jsonl_events(session_file)
+    if events is None:
+        events, _ = parse_jsonl_events(session_file)
 
     # Extract user text for title
     user_texts = []

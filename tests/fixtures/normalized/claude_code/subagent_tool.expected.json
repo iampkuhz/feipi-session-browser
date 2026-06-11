@@ -1,0 +1,1540 @@
+{
+  "agent": "claude_code",
+  "diagnostics": {
+    "token_timeline": [
+      {
+        "cache_read_ratio": 0.0769,
+        "round_id": 1,
+        "tokens": {
+          "cache_read": 100,
+          "cache_write": 200,
+          "fresh": 1000,
+          "output": 60,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "claude_code_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 200,
+            "cache_read_input_tokens": 100,
+            "input_tokens": 1000,
+            "output_tokens": 60
+          },
+          "source_total": 1360,
+          "total": 1360,
+          "total_semantics": "component_sum"
+        }
+      },
+      {
+        "cache_read_ratio": 0.2941,
+        "round_id": 2,
+        "tokens": {
+          "cache_read": 250,
+          "cache_write": 0,
+          "fresh": 600,
+          "output": 80,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "claude_code_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 250,
+            "input_tokens": 600,
+            "output_tokens": 80
+          },
+          "source_total": 930,
+          "total": 930,
+          "total_semantics": "component_sum"
+        }
+      }
+    ],
+    "warnings": []
+  },
+  "parse_diagnostics": {
+    "jsonl": {
+      "error_count": 0,
+      "events_parsed": 5,
+      "events_skipped": 0,
+      "issues": [],
+      "non_empty_lines": 5,
+      "total_lines": 5,
+      "warning_count": 0
+    },
+    "warnings": []
+  },
+  "payload_index": {
+    "items": [
+      {
+        "kind": "request",
+        "payload_id": "llm-R1-C1-request",
+        "target": {
+          "call_id": "msg-main-1",
+          "round_id": 1
+        },
+        "title": "R1 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-R1-C1-response",
+        "target": {
+          "call_id": "msg-main-1",
+          "round_id": 1
+        },
+        "title": "R1 · Raw Response"
+      },
+      {
+        "kind": "llm.request_attribution",
+        "payload_id": "llm-R1-C1-request-attribution",
+        "target": {
+          "call_id": "msg-main-1",
+          "round_id": 1
+        },
+        "title": "R1 · Request Attribution"
+      },
+      {
+        "kind": "llm.response_attribution",
+        "payload_id": "llm-R1-C1-response-attribution",
+        "target": {
+          "call_id": "msg-main-1",
+          "round_id": 1
+        },
+        "title": "R1 · Response Attribution"
+      },
+      {
+        "kind": "tool_result",
+        "payload_id": "tool-toolu_bash_1-result",
+        "target": {
+          "round_id": 1,
+          "tool_call_id": "toolu_bash_1"
+        },
+        "title": "R1 · Tool Result · Bash"
+      },
+      {
+        "kind": "tool_result",
+        "payload_id": "tool-toolu_agent_1-result",
+        "target": {
+          "round_id": 1,
+          "tool_call_id": "toolu_agent_1"
+        },
+        "title": "R1 · Tool Result · Agent"
+      },
+      {
+        "kind": "request",
+        "payload_id": "llm-sub-toolu_agent_1-R1-C1-request",
+        "target": {
+          "call_id": "msg-child-1",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 1
+        },
+        "title": "R1.1 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-sub-toolu_agent_1-R1-C1-response",
+        "target": {
+          "call_id": "msg-child-1",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 1
+        },
+        "title": "R1.1 · Raw Response"
+      },
+      {
+        "kind": "llm.request_attribution",
+        "payload_id": "llm-sub-toolu_agent_1-R1-C1-request-attribution",
+        "target": {
+          "call_id": "msg-child-1",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 1
+        },
+        "title": "R1.1 · Request Attribution"
+      },
+      {
+        "kind": "llm.response_attribution",
+        "payload_id": "llm-sub-toolu_agent_1-R1-C1-response-attribution",
+        "target": {
+          "call_id": "msg-child-1",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 1
+        },
+        "title": "R1.1 · Response Attribution"
+      },
+      {
+        "kind": "tool_result",
+        "payload_id": "tool-toolu_child_read-result",
+        "target": {
+          "round_id": 1,
+          "sub_round_id": 1,
+          "tool_call_id": "toolu_child_read"
+        },
+        "title": "R1.1 · Tool Result · Read"
+      },
+      {
+        "kind": "request",
+        "payload_id": "llm-sub-toolu_agent_1-R2-C1-request",
+        "target": {
+          "call_id": "msg-child-2",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 2
+        },
+        "title": "R1.2 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-sub-toolu_agent_1-R2-C1-response",
+        "target": {
+          "call_id": "msg-child-2",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 2
+        },
+        "title": "R1.2 · Raw Response"
+      },
+      {
+        "kind": "llm.request_attribution",
+        "payload_id": "llm-sub-toolu_agent_1-R2-C1-request-attribution",
+        "target": {
+          "call_id": "msg-child-2",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 2
+        },
+        "title": "R1.2 · Request Attribution"
+      },
+      {
+        "kind": "llm.response_attribution",
+        "payload_id": "llm-sub-toolu_agent_1-R2-C1-response-attribution",
+        "target": {
+          "call_id": "msg-child-2",
+          "parent_tool_call_id": "toolu_agent_1",
+          "round_id": 1,
+          "sub_round_id": 2
+        },
+        "title": "R1.2 · Response Attribution"
+      },
+      {
+        "kind": "request",
+        "payload_id": "llm-R2-C1-request",
+        "target": {
+          "call_id": "msg-main-2",
+          "round_id": 2
+        },
+        "title": "R2 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-R2-C1-response",
+        "target": {
+          "call_id": "msg-main-2",
+          "round_id": 2
+        },
+        "title": "R2 · Raw Response"
+      },
+      {
+        "kind": "llm.request_attribution",
+        "payload_id": "llm-R2-C1-request-attribution",
+        "target": {
+          "call_id": "msg-main-2",
+          "round_id": 2
+        },
+        "title": "R2 · Request Attribution"
+      },
+      {
+        "kind": "llm.response_attribution",
+        "payload_id": "llm-R2-C1-response-attribution",
+        "target": {
+          "call_id": "msg-main-2",
+          "round_id": 2
+        },
+        "title": "R2 · Response Attribution"
+      }
+    ]
+  },
+  "rounds": [
+    {
+      "call_id": "msg-main-1",
+      "main_call": {
+        "call_id": "msg-main-1",
+        "model": "claude-sonnet-4-20250514",
+        "parent_tool_use_id": "",
+        "scope": "main",
+        "source": "claude_code_jsonl_usage",
+        "subagent_id": "",
+        "timestamp": "2026-06-10T01:00:03.000Z",
+        "turn_id": ""
+      },
+      "metrics": {
+        "cache_read_ratio": 0.0769,
+        "failed_tool_count": 0,
+        "llm_call_count": 1,
+        "subagent_count": 1,
+        "tokens": {
+          "cache_read": 100,
+          "cache_write": 200,
+          "fresh": 1000,
+          "output": 60,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "claude_code_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 200,
+            "cache_read_input_tokens": 100,
+            "input_tokens": 1000,
+            "output_tokens": 60
+          },
+          "source_total": 1360,
+          "total": 1360,
+          "total_semantics": "component_sum"
+        },
+        "tool_call_count": 2
+      },
+      "payload_refs": {
+        "related_result_payload_ids": [
+          "tool-toolu_bash_1-result",
+          "tool-toolu_agent_1-result"
+        ],
+        "request_attribution_id": "llm-R1-C1-request-attribution",
+        "request_payload_id": "llm-R1-C1-request",
+        "response_attribution_id": "llm-R1-C1-response-attribution",
+        "response_payload_id": "llm-R1-C1-response"
+      },
+      "request": {
+        "availability": {
+          "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+          "precision": "estimated_partial",
+          "source": "claude_code_jsonl_reconstructed_request",
+          "status": "partial"
+        },
+        "raw": null,
+        "rendered": {
+          "blocks": [
+            {
+              "bucket": "Current user prompt",
+              "role": "user",
+              "text": "请检查项目并让子 agent 总结测试范围",
+              "type": "message"
+            }
+          ],
+          "quality": {
+            "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+            "precision": "estimated_partial",
+            "source": "claude_code_jsonl_reconstructed_request",
+            "status": "partial"
+          },
+          "text": "请检查项目并让子 agent 总结测试范围"
+        },
+        "size_bytes": 49
+      },
+      "request_attribution": {
+        "buckets": [
+          {
+            "bucket": "Current user prompt",
+            "precision": "estimated",
+            "preview": "请检查项目并让子 agent 总结测试范围",
+            "share": 0.0046,
+            "source": "claude_code user.message",
+            "tokens": 6
+          },
+          {
+            "bucket": "Unknown / retained context",
+            "precision": "estimated_partial",
+            "preview": "system prompt, tool schemas, history, or hidden runtime context",
+            "share": 0.9954,
+            "source": "provider usage residual",
+            "tokens": 1294
+          }
+        ],
+        "quality": {
+          "precision": "estimated_partial",
+          "source": "claude_code normalized adapter",
+          "status": "partial"
+        },
+        "status": "partial",
+        "summary": {
+          "cache_read": 100,
+          "cache_write": 200,
+          "coverage": 0.0046,
+          "fresh_input": 1000,
+          "total_input": 1300,
+          "visible_estimated_tokens": 6
+        }
+      },
+      "response": {
+        "availability": {
+          "precision": "exact",
+          "source": "claude_code_jsonl_assistant_message",
+          "status": "available"
+        },
+        "raw": {
+          "blocks": [
+            {
+              "text": "我会先查看文件并派发子任务。",
+              "type": "text"
+            },
+            {
+              "id": "toolu_bash_1",
+              "input": {
+                "command": "ls -1",
+                "description": "列出仓库文件"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "toolu_agent_1",
+              "input": {
+                "description": "Summarize tests",
+                "prompt": "阅读测试目录并总结需要覆盖的解析场景。",
+                "subagent_type": "analysis-agent"
+              },
+              "name": "Agent",
+              "type": "tool_use"
+            }
+          ]
+        },
+        "rendered": {
+          "blocks": [
+            {
+              "text": "我会先查看文件并派发子任务。",
+              "type": "text"
+            },
+            {
+              "id": "toolu_bash_1",
+              "input": {
+                "command": "ls -1",
+                "description": "列出仓库文件"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "toolu_agent_1",
+              "input": {
+                "description": "Summarize tests",
+                "prompt": "阅读测试目录并总结需要覆盖的解析场景。",
+                "subagent_type": "analysis-agent"
+              },
+              "name": "Agent",
+              "type": "tool_use"
+            }
+          ],
+          "quality": {
+            "precision": "exact",
+            "source": "claude_code_jsonl_assistant_message",
+            "status": "available"
+          },
+          "text": "我会先查看文件并派发子任务。"
+        },
+        "size_bytes": 42
+      },
+      "response_attribution": {
+        "buckets": [
+          {
+            "bucket": "Visible text",
+            "precision": "estimated",
+            "preview": "我会先查看文件并派发子任务。",
+            "share": 0.0667,
+            "source": "claude_code assistant.text",
+            "tokens": 4
+          },
+          {
+            "bucket": "Tool use",
+            "precision": "estimated",
+            "preview": "[{\"name\": \"Bash\", \"parameters\": {\"command\": \"ls -1\", \"description\": \"列出仓库文件\"}}, {\"name\": \"Agent\", \"parameters\": {\"des...",
+            "share": 0.9,
+            "source": "claude_code assistant.tool_use",
+            "tokens": 54
+          },
+          {
+            "bucket": "Unknown output",
+            "precision": "estimated_partial",
+            "preview": "output tokens not explained by visible JSONL blocks",
+            "share": 0.0333,
+            "source": "provider usage residual",
+            "tokens": 2
+          }
+        ],
+        "quality": {
+          "precision": "estimated",
+          "source": "claude_code normalized adapter",
+          "status": "available"
+        },
+        "status": "available",
+        "summary": {
+          "coverage": 0.9667,
+          "thinking_estimated_tokens": 0,
+          "tool_use_estimated_tokens": 54,
+          "total_output": 60,
+          "visible_estimated_tokens": 4
+        }
+      },
+      "round_id": 1,
+      "round_key": "R1",
+      "signals": {
+        "attribution_gap": true,
+        "failed": false,
+        "fresh_spike": false,
+        "items": [],
+        "low_cache": false,
+        "payload_gap": false
+      },
+      "status": "ok",
+      "steps": [
+        {
+          "content": {
+            "blocks": [
+              {
+                "bucket": "Current user prompt",
+                "role": "user",
+                "text": "请检查项目并让子 agent 总结测试范围",
+                "type": "message"
+              }
+            ],
+            "quality": {
+              "precision": "exact",
+              "source": "claude_code user.message",
+              "status": "available"
+            },
+            "text": "请检查项目并让子 agent 总结测试范围"
+          },
+          "step_id": "R1-user-1",
+          "timestamp": "2026-06-10T01:00:03.000Z",
+          "type": "user_context"
+        },
+        {
+          "call_id": "msg-main-1",
+          "model": "claude-sonnet-4-20250514",
+          "payload_refs": {
+            "related_result_payload_ids": [
+              "tool-toolu_bash_1-result",
+              "tool-toolu_agent_1-result"
+            ],
+            "request_attribution_id": "llm-R1-C1-request-attribution",
+            "request_payload_id": "llm-R1-C1-request",
+            "response_attribution_id": "llm-R1-C1-response-attribution",
+            "response_payload_id": "llm-R1-C1-response"
+          },
+          "scope": "main",
+          "status": "ok",
+          "step_id": "R1-main-call",
+          "timestamp": "2026-06-10T01:00:03.000Z",
+          "type": "llm_call",
+          "usage": {
+            "cache_read": 100,
+            "cache_write": 200,
+            "fresh": 1000,
+            "output": 60,
+            "quality": {
+              "precision": "provider_reported",
+              "source": "claude_code_jsonl_usage",
+              "status": "available"
+            },
+            "source_total": 1360,
+            "total": 1360,
+            "total_semantics": "component_sum"
+          }
+        },
+        {
+          "duration_ms": 0,
+          "ended_at": "2026-06-10T01:00:03.000Z",
+          "started_at": "2026-06-10T01:00:03.000Z",
+          "step_id": "R1-tool-batch-1",
+          "tools": [
+            {
+              "duration_ms": 0,
+              "exit_code": null,
+              "files_touched": [],
+              "llm_call_count": 0,
+              "llm_error_count": 0,
+              "name": "Bash",
+              "parameters": {
+                "command": "ls -1",
+                "description": "列出仓库文件"
+              },
+              "parent_tool_name": "",
+              "parent_tool_use_id": "",
+              "payload_id": "tool-toolu_bash_1-result",
+              "result": {
+                "availability": {
+                  "precision": "exact",
+                  "source": "user.tool_result",
+                  "status": "available"
+                },
+                "raw": "README.md\nsrc\ntests",
+                "rendered": {
+                  "blocks": [
+                    {
+                      "text": "README.md\nsrc\ntests",
+                      "type": "text"
+                    }
+                  ],
+                  "quality": {
+                    "precision": "exact",
+                    "source": "user.tool_result",
+                    "status": "available"
+                  },
+                  "text": "README.md\nsrc\ntests"
+                },
+                "size_bytes": 19
+              },
+              "scope": "main",
+              "status": "completed",
+              "subagent_failed_tool_count": 0,
+              "subagent_id": "",
+              "subagent_summary": {},
+              "subagent_tool_call_count": 0,
+              "timestamp": "2026-06-10T01:00:03.000Z",
+              "tool_call_id": "toolu_bash_1",
+              "type": "tool_use"
+            },
+            {
+              "duration_ms": 0,
+              "exit_code": null,
+              "files_touched": [],
+              "llm_call_count": 2,
+              "llm_error_count": 0,
+              "name": "Agent",
+              "parameters": {
+                "description": "Summarize tests",
+                "prompt": "阅读测试目录并总结需要覆盖的解析场景。",
+                "subagent_type": "analysis-agent"
+              },
+              "parent_tool_name": "",
+              "parent_tool_use_id": "",
+              "payload_id": "tool-toolu_agent_1-result",
+              "result": {
+                "availability": {
+                  "precision": "exact",
+                  "source": "user.tool_result",
+                  "status": "available"
+                },
+                "raw": "子 agent 完成测试范围总结。",
+                "rendered": {
+                  "blocks": [
+                    {
+                      "text": "子 agent 完成测试范围总结。",
+                      "type": "text"
+                    }
+                  ],
+                  "quality": {
+                    "precision": "exact",
+                    "source": "user.tool_result",
+                    "status": "available"
+                  },
+                  "text": "子 agent 完成测试范围总结。"
+                },
+                "size_bytes": 37
+              },
+              "scope": "main",
+              "status": "completed",
+              "sub_round_count": 2,
+              "subagent_failed_tool_count": 0,
+              "subagent_id": "child",
+              "subagent_summary": {
+                "agent_id": "child",
+                "agent_type": "analysis-agent",
+                "assistant_event_count": 3,
+                "cache_creation_input_tokens": 50,
+                "cache_read_input_tokens": 50,
+                "description": "Summarize tests",
+                "ended_at": "2026-06-10T01:00:08.000Z",
+                "failed_tool_count": 0,
+                "input_tokens": 500,
+                "llm_call_count": 2,
+                "llm_error_count": 0,
+                "output_tokens": 70,
+                "started_at": "2026-06-10T01:00:04.000Z",
+                "status": "ok",
+                "tool_call_count": 1,
+                "tool_counts": {
+                  "Read": 1
+                }
+              },
+              "subagent_tool_call_count": 1,
+              "timestamp": "2026-06-10T01:00:03.000Z",
+              "tool_call_id": "toolu_agent_1",
+              "type": "tool_use"
+            }
+          ],
+          "type": "tool_batch"
+        },
+        {
+          "description": "Summarize tests",
+          "parent_tool_call_id": "toolu_agent_1",
+          "quality": {
+            "precision": "reconstructed",
+            "source": "claude_code_subagent_sidechain",
+            "status": "available"
+          },
+          "step_id": "R1-subagent-child",
+          "sub_rounds": [
+            {
+              "call_id": "msg-child-1",
+              "main_call": {
+                "call_id": "msg-child-1",
+                "model": "claude-sonnet-4-20250514",
+                "parent_tool_use_id": "toolu_agent_1",
+                "scope": "subagent",
+                "source": "claude_code_jsonl_usage",
+                "subagent_id": "child",
+                "timestamp": "2026-06-10T01:00:06.000Z",
+                "turn_id": ""
+              },
+              "metrics": {
+                "cache_read_ratio": 0.0,
+                "failed_tool_count": 0,
+                "llm_call_count": 1,
+                "subagent_count": 0,
+                "tokens": {
+                  "cache_read": 0,
+                  "cache_write": 50,
+                  "fresh": 300,
+                  "output": 30,
+                  "quality": {
+                    "precision": "provider_reported",
+                    "source": "claude_code_jsonl_usage",
+                    "status": "available"
+                  },
+                  "raw_fields": {
+                    "cache_creation_input_tokens": 50,
+                    "cache_read_input_tokens": 0,
+                    "input_tokens": 300,
+                    "output_tokens": 30
+                  },
+                  "source_total": 380,
+                  "total": 380,
+                  "total_semantics": "component_sum"
+                },
+                "tool_call_count": 1
+              },
+              "payload_refs": {
+                "related_result_payload_ids": [
+                  "tool-toolu_child_read-result"
+                ],
+                "request_attribution_id": "llm-sub-toolu_agent_1-R1-C1-request-attribution",
+                "request_payload_id": "llm-sub-toolu_agent_1-R1-C1-request",
+                "response_attribution_id": "llm-sub-toolu_agent_1-R1-C1-response-attribution",
+                "response_payload_id": "llm-sub-toolu_agent_1-R1-C1-response"
+              },
+              "request": {
+                "availability": {
+                  "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+                  "precision": "estimated_partial",
+                  "source": "claude_code_jsonl_reconstructed_request",
+                  "status": "partial"
+                },
+                "raw": null,
+                "rendered": {
+                  "blocks": [
+                    {
+                      "bucket": "Current user prompt",
+                      "role": "user",
+                      "text": "阅读测试目录并总结需要覆盖的解析场景。",
+                      "type": "message"
+                    }
+                  ],
+                  "quality": {
+                    "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+                    "precision": "estimated_partial",
+                    "source": "claude_code_jsonl_reconstructed_request",
+                    "status": "partial"
+                  },
+                  "text": "阅读测试目录并总结需要覆盖的解析场景。"
+                },
+                "size_bytes": 57
+              },
+              "request_attribution": {
+                "buckets": [
+                  {
+                    "bucket": "Current user prompt",
+                    "precision": "estimated",
+                    "preview": "阅读测试目录并总结需要覆盖的解析场景。",
+                    "share": 0.0143,
+                    "source": "claude_code user.message",
+                    "tokens": 5
+                  },
+                  {
+                    "bucket": "Unknown / retained context",
+                    "precision": "estimated_partial",
+                    "preview": "system prompt, tool schemas, history, or hidden runtime context",
+                    "share": 0.9857,
+                    "source": "provider usage residual",
+                    "tokens": 345
+                  }
+                ],
+                "quality": {
+                  "precision": "estimated_partial",
+                  "source": "claude_code normalized adapter",
+                  "status": "partial"
+                },
+                "status": "partial",
+                "summary": {
+                  "cache_read": 0,
+                  "cache_write": 50,
+                  "coverage": 0.0143,
+                  "fresh_input": 300,
+                  "total_input": 350,
+                  "visible_estimated_tokens": 5
+                }
+              },
+              "response": {
+                "availability": {
+                  "precision": "exact",
+                  "source": "claude_code_jsonl_assistant_message",
+                  "status": "available"
+                },
+                "raw": {
+                  "blocks": [
+                    {
+                      "text": "需要查看测试目录。",
+                      "type": "thinking"
+                    },
+                    {
+                      "id": "toolu_child_read",
+                      "input": {
+                        "file_path": "tests/backend/test_claude_source.py"
+                      },
+                      "name": "Read",
+                      "type": "tool_use"
+                    }
+                  ]
+                },
+                "rendered": {
+                  "blocks": [
+                    {
+                      "text": "需要查看测试目录。",
+                      "type": "thinking"
+                    },
+                    {
+                      "id": "toolu_child_read",
+                      "input": {
+                        "file_path": "tests/backend/test_claude_source.py"
+                      },
+                      "name": "Read",
+                      "type": "tool_use"
+                    }
+                  ],
+                  "quality": {
+                    "precision": "exact",
+                    "source": "claude_code_jsonl_assistant_message",
+                    "status": "available"
+                  },
+                  "text": "需要查看测试目录。"
+                },
+                "size_bytes": 27
+              },
+              "response_attribution": {
+                "buckets": [
+                  {
+                    "bucket": "Thinking",
+                    "precision": "estimated",
+                    "preview": "需要查看测试目录。",
+                    "share": 0.1,
+                    "source": "claude_code assistant.thinking",
+                    "tokens": 3
+                  },
+                  {
+                    "bucket": "Tool use",
+                    "precision": "estimated",
+                    "preview": "[{\"name\": \"Read\", \"parameters\": {\"file_path\": \"tests/backend/test_claude_source.py\"}}]",
+                    "share": 0.7333,
+                    "source": "claude_code assistant.tool_use",
+                    "tokens": 22
+                  },
+                  {
+                    "bucket": "Unknown output",
+                    "precision": "estimated_partial",
+                    "preview": "output tokens not explained by visible JSONL blocks",
+                    "share": 0.1667,
+                    "source": "provider usage residual",
+                    "tokens": 5
+                  }
+                ],
+                "quality": {
+                  "precision": "estimated",
+                  "source": "claude_code normalized adapter",
+                  "status": "available"
+                },
+                "status": "available",
+                "summary": {
+                  "coverage": 0.8333,
+                  "thinking_estimated_tokens": 3,
+                  "tool_use_estimated_tokens": 22,
+                  "total_output": 30,
+                  "visible_estimated_tokens": 0
+                }
+              },
+              "round_id": 1,
+              "round_key": "R1.1",
+              "signals": {
+                "attribution_gap": true,
+                "failed": false,
+                "fresh_spike": false,
+                "items": [],
+                "low_cache": false,
+                "payload_gap": false
+              },
+              "status": "ok",
+              "steps": [
+                {
+                  "content": {
+                    "blocks": [
+                      {
+                        "bucket": "Current user prompt",
+                        "role": "user",
+                        "text": "阅读测试目录并总结需要覆盖的解析场景。",
+                        "type": "message"
+                      }
+                    ],
+                    "quality": {
+                      "precision": "exact",
+                      "source": "claude_code user.message",
+                      "status": "available"
+                    },
+                    "text": "阅读测试目录并总结需要覆盖的解析场景。"
+                  },
+                  "step_id": "R1-user-1",
+                  "timestamp": "2026-06-10T01:00:06.000Z",
+                  "type": "user_context"
+                },
+                {
+                  "call_id": "msg-child-1",
+                  "model": "claude-sonnet-4-20250514",
+                  "payload_refs": {
+                    "related_result_payload_ids": [
+                      "tool-toolu_child_read-result"
+                    ],
+                    "request_attribution_id": "llm-sub-toolu_agent_1-R1-C1-request-attribution",
+                    "request_payload_id": "llm-sub-toolu_agent_1-R1-C1-request",
+                    "response_attribution_id": "llm-sub-toolu_agent_1-R1-C1-response-attribution",
+                    "response_payload_id": "llm-sub-toolu_agent_1-R1-C1-response"
+                  },
+                  "scope": "subagent",
+                  "status": "ok",
+                  "step_id": "R1-subagent-call",
+                  "timestamp": "2026-06-10T01:00:06.000Z",
+                  "type": "llm_call",
+                  "usage": {
+                    "cache_read": 0,
+                    "cache_write": 50,
+                    "fresh": 300,
+                    "output": 30,
+                    "quality": {
+                      "precision": "provider_reported",
+                      "source": "claude_code_jsonl_usage",
+                      "status": "available"
+                    },
+                    "source_total": 380,
+                    "total": 380,
+                    "total_semantics": "component_sum"
+                  }
+                },
+                {
+                  "duration_ms": 0,
+                  "ended_at": "2026-06-10T01:00:06.000Z",
+                  "started_at": "2026-06-10T01:00:06.000Z",
+                  "step_id": "R1-tool-batch-1",
+                  "tools": [
+                    {
+                      "duration_ms": 0,
+                      "exit_code": null,
+                      "files_touched": [
+                        "tests/backend/test_claude_source.py"
+                      ],
+                      "llm_call_count": 0,
+                      "llm_error_count": 0,
+                      "name": "Read",
+                      "parameters": {
+                        "file_path": "tests/backend/test_claude_source.py"
+                      },
+                      "parent_tool_name": "Agent",
+                      "parent_tool_use_id": "toolu_agent_1",
+                      "payload_id": "tool-toolu_child_read-result",
+                      "result": {
+                        "availability": {
+                          "precision": "exact",
+                          "source": "user.tool_result",
+                          "status": "available"
+                        },
+                        "raw": "test_parse_session_detail_includes_subagent_diagnostics",
+                        "rendered": {
+                          "blocks": [
+                            {
+                              "text": "test_parse_session_detail_includes_subagent_diagnostics",
+                              "type": "text"
+                            }
+                          ],
+                          "quality": {
+                            "precision": "exact",
+                            "source": "user.tool_result",
+                            "status": "available"
+                          },
+                          "text": "test_parse_session_detail_includes_subagent_diagnostics"
+                        },
+                        "size_bytes": 55
+                      },
+                      "scope": "subagent",
+                      "status": "completed",
+                      "subagent_failed_tool_count": 0,
+                      "subagent_id": "child",
+                      "subagent_summary": {},
+                      "subagent_tool_call_count": 0,
+                      "timestamp": "2026-06-10T01:00:06.000Z",
+                      "tool_call_id": "toolu_child_read",
+                      "type": "tool_use"
+                    }
+                  ],
+                  "type": "tool_batch"
+                }
+              ],
+              "summary": "需要查看测试目录。",
+              "timing": {
+                "duration_seconds": 0,
+                "ended_at": "2026-06-10T01:00:06.000Z",
+                "process_seconds": 0,
+                "started_at": "2026-06-10T01:00:06.000Z",
+                "waiting_seconds": 0
+              }
+            },
+            {
+              "call_id": "msg-child-2",
+              "main_call": {
+                "call_id": "msg-child-2",
+                "model": "claude-sonnet-4-20250514",
+                "parent_tool_use_id": "toolu_agent_1",
+                "scope": "subagent",
+                "source": "claude_code_jsonl_usage",
+                "subagent_id": "child",
+                "timestamp": "2026-06-10T01:00:08.000Z",
+                "turn_id": ""
+              },
+              "metrics": {
+                "cache_read_ratio": 0.2,
+                "failed_tool_count": 0,
+                "llm_call_count": 1,
+                "subagent_count": 0,
+                "tokens": {
+                  "cache_read": 50,
+                  "cache_write": 0,
+                  "fresh": 200,
+                  "output": 40,
+                  "quality": {
+                    "precision": "provider_reported",
+                    "source": "claude_code_jsonl_usage",
+                    "status": "available"
+                  },
+                  "raw_fields": {
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 50,
+                    "input_tokens": 200,
+                    "output_tokens": 40
+                  },
+                  "source_total": 290,
+                  "total": 290,
+                  "total_semantics": "component_sum"
+                },
+                "tool_call_count": 0
+              },
+              "payload_refs": {
+                "related_result_payload_ids": [],
+                "request_attribution_id": "llm-sub-toolu_agent_1-R2-C1-request-attribution",
+                "request_payload_id": "llm-sub-toolu_agent_1-R2-C1-request",
+                "response_attribution_id": "llm-sub-toolu_agent_1-R2-C1-response-attribution",
+                "response_payload_id": "llm-sub-toolu_agent_1-R2-C1-response"
+              },
+              "request": {
+                "availability": {
+                  "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+                  "precision": "estimated_partial",
+                  "source": "claude_code_jsonl_reconstructed_request",
+                  "status": "partial"
+                },
+                "raw": null,
+                "rendered": {
+                  "blocks": [
+                    {
+                      "text": "test_parse_session_detail_includes_subagent_diagnostics",
+                      "tool_call_id": "toolu_child_read",
+                      "type": "tool_result"
+                    }
+                  ],
+                  "quality": {
+                    "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+                    "precision": "estimated_partial",
+                    "source": "claude_code_jsonl_reconstructed_request",
+                    "status": "partial"
+                  },
+                  "text": "Tool result for toolu_child_read:\ntest_parse_session_detail_includes_subagent_diagnostics"
+                },
+                "size_bytes": 89
+              },
+              "request_attribution": {
+                "buckets": [
+                  {
+                    "bucket": "Tool results",
+                    "precision": "estimated",
+                    "preview": "test_parse_session_detail_includes_subagent_diagnostics",
+                    "share": 0.056,
+                    "source": "claude_code user.tool_result",
+                    "tokens": 14
+                  },
+                  {
+                    "bucket": "Unknown / retained context",
+                    "precision": "estimated_partial",
+                    "preview": "system prompt, tool schemas, history, or hidden runtime context",
+                    "share": 0.944,
+                    "source": "provider usage residual",
+                    "tokens": 236
+                  }
+                ],
+                "quality": {
+                  "precision": "estimated_partial",
+                  "source": "claude_code normalized adapter",
+                  "status": "partial"
+                },
+                "status": "partial",
+                "summary": {
+                  "cache_read": 50,
+                  "cache_write": 0,
+                  "coverage": 0.056,
+                  "fresh_input": 200,
+                  "total_input": 250,
+                  "visible_estimated_tokens": 14
+                }
+              },
+              "response": {
+                "availability": {
+                  "precision": "exact",
+                  "source": "claude_code_jsonl_assistant_message",
+                  "status": "available"
+                },
+                "raw": {
+                  "blocks": [
+                    {
+                      "text": "建议覆盖 Claude normalized snapshot。",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "rendered": {
+                  "blocks": [
+                    {
+                      "text": "建议覆盖 Claude normalized snapshot。",
+                      "type": "text"
+                    }
+                  ],
+                  "quality": {
+                    "precision": "exact",
+                    "source": "claude_code_jsonl_assistant_message",
+                    "status": "available"
+                  },
+                  "text": "建议覆盖 Claude normalized snapshot。"
+                },
+                "size_bytes": 42
+              },
+              "response_attribution": {
+                "buckets": [
+                  {
+                    "bucket": "Visible text",
+                    "precision": "estimated",
+                    "preview": "建议覆盖 Claude normalized snapshot。",
+                    "share": 0.2,
+                    "source": "claude_code assistant.text",
+                    "tokens": 8
+                  },
+                  {
+                    "bucket": "Unknown output",
+                    "precision": "estimated_partial",
+                    "preview": "output tokens not explained by visible JSONL blocks",
+                    "share": 0.8,
+                    "source": "provider usage residual",
+                    "tokens": 32
+                  }
+                ],
+                "quality": {
+                  "precision": "estimated",
+                  "source": "claude_code normalized adapter",
+                  "status": "available"
+                },
+                "status": "available",
+                "summary": {
+                  "coverage": 0.2,
+                  "thinking_estimated_tokens": 0,
+                  "tool_use_estimated_tokens": 0,
+                  "total_output": 40,
+                  "visible_estimated_tokens": 8
+                }
+              },
+              "round_id": 2,
+              "round_key": "R1.2",
+              "signals": {
+                "attribution_gap": true,
+                "failed": false,
+                "fresh_spike": false,
+                "items": [],
+                "low_cache": false,
+                "payload_gap": false
+              },
+              "status": "ok",
+              "steps": [
+                {
+                  "call_id": "msg-child-2",
+                  "model": "claude-sonnet-4-20250514",
+                  "payload_refs": {
+                    "related_result_payload_ids": [],
+                    "request_attribution_id": "llm-sub-toolu_agent_1-R2-C1-request-attribution",
+                    "request_payload_id": "llm-sub-toolu_agent_1-R2-C1-request",
+                    "response_attribution_id": "llm-sub-toolu_agent_1-R2-C1-response-attribution",
+                    "response_payload_id": "llm-sub-toolu_agent_1-R2-C1-response"
+                  },
+                  "scope": "subagent",
+                  "status": "ok",
+                  "step_id": "R2-subagent-call",
+                  "timestamp": "2026-06-10T01:00:08.000Z",
+                  "type": "llm_call",
+                  "usage": {
+                    "cache_read": 50,
+                    "cache_write": 0,
+                    "fresh": 200,
+                    "output": 40,
+                    "quality": {
+                      "precision": "provider_reported",
+                      "source": "claude_code_jsonl_usage",
+                      "status": "available"
+                    },
+                    "source_total": 290,
+                    "total": 290,
+                    "total_semantics": "component_sum"
+                  }
+                }
+              ],
+              "summary": "建议覆盖 Claude normalized snapshot。",
+              "timing": {
+                "duration_seconds": 0,
+                "ended_at": "2026-06-10T01:00:08.000Z",
+                "process_seconds": 0,
+                "started_at": "2026-06-10T01:00:08.000Z",
+                "waiting_seconds": 0
+              }
+            }
+          ],
+          "subagent_id": "child",
+          "subagent_type": "analysis-agent",
+          "summary": {
+            "agent_id": "child",
+            "agent_type": "analysis-agent",
+            "assistant_event_count": 3,
+            "cache_creation_input_tokens": 50,
+            "cache_read_input_tokens": 50,
+            "description": "Summarize tests",
+            "ended_at": "2026-06-10T01:00:08.000Z",
+            "failed_tool_count": 0,
+            "input_tokens": 500,
+            "llm_call_count": 2,
+            "llm_error_count": 0,
+            "output_tokens": 70,
+            "started_at": "2026-06-10T01:00:04.000Z",
+            "status": "ok",
+            "tool_call_count": 1,
+            "tool_counts": {
+              "Read": 1
+            }
+          },
+          "type": "subagent_run"
+        }
+      ],
+      "summary": "我会先查看文件并派发子任务。",
+      "timing": {
+        "duration_seconds": 0,
+        "ended_at": "2026-06-10T01:00:03.000Z",
+        "process_seconds": 0,
+        "started_at": "2026-06-10T01:00:03.000Z",
+        "waiting_seconds": 0
+      }
+    },
+    {
+      "call_id": "msg-main-2",
+      "main_call": {
+        "call_id": "msg-main-2",
+        "model": "claude-sonnet-4-20250514",
+        "parent_tool_use_id": "",
+        "scope": "main",
+        "source": "claude_code_jsonl_usage",
+        "subagent_id": "",
+        "timestamp": "2026-06-10T01:00:12.000Z",
+        "turn_id": ""
+      },
+      "metrics": {
+        "cache_read_ratio": 0.2941,
+        "failed_tool_count": 0,
+        "llm_call_count": 1,
+        "subagent_count": 0,
+        "tokens": {
+          "cache_read": 250,
+          "cache_write": 0,
+          "fresh": 600,
+          "output": 80,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "claude_code_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 250,
+            "input_tokens": 600,
+            "output_tokens": 80
+          },
+          "source_total": 930,
+          "total": 930,
+          "total_semantics": "component_sum"
+        },
+        "tool_call_count": 0
+      },
+      "payload_refs": {
+        "related_result_payload_ids": [],
+        "request_attribution_id": "llm-R2-C1-request-attribution",
+        "request_payload_id": "llm-R2-C1-request",
+        "response_attribution_id": "llm-R2-C1-response-attribution",
+        "response_payload_id": "llm-R2-C1-response"
+      },
+      "request": {
+        "availability": {
+          "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+          "precision": "estimated_partial",
+          "source": "claude_code_jsonl_reconstructed_request",
+          "status": "partial"
+        },
+        "raw": null,
+        "rendered": {
+          "blocks": [
+            {
+              "text": "README.md\nsrc\ntests",
+              "tool_call_id": "toolu_bash_1",
+              "type": "tool_result"
+            },
+            {
+              "text": "子 agent 完成测试范围总结。",
+              "tool_call_id": "toolu_agent_1",
+              "type": "tool_result"
+            }
+          ],
+          "quality": {
+            "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+            "precision": "estimated_partial",
+            "source": "claude_code_jsonl_reconstructed_request",
+            "status": "partial"
+          },
+          "text": "Tool result for toolu_bash_1:\nREADME.md\nsrc\ntests\n\nTool result for toolu_agent_1:\n子 agent 完成测试范围总结。"
+        },
+        "size_bytes": 119
+      },
+      "request_attribution": {
+        "buckets": [
+          {
+            "bucket": "Tool results",
+            "precision": "estimated",
+            "preview": "README.md src tests",
+            "share": 0.0059,
+            "source": "claude_code user.tool_result",
+            "tokens": 5
+          },
+          {
+            "bucket": "Tool results",
+            "precision": "estimated",
+            "preview": "子 agent 完成测试范围总结。",
+            "share": 0.0059,
+            "source": "claude_code user.tool_result",
+            "tokens": 5
+          },
+          {
+            "bucket": "Unknown / retained context",
+            "precision": "estimated_partial",
+            "preview": "system prompt, tool schemas, history, or hidden runtime context",
+            "share": 0.9882,
+            "source": "provider usage residual",
+            "tokens": 840
+          }
+        ],
+        "quality": {
+          "precision": "estimated_partial",
+          "source": "claude_code normalized adapter",
+          "status": "partial"
+        },
+        "status": "partial",
+        "summary": {
+          "cache_read": 250,
+          "cache_write": 0,
+          "coverage": 0.0118,
+          "fresh_input": 600,
+          "total_input": 850,
+          "visible_estimated_tokens": 10
+        }
+      },
+      "response": {
+        "availability": {
+          "precision": "exact",
+          "source": "claude_code_jsonl_assistant_message",
+          "status": "available"
+        },
+        "raw": {
+          "blocks": [
+            {
+              "text": "检查完成，测试范围是 parser 和 normalized adapter。",
+              "type": "text"
+            }
+          ]
+        },
+        "rendered": {
+          "blocks": [
+            {
+              "text": "检查完成，测试范围是 parser 和 normalized adapter。",
+              "type": "text"
+            }
+          ],
+          "quality": {
+            "precision": "exact",
+            "source": "claude_code_jsonl_assistant_message",
+            "status": "available"
+          },
+          "text": "检查完成，测试范围是 parser 和 normalized adapter。"
+        },
+        "size_bytes": 63
+      },
+      "response_attribution": {
+        "buckets": [
+          {
+            "bucket": "Visible text",
+            "precision": "estimated",
+            "preview": "检查完成，测试范围是 parser 和 normalized adapter。",
+            "share": 0.125,
+            "source": "claude_code assistant.text",
+            "tokens": 10
+          },
+          {
+            "bucket": "Unknown output",
+            "precision": "estimated_partial",
+            "preview": "output tokens not explained by visible JSONL blocks",
+            "share": 0.875,
+            "source": "provider usage residual",
+            "tokens": 70
+          }
+        ],
+        "quality": {
+          "precision": "estimated",
+          "source": "claude_code normalized adapter",
+          "status": "available"
+        },
+        "status": "available",
+        "summary": {
+          "coverage": 0.125,
+          "thinking_estimated_tokens": 0,
+          "tool_use_estimated_tokens": 0,
+          "total_output": 80,
+          "visible_estimated_tokens": 10
+        }
+      },
+      "round_id": 2,
+      "round_key": "R2",
+      "signals": {
+        "attribution_gap": true,
+        "failed": false,
+        "fresh_spike": false,
+        "items": [],
+        "low_cache": false,
+        "payload_gap": false
+      },
+      "status": "ok",
+      "steps": [
+        {
+          "call_id": "msg-main-2",
+          "model": "claude-sonnet-4-20250514",
+          "payload_refs": {
+            "related_result_payload_ids": [],
+            "request_attribution_id": "llm-R2-C1-request-attribution",
+            "request_payload_id": "llm-R2-C1-request",
+            "response_attribution_id": "llm-R2-C1-response-attribution",
+            "response_payload_id": "llm-R2-C1-response"
+          },
+          "scope": "main",
+          "status": "ok",
+          "step_id": "R2-main-call",
+          "timestamp": "2026-06-10T01:00:12.000Z",
+          "type": "llm_call",
+          "usage": {
+            "cache_read": 250,
+            "cache_write": 0,
+            "fresh": 600,
+            "output": 80,
+            "quality": {
+              "precision": "provider_reported",
+              "source": "claude_code_jsonl_usage",
+              "status": "available"
+            },
+            "source_total": 930,
+            "total": 930,
+            "total_semantics": "component_sum"
+          }
+        }
+      ],
+      "summary": "检查完成，测试范围是 parser 和 normalized adapter。",
+      "timing": {
+        "duration_seconds": 0,
+        "ended_at": "2026-06-10T01:00:12.000Z",
+        "process_seconds": 0,
+        "started_at": "2026-06-10T01:00:12.000Z",
+        "waiting_seconds": 0
+      }
+    }
+  ],
+  "schema_version": "session-detail.normalized.v1",
+  "session": {
+    "agent": "claude_code",
+    "cwd": "/repo",
+    "ended_at": "2026-06-10T01:00:12+00:00",
+    "git_branch": "main",
+    "model": "claude-sonnet-4-20250514",
+    "project_key": "/repo",
+    "project_name": "repo",
+    "session_id": "session-claude-001",
+    "session_key": "claude_code:session-claude-001",
+    "source": "cli",
+    "started_at": "2026-06-10T01:00:00+00:00",
+    "title": "请检查项目并让子 agent 总结测试范围"
+  },
+  "source_files": [
+    {
+      "path": "tests/fixtures/normalized/claude_code/subagent_tool.input/session-claude-001.jsonl",
+      "role": "main_session",
+      "status": "available"
+    },
+    {
+      "parent_tool_use_id": "toolu_agent_1",
+      "path": "tests/fixtures/normalized/claude_code/subagent_tool.input/session-claude-001/subagents/agent-child.jsonl",
+      "role": "subagent_session",
+      "status": "available",
+      "subagent_id": "child"
+    }
+  ],
+  "tool_result_links": [
+    {
+      "consumed_by_call_id": "msg-main-2",
+      "consumed_by_round_id": 2,
+      "source_tool_call_id": "toolu_bash_1"
+    },
+    {
+      "consumed_by_call_id": "msg-main-2",
+      "consumed_by_round_id": 2,
+      "source_tool_call_id": "toolu_agent_1"
+    }
+  ]
+}

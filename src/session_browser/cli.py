@@ -17,6 +17,7 @@ import argparse
 import logging
 import os
 import signal
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -26,6 +27,7 @@ from session_browser.config import (
     CLAUDE_DATA_DIR,
     CODEX_DATA_DIR,
     INDEX_DIR,
+    INDEX_PATH,
     QODER_DATA_DIR,
     SERVER_HOST,
     SERVER_PORT,
@@ -153,6 +155,32 @@ def _kill_process(pid: int) -> bool:
         return True
 
 
+def _print_database_locked_help(exc: sqlite3.OperationalError) -> None:
+    """Print actionable diagnostics for SQLite lock failures."""
+    print(f"Scan failed: SQLite database is locked ({exc})", file=sys.stderr)
+    print(f"Index path: {INDEX_PATH}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("通常原因：另一个 session-browser 服务、后台扫描，或 IntelliJ/DB Browser 等工具正在打开同一个 SQLite 索引。", file=sys.stderr)
+    print("处理方式：", file=sys.stderr)
+    print(f"  1. 停止本地服务：./scripts/session-browser.sh stop --port {SERVER_PORT}", file=sys.stderr)
+    print("  2. 断开 IntelliJ Database/SQLite data source，或关闭占用该 DB 的工具。", file=sys.stderr)
+    print(f"  3. 重新执行：./scripts/session-browser.sh scan", file=sys.stderr)
+    print("", file=sys.stderr)
+
+    lsof_targets = [
+        str(INDEX_PATH),
+        str(INDEX_PATH) + "-wal",
+        str(INDEX_PATH) + "-shm",
+    ]
+    try:
+        result = _run_command(["lsof", "-nP", *lsof_targets], timeout=5)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        result = None
+    if result and result.stdout.strip():
+        print("当前持有索引文件的进程：", file=sys.stderr)
+        print(result.stdout.strip(), file=sys.stderr)
+
+
 def cmd_scan(args: argparse.Namespace) -> None:
     """Run a full or incremental scan."""
     from session_browser.index.indexer import full_scan, incremental_scan, init_schema, _get_connection
@@ -179,39 +207,47 @@ def cmd_scan(args: argparse.Namespace) -> None:
             print("Aborted.")
             sys.exit(0)
 
-    conn = _get_connection()
-
     agent = args.agent if hasattr(args, 'agent') else None
     label = f" ({agent})" if agent else ""
 
-    if args.incremental:
-        # Only create tables if they don't exist; don't drop existing data
-        _ensure_schema_exists(conn)
-        print(f"Starting incremental scan{label}...")
-        start = time.time()
-        result = incremental_scan(conn, verbose=True, agent=agent)
-        elapsed = time.time() - start
-        print(f"\nIncremental scan complete in {elapsed:.1f}s")
-        print(f"  Updated Claude: {result['claude_count']} sessions")
-        print(f"  Updated Codex:  {result['codex_count']} sessions")
-        if 'qoder_count' in result:
-            print(f"  Updated Qoder:  {result['qoder_count']} sessions")
-        print(f"  Skipped:        {result['skipped']} sessions")
-        print(f"  Total updated:  {result['total']} sessions")
-    else:
-        init_schema(conn)
-        print(f"Starting full scan{label}...")
-        start = time.time()
-        result = full_scan(conn, verbose=True, agent=agent)
-        elapsed = time.time() - start
-        print(f"\nScan complete in {elapsed:.1f}s")
-        print(f"  Claude Code: {result['claude_count']} sessions")
-        print(f"  Codex:       {result['codex_count']} sessions")
-        if 'qoder_count' in result:
-            print(f"  Qoder:       {result['qoder_count']} sessions")
-        print(f"  Total:       {result['total']} sessions")
+    conn = None
+    try:
+        conn = _get_connection()
 
-    conn.close()
+        if args.incremental:
+            # Only create tables if they don't exist; don't drop existing data
+            _ensure_schema_exists(conn)
+            print(f"Starting incremental scan{label}...")
+            start = time.time()
+            result = incremental_scan(conn, verbose=True, agent=agent)
+            elapsed = time.time() - start
+            print(f"\nIncremental scan complete in {elapsed:.1f}s")
+            print(f"  Updated Claude: {result['claude_count']} sessions")
+            print(f"  Updated Codex:  {result['codex_count']} sessions")
+            if 'qoder_count' in result:
+                print(f"  Updated Qoder:  {result['qoder_count']} sessions")
+            print(f"  Skipped:        {result['skipped']} sessions")
+            print(f"  Total updated:  {result['total']} sessions")
+        else:
+            init_schema(conn)
+            print(f"Starting full scan{label}...")
+            start = time.time()
+            result = full_scan(conn, verbose=True, agent=agent)
+            elapsed = time.time() - start
+            print(f"\nScan complete in {elapsed:.1f}s")
+            print(f"  Claude Code: {result['claude_count']} sessions")
+            print(f"  Codex:       {result['codex_count']} sessions")
+            if 'qoder_count' in result:
+                print(f"  Qoder:       {result['qoder_count']} sessions")
+            print(f"  Total:       {result['total']} sessions")
+    except sqlite3.OperationalError as exc:
+        if "database is locked" in str(exc).lower():
+            _print_database_locked_help(exc)
+            sys.exit(2)
+        raise
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _migrate_model_execution_seconds(conn) -> None:
@@ -240,8 +276,24 @@ def _migrate_tool_execution_seconds(conn) -> None:
         pass
 
 
+def _migrate_token_breakdown_columns(conn) -> None:
+    """Add canonical token breakdown columns if they don't exist."""
+    try:
+        columns = [r[0] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
+        for column in ("fresh_input_tokens", "cache_read_tokens", "cache_write_tokens", "total_tokens"):
+            if column not in columns:
+                conn.execute(
+                    f"ALTER TABLE sessions ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0"
+                )
+        conn.commit()
+    except Exception:
+        pass
+
+
 def _ensure_schema_exists(conn) -> None:
     """Create tables if they don't exist, without dropping data."""
+    from session_browser.index.schema import ensure_session_artifacts_schema
+
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS sessions (
             session_key TEXT PRIMARY KEY,
@@ -266,6 +318,10 @@ def _ensure_schema_exists(conn) -> None:
             output_tokens INTEGER NOT NULL DEFAULT 0,
             cached_input_tokens INTEGER NOT NULL DEFAULT 0,
             cached_output_tokens INTEGER NOT NULL DEFAULT 0,
+            fresh_input_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+            total_tokens INTEGER NOT NULL DEFAULT 0,
             failed_tool_count INTEGER NOT NULL DEFAULT 0,
             indexed_at REAL NOT NULL DEFAULT 0,
             file_mtime REAL NOT NULL DEFAULT 0,
@@ -287,9 +343,13 @@ def _ensure_schema_exists(conn) -> None:
             status TEXT DEFAULT 'running'
         );
     """)
+    ensure_session_artifacts_schema(conn)
     conn.commit()
     _migrate_model_execution_seconds(conn)
     _migrate_tool_execution_seconds(conn)
+    _migrate_token_breakdown_columns(conn)
+    ensure_session_artifacts_schema(conn)
+    conn.commit()
 
 
 def _is_orphan(pid: int) -> bool:

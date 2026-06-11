@@ -1,0 +1,756 @@
+{
+  "agent": "qoder",
+  "diagnostics": {
+    "token_timeline": [
+      {
+        "cache_read_ratio": 0.0,
+        "round_id": 1,
+        "tokens": {
+          "cache_read": 0,
+          "cache_write": 100,
+          "fresh": 800,
+          "output": 70,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "qoder_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 100,
+            "cache_read_input_tokens": 0,
+            "input_tokens": 800,
+            "output_tokens": 70,
+            "qoder_input_tokens_total": 800
+          },
+          "source_total": 970,
+          "total": 970,
+          "total_semantics": "component_sum"
+        }
+      },
+      {
+        "cache_read_ratio": 0.1667,
+        "round_id": 2,
+        "tokens": {
+          "cache_read": 100,
+          "cache_write": 0,
+          "fresh": 500,
+          "output": 40,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "qoder_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 100,
+            "input_tokens": 500,
+            "output_tokens": 40,
+            "qoder_input_tokens_total": 500
+          },
+          "source_total": 640,
+          "total": 640,
+          "total_semantics": "component_sum"
+        }
+      }
+    ],
+    "warnings": []
+  },
+  "parse_diagnostics": {
+    "jsonl": {
+      "error_count": 0,
+      "events_parsed": 5,
+      "events_skipped": 0,
+      "issues": [],
+      "non_empty_lines": 5,
+      "total_lines": 5,
+      "warning_count": 0
+    },
+    "warnings": []
+  },
+  "payload_index": {
+    "items": [
+      {
+        "kind": "request",
+        "payload_id": "llm-R1-C1-request",
+        "target": {
+          "call_id": "qoder-msg-1",
+          "round_id": 1
+        },
+        "title": "R1 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-R1-C1-response",
+        "target": {
+          "call_id": "qoder-msg-1",
+          "round_id": 1
+        },
+        "title": "R1 · Raw Response"
+      },
+      {
+        "kind": "llm.request_attribution",
+        "payload_id": "llm-R1-C1-request-attribution",
+        "target": {
+          "call_id": "qoder-msg-1",
+          "round_id": 1
+        },
+        "title": "R1 · Request Attribution"
+      },
+      {
+        "kind": "llm.response_attribution",
+        "payload_id": "llm-R1-C1-response-attribution",
+        "target": {
+          "call_id": "qoder-msg-1",
+          "round_id": 1
+        },
+        "title": "R1 · Response Attribution"
+      },
+      {
+        "kind": "tool_result",
+        "payload_id": "tool-toolu_qoder_write-result",
+        "target": {
+          "round_id": 1,
+          "tool_call_id": "toolu_qoder_write"
+        },
+        "title": "R1 · Tool Result · Write"
+      },
+      {
+        "kind": "request",
+        "payload_id": "llm-R2-C1-request",
+        "target": {
+          "call_id": "qoder-msg-2",
+          "round_id": 2
+        },
+        "title": "R2 · Raw Request"
+      },
+      {
+        "kind": "response",
+        "payload_id": "llm-R2-C1-response",
+        "target": {
+          "call_id": "qoder-msg-2",
+          "round_id": 2
+        },
+        "title": "R2 · Raw Response"
+      },
+      {
+        "kind": "llm.request_attribution",
+        "payload_id": "llm-R2-C1-request-attribution",
+        "target": {
+          "call_id": "qoder-msg-2",
+          "round_id": 2
+        },
+        "title": "R2 · Request Attribution"
+      },
+      {
+        "kind": "llm.response_attribution",
+        "payload_id": "llm-R2-C1-response-attribution",
+        "target": {
+          "call_id": "qoder-msg-2",
+          "round_id": 2
+        },
+        "title": "R2 · Response Attribution"
+      }
+    ]
+  },
+  "rounds": [
+    {
+      "call_id": "qoder-msg-1",
+      "main_call": {
+        "call_id": "qoder-msg-1",
+        "model": "qwen3.6-plus",
+        "parent_tool_use_id": "",
+        "scope": "main",
+        "source": "qoder_jsonl_usage",
+        "subagent_id": "",
+        "timestamp": "2026-06-10T10:00:05+08:00",
+        "turn_id": ""
+      },
+      "metrics": {
+        "cache_read_ratio": 0.0,
+        "failed_tool_count": 0,
+        "llm_call_count": 1,
+        "subagent_count": 0,
+        "tokens": {
+          "cache_read": 0,
+          "cache_write": 100,
+          "fresh": 800,
+          "output": 70,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "qoder_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 100,
+            "cache_read_input_tokens": 0,
+            "input_tokens": 800,
+            "output_tokens": 70,
+            "qoder_input_tokens_total": 800
+          },
+          "source_total": 970,
+          "total": 970,
+          "total_semantics": "component_sum"
+        },
+        "tool_call_count": 1
+      },
+      "payload_refs": {
+        "related_result_payload_ids": [
+          "tool-toolu_qoder_write-result"
+        ],
+        "request_attribution_id": "llm-R1-C1-request-attribution",
+        "request_payload_id": "llm-R1-C1-request",
+        "response_attribution_id": "llm-R1-C1-response-attribution",
+        "response_payload_id": "llm-R1-C1-response"
+      },
+      "request": {
+        "availability": {
+          "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+          "precision": "estimated_partial",
+          "source": "qoder_jsonl_reconstructed_request",
+          "status": "partial"
+        },
+        "raw": null,
+        "rendered": {
+          "blocks": [
+            {
+              "bucket": "Current user prompt",
+              "role": "user",
+              "text": "生成 PlantUML 并运行校验",
+              "type": "message"
+            }
+          ],
+          "quality": {
+            "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+            "precision": "estimated_partial",
+            "source": "qoder_jsonl_reconstructed_request",
+            "status": "partial"
+          },
+          "text": "生成 PlantUML 并运行校验"
+        },
+        "size_bytes": 31
+      },
+      "request_attribution": {
+        "buckets": [
+          {
+            "bucket": "Current user prompt",
+            "precision": "estimated",
+            "preview": "生成 PlantUML 并运行校验",
+            "share": 0.0056,
+            "source": "qoder user.message",
+            "tokens": 5
+          },
+          {
+            "bucket": "Unknown / retained context",
+            "precision": "estimated_partial",
+            "preview": "system prompt, tool schemas, history, or hidden runtime context",
+            "share": 0.9944,
+            "source": "provider usage residual",
+            "tokens": 895
+          }
+        ],
+        "quality": {
+          "precision": "estimated_partial",
+          "source": "qoder normalized adapter",
+          "status": "partial"
+        },
+        "status": "partial",
+        "summary": {
+          "cache_read": 0,
+          "cache_write": 100,
+          "coverage": 0.0056,
+          "fresh_input": 800,
+          "total_input": 900,
+          "visible_estimated_tokens": 5
+        }
+      },
+      "response": {
+        "availability": {
+          "precision": "exact",
+          "source": "qoder_jsonl_assistant_message",
+          "status": "available"
+        },
+        "raw": {
+          "blocks": [
+            {
+              "text": "需要先写入 PlantUML 文件。",
+              "type": "thinking"
+            },
+            {
+              "text": "我先生成图文件。",
+              "type": "text"
+            },
+            {
+              "id": "toolu_qoder_write",
+              "input": {
+                "content": "@startuml\n[A] --> [B]\n@enduml",
+                "file_path": "diagram.puml"
+              },
+              "name": "Write",
+              "type": "tool_use"
+            }
+          ]
+        },
+        "rendered": {
+          "blocks": [
+            {
+              "text": "需要先写入 PlantUML 文件。",
+              "type": "thinking"
+            },
+            {
+              "text": "我先生成图文件。",
+              "type": "text"
+            },
+            {
+              "id": "toolu_qoder_write",
+              "input": {
+                "content": "@startuml\n[A] --> [B]\n@enduml",
+                "file_path": "diagram.puml"
+              },
+              "name": "Write",
+              "type": "tool_use"
+            }
+          ],
+          "quality": {
+            "precision": "exact",
+            "source": "qoder_jsonl_assistant_message",
+            "status": "available"
+          },
+          "text": "需要先写入 PlantUML 文件。\n我先生成图文件。"
+        },
+        "size_bytes": 59
+      },
+      "response_attribution": {
+        "buckets": [
+          {
+            "bucket": "Visible text",
+            "precision": "estimated",
+            "preview": "我先生成图文件。",
+            "share": 0.0286,
+            "source": "qoder assistant.text",
+            "tokens": 2
+          },
+          {
+            "bucket": "Thinking",
+            "precision": "estimated",
+            "preview": "需要先写入 PlantUML 文件。",
+            "share": 0.0714,
+            "source": "qoder assistant.thinking",
+            "tokens": 5
+          },
+          {
+            "bucket": "Tool use",
+            "precision": "estimated",
+            "preview": "[{\"name\": \"Write\", \"parameters\": {\"content\": \"@startuml\\n[A] --> [B]\\n@enduml\", \"file_path\": \"diagram.puml\"}}]",
+            "share": 0.4,
+            "source": "qoder assistant.tool_use",
+            "tokens": 28
+          },
+          {
+            "bucket": "Unknown output",
+            "precision": "estimated_partial",
+            "preview": "output tokens not explained by visible JSONL blocks",
+            "share": 0.5,
+            "source": "provider usage residual",
+            "tokens": 35
+          }
+        ],
+        "quality": {
+          "precision": "estimated",
+          "source": "qoder normalized adapter",
+          "status": "available"
+        },
+        "status": "available",
+        "summary": {
+          "coverage": 0.5,
+          "thinking_estimated_tokens": 5,
+          "tool_use_estimated_tokens": 28,
+          "total_output": 70,
+          "visible_estimated_tokens": 2
+        }
+      },
+      "round_id": 1,
+      "round_key": "R1",
+      "signals": {
+        "attribution_gap": true,
+        "failed": false,
+        "fresh_spike": false,
+        "items": [],
+        "low_cache": false,
+        "payload_gap": false
+      },
+      "status": "ok",
+      "steps": [
+        {
+          "content": {
+            "blocks": [
+              {
+                "bucket": "Current user prompt",
+                "role": "user",
+                "text": "生成 PlantUML 并运行校验",
+                "type": "message"
+              }
+            ],
+            "quality": {
+              "precision": "exact",
+              "source": "qoder user.message",
+              "status": "available"
+            },
+            "text": "生成 PlantUML 并运行校验"
+          },
+          "step_id": "R1-user-1",
+          "timestamp": "2026-06-10T10:00:05+08:00",
+          "type": "user_context"
+        },
+        {
+          "call_id": "qoder-msg-1",
+          "model": "qwen3.6-plus",
+          "payload_refs": {
+            "related_result_payload_ids": [
+              "tool-toolu_qoder_write-result"
+            ],
+            "request_attribution_id": "llm-R1-C1-request-attribution",
+            "request_payload_id": "llm-R1-C1-request",
+            "response_attribution_id": "llm-R1-C1-response-attribution",
+            "response_payload_id": "llm-R1-C1-response"
+          },
+          "scope": "main",
+          "status": "ok",
+          "step_id": "R1-main-call",
+          "timestamp": "2026-06-10T10:00:05+08:00",
+          "type": "llm_call",
+          "usage": {
+            "cache_read": 0,
+            "cache_write": 100,
+            "fresh": 800,
+            "output": 70,
+            "quality": {
+              "precision": "provider_reported",
+              "source": "qoder_jsonl_usage",
+              "status": "available"
+            },
+            "source_total": 970,
+            "total": 970,
+            "total_semantics": "component_sum"
+          }
+        },
+        {
+          "duration_ms": 3000,
+          "ended_at": "2026-06-10T10:00:05+08:00",
+          "started_at": "2026-06-10T10:00:05+08:00",
+          "step_id": "R1-tool-batch-1",
+          "tools": [
+            {
+              "duration_ms": 3000,
+              "exit_code": null,
+              "files_touched": [
+                "diagram.puml"
+              ],
+              "llm_call_count": 0,
+              "llm_error_count": 0,
+              "name": "Write",
+              "parameters": {
+                "content": "@startuml\n[A] --> [B]\n@enduml",
+                "file_path": "diagram.puml"
+              },
+              "parent_tool_name": "",
+              "parent_tool_use_id": "",
+              "payload_id": "tool-toolu_qoder_write-result",
+              "result": {
+                "availability": {
+                  "precision": "exact",
+                  "source": "user.tool_result",
+                  "status": "available"
+                },
+                "raw": "diagram.puml written",
+                "rendered": {
+                  "blocks": [
+                    {
+                      "text": "diagram.puml written",
+                      "type": "text"
+                    }
+                  ],
+                  "quality": {
+                    "precision": "exact",
+                    "source": "user.tool_result",
+                    "status": "available"
+                  },
+                  "text": "diagram.puml written"
+                },
+                "size_bytes": 20
+              },
+              "scope": "main",
+              "status": "completed",
+              "subagent_failed_tool_count": 0,
+              "subagent_id": "",
+              "subagent_summary": {},
+              "subagent_tool_call_count": 0,
+              "timestamp": "2026-06-10T10:00:05+08:00",
+              "tool_call_id": "toolu_qoder_write",
+              "type": "tool_use"
+            }
+          ],
+          "type": "tool_batch"
+        }
+      ],
+      "summary": "需要先写入 PlantUML 文件。 我先生成图文件。",
+      "timing": {
+        "duration_seconds": 0,
+        "ended_at": "2026-06-10T10:00:05+08:00",
+        "process_seconds": 0,
+        "started_at": "2026-06-10T10:00:05+08:00",
+        "waiting_seconds": 0
+      }
+    },
+    {
+      "call_id": "qoder-msg-2",
+      "main_call": {
+        "call_id": "qoder-msg-2",
+        "model": "qwen3.6-plus",
+        "parent_tool_use_id": "",
+        "scope": "main",
+        "source": "qoder_jsonl_usage",
+        "subagent_id": "",
+        "timestamp": "2026-06-10T10:00:10+08:00",
+        "turn_id": ""
+      },
+      "metrics": {
+        "cache_read_ratio": 0.1667,
+        "failed_tool_count": 0,
+        "llm_call_count": 1,
+        "subagent_count": 0,
+        "tokens": {
+          "cache_read": 100,
+          "cache_write": 0,
+          "fresh": 500,
+          "output": 40,
+          "quality": {
+            "precision": "provider_reported",
+            "source": "qoder_jsonl_usage",
+            "status": "available"
+          },
+          "raw_fields": {
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 100,
+            "input_tokens": 500,
+            "output_tokens": 40,
+            "qoder_input_tokens_total": 500
+          },
+          "source_total": 640,
+          "total": 640,
+          "total_semantics": "component_sum"
+        },
+        "tool_call_count": 0
+      },
+      "payload_refs": {
+        "related_result_payload_ids": [],
+        "request_attribution_id": "llm-R2-C1-request-attribution",
+        "request_payload_id": "llm-R2-C1-request",
+        "response_attribution_id": "llm-R2-C1-response-attribution",
+        "response_payload_id": "llm-R2-C1-response"
+      },
+      "request": {
+        "availability": {
+          "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+          "precision": "estimated_partial",
+          "source": "qoder_jsonl_reconstructed_request",
+          "status": "partial"
+        },
+        "raw": null,
+        "rendered": {
+          "blocks": [
+            {
+              "text": "diagram.puml written",
+              "tool_call_id": "toolu_qoder_write",
+              "type": "tool_result"
+            }
+          ],
+          "quality": {
+            "fallback_reason": "Raw provider request body is not persisted in the local session JSONL.",
+            "precision": "estimated_partial",
+            "source": "qoder_jsonl_reconstructed_request",
+            "status": "partial"
+          },
+          "text": "Tool result for toolu_qoder_write:\ndiagram.puml written"
+        },
+        "size_bytes": 55
+      },
+      "request_attribution": {
+        "buckets": [
+          {
+            "bucket": "Tool results",
+            "precision": "estimated",
+            "preview": "diagram.puml written",
+            "share": 0.0083,
+            "source": "qoder user.tool_result",
+            "tokens": 5
+          },
+          {
+            "bucket": "Unknown / retained context",
+            "precision": "estimated_partial",
+            "preview": "system prompt, tool schemas, history, or hidden runtime context",
+            "share": 0.9917,
+            "source": "provider usage residual",
+            "tokens": 595
+          }
+        ],
+        "quality": {
+          "precision": "estimated_partial",
+          "source": "qoder normalized adapter",
+          "status": "partial"
+        },
+        "status": "partial",
+        "summary": {
+          "cache_read": 100,
+          "cache_write": 0,
+          "coverage": 0.0083,
+          "fresh_input": 500,
+          "total_input": 600,
+          "visible_estimated_tokens": 5
+        }
+      },
+      "response": {
+        "availability": {
+          "precision": "exact",
+          "source": "qoder_jsonl_assistant_message",
+          "status": "available"
+        },
+        "raw": {
+          "blocks": [
+            {
+              "text": "校验通过。",
+              "type": "text"
+            }
+          ]
+        },
+        "rendered": {
+          "blocks": [
+            {
+              "text": "校验通过。",
+              "type": "text"
+            }
+          ],
+          "quality": {
+            "precision": "exact",
+            "source": "qoder_jsonl_assistant_message",
+            "status": "available"
+          },
+          "text": "校验通过。"
+        },
+        "size_bytes": 15
+      },
+      "response_attribution": {
+        "buckets": [
+          {
+            "bucket": "Visible text",
+            "precision": "estimated",
+            "preview": "校验通过。",
+            "share": 0.05,
+            "source": "qoder assistant.text",
+            "tokens": 2
+          },
+          {
+            "bucket": "Unknown output",
+            "precision": "estimated_partial",
+            "preview": "output tokens not explained by visible JSONL blocks",
+            "share": 0.95,
+            "source": "provider usage residual",
+            "tokens": 38
+          }
+        ],
+        "quality": {
+          "precision": "estimated",
+          "source": "qoder normalized adapter",
+          "status": "available"
+        },
+        "status": "available",
+        "summary": {
+          "coverage": 0.05,
+          "thinking_estimated_tokens": 0,
+          "tool_use_estimated_tokens": 0,
+          "total_output": 40,
+          "visible_estimated_tokens": 2
+        }
+      },
+      "round_id": 2,
+      "round_key": "R2",
+      "signals": {
+        "attribution_gap": true,
+        "failed": false,
+        "fresh_spike": false,
+        "items": [],
+        "low_cache": false,
+        "payload_gap": false
+      },
+      "status": "ok",
+      "steps": [
+        {
+          "call_id": "qoder-msg-2",
+          "model": "qwen3.6-plus",
+          "payload_refs": {
+            "related_result_payload_ids": [],
+            "request_attribution_id": "llm-R2-C1-request-attribution",
+            "request_payload_id": "llm-R2-C1-request",
+            "response_attribution_id": "llm-R2-C1-response-attribution",
+            "response_payload_id": "llm-R2-C1-response"
+          },
+          "scope": "main",
+          "status": "ok",
+          "step_id": "R2-main-call",
+          "timestamp": "2026-06-10T10:00:10+08:00",
+          "type": "llm_call",
+          "usage": {
+            "cache_read": 100,
+            "cache_write": 0,
+            "fresh": 500,
+            "output": 40,
+            "quality": {
+              "precision": "provider_reported",
+              "source": "qoder_jsonl_usage",
+              "status": "available"
+            },
+            "source_total": 640,
+            "total": 640,
+            "total_semantics": "component_sum"
+          }
+        }
+      ],
+      "summary": "校验通过。",
+      "timing": {
+        "duration_seconds": 0,
+        "ended_at": "2026-06-10T10:00:10+08:00",
+        "process_seconds": 0,
+        "started_at": "2026-06-10T10:00:10+08:00",
+        "waiting_seconds": 0
+      }
+    }
+  ],
+  "schema_version": "session-detail.normalized.v1",
+  "session": {
+    "agent": "qoder",
+    "cwd": "/repo",
+    "ended_at": "2026-06-10T10:00:10+08:00",
+    "git_branch": "feature/diagram",
+    "model": "qwen3.6-plus",
+    "project_key": "/repo",
+    "project_name": "repo",
+    "session_id": "session-qoder-001",
+    "session_key": "qoder:session-qoder-001",
+    "source": "qoder",
+    "started_at": "2026-06-10T10:00:00+08:00",
+    "title": "生成 PlantUML 并运行校验"
+  },
+  "source_files": [
+    {
+      "path": "tests/fixtures/normalized/qoder/tool_loop.input/session-qoder-001.jsonl",
+      "role": "main_session",
+      "status": "available"
+    }
+  ],
+  "tool_result_links": [
+    {
+      "consumed_by_call_id": "qoder-msg-2",
+      "consumed_by_round_id": 2,
+      "source_tool_call_id": "toolu_qoder_write"
+    }
+  ]
+}

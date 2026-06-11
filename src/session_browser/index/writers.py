@@ -94,6 +94,48 @@ def upsert_session(
     )
 
 
+def upsert_session_artifact(
+    conn: sqlite3.Connection,
+    *,
+    session_key: str,
+    artifact_type: str,
+    path: str,
+    schema_version: str = "",
+    source_path: str = "",
+    source_mtime: float = 0,
+    size_bytes: int = 0,
+) -> None:
+    """Insert or update a generated artifact associated with one session."""
+    now = time.time()
+    conn.execute(
+        """
+        INSERT INTO session_artifacts (
+            session_key, artifact_type, path, schema_version, source_path,
+            source_mtime, size_bytes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_key, artifact_type) DO UPDATE SET
+            path=excluded.path,
+            schema_version=excluded.schema_version,
+            source_path=excluded.source_path,
+            source_mtime=excluded.source_mtime,
+            size_bytes=excluded.size_bytes,
+            created_at=session_artifacts.created_at,
+            updated_at=excluded.updated_at
+        """,
+        (
+            session_key,
+            artifact_type,
+            path,
+            schema_version,
+            source_path,
+            source_mtime,
+            size_bytes,
+            now,
+            now,
+        ),
+    )
+
+
 def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSummary:
     """Convert a DB row to SessionSummary."""
     title = row["title"]
