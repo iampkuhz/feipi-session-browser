@@ -136,20 +136,22 @@
       <div class="sd-diagnostic-card__body">
         <div class="sd-context-segmented" aria-label="Context budget segmented bar">
           {% for segment in diagnostics.context_segments %}
+          {% set share_value = segment.share_value|default(0) %}
           <span
-            class="sd-context-segment sd-context-segment--{{ segment.status }}"
-            style="--seg-width: {{ segment.share_value|default(0) }}%"
-            title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}"
-          ></span>
+            class="sd-context-segment sd-context-segment--{{ loop.index }} sd-context-segment--{{ segment.status }}{% if segment.status != 'unavailable' and share_value < 8 %} sd-context-segment--tiny{% elif segment.status != 'unavailable' and share_value < 18 %} sd-context-segment--small{% endif %}"
+            style="--seg-width: {{ share_value }}%"
+            title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}"
+          >
+            <span class="sd-context-segment__label">{{ segment.label }}</span>
+            <span class="sd-context-segment__pct">{{ segment.share }}</span>
+          </span>
           {% endfor %}
         </div>
-        <div class="sd-context-budget" aria-label="Session Context">
+        <div class="sd-context-budget" aria-label="Session Context legend">
           {% for segment in diagnostics.context_segments %}
-          <div class="sd-context-budget__row sd-context-budget__row--{{ segment.status }}" title="{{ segment.label }} · {{ segment.tokens_label }} · {{ segment.share }} · {{ segment.source }} · {{ segment.precision }}">
+          <div class="sd-context-budget__item sd-context-budget__item--{{ segment.status }}" title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}">
+            <i class="sd-context-budget__dot sd-context-budget__dot--{{ loop.index }}" aria-hidden="true"></i>
             <span>{{ segment.label }}</span>
-            <div class="sd-context-budget__track">
-              <i style="--seg-width: {{ segment.share_value|default(0) }}%"></i>
-            </div>
             <b>{{ segment.tokens_label }} · {{ segment.share }}</b>
           </div>
           {% endfor %}

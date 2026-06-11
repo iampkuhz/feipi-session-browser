@@ -347,6 +347,24 @@ def test_run_analysis_template_sections_exist():
     assert 'data-response-attribution-status=' in session_html
 
 
+def test_context_budget_uses_shared_segment_bar_and_legend_colors():
+    session_html = (ROOT / "src/session_browser/web/templates/session.html").read_text(encoding="utf-8")
+    css = (
+        ROOT / "src/session_browser/web/static/css/session-detail/08-payload-tab.css"
+    ).read_text(encoding="utf-8")
+
+    assert "sd-context-budget__track" not in session_html
+    assert "sd-context-budget__track" not in css
+    assert "sd-context-segment__label" in session_html
+    assert "sd-context-segment__pct" in session_html
+    assert "sd-context-segment--{{ loop.index }}" in session_html
+    assert "sd-context-budget__dot--{{ loop.index }}" in session_html
+
+    for index in range(1, 7):
+        assert f".sd-context-segment--{index}," in css
+        assert f".sd-context-budget__dot--{index}" in css
+
+
 def test_subagent_breakdown_list_is_single_line_and_scroll_limited():
     css = (
         ROOT / "src/session_browser/web/static/css/session-detail/08-payload-tab.css"
