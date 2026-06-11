@@ -121,6 +121,7 @@ def parse_session_detail(
         file_path=str(session_file),
         jsonl_diag=jsonl_diag,
     )
+    summary.file_path = str(session_file)
     summary.parse_diagnostics = parse_diag.to_dict()
 
     return summary, messages, tool_calls, subagent_runs

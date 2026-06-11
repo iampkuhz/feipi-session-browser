@@ -10,7 +10,7 @@ The session detail page SHALL provide a run-analysis experience as a stable, off
 
 The page SHALL display:
 - Session title
-- Agent name, model, project, created/updated timestamps, and session id
+- Agent name, model, project, created/updated timestamps, session id, and the indexed local session file path when available
 - Exactly five primary KPI cards: Run Health, Total Tokens, Cache Health, Workload, Active Time
 - Run Health secondary metrics: Issue Rounds, Failed Tools, Payload Gaps, Attribution Gaps
 - Total Tokens secondary metrics: Fresh, Cache Read, Cache Write, Output
@@ -19,6 +19,8 @@ The page SHALL display:
 - Active Time secondary metrics: Duration, Waiting Time, Model Time, Tool Time
 
 Each primary KPI card SHALL render no more than four secondary KPI values.
+
+The Hero SHALL display the local session file path as a `Session file` row when the index or parser has resolved a JSONL source path. The row SHALL expose a copy button with `data-action="copy"` and `data-copy-text` set to the full path. If no file path is known, the row SHALL be omitted.
 
 #### Scenario: Token component extraction
 

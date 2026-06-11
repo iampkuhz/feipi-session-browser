@@ -81,6 +81,17 @@ class TestHeroArea:
             "Missing project chip in hero"
         assert "summary.date" in timeline, "Missing date chip in hero"
 
+    @pytest.mark.contract_case("UI-SD-034")
+    def test_hero_session_file_path_copy(self, timeline):
+        """Hero must show the local session file path with a copy action."""
+        assert "data-session-file-path" in timeline, "Missing session file path hook"
+        assert "summary.session_file_path" in timeline, \
+            "Hero must render summary.session_file_path"
+        assert "Copy session file path" in timeline, \
+            "Hero must provide a session file path copy button"
+        assert 'data-action="copy"' in timeline, \
+            "Session file path copy must use the canonical copy action"
+
     @pytest.mark.contract_case("UI-SD-001")
     def test_kpi_container_exists(self, timeline):
         """KPI container must use .sd-kpis."""

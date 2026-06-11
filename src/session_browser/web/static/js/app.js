@@ -53,10 +53,7 @@
             }, duration);
         }
 
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(showFeedback, fail);
-        } else {
-            // Textarea fallback when Clipboard API is unavailable.
+        function fallbackCopy() {
             try {
                 var ta = document.createElement('textarea');
                 ta.value = text;
@@ -66,10 +63,23 @@
                 ta.select();
                 var ok = document.execCommand('copy');
                 document.body.removeChild(ta);
-                if (ok) { showFeedback(); } else { fail(); }
+                if (ok) {
+                    showFeedback();
+                    return true;
+                }
             } catch (e) {
-                fail();
+                return false;
             }
+            return false;
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(showFeedback, function() {
+                if (!fallbackCopy()) { fail(); }
+            });
+        } else {
+            // Textarea fallback when Clipboard API is unavailable.
+            if (!fallbackCopy()) { fail(); }
         }
     };
 

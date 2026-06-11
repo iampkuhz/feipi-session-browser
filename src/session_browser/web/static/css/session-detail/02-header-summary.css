@@ -285,6 +285,15 @@
   max-width: 100%;
   overflow: hidden;
 }
+.sd-hero-url-label {
+  flex: 0 0 78px;
+  color: var(--sd-muted);
+  font-size: 10.5px;
+  font-weight: 850;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 .sd-hero-url-text {
   font-family: var(--sd-mono);
   font-size: 11.5px;
@@ -293,6 +302,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+.sd-hero-url--file .sd-hero-url-text {
+  color: var(--sd-text-2);
 }
 .sd-icon-btn {
   width: 24px;
@@ -373,6 +385,10 @@
   .sd-hero h1 {
     white-space: normal;
     line-height: 1.25;
+  }
+
+  .sd-hero-url-label {
+    flex-basis: auto;
   }
 
   .sd-kpis {

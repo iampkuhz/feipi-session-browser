@@ -119,6 +119,17 @@ def _token_share_tone(value: float) -> str:
     return "minor"
 
 
+def _session_file_path(session) -> str:
+    file_path = str(getattr(session, "file_path", "") or "")
+    if file_path:
+        return file_path
+
+    diagnostics = getattr(session, "parse_diagnostics", None)
+    if isinstance(diagnostics, dict):
+        return str(diagnostics.get("file_path") or "")
+    return ""
+
+
 def _timestamp_sort_key(value: str) -> tuple[int, str]:
     if not value:
         return (1, "")
@@ -2651,6 +2662,7 @@ def _build_v11_view_model(
             "date": started,
             "short_id": short_id,
             "session_id": session.session_id,
+            "session_file_path": _session_file_path(session),
             "project_name": session.project_name if hasattr(session, "project_name") else "",
             "status_label": status_label,
             "manual_input_count": manual_input_count,

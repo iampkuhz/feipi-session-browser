@@ -10,8 +10,18 @@
         </div>
         {% if session_url %}
         <div class="sd-hero-url">
+          <span class="sd-hero-url-label">Session ID</span>
           <span class="sd-hero-url-text" title="{{ session_url }}">{{ summary.session_id|default('') }}</span>
-          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy" data-copy-text="{{ summary.session_id|default('') }}" title="Copy session ID">
+          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy" data-copy-text="{{ summary.session_id|default('') }}" aria-label="Copy session ID" title="Copy session ID">
+            <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
+          </button>
+        </div>
+        {% endif %}
+        {% if summary.session_file_path %}
+        <div class="sd-hero-url sd-hero-url--file" data-session-file-path>
+          <span class="sd-hero-url-label">Session file</span>
+          <span class="sd-hero-url-text" title="{{ summary.session_file_path }}">{{ summary.session_file_path }}</span>
+          <button type="button" class="sd-icon-btn sd-btn--copy" data-action="copy" data-copy-text="{{ summary.session_file_path }}" aria-label="Copy session file path" title="Copy session file path">
             <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
           </button>
         </div>

@@ -577,6 +577,7 @@ class TestDbCanonicalMergeStrategy:
         assert result.cached_input_tokens == 100
         assert result.cached_output_tokens == 20
         assert result.duration_seconds == 300.0
+        assert result.file_path == "/tmp/parsed.jsonl"
 
     @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_none_returns_db_unchanged(self):

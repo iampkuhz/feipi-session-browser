@@ -318,6 +318,19 @@ class TestHifiDomSelectors:
         el = soup.select_one("[data-session-overview-hero]")
         assert el is not None, "missing [data-session-overview-hero]"
 
+    @pytest.mark.contract_case("UI-SD-034")
+    def test_hero_session_file_path_copy(self, hifi_fixture_session):
+        """Hero 必须展示本地 session 文件路径，并提供复制按钮。"""
+        soup, _ = self._soup(hifi_fixture_session)
+        row = soup.select_one("[data-session-file-path]")
+        assert row is not None, "missing [data-session-file-path]"
+        path_text = row.select_one(".sd-hero-url-text")
+        assert path_text is not None
+        assert path_text.get_text(strip=True).endswith(".jsonl")
+        copy_btn = row.select_one('button[data-action="copy"][data-copy-text]')
+        assert copy_btn is not None, "missing session file copy button"
+        assert copy_btn["data-copy-text"].endswith(".jsonl")
+
     # 不在会话详情中渲染异常横幅元素
     #（异常检测在仪表板中；轮次级状态通过 sd-round-status 显示）
 

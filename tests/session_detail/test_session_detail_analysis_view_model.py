@@ -21,6 +21,7 @@ class _FakeSession:
         self.ended_at = kwargs.get("ended_at", "2026-01-01T00:02:00Z")
         self.project_key = kwargs.get("project_key", "/tmp/project")
         self.project_name = kwargs.get("project_name", "project")
+        self.file_path = kwargs.get("file_path", "/tmp/project/.claude/session.jsonl")
         self.input_tokens = kwargs.get("input_tokens", 1400)
         self.output_tokens = kwargs.get("output_tokens", 300)
         self.cached_input_tokens = kwargs.get("cached_input_tokens", 600)
@@ -91,6 +92,7 @@ def test_run_analysis_hero_kpi_contract_and_global_tool_count():
     )
 
     metrics = vm["hero_metrics"]
+    assert vm["session_summary"]["session_file_path"] == "/tmp/project/.claude/session.jsonl"
     assert {
         "run_health",
         "tokens",

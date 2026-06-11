@@ -169,6 +169,8 @@ def _merge_raw_into_db_summary(
         db_summary.tool_call_count = raw_summary.tool_call_count
     if not db_summary.failed_tool_count:
         db_summary.failed_tool_count = raw_summary.failed_tool_count
+    if not getattr(db_summary, "file_path", "") and getattr(raw_summary, "file_path", ""):
+        db_summary.file_path = raw_summary.file_path
     raw_token_total = (
         (raw_summary.fresh_input_tokens or raw_summary.input_tokens or 0)
         + (raw_summary.cache_read_tokens or raw_summary.cached_input_tokens or 0)
