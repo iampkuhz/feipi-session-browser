@@ -880,10 +880,10 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         if raw_payload_available and rb.get("reasoning_config_obj"):
             reasoning_config_tokens = self._estimate_json_tokens(rb["reasoning_config_obj"])
 
-        # Provider-reported cache read is an input-side bucket in this product's
-        # token accounting.  The exact cached content is opaque without raw
-        # provider state, but the token count and source category are known.
-        provider_cached_context_tokens = max(0, cache_read_tokens)
+        # Provider-reported cache read is accounting metadata, not an additional
+        # local request-content source.  Keep it in usage summary, but do not
+        # add it as a bucket beside conversation messages or tool outputs.
+        request_content_total = max(0, fresh_input_tokens)
 
         # Provider wrapper overhead (heuristic)
         provider_wrapper_tokens = 0
@@ -915,7 +915,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             reasoning_config_tokens,
         ]
         estimated_sum = sum(estimated_buckets)
-        estimated_budget = max(raw_input_total - provider_cached_context_tokens, 0)
+        estimated_budget = request_content_total
 
         if raw_input_total > 0 and estimated_sum > estimated_budget:
             scale = estimated_budget / estimated_sum if estimated_sum > 0 else 0
@@ -928,13 +928,12 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             tool_schema_tokens = max(0, int(tool_schema_tokens * scale))
             reasoning_config_tokens = max(0, int(reasoning_config_tokens * scale))
         known_sum = (
-            provider_cached_context_tokens
-            + instructions_tokens + current_user_tokens + history_tokens
+            instructions_tokens + current_user_tokens + history_tokens
             + tool_outputs_tokens + captured_context_tokens + repo_context_tokens
             + tool_schema_tokens + reasoning_config_tokens
         )
 
-        unknown_val = max(raw_input_total - known_sum, 0) if raw_input_total > 0 else 0
+        unknown_val = max(request_content_total - known_sum, 0) if request_content_total > 0 else 0
 
         if raw_payload_available and rb.get("instructions_text"):
             instruction_detail_items = [
@@ -1101,30 +1100,6 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 details=history_details,
             ))
 
-        # Provider cache read context
-        if provider_cached_context_tokens > 0:
-            buckets.append(RequestAttributionBucket(
-                key="provider_cached_context",
-                label="Provider cache read context",
-                tokens=provider_cached_context_tokens,
-                percent=_pct(provider_cached_context_tokens, raw_input_total),
-                precision=ValuePrecision.PROVIDER_REPORTED,
-                source=ValueSource.PROVIDER_USAGE,
-                confidence_label="中",
-                summary=(
-                    "provider reported cached_input_tokens/cache read；"
-                    "说明这部分 input-side token 来自缓存命中，但本地日志不展开其完整内容。"
-                ),
-                details={
-                    "kind": "hidden_estimate",
-                    "explanation": [
-                        "cached_input_tokens 是 provider reported cache hit token 数。",
-                        "Codex rollout 本地日志不展开这部分缓存命中的完整正文。",
-                    ],
-                },
-                display_group="metadata",
-            ))
-
         # Previous response state / server-side conversation state
         if has_previous_response_id:
             prev_resp_id = req_body.get("previous_response_id", "")
@@ -1263,20 +1238,20 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             key="unknown_overhead",
             label="未定位",
             tokens=unknown_val,
-            percent=_pct(unknown_val, raw_input_total),
+            percent=_pct(unknown_val, request_content_total),
             precision=ValuePrecision.RESIDUAL,
             source=ValueSource.RESIDUAL,
             confidence_label="中",
             summary=(
-                "Total input 减去已知 bucket 后的剩余部分。"
+                "Fresh input 减去已知 request 内容 bucket 后的剩余部分。"
                 + (f" 存在 previous_response_id，残差可能来自服务端 conversation state。" if has_previous_response_id else "")
                 + (f" 无 raw request payload，只能做 transcript 估算。" if not raw_payload_available else "")
             ),
             details={
                 "kind": "unlocated",
                 "explanation": [
-                    "Total input 减去已知 bucket 后的剩余部分。",
-                    "该 bucket 没有可展示的本地原文；只表示仍无法定位的 provider/request 开销。",
+                    "Fresh input 减去已知 request 内容 bucket 后的剩余部分。",
+                    "该 bucket 没有可展示的本地原文；只表示仍无法定位的 request 内容或 runtime 开销。",
                 ],
             },
         ))
@@ -1286,8 +1261,8 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             b.tokens for b in buckets
             if b.key not in ("unknown_overhead",) and b.contributes_to_total
         )
-        coverage_val = (min(known_bucket_sum / raw_input_total, 1.0)
-                        if raw_input_total > 0 else 0.0)
+        coverage_val = (min(known_bucket_sum / request_content_total, 1.0)
+                        if request_content_total > 0 else 0.0)
 
         # ── Step 7: availability rows ──────────────────────────────────
         avail_rows = [
@@ -1355,7 +1330,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             self._avail("unknown", "Unknown / residual", True, exact=False,
                         precision=ValuePrecision.RESIDUAL,
                         source=ValueSource.RESIDUAL,
-                        fill_strategy="residual"),
+                        fill_strategy="fresh_input - known request content buckets"),
         ]
 
         # ── Step 8: notes ──────────────────────────────────────────────
@@ -1367,8 +1342,8 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 f"input-side total={raw_input_total}。"
             )
             notes.append(
-                "Cache Read 以 provider-reported bucket 计入覆盖率；"
-                "它确认 token 来源为缓存命中，但本地日志无法展开完整缓存内容。"
+                "Cache Read 只作为 provider-reported accounting 展示；"
+                "不作为 request 内容 bucket 参与分布或本地重建覆盖率。"
             )
         else:
             notes.append(
@@ -1405,13 +1380,13 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 value=coverage_val, unit="ratio",
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.HEURISTIC,
-                fill_strategy="known_buckets / total_input",
+                fill_strategy="known request content buckets / fresh_input",
             ),
             unknown=AttributedValue(
                 value=unknown_val, unit="tokens",
                 precision=ValuePrecision.RESIDUAL,
                 source=ValueSource.RESIDUAL,
-                fill_strategy="total - sum(known_buckets)",
+                fill_strategy="fresh_input - sum(known request content buckets)",
             ),
             buckets=buckets,
             captured_context_preview=(

@@ -292,7 +292,8 @@ class TestAttributionTemplateRendering:
         assert "sd-attribution-topgrid" in html
         assert "claude_code" in html
         assert "claude-sonnet-4" in html
-        assert "5.0K" in html
+        assert "内容分母" in html
+        assert "2.0K" in html
 
     def test_response_attribution_renders_with_data(self):
         html = _render_payload_sources([_make_resp_data()])

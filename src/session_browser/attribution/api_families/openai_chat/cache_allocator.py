@@ -9,7 +9,11 @@ def allocate_openai_chat_cache(
     spans: list[PromptSpan],
     usage: UsageBreakdown,
 ) -> list[PromptSpan]:
-    """为 ordered spans 分配 OpenAI Chat-style cache tokens。"""
+    """为 ordered spans 分配 OpenAI Chat-style cache tokens。
+
+    仅标注已有 request-content span 的 cache/fresh 区间，
+    不创建独立的 provider cache-hit 来源 bucket。
+    """
     if not spans:
         return spans
 

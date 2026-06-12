@@ -170,10 +170,15 @@ class TestRequestAttributionPayloadV2:
         payload = request_attribution_to_payload(attr)
         cov = payload["coverage"]
         assert "provider_total_input" in cov
+        assert "request_content_total" in cov
+        assert "accounting_cache_read_tokens" in cov
         assert "reconstructed_total" in cov
         assert "coverage_ratio" in cov
         assert "residual_tokens" in cov
         assert "residual_likely_sources" in cov
+        assert cov["provider_total_input"] == 1000
+        assert cov["request_content_total"] == 1000
+        assert cov["accounting_cache_read_tokens"] == 400
         assert "unclassified overhead" not in cov["residual_likely_sources"]
 
     def test_route_payload_fields_present(self):

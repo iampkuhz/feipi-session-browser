@@ -22,6 +22,8 @@ from session_browser.attribution.agents.claude_code import ClaudeCodeAttribution
 from session_browser.attribution.agents.qoder import QoderAttributionBuilder
 from session_browser.attribution.agents.codex import CodexAttributionBuilder
 from session_browser.attribution.contracts import ValuePrecision
+from session_browser.attribution.serializers import request_attribution_to_payload
+from session_browser.attribution.taxonomy import CATEGORY_BY_KEY
 
 
 def _make_lc(**kwargs):
@@ -146,6 +148,41 @@ def test_captured_context_when_request_full_exists(agent):
     if ctx_bucket is not None:
         # captured_context_fragment exists with positive tokens
         assert ctx_bucket.tokens > 0
+
+
+@pytest.mark.parametrize(
+    ("agent", "cache_read_tokens", "cache_write_tokens"),
+    [
+        ("codex", 3000, 0),
+        ("qoder", 3000, 700),
+    ],
+)
+def test_provider_cache_accounting_is_not_a_request_content_bucket(
+    agent, cache_read_tokens, cache_write_tokens
+):
+    """OpenAI-like agents expose provider cache values as accounting metadata only."""
+    lc = _make_lc(
+        input_tokens=2000,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
+        request_full="Tool output for call_1:\n" + ("result payload " * 200),
+    )
+    ro = _make_ro(user_content="summarize the previous tool result")
+
+    result = build_llm_request_attribution(agent, lc, ro)
+    payload = request_attribution_to_payload(result)
+
+    assert result.cache_read.value == cache_read_tokens
+    assert all(b.key != "provider_cached_context" for b in result.buckets)
+    assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
+    assert all(b["canonical_key"] != "provider_cache_read_context" for b in payload["buckets"])
+    assert "provider_cache_read_context" not in CATEGORY_BY_KEY
+
+    coverage = payload["coverage"]
+    assert coverage["provider_total_input"] == 2000 + cache_read_tokens + cache_write_tokens
+    assert coverage["request_content_total"] == 2000
+    assert coverage["accounting_cache_read_tokens"] == cache_read_tokens
+    assert coverage["reconstructed_total"] + coverage["residual_tokens"] == 2000
 
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])

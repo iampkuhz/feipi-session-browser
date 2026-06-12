@@ -220,10 +220,9 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
 
         # ── Step 1: 从标准化后的 LLMCall 获取真实 usage ─────────────
         # input_tokens 表示 Fresh request input size，cache 字段单独展示。
-        # Request distribution follows the shared Session Detail semantics:
-        # Fresh + Cache Read is the request attribution denominator; Cache
-        # Write remains visible in usage summary but is not a request source
-        # bucket because it is provider cache creation/write accounting.
+        # Request-content distribution uses Fresh only. Cache Read / Cache Write
+        # are provider accounting components and are not standalone content
+        # buckets beside messages or tool results.
         fresh_input = lc.input_tokens or 0
         cache_read = lc.cache_read_tokens or 0
         cache_write = lc.cache_write_tokens or 0
@@ -239,8 +238,8 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             if marker is not None:
                 fresh_input = int(marker)
 
-        request_distribution_input = fresh_input + cache_read
-        total_input = request_distribution_input + cache_write
+        request_content_input = max(0, fresh_input)
+        total_input = fresh_input + cache_read + cache_write
 
         precision_total = (ValuePrecision.PROVIDER_REPORTED if total_input > 0
                            else ValuePrecision.UNAVAILABLE)
@@ -350,12 +349,10 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         # to fabricate full system prompt content.
         hidden_runtime_tokens = 0
         if total_input > 0:
-            hidden_runtime_tokens = min(500, max(0, request_distribution_input))
-
-        provider_cache_read_tokens = max(0, cache_read)
+            hidden_runtime_tokens = min(500, request_content_input)
 
         # ── Step 3: normalize and assemble buckets ─────────────────────
-        denominator = request_distribution_input
+        denominator = request_content_input
         if use_full_messages_bucket:
             transcript_tokens = full_messages_tokens
             current_user_msg_tokens = 0
@@ -377,7 +374,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             + local_instruction_tokens
             + hidden_runtime_tokens
         )
-        estimated_budget = max(denominator - provider_cache_read_tokens, 0)
+        estimated_budget = denominator
 
         if denominator > 0:
             if measured_tokens > estimated_budget:
@@ -399,8 +396,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                     hidden_runtime_tokens = max(0, int(hidden_runtime_tokens * scale))
 
         known_sum = (
-            provider_cache_read_tokens + transcript_tokens
-            + current_user_msg_tokens + history_tokens + tool_results_tokens
+            transcript_tokens + current_user_msg_tokens + history_tokens + tool_results_tokens
             + captured_context_tokens + tool_schema_tokens
             + local_instruction_tokens + hidden_runtime_tokens
         )
@@ -451,29 +447,6 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                     "按当前 call 边界重建。"
                 ),
                 details=full_messages_details,
-            ))
-
-        if provider_cache_read_tokens > 0:
-            buckets.append(RequestAttributionBucket(
-                key="provider_cached_context",
-                label="Provider cache read context",
-                tokens=provider_cache_read_tokens,
-                percent=_pct(provider_cache_read_tokens, denominator),
-                precision=ValuePrecision.PROVIDER_REPORTED,
-                source=ValueSource.PROVIDER_USAGE,
-                confidence_label="中",
-                summary=(
-                    "provider reported cache_read_input_tokens；"
-                    "说明这部分 input-side token 来自缓存命中，但本地日志不展开完整缓存内容。"
-                ),
-                details={
-                    "kind": "hidden_estimate",
-                    "explanation": [
-                        "cache_read_input_tokens 是 provider reported cache hit token 数。",
-                        "Qoder 本地日志不展开这部分缓存命中的完整正文。",
-                    ],
-                },
-                display_group="metadata",
             ))
 
         # History messages — ONLY with explicit prior_messages
@@ -642,7 +615,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             precision=ValuePrecision.RESIDUAL,
             source=ValueSource.RESIDUAL,
             confidence_label="中",
-            summary="Fresh + Cache Read 减去已知 bucket 后的剩余部分。",
+            summary="Fresh input 减去已知 request 内容 bucket 后的剩余部分。",
         ))
 
         # ── Step 4: coverage ───────────────────────────────────────────
@@ -725,7 +698,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             self._avail("unknown", "Unknown / residual", True, exact=False,
                         precision=ValuePrecision.RESIDUAL,
                         source=ValueSource.RESIDUAL,
-                        fill_strategy="residual = fresh + cache_read - known"),
+                        fill_strategy="residual = fresh_input - known request content buckets"),
         ]
 
         notes = []
@@ -738,8 +711,8 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             notes.append("Qoder 无 provider usage 数据，使用本地估算。")
         if cache_read > 0:
             notes.append(
-                "Cache Read 以 provider-reported bucket 计入覆盖率；"
-                "它确认 token 来源为缓存命中，但本地日志无法展开完整缓存内容。"
+                "Cache Read 只作为 provider-reported accounting 展示；"
+                "不作为 request 内容 bucket 参与分布或本地重建覆盖率。"
             )
         if cache_write > 0:
             notes.append("Cache Write 仅作为 provider cache creation/write 统计展示，不进入 request bucket 分母。")
@@ -765,13 +738,13 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                 value=coverage_val, unit="ratio",
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.HEURISTIC,
-                fill_strategy="known_buckets / (fresh_input + cache_read)",
+                fill_strategy="known request content buckets / fresh_input",
             ),
             unknown=AttributedValue(
                 value=unknown_val, unit="tokens",
                 precision=ValuePrecision.RESIDUAL,
                 source=ValueSource.RESIDUAL,
-                fill_strategy="fresh_input + cache_read - sum(known_buckets)",
+                fill_strategy="fresh_input - sum(known request content buckets)",
             ),
             buckets=buckets,
             captured_context_preview=captured_context_text[:500] if captured_context_text else "",

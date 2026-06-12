@@ -7,7 +7,6 @@ REQUEST_BUCKET_CATEGORY_MAP = {
     "instructions": "instruction_context",
     "current_user_instruction": "current_user_input",
     "conversation_history": "conversation_messages",
-    "provider_cached_context": "provider_cache_read_context",
     "previous_response_state": "provider_conversation_state",
     "tool_outputs": "tool_result_context",
     "captured_context_fragment": "captured_runtime_context",

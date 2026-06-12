@@ -124,11 +124,18 @@ def _normalize_bucket_percents_for_display(buckets: list[dict]) -> list[dict]:
 def _request_distribution_denominator(attr: LLMRequestAttribution) -> float:
     """Return the request distribution denominator used by the UI.
 
-    Cache Write is provider accounting for cache creation and is shown in the
-    summary, but request attribution percentages are based on the tokens
-    actually present in the request context: Fresh + Cache Read.
+    For Codex and Qoder, Cache Read is provider accounting metadata and not an
+    additional local request-content source, so bucket percentages use Fresh.
+    Claude-style full message arrays may include cached prefix content, so they
+    keep the historical Fresh + Cache Read denominator. Cache Write remains
+    summary-only for all agents.
     """
-    denominator = _num(attr.fresh_input.value) + _num(attr.cache_read.value)
+    fresh = _num(attr.fresh_input.value)
+    cache_read = _num(attr.cache_read.value)
+    if attr.agent in {"codex", "qoder"} and fresh > 0:
+        denominator = fresh
+    else:
+        denominator = fresh + cache_read
     if denominator > 0:
         return denominator
     return _num(attr.total_input.value)
@@ -138,7 +145,7 @@ def _normalize_request_bucket_percents_for_display(
     buckets: list[dict],
     denominator: float,
 ) -> list[dict]:
-    """Compute request bucket percentages against Fresh + Cache Read."""
+    """Compute request bucket percentages against the request-content denominator."""
     for b in buckets:
         b["raw_percent"] = b.get("percent", 0.0)
         if not b.get("contributes_to_total", True):
@@ -350,12 +357,28 @@ def _get_hidden_reasoning(attr) -> AttributedValue:
 def _build_coverage(attr) -> dict:
     """构建 coverage v2 对象。"""
     total_val = (attr.total_input.value if hasattr(attr, 'total_input') and attr.total_input else 0) or 0
+    cache_read_val = (attr.cache_read.value if hasattr(attr, 'cache_read') and attr.cache_read else 0) or 0
+    request_content_total = _request_distribution_denominator(attr)
     unknown_val = (attr.unknown.value if hasattr(attr, 'unknown') and attr.unknown else 0) or 0
-    reconstructed = max(0, total_val - unknown_val) if total_val > 0 else 0
+    reconstructed = sum(
+        max(_num(getattr(bucket, "tokens", 0)), 0)
+        for bucket in getattr(attr, "buckets", []) or []
+        if getattr(bucket, "contributes_to_total", True)
+        and getattr(bucket, "key", "") not in {
+            "unknown_overhead",
+            "unlocated_residual",
+            "unknown",
+            "provider_cached_context",
+        }
+    )
+    if reconstructed <= 0 and total_val > 0:
+        reconstructed = max(0, request_content_total - unknown_val)
     return {
         "provider_total_input": total_val,
-        "reconstructed_total": reconstructed,
-        "coverage_ratio": round(reconstructed / total_val, 3) if total_val > 0 else 0.0,
+        "request_content_total": request_content_total,
+        "accounting_cache_read_tokens": cache_read_val,
+        "reconstructed_total": int(reconstructed),
+        "coverage_ratio": round(reconstructed / request_content_total, 3) if request_content_total > 0 else 0.0,
         "residual_tokens": unknown_val,
         "residual_likely_sources": [],
     }

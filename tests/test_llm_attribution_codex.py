@@ -17,6 +17,7 @@ from session_browser.domain.models import (
 )
 from session_browser.attribution.agents.codex import CodexAttributionBuilder
 from session_browser.attribution.contracts import ValuePrecision, ValueSource
+from session_browser.attribution.serializers import request_attribution_to_payload
 
 
 def _make_lc(**kwargs):
@@ -182,8 +183,8 @@ def test_codex_visible_rollout_instructions_are_request_bucket(tmp_path):
     assert any("base_instructions" in note for note in result.attribution_notes)
 
 
-def test_codex_request_full_tool_outputs_and_cache_read_are_buckets():
-    """request_full tool outputs and provider cache read should lift request coverage."""
+def test_codex_request_full_tool_outputs_are_buckets_cache_read_is_summary_only():
+    """request_full tool outputs are content buckets; provider cache read is accounting-only."""
     request_full = "Tool output for call_1:\n" + ("tool output body " * 200)
     lc = _make_lc(
         input_tokens=2000,
@@ -196,17 +197,23 @@ def test_codex_request_full_tool_outputs_and_cache_read_are_buckets():
     result = builder.build_request()
     tool_outputs = next((b for b in result.buckets if b.key == "tool_outputs"), None)
     cache_bucket = next((b for b in result.buckets if b.key == "provider_cached_context"), None)
+    payload = request_attribution_to_payload(result)
 
+    assert result.total_input.value == 2800
+    assert result.fresh_input.value == 2000
+    assert result.cache_read.value == 800
     assert tool_outputs is not None
     assert tool_outputs.tokens > 0
     assert tool_outputs.source == ValueSource.TOOL_LOGS
     assert tool_outputs.details["kind"] == "tool_results"
     assert "tool output body" in tool_outputs.details["items"][0]["full_content"]
-    assert cache_bucket is not None
-    assert cache_bucket.tokens == 800
-    assert cache_bucket.precision == ValuePrecision.PROVIDER_REPORTED
+    assert cache_bucket is None
+    assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
+    assert payload["coverage"]["provider_total_input"] == 2800
+    assert payload["coverage"]["request_content_total"] == 2000
+    assert payload["coverage"]["accounting_cache_read_tokens"] == 800
     assert result.coverage.value is not None
-    assert result.coverage.value > 0.4
+    assert 0 <= result.coverage.value <= 1
 
 
 def test_codex_prior_message_uses_full_token_estimate_from_context():

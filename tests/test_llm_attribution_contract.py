@@ -6,7 +6,7 @@ Verifies:
 3. raw_body_available defaults to False.
 4. No Raw request / Raw response payloads are generated.
 5. Bucket token sums do not exceed total input/output.
-6. Unknown = total - attributed sum.
+6. Unknown = request-content denominator - attributed sum.
 7. availability_rows exist and are populated.
 8. If total usage is missing, system falls back to estimated total.
 """
@@ -159,9 +159,15 @@ def test_unknown_equals_residual(agent):
     ro = _make_round(user_content="test user message content")
     req = build_llm_request_attribution(agent, lc, ro)
     total_req = req.total_input.value or 0
-    if agent in ("claude_code", "qoder"):
+    if agent == "claude_code":
         total_req = (req.fresh_input.value or 0) + (req.cache_read.value or 0)
-    known_req = sum(b.tokens for b in req.buckets if b.key not in ("unknown_overhead", "unlocated_residual"))
+    elif agent in ("qoder", "codex"):
+        total_req = req.fresh_input.value or 0
+    known_req = sum(
+        b.tokens for b in req.buckets
+        if b.key not in ("unknown_overhead", "unlocated_residual")
+        and getattr(b, "contributes_to_total", True)
+    )
     assert req.unknown.value == total_req - known_req
 
     resp = build_llm_response_attribution(agent, lc, ro)

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 REQUEST_BUCKET_CATEGORY_MAP = {
     "full_messages_array": "conversation_messages",
-    "provider_cached_context": "provider_cache_read_context",
     "history_messages": "conversation_messages",
     "captured_context_fragment": "captured_runtime_context",
     "tool_results": "tool_result_context",

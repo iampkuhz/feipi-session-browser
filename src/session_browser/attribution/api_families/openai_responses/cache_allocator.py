@@ -19,6 +19,8 @@ def allocate_openai_responses_cache(
 
     OpenAI 只有 cache_read（cached_tokens）和 fresh。
     cache_write 始终 unavailable。
+    本函数只标注已有 request-content span 的 cache/fresh 区间，
+    不创建独立的 provider cache-hit 来源 bucket。
     """
     if not spans:
         return spans

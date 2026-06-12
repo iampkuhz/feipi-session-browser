@@ -247,8 +247,8 @@ def test_response_bucket_serialized_with_contributes_to_total():
         assert "contributes_to_total" in b, f"Bucket {b['key']} missing contributes_to_total"
 
 
-def test_request_bucket_display_percent_uses_request_denominator():
-    """Request bucket percentages use Fresh + Cache Read, not Cache Write or residual totals."""
+def test_request_bucket_display_percent_uses_claude_request_denominator():
+    """Claude request bucket percentages use Fresh + Cache Read, not Cache Write."""
     total_value = AttributedValue(
         value=28700, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
         source=ValueSource.PROVIDER_USAGE,
@@ -305,6 +305,69 @@ def test_request_bucket_display_percent_uses_request_denominator():
     assert current_user["raw_percent"] == 15.5
     assert current_user["percent"] == 31.7
     assert residual["percent"] == 5.8
+
+
+def test_codex_request_bucket_display_percent_uses_fresh_not_cache_read():
+    """Codex cache read is accounting metadata, not a request-content bucket denominator."""
+    total_value = AttributedValue(
+        value=5000, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+    )
+    fresh_value = AttributedValue(
+        value=2000, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+    )
+    cache_read_value = AttributedValue(
+        value=3000, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+    )
+    zero_value = AttributedValue(
+        value=0, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+    )
+    attr = LLMRequestAttribution(
+        agent="codex",
+        model="test-model",
+        request_id="req-1",
+        call_id="call-1",
+        source_label="session jsonl",
+        confidence_label="中",
+        raw_body_available=False,
+        total_input=total_value,
+        fresh_input=fresh_value,
+        cache_read=cache_read_value,
+        cache_write=zero_value,
+        coverage=AttributedValue(
+            value=0.5, unit="ratio", precision=ValuePrecision.ESTIMATED,
+            source=ValueSource.HEURISTIC,
+        ),
+        unknown=AttributedValue(
+            value=1000, unit="tokens", precision=ValuePrecision.RESIDUAL,
+            source=ValueSource.RESIDUAL,
+        ),
+        buckets=[
+            RequestAttributionBucket(
+                key="tool_outputs", label="Tool outputs", tokens=1000, percent=20.0,
+            ),
+            RequestAttributionBucket(
+                key="unknown_overhead", label="未定位", tokens=1000, percent=20.0,
+                precision=ValuePrecision.RESIDUAL, source=ValueSource.RESIDUAL,
+            ),
+        ],
+        captured_context_preview="",
+        attribution_notes=[],
+        availability_rows=[],
+    )
+
+    payload = request_attribution_to_payload(attr)
+    tool_outputs = next(b for b in payload["buckets"] if b["key"] == "tool_outputs")
+    residual = next(b for b in payload["buckets"] if b["key"] == "unknown_overhead")
+    assert tool_outputs["percent"] == 50.0
+    assert residual["percent"] == 50.0
+    assert payload["coverage"]["provider_total_input"] == 5000
+    assert payload["coverage"]["request_content_total"] == 2000
+    assert payload["coverage"]["accounting_cache_read_tokens"] == 3000
+    assert payload["coverage"]["reconstructed_total"] == 1000
 
 
 def test_request_bucket_taxonomy_normalizes_labels_and_color_keys_across_agents():

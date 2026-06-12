@@ -329,6 +329,7 @@
     var cacheRead = coalesceDefined(usageSummary.cache_read, usage.cache_read);
     var cacheWrite = coalesceDefined(usageSummary.cache_write, usage.cache_write);
     var coverageProviderTotal = coverageMetricValue(coverage, "provider_total_input");
+    var coverageRequestContentTotal = coverageMetricValue(coverage, "request_content_total");
     var coverageReconstructedTotal = coverageMetricValue(coverage, "reconstructed_total");
     var coverageRatio = coverageMetricValue(coverage, "coverage_ratio");
     var coverageResidualTokens = coverageMetricValue(coverage, "residual_tokens");
@@ -357,16 +358,16 @@
     html += '<h3>' + (kind === "request" ? "请求摘要" : "响应摘要") + '</h3>';
     html += '<div class="sd-attribution-summary-grid">';
     if (kind === "request") {
-      var requestDenominator = numericValue(freshInput) + numericValue(cacheRead);
-      html += '<div class="sd-kv"><span>输入分母</span><span title="Fresh + Cache Read；Cache Write 是缓存写入量，不进入请求分布分母">' + formatCompactToken(requestDenominator) + '</span></div>';
+      var requestDenominator = coverageRequestContentTotal || numericValue(freshInput);
+      html += '<div class="sd-kv"><span>内容分母</span><span title="Request 内容 bucket 分母；Cache Read 是 provider accounting，不作为并列内容来源">' + formatCompactToken(requestDenominator) + '</span></div>';
       html += '<div class="sd-kv"><span>新鲜输入</span><span title="' + kvTitleAttr(freshInput) + '">' + formatTokenValue(freshInput) + '</span></div>';
       html += '<div class="sd-kv"><span>缓存读取</span><span title="' + kvTitleAttr(cacheRead) + '">' + formatTokenValue(cacheRead) + '</span></div>';
       html += '<div class="sd-kv"><span>缓存写入</span><span title="' + kvTitleAttr(cacheWrite) + '">' + formatTokenValue(cacheWrite) + '</span></div>';
       if (coverage) {
-        html += '<div class="sd-kv"><span>Provider 总计</span><span title="provider reported input total">' + formatCompactToken(coverageProviderTotal) + '</span></div>';
-        html += '<div class="sd-kv"><span>本地重建</span><span title="本地日志可重建并已归因的输入 token">' + formatCompactToken(coverageReconstructedTotal) + '</span></div>';
-        html += '<div class="sd-kv"><span>覆盖率</span><span title="本地重建 / Provider 总计">' + formatPercentNumber(coverageRatio) + '</span></div>';
-        html += '<div class="sd-kv"><span>残差</span><span title="Provider 总计 - 本地重建">' + formatCompactToken(coverageResidualTokens) + '</span></div>';
+        html += '<div class="sd-kv"><span>Provider 总计</span><span title="Provider input-side total；包含 Fresh 与 Cache Read">' + formatCompactToken(coverageProviderTotal) + '</span></div>';
+        html += '<div class="sd-kv"><span>本地重建</span><span title="本地日志可重建并已归因的 request 内容，不包含 provider cache hit accounting">' + formatCompactToken(coverageReconstructedTotal) + '</span></div>';
+        html += '<div class="sd-kv"><span>覆盖率</span><span title="本地重建 / 内容分母">' + formatPercentNumber(coverageRatio) + '</span></div>';
+        html += '<div class="sd-kv"><span>残差</span><span title="内容分母 - 本地重建">' + formatCompactToken(coverageResidualTokens) + '</span></div>';
       } else {
         html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
         var unkValTop = numericValue(usage.unknown);
@@ -420,10 +421,10 @@
       var grandTotal = totalForPct + (residualBucket ? (residualBucket.tokens || 0) : 0);
       var denominatorLabel = "分母 = " + formatCompactToken(grandTotal);
       if (kind === "request") {
-        var requestInputDenominator = numericValue(freshInput) + numericValue(cacheRead);
+        var requestInputDenominator = coverageRequestContentTotal || numericValue(freshInput);
         if (requestInputDenominator > 0) {
           grandTotal = requestInputDenominator;
-          denominatorLabel = "分母 Fresh + Cache Read = " + formatCompactToken(requestInputDenominator);
+          denominatorLabel = "分母 Fresh = " + formatCompactToken(requestInputDenominator) + "；Cache Read 仅在摘要中作为 provider accounting 展示";
         }
       }
       contributingBuckets.forEach(function (b) {

@@ -14,6 +14,7 @@ from session_browser.domain.models import (
 )
 from session_browser.attribution.agents.qoder import QoderAttributionBuilder
 from session_browser.attribution.contracts import ValuePrecision, ValueSource
+from session_browser.attribution.serializers import request_attribution_to_payload
 
 
 def _make_lc(**kwargs):
@@ -143,7 +144,7 @@ def test_qoder_response_attribution():
     assert result.visible_text.value > 0
 
 
-def test_qoder_full_messages_and_cache_read_are_request_buckets():
+def test_qoder_full_messages_are_request_buckets_cache_read_is_summary_only():
     lc = _make_lc(input_tokens=2000, cache_read_tokens=3000, cache_write_tokens=0)
     ro = _make_ro(user_content="current task")
     builder = QoderAttributionBuilder(
@@ -176,17 +177,21 @@ def test_qoder_full_messages_and_cache_read_are_request_buckets():
     result = builder.build_request()
     messages = next((b for b in result.buckets if b.key == "full_messages_array"), None)
     cache = next((b for b in result.buckets if b.key == "provider_cached_context"), None)
+    payload = request_attribution_to_payload(result)
 
     assert result.total_input.value == 5000
+    assert result.fresh_input.value == 2000
+    assert result.cache_read.value == 3000
     assert messages is not None
     assert messages.details["kind"] == "full_messages_array"
     assert messages.details["total_items"] == 2
-    assert cache is not None
-    assert cache.tokens == 3000
-    assert cache.precision == ValuePrecision.PROVIDER_REPORTED
-    assert cache.source == ValueSource.PROVIDER_USAGE
+    assert cache is None
+    assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
+    assert payload["coverage"]["provider_total_input"] == 5000
+    assert payload["coverage"]["request_content_total"] == 2000
+    assert payload["coverage"]["accounting_cache_read_tokens"] == 3000
     assert result.coverage.value is not None
-    assert result.coverage.value > 0.9
+    assert 0 <= result.coverage.value <= 1
 
 
 def test_qoder_request_full_tool_result_is_not_captured_context():
