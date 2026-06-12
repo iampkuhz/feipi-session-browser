@@ -57,3 +57,76 @@
     // Lazy load round detail from API
     lazyLoadRoundDetail(row);
   }
+
+  function syncSubagentToggle(block) {
+    if (!block) return;
+    var btn = qs(block, '[data-action="toggle-subagent-rounds"]');
+    if (!btn) return;
+    var steps = qsa(block, '[data-sub-round-steps]');
+    var allOpen = steps.length > 0;
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i].hidden) {
+        allOpen = false;
+        break;
+      }
+    }
+    btn.textContent = allOpen ? 'Collapse all' : 'Expand all';
+    btn.setAttribute('aria-expanded', allOpen ? 'true' : 'false');
+    btn.setAttribute('data-state', allOpen ? 'expanded' : 'collapsed');
+  }
+
+  function syncSubRoundToggle(subRound) {
+    if (!subRound) return;
+    var steps = qs(subRound, '[data-sub-round-steps]');
+    var toggle = qs(subRound, '[data-action="toggle-sub-round"]');
+    var open = !!(steps && !steps.hidden);
+    subRound.classList.toggle('is-open', open);
+    subRound.setAttribute('data-sub-round-open', open ? 'true' : 'false');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('data-state', open ? 'expanded' : 'collapsed');
+    }
+  }
+
+  function setSubRoundOpen(subRound, open, skipBlockSync) {
+    if (!subRound) return;
+    var steps = qs(subRound, '[data-sub-round-steps]');
+    if (steps) steps.hidden = !open;
+    syncSubRoundToggle(subRound);
+    if (!skipBlockSync) syncSubagentToggle(closest(subRound, '[data-subagent-block]'));
+  }
+
+  function setSubagentRoundsOpen(block, open) {
+    if (!block) return;
+    qsa(block, '[data-sub-round-id]').forEach(function (subRound) {
+      setSubRoundOpen(subRound, open, true);
+    });
+    syncSubagentToggle(block);
+  }
+
+  function expandSubagentRound(subRound) {
+    if (!subRound) return;
+    setSubRoundOpen(subRound, true);
+  }
+
+  function toggleSubagentRound(toggle) {
+    var subRound = closest(toggle, '[data-sub-round-id]');
+    if (!subRound) return;
+    var steps = qs(subRound, '[data-sub-round-steps]');
+    var next = !(steps && !steps.hidden);
+    setSubRoundOpen(subRound, next);
+  }
+
+  function toggleSubagentRounds(button) {
+    var block = closest(button, '[data-subagent-block]');
+    if (!block) return;
+    var steps = qsa(block, '[data-sub-round-steps]');
+    var shouldOpen = false;
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i].hidden) {
+        shouldOpen = true;
+        break;
+      }
+    }
+    setSubagentRoundsOpen(block, shouldOpen);
+  }

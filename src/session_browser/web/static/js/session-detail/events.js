@@ -21,15 +21,17 @@
             var bucketLabel = card.getAttribute("data-bucket-label") || "";
             var bucketKey = card.getAttribute("data-bucket-key") || "";
             var detailKind = body.getAttribute("data-bucket-detail-kind") || "";
+            var hasInlineDetail = !!qs(body, '[data-bucket-leaf-card]');
 
-            if (roundIdx && (detailKind === "current_user_message" || bucketKey === "current_user_message")) {
+            if (!hasInlineDetail && roundIdx && (detailKind === "current_user_message" || bucketKey === "current_user_message")) {
               loadBucketDetailDynamic(modal, body, roundIdx, "current_user_message");
-            } else if (roundIdx && (detailKind === "system_sources" && bucketKey === "local_instruction_context")) {
+            } else if (!hasInlineDetail && roundIdx && (detailKind === "system_sources" && bucketKey === "local_instruction_context")) {
               loadBucketDetailDynamic(modal, body, roundIdx, "local_instruction_context");
             }
           }
           body.hidden = !isExpanded;
           card.classList.toggle('is-expanded', isExpanded);
+          toggleEl.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
         }
       }
       return;
@@ -104,6 +106,24 @@
       return;
     }
 
+    // ── Bucket leaf full-content toggle handler ──
+    var bucketLeafToggleEl = closest(event.target, '[data-bucket-leaf-toggle]');
+    if (bucketLeafToggleEl) {
+      event.preventDefault();
+      event.stopPropagation();
+      var leafCard = closest(bucketLeafToggleEl, '[data-bucket-leaf-card]');
+      if (leafCard) {
+        var full = qs(leafCard, '.sd-bucket-leaf-full');
+        if (full) {
+          var leafIsExpanded = full.hasAttribute('hidden');
+          full.hidden = !leafIsExpanded;
+          leafCard.classList.toggle('is-expanded', leafIsExpanded);
+          bucketLeafToggleEl.setAttribute('aria-expanded', leafIsExpanded ? 'true' : 'false');
+        }
+      }
+      return;
+    }
+
     // ── Tool detail toggle handler ──
     var toolToggleEl = closest(event.target, '[data-tool-detail-toggle]');
     if (toolToggleEl) {
@@ -128,7 +148,7 @@
     }
 
     // ── KV value click-to-copy handler (non-blocking, text still selectable) ──
-    var kvValueEl = closest(event.target, '.sd-attribution-rail__card .sd-kv > span:last-child');
+    var kvValueEl = closest(event.target, '.sd-attribution-topcard .sd-kv > span:last-child, .sd-attribution-rail__card .sd-kv > span:last-child');
     if (kvValueEl && kvValueEl.textContent && kvValueEl.textContent !== "—" && kvValueEl.textContent !== "" && navigator.clipboard && navigator.clipboard.writeText) {
       var fullText = kvValueEl.getAttribute('title') || kvValueEl.textContent;
       navigator.clipboard.writeText(fullText).then(function() {
@@ -136,6 +156,15 @@
         kvValueEl.style.color = '#059669';
         setTimeout(function() { kvValueEl.style.color = orig; }, 600);
       }).catch(function() {});
+    }
+
+    // Subround summary row click toggles the single subround unless a child action handles it.
+    var subRoundToggleEl = closest(event.target, '[data-sub-round-toggle]');
+    if (subRoundToggleEl && !actionEl) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleSubagentRound(subRoundToggleEl);
+      return;
     }
 
     // Handle data-action elements
@@ -161,6 +190,14 @@
         event.preventDefault();
         event.stopPropagation();
         toggleAll(page);
+      } else if (action === 'toggle-subagent-rounds') {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleSubagentRounds(actionEl);
+      } else if (action === 'toggle-sub-round') {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleSubagentRound(actionEl);
       } else if (action === 'jump-round') {
         event.preventDefault();
         event.stopPropagation();

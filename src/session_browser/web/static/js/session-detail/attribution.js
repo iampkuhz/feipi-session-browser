@@ -42,6 +42,177 @@
     expanded.setAttribute("data-tool-detail-rendered", "1");
   }
 
+  function compactLeafPreview(value, limit) {
+    var text = String(value || "").replace(/\s+/g, " ").trim();
+    var max = limit || 180;
+    if (text.length <= max) return text;
+    return text.slice(0, Math.max(0, max - 3)) + "...";
+  }
+
+  function stringifyDetailValue(value) {
+    if (value === null || value === undefined || value === "") return "";
+    if (typeof value === "string") return value;
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (err) {
+      return String(value);
+    }
+  }
+
+  function leafFullContent(item) {
+    if (!item) return "";
+    return stringifyDetailValue(
+      item.full_content ||
+      item.content ||
+      item.raw_content ||
+      item.raw ||
+      item.full_text ||
+      item.text ||
+      item.input_json ||
+      item.call_json ||
+      item.input_schema ||
+      item.description ||
+      item.preview ||
+      item.content_preview ||
+      item.result_preview ||
+      item.summary
+    );
+  }
+
+  function leafTitle(item, fallback) {
+    if (!item) return fallback || "detail";
+    return item.label || item.name || item.file_path || item.tool_name || item.source_type ||
+      item.content_type || item.role || fallback || "detail";
+  }
+
+  function leafSummary(item) {
+    if (!item) return "";
+    return compactLeafPreview(
+      item.summary ||
+      item.description_preview ||
+      item.command_preview ||
+      item.input_preview ||
+      item.result_preview ||
+      item.preview ||
+      item.content_preview ||
+      item.full_content ||
+      item.content ||
+      item.description ||
+      "",
+      190
+    );
+  }
+
+  function leafMetaParts(item) {
+    var parts = [];
+    if (!item) return parts;
+    if (item.role) parts.push(String(item.role));
+    if (item.content_type) parts.push(String(item.content_type));
+    if (item.tool_name) parts.push(String(item.tool_name));
+    if (item.source_type) parts.push("来源: " + String(item.source_type));
+    else if (item.source) parts.push("来源: " + String(item.source));
+    var tokenVal = coalesceDefined(item.tokens, coalesceDefined(item.estimated_tokens, item.content_token_estimate));
+    if (tokenVal) parts.push("~" + formatCompactToken(tokenVal) + " tokens");
+    if (item.message_index !== null && item.message_index !== undefined) parts.push("#" + String(item.message_index));
+    if (item.has_full_content === false) parts.push("preview only");
+    return parts;
+  }
+
+  function bucketHasDetails(b) {
+    if (!b) return false;
+    var d = b.details || {};
+    return !!(
+      (d.items && d.items.length > 0) ||
+      (d.explanation && d.explanation.length > 0) ||
+      d.preview ||
+      d.full_content ||
+      d.content ||
+      d.raw_content ||
+      b.summary ||
+      b.content_preview ||
+      b.source ||
+      b.count_label
+    );
+  }
+
+  function normalizeBucketLeafItems(b) {
+    var d = b.details || {};
+    var leaves = [];
+    if (d.items && d.items.length) {
+      d.items.forEach(function (item, idx) {
+        var full = leafFullContent(item);
+        leaves.push({
+          title: leafTitle(item, (b.label || b.key || "detail") + " #" + (idx + 1)),
+          summary: leafSummary(item),
+          meta: leafMetaParts(item),
+          full: full,
+        });
+      });
+    } else if (d.kind === "current_user_message") {
+      leaves.push({
+        title: b.label || "Current user message",
+        summary: compactLeafPreview(d.preview || d.full_content || b.content_preview || b.summary || "", 190),
+        meta: d.tokens ? ["~" + formatCompactToken(d.tokens) + " tokens"] : [],
+        full: stringifyDetailValue(d.full_content || d.content || d.preview || b.content_preview || b.summary),
+      });
+    } else if (d.preview || d.full_content || d.content || d.raw_content) {
+      leaves.push({
+        title: b.label || d.kind || "detail",
+        summary: compactLeafPreview(d.preview || d.full_content || d.content || d.raw_content || "", 190),
+        meta: d.tokens ? ["~" + formatCompactToken(d.tokens) + " tokens"] : [],
+        full: stringifyDetailValue(d.full_content || d.content || d.raw_content || d.preview),
+      });
+    }
+
+    if (d.explanation && d.explanation.length) {
+      leaves.unshift({
+        title: "说明",
+        summary: compactLeafPreview(d.explanation.join(" "), 190),
+        meta: [],
+        full: d.explanation.join("\n"),
+      });
+    }
+
+    if (!leaves.length && (b.summary || b.content_preview || b.source || b.count_label)) {
+      leaves.push({
+        title: b.label || b.key || "detail",
+        summary: compactLeafPreview(b.summary || b.content_preview || "", 190),
+        meta: [
+          b.source ? "来源: " + b.source : "",
+          b.count_label || "",
+          b.tokens ? "~" + formatCompactToken(b.tokens) + " tokens" : "",
+        ].filter(Boolean),
+        full: stringifyDetailValue(b.content_preview || b.summary || ""),
+      });
+    }
+    return leaves;
+  }
+
+  function renderBucketLeafCard(leaf) {
+    var meta = (leaf.meta || []).filter(Boolean);
+    var full = leaf.full || "";
+    var html = '<div class="sd-bucket-leaf-card" data-bucket-leaf-card>';
+    html += '<button type="button" class="sd-bucket-leaf-head" data-bucket-leaf-toggle aria-expanded="false">';
+    html += '<span class="sd-bucket-leaf-title">' + escapeHtml(leaf.title || "detail") + '</span>';
+    html += '<span class="sd-bucket-leaf-summary">' + escapeHtml(leaf.summary || "无摘要") + '</span>';
+    if (meta.length) {
+      html += '<span class="sd-bucket-leaf-meta">' + escapeHtml(meta.join(" · ")) + '</span>';
+    } else {
+      html += '<span class="sd-bucket-leaf-meta">完整信息</span>';
+    }
+    html += '<span class="sd-bucket-leaf-chevron">▸</span>';
+    html += '</button>';
+    html += '<div class="sd-bucket-leaf-full" hidden>';
+    if (full) {
+      html += '<pre class="sd-bucket-detail-preview sd-bucket-detail-preview--full">' + escapeHtml(full) + '</pre>';
+    } else {
+      html += '<div class="sd-bucket-detail-empty">没有可展示的完整内容。</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
   function _getPageSourceAndSessionId() {
     var path = window.location.pathname;
     var m = path.match(/^\/sessions\/([^\/]+)\/([^\/]+)/);
@@ -157,6 +328,10 @@
     var freshInput = coalesceDefined(usageSummary.fresh_input, usage.fresh_input);
     var cacheRead = coalesceDefined(usageSummary.cache_read, usage.cache_read);
     var cacheWrite = coalesceDefined(usageSummary.cache_write, usage.cache_write);
+    var coverageProviderTotal = coverageMetricValue(coverage, "provider_total_input");
+    var coverageReconstructedTotal = coverageMetricValue(coverage, "reconstructed_total");
+    var coverageRatio = coverageMetricValue(coverage, "coverage_ratio");
+    var coverageResidualTokens = coverageMetricValue(coverage, "residual_tokens");
 
     // ── Top summary: identity and request/response summary side by side ──
     html += '<div class="sd-attribution-topgrid">';
@@ -187,10 +362,17 @@
       html += '<div class="sd-kv"><span>新鲜输入</span><span title="' + kvTitleAttr(freshInput) + '">' + formatTokenValue(freshInput) + '</span></div>';
       html += '<div class="sd-kv"><span>缓存读取</span><span title="' + kvTitleAttr(cacheRead) + '">' + formatTokenValue(cacheRead) + '</span></div>';
       html += '<div class="sd-kv"><span>缓存写入</span><span title="' + kvTitleAttr(cacheWrite) + '">' + formatTokenValue(cacheWrite) + '</span></div>';
-      html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
-      var unkValTop = numericValue(usage.unknown);
-      var unkPctTop = requestDenominator > 0 ? ((unkValTop / requestDenominator) * 100).toFixed(1) : "0.0";
-      html += '<div class="sd-kv"><span>未定位</span><span title="' + formatCompactToken(unkValTop) + '（' + unkPctTop + '%）">' + formatCompactToken(unkValTop) + '（' + unkPctTop + '%）</span></div>';
+      if (coverage) {
+        html += '<div class="sd-kv"><span>Provider 总计</span><span title="provider reported input total">' + formatCompactToken(coverageProviderTotal) + '</span></div>';
+        html += '<div class="sd-kv"><span>本地重建</span><span title="本地日志可重建并已归因的输入 token">' + formatCompactToken(coverageReconstructedTotal) + '</span></div>';
+        html += '<div class="sd-kv"><span>覆盖率</span><span title="本地重建 / Provider 总计">' + formatPercentNumber(coverageRatio) + '</span></div>';
+        html += '<div class="sd-kv"><span>残差</span><span title="Provider 总计 - 本地重建">' + formatCompactToken(coverageResidualTokens) + '</span></div>';
+      } else {
+        html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
+        var unkValTop = numericValue(usage.unknown);
+        var unkPctTop = requestDenominator > 0 ? ((unkValTop / requestDenominator) * 100).toFixed(1) : "0.0";
+        html += '<div class="sd-kv"><span>未定位</span><span title="' + formatCompactToken(unkValTop) + '（' + unkPctTop + '%）">' + formatCompactToken(unkValTop) + '（' + unkPctTop + '%）</span></div>';
+      }
     } else {
       html += '<div class="sd-kv"><span>总输出</span><span title="' + kvTitleAttr(usage.total_output) + '">' + formatTokenValue(usage.total_output) + '</span></div>';
       html += '<div class="sd-kv"><span>可见文本</span><span title="' + kvTitleAttr(usage.visible_text) + '">' + formatTokenValue(usage.visible_text) + '</span></div>';
@@ -201,48 +383,27 @@
     }
     html += '</div>';
     html += '</section>';
+    html += '<section class="sd-attribution-topcard">';
+    html += '<h3>调用信息</h3>';
+    html += '<div class="sd-attribution-call-grid">';
+    html += '<div class="sd-kv"><span>模型</span><span title="' + escapeHtml(model || "—") + '">' + escapeHtml(model || "—") + '</span></div>';
+    if (kind === "request") {
+      var srcLabel = data.source_label || "local logs";
+      html += '<div class="sd-kv"><span>来源</span><span title="' + escapeHtml(srcLabel) + '">' + escapeHtml(srcLabel) + '</span></div>';
+      var callIdVal = data.call_id || "";
+      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(callIdVal || "—") + '">' + escapeHtml(callIdVal || "—") + '</span></div>';
+    } else if (data.call_id) {
+      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(data.call_id) + '">' + escapeHtml(data.call_id) + '</span></div>';
+    }
+    html += '<div class="sd-kv"><span>请求发起</span><span title="' + escapeHtml(timing.request_at || "—") + '">' + escapeHtml(timing.request_at || "—") + '</span></div>';
+    html += '<div class="sd-kv"><span>响应返回</span><span title="' + escapeHtml(timing.response_at || "—") + '">' + escapeHtml(timing.response_at || "—") + '</span></div>';
+    html += '<div class="sd-kv"><span>耗时</span><span title="' + escapeHtml(timing.duration || "—") + '">' + escapeHtml(timing.duration || "—") + '</span></div>';
+    html += '</div>';
+    html += '</section>';
     html += '</div>';
 
-    // ── Two-column layout ──
+    // ── Full-width attribution canvas ──
     html += '<div class="sd-payload-shell sd-payload-shell--attribution">';
-
-    // ── Left rail ──
-    html += '<aside class="sd-payload-meta sd-attribution-rail">';
-
-    // Card 1: Timing
-    if (timing.request_at && timing.request_at !== "—") {
-      html += '<div class="sd-attribution-rail__card">';
-      html += '<h3>时间线</h3>';
-      html += '<div class="sd-kv"><span>请求发起</span><span title="' + escapeHtml(timing.request_at) + '">' + escapeHtml(timing.request_at) + '</span></div>';
-      html += '<div class="sd-kv"><span>响应返回</span><span title="' + escapeHtml(timing.response_at || "—") + '">' + escapeHtml(timing.response_at || "—") + '</span></div>';
-      html += '<div class="sd-kv"><span>耗时</span><span title="' + escapeHtml(timing.duration || "—") + '">' + escapeHtml(timing.duration || "—") + '</span></div>';
-      html += '</div>'; // end timing card
-    }
-
-    // Card 3: Model + params
-    if (model && model !== "unknown") {
-      html += '<div class="sd-attribution-rail__card">';
-      html += '<h3>模型信息</h3>';
-      html += '<div class="sd-kv"><span>模型</span><span title="' + escapeHtml(model) + '">' + escapeHtml(model) + '</span></div>';
-      if (kind === "request") {
-        var srcLabel = data.source_label || "local logs";
-        html += '<div class="sd-kv"><span>来源</span><span title="' + escapeHtml(srcLabel) + '">' + escapeHtml(srcLabel) + '</span></div>';
-      }
-      html += '</div>';
-    }
-
-    // Card 4: Request params (request only)
-    if (kind === "request") {
-      html += '<div class="sd-attribution-rail__card">';
-      html += '<h3>请求参数</h3>';
-      var callIdVal = data.call_id || "";
-      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(callIdVal) + '">' + escapeHtml(callIdVal) + '</span></div>';
-      html += '</div>';
-    }
-
-    html += '</aside>'; // end left rail
-
-    // ── Right main content ──
     html += '<main class="sd-payload-main sd-attribution-canvas">';
 
     var buckets = data.buckets || [];
@@ -268,7 +429,7 @@
       contributingBuckets.forEach(function (b) {
         var pct = grandTotal > 0 ? (b.tokens / grandTotal * 100) : 0;
         var widthPct = Math.max(0, Math.min(100, pct));
-        var colorIdx = getBucketColorIndex(b.key);
+        var colorIdx = getBucketColorIndex(b.color_key || b.canonical_key || b.key);
         html += '<div class="sd-attribution-distribution__segment sd-attribution-segment--' + colorIdx + '" style="width:' + widthPct.toFixed(1) + '%;flex:0 0 ' + widthPct.toFixed(1) + '%" title="' + escapeHtml(b.label) + ': ' + b.tokens + ' tokens · ' + pct.toFixed(1) + '%"></div>';
       });
       if (kind !== "request" && residualBucket && residualBucket.tokens > 0) {
@@ -282,28 +443,19 @@
       html += '<div class="sd-attribution-section-label">贡献来源</div>';
       html += '<div class="sd-attribution-bucket-list">';
       buckets.forEach(function (b) {
-        var idx = getBucketColorIndex(b.key);
-        var hasDetails = b.details && (
-          (b.details.items && b.details.items.length > 0) ||
-          (b.details.explanation && b.details.explanation.length > 0) ||
-          b.details.preview ||
-          (b.details.kind === "tools" && b.details.items) ||
-          (b.details.kind === "mcp_metadata" && b.details.items) ||
-          (b.details.kind === "system_sources" && b.details.items) ||
-          (b.details.kind === "message_history" && b.details.items) ||
-          (b.details.kind === "tool_results" && b.details.items) ||
-          (b.details.kind === "current_user_message") ||
-          (b.details.kind === "unlocated") ||
-          (b.details.kind === "hidden_estimate")
-        );
+        var idx = getBucketColorIndex(b.color_key || b.canonical_key || b.key);
+        var hasDetails = bucketHasDetails(b);
         var isChild = b.contributes_to_total === false && b.parent_key;
 
         if (isChild) return; // skip child buckets from top-level list
 
-        html += '<div class="sd-attribution-bucket-card" data-bucket-key="' + escapeHtml(b.key) + '">';
-        html += '<div class="sd-attribution-bucket-head" data-bucket-toggle>';
+        html += '<div class="sd-attribution-bucket-card' + (hasDetails ? ' is-expandable' : '') + '" data-bucket-key="' + escapeHtml(b.key) + '" data-canonical-key="' + escapeHtml(b.canonical_key || b.key) + '" data-color-key="' + escapeHtml(b.color_key || b.canonical_key || b.key) + '" data-bucket-label="' + escapeHtml(b.label || b.key) + '">';
+        html += '<div class="sd-attribution-bucket-head"' + (hasDetails ? ' data-bucket-toggle aria-expanded="false"' : '') + '>';
         html += '<span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--' + idx + '"></span>';
         html += '<span class="sd-attribution-bucket-label">' + escapeHtml(b.label || b.key) + '</span>';
+        if (b.count_label) {
+          html += '<span class="sd-attribution-bucket-count">' + escapeHtml(b.count_label) + '</span>';
+        }
         // Merge tokens + %
         html += '<span class="sd-attribution-bucket-usage">' + formatCompactToken(b.tokens) + '（' + (b.percent || 0).toFixed(1) + '%）</span>';
         html += '<span class="sd-precision-tag sd-precision-tag--' + escapeHtml(b.precision || "") + '">' + translatePrecision(b.precision) + '</span>';
@@ -344,20 +496,6 @@
       html += '</div>';
     }
 
-    // ── v2 Coverage & Uncertainty ──
-    if (coverage) {
-      html += '<div class="sd-attribution-section-label">覆盖率与不确定性</div>';
-      html += '<div class="sd-attribution-coverage">';
-      html += '<div class="sd-kv"><span>Provider 总计</span><span>' + formatCompactToken(coverage.provider_total_input || 0) + '</span></div>';
-      html += '<div class="sd-kv"><span>本地重建</span><span>' + formatCompactToken(coverage.reconstructed_total || 0) + '</span></div>';
-      html += '<div class="sd-kv"><span>覆盖率</span><span>' + ((coverage.coverage_ratio || 0) * 100).toFixed(1) + '%</span></div>';
-      html += '<div class="sd-kv"><span>残差</span><span>' + formatCompactToken(coverage.residual_tokens || 0) + '</span></div>';
-      if (coverage.residual_likely_sources && coverage.residual_likely_sources.length > 0) {
-        html += '<div class="sd-attribution-coverage-sources">可能来源：' + escapeHtml(coverage.residual_likely_sources.join("、")) + '</div>';
-      }
-      html += '</div>';
-    }
-
     // ── v2 Credit Summary (Qoder) ──
     if (creditSummary) {
       html += '<div class="sd-attribution-section-label">Credit 归因</div>';
@@ -393,156 +531,25 @@
   // ── Bucket detail renderer ──
 
   function renderBucketDetails(b) {
-    var d = b.details || {};
-    var html = "";
-
-    if (d.kind === "tools" && d.items) {
-      html += '<div class="sd-bucket-detail-list">';
-      d.items.forEach(function (item) {
-        html += '<div class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle>';
-        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.name) + ' <b>' + formatCompactToken(item.estimated_tokens || 0) + 't</b></div>';
-        html += '<div class="sd-bucket-detail-desc">' + escapeHtml(compactToolPreview(item.description_preview || item.description || "")) + '</div>';
-        html += '<div class="sd-bucket-detail-meta">';
-        html += '<span>来源: ' + escapeHtml(item.source || "") + '</span>';
-        html += '<span>~' + formatCompactToken(item.estimated_tokens || 0) + ' tokens</span>';
-        html += '<span class="sd-bucket-detail-chevron">▸</span>';
-        html += '</div>';
-        var jsonObj = {
-          name: item.name || "",
-          description: item.description || item.description_preview || "",
-          input_schema: item.input_schema ? (function() {
-            try { return JSON.parse(item.input_schema); }
-            catch(e) { return item.input_schema; }
-          })() : {}
-        };
-        html += lazyToolDetailHtml(jsonObj);
-        html += '</div>';
-      });
-      html += '</div>';
-    } else if (d.kind === "tool_use" && d.items) {
-      html += '<div class="sd-bucket-detail-section">';
-      html += '<div class="sd-bucket-detail-meta" style="margin-bottom:8px">';
-      html += '<span>定义总计: ~' + formatCompactToken(d.total_schema_tokens || 0) + ' tokens</span>';
-      html += '<span>调用总计: ~' + formatCompactToken(d.total_call_tokens || 0) + ' tokens</span>';
-      html += '<span>共 ' + (d.total_items || 0) + ' 个调用</span>';
-      html += '</div>';
-      html += '</div>';
-      html += '<div class="sd-bucket-detail-list">';
-      d.items.forEach(function (item) {
-        html += '<div class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle>';
-        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.name) + ' <span class="sd-bucket-detail-chevron">▸</span></div>';
-        html += '<div class="sd-bucket-detail-desc">' + escapeHtml(compactToolPreview(item.description_preview || item.description || "")) + '</div>';
-        html += '<div class="sd-bucket-detail-meta">';
-        html += '<span>定义: ' + formatCompactToken(item.schema_tokens || 0) + ' tokens</span>';
-        html += '<span>调用: ' + formatCompactToken(item.call_tokens || 0) + ' tokens</span>';
-        html += '<span>合计: ' + formatCompactToken(item.total_tokens || 0) + ' tokens</span>';
-        html += '</div>';
-        if (item.input_schema_properties) {
-          html += '<div class="sd-bucket-detail-desc" style="opacity:0.7">输入参数: ' + escapeHtml(item.input_schema_properties) + '</div>';
-        }
-        var toolUseJson = {
-          name: item.name || "",
-          description: item.description || item.description_preview || "",
-          schema_tokens: item.schema_tokens || 0,
-          call_tokens: item.call_tokens || 0,
-          input_schema_properties: item.input_schema_properties || "",
-          input_schema: item.input_schema || {}
-        };
-        html += lazyToolDetailHtml(toolUseJson);
-        html += '</div>';
-      });
-      html += '</div>';
-    } else if (d.kind === "system_sources" && d.items) {
-      html += '<div class="sd-bucket-detail-list">';
-      d.items.forEach(function (item) {
-        html += '<div class="sd-bucket-detail-item">';
-        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.file_path || "") + '</div>';
-        html += '<div class="sd-bucket-detail-meta">';
-        html += '<span>类型: ' + escapeHtml(item.source_type || "") + '</span>';
-        if (item.tokens) html += '<span>~' + formatCompactToken(item.tokens) + ' tokens</span>';
-        html += '</div>';
-        if (item.preview) {
-          html += '<pre class="sd-bucket-detail-preview">' + escapeHtml(item.preview) + '</pre>';
-        }
-        html += '</div>';
-      });
-      html += '</div>';
-    } else if (d.kind === "message_history" && d.items) {
-      html += '<div class="sd-bucket-detail-list">';
-      d.items.forEach(function (item) {
-        html += '<div class="sd-bucket-detail-item">';
-        html += '<div class="sd-bucket-detail-meta">';
-        html += '<span>第 ' + (item.round_id || "?") + ' 轮</span>';
-        html += '<span>' + escapeHtml(item.role || "") + '</span>';
-        if (item.tokens) html += '<span>~' + formatCompactToken(item.tokens) + ' tokens</span>';
-        html += '</div>';
-        html += '<div class="sd-bucket-detail-desc">' + escapeHtml(item.summary || "") + '</div>';
-        html += '</div>';
-      });
-      html += '</div>';
-    } else if (d.kind === "tool_results" && d.items) {
-      html += '<div class="sd-bucket-detail-list">';
-      d.items.forEach(function (item) {
-        html += '<div class="sd-bucket-detail-item">';
-        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.tool_name || "unknown") + '</div>';
-        html += '<div class="sd-bucket-detail-desc">' + escapeHtml(item.summary || "") + '</div>';
-        html += '<div class="sd-bucket-detail-meta">';
-        if (item.tokens) html += '<span>~' + formatCompactToken(item.tokens) + ' tokens</span>';
-        html += '</div>';
-        html += '</div>';
-      });
-      html += '</div>';
-    } else if (d.kind === "current_user_message") {
-      html += '<div class="sd-bucket-detail-item">';
-      if (d.tokens) html += '<div class="sd-bucket-detail-meta"><span>~' + formatCompactToken(d.tokens) + ' tokens</span></div>';
-      if (d.preview) {
-        html += '<pre class="sd-bucket-detail-preview sd-bucket-detail-preview--full">' + escapeHtml(d.preview) + '</pre>';
-      }
-      html += '</div>';
-    } else if (d.kind === "mcp_metadata" && d.items) {
-      html += '<div class="sd-bucket-detail-list">';
-      d.items.forEach(function (item) {
-        html += '<div class="sd-bucket-detail-item">';
-        html += '<div class="sd-bucket-detail-name">' + escapeHtml(item.name || "") + '</div>';
-        html += '<div class="sd-bucket-detail-meta"><span>~' + formatCompactToken(item.estimated_tokens || 0) + ' tokens</span></div>';
-        html += '</div>';
-      });
-      html += '</div>';
-    } else if (d.kind === "unlocated" && d.explanation) {
-      html += '<ul class="sd-bucket-detail-explanation">';
-      d.explanation.forEach(function (line) {
-        html += '<li>' + escapeHtml(line) + '</li>';
-      });
-      html += '</ul>';
-    } else if (d.kind === "hidden_estimate" && d.explanation) {
-      html += '<ul class="sd-bucket-detail-explanation">';
-      d.explanation.forEach(function (line) {
-        html += '<li>' + escapeHtml(line) + '</li>';
-      });
-      html += '</ul>';
-    } else if (d.preview) {
-      html += '<pre class="sd-bucket-detail-preview">' + escapeHtml(d.preview) + '</pre>';
-    } else if (d.explanation) {
-      html += '<ul class="sd-bucket-detail-explanation">';
-      d.explanation.forEach(function (line) {
-        html += '<li>' + escapeHtml(line) + '</li>';
-      });
-      html += '</ul>';
-    }
-
-    return html || '<div class="sd-bucket-detail-empty">无详细信息</div>';
+    var leaves = normalizeBucketLeafItems(b);
+    if (!leaves.length) return '<div class="sd-bucket-detail-empty">无详细信息</div>';
+    var html = '<div class="sd-bucket-leaf-list">';
+    leaves.forEach(function (leaf) {
+      html += renderBucketLeafCard(leaf);
+    });
+    html += '</div>';
+    return html;
   }
 
   function getBucketColorIndex(key) {
     if (key === "unlocated_residual" || key === "unknown_overhead" || key === "unknown") return 8;
     var order = [
-      "current_user_message", "preceding_tool_results", "prior_conversation_messages",
-      "tool_schemas", "local_instruction_context", "agent_subagent_prompt",
-      "mcp_tool_metadata", "top_level_system_estimate",
-      "hidden_builtin_system_estimate",
+      "current_user_input", "conversation_messages", "tool_result_context",
+      "tool_definitions", "local_instruction_context", "agent_subagent_prompt",
+      "mcp_tool_metadata", "builtin_system_prompt", "unlocated_residual",
     ];
     var idx = order.indexOf(key);
-    return idx >= 0 ? (idx % 9) : 0;
+    return idx >= 0 ? (idx % 9) : 7;
   }
 
   /** Dynamically load bucket detail content from backend API. */
@@ -612,6 +619,12 @@
     return Number.isFinite(val) ? val : 0;
   }
 
+  function coverageMetricValue(coverage, key) {
+    if (!coverage || coverage[key] == null) return null;
+    var val = Number(coverage[key]);
+    return Number.isFinite(val) ? val : null;
+  }
+
   function formatTokenValue(v) {
     if (!v || v.value == null) return "—";
     var val = v.value;
@@ -626,6 +639,13 @@
     var val = v.value;
     if (typeof val === "number" && val <= 1) return (val * 100).toFixed(1) + "%";
     return String(val);
+  }
+
+  function formatPercentNumber(val) {
+    if (val == null) return "—";
+    var num = Number(val);
+    if (!Number.isFinite(num)) return "—";
+    return (num <= 1 ? num * 100 : num).toFixed(1) + "%";
   }
 
   function formatCompactToken(val, precision) {
@@ -651,14 +671,19 @@
   function getBucketColorClass(key) {
     var map = {
       "current_user_message": "sd-attribution-segment--user",
+      "current_user_input": "sd-attribution-segment--user",
       "preceding_tool_results": "sd-attribution-segment--tool",
+      "tool_result_context": "sd-attribution-segment--tool",
       "prior_conversation_messages": "sd-attribution-segment--prior",
+      "conversation_messages": "sd-attribution-segment--prior",
       "tool_schemas": "sd-attribution-segment--schema",
+      "tool_definitions": "sd-attribution-segment--schema",
       "local_instruction_context": "sd-attribution-segment--local",
       "agent_subagent_prompt": "sd-attribution-segment--agent",
       "mcp_tool_metadata": "sd-attribution-segment--mcp",
       "top_level_system_estimate": "sd-attribution-segment--system",
       "hidden_builtin_system_estimate": "sd-attribution-segment--hidden",
+      "builtin_system_prompt": "sd-attribution-segment--hidden",
     };
     return map[key] || "sd-attribution-segment--default";
   }

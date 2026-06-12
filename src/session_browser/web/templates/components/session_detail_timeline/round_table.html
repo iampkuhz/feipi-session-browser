@@ -10,10 +10,9 @@
   <td>
     <div class="metric-cell">
       <span class="metric-tools">{{ row.tool_count_label|default('0 tools') }}</span>
-      <span class="metric-tools">{{ row.llm_call_count|default(0) }} llm</span>
       <div class="token-group">
         <span class="metric-token">{{ row.token_total_raw|default(0)|format_compact_token }}</span>
-        <span class="tokenbar-wrap" aria-hidden="true" tabindex="0">
+        <span class="tokenbar-wrap" tabindex="0" title="{{ row.token_bar_label|default('') }}" aria-label="{{ row.token_bar_label|default('Token scale') }}" style="--token-total-width:{{ row.token_bar_pct|default(0) }}%;">
           <span class="tokenbar">
             <span class="tokenbar-seg fresh" style="--segment-width:{{ row.token_mix.fresh|default(0) }}%"></span>
             <span class="tokenbar-seg read" style="--segment-width:{{ row.token_mix.read|default(0) }}%"></span>
@@ -46,26 +45,36 @@
             <div class="token-tooltip__row token-tooltip__total">
               <span>Total</span><span class="token-tooltip__value">{{ row.token_total }}</span>
             </div>
+            <div class="token-tooltip__row">
+              <span>Scale</span><span class="token-tooltip__value">{{ row.token_bar_label|default('—') }}</span>
+            </div>
+            <div class="token-tooltip__row">
+              <span>Gap</span><span class="token-tooltip__value">{{ row.token_bar_gap_label|default('—') }}</span>
+            </div>
           </div>
         </span>
       </div>
     </div>
   </td>
   <td>
-    {% if row.has_failed_signal or ('fail' in row.status_key|default('')) %}
-      <span class="badge badge-err">Failed</span>
-    {% endif %}
-    {% if row.has_subagent %}
-      <span class="badge badge-subagent">Subagent</span>
-    {% endif %}
-    {% if row.has_payload_gap %}
-      <span class="badge badge-warn">Payload Gap</span>
-    {% endif %}
-    {% if row.has_attribution_gap %}
-      <span class="badge badge-warn">Attribution Gap</span>
-    {% endif %}
-    {% if not row.has_failed_signal and not row.has_subagent and not row.has_payload_gap and not row.has_attribution_gap %}
-      <span class="badge badge-info">—</span>
+    {{ llm.attribution_actions(row.request_attribution, row.response_attribution, 'sd-attribution-actions--row') }}
+  </td>
+  <td>
+    {% if row.has_failed_signal or ('fail' in row.status_key|default('')) or row.has_subagent or row.has_payload_gap or row.has_attribution_gap %}
+      <div class="round-signals">
+        {% if row.has_failed_signal or ('fail' in row.status_key|default('')) %}
+          <span class="badge badge-err">Failed</span>
+        {% endif %}
+        {% if row.has_subagent %}
+          <span class="badge badge-subagent">Subagent</span>
+        {% endif %}
+        {% if row.has_payload_gap %}
+          <span class="badge badge-warn">Payload Gap</span>
+        {% endif %}
+        {% if row.has_attribution_gap %}
+          <span class="badge badge-warn">Attribution Gap</span>
+        {% endif %}
+      </div>
     {% endif %}
   </td>
   <td>
@@ -76,18 +85,16 @@
 
 {% macro expanded_row(row) -%}
 <tr class="expanded-row" id="round-{{ row.round_id }}-detail" data-trace-detail {% if not row.is_open %}hidden{% endif %}>
-  <td colspan="5">
+  <td colspan="6">
     <div class="sd-timeline">
       {% for item in row.timeline_items %}
-        {% if item.type == 'llm_call' %}
-          {{ llm.llm_call_card(item) }}
-        {% elif item.type == 'tool_batch' %}
-          {{ llm.tool_batch(item) }}
-        {% elif item.type == 'subagent' %}
+        {% if item.type == 'subagent' %}
           {# Nested subagent under parent LLM call (Issues 3, 4) #}
           <div class="sd-subagent-nested">
             {{ sub.subagent_block(item) }}
           </div>
+        {% else %}
+          {{ llm.timeline_event(item) }}
         {% endif %}
       {% endfor %}
     </div>

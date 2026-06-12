@@ -61,6 +61,10 @@ The page SHALL display a vertical list of all rounds. Each round SHALL show:
 - Time
 - Signals: Failed, Subagent, Payload Gap, Attribution Gap
 
+Round Metrics SHALL NOT display LLM call count. Round token bars SHALL use a full-width gray track, with the colored token mix scaled against the largest round token total in the current session.
+
+Round Signals SHALL render only actual signal badges. Rounds without Failed, Subagent, Payload Gap, or Attribution Gap SHALL render no placeholder signal badge.
+
 The first failed round SHALL be expanded by default; if no failures, expand R1.
 
 #### Scenario: Trace controls
@@ -76,10 +80,24 @@ The Failed filter SHALL show failed rounds and rounds containing any failure sig
 When a round is expanded, it SHALL show:
 - User prompt summary
 - Assistant response summary
-- LLM call span with token metrics
-- Tool call spans with status and duration
+- Assistant thinking and assistant text event rows when those source blocks exist
+- Tool call rows with status, duration, command preview, result preview, and result payload action
+- Parallel tool groups only when tool calls share one assistant block or near-identical trigger time
+- Subagent run rows with local expand/collapse-all control and per-subround expand/collapse toggle
 - Failed tool error summaries
 - Payload buttons only when payload data exists
+
+Expanded timeline SHALL NOT render an LLM summary card or legacy LLM call card. LLM usage, request/response payload actions, and request/response attribution actions SHALL be available from the round summary row, Payload tab, or payload modal instead of duplicated inside expanded details.
+
+Assistant thinking, assistant text, and fallback event rows SHALL use the same compact single-line height as tool call rows. Assistant text row payloads SHALL contain only assistant text/thinking content; tool_use commands from the same model response SHALL be shown by their own tool call rows and SHALL NOT be repeated inside the assistant text row payload. Expanded round detail SHALL render as a separated panel with visible spacing from the opened round row and the following round row.
+
+For Codex rollouts, when the same assistant text appears as both `event_msg.agent_message` and `response_item.message role=assistant`, Session Detail SHALL associate them as one assistant text event. The `response_item.message` record SHALL be the canonical payload source when present, and `event_msg.agent_message` SHALL be treated as a UI/status mirror or fallback rather than a second timeline row.
+
+Round rows and subagent round summary rows SHALL expose request attribution and response attribution status/actions directly. Each subagent round summary row SHALL be independently clickable and keyboard-toggleable to expand or collapse its own detail steps. The visible attribution action labels SHALL be `request` and `response`. Users SHALL NOT need to open an inner LLM call card to access attribution.
+
+Main round attribution action titles SHALL use the session-global LLM call number, while attribution API payload IDs MAY keep the round-local `IX` index required by `/attribution/{round}/{call}`. Later rounds SHALL NOT display a repeated `LLM Call #1` title when they refer to global calls #2, #3, and so on.
+
+Expanded round row state SHALL be drawn within the row boundary and SHALL NOT overlap adjacent round borders.
 
 #### Scenario: Payload tab and modal
 
@@ -89,6 +107,24 @@ The page SHALL provide a persistent Payload tab with:
 - Detail sections in this fixed order: Overview, Request Attribution, Response Attribution, Raw Request, Raw Response, Related Results
 
 The selector SHALL keep an internal scroll area on desktop and narrow screens. Selecting a coverage matrix cell SHALL switch to the Payload tab, apply the corresponding selector filter, and select the first matching failed/missing/error call.
+
+Request attribution bucket details SHALL render explanatory and inspectable content for reconstructed request sources. For Claude Code, the `API messages 数组` bucket SHALL be reconstructed from the current LLM call boundary: prior assistant `request_full` values, prior assistant text/tool_use entries, and the current call `request_full`, stopping before the current assistant response and excluding future rounds. Its aggregate token count SHALL be the sum of each item's full `content_token_estimate`, not an estimate from truncated previews. The bucket SHALL explain that it represents the Anthropic API `messages` request field and SHALL list each message with role, content type, optional tool name, token estimate, and content preview. When original full content is available in local logs or reconstructed context, each detail item SHALL expose it through a second-level expansion. The `内置系统提示` bucket SHALL render a masked preview when visible `<system-reminder>` content is captured from the local transcript; when no visible content is captured, it SHALL render an explicit unavailable/estimated explanation instead of an empty body.
+
+Attribution bucket cards rendered dynamically inside the modal SHALL use the same expandable contract as template-rendered payload buckets. Clicking a bucket header SHALL expand or collapse its detail body and SHALL keep `hidden`, `is-expanded`, and `aria-expanded` synchronized.
+
+Request attribution coverage metadata SHALL be folded into the top summary area. Provider total, locally reconstructed total, coverage ratio, and residual tokens SHALL NOT be repeated as a standalone bottom `覆盖率与不确定性` section. Generic residual likely-source footers such as `unclassified overhead` SHALL NOT be rendered unless backed by a concrete structured source.
+
+The dynamic attribution modal SHALL use a two-level bucket detail interaction. The first click on a contribution-source bucket SHALL reveal compact subcategory cards. Those subcategory cards SHALL have a consistent collapsed height and show only a short summary plus compact metadata. Clicking a subcategory card SHALL reveal all locally available full content, raw JSON, or full explanatory text inside that card.
+
+When an attribution bucket has no structured `details` object but does include `summary`, `source`, `count_label`, or `content_preview`, the modal SHALL render those fields as fallback bucket details instead of making the bucket appear non-expandable or empty.
+
+Request attribution buckets SHALL be normalized through the global token attribution taxonomy before being returned to the UI. Each request bucket payload SHALL include `agent_bucket_key`, `canonical_key`, `category_key`, `category_label`, `color_key`, and `display_order`; `label` SHALL be the global Chinese label. The canonical request token categories SHALL include: `当前用户输入`, `对话消息上下文`, `工具结果上下文`, `工具定义`, `MCP 工具元数据`, `运行上下文片段`, `系统/开发者指令`, `本地指令上下文`, `Agent/Subagent 提示`, `内置系统提示`, `Provider 缓存命中上下文`, `Provider 会话状态`, `推理配置`, `运行时封装开销`, and `未定位`. Equivalent buckets from different agents, such as `tool_schemas`, SHALL share the same label and `color_key`.
+
+For Codex sessions without a raw request body, request attribution SHALL reconstruct visible request sources from rollout data. `session_meta.base_instructions` and pre-user `response_item` messages with `developer` or `system` role SHALL contribute to raw `instructions` and render under the canonical `系统/开发者指令` category with visible source text in structured bucket details. `function_call_output` and `custom_tool_call_output` events SHALL be carried into the next assistant request and attributed as raw `tool_outputs`, rendering under canonical `工具结果上下文`, with locally available output text available through detail expansion. Provider reported `cached_input_tokens` / cache read SHALL be represented by raw `provider_cached_context`, rendering under canonical `Provider 缓存命中上下文`, and states that the cached token count is provider-reported while the full cached content is not locally expanded. When raw request `tools` are unavailable, Codex request attribution SHALL use a Codex builtin tool catalog fallback and add observed extra tools; it SHALL NOT estimate tool schemas only from observed invoked-tool count. The raw `tool_schemas` bucket SHALL render under canonical `工具定义` and expose a tool count, per-tool token estimate, schema/parameter preview, and full locally available detail.
+
+Trace request/response attribution actions SHALL load attribution payloads on demand via the backend attribution API when clicked. Initial slim page render SHALL keep attribution actions and payload IDs but SHALL NOT embed complete request/response attribution payload data.
+
+For Qoder sessions, request attribution SHALL use the call-scoped `full_messages_array` as the primary Claude-like API messages reconstruction when available. The bucket SHALL include request-side user, assistant, tool_use, and tool_result items up to the current call boundary and SHALL sum each item's full `content_token_estimate`. Provider reported `cache_read_input_tokens` SHALL be represented by raw `provider_cached_context`, rendering under canonical `Provider 缓存命中上下文`, and contributes to coverage. `cache_creation_input_tokens` / cache write SHALL remain visible in the usage summary but SHALL NOT be treated as an extra request-source bucket. When Qoder does not persist the full available tools schema, attribution SHALL use the Claude-Code-like SDK default tool definitions plus observed Qoder-only tools instead of estimating schemas only from invoked tools; raw `tool_schemas` SHALL render under canonical `工具定义`.
 
 The page SHALL also provide a modal dialog for viewing payloads with:
 - View Request / View Response / View Result buttons
@@ -107,11 +143,11 @@ Each trace row SHALL be a semantic `<button type="button">` element with:
 - `aria-controls` referencing the associated trace-detail element ID
 - The trace-detail element SHALL have an `id` matching the `aria-controls` value
 
-### Requirement: Payload buttons on spans
+### Requirement: Payload buttons on trace events
 
-LLM call spans and tool call spans SHALL render a "Payload" button when payload data exists. The button SHALL have:
+Attribution controls, message rows, assistant event rows, and tool call rows SHALL render a payload button when payload data exists. The button SHALL have:
 - `data-action="open-payload"` attribute
-- `data-payload-key` referencing a key in `window.__SESSION_PAYLOADS__`
+- `data-payload-id` referencing a payload source id
 
 ### Requirement: Shell residue gate
 
@@ -147,6 +183,8 @@ Every visible `<button>` on the session detail page SHALL have a supported `data
 - `jump-anomaly`
 - `retry-attribution`
 - `retry-round`
+- `toggle-sub-round`
+- `toggle-subagent-rounds`
 - `md-toggle` (tool result markdown toggle)
 
 ### Requirement: No removed entries

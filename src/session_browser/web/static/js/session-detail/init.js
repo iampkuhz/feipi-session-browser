@@ -138,6 +138,12 @@
       var open = round.classList.contains('is-open') || (button && button.getAttribute('aria-expanded') === 'true');
       setRoundOpen(round, open);
     });
+    qsa(document, '[data-sub-round-id]').forEach(function (subRound) {
+      syncSubRoundToggle(subRound);
+    });
+    qsa(document, '[data-subagent-block]').forEach(function (block) {
+      syncSubagentToggle(block);
+    });
     var initialTraceStatus = params.get("trace_status") || "all";
     if (initialTraceStatus === "failed" || initialTraceStatus === "low-cache") {
       setFilter(page, initialTraceStatus);

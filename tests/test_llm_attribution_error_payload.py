@@ -120,9 +120,8 @@ def test_base_payloads_and_attribution_fallback_present():
     assert "llm.response_attribution" in kinds
 
 
-def test_llm_call_has_attribution_ids_and_api_url():
-    """LLM call items should have attribution IDs and API URLs for
-    frontend fetch-based rendering."""
+def test_round_row_has_attribution_payload_actions():
+    """Round rows should carry attribution payload actions without LLM cards."""
     session = _FakeSession()
     ro, lc = _make_round_with_llm_call()
 
@@ -135,21 +134,18 @@ def test_llm_call_has_attribution_ids_and_api_url():
         session_anomalies=_FakeAnomalies(),
     )
 
-    # Find LLM call items in trace_rows
-    llm_items = []
-    for row in vm["trace_rows"]:
-        for item in row.get("timeline_items", []):
-            if item.get("type") == "llm_call":
-                llm_items.append(item)
+    row = vm["trace_rows"][0]
+    item_types = {item.get("type") for item in row.get("timeline_items", [])}
+    assert "llm_summary" not in item_types
+    assert "llm_call" not in item_types
 
-    assert len(llm_items) >= 1
-    item = llm_items[0]
-    assert item.get("request_attribution_id")
-    assert item.get("response_attribution_id")
-    assert item.get("attribution_api_url_request")
-    assert item.get("attribution_api_url_response")
-    assert item.get("attribution_source") == "claude_code"
-    assert item.get("attribution_session_id") == "test-session-001"
-    # Verify API URL pattern
-    assert "/attribution/1/1/request" in item["attribution_api_url_request"]
-    assert "/attribution/1/1/response" in item["attribution_api_url_response"]
+    request_action = row["request_attribution"]
+    response_action = row["response_attribution"]
+    assert request_action["payload_id"].endswith("-request-attribution")
+    assert response_action["payload_id"].endswith("-response-attribution")
+    assert request_action["kind"] == "llm.request_attribution"
+    assert response_action["kind"] == "llm.response_attribution"
+
+    payload_ids = {p.get("payload_id") for p in vm["payload_sources"]}
+    assert request_action["payload_id"] in payload_ids
+    assert response_action["payload_id"] in payload_ids

@@ -13,7 +13,7 @@ from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
 from session_browser.attribution.agents.qoder import QoderAttributionBuilder
-from session_browser.attribution.contracts import ValuePrecision
+from session_browser.attribution.contracts import ValuePrecision, ValueSource
 
 
 def _make_lc(**kwargs):
@@ -141,6 +141,82 @@ def test_qoder_response_attribution():
     assert result.total_output.value == 3000
     assert result.visible_text.value is not None
     assert result.visible_text.value > 0
+
+
+def test_qoder_full_messages_and_cache_read_are_request_buckets():
+    lc = _make_lc(input_tokens=2000, cache_read_tokens=3000, cache_write_tokens=0)
+    ro = _make_ro(user_content="current task")
+    builder = QoderAttributionBuilder(
+        lc,
+        ro,
+        session_context={
+            "full_messages_array": [
+                {
+                    "role": "user",
+                    "content_type": "user_text",
+                    "content_preview": "prior user",
+                    "content_token_estimate": 120,
+                    "message_index": 0,
+                    "has_full_content": True,
+                },
+                {
+                    "role": "assistant",
+                    "content_type": "tool_use",
+                    "tool_name": "Bash",
+                    "content_preview": "Bash command",
+                    "content_token_estimate": 180,
+                    "message_index": 1,
+                    "has_full_content": True,
+                },
+            ],
+            "available_tools": [],
+        },
+    )
+
+    result = builder.build_request()
+    messages = next((b for b in result.buckets if b.key == "full_messages_array"), None)
+    cache = next((b for b in result.buckets if b.key == "provider_cached_context"), None)
+
+    assert result.total_input.value == 5000
+    assert messages is not None
+    assert messages.details["kind"] == "full_messages_array"
+    assert messages.details["total_items"] == 2
+    assert cache is not None
+    assert cache.tokens == 3000
+    assert cache.precision == ValuePrecision.PROVIDER_REPORTED
+    assert cache.source == ValueSource.PROVIDER_USAGE
+    assert result.coverage.value is not None
+    assert result.coverage.value > 0.9
+
+
+def test_qoder_request_full_tool_result_is_not_captured_context():
+    request_full = "Tool result for call_1:\n" + ("tool output body " * 80)
+    lc = _make_lc(input_tokens=2500, request_full=request_full)
+    ro = _make_ro(user_content="")
+    builder = QoderAttributionBuilder(lc, ro, session_context={"available_tools": []})
+
+    result = builder.build_request()
+    tool_results = next((b for b in result.buckets if b.key == "tool_results"), None)
+    captured = next((b for b in result.buckets if b.key == "captured_context_fragment"), None)
+
+    assert tool_results is not None
+    assert tool_results.tokens > 0
+    assert tool_results.source == ValueSource.TOOL_LOGS
+    assert captured is None or "tool output body" not in (captured.content_preview or "")
+
+
+def test_qoder_tool_schema_uses_claude_like_default_registry():
+    lc = _make_lc(input_tokens=20000)
+    ro = _make_ro(user_content="task")
+    builder = QoderAttributionBuilder(lc, ro, session_context={"available_tools": ["Skill"]})
+
+    result = builder.build_request()
+    tool_schemas = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+
+    assert tool_schemas is not None
+    assert tool_schemas.tokens > 10000
+    assert tool_schemas.details["kind"] == "tools"
+    assert any(item["name"] == "Skill" for item in tool_schemas.details["items"])
 
 
 def test_qoder_availability_notes_cache_from_usage():

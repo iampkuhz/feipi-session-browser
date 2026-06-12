@@ -60,16 +60,12 @@ def test_tool_schemas_zero_without_available_tools(agent):
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
     assert schema_bucket is not None, f"Missing tool_schemas bucket for {agent}"
-    if agent == "claude_code":
-        # Claude Code falls back to default CC tools when available_tools is empty
-        assert schema_bucket.tokens > 0, (
-            f"tool_schemas tokens should use default CC tools fallback for {agent}"
-        )
-    else:
-        # Qoder and Codex still return 0 without available_tools
-        assert schema_bucket.tokens == 0, (
-            f"tool_schemas tokens should be 0 without available_tools for {agent}"
-        )
+    assert schema_bucket.tokens > 0, (
+        f"tool_schemas tokens should use default schema fallback for {agent}"
+    )
+    if agent == "codex":
+        assert "Codex builtin tool catalog" in schema_bucket.summary
+        assert schema_bucket.count_label == "5 tools"
 
 
 def test_claude_code_tool_schemas_from_available_tools():

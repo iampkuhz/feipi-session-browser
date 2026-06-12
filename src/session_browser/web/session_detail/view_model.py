@@ -97,6 +97,13 @@ def _format_ratio_pct(numerator: float, denominator: float) -> str:
     return f"{numerator / denominator * 100:.1f}%"
 
 
+def _format_percent(value: float) -> str:
+    value = float(value or 0)
+    if value.is_integer():
+        return f"{int(value)}%"
+    return f"{value:.1f}%"
+
+
 def _ratio_value(numerator: float, denominator: float) -> float:
     if not denominator:
         return 0.0
@@ -1571,6 +1578,8 @@ def _build_v11_view_model(
             result_summary = getattr(tc, "status", "") or "ok"
         return {
             "tool_id": tool_id,
+            "type": "tool_call",
+            "tool_name": getattr(tc, "name", "tool") or "tool",
             "kind": (getattr(tc, "name", "tool") or "tool")[:4].upper(),
             "command": str(command)[:180],
             "result_summary": result_summary,
@@ -1578,7 +1587,101 @@ def _build_v11_view_model(
             "status_tone": "fail" if getattr(tc, "is_failed", False) else ("warn" if getattr(tc, "has_nonzero_exit", False) else "ok"),
             "payload_id": payload_id,
             "payload_title": payload_title or "Tool Result",
+            "timestamp": _call_time_label(getattr(tc, "timestamp", "") or ""),
+            "duration_label": _format_duration_short((getattr(tc, "duration_ms", 0) or 0) / 1000),
         }
+
+    def payload_action(payload_id: str, label: str, kind: str, title: str, status: str = "partial") -> dict:
+        tone = "ok" if status in ("available", "ok") else "warn" if status == "partial" else "muted"
+        return {
+            "payload_id": payload_id,
+            "label": label,
+            "kind": kind,
+            "title": title,
+            "status": status,
+            "tone": tone,
+            "is_available": bool(payload_id),
+        }
+
+    def summarize_attribution_actions(actions: list[dict], label: str, kind: str) -> dict:
+        available = [a for a in actions if a.get("payload_id")]
+        total = len(actions)
+        if total <= 0:
+            return payload_action("", f"{label} —", kind, f"{label} attribution unavailable", "unavailable")
+        first = available[0] if available else actions[0]
+        status = "available" if len(available) == total else "partial" if available else "unavailable"
+        display = f"{label} {len(available)}/{total}" if total > 1 else f"{label} {status}"
+        return {
+            **first,
+            "label": display,
+            "status": status,
+            "tone": "ok" if status == "available" else "warn" if status == "partial" else "muted",
+            "is_available": bool(available),
+        }
+
+    def assistant_text_blocks(blocks: list[dict]) -> list[dict]:
+        filtered = []
+        for block in blocks or []:
+            block_type = block.get("type", "")
+            if block_type == "output_text":
+                block_type = "text"
+            if block_type not in ("thinking", "text"):
+                continue
+            text = (
+                block.get("content")
+                or block.get("text")
+                or block.get("thinking")
+                or ""
+            )
+            if not str(text).strip():
+                continue
+            normalized = dict(block)
+            normalized["type"] = block_type
+            normalized["content"] = str(text)
+            filtered.append(normalized)
+        return filtered
+
+    def assistant_text_from_blocks(blocks: list[dict], fallback_text: str = "") -> str:
+        parts = []
+        for block in assistant_text_blocks(blocks):
+            text = block.get("content") or block.get("text") or block.get("thinking") or ""
+            if str(text).strip():
+                parts.append(str(text).strip())
+        if parts:
+            return "\n\n".join(parts)
+        return fallback_text.strip() if fallback_text and fallback_text.strip() else ""
+
+    def content_event_items(blocks: list[dict], payload_id: str, payload_title: str, fallback_text: str = "") -> list[dict]:
+        events = []
+        for idx, block in enumerate(blocks or [], start=1):
+            block_type = block.get("type", "")
+            if block_type == "output_text":
+                block_type = "text"
+            if block_type not in ("thinking", "text"):
+                continue
+            text = block.get("content") or block.get("text") or block.get("thinking") or ""
+            if not str(text).strip():
+                continue
+            events.append({
+                "type": "assistant_thinking" if block_type == "thinking" else "assistant_text",
+                "title": "Assistant Thinking" if block_type == "thinking" else "Assistant Text",
+                "text": str(text).strip()[:500],
+                "payload_id": payload_id,
+                "payload_title": payload_title,
+                "timestamp": _call_time_label(block.get("timestamp", "") or ""),
+                "block_index": idx,
+            })
+        if not events and fallback_text and fallback_text.strip():
+            events.append({
+                "type": "assistant_text",
+                "title": "Assistant Text",
+                "text": fallback_text.strip()[:500],
+                "payload_id": payload_id,
+                "payload_title": payload_title,
+                "timestamp": "",
+                "block_index": 1,
+            })
+        return events
 
     def count_raw_tool_uses(ix) -> int:
         raw = getattr(ix, "tool_calls_raw", "") or ""
@@ -1768,31 +1871,27 @@ def _build_v11_view_model(
 
                 sa_req_attr_id = f"sub-{sa_id}-IX{m_idx + 1}-request-attribution"
                 sa_rsp_attr_id = f"sub-{sa_id}-IX{m_idx + 1}-response-attribution"
+                sa_req_action = payload_action(
+                    sa_req_attr_id,
+                    "Req partial",
+                    "llm.request_attribution",
+                    f"Subagent · Request Attribution ({call_ref})",
+                    "partial",
+                )
+                sa_rsp_action = payload_action(
+                    sa_rsp_attr_id,
+                    "Resp partial",
+                    "llm.response_attribution",
+                    f"Subagent · Response Attribution ({call_ref})",
+                    "partial",
+                )
 
-                steps = [{
-                    "type": "llm_call",
-                    "call_id": call_ref,
-                    "call_index": sa_call_index,
-                    "title": sa_inner_title,
-                    "model": (m.model or "unknown")[:40],
-                    "status_label": "OK",
-                    "status_tone": "ok",
-                    "usage": {
-                        "input": _format_compact_token(parts["fresh"]) if parts["fresh"] else "—",
-                        "cache_read": _format_compact_token(parts["cache_read"]) if parts["cache_read"] else "—",
-                        "cache_write": _format_compact_token(parts["cache_write"]) if parts["cache_write"] else "—",
-                        "output": _format_compact_token(parts["output"]) if parts["output"] else "—",
-                    },
-                    "context_payload_id": ctx_payload_id,
-                    "context_payload_title": f"Subagent · Request ({call_ref})",
-                    "response_payload_id": rsp_payload_id,
-                    "response_payload_title": f"Subagent · Response ({call_ref})",
-                    "request_attribution_id": sa_req_attr_id,
-                    "response_attribution_id": sa_rsp_attr_id,
-                    "note": sa_note_text,
-                    "note_tone": sa_note_tone,
-                    "finish_reason": getattr(m, "stop_reason", "") or "",
-                }]
+                steps = content_event_items(
+                    m.content_blocks if m.content_blocks else [],
+                    rsp_payload_id,
+                    f"Subagent · Response ({call_ref})",
+                    m.content if not m.content_blocks else "",
+                )
 
                 add_payload(
                     payload_id=sa_req_attr_id,
@@ -1834,18 +1933,9 @@ def _build_v11_view_model(
                             )
                         round_tool_rows.append(tool_vm(tc, f"sub-{sa_id}-T{t_idx}", t_payload_id, t_payload_title))
 
-                    steps.append({
-                        "type": "tool_batch",
-                        "batch_id": f"sub-{sa_id}-R{m_idx + 1}-batch",
-                        "title": f"Subagent tool batch ({len(round_tool_rows)} call{'s' if len(round_tool_rows) != 1 else ''})",
-                        "summary_label": f"{len(round_tool_rows)} tools",
-                        "status_label": "error" if any(t["status_tone"] == "fail" for t in round_tool_rows) else "",
-                        "status_tone": "err" if any(t["status_tone"] == "fail" for t in round_tool_rows) else "tool",
-                        "tools": round_tool_rows,
-                    })
-                    is_open_for_round = True
+                    steps.extend(round_tool_rows)
                 else:
-                    is_open_for_round = False
+                    round_tool_rows = []
 
                 st_input = parts["fresh"]
                 st_cache_read = parts["cache_read"]
@@ -1861,8 +1951,7 @@ def _build_v11_view_model(
 
                 sr_has_fail = any(
                     t["status_tone"] == "fail"
-                    for s in steps if s["type"] == "tool_batch"
-                    for t in s["tools"]
+                    for t in steps if t["type"] == "tool_call"
                 )
 
                 sub_rounds.append({
@@ -1880,7 +1969,13 @@ def _build_v11_view_model(
                     "status_label": "fail tool" if sr_has_fail else "ok",
                     "status_tone": "err" if sr_has_fail else "ok",
                     "has_fail": sr_has_fail,
-                    "is_open": is_open_for_round,
+                    "is_open": sr_has_fail,
+                    "request_attribution": sa_req_action,
+                    "response_attribution": sa_rsp_action,
+                    "request_attribution_id": sa_req_attr_id,
+                    "response_attribution_id": sa_rsp_attr_id,
+                    "context_payload_id": ctx_payload_id,
+                    "response_payload_id": rsp_payload_id,
                     "steps": steps,
                 })
 
@@ -1904,16 +1999,13 @@ def _build_v11_view_model(
                 unmatched_rows.append(tool_vm(tc, f"sub-{sa_id}-UT{u_idx}", u_payload_id, u_payload_title))
 
             if sub_rounds:
-                sub_rounds[-1]["steps"].append({
-                    "type": "tool_batch",
-                    "batch_id": f"sub-{sa_id}-unmatched-batch",
-                    "title": f"Subagent tool batch ({len(unmatched_rows)} call{'s' if len(unmatched_rows) != 1 else ''})",
-                    "summary_label": f"{len(unmatched_rows)} tools",
-                    "status_label": "error" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "",
-                    "status_tone": "err" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "tool",
-                    "tools": unmatched_rows,
-                })
-                sub_rounds[-1]["is_open"] = True
+                sub_rounds[-1]["steps"].extend(unmatched_rows)
+                if any(t["status_tone"] == "fail" for t in unmatched_rows):
+                    sub_rounds[-1]["is_open"] = True
+                    sub_rounds[-1]["has_fail"] = True
+                    sub_rounds[-1]["status"] = "error"
+                    sub_rounds[-1]["status_label"] = "fail tool"
+                    sub_rounds[-1]["status_tone"] = "err"
             else:
                 sub_rounds.append({
                     "sub_round_id": 1,
@@ -1927,16 +2019,10 @@ def _build_v11_view_model(
                     "token_mix": {"fresh": 0, "read": 0, "write": 0, "out": 100} if sa_output > 0 else {"fresh": 0, "read": 0, "write": 0, "out": 0},
                     "status": "failed" if sa_failed > 0 else "ok",
                     "status_tone": "err" if sa_failed > 0 else "ok",
-                    "is_open": True,
-                    "steps": [{
-                        "type": "tool_batch",
-                        "batch_id": f"sub-{sa_id}-unmatched-batch",
-                        "title": f"Subagent tool batch ({len(unmatched_rows)} call{'s' if len(unmatched_rows) != 1 else ''})",
-                        "summary_label": f"{len(unmatched_rows)} tools",
-                        "status_label": "error" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "",
-                        "status_tone": "err" if any(t["status_tone"] == "fail" for t in unmatched_rows) else "tool",
-                        "tools": unmatched_rows,
-                    }],
+                    "is_open": any(t["status_tone"] == "fail" for t in unmatched_rows),
+                    "request_attribution": payload_action("", "Req —", "llm.request_attribution", "Subagent request attribution unavailable", "unavailable"),
+                    "response_attribution": payload_action("", "Resp —", "llm.response_attribution", "Subagent response attribution unavailable", "unavailable"),
+                    "steps": unmatched_rows,
                 })
 
         if not sub_rounds and display_tools:
@@ -1953,6 +2039,8 @@ def _build_v11_view_model(
                 "status": "failed" if sa_failed > 0 else "ok",
                 "status_tone": "err" if sa_failed > 0 else "ok",
                 "is_open": False,
+                "request_attribution": payload_action("", "Req —", "llm.request_attribution", "Subagent request attribution unavailable", "unavailable"),
+                "response_attribution": payload_action("", "Resp —", "llm.response_attribution", "Subagent response attribution unavailable", "unavailable"),
                 "steps": [
                     {
                         "type": "tool_step",
@@ -1970,6 +2058,7 @@ def _build_v11_view_model(
             "status_label": "failed" if sa_failed > 0 else "completed",
             "status_tone": "err" if sa_failed > 0 else "ok",
             "meta": f"{len(display_tools)} tools, {_format_compact_token(sa_input + sa_output)} tokens",
+            "has_open_round": any(sr.get("is_open") for sr in sub_rounds),
             "sub_rounds": sub_rounds,
         }
 
@@ -2063,6 +2152,7 @@ def _build_v11_view_model(
 
         is_detail_active = not slim and (round_filter is None or r_idx in round_filter)
         if not is_detail_active:
+            slim_global_call_start = global_main_call_num
             for _ix_skip in r.interactions:
                 global_main_call_num += 1
             slim_has_subagent = any(
@@ -2070,6 +2160,26 @@ def _build_v11_view_model(
                 and (getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id"))
                 for tc in r.tool_calls
             )
+            slim_req_actions = [
+                payload_action(
+                    f"llm-R{rid}-IX{idx + 1}-request-attribution",
+                    "Req partial",
+                    "llm.request_attribution",
+                    f"R{rid} · LLM Call #{slim_global_call_start + idx + 1} · Request Attribution",
+                    "partial",
+                )
+                for idx, _ix in enumerate(r.interactions)
+            ]
+            slim_resp_actions = [
+                payload_action(
+                    f"llm-R{rid}-IX{idx + 1}-response-attribution",
+                    "Resp partial",
+                    "llm.response_attribution",
+                    f"R{rid} · LLM Call #{slim_global_call_start + idx + 1} · Response Attribution",
+                    "partial",
+                )
+                for idx, _ix in enumerate(r.interactions)
+            ]
             trace_rows.append({
                 "round_id": rid,
                 "round_label": f"R{rid}",
@@ -2089,6 +2199,12 @@ def _build_v11_view_model(
                 "tool_count_label": tool_count_label,
                 "has_user_input": bool(r.user_msg.content),
                 "has_subagent": slim_has_subagent,
+                "request_attribution": summarize_attribution_actions(
+                    slim_req_actions, "Req", "llm.request_attribution"
+                ),
+                "response_attribution": summarize_attribution_actions(
+                    slim_resp_actions, "Resp", "llm.response_attribution"
+                ),
                 "start_time": start_time,
                 "is_open": False,
                 "timeline_items": [],
@@ -2116,9 +2232,13 @@ def _build_v11_view_model(
                 "language_label": lang_label,
                 "payload_id": user_payload_id,
                 "payload_title": f"R{rid} · User request",
+                "timestamp": _call_time_label(getattr(r.user_msg, "timestamp", "") or ""),
+                "block_index": 1,
             })
 
         round_has_subagent = False
+        round_request_actions = []
+        round_response_actions = []
 
         for ix_idx, ix in enumerate(r.interactions):
             global_main_call_num += 1
@@ -2126,8 +2246,6 @@ def _build_v11_view_model(
             call_ix = ix_idx + 1
 
             call_id = f"R{rid}-IX{iix}"
-            model_short = (ix.model or "unknown")[:40]
-            lane = "main" if ix.scope == "main" else ""
 
             ix_tools = []
             if hasattr(ix, 'tool_calls') and ix.tool_calls:
@@ -2135,9 +2253,8 @@ def _build_v11_view_model(
                     if tc.name == "Agent" or not tc.subagent_id:
                         ix_tools.append(tc)
 
-            parallel_batches = []
+            tool_rows = []
             if ix_tools:
-                batch_tools = []
                 for tc in ix_tools:
                     tc_global_idx = -1
                     for gi, gtc in enumerate(r.tool_calls):
@@ -2160,36 +2277,12 @@ def _build_v11_view_model(
                             tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                         )
 
-                    batch_tools.append(tool_vm(
+                    tool_rows.append(tool_vm(
                         tc,
                         f"R{rid}-T{tc_global_idx}",
                         tool_payload_id,
                         f"R{rid} · {tc.name} · Result",
                     ))
-
-                if batch_tools:
-                    parallel_batches.append({
-                        "type": "tool_batch",
-                        "batch_id": f"R{rid}-IX{iix}-batch",
-                        "title": f"Tool batch ({len(batch_tools)} call{'s' if len(batch_tools) > 1 else ''})",
-                        "summary_label": f"{len(batch_tools)} tools",
-                        "status_label": "error" if any(t["status_tone"] == "fail" for t in batch_tools) else "",
-                        "status_tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
-                        "tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
-                        "note": "",
-                        "tools": batch_tools,
-                    })
-
-            usage_input = getattr(ix, "input_tokens", 0) or 0
-            usage_cr = getattr(ix, "cache_read_tokens", 0) or 0
-            usage_cw = getattr(ix, "cache_write_tokens", 0) or 0
-            usage_out = getattr(ix, "output_tokens", 0) or 0
-
-            ix_status_label = "OK"
-            ix_status_tone = "ok"
-            if any(t["status_tone"] == "fail" for batch in parallel_batches for t in batch["tools"]):
-                ix_status_label = "Failed"
-                ix_status_tone = "fail"
 
             context_payload_id = f"llm-R{rid}-IX{iix}-context"
             ix_tool_calls_for_llm = [
@@ -2243,6 +2336,7 @@ def _build_v11_view_model(
                 )
 
             response_payload_id = f"llm-R{rid}-IX{iix}-output"
+            assistant_text_payload_id = f"llm-R{rid}-IX{iix}-assistant-text"
 
             if ix.response_full or ix.content_blocks:
                 rsp_source_status = "raw"
@@ -2355,19 +2449,58 @@ def _build_v11_view_model(
                     source_status=rsp_source_status,
                 )
 
-            note_text = ""
-            note_tone_val = "ok"
-            if ix.request_full:
-                req_len = len(ix.request_full)
-                if req_len > 10000:
-                    note_text = f"上下文已截断（{_format_compact_token(req_len)} 字符），完整内容见 payload"
-                    note_tone_val = "info"
-            else:
-                note_text = f"上下文为 {source_status}，由用户输入和前置 tool results 重建"
-                note_tone_val = "warn" if source_status == "reconstructed" else "err"
+            assistant_blocks = assistant_text_blocks(ix.content_blocks)
+            assistant_text_payload = assistant_text_from_blocks(
+                ix.content_blocks,
+                ix.response_full if not ix.content_blocks else "",
+            )
+            if assistant_blocks or assistant_text_payload:
+                assistant_html = _render_response_content_blocks(
+                    content_blocks=assistant_blocks,
+                    response_text=assistant_text_payload if not assistant_blocks else "",
+                    tool_calls=[],
+                )
+                assistant_response_blocks = []
+                for block in assistant_blocks:
+                    block_type = block.get("type", "text")
+                    content = block.get("content") or block.get("text") or ""
+                    assistant_response_blocks.append({
+                        "type": block_type,
+                        "size_label": _format_bytes(min(len(str(content)), 10000)),
+                    })
+                if not assistant_response_blocks and assistant_text_payload:
+                    assistant_response_blocks.append({
+                        "type": "text",
+                        "size_label": _format_bytes(min(len(assistant_text_payload), 10000)),
+                    })
+                add_payload(
+                    payload_id=assistant_text_payload_id,
+                    kind="llm.output",
+                    title=f"R{rid} · LLM Call #{iix} · Assistant Text",
+                    html=assistant_html,
+                    size="assistant text",
+                    response_blocks=assistant_response_blocks,
+                    source_status=rsp_source_status,
+                )
 
             request_attribution_id = f"llm-R{rid}-IX{call_ix}-request-attribution"
             response_attribution_id = f"llm-R{rid}-IX{call_ix}-response-attribution"
+            req_action = payload_action(
+                request_attribution_id,
+                "Req partial",
+                "llm.request_attribution",
+                f"R{rid} · LLM Call #{iix} · Request Attribution",
+                "partial",
+            )
+            resp_action = payload_action(
+                response_attribution_id,
+                "Resp partial",
+                "llm.response_attribution",
+                f"R{rid} · LLM Call #{iix} · Response Attribution",
+                "partial",
+            )
+            round_request_actions.append(req_action)
+            round_response_actions.append(resp_action)
 
             if skip_attribution:
                 add_payload(
@@ -2447,47 +2580,15 @@ def _build_v11_view_model(
                         warning="Attribution data unavailable; use API endpoint.",
                     )
 
-            llm_item = {
-                "type": "llm_call",
-                "call_id": call_id,
-                "title": f"LLM Call #{iix}",
-                "call_index": iix,
-                "model": model_short,
-                "lane": lane,
-                "status_label": ix_status_label,
-                "status_tone": ix_status_tone,
-                "usage": {
-                    "input": _format_compact_token(usage_input) if usage_input else "—",
-                    "cache_read": _format_compact_token(usage_cr) if usage_cr else "—",
-                    "cache_write": _format_compact_token(usage_cw) if usage_cw else "—",
-                    "output": _format_compact_token(usage_out) if usage_out else "—",
-                },
-                "context_payload_id": context_payload_id,
-                "context_payload_title": f"R{rid} · LLM Call #{iix} · Context",
-                "response_payload_id": response_payload_id,
-                "response_payload_title": f"R{rid} · LLM Call #{iix} · Response",
-                "request_attribution_id": request_attribution_id,
-                "response_attribution_id": response_attribution_id,
-                "attribution_source": session.agent,
-                "attribution_session_id": session.session_id,
-                "attribution_api_url_request": (
-                    f"/api/sessions/{session.agent}/{session.session_id}"
-                    f"/attribution/{rid}/{call_ix}/request"
-                ),
-                "attribution_api_url_response": (
-                    f"/api/sessions/{session.agent}/{session.session_id}"
-                    f"/attribution/{rid}/{call_ix}/response"
-                ),
-                "note": note_text,
-                "note_tone": note_tone_val,
-                "finish_reason": finish_r,
-                "timestamp": getattr(ix, "timestamp", ""),
-                "tool_call_count": len(ix_tool_calls_for_llm),
-                "failed_tool_count": sum(1 for tc in ix_tool_calls_for_llm if getattr(tc, "is_failed", False)),
-            }
+            items.extend(content_event_items(
+                ix.content_blocks if ix.content_blocks else [],
+                assistant_text_payload_id if (assistant_blocks or assistant_text_payload) else response_payload_id,
+                f"R{rid} · LLM Call #{iix} · Assistant Text",
+                ix.response_full if not ix.content_blocks else "",
+            ))
 
-            items.append(llm_item)
-            items.extend(parallel_batches)
+            for row in tool_rows:
+                items.append(row)
 
             for tc in ix_tool_calls_for_llm:
                 sa_id = getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id", "")
@@ -2502,13 +2603,13 @@ def _build_v11_view_model(
                             "status_label": sa_info["status_label"],
                             "status_tone": sa_info["status_tone"],
                             "meta": sa_info["meta"],
+                            "has_open_round": sa_info.get("has_open_round", False),
                             "sub_rounds": sa_info["sub_rounds"],
                             "parent_call_id": call_id,
                             "parent_call_index": iix,
                         })
 
         if not items and r.tool_calls:
-            batch_tools = []
             for tc_idx, tc in enumerate(r.tool_calls):
                 sa_id = getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id", "")
                 if sa_id:
@@ -2521,6 +2622,7 @@ def _build_v11_view_model(
                             "status_label": sa_info["status_label"],
                             "status_tone": sa_info["status_tone"],
                             "meta": sa_info["meta"],
+                            "has_open_round": sa_info.get("has_open_round", False),
                             "sub_rounds": sa_info["sub_rounds"],
                         })
                     continue
@@ -2536,24 +2638,12 @@ def _build_v11_view_model(
                         tool_parameters=tc.parameters,
                         tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                     )
-                batch_tools.append(tool_vm(
+                items.append(tool_vm(
                     tc,
                     f"R{rid}-T{tc_idx + 1}",
                     tool_payload_id,
                     f"R{rid} · {tc.name} · Result",
                 ))
-            if batch_tools:
-                items.append({
-                    "type": "tool_batch",
-                    "batch_id": f"R{rid}-batch",
-                    "title": f"Tool batch ({len(batch_tools)} call{'s' if len(batch_tools) > 1 else ''})",
-                    "summary_label": f"{len(batch_tools)} tools",
-                    "status_label": "error" if any(t["status_tone"] == "fail" for t in batch_tools) else "",
-                    "status_tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
-                    "tone": "err" if any(t["status_tone"] == "fail" for t in batch_tools) else "tool",
-                    "note": "",
-                    "tools": batch_tools,
-                })
 
         trace_rows.append({
             "round_id": rid,
@@ -2574,6 +2664,12 @@ def _build_v11_view_model(
             "tool_count_label": tool_count_label,
             "has_user_input": bool(r.user_msg.content),
             "has_subagent": round_has_subagent,
+            "request_attribution": summarize_attribution_actions(
+                round_request_actions, "Req", "llm.request_attribution"
+            ),
+            "response_attribution": summarize_attribution_actions(
+                round_response_actions, "Resp", "llm.response_attribution"
+            ),
             "start_time": start_time,
             "is_open": False,
             "timeline_items": items,
@@ -2615,6 +2711,26 @@ def _build_v11_view_model(
         )
         if row_input_side and (row.get("token_cache_read", 0) / row_input_side) < 0.2:
             low_cache_rounds += 1
+
+    max_round_tokens = max(
+        (int(row.get("token_total_raw", 0) or 0) for row in trace_rows),
+        default=0,
+    )
+    for row in trace_rows:
+        row_tokens = int(row.get("token_total_raw", 0) or 0)
+        token_bar_pct = round(row_tokens / max_round_tokens * 100, 1) if max_round_tokens else 0
+        token_gap_pct = round(max(100 - token_bar_pct, 0), 1)
+        row["token_bar_pct"] = token_bar_pct
+        row["token_gap_pct"] = token_gap_pct
+        row["token_bar_label"] = (
+            f"{_format_percent(token_bar_pct)} of max round tokens"
+            if max_round_tokens else "No round tokens"
+        )
+        row["token_bar_gap_label"] = (
+            f"{_format_percent(token_gap_pct)} below max round tokens"
+            if max_round_tokens else "No round token gap"
+        )
+        row["token_bar_max"] = max_round_tokens
 
     main_llm_calls = sum(
         1 for r in rounds for ix in r.interactions

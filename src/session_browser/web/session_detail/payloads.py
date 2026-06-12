@@ -41,6 +41,21 @@ def _build_payload_lookup(
     """
     payload_map = {}
 
+    def _assistant_text_from_call(ix) -> str:
+        parts = []
+        for block in getattr(ix, "content_blocks", []) or []:
+            block_type = block.get("type", "")
+            if block_type == "output_text":
+                block_type = "text"
+            if block_type not in ("text", "thinking"):
+                continue
+            text = block.get("content") or block.get("text") or block.get("thinking") or ""
+            if str(text).strip():
+                parts.append(str(text).strip())
+        if parts:
+            return "\n\n".join(parts)
+        return getattr(ix, "response_full", "") or ""
+
     def _add(payload_id: str, kind: str, title: str, text: str = "",
              status: str = "available", byte_limit: int = 5000,
              tool_name: str = "", tool_command: str = "",
@@ -152,6 +167,15 @@ def _build_payload_lookup(
                     kind="llm.output",
                     title=f"R{rid} · LLM Call #{iix} · Output",
                     text=ix.response_full,
+                    byte_limit=10000,
+                )
+            assistant_text = _assistant_text_from_call(ix)
+            if assistant_text:
+                _add(
+                    payload_id=f"llm-R{rid}-IX{iix}-assistant-text",
+                    kind="llm.output",
+                    title=f"R{rid} · LLM Call #{iix} · Assistant Text",
+                    text=assistant_text,
                     byte_limit=10000,
                 )
 

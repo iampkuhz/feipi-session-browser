@@ -4,6 +4,215 @@ import json
 from pathlib import Path
 
 
+def test_extract_messages_carries_function_call_output_to_next_request():
+    """Codex function_call_output 是下一次模型调用的 request-side tool output。"""
+    from session_browser.sources.codex import _extract_messages
+
+    events = [
+        {
+            "timestamp": "2026-06-10T00:00:00.000Z",
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "initial user prompt"},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:01.000Z",
+            "type": "event_msg",
+            "payload": {"type": "agent_message", "phase": "commentary", "message": "first answer"},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:02.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "exec_command",
+                "arguments": "{}",
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:03.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": "tool output text",
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:04.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    }
+                },
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:05.000Z",
+            "type": "event_msg",
+            "payload": {"type": "agent_message", "phase": "commentary", "message": "second answer"},
+        },
+    ]
+
+    messages = _extract_messages(events, model="gpt-test")
+    assistant_messages = [m for m in messages if m.role == "assistant"]
+
+    assert assistant_messages[0].request_full == "initial user prompt"
+    assert "Tool output for call_1:" in assistant_messages[1].request_full
+    assert "tool output text" in assistant_messages[1].request_full
+    assert assistant_messages[0].tool_calls == [{"id": "call_1", "name": "exec_command"}]
+
+
+def test_extract_messages_uses_response_item_as_canonical_assistant_text():
+    """同一 assistant 文案同时出现在 event_msg 和 response_item 时只展示一次。"""
+    from session_browser.sources.codex import _extract_messages
+
+    text = "我先按仓库规则做一次只读摸底。"
+    events = [
+        {
+            "timestamp": "2026-06-10T00:00:00.000Z",
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "user prompt"},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:01.000Z",
+            "type": "event_msg",
+            "payload": {"type": "agent_message", "phase": "commentary", "message": text},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:01.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": text}],
+                "phase": "commentary",
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:02.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "exec_command",
+                "arguments": '{"cmd":"pwd"}',
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:02.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_2",
+                "name": "exec_command",
+                "arguments": '{"cmd":"rg --files"}',
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:03.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {"last_token_usage": {"input_tokens": 10, "output_tokens": 2}},
+            },
+        },
+    ]
+
+    messages = _extract_messages(events, model="gpt-test")
+    assistant_messages = [m for m in messages if m.role == "assistant"]
+
+    assert len(assistant_messages) == 1
+    assert assistant_messages[0].content == text
+    assert assistant_messages[0].content.count(text) == 1
+    assert [b["type"] for b in assistant_messages[0].content_blocks] == [
+        "text",
+        "tool_use",
+        "tool_use",
+    ]
+    assert assistant_messages[0].content_blocks[0]["source"] == "response_item.message"
+    assert assistant_messages[0].tool_calls == [
+        {"id": "call_1", "name": "exec_command"},
+        {"id": "call_2", "name": "exec_command"},
+    ]
+
+
+def test_codex_interaction_metrics_preserve_per_call_last_token_usage():
+    """Codex last_token_usage is per-call; it must not be delta-normalized.
+
+    The real session 019eaf23... had R4 usage lower than R3. Treating these
+    per-call values as cumulative totals subtracted R3 from R4 and rendered R4
+    as 0 tokens in the round table.
+    """
+    from session_browser.domain.models import ChatMessage, ToolCall
+    from session_browser.web.presenters.session_detail import (
+        assign_interactions_to_rounds,
+        build_llm_calls,
+        build_rounds,
+    )
+
+    messages = [
+        ChatMessage(role="user", content="start", timestamp="2026-06-10T00:00:00Z"),
+        ChatMessage(
+            role="assistant",
+            content="large prior call",
+            timestamp="2026-06-10T00:00:01Z",
+            usage={
+                "input_tokens": 80499,
+                "cached_input_tokens": 74496,
+                "output_tokens": 1446,
+            },
+            tool_calls=[{"id": "call_1", "name": "exec_command"}],
+        ),
+        ChatMessage(
+            role="assistant",
+            content="smaller follow-up call",
+            timestamp="2026-06-10T00:00:02Z",
+            usage={
+                "input_tokens": 46307,
+                "cached_input_tokens": 40832,
+                "output_tokens": 483,
+            },
+            tool_calls=[{"id": "call_2", "name": "exec_command"}],
+        ),
+    ]
+    tool_calls = [
+        ToolCall(name="exec_command", tool_use_id="call_1", timestamp="2026-06-10T00:00:01Z"),
+        ToolCall(name="exec_command", tool_use_id="call_2", timestamp="2026-06-10T00:00:02Z"),
+    ]
+
+    rounds = build_rounds(
+        messages=messages,
+        tool_calls=tool_calls,
+        session_input_tokens=126806,
+        session_output_tokens=1929,
+        session_cached_tokens=115328,
+        session_cache_write_tokens=0,
+        agent="codex",
+        md_filter=lambda text: text,
+    )
+    llm_calls = build_llm_calls(messages, tool_calls, rounds, [], agent="codex")
+    assign_interactions_to_rounds(rounds, llm_calls, tool_calls, [])
+
+    assert len(rounds) == 2
+    r2 = rounds[1]
+    assert r2.total_tokens == 87622
+    assert len(r2.interactions) == 1
+    assert r2.interactions[0].input_tokens == 46307
+    assert r2.interactions[0].cache_read_tokens == 40832
+    assert r2.interactions[0].output_tokens == 483
+    assert (
+        r2.interactions[0].input_tokens
+        + r2.interactions[0].cache_read_tokens
+        + r2.interactions[0].output_tokens
+    ) == r2.total_tokens
+
+
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_parse_session_index_empty_when_missing():
     """测试无数据目录时 parse_session_index 返回空列表。"""

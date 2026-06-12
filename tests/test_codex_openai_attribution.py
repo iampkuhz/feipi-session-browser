@@ -265,19 +265,30 @@ class TestToolSchemasFromRawRequest:
         assert tool_schema_bucket is not None
         assert tool_schema_bucket.tokens > 0
 
-    def test_no_raw_tools_no_false_claim(self):
-        """When no raw tools and no observed tools, tool_schemas should be unavailable."""
+    def test_no_raw_tools_uses_codex_builtin_catalog(self):
+        """When raw tools are unavailable, Codex uses builtin schema fallback."""
         lc = _make_lc(
-            input_tokens=5000,
+            input_tokens=10000,
         )
         ro = _make_ro(user_content="hello")
-        builder = CodexAttributionBuilder(lc, ro, session_context={"available_tools": []})
+        builder = CodexAttributionBuilder(
+            lc,
+            ro,
+            session_context={"available_tools": ["exec_command", "apply_patch"]},
+        )
         result = builder.build_request()
 
         tool_schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
         assert tool_schema_bucket is not None
-        assert tool_schema_bucket.tokens == 0
-        assert tool_schema_bucket.precision == ValuePrecision.UNAVAILABLE
+        assert tool_schema_bucket.tokens >= 3000
+        assert tool_schema_bucket.count_label == "5 tools"
+        assert tool_schema_bucket.precision == ValuePrecision.ESTIMATED
+        assert "Codex builtin tool catalog" in tool_schema_bucket.summary
+        assert "observed tools" not in tool_schema_bucket.summary
+        assert tool_schema_bucket.details["kind"] == "tools"
+        assert tool_schema_bucket.details["total_items"] == 5
+        item_names = {item["name"] for item in tool_schema_bucket.details["items"]}
+        assert {"exec_command", "apply_patch", "write_stdin", "update_plan", "view_image"} <= item_names
 
 
 # ── 8.6 Reasoning tokens are not visible text ────────────────────────────────

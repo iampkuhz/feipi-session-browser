@@ -1,9 +1,9 @@
 """Session detail LLM attribution UI layer tests.
 
 Verifies:
-1. LLM call card renders Request/Response attribution buttons with correct attributes.
+1. Round row renders request/response attribution buttons with correct attributes.
 2. Attribution buttons have proper title and aria-label attributes.
-3. llm_item dict carries request_attribution_id and response_attribution_id.
+3. trace row carries request_attribution and response_attribution payload actions.
 4. Template rendering of attribution payloads produces expected structure.
 """
 
@@ -183,21 +183,16 @@ def _make_err_data(**overrides):
     return data
 
 
-# ─── LLM item attribution ID tests ─────────────────────────────────────
+# ─── Round row attribution action tests ───────────────────────────────
 
-class TestLlmItemAttributionIds:
-    """Verify llm_item carries attribution payload IDs."""
+class TestRoundRowAttributionIds:
+    """Verify round rows carry attribution payload actions."""
 
-    def _find_llm_calls(self, vm):
-        """Find all llm_call items from trace_rows timeline_items."""
-        items = []
-        for tr in vm["trace_rows"]:
-            for ti in tr.get("timeline_items", []):
-                if ti.get("type") == "llm_call":
-                    items.append(ti)
-        return items
+    def _first_trace_row(self, vm):
+        assert vm["trace_rows"]
+        return vm["trace_rows"][0]
 
-    def test_llm_item_has_request_attribution_id(self):
+    def test_round_row_has_request_attribution_payload(self):
         session = _FakeSession()
         ro, lc = _make_round_with_llm_call()
 
@@ -207,14 +202,13 @@ class TestLlmItemAttributionIds:
             session_anomalies=_FakeAnomalies(),
         )
 
-        llm_items = self._find_llm_calls(vm)
-        assert len(llm_items) >= 1
-        item = llm_items[0]
-        assert "request_attribution_id" in item
-        assert item["request_attribution_id"].startswith("llm-R")
-        assert item["request_attribution_id"].endswith("-request-attribution")
+        row = self._first_trace_row(vm)
+        action = row["request_attribution"]
+        assert action["payload_id"].startswith("llm-R")
+        assert action["payload_id"].endswith("-request-attribution")
+        assert action["kind"] == "llm.request_attribution"
 
-    def test_llm_item_has_response_attribution_id(self):
+    def test_round_row_has_response_attribution_payload(self):
         session = _FakeSession()
         ro, lc = _make_round_with_llm_call()
 
@@ -224,15 +218,14 @@ class TestLlmItemAttributionIds:
             session_anomalies=_FakeAnomalies(),
         )
 
-        llm_items = self._find_llm_calls(vm)
-        assert len(llm_items) >= 1
-        item = llm_items[0]
-        assert "response_attribution_id" in item
-        assert item["response_attribution_id"].startswith("llm-R")
-        assert item["response_attribution_id"].endswith("-response-attribution")
+        row = self._first_trace_row(vm)
+        action = row["response_attribution"]
+        assert action["payload_id"].startswith("llm-R")
+        assert action["payload_id"].endswith("-response-attribution")
+        assert action["kind"] == "llm.response_attribution"
 
     def test_attribution_ids_match_payload_sources(self):
-        """Attribution IDs in llm_item must match payload_sources IDs."""
+        """Attribution action payload IDs must match payload_sources IDs."""
         session = _FakeSession()
         ro, lc = _make_round_with_llm_call()
 
@@ -242,13 +235,48 @@ class TestLlmItemAttributionIds:
             session_anomalies=_FakeAnomalies(),
         )
 
-        llm_items = self._find_llm_calls(vm)
-        assert len(llm_items) >= 1
-        item = llm_items[0]
+        row = self._first_trace_row(vm)
 
         payload_ids = {p["payload_id"] for p in vm["payload_sources"]}
-        assert item["request_attribution_id"] in payload_ids
-        assert item["response_attribution_id"] in payload_ids
+        assert row["request_attribution"]["payload_id"] in payload_ids
+        assert row["response_attribution"]["payload_id"] in payload_ids
+
+    def test_slim_round_attribution_titles_use_global_call_number(self):
+        """Row buttons keep round-local attribution IDs but display global call numbers."""
+        session = _FakeSession()
+        r1, lc1 = _make_round_with_llm_call()
+        r2, lc2 = _make_round_with_llm_call()
+        r2.round_index = 1
+        r2.user_msg.content = "Second request"
+        lc2.id = "call-002"
+        lc2.round_index = 1
+
+        vm = _build_v11_view_model(
+            session=session, rounds=[r1, r2], llm_calls=[lc1, lc2],
+            tool_calls=r1.tool_calls + r2.tool_calls, subagent_runs=[],
+            session_anomalies=_FakeAnomalies(), slim=True,
+        )
+
+        row = vm["trace_rows"][1]
+        assert row["request_attribution"]["payload_id"] == "llm-R2-IX1-request-attribution"
+        assert row["response_attribution"]["payload_id"] == "llm-R2-IX1-response-attribution"
+        assert row["request_attribution"]["title"] == "R2 · LLM Call #2 · Request Attribution"
+        assert row["response_attribution"]["title"] == "R2 · LLM Call #2 · Response Attribution"
+
+    def test_expanded_timeline_omits_llm_summary_items(self):
+        session = _FakeSession()
+        ro, lc = _make_round_with_llm_call()
+
+        vm = _build_v11_view_model(
+            session=session, rounds=[ro], llm_calls=[lc],
+            tool_calls=ro.tool_calls, subagent_runs=[],
+            session_anomalies=_FakeAnomalies(),
+        )
+
+        row = self._first_trace_row(vm)
+        item_types = {item.get("type") for item in row.get("timeline_items", [])}
+        assert "llm_summary" not in item_types
+        assert "llm_call" not in item_types
 
 
 # ─── Template rendering tests ─────────────────────────────────────────
@@ -547,6 +575,11 @@ class TestBucketDetails:
         assert "60.0%" in html
         assert "sd-attribution-bucket-usage" in html
 
+    def test_bucket_count_label_visible(self):
+        html = _render_payload_sources([self._make_req_with_full_buckets()])
+        assert "sd-attribution-bucket-count" in html
+        assert "12 items" in html
+
     def test_bucket_precision_tag_visible(self):
         html = _render_payload_sources([self._make_req_with_full_buckets()])
         assert "sd-precision-tag--transcript_exact" in html
@@ -566,6 +599,123 @@ class TestBucketDetails:
         html = _render_payload_sources([self._make_req_with_full_buckets()])
         # Content preview is in bucket body
         assert "You are a helpful assistant" in html
+
+    def test_full_messages_array_details_are_explained_and_visible(self):
+        req = _make_req_data(
+            buckets=[
+                {
+                    "key": "full_messages_array",
+                    "label": "API messages 数组",
+                    "tokens": 1400,
+                    "percent": 9.9,
+                    "contributes_to_total": True,
+                    "precision": "estimated",
+                    "summary": "Anthropic API messages 数组完整结构。",
+                    "details": {
+                        "kind": "full_messages_array",
+                        "explanation": [
+                            "这里对应发送给模型的 Anthropic API `messages` 字段，而不是 UI 上的 round 列表。",
+                        ],
+                        "items": [
+                            {
+                                "message_index": 0,
+                                "role": "user",
+                                "content_type": "user_text",
+                                "summary": "Hello from API messages",
+                                "tokens": 12,
+                                "has_full_content": True,
+                            },
+                            {
+                                "message_index": 1,
+                                "role": "assistant",
+                                "content_type": "assistant_text",
+                                "summary": "Prior assistant answer",
+                                "tokens": 18,
+                                "has_full_content": True,
+                            },
+                        ],
+                    },
+                },
+            ],
+        )
+        html = _render_payload_sources([req])
+        assert "API messages 数组" in html
+        assert "Anthropic API `messages` 字段" in html
+        assert "Hello from API messages" in html
+        assert "Prior assistant answer" in html
+
+    def test_hidden_estimate_preview_visible_when_available(self):
+        req = _make_req_data(
+            buckets=[
+                {
+                    "key": "hidden_builtin_system_estimate",
+                    "label": "内置系统提示",
+                    "tokens": 500,
+                    "percent": 3.6,
+                    "contributes_to_total": True,
+                    "precision": "estimated",
+                    "summary": "从本地 transcript 捕获到可见 <system-reminder> 内容。",
+                    "details": {
+                        "kind": "hidden_estimate",
+                        "explanation": ["从会话 transcript 中提取 <system-reminder> 内容。"],
+                        "preview": "Visible system reminder content",
+                    },
+                },
+            ],
+        )
+        html = _render_payload_sources([req])
+        assert "内置系统提示" in html
+        assert "Visible system reminder content" in html
+
+    def test_attribution_js_renders_full_messages_array(self):
+        import pathlib
+        js_path = pathlib.Path(__file__).resolve().parent.parent / "src" / "session_browser" / "web" / "static" / "js" / "session-detail" / "attribution.js"
+        js = js_path.read_text(encoding="utf-8")
+        assert "normalizeBucketLeafItems" in js
+        assert "full_content" in js
+        assert "data-bucket-leaf-toggle" in js
+
+    def test_dynamic_attribution_buckets_are_expandable(self):
+        import pathlib
+        root = pathlib.Path(__file__).resolve().parent.parent
+        attribution_js = (
+            root / "src" / "session_browser" / "web" / "static" / "js" /
+            "session-detail" / "attribution.js"
+        ).read_text(encoding="utf-8")
+        events_js = (
+            root / "src" / "session_browser" / "web" / "static" / "js" /
+            "session-detail" / "events.js"
+        ).read_text(encoding="utf-8")
+
+        assert "sd-attribution-bucket-card' + (hasDetails ? ' is-expandable'" in attribution_js
+        assert 'data-bucket-label="' in attribution_js
+        assert 'data-bucket-toggle aria-expanded="false"' in attribution_js
+        assert "function bucketHasDetails" in attribution_js
+        assert "b.summary" in attribution_js and "b.content_preview" in attribution_js
+        assert "toggleEl.setAttribute('aria-expanded'" in events_js
+
+    def test_dynamic_attribution_leaf_cards_have_second_level_toggle(self):
+        import pathlib
+        root = pathlib.Path(__file__).resolve().parent.parent
+        attribution_js = (
+            root / "src" / "session_browser" / "web" / "static" / "js" /
+            "session-detail" / "attribution.js"
+        ).read_text(encoding="utf-8")
+        events_js = (
+            root / "src" / "session_browser" / "web" / "static" / "js" /
+            "session-detail" / "events.js"
+        ).read_text(encoding="utf-8")
+        css = (
+            root / "src" / "session_browser" / "web" / "static" / "css" /
+            "session-detail" / "07-attribution.css"
+        ).read_text(encoding="utf-8")
+
+        assert "sd-bucket-leaf-list" in attribution_js
+        assert "sd-bucket-leaf-full" in attribution_js
+        assert "data-bucket-leaf-toggle" in events_js
+        assert "hasInlineDetail" in events_js
+        assert ".sd-bucket-leaf-head" in css
+        assert "height: 86px" in css
 
     def test_bucket_tokens_and_pct_in_meta(self):
         html = _render_payload_sources([self._make_resp_with_full_buckets()])

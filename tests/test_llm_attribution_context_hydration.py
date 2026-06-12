@@ -104,6 +104,8 @@ def test_prior_messages_content_preview_has_length_limit():
 
     preview = ctx["prior_messages"][0]["content_preview"]
     assert len(preview) <= _TRUNCATE_CONTENT_PREVIEW
+    assert ctx["prior_messages"][0]["full_content"] == long_content
+    assert ctx["prior_messages"][0]["content"] == long_content
 
 
 def test_prior_messages_token_estimate():
@@ -119,6 +121,85 @@ def test_prior_messages_token_estimate():
     )
 
     assert ctx["prior_messages"][0]["content_token_estimate"] > 0
+
+
+def test_full_messages_array_uses_current_call_request_full_and_stops_before_response():
+    """Claude Code messages reconstruction should be scoped to the current call."""
+    current_request = "Tool result for tool_1:\n" + ("important tool output " * 200)
+    prior = ChatMessage(
+        role="assistant",
+        content="prior assistant text",
+        timestamp="2025-01-01T00:00:01Z",
+        llm_call_id="call-1",
+        request_full="initial user prompt",
+        tool_calls=[{"id": "tool_1", "name": "Read", "parameters": {"file_path": "a.py"}}],
+    )
+    current = ChatMessage(
+        role="assistant",
+        content="current assistant output should not be request input",
+        timestamp="2025-01-01T00:00:02Z",
+        llm_call_id="call-2",
+        request_full=current_request,
+    )
+    future = ChatMessage(
+        role="assistant",
+        content="future assistant text",
+        timestamp="2025-01-01T00:00:03Z",
+        llm_call_id="call-3",
+        request_full="future user prompt",
+    )
+    current_lc = _make_lc(id="call-2", request_full=current_request)
+
+    ctx = build_attribution_session_context(
+        session=None,
+        round_obj=_make_ro(interactions=[current_lc]),
+        interaction_index=0,
+        interactions=[current_lc],
+        round_tool_calls=[],
+        all_messages=[prior, current, future],
+    )
+
+    items = ctx["full_messages_array"]
+    summaries = "\n".join(item["content_preview"] for item in items)
+    content_types = [item["content_type"] for item in items]
+
+    assert "initial user prompt" in summaries
+    assert "prior assistant text" in summaries
+    assert "important tool output" in summaries
+    assert "current assistant output" not in summaries
+    assert "future assistant text" not in summaries
+    assert "future user prompt" not in summaries
+    assert "tool_result" in content_types
+    tool_item = next(item for item in items if item["content_type"] == "tool_result")
+    assert tool_item["content_token_estimate"] > 200
+    assert "important tool output" in tool_item["full_content"]
+    assert all("full_content" in item for item in items)
+
+
+def test_full_messages_array_falls_back_to_current_call_when_transcript_call_missing():
+    """Subagent attribution must not borrow the parent session transcript."""
+    parent = ChatMessage(
+        role="assistant",
+        content="parent assistant text",
+        timestamp="2025-01-01T00:00:01Z",
+        llm_call_id="parent-call",
+        request_full="parent request",
+    )
+    subagent_lc = _make_lc(id="subagent-call", request_full="subagent private request")
+
+    ctx = build_attribution_session_context(
+        session=None,
+        round_obj=_make_ro(interactions=[subagent_lc]),
+        interaction_index=0,
+        interactions=[subagent_lc],
+        round_tool_calls=[],
+        all_messages=[parent],
+    )
+
+    items = ctx["full_messages_array"]
+    assert len(items) == 1
+    assert items[0]["content_preview"] == "subagent private request"
+    assert items[0]["full_content"] == "subagent private request"
 
 
 # ── available_tools tests ────────────────────────────────────────────

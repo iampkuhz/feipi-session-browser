@@ -561,7 +561,7 @@ class TestDeadButtonGate:
         "open-payload", "payload-mode", "open-payload-tab", "close-modal", "close-payload", "payload-tab",
         "select-payload-call", "open-trace-step", "payload-filter", "select-subagent",
         "jump-round", "jump-anomaly", "md-toggle",
-        "toggle-round", "toggle-issue-expand", "toggle-sub-round",
+        "toggle-round", "toggle-issue-expand", "toggle-sub-round", "toggle-subagent-rounds",
         "open-settings", "help", "shell",
         "copy",
     }

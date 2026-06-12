@@ -198,18 +198,27 @@ def _assistant_records(events: list[dict]) -> list[dict]:
                     text = item.get("text", "")
                     if text:
                         rec["text_parts"].append(text)
-                    rec["content_blocks"].append({"type": "text", "content": text})
+                    rec["content_blocks"].append({
+                        "type": "text",
+                        "content": text,
+                        "timestamp": ev.get("timestamp", ""),
+                    })
                 elif item_type == "thinking":
                     thinking = item.get("thinking", "")
                     if thinking:
                         rec["text_parts"].append(thinking)
-                    rec["content_blocks"].append({"type": "thinking", "content": thinking})
+                    rec["content_blocks"].append({
+                        "type": "thinking",
+                        "content": thinking,
+                        "timestamp": ev.get("timestamp", ""),
+                    })
                 elif item_type == "tool_use":
                     tool_block = {
                         "type": "tool_use",
                         "id": item.get("id", ""),
                         "name": item.get("name", ""),
                         "parameters": item.get("input", {}),
+                        "timestamp": ev.get("timestamp", ""),
                     }
                     rec["tool_calls"].append({
                         "id": item.get("id", ""),

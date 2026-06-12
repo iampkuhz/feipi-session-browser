@@ -121,7 +121,7 @@
 {% macro trace_header() -%}
   <div class="sd-trace-head">
     <div>
-      <div class="sd-trace-sub">Round 内按时间顺序纵向推进；并发 tool calls 作为一个 batch 分组显示。</div>
+      <div class="sd-trace-sub">Round 内按触发时间平铺 assistant text、tool call、subagent run；仅并发 tool calls 保留分组。</div>
     </div>
     <div class="sd-trace-actions">
       <div class="sd-seg" role="group" aria-label="Trace status filter">

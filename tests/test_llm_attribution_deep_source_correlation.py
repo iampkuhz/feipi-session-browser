@@ -328,6 +328,23 @@ class TestBucketDetailsLocalInstructions:
         reminder_items = [i for i in items if "system-reminder" in i.get("file_path", "")]
         assert len(reminder_items) > 0
 
+    def test_hidden_builtin_uses_visible_system_reminder_preview(self):
+        ctx = {
+            "local_instructions": "",
+            "system_reminder_content": "Visible system reminder with token: abc123secret.",
+            "prior_messages": [],
+            "preceding_tool_results": [],
+        }
+        builder = self._make_builder(ctx)
+        result = builder.build_request()
+
+        bucket = next(b for b in result.buckets if b.key == "hidden_builtin_system_estimate")
+        assert bucket.source == "transcript"
+        assert "本地 transcript 捕获" in bucket.summary
+        assert bucket.details.get("kind") == "hidden_estimate"
+        assert "Visible system reminder" in bucket.details.get("preview", "")
+        assert "abc123secret" not in bucket.details.get("preview", "")
+
 
 class TestBucketDetailsPriorMessages:
     """Verify prior_conversation_messages bucket details."""
@@ -382,10 +399,13 @@ class TestBucketDetailsPriorMessages:
         assert len(items) == 2
         assert items[0]["role"] == "user"
         assert items[1]["role"] == "assistant"
+        assert bucket.tokens == 7
         assert "message_index" in items[0]
         assert "content_type" in items[0]
         assert "summary" in items[0]
         assert "tokens" in items[0]
+        assert "explanation" in details
+        assert "Anthropic API `messages`" in details["explanation"][0]
 
 
 class TestBucketDetailsUnlocated:

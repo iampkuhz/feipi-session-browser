@@ -198,14 +198,11 @@ class TestNoNestedButtonConflict:
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_payload_buttons_in_detail(self, template_source):
-        """Payload buttons should be invoked inside detail context (llm_call_card, tool_batch)."""
-        # 使用 sdp.button() 宏调用，'open-payload' 操作；Request 由 Context 改名
-        assert "sdp.button('Request'" in template_source or "'Request'" in template_source, (
-            "Must have Request button in detail"
-        )
-        assert "sdp.button('Response'" in template_source or "'Response'" in template_source, (
-            "Must have Response button in detail"
-        )
+        """Payload buttons should exist on message/event/tool rows."""
+        assert "user_message_event" in template_source, "Must render user message rows"
+        assert "assistant_event" in template_source, "Must render assistant event rows"
+        assert "tool_call_event" in template_source, "Must render tool call rows"
+        assert "open-payload" in template_source, "Detail rows must expose payload buttons"
 
     @pytest.mark.contract_case("UI-SD-017")
     def test_row_clickable_for_toggle(self, template_source):
@@ -258,6 +255,117 @@ class TestTraceRowGridStructure:
         assert 'sd-round-mix' in template_source, (
             "Must have token mix bar"
         )
+
+
+# ── Round table compact behavior ────────────────────────────────────
+
+
+class TestRoundTableCompactBehavior:
+    """Round table summary cells should stay compact and directly actionable."""
+
+    def _round_table_source(self):
+        return (TIMELINE_DIR / "round_table.html").read_text(encoding="utf-8")
+
+    def _llm_call_source(self):
+        return (TIMELINE_DIR / "llm_call.html").read_text(encoding="utf-8")
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_metrics_omit_llm_call_count(self):
+        source = self._round_table_source()
+        assert "row.tool_count_label" in source, "Metrics must render tool count"
+        assert "format_compact_token" in source, "Metrics must render token total"
+        assert "llm_call_count" not in source
+        assert "}} llm" not in source.lower()
+        assert " llm</span>" not in source.lower()
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_tokenbar_scales_against_max_round(self):
+        source = self._round_table_source()
+        css = _read_source_with_splits(CSS_FILE, CSS_DIR)
+        assert "--token-total-width:{{ row.token_bar_pct" in source
+        assert "row.token_bar_gap_label" in source
+        assert "background: #e5e7eb" in css
+        assert "width: var(--token-total-width, 0%)" in css
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_attribution_visible_labels_are_request_response(self):
+        source = self._llm_call_source()
+        assert "attribution_chip(request, 'request')" in source
+        assert "attribution_chip(response, 'response')" in source
+        assert ">{{ fallback_label }}</button>" in source
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_signals_do_not_render_empty_placeholder_badge(self):
+        source = self._round_table_source()
+        assert 'class="round-signals"' in source
+        assert "badge-info" not in source
+        assert ">—</span>" not in source
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_open_round_lines_are_inset_not_outline(self):
+        css = _read_source_with_splits(CSS_FILE, CSS_DIR)
+        assert ".round-row.is-open" in css
+        assert "inset 0 1px 0" in css
+        assert "inset 0 -1px 0" in css
+        assert ".round-row.is-jump-target {\n  outline: 0;" in css
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_timeline_rail_aligns_with_dots(self):
+        source = self._llm_call_source()
+        css = _read_source_with_splits(CSS_FILE, CSS_DIR)
+        assert "timeline_dot('user')" in source
+        assert ".sd-timeline-dot--user" in css
+        assert ".expanded-row td .sd-timeline:before" in css
+        assert "left: 22px" in css
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_flat_timeline_rows_use_fixed_columns(self):
+        css = _read_source_with_splits(CSS_FILE, CSS_DIR)
+        assert "--sd-tool-kind-col" in css
+        assert "--sd-tool-time-col" in css
+        assert "--sd-tool-action-col" in css
+        assert ".sd-tool-group--flat .sd-tool-row" in css
+        assert "var(--sd-tool-kind-col)" in css
+
+
+class TestSubagentSubroundToggle:
+    """Subagent subround rows should be independently toggleable."""
+
+    def _subagent_source(self):
+        return (TIMELINE_DIR / "subagent.html").read_text(encoding="utf-8")
+
+    def _js_source(self):
+        return _read_source_with_splits(None, JS_DIR)
+
+    def _css_source(self):
+        return _read_source_with_splits(CSS_FILE, CSS_DIR)
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_subround_summary_has_toggle_action_and_state(self):
+        source = self._subagent_source()
+        assert "data-sub-round-toggle" in source
+        assert 'class="sd-sub-round__toggle"' in source
+        assert 'data-action="toggle-sub-round"' in source
+        assert 'aria-expanded=' in source
+        assert "data-sub-round-open" in source
+        assert "data-sub-round-steps" in source
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_js_supports_single_subround_toggle(self):
+        js = self._js_source()
+        assert "function toggleSubagentRound" in js
+        assert "function setSubRoundOpen" in js
+        assert "function syncSubRoundToggle" in js
+        assert "action === 'toggle-sub-round'" in js
+        assert "data-sub-round-toggle" in js
+
+    @pytest.mark.contract_case("UI-SD-017")
+    def test_css_has_subround_toggle_affordance(self):
+        css = self._css_source()
+        assert ".sd-sub-round__toggle" in css
+        assert ".sd-sub-round.is-open .sd-sub-round__toggle span" in css
+        assert ".sd-sub-round.is-open .sd-sub-round__summary" in css
+        assert "cursor: pointer" in css
 
 
 # ── No illegal nested buttons ───────────────────────────────────────

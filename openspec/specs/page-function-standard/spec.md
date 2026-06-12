@@ -61,7 +61,7 @@ Session Detail SHALL explain a single session's trace, payload, and attribution 
 - **Given** 开发者修改 Session Detail
 - **When** 调整主 tab
 - **Then** 页面 SHALL expose Trace and Payload as the only main tabs
-- **And** request/response attribution SHALL be part of Payload call detail
+- **And** request/response attribution SHALL be accessible from Trace round/subround rows and remain part of Payload call detail
 
 ### Requirement: List pages preserve complete user operations
 

@@ -7,13 +7,16 @@ Verifies:
 4. Repository/file context estimation works.
 """
 
+import json
+from types import SimpleNamespace
+
 import pytest
 
 from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
 from session_browser.attribution.agents.codex import CodexAttributionBuilder
-from session_browser.attribution.contracts import ValuePrecision
+from session_browser.attribution.contracts import ValuePrecision, ValueSource
 
 
 def _make_lc(**kwargs):
@@ -123,3 +126,112 @@ def test_codex_availability_notes_cache_unknown():
             assert avail_val is True
         if field_val in ("cache_read", "cache_write"):
             assert avail_val is False
+
+
+def test_codex_visible_rollout_instructions_are_request_bucket(tmp_path):
+    """Codex request attribution should count visible rollout instructions."""
+    session_file = tmp_path / "rollout.jsonl"
+    events = [
+        {
+            "type": "session_meta",
+            "payload": {
+                "base_instructions": {
+                    "text": "Base instruction text. " * 200,
+                }
+            },
+        },
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "developer",
+                "content": [
+                    {"type": "input_text", "text": "Developer instruction text. " * 120}
+                ],
+            },
+        },
+        {
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "current task"},
+        },
+    ]
+    session_file.write_text(
+        "\n".join(json.dumps(ev, ensure_ascii=False) for ev in events),
+        encoding="utf-8",
+    )
+
+    lc = _make_lc(input_tokens=5000, request_full="current task")
+    ro = _make_ro(user_content="current task")
+    builder = CodexAttributionBuilder(
+        lc,
+        ro,
+        session_summary=SimpleNamespace(file_path=str(session_file)),
+    )
+
+    result = builder.build_request()
+    instructions = next((b for b in result.buckets if b.key == "instructions"), None)
+
+    assert instructions is not None
+    assert instructions.tokens > 0
+    assert instructions.source == ValueSource.TRANSCRIPT
+    assert "base_instructions" in instructions.summary
+    assert instructions.details["kind"] == "source_items"
+    full_sources = "\n".join(item["full_content"] for item in instructions.details["items"])
+    assert "Base instruction text" in full_sources
+    assert "Developer instruction text" in full_sources
+    assert any("base_instructions" in note for note in result.attribution_notes)
+
+
+def test_codex_request_full_tool_outputs_and_cache_read_are_buckets():
+    """request_full tool outputs and provider cache read should lift request coverage."""
+    request_full = "Tool output for call_1:\n" + ("tool output body " * 200)
+    lc = _make_lc(
+        input_tokens=2000,
+        cache_read_tokens=800,
+        request_full=request_full,
+    )
+    ro = _make_ro(user_content="")
+    builder = CodexAttributionBuilder(lc, ro)
+
+    result = builder.build_request()
+    tool_outputs = next((b for b in result.buckets if b.key == "tool_outputs"), None)
+    cache_bucket = next((b for b in result.buckets if b.key == "provider_cached_context"), None)
+
+    assert tool_outputs is not None
+    assert tool_outputs.tokens > 0
+    assert tool_outputs.source == ValueSource.TOOL_LOGS
+    assert tool_outputs.details["kind"] == "tool_results"
+    assert "tool output body" in tool_outputs.details["items"][0]["full_content"]
+    assert cache_bucket is not None
+    assert cache_bucket.tokens == 800
+    assert cache_bucket.precision == ValuePrecision.PROVIDER_REPORTED
+    assert result.coverage.value is not None
+    assert result.coverage.value > 0.4
+
+
+def test_codex_prior_message_uses_full_token_estimate_from_context():
+    """Prior message bucket must use full estimate, not truncated preview text."""
+    lc = _make_lc(input_tokens=10000, request_full="current task")
+    ro = _make_ro(user_content="current task")
+    builder = CodexAttributionBuilder(
+        lc,
+        ro,
+        session_context={
+            "prior_messages": [
+                {
+                    "role": "assistant",
+                    "content_preview": "short preview",
+                    "content_token_estimate": 321,
+                }
+            ],
+            "available_tools": [],
+        },
+    )
+
+    result = builder.build_request()
+    history = next((b for b in result.buckets if b.key == "conversation_history"), None)
+
+    assert history is not None
+    assert history.tokens == 321
+    assert history.details["kind"] == "source_items"
+    assert history.details["items"][0]["full_content"] == "short preview"

@@ -122,7 +122,10 @@
     var subRound = options.subagentRound || "";
     if (subRound) {
       var subRoundEl = qs(block, '[data-sub-round-id="' + cssEscape(subRound) + '"]');
-      if (subRoundEl) return subRoundEl;
+      if (subRoundEl) {
+        if (typeof expandSubagentRound === 'function') expandSubagentRound(subRoundEl);
+        return subRoundEl;
+      }
     }
     return block;
   }

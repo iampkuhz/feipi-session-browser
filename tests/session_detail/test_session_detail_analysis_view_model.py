@@ -69,6 +69,7 @@ def _llm(round_index: int, suffix: str, **kwargs) -> LLMCall:
         output_tokens=kwargs.get("output_tokens", 30),
         request_full=kwargs.get("request_full", "request"),
         response_full=kwargs.get("response_full", "response"),
+        content_blocks=kwargs.get("content_blocks", []),
     )
 
 
@@ -152,6 +153,54 @@ def test_payload_lookup_uses_global_llm_call_ids():
     assert "llm-R1-IX1-context" in payloads
     assert "llm-R2-IX2-context" in payloads
     assert "llm-R2-IX1-context" not in payloads
+
+
+def test_assistant_text_payload_excludes_tool_use_blocks():
+    tool = ToolCall(
+        name="exec_command",
+        parameters={"cmd": "pwd"},
+        result="ok",
+        status="completed",
+        tool_use_id="call_1",
+    )
+    ix = _llm(
+        0,
+        "one",
+        response_full="assistant text",
+        content_blocks=[
+            {"type": "text", "content": "assistant text", "source": "response_item.message"},
+            {"type": "tool_use", "id": "call_1", "name": "exec_command", "parameters": {"cmd": "pwd"}},
+        ],
+    )
+    ix.tool_calls = [tool]
+    rounds = [_round(1, ix, [tool])]
+
+    vm = _build_v11_view_model(
+        session=_FakeSession(agent="codex"),
+        rounds=rounds,
+        llm_calls=[ix],
+        tool_calls=[tool],
+        subagent_runs=[],
+        session_anomalies=_FakeAnomalies(),
+        slim=False,
+        skip_attribution=True,
+    )
+
+    payloads = {p["payload_id"]: p for p in vm["payload_sources"]}
+    assistant_payload = payloads["llm-R1-IX1-assistant-text"]
+    response_payload = payloads["llm-R1-IX1-output"]
+    assistant_rows = [
+        item for item in vm["trace_rows"][0]["timeline_items"]
+        if item.get("type") == "assistant_text"
+    ]
+
+    assert assistant_rows
+    assert assistant_rows[0]["payload_id"] == "llm-R1-IX1-assistant-text"
+    assert "tool_use" not in assistant_payload.get("html", "")
+    assert "exec_command" not in assistant_payload.get("html", "")
+    assert "assistant text" in assistant_payload.get("html", "")
+    assert "tool_use" in response_payload.get("html", "")
+    assert "exec_command" in response_payload.get("html", "")
 
 
 def test_subagent_workload_and_breakdown_use_normalized_llm_calls():

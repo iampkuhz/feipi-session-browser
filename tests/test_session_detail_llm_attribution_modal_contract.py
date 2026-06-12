@@ -9,6 +9,8 @@ Verifies:
 6. Multiple attribution payloads render independently in the same payload_sources list.
 """
 
+from pathlib import Path
+
 import pytest
 
 from session_browser.web.template_env import env
@@ -179,6 +181,59 @@ class TestAttributionModalContract:
         html = _render_payload_sources([req_data])
         assert "请求摘要" in html
         assert "用量分布" not in html
+
+    def test_request_summary_merges_coverage_fields(self):
+        """Coverage and residual metadata should live in the request summary card."""
+        req_data = {
+            "kind": "llm.request_attribution",
+            "data": {
+                "agent": "claude_code", "model": "claude-sonnet-4",
+                "source_label": "transcript", "confidence_label": "高",
+                "request_id": "req-abc", "call_id": "call-001",
+                "usage": {"total_input": {"value": 5000, "precision": "provider_reported"},
+                          "fresh_input": {"value": 2000, "precision": "estimated"},
+                          "cache_read": {"value": 3000, "precision": "provider_reported"},
+                          "cache_write": {"value": 500, "precision": "provider_reported"},
+                          "coverage": {"value": 0.9, "precision": "heuristic"},
+                          "unknown": {"value": 500, "precision": "residual"}},
+                "coverage": {
+                    "provider_total_input": 5000,
+                    "reconstructed_total": 4500,
+                    "coverage_ratio": 0.9,
+                    "residual_tokens": 500,
+                    "residual_likely_sources": [],
+                },
+                "buckets": [], "availability_rows": [],
+                "captured_context_preview": "", "attribution_notes": [],
+                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
+            },
+        }
+        html = _render_payload_sources([req_data])
+        assert "Provider 总计" in html
+        assert "本地重建" in html
+        assert "残差" in html
+        assert "覆盖率与不确定性" not in html
+        assert "可能来源" not in html
+
+    def test_dynamic_modal_does_not_render_bottom_coverage_block(self):
+        """Dynamic attribution JS should keep coverage fields in the top summary only."""
+        js_path = Path(__file__).resolve().parents[1] / "src/session_browser/web/static/js/session-detail/attribution.js"
+        js = js_path.read_text(encoding="utf-8")
+        assert "Provider 总计" in js
+        assert "本地重建" in js
+        assert "残差" in js
+        assert "覆盖率与不确定性" not in js
+        assert "sd-attribution-coverage-sources" not in js
+        assert "可能来源：" not in js
+
+    def test_dynamic_modal_fetches_attribution_api(self):
+        """Clicking attribution actions should render from the backend API response."""
+        js_path = Path(__file__).resolve().parents[1] / "src/session_browser/web/static/js/session-detail/attribution.js"
+        js = js_path.read_text(encoding="utf-8")
+        assert "attributionApiUrl(button, apiKind)" in js
+        assert '"/api/sessions/"' in js
+        assert "fetch(url, { headers: { \"Accept\": \"application/json\" } })" in js
+        assert "renderAttributionSuccess(body, payload, kind, url)" in js
 
     def test_response_modal_has_response_specific_sections(self):
         """Response attribution should have topgrid response summary."""

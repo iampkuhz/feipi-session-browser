@@ -86,6 +86,7 @@
           {% set cw = usage.cache_write|default({}) %}
           {% set cv = usage.coverage|default({}) %}
           {% set un = usage.unknown|default({}) %}
+          {% set coverage_meta = payload.data.coverage|default({}) %}
           {% set request_denominator = (fi.value|default(0, true)|int) + (cr.value|default(0, true)|int) %}
           {% set call_identity = payload.data.call_identity|default({}) %}
           <main class="sd-attribution-canvas">
@@ -109,8 +110,15 @@
                   <div class="sd-kv"><span>新鲜输入</span><span>{{ fi.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>缓存读取</span><span>{{ cr.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cr.precision|default('unavailable') }}">{{ precision_label(cr.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>缓存写入</span><span>{{ cw.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cw.precision|default('unavailable') }}">{{ precision_label(cw.precision|default('unavailable')) }}</span></span></div>
+                  {% if coverage_meta %}
+                  <div class="sd-kv"><span>Provider 总计</span><span>{{ coverage_meta.provider_total_input|default(0)|format_compact_token }}</span></div>
+                  <div class="sd-kv"><span>本地重建</span><span>{{ coverage_meta.reconstructed_total|default(0)|format_compact_token }}</span></div>
+                  <div class="sd-kv"><span>覆盖率</span><span>{{ coverage_meta.coverage_ratio|default(0)|format_coverage }}</span></div>
+                  <div class="sd-kv"><span>残差</span><span>{{ coverage_meta.residual_tokens|default(0)|format_compact_token }}</span></div>
+                  {% else %}
                   <div class="sd-kv"><span>覆盖率</span><span>{{ cv.value|default(0)|format_coverage }} <span class="sd-precision-tag sd-precision-tag--{{ cv.precision|default('unavailable') }}">{{ precision_label(cv.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>未定位</span><span>{{ un.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ un.precision|default('unavailable') }}">{{ precision_label(un.precision|default('unavailable')) }}</span></span></div>
+                  {% endif %}
                 </div>
               </section>
               <section class="sd-attribution-topcard">
@@ -179,6 +187,7 @@
                     <div class="sd-attribution-bucket-head" data-bucket-toggle>
                       <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      {% if b.count_label %}<span class="sd-attribution-bucket-count">{{ b.count_label }}</span>{% endif %}
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
                       <span class="sd-attribution-bucket-chevron">▸</span>
@@ -247,6 +256,13 @@
                           {% endfor %}
                         </ul>
                         {% elif b.details.kind == 'full_messages_array' %}
+                        {% if b.details.explanation %}
+                        <ul class="sd-bucket-detail-explanation">
+                          {% for line in b.details.explanation %}
+                          <li>{{ line }}</li>
+                          {% endfor %}
+                        </ul>
+                        {% endif %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item{% if item.content_type == 'tool_result' %} sd-bucket-detail-item--tool-result{% elif item.content_type == 'tool_use' %} sd-bucket-detail-item--tool-use{% elif item.role == 'assistant' %} sd-bucket-detail-item--assistant{% endif %}">
@@ -288,6 +304,9 @@
                           <li>{{ line }}</li>
                           {% endfor %}
                         </ul>
+                        {% if b.details.preview %}
+                        <pre class="sd-bucket-detail-preview sd-bucket-detail-preview--full">{{ b.details.preview }}</pre>
+                        {% endif %}
                         {% endif %}
                       {% endif %}
                       {% if b.summary %}
@@ -312,6 +331,7 @@
                     <div class="sd-attribution-bucket-head">
                       <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      {% if b.count_label %}<span class="sd-attribution-bucket-count">{{ b.count_label }}</span>{% endif %}
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}</span>
                     </div>
@@ -438,6 +458,7 @@
                     <div class="sd-attribution-bucket-head" data-bucket-toggle>
                       <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      {% if b.count_label %}<span class="sd-attribution-bucket-count">{{ b.count_label }}</span>{% endif %}
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}（{{ b.percent|default(0)|round(1) }}%）</span>
                       <span class="sd-attribution-bucket-chevron">▸</span>
@@ -506,6 +527,13 @@
                           {% endfor %}
                         </ul>
                         {% elif b.details.kind == 'full_messages_array' %}
+                        {% if b.details.explanation %}
+                        <ul class="sd-bucket-detail-explanation">
+                          {% for line in b.details.explanation %}
+                          <li>{{ line }}</li>
+                          {% endfor %}
+                        </ul>
+                        {% endif %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item{% if item.content_type == 'tool_result' %} sd-bucket-detail-item--tool-result{% elif item.content_type == 'tool_use' %} sd-bucket-detail-item--tool-use{% elif item.role == 'assistant' %} sd-bucket-detail-item--assistant{% endif %}">
@@ -547,6 +575,9 @@
                           <li>{{ line }}</li>
                           {% endfor %}
                         </ul>
+                        {% if b.details.preview %}
+                        <pre class="sd-bucket-detail-preview sd-bucket-detail-preview--full">{{ b.details.preview }}</pre>
+                        {% endif %}
                         {% endif %}
                       {% endif %}
                       {% if b.summary %}
@@ -571,6 +602,7 @@
                     <div class="sd-attribution-bucket-head">
                       <span class="sd-attribution-bucket-dot sd-attribution-bucket-dot--{{ (7 if b.key in ['unlocated_residual', 'unknown_overhead', 'unknown'] else loop.index0 % 8) }}"></span>
                       <span class="sd-attribution-bucket-label">{{ b.label|default(b.key|default('—')) }}</span>
+                      {% if b.count_label %}<span class="sd-attribution-bucket-count">{{ b.count_label }}</span>{% endif %}
                       <span class="sd-precision-tag sd-precision-tag--{{ b.precision|default('unavailable') }}">{{ precision_label(b.precision) }}</span>
                       <span class="sd-attribution-bucket-usage">{{ b.tokens|format_compact_token }}</span>
                     </div>

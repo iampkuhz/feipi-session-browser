@@ -651,10 +651,14 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
                 and payload.get("phase", "") in ("commentary", "final")):
             agent_msg_indices.append(i)
 
-    # For each agent_message, collect token_counts and tool call IDs
-    # (function_call + custom_tool_call) between it and the next agent_message.
+    # For each agent_message, collect token_counts, tool call IDs, and the
+    # canonical response_item payloads between it and the next agent_message.
+    # Codex writes the same assistant text twice: event_msg.agent_message is a
+    # UI/status mirror, while response_item.message is the model response item.
+    # Use response_item as canonical when present and fall back to event_msg.
     agent_usage: dict[int, dict] = {}  # agent_msg_index -> aggregated usage
     agent_tool_ids: dict[int, list[dict]] = {}  # agent_msg_index -> [{id, name}, ...]
+    agent_response_content: dict[int, dict] = {}
     for ai, start_idx in enumerate(agent_msg_indices):
         if ai + 1 < len(agent_msg_indices):
             end_idx = agent_msg_indices[ai + 1]
@@ -670,6 +674,8 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
             "total_tokens": 0,
         }
         tool_ids: list[dict] = []
+        response_texts: list[str] = []
+        response_blocks: list[dict] = []
         for i in range(start_idx, end_idx):
             ev = events[i]
             if ev.get("type") == "event_msg":
@@ -696,14 +702,27 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
             elif ev.get("type") == "response_item":
                 payload = ev.get("payload", {})
                 rtype = payload.get("type", "")
-                if rtype in ("function_call", "custom_tool_call"):
+                if rtype == "message" and payload.get("role") == "assistant":
+                    for block in _response_item_text_blocks(payload):
+                        response_blocks.append(block)
+                        text = block.get("content") or block.get("text") or ""
+                        if str(text).strip():
+                            response_texts.append(str(text).strip())
+                elif rtype in ("function_call", "custom_tool_call"):
                     call_id = payload.get("call_id", "")
                     tool_name = payload.get("name", "")
                     if call_id:
                         tool_ids.append({"id": call_id, "name": tool_name})
+                    tool_block = _response_item_tool_block(payload)
+                    if tool_block:
+                        response_blocks.append(tool_block)
 
         agent_usage[start_idx] = usage
         agent_tool_ids[start_idx] = tool_ids
+        agent_response_content[start_idx] = {
+            "text": "\n\n".join(response_texts),
+            "blocks": response_blocks,
+        }
 
     for i, ev in enumerate(events):
         etype = ev.get("type", "")
@@ -736,18 +755,86 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
                     # Attach aggregated per-turn usage and tool call IDs
                     usage = agent_usage.get(i)
                     tool_calls_list = agent_tool_ids.get(i, [])
+                    response_content = agent_response_content.get(i, {})
+                    response_text = str(response_content.get("text") or "").strip()
+                    content_str = response_text or str(content)
+                    content_blocks = list(response_content.get("blocks") or [])
+                    if not content_blocks and content_str:
+                        content_blocks = [{
+                            "type": "text",
+                            "content": content_str,
+                            "source": "event_msg.agent_message",
+                        }]
 
                     messages.append(ChatMessage(
                         role="assistant",
-                        content=str(content),
+                        content=content_str,
                         timestamp=ts,
                         model=model,
                         request_full=request_full,
                         usage=usage,
                         tool_calls=tool_calls_list,
+                        content_blocks=content_blocks,
                     ))
+        elif etype == "response_item":
+            rtype = payload.get("type", "")
+            if rtype in ("function_call_output", "custom_tool_call_output"):
+                call_id = payload.get("call_id", "")
+                output = payload.get("output", "")
+                output_text = str(output) if output is not None else ""
+                if output_text:
+                    if call_id:
+                        pending_request_parts.append(
+                            f"Tool output for {call_id}:\n{output_text}"
+                        )
+                    else:
+                        pending_request_parts.append(output_text)
 
     return messages
+
+
+def _response_item_text_blocks(payload: dict) -> list[dict]:
+    """Extract visible assistant text blocks from a Codex response_item."""
+    blocks: list[dict] = []
+    for part in payload.get("content") or []:
+        if not isinstance(part, dict):
+            continue
+        text = part.get("text") or part.get("content") or ""
+        if not str(text).strip():
+            continue
+        blocks.append({
+            "type": "text",
+            "content": str(text),
+            "source": "response_item.message",
+            "phase": payload.get("phase") or "",
+        })
+    return blocks
+
+
+def _response_item_tool_block(payload: dict) -> dict:
+    """Return a renderable tool_use block for a Codex function_call item."""
+    call_id = payload.get("call_id", "") or ""
+    name = payload.get("name", "") or payload.get("type", "tool").replace("_call", "")
+    return {
+        "type": "tool_use",
+        "id": call_id,
+        "name": name,
+        "parameters": _response_item_tool_arguments(payload),
+        "source": f"response_item.{payload.get('type', 'function_call')}",
+    }
+
+
+def _response_item_tool_arguments(payload: dict) -> dict:
+    args = payload.get("arguments", {})
+    if payload.get("type") == "custom_tool_call" and not args:
+        args = payload.get("input", "")
+    if isinstance(args, str):
+        try:
+            parsed = json.loads(args)
+            return parsed if isinstance(parsed, dict) else {"value": parsed}
+        except json.JSONDecodeError:
+            return {"raw": args[:2000]}
+    return args if isinstance(args, dict) else {}
 
 
 def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:

@@ -142,8 +142,15 @@ def build_attribution_session_context(
                         preceding_tool_results.append(tc.result)
     # else: first LLM call — no preceding tool results
 
+    current_ix = _resolve_current_interaction(round_obj, interactions, interaction_index)
+
     # -- prior_messages --
-    prior_messages = _build_prior_messages(all_messages, interaction_index)
+    prior_messages = _build_prior_messages(
+        all_messages,
+        interaction_index,
+        round_obj=round_obj,
+        current_interaction=current_ix,
+    )
 
     # -- full_messages_array (Anthropic API messages format) --
     full_messages_array = _build_full_messages_array(
@@ -205,7 +212,10 @@ def build_attribution_session_context(
 
 def _build_prior_messages(
     all_messages: list | None,
-    interaction_index: int,
+    interaction_index: int | None = None,
+    *,
+    round_obj=None,
+    current_interaction=None,
 ) -> list[dict]:
     """Build prior_messages from all session messages before the current call.
 
@@ -215,29 +225,56 @@ def _build_prior_messages(
     if not all_messages:
         return []
 
+    current_call_id = getattr(current_interaction, "id", "") if current_interaction else ""
+    current_ts = getattr(current_interaction, "timestamp", "") if current_interaction else ""
+    current_user = getattr(round_obj, "user_msg", None) if round_obj is not None else None
+    current_user_content = getattr(current_user, "content", "") if current_user else ""
+    current_user_ts = getattr(current_user, "timestamp", "") if current_user else ""
+
     result = []
     for msg in all_messages:
         role = ""
         content = ""
+        msg_ts = ""
+        msg_call_id = ""
         if isinstance(msg, dict):
             role = msg.get("role", "")
             content = msg.get("content", "")
+            msg_ts = msg.get("timestamp", "")
+            msg_call_id = msg.get("llm_call_id", "") or msg.get("id", "")
         elif hasattr(msg, "role"):
             role = getattr(msg, "role", "")
             content = getattr(msg, "content", "") or ""
+            msg_ts = getattr(msg, "timestamp", "") or ""
+            msg_call_id = getattr(msg, "llm_call_id", "") or ""
 
         if not role:
             continue
+        if current_call_id and role == "assistant" and msg_call_id == current_call_id:
+            break
+        if current_ts and msg_ts and msg_ts >= current_ts:
+            break
 
         content_str = str(content) if content else ""
+        if (
+            role == "user"
+            and current_user_content
+            and content_str == current_user_content
+            and (not current_user_ts or msg_ts == current_user_ts)
+        ):
+            continue
         preview = content_str[:_TRUNCATE_CONTENT_PREVIEW]
         # Rough token estimate: ~4 chars per token for English
         token_estimate = max(1, len(content_str) // 4) if content_str else 0
 
         result.append({
             "role": role,
+            "content": content_str,
+            "full_content": content_str,
             "content_preview": preview,
             "content_token_estimate": token_estimate,
+            "timestamp": msg_ts,
+            "llm_call_id": msg_call_id,
         })
 
     return result
@@ -273,177 +310,207 @@ def _build_full_messages_array(
     NOTE: The current assistant response is NOT included — it's the OUTPUT,
     not part of the INPUT messages array.
     """
+    current_ix = _resolve_current_interaction(round_obj, interactions, interaction_index)
+    current_call_id = getattr(current_ix, "id", "") if current_ix else ""
+    current_request_full = getattr(current_ix, "request_full", "") if current_ix else ""
+
+    if not all_messages:
+        return _messages_array_from_request_full(current_request_full)
+
+    candidate: list[dict] = []
+    msg_index = 0
+    found_current = False
+    saw_request_full = False
+
+    for msg in all_messages:
+        role = _message_field(msg, "role", "")
+        if role != "assistant":
+            continue
+
+        msg_call_id = _message_field(msg, "llm_call_id", "") or _message_field(msg, "id", "")
+        is_current = bool(current_call_id and msg_call_id == current_call_id)
+        request_full = _message_field(msg, "request_full", "")
+        if is_current and not request_full:
+            request_full = current_request_full
+
+        if request_full:
+            msg_index, appended = _append_request_full_entries(candidate, request_full, msg_index)
+            saw_request_full = saw_request_full or appended
+
+        if is_current:
+            found_current = True
+            break
+
+        msg_index = _append_assistant_message_entries(candidate, msg, msg_index)
+
+    if found_current:
+        return candidate
+
+    # Subagent attribution currently receives the parent session transcript, so
+    # a subagent call id will not be found there.  In that case, use the
+    # call-scoped request text instead of attributing the parent transcript.
+    if current_call_id and current_request_full:
+        return _messages_array_from_request_full(current_request_full)
+
+    # Older unit fixtures and providers may not hydrate request_full.  Keep a
+    # transcript fallback, but still stop before the current assistant when an
+    # id match is available.
+    if not saw_request_full:
+        return _build_full_messages_array_legacy(all_messages, current_call_id)
+
+    return candidate
+
+
+def _resolve_current_interaction(round_obj, interactions: list, interaction_index: int):
+    if interactions and 0 <= interaction_index < len(interactions):
+        return interactions[interaction_index]
+    round_interactions = getattr(round_obj, "interactions", None) or []
+    if round_interactions and 0 <= interaction_index < len(round_interactions):
+        return round_interactions[interaction_index]
+    return None
+
+
+def _message_field(msg, field_name: str, default=""):
+    if isinstance(msg, dict):
+        return msg.get(field_name, default)
+    return getattr(msg, field_name, default)
+
+
+def _messages_array_from_request_full(request_full: str) -> list[dict]:
+    result: list[dict] = []
+    _append_request_full_entries(result, request_full or "", 0)
+    return result
+
+
+def _append_request_full_entries(messages_array: list[dict], request_full: str, msg_index: int) -> tuple[int, bool]:
+    from session_browser.attribution.token_estimator import estimate_tokens_from_text
+
+    text = (request_full or "").strip()
+    if not text:
+        return msg_index, False
+
+    parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+    has_tool_result = any(p.startswith("Tool result for ") for p in parts)
+    if not has_tool_result:
+        parts = [text]
+
+    appended = False
+    for part in parts:
+        content_type = "user_text"
+        tool_use_id = ""
+        tool_name = ""
+        payload_text = part
+
+        if part.startswith("Tool result for "):
+            content_type = "tool_result"
+            tr_match = re.match(r"Tool result for (\S+):", part)
+            tool_use_id = tr_match.group(1) if tr_match else ""
+            lines = part.split("\n", 1)
+            payload_text = lines[1] if len(lines) > 1 else part
+            tool_name = _extract_tool_name_from_result(payload_text)
+
+        payload_text = payload_text.strip()
+        if not payload_text:
+            continue
+
+        token_est = estimate_tokens_from_text(payload_text)
+        messages_array.append({
+            "role": "user",
+            "content_type": content_type,
+            "content": payload_text,
+            "full_content": payload_text,
+            "content_preview": payload_text[:_TRUNCATE_CONTENT_PREVIEW],
+            "content_token_estimate": token_est,
+            "message_index": msg_index,
+            "has_full_content": True,
+            "tool_name": tool_name,
+            "tool_use_id": tool_use_id,
+        })
+        msg_index += 1
+        appended = True
+
+    return msg_index, appended
+
+
+def _append_assistant_message_entries(messages_array: list[dict], msg, msg_index: int) -> int:
+    from session_browser.attribution.token_estimator import estimate_tokens_from_text
+
+    content = _message_field(msg, "content", "") or ""
+    content_str = str(content) if content else ""
+    if content_str.strip():
+        token_est = estimate_tokens_from_text(content_str)
+        messages_array.append({
+            "role": "assistant",
+            "content_type": "assistant_text",
+            "content": content_str,
+            "full_content": content_str,
+            "content_preview": content_str[:_TRUNCATE_CONTENT_PREVIEW],
+            "content_token_estimate": token_est,
+            "message_index": msg_index,
+            "has_full_content": True,
+            "tool_name": "",
+            "tool_use_id": "",
+        })
+        msg_index += 1
+
+    seen_tuids_in_msg = set()
+    tool_calls = _message_field(msg, "tool_calls", []) or []
+    for tc in tool_calls:
+        if isinstance(tc, dict):
+            tuid = tc.get("id", "")
+            tname = tc.get("name", "unknown")
+            tparams = tc.get("parameters", {})
+        elif hasattr(tc, "tool_use_id"):
+            tuid = getattr(tc, "tool_use_id", "")
+            tname = getattr(tc, "name", "unknown")
+            tparams = getattr(tc, "parameters", {})
+        else:
+            continue
+
+        if tuid and tuid not in seen_tuids_in_msg:
+            seen_tuids_in_msg.add(tuid)
+            params_str = json.dumps(tparams, ensure_ascii=False) if tparams else ""
+            tool_use_text = f"{tname}({params_str})" if params_str else tname
+            token_est = estimate_tokens_from_text(tool_use_text)
+            messages_array.append({
+                "role": "assistant",
+                "content_type": "tool_use",
+                "content": tool_use_text,
+                "full_content": tool_use_text,
+                "content_preview": tool_use_text[:_TRUNCATE_CONTENT_PREVIEW],
+                "content_token_estimate": token_est,
+                "message_index": msg_index,
+                "has_full_content": True,
+                "tool_name": tname,
+                "tool_use_id": tuid,
+            })
+            msg_index += 1
+
+    return msg_index
+
+
+def _build_full_messages_array_legacy(all_messages: list | None, current_call_id: str = "") -> list[dict]:
+    """Fallback for fixtures without request_full hydration."""
     if not all_messages:
         return []
 
-    from session_browser.attribution.token_estimator import estimate_tokens_from_text
-
-    messages_array = []
+    messages_array: list[dict] = []
     msg_index = 0
-
-    # Gather preceding tool results for this interaction
-    preceding_tr_ids: set[str] = set()  # tool_use_ids already attributed
-    preceding_tool_texts: dict[str, str] = {}  # tool_use_id -> result_text
-    for ix_idx, ix in enumerate(interactions):
-        if ix_idx >= interaction_index:
-            break
-        if hasattr(ix, "tool_calls") and ix.tool_calls:
-            for tc in ix.tool_calls:
-                if tc.result and tc.tool_use_id and not getattr(tc, "subagent_id", ""):
-                    preceding_tool_texts[tc.tool_use_id] = tc.result
-                    preceding_tr_ids.add(tc.tool_use_id)
-
-    # Build a lookup: assistant msg's tool_calls -> tool_use_ids for that response
-    assistant_tool_use_ids: dict[int, set[str]] = {}  # msg_index -> set of tool_use_ids
-
     for msg in all_messages:
-        role = ""
-        content = ""
-        tool_calls = []
-        request_full = ""
-
-        if isinstance(msg, dict):
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-            tool_calls = msg.get("tool_calls", []) or []
-            request_full = msg.get("request_full", "") or ""
-        elif hasattr(msg, "role"):
-            role = getattr(msg, "role", "")
-            content = getattr(msg, "content", "") or ""
-            tool_calls = getattr(msg, "tool_calls", []) or []
-            request_full = getattr(msg, "request_full", "") or ""
-
+        role = _message_field(msg, "role", "")
         if not role:
             continue
+        if role == "assistant":
+            msg_call_id = _message_field(msg, "llm_call_id", "") or _message_field(msg, "id", "")
+            if current_call_id and msg_call_id == current_call_id:
+                break
+            msg_index = _append_assistant_message_entries(messages_array, msg, msg_index)
+            continue
 
+        content = _message_field(msg, "content", "") or ""
         content_str = str(content) if content else ""
-
-        if role == "user":
-            # Check if this user message contains tool_results
-            # Tool results appear as content blocks in the user message
-            # We detect them by checking request_full for tool_result patterns
-            # or by checking if this message follows assistant tool_calls
-
-            # Add user text as a separate entry
-            user_text = content_str.strip()
-            if user_text:
-                token_est = estimate_tokens_from_text(user_text)
-                messages_array.append({
-                    "role": "user",
-                    "content_type": "user_text",
-                    "content_preview": user_text[:_TRUNCATE_CONTENT_PREVIEW],
-                    "content_token_estimate": token_est,
-                    "message_index": msg_index,
-                    "has_full_content": True,
-                    "tool_name": "",
-                    "tool_use_id": "",
-                })
-                msg_index += 1
-
-            # Extract tool_result texts from request_full if available
-            # request_full contains tool results preceding this LLM call
-            if request_full and interaction_index == 0:
-                # For the first interaction, tool results are in request_full
-                # Split by "\n\n" to find tool result blocks
-                parts = [p.strip() for p in request_full.split("\n\n") if p.strip()]
-                for part in parts:
-                    # Detect tool result blocks (they start with "Tool result for"
-                    # or are long text that isn't the user message)
-                    if part.startswith("Tool result for "):
-                        # Extract tool_use_id from header
-                        tr_match = re.match(r"Tool result for (\S+):", part)
-                        tuid = tr_match.group(1) if tr_match else ""
-                        # Get the actual result text (after the header line)
-                        lines = part.split("\n", 1)
-                        result_text = lines[1] if len(lines) > 1 else part
-                        if tuid and result_text.strip() and tuid not in preceding_tr_ids:
-                            token_est = estimate_tokens_from_text(result_text)
-                            tool_name = _extract_tool_name_from_result(result_text)
-                            messages_array.append({
-                                "role": "user",
-                                "content_type": "tool_result",
-                                "content_preview": result_text.strip()[:_TRUNCATE_CONTENT_PREVIEW],
-                                "content_token_estimate": token_est,
-                                "message_index": msg_index,
-                                "has_full_content": True,
-                                "tool_name": tool_name,
-                                "tool_use_id": tuid,
-                            })
-                            msg_index += 1
-                            preceding_tr_ids.add(tuid)
-
-            # Also add preceding tool results from interactions
-            for tuid, tr_text in preceding_tool_texts.items():
-                if tuid not in preceding_tr_ids and tr_text.strip():
-                    token_est = estimate_tokens_from_text(tr_text)
-                    tool_name = _extract_tool_name_from_result(tr_text)
-                    messages_array.append({
-                        "role": "user",
-                        "content_type": "tool_result",
-                        "content_preview": tr_text.strip()[:_TRUNCATE_CONTENT_PREVIEW],
-                        "content_token_estimate": token_est,
-                        "message_index": msg_index,
-                        "has_full_content": True,
-                        "tool_name": tool_name,
-                        "tool_use_id": tuid,
-                    })
-                    msg_index += 1
-                    preceding_tr_ids.add(tuid)
-
-        elif role == "assistant":
-            # Skip the assistant message that corresponds to the current
-            # interaction — its response is the OUTPUT, not INPUT
-            if hasattr(round_obj, "interactions") and round_obj.interactions:
-                current_ix = round_obj.interactions[interaction_index] if interaction_index < len(round_obj.interactions) else None
-                if current_ix and getattr(current_ix, "id", "") == getattr(msg, "llm_call_id", ""):
-                    # This is the current assistant response — skip
-                    continue
-
-            # Add assistant text
-            if content_str.strip():
-                token_est = estimate_tokens_from_text(content_str)
-                messages_array.append({
-                    "role": "assistant",
-                    "content_type": "assistant_text",
-                    "content_preview": content_str[:_TRUNCATE_CONTENT_PREVIEW],
-                    "content_token_estimate": token_est,
-                    "message_index": msg_index,
-                    "has_full_content": True,
-                    "tool_name": "",
-                    "tool_use_id": "",
-                })
-                msg_index += 1
-
-            # Add tool_use entries from assistant's tool_calls
-            seen_tuids_in_msg = set()
-            for tc in tool_calls:
-                if isinstance(tc, dict):
-                    tuid = tc.get("id", "")
-                    tname = tc.get("name", "unknown")
-                    tparams = tc.get("parameters", {})
-                elif hasattr(tc, "tool_use_id"):
-                    tuid = getattr(tc, "tool_use_id", "")
-                    tname = getattr(tc, "name", "unknown")
-                    tparams = getattr(tc, "parameters", {})
-                else:
-                    continue
-
-                if tuid and tuid not in seen_tuids_in_msg:
-                    seen_tuids_in_msg.add(tuid)
-                    params_str = json.dumps(tparams, ensure_ascii=False)[:200] if tparams else ""
-                    tool_use_text = f"{tname}({params_str})" if params_str else tname
-                    token_est = estimate_tokens_from_text(tool_use_text)
-                    messages_array.append({
-                        "role": "assistant",
-                        "content_type": "tool_use",
-                        "content_preview": tool_use_text[:_TRUNCATE_CONTENT_PREVIEW],
-                        "content_token_estimate": token_est,
-                        "message_index": msg_index,
-                        "has_full_content": False,
-                        "tool_name": tname,
-                        "tool_use_id": tuid,
-                    })
-                    msg_index += 1
+        if content_str.strip():
+            msg_index, _ = _append_request_full_entries(messages_array, content_str, msg_index)
 
     return messages_array
 

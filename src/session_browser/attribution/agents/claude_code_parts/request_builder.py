@@ -168,13 +168,13 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     ctx = self.session_context or {}
     full_messages_array = ctx.get("full_messages_array", [])
     full_msg_count = len(full_messages_array) if full_messages_array else 0
-    full_msg_texts = []
-    for fm in (full_messages_array or []):
-        if isinstance(fm, dict):
-            full_msg_texts.append(fm.get("content_preview", ""))
     full_messages_tokens = 0
     if full_messages_array:
-        full_messages_tokens = estimate_tokens_from_text("\n".join(full_msg_texts))
+        full_messages_tokens = sum(
+            max(0, int(fm.get("content_token_estimate") or 0))
+            for fm in full_messages_array
+            if isinstance(fm, dict)
+        )
 
     # Tool schemas: use real JSON Schema definitions extracted from
     # Claude Code npm package (sdk-tools.d.ts) for accurate token
@@ -309,6 +309,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         current_user_details = {
             "kind": "current_user_message",
             "preview": truncate_preview(masked_user_content, 1000),
+            "full_content": masked_user_content,
             "tokens": current_user_msg_tokens,
         }
         buckets.append(RequestAttributionBucket(
@@ -332,6 +333,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
                 {
                     "tool_name": extract_tool_name(rt),
                     "summary": truncate_preview(mask_sensitive_keys(rt), 180),
+                    "full_content": mask_sensitive_keys(rt),
                     "exit_status": 0,  # unknown from text
                     "tokens": estimate_tokens_from_text(rt),
                 }
@@ -359,6 +361,11 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     # (full_messages_array and full_messages_tokens already extracted from ctx above)
     prior_details = {
         "kind": "full_messages_array",
+        "explanation": [
+            "这里对应发送给模型的 Anthropic API `messages` 字段，而不是 UI 上的 round 列表。",
+            "每一行是一段输入消息内容：user_text 是用户文本，tool_result 是工具结果，assistant_text 是历史助手文本，tool_use 是历史工具调用。",
+            "当前 assistant response 属于输出，不计入这个 request-side messages 数组。",
+        ],
         "items": [
             {
                 "message_index": fm.get("message_index", i),
@@ -367,6 +374,11 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
                 "tool_name": fm.get("tool_name", ""),
                 "tool_use_id": fm.get("tool_use_id", ""),
                 "summary": fm.get("content_preview", ""),
+                "full_content": (
+                    fm.get("full_content")
+                    or fm.get("content")
+                    or fm.get("content_preview", "")
+                ),
                 "tokens": fm.get("content_token_estimate", 0),
                 "has_full_content": fm.get("has_full_content", False),
             }
@@ -439,6 +451,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             "file_path": "CLAUDE.md",
             "source_type": "project_instructions",
             "preview": truncate_preview(masked_text, 500),
+            "full_content": masked_text,
             "tokens": local_instruction_tokens,
             "precision": "heuristic",
         })
@@ -448,6 +461,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             "file_path": "system-reminder",
             "source_type": "transcript_system_reminder",
             "preview": truncate_preview(masked_reminder, 500),
+            "full_content": masked_reminder,
             "tokens": estimate_tokens_from_text(ctx["system_reminder_content"]),
             "precision": "heuristic",
         })
@@ -480,6 +494,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             "file_path": f".claude/agents/{agent_name_for_path or 'unknown'}.md",
             "source_type": "agent_prompt",
             "preview": truncate_preview(masked_agent, 500),
+            "full_content": masked_agent,
             "tokens": agent_subagent_tokens,
             "precision": "heuristic",
         })
@@ -539,19 +554,34 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         ))
 
     # 9. hidden_builtin_system_estimate — 内置系统提示
+    hidden_builtin_precision = ValuePrecision.HEURISTIC
+    hidden_builtin_source = ValueSource.HEURISTIC
+    hidden_builtin_summary = (
+        "Claude Code 内置 prompt 未在本地 transcript 中捕获，此处为 300-800 tokens "
+        "典型值估算，非真实内容。"
+    )
     if system_reminder_text:
+        masked_reminder_text = mask_sensitive_keys(system_reminder_text)
+        hidden_builtin_precision = ValuePrecision.ESTIMATED
+        hidden_builtin_source = ValueSource.TRANSCRIPT
+        hidden_builtin_summary = (
+            "从本地 transcript 捕获到可见 <system-reminder> 内容，下面展示脱敏预览；"
+            "它仍不代表 Claude Code 完整隐藏内置 prompt。"
+        )
         hidden_builtin_details = {
             "kind": "hidden_estimate",
             "explanation": [
                 f"从会话 transcript 中提取 <system-reminder> 内容，共 {len(system_reminder_text)} 字符",
                 f"token 数 {hidden_builtin_tokens} 通过文本估算",
             ],
+            "preview": truncate_preview(masked_reminder_text, 2000),
+            "full_content": masked_reminder_text,
         }
     else:
         hidden_builtin_details = {
             "kind": "hidden_estimate",
             "explanation": [
-                "Claude Code 内置隐藏 system prompt 不可见",
+                "Claude Code 内置隐藏 system prompt 未在本地 transcript 中捕获",
                 "按 300-800 tokens 典型值估算",
             ],
         }
@@ -560,13 +590,10 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         label="内置系统提示",
         tokens=hidden_builtin_tokens,
         percent=_pct(hidden_builtin_tokens, request_distribution_input),
-        precision=ValuePrecision.HEURISTIC,
-        source=ValueSource.HEURISTIC,
+        precision=hidden_builtin_precision,
+        source=hidden_builtin_source,
         confidence_label="低",
-        summary=(
-            "Claude Code 内置 prompt 不公开，此处为 300-800 tokens 典型值估算，"
-            "非真实内容。"
-        ),
+        summary=hidden_builtin_summary,
         details=hidden_builtin_details,
     ))
 

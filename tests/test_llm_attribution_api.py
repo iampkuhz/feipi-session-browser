@@ -21,6 +21,7 @@ from session_browser.attribution.agents.claude_code import (
     ClaudeCodeAttributionBuilder,
     normalize_request_reconstruction_buckets,
 )
+from session_browser.attribution.agents.codex import CodexAttributionBuilder
 from session_browser.attribution.context import build_attribution_session_context
 from session_browser.attribution.contracts import ValuePrecision, ValueSource
 from session_browser.attribution.serializers import (
@@ -76,6 +77,47 @@ def test_request_attribution_payload_contains_envelope_fields():
     assert "usage" in payload
     assert "availability_rows" in payload
     assert "timing" in payload
+
+
+def test_codex_request_api_payload_has_complete_tool_schema_details():
+    """Codex request attribution API payload should not expose observed-tools-only schema."""
+    lc = _make_lc(
+        id="codex-call-001",
+        model="openai",
+        input_tokens=10000,
+        cache_read_tokens=1000,
+    )
+    ro = _make_ro(
+        user_content="optimize repo",
+        tool_calls=[
+            ToolCall(name="exec_command", parameters={"cmd": "pwd"}, result="ok"),
+            ToolCall(name="apply_patch", parameters={}, result="ok"),
+        ],
+    )
+    builder = CodexAttributionBuilder(
+        lc,
+        ro,
+        session_context={"available_tools": ["exec_command", "apply_patch"]},
+    )
+    payload = request_attribution_to_payload(builder.build_request())
+    tool_schemas = next((b for b in payload["buckets"] if b["key"] == "tool_schemas"), None)
+
+    assert tool_schemas is not None
+    assert tool_schemas["tokens"] >= 3000
+    assert tool_schemas["count_label"] == "5 tools"
+    assert "observed tools" not in tool_schemas["summary"]
+    details = tool_schemas["details"]
+    assert details["kind"] == "tools"
+    assert details["total_items"] == 5
+    assert len(details["items"]) == 5
+    for item in details["items"]:
+        assert item["name"]
+        assert item["source_type"]
+        assert item["estimated_tokens"] > 0
+        assert item["tokens"] == item["estimated_tokens"]
+        assert item["description_preview"]
+        assert item["input_schema"]
+        assert item["full_content"]
 
 
 def test_response_attribution_payload_contains_envelope_fields():

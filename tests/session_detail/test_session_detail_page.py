@@ -576,7 +576,7 @@ class TestPayloadModal:
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_open_payload_buttons(self, timeline, primitives):
-        """LLM call card and tool batch must have open-payload buttons."""
+        """Message, assistant, and tool rows must have open-payload buttons."""
         # The sdp.button() macro in primitives renders data-action from the action param
         assert "open-payload" in timeline, \
             "Missing open-payload action in timeline"
@@ -586,16 +586,16 @@ class TestPayloadModal:
             "Primitives button macro must support data-payload-id"
 
     @pytest.mark.contract_case("UI-SD-001")
-    def test_context_payload_button(self, timeline):
-        """LLM call card must have Context button."""
-        assert "Context" in timeline, "Missing Context button"
-        assert 'data-payload-kind="context"' in timeline, \
-            "Missing data-payload-kind=\"context\""
+    def test_user_message_payload_button(self, timeline):
+        """User message row must expose payload access."""
+        assert "user_message_event" in timeline, "Missing user message event macro"
+        assert 'data-payload-kind="message.user"' in timeline, \
+            "Missing data-payload-kind=\"message.user\""
 
     @pytest.mark.contract_case("UI-SD-001")
-    def test_response_payload_button(self, timeline):
-        """LLM call card must have Response button."""
-        assert "Response" in timeline, "Missing Response button"
+    def test_assistant_payload_button(self, timeline):
+        """Assistant event rows must expose response payload access."""
+        assert "assistant_event" in timeline, "Missing assistant event macro"
         assert 'data-payload-kind="response"' in timeline, \
             "Missing data-payload-kind=\"response\""
 

@@ -18,6 +18,10 @@ from session_browser.attribution.contracts import (
     LLMRequestAttribution,
     LLMResponseAttribution,
 )
+from session_browser.attribution.taxonomy import (
+    normalize_request_bucket_payload,
+    sort_request_buckets,
+)
 
 
 def attributed_value_to_dict(v: AttributedValue) -> dict:
@@ -159,6 +163,16 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
     """
     v2_extra = v2_extra or {}
 
+    request_buckets = [
+        normalize_request_bucket_payload(attr.agent, _request_bucket_to_dict(b))
+        for b in attr.buckets
+    ]
+    request_buckets = sort_request_buckets(attr.agent, request_buckets)
+    request_buckets = _normalize_request_bucket_percents_for_display(
+        request_buckets,
+        _request_distribution_denominator(attr),
+    )
+
     payload = {
         # ── v2 schema ──
         "schema_version": "llm_attribution_v2",
@@ -207,10 +221,7 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
             "coverage": attributed_value_to_dict(attr.coverage),
             "unknown": attributed_value_to_dict(attr.unknown),
         },
-        "buckets": _normalize_request_bucket_percents_for_display(
-            [_request_bucket_to_dict(b) for b in attr.buckets],
-            _request_distribution_denominator(attr),
-        ),
+        "buckets": request_buckets,
         "captured_context_preview": attr.captured_context_preview,
         "attribution_notes": list(attr.attribution_notes),
         "availability_rows": [availability_row_to_dict(r) for r in attr.availability_rows],
@@ -346,7 +357,7 @@ def _build_coverage(attr) -> dict:
         "reconstructed_total": reconstructed,
         "coverage_ratio": round(reconstructed / total_val, 3) if total_val > 0 else 0.0,
         "residual_tokens": unknown_val,
-        "residual_likely_sources": ["unclassified overhead"],
+        "residual_likely_sources": [],
     }
 
 

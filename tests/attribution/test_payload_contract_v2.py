@@ -174,6 +174,7 @@ class TestRequestAttributionPayloadV2:
         assert "coverage_ratio" in cov
         assert "residual_tokens" in cov
         assert "residual_likely_sources" in cov
+        assert "unclassified overhead" not in cov["residual_likely_sources"]
 
     def test_route_payload_fields_present(self):
         attr = _make_request_attribution()

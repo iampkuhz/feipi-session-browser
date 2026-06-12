@@ -150,8 +150,10 @@ def _normalize_codex_usage(
 ) -> dict:
     """Normalize Codex per-turn usage from cumulative totals to deltas.
 
-    Codex msg.usage contains cumulative sums of last_token_usage across events
-    between agent_messages. For display, we need per-turn delta values.
+    Some Codex usage payloads expose ``total_token_usage`` cumulative values.
+    For display, those records need per-call delta values.  Plain
+    ``last_token_usage`` values are already per-call and should bypass this
+    helper.
 
     Args:
         usage: Raw cumulative usage from Codex source.
@@ -194,6 +196,48 @@ def _normalize_codex_usage(
         "cache_read_input_tokens": delta_cached,
         "cache_creation_input_tokens": delta_cache_write,
         "output_tokens": delta_output,
+    }
+
+
+def _usage_int(usage: dict, *keys: str) -> int:
+    for key in keys:
+        value = usage.get(key)
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    return 0
+
+
+def _codex_usage_is_cumulative(usage: dict) -> bool:
+    if usage.get("_is_cumulative"):
+        return True
+    source = str(usage.get("_usage_source") or "")
+    return "total_token_usage" in source and "last_token_usage" not in source
+
+
+def _codex_usage_for_llm_call(usage: dict, cumulative_state: dict) -> dict:
+    """Return per-call Codex usage for interaction rows.
+
+    ``sources.codex._extract_messages`` already aggregates
+    ``last_token_usage`` into per-assistant-message usage.  Only records that
+    explicitly identify ``total_token_usage`` as their source should be
+    converted from cumulative totals to deltas here.
+    """
+    if _codex_usage_is_cumulative(usage):
+        return _normalize_codex_usage(usage, cumulative_state)
+    return {
+        "input_tokens": _usage_int(usage, "input_tokens", "prompt_tokens", "input"),
+        "cache_read_input_tokens": _usage_int(
+            usage,
+            "cache_read_input_tokens",
+            "cached_input_tokens",
+            "cached_tokens",
+        ),
+        "cache_creation_input_tokens": _usage_int(usage, "cache_creation_input_tokens"),
+        "output_tokens": _usage_int(usage, "output_tokens", "completion_tokens", "output"),
     }
 
 
@@ -259,9 +303,8 @@ def build_llm_calls(
             continue
 
         usage = msg.usage or {}
-        # Codex: usage contains cumulative sums, normalize to per-turn deltas
         if agent == "codex" and usage:
-            usage = _normalize_codex_usage(usage, codex_cumulative)
+            usage = _codex_usage_for_llm_call(usage, codex_cumulative)
         round_tools = rounds[r_idx].tool_calls if r_idx < len(rounds) else []
         round_obj = rounds[r_idx] if r_idx < len(rounds) else None
 
@@ -339,15 +382,13 @@ def build_llm_calls(
             if msg.role != "assistant" or not msg.llm_call_id:
                 continue
             usage = msg.usage or {}
-            # Codex: normalize cumulative sums to per-turn deltas
-            # Each subagent run has its own cumulative sequence
             if agent == "codex" and usage:
                 if "subagent_cumulative" not in codex_cumulative:
                     codex_cumulative["subagent_cumulative"] = {}
                 sub_cum = codex_cumulative["subagent_cumulative"]
                 if agent_id not in sub_cum:
                     sub_cum[agent_id] = {}
-                usage = _normalize_codex_usage(usage, sub_cum[agent_id])
+                usage = _codex_usage_for_llm_call(usage, sub_cum[agent_id])
 
             request_full = msg.request_full if msg.request_full else ""
             request_preview = request_full[:200] if request_full else ""

@@ -11,13 +11,27 @@
         {{ sdp.pill('独立上下文', 'model') }}
         {{ sdp.pill(block.status_label|default('completed'), block.status_tone|default('ok')) }}
         <span class="sd-subagent__meta">{{ block.meta }}</span>
+        <button
+          type="button"
+          class="sd-btn sd-btn--secondary sd-btn--sm sd-subagent__toggle"
+          data-action="toggle-subagent-rounds"
+          aria-expanded="false"
+        >Expand all</button>
       </div>
       <div class="sd-sub-rounds">
         {% for sr in block.sub_rounds %}
-          <div class="sd-sub-round {% if sr.has_fail %}sd-sub-round--fail{% endif %}" data-sub-round-id="{{ sr.sub_round_id }}">
-            <div class="sd-sub-round__summary">
+          <div class="sd-sub-round {% if sr.has_fail %}sd-sub-round--fail{% endif %} {% if sr.is_open %}is-open{% endif %}" data-sub-round-id="{{ sr.sub_round_id }}" data-sub-round-open="{{ 'true' if sr.is_open else 'false' }}">
+            <div class="sd-sub-round__summary" data-sub-round-toggle>
+              <button
+                type="button"
+                class="sd-sub-round__toggle"
+                data-action="toggle-sub-round"
+                aria-expanded="{{ 'true' if sr.is_open else 'false' }}"
+                aria-label="Toggle subround SR{{ sr.sub_round_id }}"
+              ><span aria-hidden="true">›</span></button>
               <span class="sd-sub-id">SR{{ sr.sub_round_id }}</span>
               <span class="sd-sub-title">{{ sr.title }}</span>
+              {{ llm.attribution_actions(sr.request_attribution, sr.response_attribution, 'sd-attribution-actions--subround') }}
               <span class="sd-sub-time">{{ sr.start_time|default('—') }}</span>
               <span class="sd-sub-tokenbar" tabindex="0">
                 <span class="tokenbar-sub" aria-hidden="true">
@@ -55,20 +69,9 @@
                 </div>
               </span>
             </div>
-            <div class="sd-sub-steps">
+            <div class="sd-sub-steps" data-sub-round-steps {% if not sr.is_open %}hidden{% endif %}>
               {% for step in sr.steps %}
-                {% if step.type == "llm_call" %}
-                  {{ llm.llm_call_card(step) }}
-                {% elif step.type == "tool_batch" %}
-                  {{ llm.tool_batch(step) }}
-                {% else %}
-                  {# tool_step fallback #}
-                  <div class="sd-sub-step">
-                    <span class="sd-sub-kind">{{ step.kind }}</span>
-                    <span class="sd-sub-main">{{ step.text }}</span>
-                    <span class="sd-sub-result">{{ step.result }}</span>
-                  </div>
-                {% endif %}
+                {{ llm.timeline_event(step) }}
               {% endfor %}
             </div>
           </div>

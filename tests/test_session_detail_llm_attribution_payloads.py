@@ -125,6 +125,29 @@ def test_attribution_payloads_exist_in_sources():
     )
 
 
+def test_slim_initial_load_defers_attribution_payload_data():
+    """Initial page load should keep attribution actions but not embed heavy payload data."""
+    session = _FakeSession()
+    ro, lc = _make_round_with_llm_call()
+
+    vm = _build_v11_view_model(
+        session=session,
+        rounds=[ro],
+        llm_calls=[lc],
+        tool_calls=ro.tool_calls,
+        subagent_runs=[],
+        session_anomalies=_FakeAnomalies(),
+        slim=True,
+    )
+
+    assert vm["payload_sources"] == []
+    row = vm["trace_rows"][0]
+    assert row["request_attribution"]["payload_id"] == "llm-R1-IX1-request-attribution"
+    assert row["request_attribution"]["kind"] == "llm.request_attribution"
+    assert row["response_attribution"]["payload_id"] == "llm-R1-IX1-response-attribution"
+    assert row["response_attribution"]["kind"] == "llm.response_attribution"
+
+
 def test_request_attribution_payload_structure():
     """Verify request attribution payload has expected fields."""
     session = _FakeSession()
