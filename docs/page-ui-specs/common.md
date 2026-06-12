@@ -108,6 +108,7 @@
 - `Token Cell` 是所有 token 总量单元格的共享组件，固定由 total value、`Tokenbar`、tooltip 组成。
 - total value 展示 `Fresh + Cache Read + Cache Write + Output`，缩写保留一位小数。
 - total value 必须使用 tabular number。
+- Fresh、Cache Read、Cache Write、Output 必须是互斥分段；当 provider 的 cache read 是 input token 子集（例如 OpenAI/Codex `cached_input_tokens`）时，Fresh 使用 `input_tokens - cached_input_tokens`，Provider request input 只能在归因摘要或 provider total 字段中单独解释，不得作为 tokenbar 分段重复计入。
 - `Tokenbar` 固定展示四段 token 构成，顺序为 Fresh、Cache Read、Cache Write、Output。
 - `Tokenbar` 每段宽度按该 token 类型占 total tokens 的比例计算。
 - `Tokenbar` 总宽度固定为 88px；高度固定为 6px；圆角固定为 999px。
@@ -143,6 +144,7 @@
 
 - 页面必须展示数据源支持的核心字段；不可用数据必须显示原因、来源、精度，不得静默隐藏。
 - 数字统一格式；token 数值缩写保留一位小数，时间格式在列表中保持可比较。
+- 所有基于本地文本长度、schema fallback 或不可精确 provider 字段推导的 token 数值必须以前缀 `~` 标记为估算值。
 - Token 总量必须等于 Fresh、Cache Read、Cache Write、Output 的分段合计；无法相等时必须说明不可用原因。
 - 长路径、session id、model 使用 mono；token 数值使用 tabular number。
 - `Created` 固定表示 session created_at；created_at 缺失时使用 first event timestamp，并在 tooltip 标注 fallback。

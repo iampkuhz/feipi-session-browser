@@ -117,8 +117,11 @@
       tpl.setAttribute('data-payload-kind', src.kind || 'unknown');
       tpl.setAttribute('data-payload-status', src.status || 'available');
       tpl.setAttribute('data-payload-size', src.size || '—');
+      tpl.setAttribute('data-payload-token-estimate', src.token_estimate || '');
       if (src.html) {
         setHtml(tpl, src.html);
+      } else if (typeof payloadNodeFromJson === 'function') {
+        tpl.content.appendChild(payloadNodeFromJson(src));
       } else if (src.text) {
         var pre = document.createElement('pre');
         pre.textContent = src.text;

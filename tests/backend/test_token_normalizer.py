@@ -121,8 +121,8 @@ class TestOpenAINormalization:
         result = normalize_tokens(usage, provider=TokenProvider.OPENAI)
 
         assert result.cache_read_tokens == 3000
-        assert result.fresh_input_tokens == 5000
-        assert result.total_tokens == 8300
+        assert result.fresh_input_tokens == 2000
+        assert result.total_tokens == 5300
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_with_reasoning_tokens(self):
@@ -145,7 +145,7 @@ class TestOpenAINormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.OPENAI)
 
-        assert result.fresh_input_tokens == 4000
+        assert result.fresh_input_tokens == 2000
         assert result.cache_read_tokens == 2000
         assert result.output_tokens == 600
 
@@ -156,7 +156,7 @@ class TestOpenAINormalization:
 class TestCodexNormalization:
     """测试 Codex 用量归一化。
 
-    语义：input_tokens 是本次请求输入规模；cached_input_tokens 单独展示。
+    语义：cached_input_tokens 是 input_tokens 的子集；Fresh 是非缓存输入。
     """
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
@@ -176,10 +176,10 @@ class TestCodexNormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.CODEX)
 
-        assert result.fresh_input_tokens == 5000
+        assert result.fresh_input_tokens == 2000
         assert result.cache_read_tokens == 3000
         assert result.output_tokens == 2000
-        assert result.total_tokens == 10000
+        assert result.total_tokens == 7000
         assert result.total_semantics == TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
@@ -191,10 +191,10 @@ class TestCodexNormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.CODEX)
 
-        assert result.fresh_input_tokens == 800
+        assert result.fresh_input_tokens == 600
         assert result.cache_read_tokens == 200
         assert result.output_tokens == 400
-        assert result.total_tokens == 1400
+        assert result.total_tokens == 1200
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_empty_usage(self):

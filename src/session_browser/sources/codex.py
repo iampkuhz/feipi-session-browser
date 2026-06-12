@@ -623,6 +623,21 @@ def _get_int_safe(d: dict, key: str) -> int:
         return 0
 
 
+def _extract_wall_time_ms(text: str) -> float:
+    """Extract tool wall time from Codex tool output text."""
+    if not text:
+        return 0
+    import re
+    match = re.search(r"Wall time:\s*([0-9]+(?:\.[0-9]+)?)\s*(seconds?|secs?|s|ms)\b", text, re.IGNORECASE)
+    if not match:
+        return 0
+    value = float(match.group(1))
+    unit = match.group(2).lower()
+    if unit == "ms":
+        return value
+    return value * 1000
+
+
 def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
     """Extract user and agent messages from Codex events.
 
@@ -672,6 +687,7 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
             "output_tokens": 0,
             "reasoning_output_tokens": 0,
             "total_tokens": 0,
+            "_usage_fragment_count": 0,
         }
         tool_ids: list[dict] = []
         response_texts: list[str] = []
@@ -687,12 +703,14 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
                         # Use _extract_codex_usage to handle flat + nested aliases
                         extracted = _extract_codex_usage(last_usage)
                         if extracted:
+                            usage["_usage_fragment_count"] += 1
                             usage["input_tokens"] += extracted.get("input_tokens", 0)
                             usage["cached_input_tokens"] += extracted.get("cached_input_tokens", 0)
                             usage["output_tokens"] += extracted.get("output_tokens", 0)
                             usage["reasoning_output_tokens"] += extracted.get("reasoning_output_tokens", 0)
                             usage["total_tokens"] += extracted.get("total_tokens", 0)
                         else:
+                            usage["_usage_fragment_count"] += 1
                             # Fallback: direct field access
                             usage["input_tokens"] += last_usage.get("input_tokens", 0) or 0
                             usage["cached_input_tokens"] += last_usage.get("cached_input_tokens", 0) or 0
@@ -852,7 +870,10 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
             if payload.get("type") in ("function_call_output", "custom_tool_call_output"):
                 call_id = payload.get("call_id", "")
                 if call_id:
-                    outputs_by_id[call_id] = payload
+                    outputs_by_id[call_id] = {
+                        "payload": payload,
+                        "timestamp": ev.get("timestamp", ""),
+                    }
 
     tool_calls = []
     for ev in events:
@@ -881,11 +902,19 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                 # Match with output for status/result
                 status = "completed"
                 result = ""
+                duration_ms = 0
                 exit_code: int | None = None
-                output_ev = outputs_by_id.get(call_id, {})
+                output_info = outputs_by_id.get(call_id, {})
+                output_ev = output_info.get("payload", {}) if isinstance(output_info, dict) else {}
                 if output_ev:
                     output_text = str(output_ev.get("output", ""))
                     result = output_text
+                    duration_ms = _extract_wall_time_ms(output_text)
+                    if duration_ms <= 0:
+                        started_at = _ts_to_epoch(ts)
+                        ended_at = _ts_to_epoch(output_info.get("timestamp", ""))
+                        if started_at > 0 and ended_at > started_at:
+                            duration_ms = (ended_at - started_at) * 1000
                     # Extract exit code from output (e.g. "Process exited with code 1" or "Exit code: 1")
                     import re
                     exit_match = re.search(r"exited with code (\d+)", output_text)
@@ -901,6 +930,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                     parameters=args if isinstance(args, dict) else {},
                     result=result,
                     status=status,
+                    duration_ms=duration_ms,
                     timestamp=ts,
                     tool_use_id=call_id,
                     exit_code=exit_code,

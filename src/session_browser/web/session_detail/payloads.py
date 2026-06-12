@@ -6,8 +6,14 @@ dict used by the session detail view model and the /api/.../payload endpoint.
 
 from __future__ import annotations
 
+from session_browser.attribution.token_estimator import estimate_tokens_from_text
 from session_browser.web.template_env import _format_bytes, _shorten_path
 from session_browser.web.session_detail.render_helpers import _build_tool_command_summary
+
+
+def _estimate_payload_tokens(text: str) -> int:
+    """Estimate payload text tokens for UI inspection only."""
+    return estimate_tokens_from_text(text or "")
 
 
 def _truncate_payload(text: str, limit: int) -> str:
@@ -70,6 +76,10 @@ def _build_payload_lookup(
             "size": _format_bytes(byte_count) if byte_count else "—",
             "text": final_text,
         }
+        if kind in {"tool.result", "subagent.tool.result"} and text:
+            entry["token_estimate"] = _estimate_payload_tokens(text)
+            entry["token_estimate_precision"] = "estimated"
+            entry["token_estimate_source"] = "result text"
         if tool_name:
             entry["tool_name"] = tool_name
         if tool_command:

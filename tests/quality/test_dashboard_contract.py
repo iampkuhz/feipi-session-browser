@@ -310,11 +310,18 @@ class TestDashboardCSSContract:
 
     @pytest.mark.contract_case("DASHBOARD-CSS-002")
     def test_kpi_metric_rows_have_hover_tooltip_styles(self):
-        """KPI 主指标和二级指标行必须共用行级 tooltip 样式。"""
+        """KPI 主指标、badge 和二级指标必须共用黑色 tooltip 样式。"""
         css = _read(_CSS_PATH)
         assert ".metric-card__tooltip-target[data-tooltip-def]" in css
         assert ".metric-card__tooltip-target[data-tooltip-def]:hover::after" in css
         assert ".metric-card__tooltip-target[data-tooltip-def]:focus-visible::after" in css
+        assert "background: #0f172a;" in css
+        assert "box-shadow: none;" in css
+        assert "white-space: normal;" in css
+        assert "overflow-wrap: anywhere;" in css
+        assert "max-width: min(320px, calc(100vw - 32px));" in css
+        assert ".chart-card__note" in css
+        assert "max-width: 560px;" not in css
 
 
 class TestDashboardTemplateContract:
@@ -383,14 +390,33 @@ class TestDashboardTemplateContract:
 
     @pytest.mark.contract_case("DASHBOARD-TEMPLATE-004")
     def test_kpi_cards_use_row_tooltips_not_info_buttons(self):
-        """KPI 卡片不得保留 info icon，主指标和二级指标行必须有 tooltip。"""
+        """KPI 卡片不得保留 info icon，主指标、badge 和二级指标必须有 tooltip。"""
         tmpl = _read(_TEMPLATE_PATH)
         start = tmpl.index('<section class="kpi-grid">')
         end = tmpl.index('{# ── Trend 总览区', start)
         body = tmpl[start:end]
         assert 'icon-button--info' not in body
         assert 'data-action="kpi-info"' not in body
+        assert 'class="metric-card__label metric-card__tooltip-target"' not in body
         assert 'data-kpi-tooltip="{{ kpi.label }}"' in body
         assert 'data-tooltip-def="{{ kpi.description }}"' in body
+        assert 'data-kpi-badge-tooltip="{{ kpi.label }}"' in body
+        assert 'data-tooltip-def="{{ kpi.badge_description }}"' in body
         assert 'metric-card__secondary-row metric-card__tooltip-target' in body
         assert 'tabindex="0"' in body
+
+    @pytest.mark.contract_case("DASHBOARD-TEMPLATE-005")
+    def test_chart_info_uses_inline_notes_not_info_buttons(self):
+        """Dashboard 图表说明必须是常驻小字，不得回退到 info icon/popover。"""
+        tmpl = _read(_TEMPLATE_PATH)
+        assert 'icon-button--info' not in tmpl
+        assert 'data-info=' not in tmpl
+        assert 'id="infoPopover"' not in tmpl
+        assert 'class="chart-card__note"' in tmpl
+        assert "chart_notes.sessions" in tmpl
+
+    @pytest.mark.contract_case("DASHBOARD-TEMPLATE-006")
+    def test_dashboard_template_has_no_native_title_tooltips(self):
+        """Dashboard 不得使用原生 title，避免灰色浏览器 tooltip。"""
+        tmpl = _read(_TEMPLATE_PATH)
+        assert " title=" not in tmpl

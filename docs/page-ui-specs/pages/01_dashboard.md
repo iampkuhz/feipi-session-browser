@@ -32,8 +32,11 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
   - 第二层：2 到 4 个二级指标，使用紧凑行展示，label 左对齐，value 右对齐。
 - KPI card 内不得保留独立 info icon；解释说明必须下沉到指标行本身。
 - 变化 badge 使用紧凑 badged text 展示相对变化或当前窗口辅助变化值，例如 `+6.0%`、`+10`、`N/A`。
-- 变化 badge 的口径必须可解释：Sessions、Total Tokens、Prompt Activity、Cache Read Ratio、Failed Tools 默认对比当前可见窗口最后两个 range point；Projects 默认展示 `New 7d`。
-- 每张 KPI card 的一级指标行必须提供 hover/focus tooltip，说明一级值和变化 badge 的统计口径。
+- 变化 badge 的口径必须可解释：Sessions、Total Tokens、Prompt Activity、Cache Read Ratio、Failed Tools 默认对比当前可见窗口最后两个 range point；Projects 展示最近 7 天使用的 project 数相对上个 7 天的变化。
+- 每张 KPI card 的一级指标 value 和变化 badge 必须分别提供 hover/focus tooltip；一级指标 tooltip 只说明主值口径，badge tooltip 只说明比较口径，不得把两者混在同一段长文案内。
+- KPI label 只作为静态文本，不触发 hover/focus tooltip，不得出现 label hover 后的阴影、浮层残影或高亮块。
+- Dashboard 不得使用浏览器原生 `title` 承载 KPI、badge 或 chart info 说明，避免出现延迟灰色 tooltip；可 hover 的说明统一使用页面内黑色 tooltip。
+- KPI tooltip 必须允许换行，最大宽度受视口约束；不得继承主数字或 badge 的 `white-space: nowrap` 导致文案横向截断。
 - KPI 使用当前 agent scope 下的全部已索引数据重算；时间粒度 segmented control 不影响 KPI。
 - 数值必须使用 tabular number；token 缩写保留一位小数；百分比保留一位小数。
 - 二级指标行必须有 hover/focus tooltip，tooltip 固定说明定义、计算公式、统计范围；tooltip 必须使用具体字段口径，不得只写 `定义与计算公式` 这类占位文案。
@@ -57,7 +60,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 3. `Total Tokens`
    - 一级值：`Fresh + Cache Read + Cache Write + Output` 的合计。
    - 二级指标固定为 `Fresh`、`Cache Read`、`Cache Write`、`Output`。
-   - `Fresh`：本次请求实际新增/发送的输入规模，cache read 和 cache write 作为独立组件展示，不从 Fresh 扣减。
+   - `Fresh`：互斥的新输入分段；当 provider 的 cache read 是 input token 子集（例如 OpenAI/Codex `cached_input_tokens`）时，Fresh 使用 `input_tokens - cached_input_tokens`，避免 Total 重复计入缓存命中输入。
    - `Cache Read`：从缓存读取并计入输入侧的 token 数。
    - `Cache Write`：写入缓存并计入输入侧的 token 数。
    - `Output`：模型输出 token 数。
@@ -89,7 +92,9 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - `Session Trend`、`Token Trend`、`Prompt Activity Trend`、`Cache Health` 不使用 tab 切换；四张卡必须同时可见。
 - 每张 chart card 的内容布局固定为顶部标题栏加全宽图表，不渲染静态明细表。
 - `Session Trend`、`Token Trend`、`Prompt Activity Trend` 的标题栏右侧固定显示 `Latest` 和 `Range total` 两个紧凑 stat；`Cache Health` 的标题栏右侧固定显示 `Latest ratio`、`Lowest ratio` 两个紧凑 stat。
-- 所有 chart card 不展示 subtitle；图表口径、维度解释和注意事项全部放入 title 旁 info icon 的 tooltip。
+- 所有 chart card 不展示 subtitle，也不展示 title 旁 info icon；图表口径、维度解释和注意事项使用卡片左上角的小字 `chart note` 常驻展示。
+- `chart note` 文案必须跟随当前 scope 和时间粒度变化，不得写成 “按当前 Day、Week 或 Month” 这类泛化说明；例如 `All agents + Day` 显示 `按天新增的 session 总数，按照不同 agent 堆叠。`，`Claude Code + Month` 显示 `按月新增的 Claude Code session 数量。`。
+- `chart note` 必须使用标题栏左侧可用宽度，不得设置过窄固定最大宽度导致宽屏下过早换行；只在标题栏真实剩余空间不足时换行。
 - 每张 chart card 的图表宽度占卡片内容宽度 100%；图表绘图区高度固定为 240px 到 280px。
 - 每张 chart card 的 y 轴只显示刻度值；不得显示可见的 `Y-axis: <metric name> (<unit>)` 纵向标题文字。
 - 每张 chart card 的所有 range point 细节都通过 `common.md` 的 `Chart Tooltip` 展示，不把每个 range point 的数值同时铺成表格。

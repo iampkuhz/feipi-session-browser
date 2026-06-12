@@ -501,7 +501,7 @@
 }
 .sd-tool-row {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1.8fr) minmax(0, .7fr) auto auto auto;
+  grid-template-columns: 58px minmax(0, 1.45fr) minmax(0, .55fr) auto auto minmax(58px, auto) auto;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -517,18 +517,20 @@
   background: transparent;
   border: 0;
   --sd-tool-kind-col: 78px;
-  --sd-tool-meta-col: minmax(220px, .72fr);
-  --sd-tool-time-col: 88px;
-  --sd-tool-status-col: 48px;
+  --sd-tool-meta-col: minmax(150px, .52fr);
+  --sd-tool-time-col: 82px;
+  --sd-tool-status-col: 54px;
+  --sd-tool-token-col: 72px;
   --sd-tool-action-col: 96px;
 }
 .sd-tool-group--flat .sd-tool-row {
   grid-template-columns:
     var(--sd-tool-kind-col)
-    minmax(240px, 1fr)
+    minmax(200px, 1fr)
     var(--sd-tool-meta-col)
     var(--sd-tool-time-col)
     var(--sd-tool-status-col)
+    var(--sd-tool-token-col)
     var(--sd-tool-action-col);
   min-height: 38px;
 }
@@ -547,6 +549,9 @@
   justify-self: end;
   min-width: 42px;
 }
+.sd-tool-group--flat .sd-tool-tokens {
+  justify-self: end;
+}
 .sd-tool-group--flat .sd-btn {
   justify-self: end;
 }
@@ -554,6 +559,13 @@
   font-family: var(--sd-mono);
   font-size: 11px;
   color: var(--sd-muted);
+  white-space: nowrap;
+}
+.sd-tool-tokens {
+  color: var(--sd-text);
+  font-family: var(--sd-mono);
+  font-size: 11px;
+  font-weight: 780;
   white-space: nowrap;
 }
 .sd-tool-row--fail {
@@ -1336,18 +1348,20 @@ shift dot left to align with the container timeline line */
 @media (max-width: 1180px) {
   .sd-tool-group--flat {
     --sd-tool-kind-col: 64px;
-    --sd-tool-meta-col: minmax(160px, .65fr);
+    --sd-tool-meta-col: minmax(120px, .5fr);
     --sd-tool-time-col: 76px;
-    --sd-tool-status-col: 44px;
+    --sd-tool-status-col: 48px;
+    --sd-tool-token-col: 64px;
     --sd-tool-action-col: 84px;
   }
   .sd-tool-group--flat .sd-tool-row {
     grid-template-columns:
       var(--sd-tool-kind-col)
-      minmax(180px, 1fr)
+      minmax(160px, 1fr)
       var(--sd-tool-meta-col)
       var(--sd-tool-time-col)
       var(--sd-tool-status-col)
+      var(--sd-tool-token-col)
       var(--sd-tool-action-col);
   }
 }

@@ -287,6 +287,13 @@
   font-size: 18px;
   letter-spacing: 0;
 }
+.chart-card__note {
+  margin: 4px 0 0;
+  max-width: none;
+  color: var(--text-subtle);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .chart-card__subtitle {
   display: none;
 }
@@ -408,7 +415,7 @@
   padding: 0 1px;
 }
 .bar:hover {
-  box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.10);
+  box-shadow: none;
 }
 .bar-stack {
   height: 100%;
@@ -1077,48 +1084,6 @@
   background: var(--status-error);
 }
 
-/* ── Info icon hover tooltip (fast, lightweight) ========================= */
-.info-hover-tooltip {
-  position: fixed;
-  z-index: 100;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  max-width: 280px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.10);
-  pointer-events: none;
-  transition: opacity 0.1s ease;
-}
-.info-hover-tooltip[data-positioned="true"] {
-  top: var(--tooltip-top, 0px);
-  left: var(--tooltip-left, 0px);
-}
-
-/* ── Info popover ========================================================= */
-#infoPopover {
-  position: fixed;
-  z-index: 101;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 12px;
-  max-width: 300px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.15);
-  display: none;
-}
-#infoPopover.is-visible {
-  display: block;
-}
-#infoPopover[data-positioned="true"] {
-  left: var(--popover-left, 0px);
-  top: var(--popover-top, 0px);
-}
-
 /* ── Tooltip (dark overlay on chart bars) ================================= */
 .dashboard-tooltip {
   position: absolute;
@@ -1135,7 +1100,7 @@
   font: 12px/1.45 var(--font-mono);
   opacity: 0;
   pointer-events: none;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.24);
+  box-shadow: none;
   z-index: 140;
   transition: 0.14s;
   display: none;
@@ -1322,15 +1287,20 @@
   left: 0;
   right: auto;
   bottom: calc(100% + 6px);
-  z-index: 80;
-  width: min(280px, calc(100vw - 32px));
+  z-index: 160;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
   padding: 7px 9px;
   border-radius: 8px;
   background: #0f172a;
   color: #fff;
   font-size: 11px;
   line-height: 1.4;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  box-shadow: none;
 }
 
 /* ── Sessions CTA ======================================================= */

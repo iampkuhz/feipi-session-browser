@@ -104,13 +104,15 @@
       var source = payloadId
         ? qs(document, 'template[data-payload-source="' + cssEscape(payloadId) + '"], [data-payload-source="' + cssEscape(payloadId) + '"]')
         : null;
+      var sourceTokenEstimate = source ? source.getAttribute("data-payload-token-estimate") : "";
+      var sourceTokenSummary = formatPayloadTokenEstimate(sourceTokenEstimate);
 
       var titleEl = qs(modal, "[data-payload-title]");
       var subtitleEl = qs(modal, "[data-payload-subtitle]");
       var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
 
       if (titleEl) titleEl.textContent = title;
-      if (subtitleEl) subtitleEl.textContent = payloadId || "diagnostic";
+      if (subtitleEl) subtitleEl.textContent = (payloadId || "diagnostic") + (sourceTokenSummary ? " · " + sourceTokenSummary : "");
       var openTabBtn = qs(modal, '[data-action="open-payload-tab"]');
       if (openTabBtn) openTabBtn.setAttribute("data-payload-id", payloadId || "");
 
@@ -131,8 +133,8 @@
               return resp.json();
             })
             .then(function (payload) {
-              if (subtitleEl && payload && payload.size) {
-                subtitleEl.textContent = payloadId + ' · ' + payload.size;
+              if (subtitleEl && payload) {
+                subtitleEl.textContent = payloadSubtitle(payloadId, payload);
               }
               if (body) body.replaceChildren(payloadNodeFromJson(payload));
             })
@@ -186,6 +188,30 @@
     parent.appendChild(section);
   }
 
+  function formatPayloadTokenEstimate(value) {
+    var numeric = Number(value || 0);
+    if (!Number.isFinite(numeric) || numeric <= 0) return "";
+    var compact;
+    if (typeof formatCompactToken === "function") {
+      compact = formatCompactToken(numeric);
+    } else if (numeric >= 1000000) {
+      compact = (numeric / 1000000).toFixed(1) + "M";
+    } else if (numeric >= 1000) {
+      compact = (numeric / 1000).toFixed(1) + "K";
+    } else {
+      compact = String(Math.round(numeric));
+    }
+    return "~" + compact + " tokens";
+  }
+
+  function payloadSubtitle(payloadId, payload) {
+    var parts = [payloadId || "diagnostic"];
+    if (payload && payload.size) parts.push(payload.size);
+    var tokenSummary = formatPayloadTokenEstimate(payload && payload.token_estimate);
+    if (tokenSummary) parts.push(tokenSummary);
+    return parts.filter(Boolean).join(" · ");
+  }
+
   function payloadNodeFromJson(payload) {
     payload = payload || {};
     var kind = payload.kind || "unknown";
@@ -195,12 +221,14 @@
     var toolName = payload.tool_name || "";
     var toolStatus = payload.tool_status || "";
     var toolCommand = payload.tool_command || "";
+    var tokenSummary = formatPayloadTokenEstimate(payload.token_estimate);
     var shell = makeEl("div", "sd-payload-shell payload-shell");
     var meta = makeEl("aside", "sd-payload-meta payload-meta");
     meta.appendChild(makeEl("h3", "", "Metadata"));
     appendKv(meta, "kind", kind);
     appendKv(meta, "status", status);
     appendKv(meta, "size", size);
+    if (tokenSummary) appendKv(meta, "result tokens", tokenSummary);
     if (toolName) appendKv(meta, "tool", toolName);
     if (toolStatus) appendKv(meta, "tool status", toolStatus);
 
@@ -343,6 +371,8 @@
     appendPayloadDetailMeta(meta, "kind", payload.kind || "unknown");
     appendPayloadDetailMeta(meta, "status", payload.status || "unknown");
     appendPayloadDetailMeta(meta, "size", payload.size || "—");
+    var tokenSummary = formatPayloadTokenEstimate(payload.token_estimate);
+    if (tokenSummary) appendPayloadDetailMeta(meta, "result tokens", tokenSummary);
     section.appendChild(meta);
     if (payload.text) {
       section.appendChild(makeEl("pre", "", payload.text));
@@ -651,8 +681,8 @@
         if (modal.getAttribute("data-loading-payload-id") !== payloadId) return;
         var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
         var subtitleEl = qs(modal, "[data-payload-subtitle]");
-        if (subtitleEl && payload && payload.size) {
-          subtitleEl.textContent = payloadId + " · " + payload.size;
+        if (subtitleEl && payload) {
+          subtitleEl.textContent = payloadSubtitle(payloadId, payload);
         }
         if (body) body.replaceChildren(payloadNodeFromJson(payload));
       })

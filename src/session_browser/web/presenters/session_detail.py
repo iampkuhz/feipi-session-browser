@@ -14,7 +14,9 @@ from session_browser.domain.models import (
     ConversationRound,
     LLMCall,
     ToolCall,
+    TokenProvider,
 )
+from session_browser.domain.token_normalizer import normalize_tokens
 
 
 def _merge_messages(msgs: list[ChatMessage]) -> ChatMessage:
@@ -90,19 +92,27 @@ def _make_round(
     round_cached = 0
     round_cache_write = 0
     if agent in ("claude_code", "qoder", "codex") and assistant_msg.usage:
-        round_input = assistant_msg.usage.get("input_tokens", 0)
-        round_output = assistant_msg.usage.get("output_tokens", 0)
-        # Codex uses cached_input_tokens; Claude/Qoder use cache_read_input_tokens
-        round_cached = assistant_msg.usage.get(
-            "cache_read_input_tokens",
-            assistant_msg.usage.get("cached_input_tokens", 0),
-        )
-        # Codex has no cache write tokens
-        round_cache_write = assistant_msg.usage.get("cache_creation_input_tokens", 0)
+        if agent == "codex":
+            bd = normalize_tokens(assistant_msg.usage, provider=TokenProvider.CODEX)
+            round_input = bd.fresh_input_tokens
+            round_output = bd.output_tokens
+            round_cached = bd.cache_read_tokens
+            round_cache_write = bd.cache_write_tokens
+        else:
+            round_input = assistant_msg.usage.get("input_tokens", 0)
+            round_output = assistant_msg.usage.get("output_tokens", 0)
+            round_cached = assistant_msg.usage.get(
+                "cache_read_input_tokens",
+                assistant_msg.usage.get("cached_input_tokens", 0),
+            )
+            round_cache_write = assistant_msg.usage.get("cache_creation_input_tokens", 0)
 
     round_total = round_input + round_output + round_cached + round_cache_write
     token_ratio = round_total / total_session_tokens if total_session_tokens > 0 else 0
-    direct_llm_calls = 1 if assistant_msg.llm_call_id else 0
+    usage_fragment_count = 0
+    if assistant_msg.usage:
+        usage_fragment_count = int(assistant_msg.usage.get("_usage_fragment_count", 0) or 0)
+    direct_llm_calls = usage_fragment_count or (1 if assistant_msg.llm_call_id else 0)
     nested_llm_calls = sum(tc.llm_call_count for tc in round_tool_calls)
     nested_llm_errors = sum(tc.llm_error_count for tc in round_tool_calls)
 
@@ -181,8 +191,8 @@ def _normalize_codex_usage(
     delta_output = max(output - prev_output, 0)
     delta_cache_write = max(cache_write - prev_cache_write, 0)
 
-    # Fresh input is the logical request input size for this call. Cache read
-    # is tracked separately and must not be subtracted from Fresh.
+    # Keep the provider's inclusive input delta here. The display normalizer
+    # converts it into mutually exclusive Fresh + Cache Read buckets.
     delta_fresh = delta_input
 
     # Update cumulative state for next call
@@ -239,6 +249,16 @@ def _codex_usage_for_llm_call(usage: dict, cumulative_state: dict) -> dict:
         "cache_creation_input_tokens": _usage_int(usage, "cache_creation_input_tokens"),
         "output_tokens": _usage_int(usage, "output_tokens", "completion_tokens", "output"),
     }
+
+
+def _token_breakdown_for_agent(usage: dict, agent: str):
+    if agent == "codex":
+        return normalize_tokens(usage, provider=TokenProvider.CODEX)
+    if agent == "qoder":
+        return normalize_tokens(usage, provider=TokenProvider.QODER)
+    if agent == "claude_code":
+        return normalize_tokens(usage, provider=TokenProvider.ANTHROPIC)
+    return normalize_tokens(usage)
 
 
 def build_llm_calls(
@@ -305,6 +325,7 @@ def build_llm_calls(
         usage = msg.usage or {}
         if agent == "codex" and usage:
             usage = _codex_usage_for_llm_call(usage, codex_cumulative)
+        token_breakdown = _token_breakdown_for_agent(usage, agent) if usage else None
         round_tools = rounds[r_idx].tool_calls if r_idx < len(rounds) else []
         round_obj = rounds[r_idx] if r_idx < len(rounds) else None
 
@@ -349,6 +370,7 @@ def build_llm_calls(
             tool_calls=[tc for tc in round_tools if tc.scope == "main"],
             tool_call_count=len([tc for tc in round_tools if tc.scope == "main"]),
             failed_tool_count=sum(1 for tc in round_tools if tc.scope == "main" and tc.is_failed),
+            token_breakdown_normalized=token_breakdown,
             request_payload_raw="",
             request_payload_missing_reason="current session data source does not persist raw HTTP request payload",
             response_payload_raw="",
@@ -389,6 +411,7 @@ def build_llm_calls(
                 if agent_id not in sub_cum:
                     sub_cum[agent_id] = {}
                 usage = _codex_usage_for_llm_call(usage, sub_cum[agent_id])
+            token_breakdown = _token_breakdown_for_agent(usage, agent) if usage else None
 
             request_full = msg.request_full if msg.request_full else ""
             request_preview = request_full[:200] if request_full else ""
@@ -416,6 +439,7 @@ def build_llm_calls(
                 tool_calls=[],
                 tool_call_count=0,
                 failed_tool_count=0,
+                token_breakdown_normalized=token_breakdown,
                 request_payload_raw="",
                 request_payload_missing_reason="current session data source does not persist raw HTTP request payload",
                 response_payload_raw="",

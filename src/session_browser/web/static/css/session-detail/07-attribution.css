@@ -142,13 +142,14 @@
 }
 
 .sd-bucket-leaf-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   align-items: start;
 }
 
 .sd-bucket-leaf-card {
+  width: 100%;
   min-width: 0;
   border: 1px solid var(--sd-line-soft);
   border-radius: 8px;
@@ -225,6 +226,19 @@
 
 .sd-bucket-leaf-full[hidden] {
   display: none;
+}
+
+.sd-bucket-explanation-row {
+  color: var(--sd-text-2);
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 2px 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sd-bucket-explanation-row + .sd-bucket-leaf-list {
+  margin-top: 8px;
 }
 
 .sd-bucket-detail-item {

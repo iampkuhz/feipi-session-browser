@@ -78,11 +78,11 @@ class TestCodexFlatUsage:
             "total_tokens": 24885,
         }
         bd = normalize_tokens(usage, provider="codex")
-        assert bd.fresh_input_tokens == 24763
+        assert bd.fresh_input_tokens == 315
         assert bd.cache_read_tokens == 24448
         assert bd.cache_write_tokens == 0
         assert bd.output_tokens == 122
-        assert bd.total_tokens == 49333
+        assert bd.total_tokens == 24885
         assert bd.raw_fields.get("reasoning_output_tokens") == 10
         assert bd.precision == TokenPrecision.PROVIDER_REPORTED
 
@@ -97,7 +97,7 @@ class TestCodexFlatUsage:
         }
         extracted = _extract_codex_usage(usage)
         bd = normalize_tokens(extracted, provider="codex")
-        assert bd.fresh_input_tokens == 24763
+        assert bd.fresh_input_tokens == 315
         assert bd.cache_read_tokens == 24448
         assert bd.cache_write_tokens == 0
         assert bd.output_tokens == 122
@@ -134,11 +134,11 @@ class TestOpenAINestedUsage:
             "total_tokens": 1080,
         }
         bd = normalize_tokens(usage, provider="codex")
-        assert bd.fresh_input_tokens == 1000
+        assert bd.fresh_input_tokens == 300
         assert bd.cache_read_tokens == 700
         assert bd.cache_write_tokens == 0
         assert bd.output_tokens == 80
-        assert bd.total_tokens == 1780
+        assert bd.total_tokens == 1080
         # raw_fields captures flat numeric fields; nested details are consumed
         assert bd.raw_fields.get("input_tokens") == 1000
         assert bd.raw_fields.get("output_tokens") == 80
@@ -343,7 +343,7 @@ class TestReasoningTokensNotVisible:
         }
         bd = normalize_tokens(usage, provider="codex")
         assert bd.output_tokens == 80  # fallback to reasoning
-        assert bd.fresh_input_tokens == 1000
+        assert bd.fresh_input_tokens == 500
 
 
 # ── 8.7 Flat Codex usage variants ───────────────────────────────────────────
@@ -365,12 +365,12 @@ class TestFlatCodexUsageVariants:
         assert extracted["reasoning_output_tokens"] == 0
 
         bd = normalize_tokens(usage, provider="codex")
-        assert bd.fresh_input_tokens == 5000
+        assert bd.fresh_input_tokens == 2000
         assert bd.cache_read_tokens == 3000
         assert bd.output_tokens == 2000
-        assert bd.total_tokens == 10000
+        assert bd.total_tokens == 7000
 
-    def test_codex_cumulative_delta_keeps_request_input_size(self):
+    def test_codex_cumulative_delta_keeps_provider_input_size_for_normalizer(self):
         cumulative = {
             "input_tokens": 5000,
             "cached_input_tokens": 3000,
@@ -433,7 +433,7 @@ class TestFlatCodexUsageVariants:
         assert bd.total_tokens == 3800
 
     def test_openai_normalization_uses_request_input(self):
-        """OpenAI Fresh keeps request input and tracks cached tokens separately."""
+        """OpenAI Fresh is the non-cached input component; cached is separate."""
         usage = {
             "input_tokens": 4000,
             "output_tokens": 600,
@@ -442,10 +442,10 @@ class TestFlatCodexUsageVariants:
         }
         from session_browser.domain.models import TokenProvider
         bd = normalize_tokens(usage, provider=TokenProvider.OPENAI)
-        assert bd.fresh_input_tokens == 4000
+        assert bd.fresh_input_tokens == 2000
         assert bd.cache_read_tokens == 2000
         assert bd.output_tokens == 600
-        assert bd.total_tokens == 6600
+        assert bd.total_tokens == 4600
 
 
 # ── Context builder Codex fixes ─────────────────────────────────────────────

@@ -114,7 +114,7 @@ class TestDashboardMetrics:
         """当夹具包含数据时，指标卡片必须有填充的值（不为零）。"""
         # 从 metric-card__value 元素中提取值（class 可能包含额外修饰类如 tabular）
         values = re.findall(
-            r'class="metric-card__value(?:\s[^"]*)?">([^<]+)<',
+            r'class="metric-card__value(?:\s[^"]*)?"[^>]*>([^<]+)<',
             dashboard_html
         )
         if "暂无已索引 session" in dashboard_html:
@@ -216,7 +216,7 @@ class TestDashboardCharts:
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_chart_subtitles(self, dashboard_html):
-        """图表说明必须收敛到 info icon，不渲染 subtitle。"""
+        """图表说明必须收敛到 chart note，不渲染 subtitle。"""
         if "暂无已索引 session" in dashboard_html:
             pytest.skip("Fixture 未产生数据，页面渲染空态")
         assert "chart-card__subtitle" not in dashboard_html
@@ -268,10 +268,10 @@ class TestDashboardOverlays:
             "chartTooltip 元素必须存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
-    def test_popover_present(self, dashboard_html):
-        """信息 popover 元素必须存在。"""
-        assert 'id="infoPopover"' in dashboard_html, \
-            "infoPopover 元素必须存在"
+    def test_info_popover_removed(self, dashboard_html):
+        """Dashboard 不得保留旧信息 popover。"""
+        assert 'id="infoPopover"' not in dashboard_html, \
+            "infoPopover 元素不得存在"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_toast_present(self, dashboard_html):

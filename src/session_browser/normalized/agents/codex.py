@@ -286,7 +286,8 @@ def _build_round(
     tools: list[dict],
     system_signals: list[dict],
 ) -> dict:
-    token_total = usage["input_tokens"] + usage["cached_input_tokens"] + usage["output_tokens"]
+    fresh_tokens = max(usage["input_tokens"] - usage["cached_input_tokens"], 0)
+    token_total = fresh_tokens + usage["cached_input_tokens"] + usage["output_tokens"]
     payload_refs = {
         "request_payload_id": f"llm-R{round_id}-C1-request",
         "response_payload_id": f"llm-R{round_id}-C1-response",
@@ -330,7 +331,7 @@ def _build_round(
         },
         "metrics": {
             "tokens": {
-                "fresh": usage["input_tokens"],
+                "fresh": fresh_tokens,
                 "cache_read": usage["cached_input_tokens"],
                 "cache_write": 0,
                 "output": usage["output_tokens"],
@@ -343,7 +344,7 @@ def _build_round(
                     "status": "available",
                 },
             },
-            "cache_read_ratio": _ratio(usage["cached_input_tokens"], usage["input_tokens"] + usage["cached_input_tokens"]),
+            "cache_read_ratio": _ratio(usage["cached_input_tokens"], fresh_tokens + usage["cached_input_tokens"]),
             "llm_call_count": 1,
             "tool_call_count": len(tools),
             "failed_tool_count": sum(1 for t in tools if t.get("status") == "error"),
@@ -742,11 +743,15 @@ def _build_steps(
         "status": "ok",
         "timestamp": timestamp,
         "usage": {
-            "fresh": usage["input_tokens"],
+            "fresh": max(usage["input_tokens"] - usage["cached_input_tokens"], 0),
             "cache_read": usage["cached_input_tokens"],
             "cache_write": 0,
             "output": usage["output_tokens"],
-            "total": usage["input_tokens"] + usage["cached_input_tokens"] + usage["output_tokens"],
+            "total": (
+                max(usage["input_tokens"] - usage["cached_input_tokens"], 0)
+                + usage["cached_input_tokens"]
+                + usage["output_tokens"]
+            ),
             "source_total": usage["source_total_tokens"],
             "total_semantics": "component_sum",
             "quality": {"source": "event_msg.token_count", "precision": "provider_reported", "status": "available"},

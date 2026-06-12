@@ -25,13 +25,13 @@ The Hero SHALL display the local session file path as a `Session file` row when 
 #### Scenario: Token component extraction
 
 Token metrics SHALL use exactly five component fields:
-- Fresh: provider-reported request input size for the call
+- Fresh: mutually exclusive new input component for display totals
 - Cache Read: provider-reported cache read input tokens
 - Cache Write: provider-reported cache creation/write input tokens
 - Output: provider-reported visible output tokens
 - Total: Fresh + Cache Read + Cache Write + Output
 
-Fresh SHALL NOT subtract Cache Read or Cache Write. When one logical LLM call has multiple usage fragments, Fresh SHALL come from the largest non-zero request input snapshot, while Cache Read, Cache Write, and Output SHALL come from one final accounting snapshot.
+When provider cache read is a subset of input tokens, including OpenAI/Codex `cached_input_tokens`, Fresh SHALL be computed as `input_tokens - cached_input_tokens` for tokenbar, Total, Fresh spike, and round/tooltips. Provider request input MAY still be shown separately in attribution summaries or provider-total metadata, but it SHALL NOT be stacked as Fresh beside its cached subset. When one logical visible step has multiple Codex `last_token_usage` fragments, the round SHALL expose the fragment count as LLM call count.
 
 #### Scenario: Analysis cards display
 
@@ -81,7 +81,7 @@ When a round is expanded, it SHALL show:
 - User prompt summary
 - Assistant response summary
 - Assistant thinking and assistant text event rows when those source blocks exist
-- Tool call rows with status, duration, command preview, result preview, and result payload action
+- Tool call rows with status, duration, command preview, result preview, result token estimate, and result payload action. Duration SHALL prefer explicit tool wall time and fall back to the difference between tool call and tool output timestamps when wall time is unavailable or zero.
 - Parallel tool groups only when tool calls share one assistant block or near-identical trigger time
 - Subagent run rows with local expand/collapse-all control and per-subround expand/collapse toggle
 - Failed tool error summaries
@@ -130,6 +130,7 @@ The page SHALL also provide a modal dialog for viewing payloads with:
 - View Request / View Response / View Result buttons
 - Rendered / Raw display mode toggle
 - Multi-part segmented display
+- Tool result payloads SHALL expose a `result tokens` estimate in the modal subtitle and metadata rail. This value SHALL be derived from the tool result text, formatted as an approximate token count, and treated as request-pressure metadata for the likely next LLM call rather than provider-reported usage.
 - Close via backdrop click, Escape key, or close button
 
 #### Scenario: MHTML self-contained export

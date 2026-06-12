@@ -49,15 +49,15 @@ class TestMakeRoundTokenExtraction:
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_codex_token_extraction(self):
-        """Codex 提供逐消息用量（cached_input_tokens），轮次 token 应正确提取。"""
+        """Codex cached_input_tokens 是 input_tokens 子集，不应重复计入总量。"""
         codex_usage = {
             "input_tokens": 500,
             "output_tokens": 150,
             "cached_input_tokens": 200,
         }
         r = _make_round(USER_MSG, _assistant_msg(usage=codex_usage), [], 1000, "codex")
-        assert r.total_tokens == 850  # 500 + 150 + 200 + 0
-        assert r.token_ratio == pytest.approx(850 / 1000)
+        assert r.total_tokens == 650  # input already includes cached input; 500 + 150
+        assert r.token_ratio == pytest.approx(650 / 1000)
 
     @pytest.mark.contract_case("DATA-PRESENTER-005")
     def test_qoder_no_usage_dict(self):

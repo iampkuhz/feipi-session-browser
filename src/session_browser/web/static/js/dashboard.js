@@ -7,7 +7,6 @@
  *   - 图表渲染（Session Trend、Token Trend、Prompt Activity Trend、
  *     Cache Health、Model Mix、Tool Distribution）
  *   - 图表 tooltip hover/focus
- *   - Chart info popover
  *   - All Agents 行点击切换 scope
  *
  * 使用 data-action 事件委托，不绑定 inline handler。
@@ -16,44 +15,11 @@
 (function () {
     'use strict';
 
-    /* ── Info copy dictionary ──────────────────────────────────── */
-
-    var INFO_COPY = {
-        'chart-sessions': {
-            title: 'Session Trend',
-            text: '按当前 Day、Week 或 Month 粒度展示 session 数。All agents 下按 Claude Code、Qoder、Codex 堆叠；单 agent 下只显示当前 agent。'
-        },
-        'chart-tokens': {
-            title: 'Token Trend',
-            text: '展示 token 总量随时间变化。面积层分别代表 Fresh、Cache Read、Cache Write、Output，折线连接每个时间点的 total tokens。'
-        },
-        'chart-prompts': {
-            title: 'Prompt Activity Trend',
-            text: '柱状图展示 User Prompts，右轴折线展示 Avg Prompts / Session。Assistant Turns 和 Tool Calls 只作为 tooltip 辅助信息，不作为主系列。'
-        },
-        'chart-cache': {
-            title: 'Cache Health',
-            text: '多折线展示 Average、Claude Code、Qoder、Codex 的 Cache Read Ratio。All agents 高亮 Average；单 agent 高亮当前 agent。Dashboard 只展示聚合趋势，不展示异常标记。'
-        },
-        'model-mix': {
-            title: 'Model Mix',
-            text: '圆环图展示当前 agent 下各模型的 token 消耗占比；旁边的表格分别展示 session 占比和 token 占比，方便判断数量贡献与成本贡献是否一致。'
-        },
-        'tool-dist': {
-            title: 'Tool Distribution',
-            text: '展示当前 agent 下工具调用分布。当前索引只有聚合 tool-call 数量，若缺少工具名称明细则显示空态。'
-        }
-    };
-
     /* ── State ─────────────────────────────────────────────────── */
 
     var chartTooltip = null;
-    var infoPopover = null;
-    var infoHoverTooltip = null;
-    var infoHoverTimer = null;
 
     function _cacheElements() {
-        infoPopover = document.getElementById('infoPopover');
         chartTooltip = document.getElementById('chartTooltip')
             || document.querySelector('.chart-tooltip');
     }
@@ -61,97 +27,10 @@
     /* ── Helpers ───────────────────────────────────────────────── */
 
     function hideFloating() {
-        if (infoPopover) {
-            infoPopover.setAttribute('aria-hidden', 'true');
-            infoPopover.classList.remove('is-visible');
-            infoPopover.hidden = true;
-        }
         if (chartTooltip) {
             chartTooltip.setAttribute('aria-hidden', 'true');
             chartTooltip.classList.remove('is-visible');
             chartTooltip.hidden = true;
-        }
-        hideHoverTooltip();
-    }
-
-    function showInfoPopover(button) {
-        hideFloating();
-        if (!infoPopover) return;
-
-        var infoKey = button.getAttribute('data-info') || button.getAttribute('data-dashboard-info');
-        var info = INFO_COPY[infoKey] || { title: 'Info', text: 'No description available.' };
-
-        while (infoPopover.firstChild) infoPopover.removeChild(infoPopover.firstChild);
-        var h4 = document.createElement('h4');
-        h4.textContent = info.title;
-        infoPopover.appendChild(h4);
-        var p = document.createElement('p');
-        p.textContent = info.text;
-        infoPopover.appendChild(p);
-        infoPopover.hidden = false;
-        infoPopover.setAttribute('aria-hidden', 'false');
-        infoPopover.classList.add('is-visible');
-
-        var rect = button.getBoundingClientRect();
-        var popoverWidth = Math.min(300, window.innerWidth - 16);
-        var popoverLeft = Math.max(8, Math.min(window.innerWidth - popoverWidth - 8, rect.left));
-        infoPopover.style.setProperty('--popover-left', popoverLeft + 'px');
-        infoPopover.style.setProperty('--popover-top', (rect.bottom + 10) + 'px');
-        infoPopover.setAttribute('data-positioned', 'true');
-    }
-
-    /* ── Info icon hover tooltip ─────────────────────────────── */
-
-    function createHoverTooltip() {
-        var el = document.createElement('div');
-        el.className = 'info-hover-tooltip';
-        el.setAttribute('aria-hidden', 'true');
-        el.hidden = true;
-        document.body.appendChild(el);
-        return el;
-    }
-
-    function showHoverTooltip(button) {
-        if (!infoHoverTooltip) infoHoverTooltip = createHoverTooltip();
-        var infoKey = button.getAttribute('data-info') || button.getAttribute('data-dashboard-info');
-        var info = INFO_COPY[infoKey];
-        if (!info) return;
-
-        infoHoverTooltip.textContent = info.text;
-        infoHoverTooltip.hidden = false;
-        infoHoverTooltip.setAttribute('aria-hidden', 'false');
-
-        var rect = button.getBoundingClientRect();
-        var tooltipWidth = infoHoverTooltip.offsetWidth || 200;
-        var centerX = rect.left + rect.width / 2;
-        var leftPos = centerX - tooltipWidth / 2;
-        if (leftPos < 8) leftPos = 8;
-        if (leftPos + tooltipWidth > window.innerWidth - 8) leftPos = window.innerWidth - tooltipWidth - 8;
-        infoHoverTooltip.style.setProperty('--tooltip-top', (rect.bottom + 6) + 'px');
-        infoHoverTooltip.style.setProperty('--tooltip-left', leftPos + 'px');
-        infoHoverTooltip.setAttribute('data-positioned', 'true');
-    }
-
-    function hideHoverTooltip() {
-        if (infoHoverTooltip) {
-            infoHoverTooltip.hidden = true;
-            infoHoverTooltip.setAttribute('aria-hidden', 'true');
-        }
-        if (infoHoverTimer) {
-            clearTimeout(infoHoverTimer);
-            infoHoverTimer = null;
-        }
-    }
-
-    function initInfoHoverListeners() {
-        var infoButtons = document.querySelectorAll('.icon-button--info[data-info]');
-        for (var i = 0; i < infoButtons.length; i++) {
-            (function(btn) {
-                btn.addEventListener('mouseenter', function() {
-                    infoHoverTimer = setTimeout(function() { showHoverTooltip(btn); }, 150);
-                });
-                btn.addEventListener('mouseleave', hideHoverTooltip);
-            })(infoButtons[i]);
         }
     }
 
@@ -179,15 +58,6 @@
         window.location.href = url;
     }
 
-    /* ── Click outside popover closes it ─────────────────────── */
-
-    function handleClickOutsidePopover(event) {
-        var target = event.target;
-        if (infoPopover && infoPopover.contains(target)) return;
-        if (target.closest && target.closest('.icon-button--info')) return;
-        hideFloating();
-    }
-
     /* ── Main document-level click delegation ────────────────── */
 
     document.addEventListener('click', function (event) {
@@ -202,11 +72,10 @@
                 el = el.parentElement;
             }
         }
-        if (!button) { handleClickOutsidePopover(event); return; }
+        if (!button) return;
 
         var action = button.getAttribute('data-action') || '';
         var hasScope = button.hasAttribute('data-scope');
-        var hasInfo = button.hasAttribute('data-info') || button.hasAttribute('data-dashboard-info');
         var hasGrain = button.hasAttribute('data-grain');
 
         if (action === 'agent-scope' && hasScope) {
@@ -238,11 +107,6 @@
             window.location.href = url;
             return;
         }
-        if (hasInfo && action !== 'agent-scope' && action !== 'grain') {
-            showInfoPopover(button);
-            return;
-        }
-
         switch (action) {
             default:
                 if (action.indexOf('nav-') === 0 && button.classList.contains('nav-item')) {
@@ -264,10 +128,7 @@
 
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape' || event.key === 'Esc') {
-            if (infoPopover && infoPopover.classList.contains('is-visible')) {
-                hideFloating();
-                event.preventDefault();
-            }
+            hideFloating();
         }
     });
 
@@ -276,18 +137,12 @@
     window.DashboardPage = {
         openSettings: null,
         closeSettings: null,
-        showInfoPopover: showInfoPopover,
         hideFloating: hideFloating
     };
 
     /* ── Init ────────────────────────────────────────────────── */
 
     _cacheElements();
-    if (typeof document !== 'undefined' && document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initInfoHoverListeners);
-    } else {
-        initInfoHoverListeners();
-    }
 })();
 
 

@@ -118,7 +118,7 @@ class TestDashboardRoutePresenter:
             "all_agents_branch", "single_agent_branch",
             "agent_sessions_total", "agent_sessions_page",
             "agent_sessions_total_pages", "agent_sessions_page_size",
-            "needs_attention", "cache_health",
+            "needs_attention", "cache_health", "chart_notes",
             "active_page",
         }
         assert set(result.keys()) == expected_keys

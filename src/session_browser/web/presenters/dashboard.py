@@ -78,36 +78,27 @@ _MODEL_MIX_COLORS = [
 ]
 
 _KPI_PRIMARY_DESCRIPTIONS = {
-    "Projects": (
-        "当前 scope 下出现过 session 的 project key 去重数。"
-        "badge 显示最近 7 天开始的 project 数变化。"
-    ),
-    "Sessions": (
-        "当前 scope 下已索引 session 总数。"
-        "badge 对比当前趋势窗口最后两个时间点的 session 数增减。"
-    ),
-    "Total Tokens": (
-        "Fresh、Cache Read、Cache Write、Output 四类 token 的总和。"
-        "badge 对比当前趋势窗口最后两个时间点的总 token 百分比变化。"
-    ),
-    "Prompt Activity": (
-        "当前 scope 下 user message 事件总数，代表用户主动发起的 prompt 数。"
-        "badge 对比当前趋势窗口最后两个时间点的 user prompts 增减。"
-    ),
-    "Cache Read Ratio": (
-        "Cache Read / Input-side Tokens；Input-side Tokens = Fresh + Cache Read + Cache Write。"
-        "badge 对比当前趋势窗口最后两个可计算时间点的比例变化。"
-    ),
-    "Failed Tools": (
-        "明确失败的 tool result 总数，不等同于失败 session 数。"
-        "badge 对比当前趋势窗口最后两个时间点的失败工具数，下降显示为正向。"
-    ),
+    "Projects": "当前 scope 下出现过 session 的 project 数量。",
+    "Sessions": "当前 scope 下已索引的 session 总数。",
+    "Total Tokens": "当前 scope 下 Fresh、Cache Read、Cache Write、Output 的合计。",
+    "Prompt Activity": "当前 scope 下用户发起的 prompt 数量，按 user message 事件计数。",
+    "Cache Read Ratio": "当前 scope 下缓存命中输入占 input-side tokens 的比例。",
+    "Failed Tools": "当前 scope 下明确失败的 tool result 数量。",
+}
+
+_KPI_BADGE_DESCRIPTIONS = {
+    "Projects": "最近 7 天使用的 project 数，对比上个 7 天使用的 project 数。",
+    "Sessions": "当前可见时间窗口最后一个时间点的 session 数，对比前一个时间点。",
+    "Total Tokens": "当前可见时间窗口最后一个时间点的 total tokens，对比前一个时间点的百分比变化。",
+    "Prompt Activity": "当前可见时间窗口最后一个时间点的 user prompts 数，对比前一个时间点。",
+    "Cache Read Ratio": "当前可见时间窗口最后一个可计算 Cache Read Ratio，对比前一个可计算点，单位为百分点。",
+    "Failed Tools": "当前可见时间窗口最后一个时间点的 failed tool 数，对比前一个时间点；下降显示为正向颜色。",
 }
 
 _KPI_SECONDARY_DESCRIPTIONS = {
-    "Active 24h": "最近 24 小时内结束过 session 的 project 去重数；同一个 project 只算一次。",
-    "Active 7d": "最近 7 天内结束过 session 的 project 去重数；同一个 project 只算一次。",
-    "New 7d": "最近 7 天内开始过 session 的 project 去重数；用于提示近期新增活跃项目。",
+    "Active 24h": "最近 24 小时内使用过的 project 数量；同一个 project 只算一次。",
+    "Active 7d": "最近 7 天内使用过的 project 数量；同一个 project 只算一次。",
+    "New 7d": "最近 7 天内开始过 session 的 project 数量；同一个 project 只算一次。",
     "Today": "今天开始的 session 数，按 session started_at 的日期统计。",
     "7d Avg": "最近 7 天内结束的 session 总数除以 7，得到每日平均 session 数。",
     "Median Duration": "duration_seconds 大于 0 的 session 生命周期中位数。",
@@ -126,6 +117,38 @@ _KPI_SECONDARY_DESCRIPTIONS = {
     "Affected Sessions": "failed_tool_count 大于 0 的 session 数。",
     "Repeated Failure Sessions": "failed_tool_count 大于 1 的 session 数。",
 }
+
+
+_GRAIN_NOTE_LABELS = {
+    "day": "按天",
+    "week": "按周",
+    "month": "按月",
+}
+
+
+def _build_chart_notes(agent_scope: str, grain: str) -> dict[str, str]:
+    """Build chart notes that match the active scope and grain controls."""
+    grain_label = _GRAIN_NOTE_LABELS.get(grain, "按天")
+    agent_label = _AGENT_DISPLAY.get(agent_scope, "")
+    if agent_scope == "all":
+        session_note = f"{grain_label}新增的 session 总数，按照不同 agent 堆叠。"
+        token_note = f"{grain_label}展示 total tokens，按照 Fresh、Cache Read、Cache Write、Output 组成展示。"
+        prompt_note = f"{grain_label}展示 user prompts 总数，并用折线显示每个 session 的平均 prompts。"
+        cache_note = f"{grain_label}展示整体和各 agent 的 Cache Read Ratio；Average 为全局平均。"
+    else:
+        session_note = f"{grain_label}新增的 {agent_label} session 数量。"
+        token_note = f"{grain_label}展示 {agent_label} 的 total tokens，按 token 类型组成展示。"
+        prompt_note = f"{grain_label}展示 {agent_label} 的 user prompts 数量，并用折线显示每个 session 的平均 prompts。"
+        cache_note = f"{grain_label}展示 {agent_label} 的 Cache Read Ratio。"
+
+    return {
+        "sessions": session_note,
+        "tokens": token_note,
+        "prompts": prompt_note,
+        "cache_health": cache_note,
+        "model_mix": "当前 agent 下模型 token 占比和 session 分布。",
+        "tool_dist": "当前 agent 下工具调用分布；缺少工具名称明细时显示空态。",
+    }
 
 
 def _fmt(n: int | float) -> str:
@@ -236,6 +259,7 @@ def build_dashboard_view_model(
     # ── Cache Health stats ─────────────────────────────────────────
     cache_health_series = _compute_cache_health_series(conn, days)
     cache_health = _compute_cache_health_stats(cache_health_series, agent_scope)
+    chart_notes = _build_chart_notes(agent_scope, grain)
 
     # ── Single-agent sessions count for View Sessions CTA ─────────
     total_agent_sessions = 0
@@ -258,6 +282,7 @@ def build_dashboard_view_model(
         "single_agent_branch": single_agent_branch,
         "needs_attention": needs_attention,
         "cache_health": cache_health,
+        "chart_notes": chart_notes,
         "active_page": "dashboard",
         "agent_sessions_page": current_page,
         "agent_sessions_total_pages": total_pages,
@@ -290,14 +315,17 @@ def _compute_kpis(
 
     kpis = []
 
+    project_recent_7d = _count_active_projects_window(conn, agent_scope, 7, 0)
+    project_previous_7d = _count_active_projects_window(conn, agent_scope, 14, 7)
+    project_badge_delta = project_recent_7d - project_previous_7d
     project_new_7d = _count_new_projects(conn, agent_scope, 7)
 
     # 1. Projects
     kpis.append({
         "label": "Projects",
         "value": _fmt(project_count),
-        "badge": _format_delta_badge(project_new_7d, suffix=""),
-        "badge_tone": _badge_tone(project_new_7d),
+        "badge": _format_delta_badge(project_badge_delta, suffix=""),
+        "badge_tone": _badge_tone(project_badge_delta),
         "secondary": [
             {"label": "Active 24h", "value": _fmt(_count_active_projects(conn, agent_scope, 1))},
             {"label": "Active 7d", "value": _fmt(_count_active_projects(conn, agent_scope, 7))},
@@ -393,6 +421,10 @@ def _attach_kpi_descriptions(kpi: dict[str, Any]) -> dict[str, Any]:
         label,
         f"{label or 'KPI'} 的统计口径。",
     )
+    kpi["badge_description"] = _KPI_BADGE_DESCRIPTIONS.get(
+        label,
+        f"{label or 'KPI'} badge 的比较口径。",
+    )
     secondary = []
     for item in kpi.get("secondary", []):
         enriched = dict(item)
@@ -486,6 +518,27 @@ def _count_active_projects(conn: sqlite3.Connection, agent_scope: str, days: int
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(DISTINCT project_key) FROM sessions {where} AND ended_at >= date('now', '-{days} days')",
+        params,
+    ).fetchone()
+    return row[0] if row else 0
+
+
+def _count_active_projects_window(
+    conn: sqlite3.Connection,
+    agent_scope: str,
+    start_days_ago: int,
+    end_days_ago: int,
+) -> int:
+    """Count distinct projects active in a relative day window."""
+    where, params = _build_agent_where(agent_scope)
+    upper_bound = (
+        f"AND ended_at < date('now', '-{end_days_ago} days')"
+        if end_days_ago > 0 else ""
+    )
+    row = conn.execute(
+        f"""SELECT COUNT(DISTINCT project_key) FROM sessions {where}
+            AND ended_at >= date('now', '-{start_days_ago} days')
+            {upper_bound}""",
         params,
     ).fetchone()
     return row[0] if row else 0

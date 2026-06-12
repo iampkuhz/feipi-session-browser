@@ -21,7 +21,7 @@
             var bucketLabel = card.getAttribute("data-bucket-label") || "";
             var bucketKey = card.getAttribute("data-bucket-key") || "";
             var detailKind = body.getAttribute("data-bucket-detail-kind") || "";
-            var hasInlineDetail = !!qs(body, '[data-bucket-leaf-card]');
+            var hasInlineDetail = !!qs(body, '[data-bucket-leaf-card], [data-bucket-inline-detail]');
 
             if (!hasInlineDetail && roundIdx && (detailKind === "current_user_message" || bucketKey === "current_user_message")) {
               loadBucketDetailDynamic(modal, body, roundIdx, "current_user_message");

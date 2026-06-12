@@ -201,16 +201,116 @@ def test_codex_interaction_metrics_preserve_per_call_last_token_usage():
 
     assert len(rounds) == 2
     r2 = rounds[1]
-    assert r2.total_tokens == 87622
+    assert r2.total_tokens == 46790
     assert len(r2.interactions) == 1
     assert r2.interactions[0].input_tokens == 46307
     assert r2.interactions[0].cache_read_tokens == 40832
     assert r2.interactions[0].output_tokens == 483
-    assert (
-        r2.interactions[0].input_tokens
-        + r2.interactions[0].cache_read_tokens
-        + r2.interactions[0].output_tokens
-    ) == r2.total_tokens
+    display_breakdown = r2.interactions[0].token_breakdown_normalized
+    assert display_breakdown is not None
+    assert display_breakdown.fresh_input_tokens == 5475
+    assert display_breakdown.total_tokens == r2.total_tokens
+
+
+def test_codex_round_tracks_multiple_token_count_fragments():
+    """Multiple Codex token_count fragments in one visible step count as LLM calls."""
+    from session_browser.domain.models import ChatMessage, ToolCall
+    from session_browser.web.presenters.session_detail import build_rounds
+
+    messages = [
+        ChatMessage(role="user", content="start", timestamp="2026-06-10T00:00:00Z"),
+        ChatMessage(
+            role="assistant",
+            content="visible work step",
+            timestamp="2026-06-10T00:00:01Z",
+            usage={
+                "input_tokens": 300,
+                "cached_input_tokens": 180,
+                "output_tokens": 20,
+                "_usage_fragment_count": 3,
+            },
+            tool_calls=[{"id": "call_1", "name": "exec_command"}],
+        ),
+    ]
+    tool_calls = [ToolCall(name="exec_command", tool_use_id="call_1")]
+
+    rounds = build_rounds(
+        messages=messages,
+        tool_calls=tool_calls,
+        session_input_tokens=120,
+        session_output_tokens=20,
+        session_cached_tokens=180,
+        session_cache_write_tokens=0,
+        agent="codex",
+        md_filter=lambda text: text,
+    )
+
+    assert rounds[0].llm_call_count == 3
+    assert rounds[0].total_tokens == 320
+
+
+def test_codex_tool_wall_time_parses_subsecond_duration():
+    """Codex tool output Wall time should populate duration_ms."""
+    from session_browser.sources.codex import _extract_tool_calls
+    from session_browser.web.session_detail.view_model import _format_duration_short
+
+    events = [
+        {
+            "timestamp": "2026-06-10T00:00:01Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "exec_command",
+                "arguments": '{"cmd":"pwd"}',
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:01.250Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": "Chunk ID: x\nWall time: 0.1809 seconds\nProcess exited with code 0\n",
+            },
+        },
+    ]
+
+    [tool] = _extract_tool_calls(events)
+    assert round(tool.duration_ms, 1) == 180.9
+    assert _format_duration_short(tool.duration_ms / 1000) == "0.2s"
+
+
+def test_codex_tool_duration_falls_back_to_output_timestamp_when_wall_time_is_zero():
+    """Codex wrapper sometimes reports Wall time 0; event timestamps still give a useful duration."""
+    from session_browser.sources.codex import _extract_tool_calls
+    from session_browser.web.session_detail.view_model import _format_duration_short
+
+    events = [
+        {
+            "timestamp": "2026-06-10T00:00:01.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "exec_command",
+                "arguments": '{"cmd":"pwd"}',
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:01.742Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": "Chunk ID: x\nWall time: 0.0000 seconds\nProcess exited with code 0\n",
+            },
+        },
+    ]
+
+    [tool] = _extract_tool_calls(events)
+    assert round(tool.duration_ms) == 742
+    assert _format_duration_short(tool.duration_ms / 1000) == "0.7s"
 
 
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")

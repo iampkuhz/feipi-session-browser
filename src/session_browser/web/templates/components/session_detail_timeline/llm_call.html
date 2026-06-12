@@ -108,8 +108,9 @@
         <span class="sd-tool-kind">{{ tool.kind|default(tool.tool_name|default('tool')) }}</span>
         <span class="sd-tool-cmd" title="{{ tool.command|default(tool.tool_name|default('tool')) }}">{{ tool.command|default(tool.tool_name|default('tool')) }}</span>
         <span class="sd-tool-result" title="{{ tool.result_summary|default('') }}">{{ tool.result_summary|default('') }}</span>
-        {% if tool.timestamp %}<span class="sd-tool-time">{{ tool.timestamp }}</span>{% endif %}
+        <span class="sd-tool-time">{{ tool.timestamp|default('—') or '—' }}</span>
         {% if tool.duration_label %}<span class="sd-exit">{{ tool.duration_label }}</span>{% elif tool.status_tone == 'fail' %}<span class="sd-exit">{{ tool.exit_label|default('error') }}</span>{% endif %}
+        <span class="sd-tool-tokens" title="Estimated result tokens; matches the Result modal.">{{ tool.result_token_label|default('—') }}</span>
         {% if tool.payload_id %}
           {{ sdp.button('Result', 'open-payload', 'primary', 'sm', tool.payload_id, extra_class='sd-tool-result-btn', attrs='data-payload-kind="result" data-payload-title="' ~ (tool.payload_title|default('Tool Result')) ~ '"') }}
         {% endif %}
@@ -128,6 +129,7 @@
         <span class="sd-tool-result" title="{{ step.result|default('') }}">{{ step.result|default('') }}</span>
         <span class="sd-tool-time">—</span>
         <span class="sd-exit sd-exit--muted">event</span>
+        <span class="sd-tool-tokens">—</span>
         <span></span>
       </div>
     </section>
@@ -213,6 +215,7 @@
             <span class="sd-tool-cmd" title="{{ tool.command }}">{{ tool.command }}</span>
             <span class="sd-tool-result" title="{{ tool.result_summary }}">{{ tool.result_summary }}</span>
             {% if tool.status_tone == 'fail' %}<span class="sd-exit">{{ tool.exit_label|default('error') }}</span>{% endif %}
+            <span class="sd-tool-tokens" title="Estimated result tokens; matches the Result modal.">{{ tool.result_token_label|default('—') }}</span>
             {% if tool.payload_id %}{{ sdp.button('Result', 'open-payload', 'primary', 'sm', tool.payload_id, extra_class='sd-tool-result-btn', attrs='data-payload-kind="result"') }}{% endif %}
           </div>
         {% endfor %}

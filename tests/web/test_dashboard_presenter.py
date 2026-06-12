@@ -133,7 +133,7 @@ class TestBuildDashboardViewModelStructure:
             "agent_scope", "grain", "is_single_agent",
             "stats", "kpis", "trend", "prompt_activity",
             "all_agents_branch", "single_agent_branch",
-            "needs_attention", "cache_health",
+            "needs_attention", "cache_health", "chart_notes",
             "active_page",
             "agent_sessions_page", "agent_sessions_total_pages",
             "agent_sessions_total", "agent_sessions_page_size",
@@ -348,7 +348,8 @@ class TestKpiDescriptions:
         })
 
         assert "tool result" in kpi["description"]
-        assert "失败 session" in kpi["description"]
+        assert "badge_description" in kpi
+        assert "failed tool" in kpi["badge_description"]
         for row in kpi["secondary"]:
             assert row["description"]
             assert "定义与计算公式" not in row["description"]
@@ -371,6 +372,16 @@ class TestKpiDescriptions:
             })
             assert kpi["description"]
             assert "统计口径" not in kpi["description"]
+            assert kpi["badge_description"]
+            assert "统计口径" not in kpi["badge_description"]
+
+    @pytest.mark.contract_case("DATA-PRESENTER-002")
+    def test_dashboard_chart_notes_match_scope_and_grain(self):
+        notes = dashboard_presenter._build_chart_notes("all", "day")
+        assert notes["sessions"] == "按天新增的 session 总数，按照不同 agent 堆叠。"
+
+        notes = dashboard_presenter._build_chart_notes("claude-code", "month")
+        assert notes["sessions"] == "按月新增的 Claude Code session 数量。"
 
 
 class TestAgentScopeAndGrain:

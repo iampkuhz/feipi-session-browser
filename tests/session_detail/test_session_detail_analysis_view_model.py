@@ -155,6 +155,42 @@ def test_payload_lookup_uses_global_llm_call_ids():
     assert "llm-R2-IX1-context" not in payloads
 
 
+def test_tool_result_payloads_include_estimated_tokens():
+    result_text = "line one\n" + ("result payload text " * 80)
+    tool = ToolCall(
+        name="exec_command",
+        parameters={"cmd": "pytest"},
+        result=result_text,
+        status="completed",
+        tool_use_id="call_1",
+    )
+    ix = _llm(0, "one", response_full="assistant text")
+    ix.tool_calls = [tool]
+    rounds = [_round(1, ix, [tool])]
+
+    payloads = _build_payload_lookup(rounds, [], [], truncate=False)
+    api_payload = payloads["tool-R1-T1"]
+    assert api_payload["kind"] == "tool.result"
+    assert api_payload["token_estimate"] > 0
+    assert api_payload["token_estimate_precision"] == "estimated"
+    assert api_payload["token_estimate_source"] == "result text"
+
+    vm = _build_v11_view_model(
+        session=_FakeSession(agent="codex"),
+        rounds=rounds,
+        llm_calls=[ix],
+        tool_calls=[tool],
+        subagent_runs=[],
+        session_anomalies=_FakeAnomalies(),
+        slim=False,
+        skip_attribution=True,
+    )
+    rendered_payloads = {p["payload_id"]: p for p in vm["payload_sources"]}
+    modal_payload = rendered_payloads["tool-R1-T1"]
+    assert modal_payload["token_estimate"] == api_payload["token_estimate"]
+    assert modal_payload["token_estimate_precision"] == "estimated"
+
+
 def test_assistant_text_payload_excludes_tool_use_blocks():
     tool = ToolCall(
         name="exec_command",

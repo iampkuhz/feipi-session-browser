@@ -309,6 +309,26 @@ class TestAttributionTemplateRendering:
         assert "test error message" in html
         assert "ValueError" in html
 
+    def test_tool_result_payload_renders_token_estimate(self):
+        html = _render_payload_sources([
+            {
+                "payload_id": "tool-R4-T1",
+                "kind": "tool.result",
+                "title": "R4 · exec_command · Result",
+                "status": "available",
+                "size": "2.1 KB",
+                "text": "pytest output",
+                "tool_name": "exec_command",
+                "tool_status": "ok",
+                "token_estimate": 1234,
+                "token_estimate_precision": "estimated",
+                "token_estimate_source": "result text",
+            },
+        ])
+        assert 'data-payload-token-estimate="1234"' in html
+        assert "result tokens" in html
+        assert "~1.2K tokens" in html
+
     def test_attribution_renders_availability_table(self):
         req_data = _make_req_data(
             availability_rows=[
@@ -713,15 +733,62 @@ class TestBucketDetails:
 
         assert "sd-bucket-leaf-list" in attribution_js
         assert "sd-bucket-leaf-full" in attribution_js
+        assert "renderBucketExplanationRow" in attribution_js
+        assert "sd-bucket-explanation-row" in attribution_js
+        assert 'title: "说明"' not in attribution_js
         assert "data-bucket-leaf-toggle" in events_js
-        assert "hasInlineDetail" in events_js
+        assert "[data-bucket-inline-detail]" in events_js
         assert ".sd-bucket-leaf-head" in css
         assert "height: 86px" in css
+
+        leaf_list_rules = css.split(".sd-bucket-leaf-list", 1)[1].split("}", 1)[0]
+        assert "display: flex" in leaf_list_rules
+        assert "flex-direction: column" in leaf_list_rules
+        assert "grid-template-columns" not in leaf_list_rules
+        assert ".sd-bucket-explanation-row" in css
 
     def test_bucket_tokens_and_pct_in_meta(self):
         html = _render_payload_sources([self._make_resp_with_full_buckets()])
         assert "sd-attribution-bucket-usage" in html
         assert "75.0%" in html
+
+    def test_payload_js_preserves_tool_result_token_estimate(self):
+        import pathlib
+        root = pathlib.Path(__file__).resolve().parent.parent
+        payload_js = (
+            root / "src" / "session_browser" / "web" / "static" / "js" /
+            "session-detail" / "payload.js"
+        ).read_text(encoding="utf-8")
+        lazy_js = (
+            root / "src" / "session_browser" / "web" / "static" / "js" /
+            "session-detail" / "lazy_rounds.js"
+        ).read_text(encoding="utf-8")
+
+        assert "formatPayloadTokenEstimate" in payload_js
+        assert "payloadSubtitle(payloadId, payload)" in payload_js
+        assert 'appendKv(meta, "result tokens", tokenSummary)' in payload_js
+        assert 'appendPayloadDetailMeta(meta, "result tokens", tokenSummary)' in payload_js
+        assert "data-payload-token-estimate" in lazy_js
+        assert "payloadNodeFromJson(src)" in lazy_js
+
+    def test_tool_rows_render_result_token_column(self):
+        import pathlib
+        root = pathlib.Path(__file__).resolve().parent.parent
+        template = (
+            root / "src" / "session_browser" / "web" / "templates" /
+            "components" / "session_detail_timeline" / "llm_call.html"
+        ).read_text(encoding="utf-8")
+        css = (
+            root / "src" / "session_browser" / "web" / "static" / "css" /
+            "session-detail" / "04-timeline.css"
+        ).read_text(encoding="utf-8")
+
+        assert "sd-tool-tokens" in template
+        assert "result_token_label" in template
+        assert "Estimated result tokens; matches the Result modal." in template
+        flat_rules = css.split(".sd-tool-group--flat .sd-tool-row", 1)[1].split("}", 1)[0]
+        assert "var(--sd-tool-token-col)" in flat_rules
+        assert "--sd-tool-token-col" in css
 
 
 # ─── Display-only bucket tests ────────────────────────────────────────

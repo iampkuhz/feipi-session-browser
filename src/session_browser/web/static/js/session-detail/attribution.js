@@ -164,15 +164,6 @@
       });
     }
 
-    if (d.explanation && d.explanation.length) {
-      leaves.unshift({
-        title: "说明",
-        summary: compactLeafPreview(d.explanation.join(" "), 190),
-        meta: [],
-        full: d.explanation.join("\n"),
-      });
-    }
-
     if (!leaves.length && (b.summary || b.content_preview || b.source || b.count_label)) {
       leaves.push({
         title: b.label || b.key || "detail",
@@ -186,6 +177,23 @@
       });
     }
     return leaves;
+  }
+
+  function bucketExplanationLines(b) {
+    var d = (b && b.details) || {};
+    if (!d.explanation || !d.explanation.length) return [];
+    return d.explanation.map(function (line) {
+      return String(line || "").trim();
+    }).filter(Boolean);
+  }
+
+  function renderBucketExplanationRow(lines) {
+    if (!lines || !lines.length) return "";
+    return '<div class="sd-bucket-explanation-row" data-bucket-inline-detail>' +
+      lines.map(function (line) {
+        return '<span>' + escapeHtml(line) + '</span>';
+      }).join('<br>') +
+      '</div>';
   }
 
   function renderBucketLeafCard(leaf) {
@@ -532,13 +540,17 @@
   // ── Bucket detail renderer ──
 
   function renderBucketDetails(b) {
+    var explanationLines = bucketExplanationLines(b);
     var leaves = normalizeBucketLeafItems(b);
-    if (!leaves.length) return '<div class="sd-bucket-detail-empty">无详细信息</div>';
-    var html = '<div class="sd-bucket-leaf-list">';
-    leaves.forEach(function (leaf) {
-      html += renderBucketLeafCard(leaf);
-    });
-    html += '</div>';
+    if (!explanationLines.length && !leaves.length) return '<div class="sd-bucket-detail-empty">无详细信息</div>';
+    var html = renderBucketExplanationRow(explanationLines);
+    if (leaves.length) {
+      html += '<div class="sd-bucket-leaf-list" data-bucket-inline-detail>';
+      leaves.forEach(function (leaf) {
+        html += renderBucketLeafCard(leaf);
+      });
+      html += '</div>';
+    }
     return html;
   }
 

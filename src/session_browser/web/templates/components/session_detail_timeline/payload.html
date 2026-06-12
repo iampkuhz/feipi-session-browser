@@ -5,6 +5,7 @@
       data-payload-kind="{{ payload.kind|default('unknown') }}"
       data-payload-status="{{ payload.status|default('available') }}"
       data-payload-size="{{ payload.size|default('—') }}"
+      data-payload-token-estimate="{{ payload.token_estimate|default('') }}"
     >
       {# Context payload: user input + preceding tool results + source status #}
       {% if payload.kind == 'llm.context' and payload.context_blocks %}
@@ -200,7 +201,7 @@
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
                             <span class="sd-bucket-detail-name">{{ item.name }}{% if item.tool_use_id %} · {{ item.tool_use_id }}{% endif %}</span>
                             <span class="sd-bucket-detail-desc">{{ item.command_preview|default(item.input_preview|default('')) }}</span>
-                            <span class="sd-bucket-detail-meta">{{ item.call_tokens|default(item.estimated_tokens|default(0)) }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
+                            <span class="sd-bucket-detail-meta">{% if item.call_tokens is defined %}{{ item.call_tokens|format_compact_token }}{% else %}~{{ item.estimated_tokens|default(0)|format_compact_token }}{% endif %} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
                             <div class="sd-bucket-detail-expanded" hidden>
                               {% if item.input_json %}
                               <pre class="sd-bucket-detail-schema">{{ item.input_json }}</pre>
@@ -219,10 +220,10 @@
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
-                            <span class="sd-bucket-detail-name">{{ item.name }} <b>{{ item.estimated_tokens }}t</b></span>
+                            <span class="sd-bucket-detail-name">{{ item.name }} <b>~{{ item.estimated_tokens|format_compact_token }}t</b></span>
                             <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
                             <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
-                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
+                            <span class="sd-bucket-detail-meta">~{{ item.estimated_tokens|format_compact_token }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
                             <div class="sd-bucket-detail-expanded" hidden>
                               {% if item.input_schema %}
                               <pre class="sd-bucket-detail-schema">{{ item.input_schema }}</pre>
@@ -471,7 +472,7 @@
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
                             <span class="sd-bucket-detail-name">{{ item.name }}{% if item.tool_use_id %} · {{ item.tool_use_id }}{% endif %}</span>
                             <span class="sd-bucket-detail-desc">{{ item.command_preview|default(item.input_preview|default('')) }}</span>
-                            <span class="sd-bucket-detail-meta">{{ item.call_tokens|default(item.estimated_tokens|default(0)) }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
+                            <span class="sd-bucket-detail-meta">{% if item.call_tokens is defined %}{{ item.call_tokens|format_compact_token }}{% else %}~{{ item.estimated_tokens|default(0)|format_compact_token }}{% endif %} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
                             <div class="sd-bucket-detail-expanded" hidden>
                               {% if item.input_json %}
                               <pre class="sd-bucket-detail-schema">{{ item.input_json }}</pre>
@@ -490,10 +491,10 @@
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
-                            <span class="sd-bucket-detail-name">{{ item.name }} <b>{{ item.estimated_tokens }}t</b></span>
+                            <span class="sd-bucket-detail-name">{{ item.name }} <b>~{{ item.estimated_tokens|format_compact_token }}t</b></span>
                             <span class="sd-bucket-detail-meta">来源: {{ item.source }}</span>
                             <span class="sd-bucket-detail-desc">{{ item.description_preview }}</span>
-                            <span class="sd-bucket-detail-meta">{{ item.estimated_tokens }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
+                            <span class="sd-bucket-detail-meta">~{{ item.estimated_tokens|format_compact_token }} tokens <span class="sd-bucket-detail-chevron">▸</span></span>
                             <div class="sd-bucket-detail-expanded" hidden>
                               {% if item.input_schema %}
                               <pre class="sd-bucket-detail-schema">{{ item.input_schema }}</pre>
@@ -694,6 +695,9 @@
             <div class="sd-kv"><span>kind</span><span>{{ payload.kind|default('unknown') }}</span></div>
             <div class="sd-kv"><span>status</span><span>{{ payload.status|default('available') }}</span></div>
             <div class="sd-kv"><span>size</span><span>{{ payload.size|default('—') }}</span></div>
+            {% if payload.token_estimate %}
+            <div class="sd-kv"><span>result tokens</span><span title="估算值：该 tool result 大概率会进入下一次 LLM request。">~{{ payload.token_estimate|format_compact_token }} tokens</span></div>
+            {% endif %}
             {% if payload.tool_name %}<div class="sd-kv"><span>tool</span><span>{{ payload.tool_name }}</span></div>{% endif %}
             {% if payload.tool_status %}<div class="sd-kv"><span>tool status</span><span>{{ payload.tool_status }}</span></div>{% endif %}
           </aside>

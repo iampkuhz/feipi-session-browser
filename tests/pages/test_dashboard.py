@@ -258,7 +258,7 @@ def _render_scope_switch() -> str:
 # ── TestDashboardInfoButtons ────────────────────────────────────────
 
 class TestDashboardInfoButtons:
-    """验证每个指标的 tooltip 和图表上的信息按钮。"""
+    """验证每个指标的 tooltip 和图表说明小字。"""
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_metric_info_buttons(self):
@@ -272,19 +272,20 @@ class TestDashboardInfoButtons:
             "Dashboard KPI 二级指标必须有 tooltip target"
 
     @pytest.mark.contract_case("ROUTE-API-005")
-    def test_chart_info_buttons(self):
-        """每个图表卡片必须有一个信息按钮。"""
+    def test_chart_notes(self):
+        """每个图表卡片必须使用常驻说明小字。"""
         content = _read_dashboard()
-        # Template uses dynamic data-info="chart-*"
-        assert 'data-action="info-chart-' in content, \
-            "图表卡片必须有 info 按钮"
+        assert 'class="chart-card__note"' in content, \
+            "图表卡片必须有 chart note 小字"
+        assert "chart_notes.sessions" in content, \
+            "Session Trend 必须使用动态 chart note"
 
     @pytest.mark.contract_case("ROUTE-API-005")
-    def test_info_button_uses_icon_button_class(self):
-        """信息按钮必须使用 icon-button--info 类。"""
+    def test_dashboard_removes_info_buttons(self):
+        """Dashboard 不得使用旧 info 图标。"""
         content = _read_dashboard()
-        assert "icon-button--info" in content, \
-            "信息按钮必须使用 icon-button--info 类"
+        assert "icon-button--info" not in content, \
+            "Dashboard 图表说明不得使用 info icon"
 
 
 # ── TestDashboardEmptyState ──────────────────────────────────────────
@@ -347,10 +348,10 @@ class TestDashboardFloatingOverlays:
             "Dashboard 必须有 chartTooltip 元素"
 
     @pytest.mark.contract_case("ROUTE-API-005")
-    def test_info_popover(self):
+    def test_info_popover_removed(self):
         content = _read_dashboard()
-        assert 'id="infoPopover"' in content, \
-            "Dashboard 必须有 infoPopover 元素"
+        assert 'id="infoPopover"' not in content, \
+            "Dashboard 不得保留 infoPopover 元素"
 
     @pytest.mark.contract_case("ROUTE-API-005")
     def test_toast_element(self):

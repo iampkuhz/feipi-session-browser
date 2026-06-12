@@ -45,6 +45,7 @@ from session_browser.web.session_detail.render_helpers import (
 from session_browser.web.session_detail.payloads import (
     _build_payload_lookup,
     _truncate_payload,
+    _estimate_payload_tokens,
 )
 from session_browser.web.session_detail.session_cache import (
     _get_cached_session_data,
@@ -84,8 +85,10 @@ def _format_duration_short(seconds: float) -> str:
     seconds = float(seconds or 0)
     if seconds <= 0:
         return "0s"
+    if seconds < 1:
+        return f"{seconds:.1f}s"
     if seconds < 60:
-        return f"{int(seconds)}s"
+        return f"{seconds:.1f}s" if seconds < 10 else f"{int(seconds)}s"
     if seconds < 3600:
         return f"{int(seconds // 60)}m {int(seconds % 60)}s"
     return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
@@ -188,6 +191,20 @@ def _usage_parts_from_mapping(usage: dict | None, *, agent: str = "", model: str
 
 
 def _usage_parts_from_call(call) -> dict:
+    breakdown = getattr(call, "token_breakdown_normalized", None)
+    if breakdown is not None:
+        fresh = int(getattr(breakdown, "fresh_input_tokens", 0) or 0)
+        cache_read = int(getattr(breakdown, "cache_read_tokens", 0) or 0)
+        cache_write = int(getattr(breakdown, "cache_write_tokens", 0) or 0)
+        output = int(getattr(breakdown, "output_tokens", 0) or 0)
+        total = int(getattr(breakdown, "total_tokens", 0) or 0) or (fresh + cache_read + cache_write + output)
+        return {
+            "fresh": fresh,
+            "cache_read": cache_read,
+            "cache_write": cache_write,
+            "output": output,
+            "total": total,
+        }
     fresh = int(getattr(call, "input_tokens", 0) or 0)
     cache_read = int(getattr(call, "cache_read_tokens", 0) or 0)
     cache_write = int(getattr(call, "cache_write_tokens", 0) or 0)
@@ -634,8 +651,11 @@ def _build_session_diagnostics(
             "cache_read_ratio_value": round(cache_ratio_value, 1),
             "ratio_y": round(100 - cache_ratio_value, 1),
             "mix": row.get("token_mix", {}),
-            "llm_calls": sum(1 for ix in rounds[row.get("round_id", 1) - 1].interactions)
-            if row.get("round_id") and row.get("round_id") <= len(rounds) else 0,
+            "llm_calls": row.get("llm_call_count")
+            or (
+                sum(1 for ix in rounds[row.get("round_id", 1) - 1].interactions)
+                if row.get("round_id") and row.get("round_id") <= len(rounds) else 0
+            ),
             "tool_calls": row.get("tool_count", 0),
             "is_low_cache": low_cache,
             "is_fresh_spike": fresh_spike,
@@ -775,7 +795,7 @@ def _build_session_diagnostics(
         if getattr(tc, "is_failed", False):
             stat["failed"] += 1
         result = getattr(tc, "result", "") or ""
-        stat["token_estimate"] += max(len(result) // 4, 0)
+        stat["token_estimate"] += _estimate_payload_tokens(result)
         if not stat["top_command"]:
             stat["top_command"] = _build_tool_command_summary(name, getattr(tc, "parameters", {}) or {})[:120]
 
@@ -787,7 +807,7 @@ def _build_session_diagnostics(
             "calls": str(stat["calls"]),
             "main_calls": stat["main_calls"],
             "subagent_calls": stat["subagent_calls"],
-            "tokens": _format_compact_token(stat["token_estimate"]),
+            "tokens": f"~{_format_compact_token(stat['token_estimate'])}" if stat["token_estimate"] else "0",
             "failure": f"{stat['failed']} · {_format_ratio_pct(stat['failed'], stat['calls'])}",
             "failures": stat["failed"],
             "failure_rate": _format_ratio_pct(stat["failed"], stat["calls"]),
@@ -854,12 +874,8 @@ def _build_session_diagnostics(
             if getattr(ix, "scope", "main") == "subagent" and getattr(ix, "subagent_id", ""):
                 continue
             call_distribution_order += 1
-            call_tokens = (
-                (getattr(ix, "input_tokens", 0) or 0)
-                + (getattr(ix, "cache_read_tokens", 0) or 0)
-                + (getattr(ix, "cache_write_tokens", 0) or 0)
-                + (getattr(ix, "output_tokens", 0) or 0)
-            )
+            parts = _usage_parts_from_call(ix)
+            call_tokens = parts["total"]
             if call_tokens:
                 drivers.append({
                     "type": "Main LLM Call",
@@ -1216,11 +1232,16 @@ def _build_session_diagnostics(
         timeline["is_selected"] = idx == 0
 
     main_llm_call_count = sum(
-        1
+        int(getattr(r, "llm_call_count", 0) or 0)
         for r in rounds
-        for ix in r.interactions
-        if getattr(ix, "scope", "main") != "subagent"
     )
+    if not main_llm_call_count:
+        main_llm_call_count = sum(
+            1
+            for r in rounds
+            for ix in r.interactions
+            if getattr(ix, "scope", "main") != "subagent"
+        )
     main_tool_calls = [
         tc
         for tc in tool_calls
@@ -1291,7 +1312,7 @@ def _build_session_diagnostics(
         for timeline in subagent_timelines
     ])
 
-    tool_result_tokens = sum(max(len(getattr(tc, "result", "") or "") // 4, 0) for tc in tool_calls)
+    tool_result_tokens = sum(_estimate_payload_tokens(getattr(tc, "result", "") or "") for tc in tool_calls)
     subagent_context_tokens = 0
     for run in subagent_runs:
         sa_id = (run.get("summary", {}) or {}).get("agent_id", "")
@@ -1328,7 +1349,8 @@ def _build_session_diagnostics(
         else:
             segment["share"] = _format_ratio_pct(segment["tokens"], segment_total)
             segment["share_value"] = round(_ratio_value(segment["tokens"], segment_total), 1)
-            segment["tokens_label"] = _format_compact_token(segment["tokens"])
+            label = _format_compact_token(segment["tokens"])
+            segment["tokens_label"] = f"~{label}" if segment.get("precision") == "estimated" and label != "0" else label
             segment["status"] = "available"
 
     sorted_issues = sorted(
@@ -1561,6 +1583,10 @@ def _build_v11_view_model(
             entry["tool_parameters"] = tool_parameters
         if tool_status:
             entry["tool_status"] = tool_status
+        if kind in {"tool.result", "subagent.tool.result"} and text:
+            entry["token_estimate"] = _estimate_payload_tokens(text)
+            entry["token_estimate_precision"] = "estimated"
+            entry["token_estimate_source"] = "result text"
         if data is not None:
             entry["data"] = data
         payload_sources.append(entry)
@@ -1570,6 +1596,7 @@ def _build_v11_view_model(
         raw_command = _build_tool_command_summary(getattr(tc, "name", "tool"), params)
         command = _shorten_path(str(raw_command))
         result_text = (getattr(tc, "result", "") or "").strip()
+        result_token_estimate = _estimate_payload_tokens(result_text) if result_text else 0
         if result_text:
             result_summary = result_text[:60]
         elif getattr(tc, "exit_code", None) is not None:
@@ -1589,6 +1616,8 @@ def _build_v11_view_model(
             "payload_title": payload_title or "Tool Result",
             "timestamp": _call_time_label(getattr(tc, "timestamp", "") or ""),
             "duration_label": _format_duration_short((getattr(tc, "duration_ms", 0) or 0) / 1000),
+            "result_token_estimate": result_token_estimate,
+            "result_token_label": f"~{_format_compact_token(result_token_estimate)}" if result_token_estimate else "—",
         }
 
     def payload_action(payload_id: str, label: str, kind: str, title: str, status: str = "partial") -> dict:
@@ -2118,10 +2147,11 @@ def _build_v11_view_model(
         total_cache_write = 0
         total_output = 0
         for _ix in r.interactions:
-            total_input += getattr(_ix, "input_tokens", 0) or 0
-            total_cache_read += getattr(_ix, "cache_read_tokens", 0) or 0
-            total_cache_write += getattr(_ix, "cache_write_tokens", 0) or 0
-            total_output += getattr(_ix, "output_tokens", 0) or 0
+            parts = _usage_parts_from_call(_ix)
+            total_input += parts["fresh"]
+            total_cache_read += parts["cache_read"]
+            total_cache_write += parts["cache_write"]
+            total_output += parts["output"]
         if not r.interactions:
             total_input = rb["input"]
             total_cache_read = rb["cache_read"]
@@ -2195,6 +2225,7 @@ def _build_v11_view_model(
                 "token_cache_read": total_cache_read,
                 "token_cache_write": total_cache_write,
                 "token_output": total_output,
+                "llm_call_count": getattr(r, "llm_call_count", 0) or len(r.interactions),
                 "tool_count": tool_total,
                 "tool_count_label": tool_count_label,
                 "has_user_input": bool(r.user_msg.content),
@@ -2660,6 +2691,7 @@ def _build_v11_view_model(
             "token_cache_read": total_cache_read,
             "token_cache_write": total_cache_write,
             "token_output": total_output,
+            "llm_call_count": getattr(r, "llm_call_count", 0) or len(r.interactions),
             "tool_count": tool_total,
             "tool_count_label": tool_count_label,
             "has_user_input": bool(r.user_msg.content),
@@ -2733,9 +2765,14 @@ def _build_v11_view_model(
         row["token_bar_max"] = max_round_tokens
 
     main_llm_calls = sum(
-        1 for r in rounds for ix in r.interactions
-        if getattr(ix, "scope", "main") != "subagent"
+        int(getattr(r, "llm_call_count", 0) or 0)
+        for r in rounds
     )
+    if not main_llm_calls:
+        main_llm_calls = sum(
+            1 for r in rounds for ix in r.interactions
+            if getattr(ix, "scope", "main") != "subagent"
+        )
     subagent_llm_calls = sum(1 for call in llm_calls if getattr(call, "scope", "") == "subagent")
     if not subagent_llm_calls:
         subagent_llm_calls = sum(
@@ -2791,7 +2828,7 @@ def _build_v11_view_model(
         row["is_fresh_spike"] = bool(token_row.get("is_fresh_spike"))
         row["has_issues"] = bool(issue_count or row["has_failed_signal"] or row["has_payload_gap"] or row["has_attribution_gap"])
         row["issue_count"] = issue_count
-        row["llm_call_count"] = (
+        row["llm_call_count"] = row.get("llm_call_count") or (
             len(rounds[rid - 1].interactions)
             if rid and rid <= len(rounds) else 0
         )
