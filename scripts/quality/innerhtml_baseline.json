@@ -2,60 +2,6 @@
   "version": 1,
   "entries": [
     {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 697,
-      "isClear": false,
-      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 718,
-      "isClear": false,
-      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml +"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 727,
-      "isClear": false,
-      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 730,
-      "isClear": false,
-      "snippet": "if (!maxVal) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无 token 数据。</p>'; return; }"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 771,
-      "isClear": false,
-      "snippet": "container.innerHTML = '<div class=\"chart\">' + yHtml +"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 781,
-      "isClear": false,
-      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 819,
-      "isClear": false,
-      "snippet": "container.innerHTML = '<div class=\"chart chart--dual-axis\">' + yHtml +"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 872,
-      "isClear": false,
-      "snippet": "if (!data.length) { container.innerHTML = '<p class=\"chart-empty\">该时间窗口无数据。</p>'; return; }"
-    },
-    {
-      "file": "src/session_browser/web/static/js/dashboard.js",
-      "line": 911,
-      "isClear": false,
-      "snippet": "container.innerHTML = '<div class=\"chart chart--cache-health\">' + yHtml +"
-    },
-    {
       "file": "src/session_browser/web/static/js/data-table.js",
       "line": 117,
       "isClear": true,
@@ -116,18 +62,6 @@
       "snippet": "overlay.innerHTML ="
     },
     {
-      "file": "src/session_browser/web/static/js/session-detail/attribution.js",
-      "line": 49,
-      "isClear": false,
-      "snippet": "body.innerHTML = '<div class=\"sd-payload-error\">' +"
-    },
-    {
-      "file": "src/session_browser/web/static/js/session-detail/attribution.js",
-      "line": 68,
-      "isClear": false,
-      "snippet": "body.innerHTML = renderAttributionLoading(url.indexOf(\"/request\") !== -1 ? \"request\" : \"response\");"
-    },
-    {
       "file": "src/session_browser/web/static/js/session_detail_timeline.js",
       "line": 102,
       "isClear": false,
@@ -147,28 +81,28 @@
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 365,
-      "isClear": false,
-      "snippet": "tbody.innerHTML = '<tr><td colspan=\"13\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td>"
-    },
-    {
-      "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 409,
+      "line": 415,
       "isClear": false,
       "snippet": "tbody.innerHTML = newTbody.innerHTML;"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 414,
+      "line": 422,
       "isClear": false,
       "snippet": "oldPagination.innerHTML = newPagination.innerHTML;"
     },
     {
       "file": "src/session_browser/web/static/js/sessions-list.js",
-      "line": 421,
+      "line": 428,
       "isClear": false,
       "snippet": "paginationDiv.innerHTML = newPagination.innerHTML;"
+    },
+    {
+      "file": "src/session_browser/web/static/js/sessions-list.js",
+      "line": 482,
+      "isClear": false,
+      "snippet": "tbody.innerHTML = '<tr><td colspan=\"13\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td>"
     }
   ],
-  "count": 28
+  "count": 17
 }

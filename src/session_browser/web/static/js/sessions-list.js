@@ -100,10 +100,13 @@
     window.location.reload();
   });
 
-  // ── Real-time client-side search ──────────────────────────────────────
+  // ── Real-time client-side search + debounced server-side search ──────
+
+  var SEARCH_DEBOUNCE_MS = 300;
+  var _searchTimer = null;
 
   /**
-   * Filter visible table rows based on search input value.
+   * Filter visible table rows based on search input value (instant feedback).
    * Only affects rows currently in the DOM (current page).
    */
   function filterVisibleRows(query) {
@@ -121,8 +124,47 @@
       if (show) visibleCount++;
     }
     // Update matching count in filter footer
-    var countEl = document.querySelector('[data-session-match-count]');
-    if (countEl) countEl.textContent = visibleCount + ' matching sessions';
+    var countEl = document.querySelector('.active-filters__count');
+    if (countEl) {
+      countEl.textContent = visibleCount + ' matching sessions';
+    }
+  }
+
+  /**
+   * Trigger a server-side AJAX search to query the full database.
+   * Resets to page 1 and replaces tbody + pagination with server results.
+   */
+  function debouncedServerSearch(query) {
+    var params = getFilterParams();
+    params.set('q', query || '');
+    params.set('page', '1');
+
+    var qs = new URLSearchParams();
+    params.forEach(function (value, key) {
+      if (value !== '' && value != null) {
+        qs.set(key, value);
+      }
+    });
+    var url = '/sessions' + (qs.toString() ? '?' + qs.toString() : '');
+
+    var tbody = document.querySelector('.table-card .data-table tbody');
+    if (!tbody) return;
+
+    fetch(url, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.text();
+    })
+    .then(function (html) {
+      applyAjaxTableResponse(html, url);
+    })
+    .catch(function (err) {
+      console.error('AJAX search error:', err.message || err);
+      // Fall back to full page navigation
+      window.location.href = url;
+    });
   }
 
   function bindRealtimeSearch() {
@@ -130,18 +172,29 @@
     if (!searchInput) return;
 
     searchInput.addEventListener('input', function () {
-      filterVisibleRows(searchInput.value);
+      var query = searchInput.value;
+      // Instant client-side filter on current page rows
+      filterVisibleRows(query);
+      // Debounced server-side search across all sessions
+      if (_searchTimer) clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(function () {
+        debouncedServerSearch(query);
+      }, SEARCH_DEBOUNCE_MS);
     });
 
-    // Prevent form submit on Enter — just filter client-side
+    // Enter: cancel debounce and trigger immediate server search
     searchInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        filterVisibleRows(searchInput.value);
+        if (_searchTimer) {
+          clearTimeout(_searchTimer);
+          _searchTimer = null;
+        }
+        debouncedServerSearch(searchInput.value);
       }
     });
 
-    // Apply saved search on load
+    // Apply saved search on load (server already filtered, but sync UI)
     if (searchInput.value) {
       filterVisibleRows(searchInput.value);
     }
@@ -337,6 +390,72 @@
   // ── Pagination ──────────────────────────────────────────────────────────
 
   /**
+   * Apply an AJAX HTML response to the table: replace tbody + pagination.
+   * Shared by fetchPage (pagination) and debouncedServerSearch (search).
+   * Re-augments sortable headers, syncs page size, and re-binds tooltips.
+   */
+  function applyAjaxTableResponse(html, url) {
+    var tbody = document.querySelector('.table-card .data-table tbody');
+    if (!tbody) return;
+
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html, 'text/html');
+    var ajaxResponse = doc.getElementById('sessions-ajax-response');
+    if (!ajaxResponse) {
+      throw new Error('Missing #sessions-ajax-response in AJAX response');
+    }
+
+    var newTbody = ajaxResponse.querySelector('tbody');
+    if (!newTbody) {
+      throw new Error('Missing tbody in AJAX response');
+    }
+
+    // Rows may be empty when filter matches nothing (empty-state row).
+    // Only fall back to full navigation if the tbody element itself is missing.
+    tbody.innerHTML = newTbody.innerHTML;
+
+    // Replace pagination — page input value comes from server response
+    var newPagination = ajaxResponse.querySelector('#ajax-pagination');
+    if (newPagination) {
+      var oldPagination = document.getElementById('ajax-pagination');
+      if (oldPagination) {
+        oldPagination.innerHTML = newPagination.innerHTML;
+      } else {
+        var tableCard = tbody.closest('.table-card') || tbody.closest('.card');
+        if (tableCard) {
+          var paginationDiv = document.createElement('div');
+          paginationDiv.id = 'ajax-pagination';
+          paginationDiv.innerHTML = newPagination.innerHTML;
+          tableCard.appendChild(paginationDiv);
+        }
+      }
+    }
+
+    // Update matching count in filter footer
+    var countEl = document.querySelector('.active-filters__count');
+    if (countEl) {
+      var serverCountEl = ajaxResponse.querySelector('.active-filters__count');
+      if (serverCountEl) {
+        countEl.textContent = serverCountEl.textContent;
+      }
+    }
+
+    // pushState ONLY after successful response and DOM update
+    if (url) {
+      window.history.pushState({ ajax: true }, '', url);
+    }
+
+    // Re-augment sortable headers on new DOM so data-action is present
+    augmentSortableHeaders();
+
+    // Sync hidden page_size with the new select from AJAX response
+    syncPageSizeHidden();
+
+    // Re-bind token tooltip positioning for new rows
+    setupTokenTooltips();
+  }
+
+  /**
    * Fetch a page via AJAX and replace table body + pagination.
    * Uses X-Requested-With header to trigger partial response from server.
    * pushState only happens AFTER successful response — never before.
@@ -352,8 +471,6 @@
     }
     var url = '/sessions' + (qs.toString() ? '?' + qs.toString() : '');
 
-    // Locate tbody using selector matching ui.table_card macro output:
-    // <section class="card table-card"> > .table-wrap > table.data-table > tbody
     var tbody = document.querySelector('.table-card .data-table tbody');
     if (!tbody) {
       // Fallback: full navigation if target not found
@@ -374,72 +491,11 @@
       return response.text();
     })
     .then(function (html) {
-      // Parse response: #sessions-ajax-response contains tbody + pagination
-      var parser = new DOMParser();
-      var doc = parser.parseFromString(html, 'text/html');
-      var ajaxResponse = doc.getElementById('sessions-ajax-response');
-      if (!ajaxResponse) {
-        throw new Error('Missing #sessions-ajax-response in AJAX response');
-      }
-
-      // Extract tbody content from AJAX response
-      var newTbody = ajaxResponse.querySelector('tbody');
-      if (!newTbody) {
-        console.error('AJAX pagination fallback: missing tbody in response');
-        window.location.href = url;
-        return;
-      }
-
-      // Validate: response must contain at least one data row
-      var rows = newTbody.querySelectorAll('tr');
-      if (rows.length === 0) {
-        console.error('AJAX pagination fallback: no rows in response tbody');
-        window.location.href = url;
-        return;
-      }
-
-      // Validate: response must contain pagination element
-      var newPagination = ajaxResponse.querySelector('#ajax-pagination');
-      if (!newPagination) {
-        console.error('AJAX pagination fallback: missing #ajax-pagination in response');
-        window.location.href = url;
-        return;
-      }
-
-      tbody.innerHTML = newTbody.innerHTML;
-
-      // Replace pagination — page input value comes from server response
-      var oldPagination = document.getElementById('ajax-pagination');
-      if (oldPagination) {
-        oldPagination.innerHTML = newPagination.innerHTML;
-      } else if (tbody) {
-        // Create pagination container if it doesn't exist
-        var tableCard = tbody.closest('.table-card') || tbody.closest('.card');
-        if (tableCard) {
-          var paginationDiv = document.createElement('div');
-          paginationDiv.id = 'ajax-pagination';
-          paginationDiv.innerHTML = newPagination.innerHTML;
-          tableCard.appendChild(paginationDiv);
-        }
-      }
-
-      // pushState ONLY after successful response and DOM update
-      window.history.pushState({ ajax: true }, '', url);
-
-      // Re-augment sortable headers on new DOM so data-action is present
-      augmentSortableHeaders();
-
-      // Sync hidden page_size with the new select from AJAX response
-      syncPageSizeHidden();
-
-      // Re-bind token tooltip positioning for new rows
-      setupTokenTooltips();
+      applyAjaxTableResponse(html, url);
     })
     .catch(function (err) {
       console.error('AJAX pagination fallback:', err.message || err);
       // Safe fallback: direct full-page navigation without restore attempt.
-      // Restoring originalTbodyHTML can fail silently and leave the page
-      // stuck in "Loading..." state when the DOM is in an unexpected state.
       window.location.href = url;
     });
   }
