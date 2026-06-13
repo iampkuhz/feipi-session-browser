@@ -42,20 +42,26 @@ def test_qoder_tool_loop_normalized_semantics():
     c1, c2 = actual["calls"]
 
     assert c1["call_id"] == "qoder-msg-1"
-    assert c1["response"]["content_refs"][0]["payload_type"] == "thinking"
-    assert [b["canonical_category"] for b in c1["response"]["token_sources"]] == [
-        "visible_text",
-        "thinking",
-        "tool_use",
-        "unknown_output",
-    ]
-    assert c1["usage"]["raw_fields"]["qoder_input_tokens_total"] == 800
+    assert c1["response"]["tool_call_ids"] == ["toolu_qoder_write"]
+    assert c1["usage"] == {
+        "fresh": 800,
+        "cache_read": 0,
+        "cache_write": 100,
+        "output": 70,
+        "total": 970,
+    }
     assert actual["tool_executions"][0]["files_touched"] == ["diagram.puml"]
 
-    assert c2["request"]["token_sources"][6]["agent_bucket"] == "Tool results"
+    assert c2["request"]["tool_result_ids"] == ["toolu_qoder_write"]
     assert actual["tool_executions"][0]["tool_call_id"] == "toolu_qoder_write"
     assert actual["tool_executions"][0]["declared_by_call_id"] == "qoder-msg-1"
     assert actual["tool_executions"][0]["result_consumed_by_call_id"] == "qoder-msg-2"
+    assert "content_refs" not in c1["response"]
+    assert "type" not in actual["tool_executions"][0]
+    assert "status" not in actual["tool_executions"][0]
+    assert "token_sources" not in c1["response"]
+    assert "context_sources" not in actual
+    assert "payload_index" not in actual
 
 
 def test_qoder_source_file_entrypoint_matches_adapter_snapshot():

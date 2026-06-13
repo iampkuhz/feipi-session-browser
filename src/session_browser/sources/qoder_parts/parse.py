@@ -177,22 +177,7 @@ def build_normalized_session(
         tool_calls=tool_calls,
         source_path=source_path,
         subagent_runs=subagent_runs,
-        jsonl_diagnostics=_jsonl_diagnostics_from_summary(summary),
     )
-
-
-def _jsonl_diagnostics_from_summary(summary: SessionSummary) -> dict:
-    diagnostics = summary.parse_diagnostics or {}
-    if not isinstance(diagnostics, dict):
-        return {}
-    return {
-        "issues": diagnostics.get("issues", []),
-        "total_lines": diagnostics.get("total_lines", 0),
-        "events_parsed": diagnostics.get("events_parsed", 0),
-        "events_skipped": diagnostics.get("events_skipped", 0),
-        "warning_count": diagnostics.get("warning_count", 0),
-        "error_count": diagnostics.get("critical_count", 0),
-    }
 
 
 def _find_session_file(project_key: str, session_id: str) -> Path | None:

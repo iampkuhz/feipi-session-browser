@@ -53,30 +53,26 @@ def test_claude_code_subagent_normalized_semantics():
         "cache_write": 200,
         "output": 60,
         "total": 1360,
-        "source_total": 1360,
-        "total_semantics": "component_sum",
-        "quality": {
-            "source": "claude_code_jsonl_usage",
-            "precision": "provider_reported",
-            "status": "available",
-        },
-        "raw_fields": {
-            "input_tokens": 1000,
-            "cache_creation_input_tokens": 200,
-            "cache_read_input_tokens": 100,
-            "output_tokens": 60,
-        },
     }
 
     assert child1["scope"] == "subagent"
     assert child2["scope"] == "subagent"
+    assert c1["response"]["tool_call_ids"] == ["toolu_bash_1", "toolu_agent_1"]
     assert c2["request"]["tool_result_ids"] == ["toolu_bash_1", "toolu_agent_1"]
-    assert c2["request"]["token_sources"][6]["agent_bucket"] == "Tool results"
-    assert [(t["tool_call_id"], t["declared_by_call_id"], t["result_consumed_by_call_id"], t["subagent_id"]) for t in actual["tool_executions"]] == [
+    assert [(t["tool_call_id"], t["declared_by_call_id"], t["result_consumed_by_call_id"], t.get("subagent_id", "")) for t in actual["tool_executions"]] == [
         ("toolu_bash_1", "msg-main-1", "msg-main-2", ""),
         ("toolu_agent_1", "msg-main-1", "msg-main-2", "child"),
         ("toolu_child_read", "msg-child-1", "msg-child-2", "child"),
     ]
+    assert "content_refs" not in c1["request"]
+    assert "type" not in actual["tool_executions"][0]
+    assert "status" not in actual["tool_executions"][0]
+    assert "availability" not in c1["request"]
+    assert "payload_ref" not in c1["request"]
+    assert "token_sources" not in c1["request"]
+    assert "payload_index" not in actual
+    assert "context_sources" not in actual
+    assert "parse_diagnostics" not in actual
 
 
 def test_claude_code_source_file_entrypoint_matches_adapter_snapshot():
@@ -87,3 +83,77 @@ def test_claude_code_source_file_entrypoint_matches_adapter_snapshot():
     )
 
     assert actual == _load_expected()
+
+
+def test_claude_code_away_summary_leaf_uuid_becomes_call_without_sidecar(tmp_path):
+    session_file = tmp_path / "session-away-summary.jsonl"
+    events = [
+        {
+            "type": "user",
+            "uuid": "user-1",
+            "timestamp": "2026-06-13T00:00:00.000Z",
+            "cwd": "/repo",
+            "sessionId": "session-away-summary",
+            "message": {"role": "user", "content": "finish"},
+        },
+        {
+            "type": "assistant",
+            "uuid": "assistant-event-1",
+            "timestamp": "2026-06-13T00:00:01.000Z",
+            "sessionId": "session-away-summary",
+            "message": {
+                "model": "qwen3.7-plus",
+                "id": "msg-main",
+                "role": "assistant",
+                "type": "message",
+                "content": [{"type": "text", "text": "done"}],
+                "usage": {"input_tokens": 10, "output_tokens": 2},
+                "stop_reason": "end_turn",
+            },
+        },
+        {
+            "type": "system",
+            "subtype": "away_summary",
+            "uuid": "recap-1",
+            "timestamp": "2026-06-13T00:00:02.000Z",
+            "sessionId": "session-away-summary",
+            "content": "recap text",
+        },
+        {
+            "type": "last-prompt",
+            "leafUuid": "recap-1",
+            "sessionId": "session-away-summary",
+            "lastPrompt": "finish",
+        },
+    ]
+    session_file.write_text(
+        "\n".join(json.dumps(event, ensure_ascii=False) for event in events) + "\n",
+        encoding="utf-8",
+    )
+
+    actual = parse_claude_code_session_file(
+        session_file,
+        project_key="/repo",
+        session_id="session-away-summary",
+    )
+
+    validate_normalized_session(actual)
+    assert [call["call_id"] for call in actual["calls"]] == ["msg-main", "recap-1"]
+    assert actual["calls"][1]["usage"] == {
+        "fresh": 2,
+        "cache_read": 0,
+        "cache_write": 0,
+        "output": 3,
+        "total": 5,
+    }
+    assert actual["calls"][1]["usage_source"] == {
+        "kind": "estimated",
+        "method": "chars_div_4",
+        "reason": "provider_usage_missing",
+    }
+    assert actual["diagnostics"] == [{
+        "kind": "away_summary_usage_estimated",
+        "message": "Claude Code away_summary indicates a recap LLM call, but local JSONL does not persist provider usage for that call; usage is estimated from lastPrompt and summary text.",
+        "record_index": 3,
+        "call_id": "recap-1",
+    }]

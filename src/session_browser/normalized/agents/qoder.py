@@ -6,7 +6,6 @@ from pathlib import Path
 
 from session_browser.normalized.agents.chat_jsonl import (
     build_chat_jsonl_normalized_session,
-    jsonl_diag_to_dict,
     session_id_from_file,
 )
 from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -25,7 +24,6 @@ def build_qoder_normalized_session(
     tool_calls,
     source_path: str,
     subagent_runs: list[dict] | None = None,
-    jsonl_diagnostics: dict | None = None,
 ) -> dict:
     """Build normalized Qoder JSON from already parsed session models."""
     return build_chat_jsonl_normalized_session(
@@ -36,7 +34,6 @@ def build_qoder_normalized_session(
         source_path=source_path,
         source_role="main_session",
         subagent_runs=subagent_runs or [],
-        jsonl_diagnostics=jsonl_diagnostics or {},
     )
 
 
@@ -51,7 +48,7 @@ def parse_qoder_session_file(
     sid = session_id or session_id_from_file(session_file)
     project = project_key or session_file.parent.name
 
-    events, jsonl_diag = parse_jsonl_events(session_file)
+    events, _ = parse_jsonl_events(session_file)
     if events and "type" not in events[0] and "role" in events[0]:
         for ev in events:
             if "role" in ev and "type" not in ev:
@@ -77,5 +74,4 @@ def parse_qoder_session_file(
         tool_calls=tool_calls,
         source_path=str(session_file),
         subagent_runs=[],
-        jsonl_diagnostics=jsonl_diag_to_dict(jsonl_diag),
     )

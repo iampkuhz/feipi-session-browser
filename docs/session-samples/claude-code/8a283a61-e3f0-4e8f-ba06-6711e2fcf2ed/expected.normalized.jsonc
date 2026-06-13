@@ -1,0 +1,376 @@
+{
+  // schema_version: 当前唯一支持的 normalized contract 版本；只用于判断 artifact 是否需要重建。
+  "schema_version": "session-detail.normalized.v2",
+  // agent: 生成该 artifact 的 agent 类型。
+  "agent": "claude_code",
+  // source: 原始会话来源定位信息；展示时据此重新读取 JSONL。
+  "source": {
+    // files: 本样例涉及的原始文件列表。
+    "files": [
+      {
+        // role: 原始文件在会话中的角色。
+        "role": "main_session",
+        // path: repo 内样例路径或本地源路径。
+        "path": "docs/session-samples/claude-code/8a283a61-e3f0-4e8f-ba06-6711e2fcf2ed/8a283a61-e3f0-4e8f-ba06-6711e2fcf2ed.jsonl"
+      }
+    ]
+  },
+  // session: 会话级元信息，只保留索引和定位需要的字段。
+  "session": {
+    // session_key: agent 与 session_id 拼成的全局稳定键。
+    "session_key": "claude_code:8a283a61-e3f0-4e8f-ba06-6711e2fcf2ed",
+    // session_id: agent 原生会话 id。
+    "session_id": "8a283a61-e3f0-4e8f-ba06-6711e2fcf2ed",
+    // title: 会话标题或首条用户意图摘要。
+    "title": "请你优化仓库 readme，只展示用户需要看的东西。开发者需要看的东西不要放到这里",
+    // agent: 生成该 artifact 的 agent 类型。
+    "agent": "claude_code",
+    // model: 本会话或本次 LLM call 的模型名。
+    "model": "qwen3.7-plus",
+    // cwd: 会话运行时工作目录。
+    "cwd": "/Users/zhehan/Documents/tools/llm/feipi-agent-kit",
+    // started_at: 会话开始时间。
+    "started_at": "2026-06-13T07:26:41.911000+00:00",
+    // ended_at: 会话结束时间。
+    "ended_at": "2026-06-13T07:30:48.266000+00:00",
+    // git_branch: 会话源记录中的 git 分支。
+    "git_branch": "main",
+    // source: 原始会话来源定位信息；展示时据此重新读取 JSONL。
+    "source": "cli",
+    // project_key: repo/project 的稳定分组键。
+    "project_key": "-Users-zhehan-Documents-tools-llm-feipi-agent-kit",
+    // project_name: repo/project 展示名。
+    "project_name": "-Users-zhehan-Documents-tools-llm-feipi-agent-kit"
+  },
+  // calls: LLM call 顺序表；normalized v2 的主体。
+  "calls": [
+    {
+      // call_id: 单次 LLM call 的稳定 id；assistant message id 或 system away_summary uuid。
+      "call_id": "msg_95c7664f-a705-4ef5-9806-0d2d7ab63b96",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 1,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C1",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: agent 原生 turn 标识；没有则为空字符串。
+      "turn_id": "",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "qwen3.7-plus",
+      // timestamp: LLM call 对应的时间戳。
+      "timestamp": "2026-06-13T07:26:49.284Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24572,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token。
+        "cache_write": 26091,
+        // output: 模型输出 token。
+        "output": 134,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 50797
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "toolu_c20e391b57a640c1ac962594",
+          "toolu_3b87622fdca842f3a37f4055"
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；assistant message id 或 system away_summary uuid。
+      "call_id": "msg_9ac05231-47ca-4b5e-b033-86bbdfc0cdbe",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 2,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C2",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: agent 原生 turn 标识；没有则为空字符串。
+      "turn_id": "",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "qwen3.7-plus",
+      // timestamp: LLM call 对应的时间戳。
+      "timestamp": "2026-06-13T07:27:05.352Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24572,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 26091,
+        // cache_write: 写入 provider cache 的输入 token。
+        "cache_write": 1777,
+        // output: 模型输出 token。
+        "output": 516,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 52956
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "toolu_c20e391b57a640c1ac962594",
+          "toolu_3b87622fdca842f3a37f4055"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "toolu_9cb09f261daa451580bca5fd",
+          "toolu_e33be077099b45a7b740d9d3"
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；assistant message id 或 system away_summary uuid。
+      "call_id": "msg_2228e36a-912d-4c53-99b7-d4dc54960b7c",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 3,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C3",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: agent 原生 turn 标识；没有则为空字符串。
+      "turn_id": "",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "qwen3.7-plus",
+      // timestamp: LLM call 对应的时间戳。
+      "timestamp": "2026-06-13T07:27:24.294Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24652,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 26091,
+        // cache_write: 写入 provider cache 的输入 token。
+        "cache_write": 2499,
+        // output: 模型输出 token。
+        "output": 928,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 54170
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "toolu_9cb09f261daa451580bca5fd",
+          "toolu_e33be077099b45a7b740d9d3"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "toolu_e2d498fb9da8489789474a14"
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；assistant message id 或 system away_summary uuid。
+      "call_id": "msg_88fbcabb-e84a-474e-9a93-22d42ecacd84",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 4,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C4",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: agent 原生 turn 标识；没有则为空字符串。
+      "turn_id": "",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "qwen3.7-plus",
+      // timestamp: LLM call 对应的时间戳。
+      "timestamp": "2026-06-13T07:27:40.522Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24670,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 27868,
+        // cache_write: 写入 provider cache 的输入 token。
+        "cache_write": 1709,
+        // output: 模型输出 token。
+        "output": 354,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 54601
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "toolu_e2d498fb9da8489789474a14"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；assistant message id 或 system away_summary uuid。
+      "call_id": "55f29295-0034-44a0-97f0-e8f35e9bdf7f",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 5,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C5",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: agent 原生 turn 标识；没有则为空字符串。
+      "turn_id": "",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "qwen3.7-plus",
+      // timestamp: LLM call 对应的时间戳。
+      "timestamp": "2026-06-13T07:30:48.266Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模；本 call 为本地估算。
+        "fresh": 11,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token。
+        "cache_write": 0,
+        // output: 模型输出 token；本 call 为本地估算。
+        "output": 26,
+        // total: 当前 call 的总 token；由四个分量求和，本 call 为本地估算。
+        "total": 37
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+        ]
+      },
+      // usage_source: 缺 provider usage 时的估算来源说明；未出现该字段表示 provider 上报。
+      "usage_source": {
+        // kind: usage 来源类型。
+        "kind": "estimated",
+        // method: 本地估算方法。
+        "method": "chars_div_4",
+        // reason: 估算原因。
+        "reason": "provider_usage_missing"
+      }
+    }
+  ],
+  // tool_executions: 工具调用边表；只存连接和少量必要执行元数据。
+  "tool_executions": [
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "toolu_c20e391b57a640c1ac962594",
+      // name: 工具名。
+      "name": "Read",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "msg_95c7664f-a705-4ef5-9806-0d2d7ab63b96",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "msg_9ac05231-47ca-4b5e-b033-86bbdfc0cdbe",
+      // files_touched: 工具执行触达的文件路径；没有则省略。
+      "files_touched": [
+        "/Users/zhehan/Documents/tools/llm/feipi-agent-kit/README.md"
+      ]
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "toolu_3b87622fdca842f3a37f4055",
+      // name: 工具名。
+      "name": "Bash",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "msg_95c7664f-a705-4ef5-9806-0d2d7ab63b96",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "msg_9ac05231-47ca-4b5e-b033-86bbdfc0cdbe"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "toolu_9cb09f261daa451580bca5fd",
+      // name: 工具名。
+      "name": "Bash",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "msg_9ac05231-47ca-4b5e-b033-86bbdfc0cdbe",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "msg_2228e36a-912d-4c53-99b7-d4dc54960b7c"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "toolu_e33be077099b45a7b740d9d3",
+      // name: 工具名。
+      "name": "Bash",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "msg_9ac05231-47ca-4b5e-b033-86bbdfc0cdbe",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "msg_2228e36a-912d-4c53-99b7-d4dc54960b7c"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "toolu_e2d498fb9da8489789474a14",
+      // name: 工具名。
+      "name": "Write",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "msg_2228e36a-912d-4c53-99b7-d4dc54960b7c",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "msg_88fbcabb-e84a-474e-9a93-22d42ecacd84",
+      // files_touched: 工具执行触达的文件路径；没有则省略。
+      "files_touched": [
+        "/Users/zhehan/Documents/tools/llm/feipi-agent-kit/README.md"
+      ]
+    }
+  ],
+  // diagnostics: normalized 层保留的非派生异常列表；JSONL 解析诊断留在 source/index 层。
+  "diagnostics": [
+    {
+      // kind: 诊断类型。
+      "kind": "away_summary_usage_estimated",
+      // message: 人工审查时可读的诊断说明。
+      "message": "Claude Code away_summary indicates a recap LLM call, but local JSONL does not persist provider usage for that call; usage is estimated from lastPrompt and summary text.",
+      // record_index: 触发该诊断的 JSONL 1-based 行序号。
+      "record_index": 28,
+      // call_id: 受影响的 LLM call id。
+      "call_id": "55f29295-0034-44a0-97f0-e8f35e9bdf7f"
+    }
+  ]
+}

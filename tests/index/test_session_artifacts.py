@@ -22,21 +22,16 @@ def _minimal_normalized(agent: str, session_id: str) -> dict:
         "schema_version": NORMALIZED_SCHEMA_VERSION,
         "agent": agent,
         "source": {
-            "agent": agent,
             "files": [],
-            "artifact": {"kind": "normalized_session_json", "model": "llm_call_semantic"},
         },
         "session": {
             "session_key": f"{agent}:{session_id}",
             "session_id": session_id,
             "agent": agent,
         },
-        "context_sources": [],
         "calls": [],
         "tool_executions": [],
-        "payload_index": {"items": []},
-        "diagnostics": {"token_timeline": []},
-        "parse_diagnostics": {"warnings": []},
+        "diagnostics": [],
     }
 
 

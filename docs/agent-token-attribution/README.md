@@ -32,7 +32,7 @@ metadata 不是 bucket。它必须保留在 payload 中供 review，但不进入
 | LLM call | 一次实际模型请求/响应。token、request 归因、response 归因都必须挂到具体 LLM call。 |
 | content bucket | 一组同类 token 来源。bucket 不是原始 JSONL 字段，也不是 UI 卡片。 |
 | 原始绑定路径 | 实现必须读取的原始 session JSONL 字段路径，或明确列出的本地补充来源路径。不能从 UI 文案反推。 |
-| precision | `reported` provider/broker 上报，`estimated` 本地文本估算，`heuristic` 启发式估算，`residual` 差值，`unavailable` 不可得。 |
+| 估算策略 | 历史实现曾使用 reported/estimated/heuristic/residual/unavailable 等标签；当前 normalized scan artifact 和默认 API payload 不再逐字段暴露 `precision`。 |
 | residual | 已知 content bucket 解释后剩余的 token。只能作为“未定位”展示，不得编造来源。 |
 
 ## 固定不变的规则
@@ -64,7 +64,7 @@ metadata 不是 bucket。它必须保留在 payload 中供 review，但不进入
 | 记录原始来源引用 | 保存 JSONL `record_index`、字段路径、本地补充文件 locator。 |
 | 建立不确定关系映射 | 例如 user/tool_result 属于哪个下一次 call，assistant fragment 属于哪个 call。 |
 | 记录轻量诊断 | 重复 usage、缺 id、usage 冲突、raw body 缺失。 |
-| 保留延迟计算材料 | 缓存或定位 raw request、response blocks、tool outputs、global instruction refs。 |
+| 保留延迟计算材料 | 缓存或定位 raw request、response、tool outputs、global instruction refs。 |
 
 ### Scan 阶段不得做
 
@@ -75,6 +75,100 @@ metadata 不是 bucket。它必须保留在 payload 中供 review，但不进入
 | 展开大段工具 schema、项目指令全文做 token 估算 | 这是按需成本，scan 只保存 locator。 |
 | 把 config 归一化成 bucket | config 永远是 metadata，按需 payload 输出即可。 |
 | 猜不可见 hidden prompt 原文 | scan 只能记录存在性或 residual 诊断。 |
+
+## Normalized Scan Artifact
+
+normalized artifact 是 scan 阶段落盘的轻量中间结果，不是 request/response attribution payload。它只保存重新定位 raw JSONL 所需的事实：
+
+```jsonc
+{
+  "schema_version": "session-detail.normalized.v2", // 当前唯一支持版本，只用于判断 artifact 是否需要重建
+  "agent": "claude_code", // claude_code | codex | qoder
+  "source": {
+    "files": [
+      {
+        "role": "main_session", // main_session | subagent_session | codex_rollout
+        "path": "docs/session-samples/.../<session-id>.jsonl",
+        "subagent_id": "child", // 仅 subagent 文件需要
+        "parent_tool_use_id": "toolu_agent_1" // 仅 subagent 文件需要
+      }
+    ]
+  },
+  "session": {
+    "session_key": "claude_code:<session-id>",
+    "session_id": "<session-id>",
+    "title": "短标题",
+    "model": "qwen3.7-plus",
+    "cwd": "/repo",
+    "started_at": "2026-06-13T07:26:41Z",
+    "ended_at": "2026-06-13T07:30:48Z",
+    "git_branch": "main",
+    "source": "cli",
+    "project_key": "-Users-...",
+    "project_name": "-Users-..."
+  },
+  "calls": [
+    {
+      "call_id": "msg_x",
+      "call_index": 1,
+      "call_key": "C1",
+      "scope": "main",
+      "parent_call_id": "",
+      "parent_tool_call_id": "",
+      "turn_id": "",
+      "model": "qwen3.7-plus",
+      "timestamp": "2026-06-13T07:26:49Z",
+      "usage": {
+        "fresh": 24572,
+        "cache_read": 0,
+        "cache_write": 26091,
+        "output": 134,
+        "total": 50797
+      },
+      "request": {
+        "tool_result_ids": []
+      },
+      "response": {
+        "tool_call_ids": ["toolu_x"]
+      }
+    }
+  ],
+  "tool_executions": [
+    {
+      "tool_call_id": "toolu_x",
+      "name": "Read",
+      "scope": "main",
+      "declared_by_call_id": "msg_x",
+      "result_consumed_by_call_id": "msg_y"
+    }
+  ],
+  "diagnostics": []
+}
+```
+
+`usage_source` 只在 `usage` 为本地估算时出现；未出现表示 usage 来自 agent JSONL/provider usage snapshot。当前估算值仍写入同一个五字段 `usage` 账本，因此 `usage.total` 也可能是估算值，必须通过 `usage_source.kind=estimated` 判断：
+
+```jsonc
+{
+  "call_id": "55f29295-0034-44a0-97f0-e8f35e9bdf7f",
+  "usage": {
+    "fresh": 11,
+    "cache_read": 0,
+    "cache_write": 0,
+    "output": 26,
+    "total": 37
+  },
+  "usage_source": {
+    "kind": "estimated",
+    "method": "chars_div_4",
+    "reason": "provider_usage_missing"
+  }
+}
+```
+
+normalized artifact 明确不保存这些可派生或高成本字段：`context_sources`、`payload_index`、`diagnostics.token_timeline`、`parse_diagnostics`、`request/response.availability`、`content_refs`、`payload_ref`、`token_source_ref`、`token_sources`、`source_refs`、`precision`、`preview`、`tool_executions[].type`、默认 `tool_executions[].status=completed`、默认 `exit_code=0`、工具入参正文和工具结果正文。
+
+`agent_bucket` 是旧实现里 agent 原生 bucket 名；`canonical_category` 是跨 agent 统一后的 bucket 名。v2 scan artifact 不再保存二者，因为 content bucket 只在 on-demand attribution 阶段计算。on-demand payload 统一使用下文候选值中的 `key`。
 
 ### Attribution 接口阶段才做计算
 
@@ -238,8 +332,7 @@ stop
     "cache_read": 2432,
     "cache_write": 0,
     "output": 574,
-    "total": 32979,
-    "precision": "reported"
+    "total": 32979
   },
   "request": {
     "content_bucket_candidates": [
@@ -269,7 +362,6 @@ stop
         "label": "当前用户输入",
         "tokens": 1200,
         "share": 0.04, // tokens / usage.fresh
-        "precision": "estimated",
         "participates_in_distribution": true,
         "source_refs": [
           {
@@ -281,7 +373,7 @@ stop
           {
             "label": "user message",
             "tokens": 1200,
-            "preview": "用户输入预览"
+            "source_ref_index": 0
           }
         ]
       }
@@ -339,7 +431,7 @@ stop
 | `kind` | 是 | `request` 或 `response`；必须和路由 kind 一致。 |
 | `call_id` | 是 | 归因单元 id，必须对应一个 LLM call。 |
 | `source.build_stage` | 是 | 固定为 `on_demand_attribution`；表示 payload 不是 scan 阶段产物。 |
-| `usage` | 是 | 五字段和分母定义；UI tokenbar 只读这里。 |
+| `usage` | 是 | 五字段和分母定义；UI tokenbar 只读这里，不暴露 `precision`。 |
 | `request` | 条件必填 | `kind=request` 时必填；`kind=response` 时必须为 `null`。 |
 | `request.content_bucket_candidates` | 条件必填 | 当前规约允许的 request content bucket 枚举。 |
 | `request.content_buckets[].key` | 条件必填 | 必须来自 request candidate。 |
@@ -370,7 +462,6 @@ stop
 | `items[]` | bucket 内的可读明细行，承载 drilldown 内容。 | bucket 展开后以 compact table 展示。 |
 | `items[].label` | 明细名称。 | 第一列，例如 tool name、message role、tag name。 |
 | `items[].tokens` | 明细 token 数。 | 右对齐显示；bucket tokens 必须等于 items 合计或写明 residual。 |
-| `items[].preview` | 脱敏后的短预览。 | 默认 1-3 行；全文通过 source ref 或 payload modal 查看。 |
 | `items[].source_ref_index` | 指向 `source_refs[]` 的下标。 | UI 用它把明细行和原始来源 chip 关联。 |
 
 ## Review 检查

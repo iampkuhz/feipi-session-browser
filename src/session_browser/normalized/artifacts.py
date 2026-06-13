@@ -13,7 +13,7 @@ from session_browser.normalized.schema import NORMALIZED_SCHEMA_VERSION, validat
 
 
 NORMALIZED_SESSION_ARTIFACT_TYPE = "normalized_session_json"
-NORMALIZED_ARTIFACT_GENERATOR_VERSION = "normalized-session-artifact.v2"
+NORMALIZED_ARTIFACT_GENERATOR_VERSION = "normalized-session-artifact.v3"
 
 
 def normalized_artifact_path(

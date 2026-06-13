@@ -417,14 +417,6 @@ def parse_session_detail_with_normalized(
         source_path=str(session_file),
         thread_info=normalized_thread_info,
     )
-    normalized["parse_diagnostics"]["jsonl"] = {
-        "total_lines": jsonl_diag.total_lines,
-        "non_empty_lines": jsonl_diag.non_empty_lines,
-        "events_parsed": jsonl_diag.events_parsed,
-        "events_skipped": jsonl_diag.events_skipped,
-        "warning_count": jsonl_diag.warning_count,
-        "error_count": jsonl_diag.error_count,
-    }
     return summary, messages, tool_calls, [], normalized, session_file
 
 

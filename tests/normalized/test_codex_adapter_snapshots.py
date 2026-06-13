@@ -51,32 +51,20 @@ def test_codex_tool_loop_normalized_semantics():
     ]
 
     c1, c2 = actual["calls"]
-    assert [s["canonical_category"] for s in c1["request"]["token_sources"]] == [
-        "system_base_prompt",
-        "runtime_policy_context",
-        "tool_definitions",
-        "skills_and_agents",
-        "project_context",
-        "current_user_input",
-        "tool_results",
-        "conversation_history",
-        "unknown_retained_context",
-    ]
-    assert c1["request"]["token_sources"][1]["agent_bucket"] == "Developer instructions"
-    assert c1["request"]["token_sources"][4]["agent_bucket"] == "Project/environment context"
-    assert c1["request"]["token_sources"][5]["agent_bucket"] == "Current user prompt"
-    assert {b["canonical_category"] for b in c1["response"]["token_sources"]} == {
-        "visible_text",
-        "tool_use",
-        "reasoning",
-    }
-    assert c1["response"]["tool_use_ids"] == ["call_run_tests"]
+    assert actual["schema_version"] == "session-detail.normalized.v2"
+    assert c1["request"] == {"tool_result_ids": []}
+    assert c1["response"]["tool_call_ids"] == ["call_run_tests"]
     assert c2["request"]["tool_result_ids"] == ["call_run_tests"]
-    assert c2["request"]["token_sources"][6]["agent_bucket"] == "Tool results"
     assert actual["tool_executions"][0]["tool_call_id"] == "call_run_tests"
     assert actual["tool_executions"][0]["declared_by_call_id"] == "codex-call-0001"
     assert actual["tool_executions"][0]["result_consumed_by_call_id"] == "codex-call-0002"
-    assert actual["tool_executions"][0]["result_ref"]["payload_path"] == "result"
+    assert "result_ref" not in actual["tool_executions"][0]
+    assert "parameters" not in actual["tool_executions"][0]
+    assert "type" not in actual["tool_executions"][0]
+    assert "status" not in actual["tool_executions"][0]
+    assert "content_refs" not in c1["request"]
+    assert "token_sources" not in c1["request"]
+    assert "payload_index" not in actual
 
 
 def test_codex_source_file_entrypoint_matches_adapter_snapshot():
@@ -187,7 +175,7 @@ def test_codex_normalized_skips_duplicate_cumulative_token_count():
     validate_normalized_session(actual)
     assert [call["usage"]["total"] for call in actual["calls"]] == [32979, 34823]
     assert len(actual["calls"]) == 2
-    [fragment] = actual["diagnostics"]["token_fragments"]
+    [fragment] = actual["diagnostics"]
     assert fragment["record_index"] == 7
     assert fragment["status"] == "duplicate_token_count"
     assert fragment["contribution"] == 0
