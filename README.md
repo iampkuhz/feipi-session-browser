@@ -84,15 +84,24 @@ python3 scripts/quality/run_quality_gate.py --target harness --change-id <change
 
 ### 发布流
 
-版本管理以 `VERSION` 文件为真源，推荐流程：
+版本管理以 `VERSION` 文件为真源。本地验证流程：
 
 1. 修改代码后执行 `./scripts/session-browser.sh serve`，在 `http://127.0.0.1:18999` 前台观察访问日志和错误堆栈。
 2. 执行 `./scripts/session-browser.sh test`，通过单元测试。
 3. 确认版本号：`./scripts/session-browser.sh set-version <x.y.z>`。
-4. 执行 `./scripts/session-browser.sh release <x.y.z>`，测试通过后构建本地 Podman 镜像。
+4. 执行 `./scripts/session-browser.sh release-check <x.y.z>`，测试通过后构建并校验 Python 发布包，再构建本地 Podman 镜像。
 5. 执行 `./scripts/session-browser.sh podman-up <x.y.z>`，用指定版本镜像部署到本地。
 
 如需单条命令完成打包和部署，可使用 `./scripts/session-browser.sh deploy <x.y.z>`。
+
+GitHub 版本发布走 GitHub Actions：
+
+```bash
+git tag v<x.y.z>
+git push origin v<x.y.z>
+```
+
+tag 发布会运行 `.github/workflows/release.yml`：执行测试，构建并校验 `sdist` / `wheel`，构建并推送 `ghcr.io/iampkuhz/feipi-session-browser:<VERSION>` 镜像，并创建 GitHub Release 上传 Python 发布包。正式版本还会同步 `ghcr.io/iampkuhz/feipi-session-browser:latest`。如需只在 GitHub 上验证流水线构建，可在 Actions 页面手动运行 `Release` workflow，并保持 `publish=false`。
 
 容器启动命令默认会传入 `--startup-scan`：服务监听前先做一次全窗口增量扫描，避免首次启动空白；随后后台扫描器会持续定时刷新，hot 会话每 30 秒扫描，warm 会话每 5 分钟扫描。数据源只读挂载，SQLite index 单独持久化。
 

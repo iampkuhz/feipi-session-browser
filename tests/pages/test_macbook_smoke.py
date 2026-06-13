@@ -23,7 +23,7 @@ import urllib.request
 
 # ─── 常量 ──────────────────────────────────────────────────────────
 
-SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEST_INDEX_DIR = os.path.expanduser("~/.local/share/feipi/session-browser/local-test-index")
 
 MACBOOK_13_UA = (

@@ -9,6 +9,7 @@ CALLER_DIR="$(pwd)"
 SRC_DIR="$(cd "$SCRIPT_DIR/../src" && pwd)"
 VERSION_FILE="$PROJECT_DIR/VERSION"
 VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$PROJECT_DIR/.venv}"
+DIST_DIR="${SESSION_BROWSER_DIST_DIR:-$PROJECT_DIR/tmp/release/dist}"
 DEFAULT_LOCAL_PORT=18999
 DEFAULT_PODMAN_HOST_PORT=8899
 DEFAULT_LOCAL_DATA_DIR="$HOME/.local/share/feipi/session-browser/local-test-index"
@@ -172,6 +173,92 @@ if missing:
 PY
 }
 
+cleanup_python_build_artifacts() {
+    rm -rf "$PROJECT_DIR/build" "$PROJECT_DIR/src/feipi_session_browser.egg-info"
+}
+
+build_dist() {
+    local version="${1:-$(read_version)}"
+    validate_version "$version"
+
+    local current_version
+    current_version="$(read_version)"
+    if [[ "$current_version" != "$version" ]]; then
+        echo "VERSION 与目标版本不一致：VERSION=$current_version target=$version" >&2
+        echo "请先执行：./scripts/session-browser.sh set-version $version" >&2
+        exit 1
+    fi
+
+    cd "$PROJECT_DIR"
+    rm -rf "$DIST_DIR"
+    mkdir -p "$DIST_DIR"
+    cleanup_python_build_artifacts
+    if ! "$(python_bin)" -m build --sdist --wheel --outdir "$DIST_DIR"; then
+        cleanup_python_build_artifacts
+        exit 1
+    fi
+    cleanup_python_build_artifacts
+    echo "Python 发布包已构建：$DIST_DIR"
+}
+
+verify_dist() {
+    local version="${1:-$(read_version)}"
+    validate_version "$version"
+
+    VERSION_TO_VERIFY="$version" DIST_DIR_TO_VERIFY="$DIST_DIR" "$(python_bin)" - <<'PY'
+import os
+import sys
+import tarfile
+import zipfile
+from pathlib import Path
+
+version = os.environ["VERSION_TO_VERIFY"]
+dist_dir = Path(os.environ["DIST_DIR_TO_VERIFY"])
+normalized = "feipi_session_browser"
+wheel = dist_dir / f"{normalized}-{version}-py3-none-any.whl"
+sdist = dist_dir / f"{normalized}-{version}.tar.gz"
+
+missing_artifacts = [str(path) for path in (wheel, sdist) if not path.exists()]
+if missing_artifacts:
+    print("缺少发布包：" + ", ".join(missing_artifacts), file=sys.stderr)
+    sys.exit(1)
+
+required_wheel_entries = {
+    "session_browser/web/templates/base.html",
+    "session_browser/web/static/css/base.css",
+    "session_browser/web/static/js/app.js",
+    "session_browser/web/static/js/session-detail/init.js",
+    "session_browser/web/static/images/favicon.svg",
+}
+with zipfile.ZipFile(wheel) as zf:
+    names = set(zf.namelist())
+    missing = sorted(required_wheel_entries - names)
+    if missing:
+        print("wheel 缺少必要资源：" + ", ".join(missing), file=sys.stderr)
+        sys.exit(1)
+    metadata_name = f"{normalized}-{version}.dist-info/METADATA"
+    metadata = zf.read(metadata_name).decode("utf-8")
+    if f"Version: {version}" not in metadata:
+        print(f"wheel metadata 版本不匹配：{metadata_name}", file=sys.stderr)
+        sys.exit(1)
+
+required_sdist_suffixes = {
+    f"{normalized}-{version}/VERSION",
+    f"{normalized}-{version}/src/session_browser/web/templates/base.html",
+    f"{normalized}-{version}/src/session_browser/web/static/js/session-detail/init.js",
+    f"{normalized}-{version}/src/session_browser/web/static/images/favicon.svg",
+}
+with tarfile.open(sdist, "r:gz") as tf:
+    names = set(tf.getnames())
+    missing = sorted(required_sdist_suffixes - names)
+    if missing:
+        print("sdist 缺少必要资源：" + ", ".join(missing), file=sys.stderr)
+        sys.exit(1)
+
+print(f"发布包校验通过：{wheel.name}, {sdist.name}")
+PY
+}
+
 build_image() {
     local version="${1:-$(read_version)}"
     validate_version "$version"
@@ -328,11 +415,14 @@ print_usage() {
   stop [--port 18999]              按端口停止本地测试服务进程
   test [pytest options]            执行单元测试
 
-版本与本地镜像发布：
+版本与发布验证：
   version                          输出当前版本
   set-version <x.y.z>              更新 VERSION
+  build-dist [x.y.z]               构建 Python sdist/wheel 到 tmp/release/dist
+  verify-dist [x.y.z]              校验 Python 发布包版本与关键资源
   build [x.y.z]                    构建本地 Podman 镜像
-  release [x.y.z]                  先测试，再构建本地 Podman 镜像
+  release-check [x.y.z]            测试、构建发布包、校验发布包、构建本地镜像
+  release [x.y.z]                  release-check 的兼容别名
 
 Podman 部署：
   deploy [x.y.z]                   构建镜像并用 Podman 启动
@@ -359,7 +449,7 @@ Podman 部署：
 示例：
   ./scripts/session-browser.sh serve
   ./scripts/session-browser.sh scan --incremental
-  ./scripts/session-browser.sh release 0.2.0
+  ./scripts/session-browser.sh release-check 0.2.0
   ./scripts/session-browser.sh deploy 0.2.0
   ./scripts/session-browser.sh podman-logs
 EOF
@@ -398,14 +488,24 @@ case "$CMD" in
     build)
         build_image "${1:-$(read_version)}"
         ;;
-    release|publish-local)
+    build-dist)
+        build_dist "${1:-$(read_version)}"
+        ;;
+    verify-dist)
+        verify_dist "${1:-$(read_version)}"
+        ;;
+    release|publish-local|release-check)
         if [[ $# -ge 1 ]]; then
             set_version "$1"
         fi
         version="$(read_version)"
         run_tests
+        build_dist "$version"
+        verify_dist "$version"
         build_image "$version"
-        echo "本地镜像已发布：$(image_repo):$version"
+        echo "本地发布验证通过："
+        echo "  dist: $DIST_DIR"
+        echo "  image: $(image_repo):$version"
         ;;
     deploy)
         if [[ $# -ge 1 ]]; then

@@ -36,6 +36,8 @@ session_browser = [
   "web/static/*.css",
   "web/static/**/*.css",
   "web/static/js/*.js",
+  "web/static/js/**/*.js",
+  "web/static/images/*.svg",
 ]
 
 [tool.pytest.ini_options]
