@@ -225,6 +225,8 @@ def _codex_usage_is_cumulative(usage: dict) -> bool:
     if usage.get("_is_cumulative"):
         return True
     source = str(usage.get("_usage_source") or "")
+    if source == "total_token_usage_delta":
+        return False
     return "total_token_usage" in source and "last_token_usage" not in source
 
 
@@ -602,12 +604,13 @@ def build_rounds(
             # round. This handles tool-loop follow-ups where the model only
             # emits tool_use blocks without any visible text.
             has_content = bool(msg.content and msg.content.strip())
-            if not has_content and msg.tool_calls:
+            has_codex_call_usage = bool(agent == "codex" and msg.usage)
+            if not has_content and msg.tool_calls and not has_codex_call_usage:
                 # Merge this assistant's tool calls into the last round.
                 if rounds:
                     _append_tool_calls_to_round(rounds[-1], msg.tool_calls, tool_calls)
                 continue
-            if not has_content:
+            if not has_content and not has_codex_call_usage:
                 continue
 
             if pending_users:

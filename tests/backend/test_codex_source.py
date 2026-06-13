@@ -16,11 +16,6 @@ def test_extract_messages_carries_function_call_output_to_next_request():
         },
         {
             "timestamp": "2026-06-10T00:00:01.000Z",
-            "type": "event_msg",
-            "payload": {"type": "agent_message", "phase": "commentary", "message": "first answer"},
-        },
-        {
-            "timestamp": "2026-06-10T00:00:02.000Z",
             "type": "response_item",
             "payload": {
                 "type": "function_call",
@@ -54,8 +49,33 @@ def test_extract_messages_carries_function_call_output_to_next_request():
         },
         {
             "timestamp": "2026-06-10T00:00:05.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_2",
+                "name": "exec_command",
+                "arguments": "{}",
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:06.000Z",
             "type": "event_msg",
-            "payload": {"type": "agent_message", "phase": "commentary", "message": "second answer"},
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 120,
+                        "cached_input_tokens": 30,
+                        "output_tokens": 8,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 220,
+                        "cached_input_tokens": 50,
+                        "output_tokens": 18,
+                        "total_tokens": 238,
+                    },
+                },
+            },
         },
     ]
 
@@ -66,6 +86,7 @@ def test_extract_messages_carries_function_call_output_to_next_request():
     assert "Tool output for call_1:" in assistant_messages[1].request_full
     assert "tool output text" in assistant_messages[1].request_full
     assert assistant_messages[0].tool_calls == [{"id": "call_1", "name": "exec_command"}]
+    assert assistant_messages[1].tool_calls == [{"id": "call_2", "name": "exec_command"}]
 
 
 def test_extract_messages_uses_response_item_as_canonical_assistant_text():
@@ -91,7 +112,6 @@ def test_extract_messages_uses_response_item_as_canonical_assistant_text():
                 "type": "message",
                 "role": "assistant",
                 "content": [{"type": "output_text", "text": text}],
-                "phase": "commentary",
             },
         },
         {
@@ -212,41 +232,210 @@ def test_codex_interaction_metrics_preserve_per_call_last_token_usage():
     assert display_breakdown.total_tokens == r2.total_tokens
 
 
-def test_codex_round_tracks_multiple_token_count_fragments():
-    """Multiple Codex token_count fragments in one visible step count as LLM calls."""
-    from session_browser.domain.models import ChatMessage, ToolCall
-    from session_browser.web.presenters.session_detail import build_rounds
+def test_codex_interaction_metrics_do_not_delta_normalize_extracted_cumulative_delta():
+    """total_token_usage_delta 已是 per-call fallback，不能再按 cumulative 处理。"""
+    from session_browser.domain.models import ChatMessage
+    from session_browser.web.presenters.session_detail import build_llm_calls, build_rounds
 
     messages = [
         ChatMessage(role="user", content="start", timestamp="2026-06-10T00:00:00Z"),
         ChatMessage(
             role="assistant",
-            content="visible work step",
+            content="fallback delta call",
             timestamp="2026-06-10T00:00:01Z",
             usage={
-                "input_tokens": 300,
-                "cached_input_tokens": 180,
-                "output_tokens": 20,
-                "_usage_fragment_count": 3,
+                "input_tokens": 100,
+                "cached_input_tokens": 40,
+                "output_tokens": 30,
+                "_usage_source": "total_token_usage_delta",
+                "_usage_fragment_count": 1,
             },
-            tool_calls=[{"id": "call_1", "name": "exec_command"}],
+            llm_call_id="codex-call-0001",
         ),
     ]
-    tool_calls = [ToolCall(name="exec_command", tool_use_id="call_1")]
+
+    rounds = build_rounds(
+        messages=messages,
+        tool_calls=[],
+        session_input_tokens=60,
+        session_output_tokens=30,
+        session_cached_tokens=40,
+        session_cache_write_tokens=0,
+        agent="codex",
+        md_filter=lambda text: text,
+    )
+    [llm_call] = build_llm_calls(messages, [], rounds, [], agent="codex")
+
+    assert rounds[0].total_tokens == 130
+    assert llm_call.input_tokens == 100
+    assert llm_call.cache_read_tokens == 40
+    assert llm_call.output_tokens == 30
+
+
+def test_codex_token_count_boundaries_create_call_rounds_and_skip_duplicates():
+    """每条有效 token_count 都是 Codex call round；重复累计快照贡献 0。"""
+    from session_browser.sources.codex import _extract_messages
+    from session_browser.web.presenters.session_detail import build_rounds
+
+    events = [
+        {
+            "timestamp": "2026-06-12T16:43:16.177Z",
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "start"},
+        },
+        {
+            "timestamp": "2026-06-12T16:43:29.030Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_goal",
+                "name": "create_goal",
+                "arguments": "{}",
+            },
+        },
+        {
+            "timestamp": "2026-06-12T16:43:29.598Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 32405,
+                        "cached_input_tokens": 2432,
+                        "output_tokens": 574,
+                        "total_tokens": 32979,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 32405,
+                        "cached_input_tokens": 2432,
+                        "output_tokens": 574,
+                        "total_tokens": 32979,
+                    },
+                },
+            },
+        },
+        {
+            "timestamp": "2026-06-12T16:43:42.674Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "phase": "commentary",
+                "content": [{"type": "output_text", "text": "visible update"}],
+            },
+        },
+        {
+            "timestamp": "2026-06-12T16:43:44.304Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_plan",
+                "name": "update_plan",
+                "arguments": "{}",
+            },
+        },
+        {
+            "timestamp": "2026-06-12T16:43:45.884Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 34122,
+                        "cached_input_tokens": 32128,
+                        "output_tokens": 701,
+                        "total_tokens": 34823,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 66527,
+                        "cached_input_tokens": 34560,
+                        "output_tokens": 1275,
+                        "total_tokens": 67802,
+                    },
+                },
+            },
+        },
+        {
+            "timestamp": "2026-06-12T16:44:06.781Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 34122,
+                        "cached_input_tokens": 32128,
+                        "output_tokens": 701,
+                        "total_tokens": 34823,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 66527,
+                        "cached_input_tokens": 34560,
+                        "output_tokens": 1275,
+                        "total_tokens": 67802,
+                    },
+                },
+            },
+        },
+        {
+            "timestamp": "2026-06-12T16:44:16.210Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_read",
+                "name": "exec_command",
+                "arguments": "{}",
+            },
+        },
+        {
+            "timestamp": "2026-06-12T16:44:17.151Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 34326,
+                        "cached_input_tokens": 30592,
+                        "output_tokens": 230,
+                        "total_tokens": 34556,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 100853,
+                        "cached_input_tokens": 65152,
+                        "output_tokens": 1505,
+                        "total_tokens": 102358,
+                    },
+                },
+            },
+        },
+    ]
+
+    messages = _extract_messages(events, model="gpt-test")
+    assistant_messages = [m for m in messages if m.role == "assistant"]
+    assert [m.usage["total_tokens"] for m in assistant_messages] == [32979, 34823, 34556]
+    assert assistant_messages[0].usage["input_tokens"] == 32405
+    assert assistant_messages[0].usage["cached_input_tokens"] == 2432
+    assert assistant_messages[0].usage["output_tokens"] == 574
+    assert assistant_messages[1].usage["_duplicate_token_count_records"][0]["record_index"] == 7
+    assert assistant_messages[1].usage["_duplicate_token_count_records"][0]["contribution"] == 0
+
+    tool_calls = []
 
     rounds = build_rounds(
         messages=messages,
         tool_calls=tool_calls,
-        session_input_tokens=120,
-        session_output_tokens=20,
-        session_cached_tokens=180,
+        session_input_tokens=37663,
+        session_output_tokens=1505,
+        session_cached_tokens=65152,
         session_cache_write_tokens=0,
         agent="codex",
         md_filter=lambda text: text,
     )
 
-    assert rounds[0].llm_call_count == 3
-    assert rounds[0].total_tokens == 320
+    assert len(rounds) == 3
+    assert [r.total_tokens for r in rounds] == [32979, 34823, 34556]
+    assert [r.llm_call_count for r in rounds] == [1, 1, 1]
+    assert rounds[0].input_tokens == 32405
+    assert rounds[0].cached_tokens == 2432
 
 
 def test_codex_tool_wall_time_parses_subsecond_duration():

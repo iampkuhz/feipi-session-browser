@@ -31,7 +31,7 @@ Token metrics SHALL use exactly five component fields:
 - Output: provider-reported visible output tokens
 - Total: Fresh + Cache Read + Cache Write + Output
 
-When provider cache read is a subset of input tokens, including OpenAI/Codex `cached_input_tokens`, Fresh SHALL be computed as `input_tokens - cached_input_tokens` for tokenbar, Total, Fresh spike, and round/tooltips. Provider request input MAY still be shown separately in attribution summaries or provider-total metadata, but it SHALL NOT be stacked as Fresh beside its cached subset. When one logical visible step has multiple Codex `last_token_usage` fragments, the round SHALL expose the fragment count as LLM call count.
+When provider cache read is a subset of input tokens, including OpenAI/Codex `cached_input_tokens`, Fresh SHALL be computed as `input_tokens - cached_input_tokens` for tokenbar, Total, Fresh spike, and round/tooltips. Provider request input MAY still be shown separately in attribution summaries or provider-total metadata, but it SHALL NOT be stacked as Fresh beside its cached subset. For Codex, each effective `event_msg.token_count` cumulative snapshot SHALL create one LLM-call round; repeated snapshots whose `total_token_usage` has no component growth SHALL NOT create a round or contribute tokens and SHALL be recorded as token diagnostics.
 
 #### Scenario: Analysis cards display
 

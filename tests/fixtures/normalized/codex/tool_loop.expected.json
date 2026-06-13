@@ -363,7 +363,7 @@
       "usage": {
         "cache_read": 40,
         "cache_write": 0,
-        "fresh": 100,
+        "fresh": 60,
         "output": 30,
         "quality": {
           "precision": "provider_reported",
@@ -372,7 +372,7 @@
         },
         "raw_fields": {},
         "source_total": 130,
-        "total": 170,
+        "total": 130,
         "total_semantics": "component_sum"
       }
     },
@@ -697,7 +697,7 @@
       "usage": {
         "cache_read": 20,
         "cache_write": 0,
-        "fresh": 80,
+        "fresh": 60,
         "output": 16,
         "quality": {
           "precision": "provider_reported",
@@ -706,7 +706,7 @@
         },
         "raw_fields": {},
         "source_total": 96,
-        "total": 116,
+        "total": 96,
         "total_semantics": "component_sum"
       }
     }
@@ -832,14 +832,14 @@
   "diagnostics": {
     "token_timeline": [
       {
-        "cache_read_ratio": 0.2857,
+        "cache_read_ratio": 0.4,
         "call_id": "codex-call-0001",
         "call_index": 1,
         "scope": "main",
         "usage": {
           "cache_read": 40,
           "cache_write": 0,
-          "fresh": 100,
+          "fresh": 60,
           "output": 30,
           "quality": {
             "precision": "provider_reported",
@@ -848,19 +848,19 @@
           },
           "raw_fields": {},
           "source_total": 130,
-          "total": 170,
+          "total": 130,
           "total_semantics": "component_sum"
         }
       },
       {
-        "cache_read_ratio": 0.2,
+        "cache_read_ratio": 0.25,
         "call_id": "codex-call-0002",
         "call_index": 2,
         "scope": "main",
         "usage": {
           "cache_read": 20,
           "cache_write": 0,
-          "fresh": 80,
+          "fresh": 60,
           "output": 16,
           "quality": {
             "precision": "provider_reported",
@@ -869,7 +869,7 @@
           },
           "raw_fields": {},
           "source_total": 96,
-          "total": 116,
+          "total": 96,
           "total_semantics": "component_sum"
         }
       }

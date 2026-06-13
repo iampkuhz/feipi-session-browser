@@ -12,6 +12,15 @@ from session_browser.normalized.semantic import build_normalized_session_model
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
+_CODEX_USAGE_FIELDS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "output_tokens",
+    "reasoning_output_tokens",
+    "total_tokens",
+)
+
+
 def parse_codex_rollout_file(
     path: str | Path,
     thread_info: dict | None = None,
@@ -89,6 +98,8 @@ class _CodexBuildState:
 
         self.rounds: list[dict] = []
         self.parse_warnings: list[dict] = []
+        self.previous_cumulative_usage: dict | None = None
+        self.token_fragments: list[dict] = []
 
     def accept_session_meta(self, payload: dict, timestamp: str) -> None:
         self._touch(timestamp)
@@ -207,7 +218,7 @@ class _CodexBuildState:
                 "path": self.source_path,
                 "status": "available" if self.source_path else "unknown",
         }]
-        return build_normalized_session_model(
+        normalized = build_normalized_session_model(
             agent="codex",
             session=session,
             source_files=source_files,
@@ -216,16 +227,36 @@ class _CodexBuildState:
             extra_parse_diagnostics={},
             context_sources=_codex_context_sources(self.session_meta, self.latest_turn_context, source_files),
         )
+        if self.token_fragments:
+            normalized["diagnostics"]["token_fragments"] = self.token_fragments
+        return normalized
 
     def _close_llm_call(self, token_payload: dict, timestamp: str) -> None:
+        fragment = self._token_fragment(token_payload, timestamp)
+        if fragment.get("status") == "duplicate_token_count":
+            self.token_fragments.append(fragment)
+            return
+
         usage = _extract_token_count_usage(token_payload)
+        if not usage.get("source_total_tokens") and fragment.get("cumulative_delta"):
+            delta = fragment["cumulative_delta"]
+            usage = {
+                "input_tokens": delta.get("input_tokens", 0),
+                "cached_input_tokens": delta.get("cached_input_tokens", 0),
+                "output_tokens": delta.get("output_tokens", 0),
+                "reasoning_output_tokens": delta.get("reasoning_output_tokens", 0),
+                "source_total_tokens": delta.get("total_tokens", 0),
+                "model_context_window": 0,
+            }
+        if fragment.get("status") == "cumulative_reset_or_invalid":
+            usage["quality_status"] = "cumulative_reset_or_invalid"
+            self.token_fragments.append(fragment)
         if not self.segment_response_items and not self.segment_agent_messages:
             self.parse_warnings.append({
                 "kind": "token_count_without_response_items",
                 "message": "token_count had no preceding response items.",
                 "event_order": self.event_order,
             })
-            return
 
         round_id = len(self.rounds) + 1
         call_id = f"codex-call-{round_id:04d}"
@@ -262,6 +293,33 @@ class _CodexBuildState:
         self.segment_tool_events = []
         self.segment_agent_messages = []
         self.segment_system_signals = []
+
+    def _token_fragment(self, token_payload: dict, timestamp: str) -> dict:
+        info = token_payload.get("info") if isinstance(token_payload.get("info"), dict) else {}
+        last_usage = info.get("last_token_usage") or token_payload.get("last_token_usage") or {}
+        cumulative_usage = info.get("total_token_usage") or token_payload.get("total_token_usage") or {}
+        record = {
+            "record_index": self.event_order,
+            "timestamp": timestamp,
+            "last_total_tokens": _int(last_usage.get("total_tokens")) if isinstance(last_usage, dict) else 0,
+            "cumulative_total_tokens": _int(cumulative_usage.get("total_tokens")) if isinstance(cumulative_usage, dict) else 0,
+        }
+        if not isinstance(cumulative_usage, dict):
+            return {**record, "status": "fallback_last_usage", "contribution": record["last_total_tokens"]}
+
+        delta = _token_usage_delta(cumulative_usage, self.previous_cumulative_usage)
+        record["cumulative_delta"] = {field: max(delta[field], 0) for field in _CODEX_USAGE_FIELDS}
+        record["contribution"] = record["cumulative_delta"]["total_tokens"]
+
+        if self.previous_cumulative_usage is not None and all(delta[field] == 0 for field in _CODEX_USAGE_FIELDS):
+            self.previous_cumulative_usage = cumulative_usage
+            return {**record, "status": "duplicate_token_count", "contribution": 0}
+
+        status = "counted"
+        if any(delta[field] < 0 for field in _CODEX_USAGE_FIELDS):
+            status = "cumulative_reset_or_invalid"
+        self.previous_cumulative_usage = cumulative_usage
+        return {**record, "status": status}
 
     def _touch(self, timestamp: str) -> None:
         if timestamp and not self.first_ts:
@@ -392,6 +450,17 @@ def _extract_token_count_usage(payload: dict) -> dict:
         "reasoning_output_tokens": reasoning,
         "source_total_tokens": _int(usage.get("total_tokens")) or input_tokens + output,
         "model_context_window": _int(info.get("model_context_window")),
+    }
+
+
+def _token_usage_delta(current: dict, previous: dict | None) -> dict:
+    previous = previous if isinstance(previous, dict) else {}
+    return {
+        "input_tokens": _int(current.get("input_tokens")) - _int(previous.get("input_tokens")),
+        "cached_input_tokens": _int(current.get("cached_input_tokens")) - _int(previous.get("cached_input_tokens")),
+        "output_tokens": _int(current.get("output_tokens")) - _int(previous.get("output_tokens")),
+        "reasoning_output_tokens": _int(current.get("reasoning_output_tokens")) - _int(previous.get("reasoning_output_tokens")),
+        "total_tokens": _int(current.get("total_tokens")) - _int(previous.get("total_tokens")),
     }
 
 

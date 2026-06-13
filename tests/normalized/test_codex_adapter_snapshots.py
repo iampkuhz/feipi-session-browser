@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from session_browser.normalized import validate_normalized_session
-from session_browser.normalized.agents.codex import parse_codex_rollout_file
+from session_browser.normalized.agents.codex import parse_codex_events, parse_codex_rollout_file
 from session_browser.sources.codex import parse_normalized_session_file
 
 
@@ -84,3 +84,111 @@ def test_codex_source_file_entrypoint_matches_adapter_snapshot():
     expected = _load_expected()
 
     assert actual == expected
+
+
+def test_codex_normalized_skips_duplicate_cumulative_token_count():
+    events = [
+        {
+            "timestamp": "2026-06-10T00:00:00.000Z",
+            "type": "session_meta",
+            "payload": {"id": "codex-duplicate-token", "cwd": "/repo"},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:01.000Z",
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "start"},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:02.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "exec_command",
+                "arguments": "{}",
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:03.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 32405,
+                        "cached_input_tokens": 2432,
+                        "output_tokens": 574,
+                        "total_tokens": 32979,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 32405,
+                        "cached_input_tokens": 2432,
+                        "output_tokens": 574,
+                        "total_tokens": 32979,
+                    },
+                },
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:04.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "visible"}],
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:05.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 34122,
+                        "cached_input_tokens": 32128,
+                        "output_tokens": 701,
+                        "total_tokens": 34823,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 66527,
+                        "cached_input_tokens": 34560,
+                        "output_tokens": 1275,
+                        "total_tokens": 67802,
+                    },
+                },
+            },
+        },
+        {
+            "timestamp": "2026-06-10T00:00:06.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 34122,
+                        "cached_input_tokens": 32128,
+                        "output_tokens": 701,
+                        "total_tokens": 34823,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 66527,
+                        "cached_input_tokens": 34560,
+                        "output_tokens": 1275,
+                        "total_tokens": 67802,
+                    },
+                },
+            },
+        },
+    ]
+
+    actual = parse_codex_events(events, thread_info={"id": "codex-duplicate-token", "cwd": "/repo"})
+
+    validate_normalized_session(actual)
+    assert [call["usage"]["total"] for call in actual["calls"]] == [32979, 34823]
+    assert len(actual["calls"]) == 2
+    [fragment] = actual["diagnostics"]["token_fragments"]
+    assert fragment["record_index"] == 7
+    assert fragment["status"] == "duplicate_token_count"
+    assert fragment["contribution"] == 0
+    assert fragment["cumulative_total_tokens"] == 67802

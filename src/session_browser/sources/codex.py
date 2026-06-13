@@ -129,6 +129,46 @@ def _extract_codex_usage(raw: dict) -> dict:
             result["_is_cumulative"] = True
         return result
     return {}
+
+
+_CODEX_USAGE_FIELDS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "output_tokens",
+    "reasoning_output_tokens",
+    "total_tokens",
+)
+
+
+def _codex_usage_delta(current: dict, previous: dict | None) -> dict:
+    """Return cumulative usage delta for Codex token_count snapshots."""
+    current_usage = _extract_codex_usage(current) or current
+    previous_usage = _extract_codex_usage(previous) if isinstance(previous, dict) else {}
+    return {
+        field: _int_or_zero(_as_dict(current_usage).get(field))
+        - _int_or_zero(_as_dict(previous_usage).get(field))
+        for field in _CODEX_USAGE_FIELDS
+    }
+
+
+def _codex_is_duplicate_cumulative(current: dict, previous: dict | None) -> bool:
+    if not isinstance(previous, dict):
+        return False
+    delta = _codex_usage_delta(current, previous)
+    return all(delta[field] == 0 for field in _CODEX_USAGE_FIELDS)
+
+
+def _display_phase(phase: str) -> bool:
+    return phase in {"commentary", "final", "final_answer"}
+
+
+def _format_tool_output_request(call_id: str, output: object) -> str:
+    output_text = str(output) if output is not None else ""
+    if not output_text:
+        return ""
+    if call_id:
+        return f"Tool output for {call_id}:\n{output_text}"
+    return output_text
 from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenPrecision
 from session_browser.domain.token_normalizer import normalize_tokens
 from session_browser.sources.jsonl_reader import parse_jsonl_events
@@ -639,108 +679,22 @@ def _extract_wall_time_ms(text: str) -> float:
 
 
 def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
-    """Extract user and agent messages from Codex events.
+    """Extract visible user messages and Codex LLM-call assistant messages.
 
-    Uses event_msg with type=user_message and type=agent_message.
-    Tracks pending request parts for subsequent assistant messages.
-    Attaches per-turn token usage from token_count events and tool call IDs
-    from function_call and custom_tool_call response_items to each assistant message.
-
-    Note: Each agent_message is followed by multiple token_count events (one per
-    LLM call including tool follow-ups). All token_counts between two
-    agent_messages are aggregated to form the per-turn usage for the preceding
-    agent_message. Similarly, function_call and custom_tool_call IDs between
-    agent_messages are collected to populate assistant_msg.tool_calls for round
-    matching.
+    Codex ``event_msg.token_count`` records are the only authoritative boundary
+    for model-call token ownership.  Assistant text mirrors and response items
+    are associated with the current token_count segment for display, but they do
+    not define token windows.
     """
     messages = []
     pending_request_parts: list[str] = []
 
-    # Locate agent_message events
-    agent_msg_indices: list[int] = []
-    for i, ev in enumerate(events):
-        etype = ev.get("type", "")
-        payload = ev.get("payload", {})
-        if (etype == "event_msg"
-                and payload.get("type") == "agent_message"
-                and payload.get("phase", "") in ("commentary", "final")):
-            agent_msg_indices.append(i)
-
-    # For each agent_message, collect token_counts, tool call IDs, and the
-    # canonical response_item payloads between it and the next agent_message.
-    # Codex writes the same assistant text twice: event_msg.agent_message is a
-    # UI/status mirror, while response_item.message is the model response item.
-    # Use response_item as canonical when present and fall back to event_msg.
-    agent_usage: dict[int, dict] = {}  # agent_msg_index -> aggregated usage
-    agent_tool_ids: dict[int, list[dict]] = {}  # agent_msg_index -> [{id, name}, ...]
-    agent_response_content: dict[int, dict] = {}
-    for ai, start_idx in enumerate(agent_msg_indices):
-        if ai + 1 < len(agent_msg_indices):
-            end_idx = agent_msg_indices[ai + 1]
-        else:
-            end_idx = len(events)
-
-        # Aggregate token counts
-        usage: dict = {
-            "input_tokens": 0,
-            "cached_input_tokens": 0,
-            "output_tokens": 0,
-            "reasoning_output_tokens": 0,
-            "total_tokens": 0,
-            "_usage_fragment_count": 0,
-        }
-        tool_ids: list[dict] = []
-        response_texts: list[str] = []
-        response_blocks: list[dict] = []
-        for i in range(start_idx, end_idx):
-            ev = events[i]
-            if ev.get("type") == "event_msg":
-                payload = ev.get("payload", {})
-                if payload.get("type") == "token_count":
-                    info = payload.get("info") or {}
-                    last_usage = info.get("last_token_usage") or payload.get("last_token_usage")
-                    if last_usage and isinstance(last_usage, dict):
-                        # Use _extract_codex_usage to handle flat + nested aliases
-                        extracted = _extract_codex_usage(last_usage)
-                        if extracted:
-                            usage["_usage_fragment_count"] += 1
-                            usage["input_tokens"] += extracted.get("input_tokens", 0)
-                            usage["cached_input_tokens"] += extracted.get("cached_input_tokens", 0)
-                            usage["output_tokens"] += extracted.get("output_tokens", 0)
-                            usage["reasoning_output_tokens"] += extracted.get("reasoning_output_tokens", 0)
-                            usage["total_tokens"] += extracted.get("total_tokens", 0)
-                        else:
-                            usage["_usage_fragment_count"] += 1
-                            # Fallback: direct field access
-                            usage["input_tokens"] += last_usage.get("input_tokens", 0) or 0
-                            usage["cached_input_tokens"] += last_usage.get("cached_input_tokens", 0) or 0
-                            usage["output_tokens"] += last_usage.get("output_tokens", 0) or 0
-                            usage["reasoning_output_tokens"] += last_usage.get("reasoning_output_tokens", 0) or 0
-                            usage["total_tokens"] += last_usage.get("total_tokens", 0) or 0
-            elif ev.get("type") == "response_item":
-                payload = ev.get("payload", {})
-                rtype = payload.get("type", "")
-                if rtype == "message" and payload.get("role") == "assistant":
-                    for block in _response_item_text_blocks(payload):
-                        response_blocks.append(block)
-                        text = block.get("content") or block.get("text") or ""
-                        if str(text).strip():
-                            response_texts.append(str(text).strip())
-                elif rtype in ("function_call", "custom_tool_call"):
-                    call_id = payload.get("call_id", "")
-                    tool_name = payload.get("name", "")
-                    if call_id:
-                        tool_ids.append({"id": call_id, "name": tool_name})
-                    tool_block = _response_item_tool_block(payload)
-                    if tool_block:
-                        response_blocks.append(tool_block)
-
-        agent_usage[start_idx] = usage
-        agent_tool_ids[start_idx] = tool_ids
-        agent_response_content[start_idx] = {
-            "text": "\n\n".join(response_texts),
-            "blocks": response_blocks,
-        }
+    response_blocks: list[dict] = []
+    tool_ids: list[dict] = []
+    deferred_tool_outputs: list[str] = []
+    previous_cumulative: dict | None = None
+    last_assistant: ChatMessage | None = None
+    call_index = 0
 
     for i, ev in enumerate(events):
         etype = ev.get("type", "")
@@ -766,49 +720,150 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
                 content = payload.get("message", "")
                 if isinstance(content, list):
                     content = "\n".join(str(c) for c in content)
-                if phase in ("commentary", "final"):
-                    request_full = "\n\n".join(p for p in pending_request_parts if p)
-                    pending_request_parts = []
+                content_str = str(content)
+                if _display_phase(phase) and content_str.strip():
+                    response_blocks.append({
+                        "type": "text",
+                        "content": content_str,
+                        "source": "event_msg.agent_message",
+                        "phase": phase,
+                    })
+            elif msg_type == "token_count":
+                info = payload.get("info") or {}
+                last_usage = info.get("last_token_usage") or payload.get("last_token_usage")
+                cumulative_usage = info.get("total_token_usage") or payload.get("total_token_usage")
 
-                    # Attach aggregated per-turn usage and tool call IDs
-                    usage = agent_usage.get(i)
-                    tool_calls_list = agent_tool_ids.get(i, [])
-                    response_content = agent_response_content.get(i, {})
-                    response_text = str(response_content.get("text") or "").strip()
-                    content_str = response_text or str(content)
-                    content_blocks = list(response_content.get("blocks") or [])
-                    if not content_blocks and content_str:
-                        content_blocks = [{
-                            "type": "text",
-                            "content": content_str,
-                            "source": "event_msg.agent_message",
-                        }]
+                duplicate = (
+                    isinstance(cumulative_usage, dict)
+                    and _codex_is_duplicate_cumulative(cumulative_usage, previous_cumulative)
+                )
+                if duplicate:
+                    if last_assistant and last_assistant.usage is not None:
+                        duplicates = last_assistant.usage.setdefault("_duplicate_token_count_records", [])
+                        duplicates.append({
+                            "record_index": i + 1,
+                            "timestamp": ts,
+                            "status": "duplicate_token_count",
+                            "contribution": 0,
+                            "last_total_tokens": _get_int_safe(_as_dict(last_usage), "total_tokens"),
+                            "cumulative_total_tokens": _get_int_safe(cumulative_usage, "total_tokens"),
+                        })
+                        last_assistant.usage["_usage_duplicate_count"] = len(duplicates)
+                    previous_cumulative = cumulative_usage
+                    continue
 
-                    messages.append(ChatMessage(
-                        role="assistant",
-                        content=content_str,
-                        timestamp=ts,
-                        model=model,
-                        request_full=request_full,
-                        usage=usage,
-                        tool_calls=tool_calls_list,
-                        content_blocks=content_blocks,
-                    ))
+                usage_source = "last_token_usage"
+                usage = _extract_codex_usage(last_usage) if isinstance(last_usage, dict) else {}
+                delta = {}
+                if isinstance(cumulative_usage, dict):
+                    delta = _codex_usage_delta(cumulative_usage, previous_cumulative)
+                    if any(value < 0 for value in delta.values()):
+                        usage_source = "last_token_usage_after_cumulative_reset"
+                    elif not usage:
+                        usage_source = "total_token_usage_delta"
+                        usage = {
+                            "input_tokens": max(delta["input_tokens"], 0),
+                            "cached_input_tokens": max(delta["cached_input_tokens"], 0),
+                            "output_tokens": max(delta["output_tokens"], 0),
+                            "reasoning_output_tokens": max(delta["reasoning_output_tokens"], 0),
+                            "total_tokens": max(delta["total_tokens"], 0),
+                            "_usage_source": usage_source,
+                        }
+                    previous_cumulative = cumulative_usage
+
+                if not usage:
+                    continue
+
+                call_index += 1
+                usage["_usage_fragment_count"] = 1
+                usage["_token_count_record_index"] = i + 1
+                usage["_token_count_timestamp"] = ts
+                usage["_token_count_status"] = "counted"
+                usage["_usage_source"] = usage.get("_usage_source") or usage_source
+                if delta:
+                    usage["_cumulative_delta"] = {
+                        field: max(delta[field], 0) for field in _CODEX_USAGE_FIELDS
+                    }
+                if isinstance(cumulative_usage, dict):
+                    usage["_cumulative_total_tokens"] = _get_int_safe(cumulative_usage, "total_tokens")
+
+                request_full = "\n\n".join(p for p in pending_request_parts if p)
+                pending_request_parts = [p for p in deferred_tool_outputs if p]
+                deferred_tool_outputs = []
+
+                content_blocks = _canonical_response_blocks(response_blocks)
+                content_str = "\n\n".join(
+                    str(block.get("content") or block.get("text") or "").strip()
+                    for block in content_blocks
+                    if block.get("type") == "text"
+                    and str(block.get("content") or block.get("text") or "").strip()
+                )
+                assistant = ChatMessage(
+                    role="assistant",
+                    content=content_str,
+                    timestamp=ts,
+                    model=model,
+                    request_full=request_full,
+                    usage=usage,
+                    tool_calls=list(tool_ids),
+                    content_blocks=content_blocks,
+                    llm_call_id=f"codex-call-{call_index:04d}",
+                )
+                messages.append(assistant)
+                last_assistant = assistant
+
+                response_blocks = []
+                tool_ids = []
         elif etype == "response_item":
             rtype = payload.get("type", "")
-            if rtype in ("function_call_output", "custom_tool_call_output"):
+            if rtype == "message" and payload.get("role") == "assistant":
+                phase = str(payload.get("phase") or "")
+                if not phase or _display_phase(phase):
+                    for block in _response_item_text_blocks(payload):
+                        response_blocks.append(block)
+            elif rtype in ("function_call", "custom_tool_call"):
+                call_id = payload.get("call_id", "")
+                tool_name = payload.get("name", "")
+                if call_id:
+                    tool_ids.append({"id": call_id, "name": tool_name})
+                tool_block = _response_item_tool_block(payload)
+                if tool_block:
+                    response_blocks.append(tool_block)
+            elif rtype in ("function_call_output", "custom_tool_call_output"):
                 call_id = payload.get("call_id", "")
                 output = payload.get("output", "")
-                output_text = str(output) if output is not None else ""
-                if output_text:
-                    if call_id:
-                        pending_request_parts.append(
-                            f"Tool output for {call_id}:\n{output_text}"
-                        )
-                    else:
-                        pending_request_parts.append(output_text)
+                formatted = _format_tool_output_request(call_id, output)
+                if formatted:
+                    deferred_tool_outputs.append(formatted)
 
     return messages
+
+
+def _canonical_response_blocks(blocks: list[dict]) -> list[dict]:
+    """Prefer response_item assistant text over matching event_msg mirrors."""
+    response_item_texts = {
+        str(block.get("content") or block.get("text") or "").strip()
+        for block in blocks
+        if block.get("type") == "text"
+        and block.get("source") == "response_item.message"
+        and str(block.get("content") or block.get("text") or "").strip()
+    }
+    result: list[dict] = []
+    seen_texts: set[str] = set()
+    for block in blocks:
+        if block.get("type") != "text":
+            result.append(block)
+            continue
+        text = str(block.get("content") or block.get("text") or "").strip()
+        if not text:
+            continue
+        if block.get("source") == "event_msg.agent_message" and text in response_item_texts:
+            continue
+        if text in seen_texts:
+            continue
+        seen_texts.add(text)
+        result.append(block)
+    return result
 
 
 def _response_item_text_blocks(payload: dict) -> list[dict]:
