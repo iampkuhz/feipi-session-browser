@@ -180,6 +180,10 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     # Claude Code npm package (sdk-tools.d.ts) for accurate token
     # counting, instead of the old per-tool heuristic.
     available_tools = _get_available_tools(self)
+    available_tools_source_kind = str(ctx.get("available_tools_source") or "")
+    available_tools_agent_name = str(ctx.get("available_tools_agent_name") or "")
+    available_tools_definition_path = str(ctx.get("available_tools_definition_path") or "")
+    available_tools_reason = str(ctx.get("available_tools_reason") or "")
     # When available_tools is empty (e.g. tool_calls_raw not parseable),
     # fall back to the full Claude Code SDK tool registry so that the
     # token count and bucket details use the same comprehensive list.
@@ -195,11 +199,27 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     tool_schema_tokens = get_all_tool_schema_tokens(tools_for_schema, schemas)
     if available_tools:
         tool_schemas_availability = ValuePrecision.ESTIMATED
-        tool_schemas_source = ValueSource.TOOL_LIST
+        if available_tools_source_kind == "agent_definition":
+            tool_schemas_source = ValueSource.LOCAL_RULES
+        elif available_tools_source_kind == "default_builtin":
+            tool_schemas_source = ValueSource.HEURISTIC
+        else:
+            tool_schemas_source = ValueSource.TOOL_LIST
     tool_schemas_summary = (
         f"基于 Claude Code SDK 真实 tool schema 定义，"
         f"{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。"
     )
+    if available_tools_source_kind == "agent_definition" and available_tools_agent_name:
+        tool_schemas_summary = (
+            f"基于 Claude agent `{available_tools_agent_name}` 的显式 tools 配置和 "
+            f"Claude Code SDK 真实 tool schema 定义，"
+            f"{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。"
+        )
+    elif available_tools_source_kind == "default_builtin":
+        tool_schemas_summary = (
+            f"未检测到可证明的自定义 agent tools 配置，按 Claude Code 默认内置工具集计算："
+            f"{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。"
+        )
 
     # Local instruction context: look for system-reminder content in
     # session_context or round user_msg.
@@ -409,12 +429,22 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     # Import schema extractor for per-tool token counts
     schemas_for_detail = get_cached_schemas()
 
+    detail_item_source = "available_tools"
+    if available_tools_source_kind == "agent_definition":
+        detail_item_source = "agent_definition"
+    elif available_tools_source_kind == "default_builtin" or not available_tools:
+        detail_item_source = "default_fallback"
+
     tool_schemas_details = {
         "kind": "tools",
+        "source": available_tools_source_kind or ("available_tools" if available_tools else "default_fallback"),
+        "agent_name": available_tools_agent_name,
+        "definition_path": available_tools_definition_path,
+        "reason": available_tools_reason,
         "items": [
             {
                 "name": tool_name,
-                "source": "available_tools" if available_tools else "default_fallback",
+                "source": detail_item_source,
                 "enabled": True,
                 "description_preview": tool_description(tool_name),
                 "estimated_tokens": get_tool_schema_tokens(tool_name, schemas_for_detail),
@@ -724,7 +754,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     if cache_read_val > 0:
         notes.append(f"Cache read {cache_read_val:,} tokens — 主要来自历史消息和系统提示，但无法逐块确认。")
     notes.append(f"Tool schemas 基于 Claude Code SDK 真实定义，{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。")
-    if not available_tools:
+    if not available_tools or available_tools_source_kind == "default_builtin":
         notes.append("注意：无法从本地日志获取可用工具定义列表，使用默认工具列表代替。")
     notes.append(
         "采用 request reconstruction 方法：将原先归入 unknown 的 token 拆分为多个解释性 bucket，"

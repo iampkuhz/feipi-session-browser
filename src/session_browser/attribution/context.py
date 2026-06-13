@@ -4,7 +4,7 @@ Provides ``build_attribution_session_context`` which constructs a call-scoped
 context dict that attribution builders use to determine:
 - preceding_tool_results: tool results that occur before the current LLM call
 - prior_messages: conversation history before this call
-- available_tools: tool schemas available to the model
+- available_tools: request-side tool schemas available to the model
 - local_instructions: CLAUDE.md and agent prompt files
 - mcp_tools / mcp_servers: from .mcp.json (no credentials)
 
@@ -25,6 +25,10 @@ from session_browser.domain.models import (
     LLMCall,
     SessionSummary,
     ToolCall,
+)
+
+from session_browser.attribution.agents.claude_code_parts.claude_code_agent_tools import (
+    resolve_claude_code_available_tools,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,7 +109,9 @@ def build_attribution_session_context(
         all_messages: All messages from the session transcript (optional).
             Used to build prior_messages and full_messages_array.
         all_tool_calls: All tool calls from the entire session (optional).
-            Used to build available_tools.
+            Used only for agents whose local data does not have a better
+            request-side tool list source. Claude Code does not infer request
+            tool schemas from observed tool calls.
         project_dir: Path to the project root (optional).
             Used to read CLAUDE.md, .mcp.json, etc.
         agent_name: Agent name like "claude_code", "qoder", "codex".
@@ -124,8 +130,8 @@ def build_attribution_session_context(
         - full_messages_array: list of messages in Anthropic API format, each with
           role, content_type (user_text/tool_result/assistant_text/tool_use),
           content_preview, content_token_estimate, and message_index
-        - available_tools: unique tool names from observed tool calls, or
-          default Claude Code tool list as heuristic fallback
+        - available_tools: request-side tool names from the current agent
+          definition, or the default Claude Code tool registry as fallback
         - local_instructions: CLAUDE.md content (truncated to 2KB)
         - system_reminder_content: from transcript system-reminder (if any)
         - agent_prompt_file / subagent_prompt: from .claude/agents/ if found
@@ -157,10 +163,17 @@ def build_attribution_session_context(
         all_messages, interaction_index, round_obj, interactions,
     )
 
+    resolved_project_dir = _resolve_project_dir(session, project_dir)
+
     # -- available_tools --
-    available_tools = _build_available_tools(
-        all_tool_calls, agent_name, llm_calls=all_llm_calls,
-        project_dir=project_dir,
+    available_tool_context = _build_available_tool_context(
+        all_tool_calls=all_tool_calls,
+        agent_name=agent_name,
+        llm_calls=all_llm_calls,
+        project_dir=resolved_project_dir,
+        session_file=getattr(session, "file_path", "") if session else "",
+        subagent_type=subagent_type,
+        call_timestamp=getattr(current_ix, "timestamp", "") if current_ix else "",
     )
 
     # -- local_instructions, agent_prompt, mcp metadata --
@@ -171,8 +184,8 @@ def build_attribution_session_context(
     mcp_tools: list[str] = []
     mcp_servers: list[str] = []
 
-    if project_dir:
-        project_path = Path(project_dir)
+    if resolved_project_dir:
+        project_path = Path(resolved_project_dir)
         local_instructions = _read_local_instructions(project_path, agent_name)
         agent_prompt_file, subagent_prompt = _read_agent_prompt(
             project_path, agent_name, subagent_type=subagent_type,
@@ -188,7 +201,11 @@ def build_attribution_session_context(
         "preceding_tool_results": preceding_tool_results,
         "prior_messages": prior_messages,
         "full_messages_array": full_messages_array,
-        "available_tools": available_tools,
+        "available_tools": available_tool_context["available_tools"],
+        "available_tools_source": available_tool_context.get("available_tools_source", ""),
+        "available_tools_agent_name": available_tool_context.get("available_tools_agent_name", ""),
+        "available_tools_definition_path": available_tool_context.get("available_tools_definition_path", ""),
+        "available_tools_reason": available_tool_context.get("available_tools_reason", ""),
         "local_instructions": local_instructions,
         "system_reminder_content": system_reminder_content,
         "agent_prompt_file": agent_prompt_file,
@@ -200,7 +217,12 @@ def build_attribution_session_context(
     if existing_context:
         # Merge: new keys override existing only if non-empty
         for k, v in base.items():
-            if v or k in ("prior_messages", "full_messages_array", "available_tools", "mcp_tools", "mcp_servers"):
+            if v or k in (
+                "prior_messages", "full_messages_array", "available_tools",
+                "available_tools_source", "available_tools_agent_name",
+                "available_tools_definition_path", "available_tools_reason",
+                "mcp_tools", "mcp_servers",
+            ):
                 existing_context[k] = v
         return existing_context
 
@@ -208,6 +230,29 @@ def build_attribution_session_context(
 
 
 # -- Internal helpers --
+
+
+def _resolve_project_dir(session: SessionSummary | None, project_dir: str | None) -> str:
+    """Choose a readable repository path over Claude's encoded project segment."""
+    candidates: list[str] = []
+    if project_dir:
+        candidates.append(str(project_dir))
+    if session is not None:
+        cwd = getattr(session, "cwd", "") or ""
+        project_key = getattr(session, "project_key", "") or ""
+        if cwd:
+            candidates.append(str(cwd))
+        if project_key:
+            candidates.append(str(project_key))
+
+    for candidate in candidates:
+        try:
+            if candidate and Path(candidate).exists():
+                return candidate
+        except (OSError, ValueError):
+            continue
+
+    return candidates[0] if candidates else ""
 
 
 def _build_prior_messages(
@@ -534,69 +579,44 @@ def _extract_tool_name_from_result(result_text: str) -> str:
     return first[:30]
 
 
-def _parse_agent_tools_from_frontmatter(text: str) -> list[str] | None:
-    """Parse YAML frontmatter and extract ``tools:`` field.
+def _build_available_tool_context(
+    *,
+    all_tool_calls: list | None,
+    agent_name: str | None = None,
+    llm_calls: list | None = None,
+    project_dir: str | None = None,
+    session_file: str | None = None,
+    subagent_type: str | None = None,
+    call_timestamp: str | None = None,
+) -> dict:
+    """Build available-tool context with source metadata."""
+    if agent_name == "claude_code":
+        resolved = resolve_claude_code_available_tools(
+            project_dir=project_dir,
+            session_file=session_file,
+            subagent_type=subagent_type,
+            call_timestamp=call_timestamp,
+        )
+        return {
+            "available_tools": resolved.tools,
+            "available_tools_source": resolved.source,
+            "available_tools_agent_name": resolved.agent_name,
+            "available_tools_definition_path": resolved.definition_path,
+            "available_tools_reason": resolved.reason,
+        }
 
-    The tools field looks like:
-        tools: Agent(implementer, qa-verifier), Read, Glob, Grep, Bash
-
-    Returns a sorted list of tool names, or None if no ``tools:`` found.
-    """
-    m = re.match(r'---\s*\n(.*?)\n---\s*\n', text, re.DOTALL)
-    if not m:
-        return None
-
-    fm = m.group(1)
-    tools_match = re.search(r'^tools:\s*(.+)$', fm, re.MULTILINE)
-    if not tools_match:
-        return None
-
-    tools_str = tools_match.group(1).strip()
-    if not tools_str:
-        return None
-
-    # Extract parenthesized compound tools like "Agent(...)", "Mcp(...)"
-    paren_re = re.compile(r'(\w+)\([^)]*\)')
-    tools: list[str] = []
-    for pm in paren_re.finditer(tools_str):
-        tools.append(pm.group(1))
-
-    # Remove parenthesized parts, then split remaining by comma
-    remaining = paren_re.sub('', tools_str)
-    for part in remaining.split(','):
-        part = part.strip()
-        if part:
-            tools.append(part)
-
-    return sorted(set(tools)) if tools else None
-
-
-def _read_agent_tool_list(
-    project_path: Path,
-) -> list[str] | None:
-    """Scan .claude/agents/*.md for explicit tool lists in YAML frontmatter.
-
-    Returns the UNION of all found tools lists, or None if no agent files
-    have an explicit ``tools:`` field.  Using the union ensures we capture
-    all tools available to any agent in the project.
-    """
-    agents_dir = project_path / ".claude" / "agents"
-    if not agents_dir.is_dir():
-        return None
-
-    all_tools: set[str] = set()
-    found_any = False
-    for agent_file in sorted(agents_dir.glob("*.md")):
-        try:
-            text = agent_file.read_text(encoding="utf-8", errors="replace")
-            tools = _parse_agent_tools_from_frontmatter(text)
-            if tools:
-                found_any = True
-                all_tools.update(tools)
-        except (OSError, PermissionError):
-            continue
-
-    return sorted(all_tools) if found_any else None
+    return {
+        "available_tools": _build_available_tools(
+            all_tool_calls=all_tool_calls,
+            agent_name=agent_name,
+            llm_calls=llm_calls,
+            project_dir=project_dir,
+        ),
+        "available_tools_source": "",
+        "available_tools_agent_name": "",
+        "available_tools_definition_path": "",
+        "available_tools_reason": "",
+    }
 
 
 def _build_available_tools(
@@ -605,36 +625,18 @@ def _build_available_tools(
     llm_calls: list | None = None,
     project_dir: str | None = None,
 ) -> list[str]:
-    """Collect unique tool names from observed tool calls AND LLM tool definitions.
+    """Collect request-side available tool names for attribution.
 
-    For Claude Code, the JSONL event format does NOT persist the ``tools``
-    array (tool definitions sent to the API).  ``tool_calls_raw`` contains
-    **invoked** tools (actual calls made by the LLM), not **available**
-    tools (all definitions sent to the API).
-
-    Priority:
-    1. If the project has .claude/agents/*.md files with explicit ``tools:``
-       in their YAML frontmatter, use that list.
-    2. Try to extract tools from LLM tool_calls_raw (for agents that persist
-       the full tools array).
-    3. Fallback to observed tool calls.
-    4. Final fallback: full Claude Code tool registry (except codex).
+    Claude Code is resolved from the selected main/subagent definition or from
+    the default built-in registry.  It never infers request ``tool_schemas``
+    from response-side tool calls.
     """
-    # Claude Code: try to read explicit tool list from agent definition files.
-    if agent_name == "claude_code" and project_dir:
-        agent_tools = _read_agent_tool_list(Path(project_dir))
-        if agent_tools:
-            # Validate: only keep tool names that exist in the SDK registry
-            from session_browser.attribution.agents.claude_code_tool_schemas import (
-                ALL_CLAUDE_CODE_TOOLS,
-            )
-            valid_tools = [t for t in agent_tools if t in ALL_CLAUDE_CODE_TOOLS]
-            if valid_tools:
-                return sorted(valid_tools)
+    if agent_name == "claude_code":
+        resolved = resolve_claude_code_available_tools(
+            project_dir=project_dir,
+        )
+        return resolved.tools
 
-    # First pass: try to extract ALL tools from LLM tool_calls_raw (tool
-    # definitions sent to LLM).  This works for agents that persist the
-    # full tools array in their session data.
     if llm_calls:
         all_tools_from_llm: set[str] = set()
         for lc in llm_calls:
@@ -654,7 +656,6 @@ def _build_available_tools(
         if all_tools_from_llm:
             return sorted(all_tools_from_llm)
 
-    # Second pass: fallback to observed tool calls
     if all_tool_calls:
         seen: set[str] = set()
         for tc in all_tool_calls:
@@ -668,7 +669,6 @@ def _build_available_tools(
         if seen:
             return sorted(seen)
 
-    # Final fallback: full Claude Code tool registry (except codex).
     if agent_name == "codex":
         return []
     from session_browser.attribution.agents.claude_code_tool_schemas import (

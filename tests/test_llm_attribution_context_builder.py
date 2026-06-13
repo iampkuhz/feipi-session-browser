@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from session_browser.domain.models import (
-    LLMCall, ChatMessage, ConversationRound, ToolCall,
+    LLMCall, ChatMessage, ConversationRound, SessionSummary, ToolCall,
 )
 from session_browser.attribution.context import build_attribution_session_context
 
@@ -38,6 +38,42 @@ def _make_ro(user_content="hello", tool_calls=None, interactions=None):
         tool_calls=tool_calls or [],
         interactions=interactions or [],
     )
+
+
+def _make_session(
+    project_dir: Path,
+    session_file: Path,
+    *,
+    project_key: str | None = None,
+    cwd: str | None = None,
+) -> SessionSummary:
+    return SessionSummary(
+        agent="claude_code",
+        session_id=session_file.stem,
+        title="test session",
+        project_key=project_key or str(project_dir),
+        project_name=project_dir.name,
+        cwd=cwd or str(project_dir),
+        started_at="2025-01-01T00:00:00Z",
+        ended_at="2025-01-01T00:00:01Z",
+        file_path=str(session_file),
+    )
+
+
+def _write_agent(project_dir: Path, name: str, tools: str) -> None:
+    agents_dir = project_dir / ".claude" / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    (agents_dir / f"{name}.md").write_text(
+        f"---\nname: {name}\ntools: {tools}\n---\n\n# {name}\n",
+        encoding="utf-8",
+    )
+
+
+def _tool_schema_bucket_from_context(lc: LLMCall, ro: ConversationRound, ctx: dict):
+    from session_browser.attribution.agents.claude_code import ClaudeCodeAttributionBuilder
+
+    attr = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx).build_request()
+    return next(bucket for bucket in attr.buckets if bucket.key == "tool_schemas")
 
 
 def test_context_returns_non_null():
@@ -133,63 +169,140 @@ def test_no_interactions_returns_empty():
     assert ctx["interaction_index"] == 0
 
 
-def test_claude_code_available_tools_uses_agent_definition():
-    """Claude Code should use tools from .claude/agents/*.md frontmatter.
-
-    The JSONL event format does NOT persist the tools array. When a project
-    has agent definition files with explicit ``tools:`` in YAML frontmatter,
-    those tools should be used instead of the full SDK registry.
-
-    When no project_dir is provided (or no agent files found), falls back
-    to observed tools, then to the full SDK registry.
-    """
+def test_claude_code_default_config_uses_full_builtin_tools(tmp_path):
+    """Default Claude Code sessions use the full builtin registry, not observed calls."""
     from session_browser.attribution.agents.claude_code_tool_schemas import (
         ALL_CLAUDE_CODE_TOOLS,
     )
-    from session_browser.attribution.context import _build_available_tools
 
-    # Without project_dir: falls back to observed tools
-    invoked_tools = ["Read", "Bash", "Edit", "Grep"]
-    all_tool_calls = [
-        ToolCall(name=name, parameters={}, result="ok")
-        for name in invoked_tools
+    session_file = tmp_path / "default-session.jsonl"
+    session_file.write_text(
+        json.dumps({"type": "user", "message": {"content": "hello"}}) + "\n",
+        encoding="utf-8",
+    )
+    observed = [
+        ToolCall(name="Read", parameters={}, result="ok"),
+        ToolCall(name="Bash", parameters={}, result="ok"),
     ]
-
-    fake_lc = _make_lc(tool_calls_raw=json.dumps([
-        {"type": "tool_use", "name": name, "id": f"id-{name}"}
-        for name in invoked_tools
-    ]))
-
-    # Without project_dir, observed tools are used
-    result = _build_available_tools(
-        all_tool_calls=all_tool_calls,
-        agent_name="claude_code",
-        llm_calls=[fake_lc],
+    lc = _make_lc(
+        input_tokens=20000,
+        tool_calls_raw=json.dumps([
+            {"type": "tool_use", "name": "Read", "id": "toolu-read"},
+        ]),
     )
-    assert result == sorted(invoked_tools)
+    ro = _make_ro(interactions=[lc], tool_calls=observed)
 
-    # Without observed tools but with project_dir, agent files are used
-    result = _build_available_tools(
-        all_tool_calls=[],
+    ctx = build_attribution_session_context(
+        session=_make_session(
+            tmp_path,
+            session_file,
+            project_key="-Users-example-project",
+            cwd=str(tmp_path),
+        ),
+        round_obj=ro,
+        interaction_index=0,
+        interactions=[lc],
+        round_tool_calls=observed,
+        all_tool_calls=observed,
         agent_name="claude_code",
-        llm_calls=[],
-        project_dir=".",
+        project_dir="-Users-example-project",
+        all_llm_calls=[lc],
     )
-    # Union of all .claude/agents/*.md tools: 9 tools
-    assert len(result) == 9
-    assert "Agent" in result
-    assert "Bash" in result
-    assert "Read" in result
-    assert "Write" in result
 
-    # Without project_dir and without observed tools, full registry
-    result = _build_available_tools(
-        all_tool_calls=[],
-        agent_name="claude_code",
-        llm_calls=[],
+    assert ctx["available_tools"] == list(ALL_CLAUDE_CODE_TOOLS)
+    assert ctx["available_tools_source"] == "default_builtin"
+    assert len(ctx["available_tools"]) == 34
+
+    bucket = _tool_schema_bucket_from_context(lc, ro, ctx)
+    assert bucket.count_label == "34 tools"
+    assert [item["name"] for item in bucket.details["items"]] == sorted(ALL_CLAUDE_CODE_TOOLS)
+    assert {item["source"] for item in bucket.details["items"]} == {"default_fallback"}
+
+
+def test_claude_code_main_custom_agent_uses_that_agent_tools(tmp_path):
+    """Main Claude Code calls use the selected agent-setting definition only."""
+    session_file = tmp_path / "custom-main.jsonl"
+    session_file.write_text(
+        json.dumps({
+            "type": "agent-setting",
+            "agentSetting": "qwen-main-default",
+            "timestamp": "2025-01-01T00:00:00Z",
+        }) + "\n",
+        encoding="utf-8",
     )
-    assert result == sorted(ALL_CLAUDE_CODE_TOOLS)
-    assert len(result) == len(ALL_CLAUDE_CODE_TOOLS)
+    _write_agent(
+        tmp_path,
+        "qwen-main-default",
+        "Agent(implementer, repo-mapper), Read, Bash, Edit, Write, TaskCreate, TaskUpdate",
+    )
+    observed = [ToolCall(name="WebSearch", parameters={}, result="ok")]
+    lc = _make_lc(input_tokens=20000)
+    ro = _make_ro(interactions=[lc], tool_calls=observed)
+
+    ctx = build_attribution_session_context(
+        session=_make_session(tmp_path, session_file),
+        round_obj=ro,
+        interaction_index=0,
+        interactions=[lc],
+        round_tool_calls=observed,
+        all_tool_calls=observed,
+        agent_name="claude_code",
+        project_dir=str(tmp_path),
+        all_llm_calls=[lc],
+    )
+
+    expected = ["Agent", "Bash", "Edit", "Read", "TaskCreate", "TaskUpdate", "Write"]
+    assert ctx["available_tools"] == expected
+    assert ctx["available_tools_source"] == "agent_definition"
+    assert ctx["available_tools_agent_name"] == "qwen-main-default"
+
+    bucket = _tool_schema_bucket_from_context(lc, ro, ctx)
+    assert bucket.count_label == "7 tools"
+    assert [item["name"] for item in bucket.details["items"]] == expected
+    assert {item["source"] for item in bucket.details["items"]} == {"agent_definition"}
+
+
+def test_claude_code_subagent_uses_subagent_tools_not_main_or_observed(tmp_path):
+    """Subagent Claude Code calls use their own agent definition independently."""
+    session_file = tmp_path / "subagent-session.jsonl"
+    session_file.write_text(
+        json.dumps({
+            "type": "agent-setting",
+            "agentSetting": "qwen-main-default",
+            "timestamp": "2025-01-01T00:00:00Z",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    _write_agent(tmp_path, "qwen-main-default", "Agent(repo-mapper), Read, Bash, Edit, Write")
+    _write_agent(tmp_path, "repo-mapper", "Read, Bash")
+
+    observed = [
+        ToolCall(name="Edit", parameters={}, result="ok"),
+        ToolCall(name="Write", parameters={}, result="ok"),
+    ]
+    lc = _make_lc(input_tokens=20000, scope="subagent", subagent_id="agent-1")
+    ro = _make_ro(interactions=[lc], tool_calls=observed)
+
+    ctx = build_attribution_session_context(
+        session=_make_session(tmp_path, session_file),
+        round_obj=ro,
+        interaction_index=0,
+        interactions=[lc],
+        round_tool_calls=observed,
+        all_tool_calls=observed,
+        agent_name="claude_code",
+        project_dir=str(tmp_path),
+        all_llm_calls=[lc],
+        subagent_type="repo-mapper",
+    )
+
+    assert ctx["available_tools"] == ["Bash", "Read"]
+    assert ctx["available_tools_source"] == "agent_definition"
+    assert ctx["available_tools_agent_name"] == "repo-mapper"
+
+    bucket = _tool_schema_bucket_from_context(lc, ro, ctx)
+    assert bucket.count_label == "2 tools"
+    assert [item["name"] for item in bucket.details["items"]] == ["Bash", "Read"]
 
 
 def test_qoder_available_tools_uses_observed():
@@ -221,7 +334,9 @@ def test_codex_available_tools_empty():
 
 def test_parse_agent_tools_from_frontmatter():
     """Parse tools field from YAML frontmatter."""
-    from session_browser.attribution.context import _parse_agent_tools_from_frontmatter
+    from session_browser.attribution.agents.claude_code_parts.claude_code_agent_tools import (
+        parse_agent_tools_from_frontmatter,
+    )
 
     text = (
         "---\n"
@@ -230,17 +345,19 @@ def test_parse_agent_tools_from_frontmatter():
         "---\n\n"
         "# Agent body\n"
     )
-    tools = _parse_agent_tools_from_frontmatter(text)
+    tools = parse_agent_tools_from_frontmatter(text)
     assert tools == ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Write"]
 
 
-def test_read_agent_tool_list_union():
-    """_read_agent_tool_list should return the union of all agent tools."""
-    from session_browser.attribution.context import _read_agent_tool_list
+def test_read_agent_definition_tools_is_agent_specific(tmp_path):
+    """Agent tool parsing should read one named agent, not the project union."""
+    from session_browser.attribution.agents.claude_code_parts.claude_code_agent_tools import (
+        read_agent_definition_tools,
+    )
 
-    tools = _read_agent_tool_list(Path("."))
-    assert tools is not None
-    assert len(tools) >= 9
-    assert "Agent" in tools
-    assert "Bash" in tools
-    assert "Read" in tools
+    _write_agent(tmp_path, "main-agent", "Read, Bash, Edit")
+    _write_agent(tmp_path, "repo-mapper", "Read, Bash")
+
+    tools, path = read_agent_definition_tools("repo-mapper", tmp_path)
+    assert tools == ["Bash", "Read"]
+    assert path.endswith(".claude/agents/repo-mapper.md")
