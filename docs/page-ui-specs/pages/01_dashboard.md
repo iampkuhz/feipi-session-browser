@@ -94,7 +94,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - `Session Trend`、`Token Trend`、`Prompt Activity Trend` 的标题栏右侧固定显示 `Latest` 和 `Range total` 两个紧凑 stat；`Cache Health` 的标题栏右侧固定显示 `Latest ratio`、`Lowest ratio` 两个紧凑 stat。
 - 所有 chart card 不展示 subtitle，也不展示 title 旁 info icon；图表口径、维度解释和注意事项使用卡片左上角的小字 `chart note` 常驻展示。
 - `chart note` 文案必须跟随当前 scope 和时间粒度变化，不得写成 “按当前 Day、Week 或 Month” 这类泛化说明；例如 `All agents + Day` 显示 `按天新增的 session 总数，按照不同 agent 堆叠。`，`Claude Code + Month` 显示 `按月新增的 Claude Code session 数量。`。
-- `chart note` 必须使用标题栏左侧可用宽度，不得设置过窄固定最大宽度导致宽屏下过早换行；只在标题栏真实剩余空间不足时换行。
+- `chart note` 必须放在 chart card 标题栏下方，并使用卡片内容可用宽度；不得放在标题栏左侧 flex 区域内，也不得设置过窄固定最大宽度导致宽屏下过早换行。
 - 每张 chart card 的图表宽度占卡片内容宽度 100%；图表绘图区高度固定为 240px 到 280px。
 - 每张 chart card 的 y 轴只显示刻度值；不得显示可见的 `Y-axis: <metric name> (<unit>)` 纵向标题文字。
 - 每张 chart card 的所有 range point 细节都通过 `common.md` 的 `Chart Tooltip` 展示，不把每个 range point 的数值同时铺成表格。

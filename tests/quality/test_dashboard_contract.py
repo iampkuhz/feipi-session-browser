@@ -11,8 +11,9 @@ T-Dashboard-JS-CSS-Contract
 
 from __future__ import annotations
 
-import pytest
 import re
+
+import pytest
 
 _JS_PATH = "src/session_browser/web/static/js/dashboard.js"
 _CSS_PATH = "src/session_browser/web/static/css/dashboard.css"
@@ -22,6 +23,21 @@ _TEMPLATE_PATH = "src/session_browser/web/templates/dashboard.html"
 def _read(path: str) -> str:
     with open(path) as f:
         return f.read()
+
+
+_DIV_TAG_RE = re.compile(r"</?div\b[^>]*>")
+
+
+def _matching_div_end(source: str, start: int) -> int:
+    depth = 0
+    for match in _DIV_TAG_RE.finditer(source, start):
+        if match.group(0).startswith("</"):
+            depth -= 1
+            if depth == 0:
+                return match.end()
+        else:
+            depth += 1
+    raise AssertionError("unclosed div block")
 
 
 class TestDashboardJSContract:
@@ -414,6 +430,25 @@ class TestDashboardTemplateContract:
         assert 'id="infoPopover"' not in tmpl
         assert 'class="chart-card__note"' in tmpl
         assert "chart_notes.sessions" in tmpl
+        chart_notes = {
+            "sessions": "sessions",
+            "prompts": "prompts",
+            "tokens": "tokens",
+            "cache-health": "cache_health",
+            "model-mix": "model_mix",
+            "tool-dist": "tool_dist",
+        }
+        for card, note_key in chart_notes.items():
+            card_start = tmpl.index(f'data-chart-card="{card}"')
+            head_start = tmpl.index('<div class="chart-card__head">', card_start)
+            head_end = _matching_div_end(tmpl, head_start)
+            head_body = tmpl[head_start:head_end]
+            following_body = tmpl[head_end:head_end + 140]
+            assert 'class="chart-card__note"' not in head_body
+            assert re.match(
+                rf'\s*<p class="chart-card__note">\{{\{{ chart_notes\.{note_key} \}}\}}</p>',
+                following_body,
+            )
 
     @pytest.mark.contract_case("DASHBOARD-TEMPLATE-006")
     def test_dashboard_template_has_no_native_title_tooltips(self):

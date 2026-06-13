@@ -132,13 +132,13 @@
                     <div class="chart-card__title-row">
                         <h2>Session Trend</h2>
                     </div>
-                    <p class="chart-card__note">{{ chart_notes.sessions }}</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-sessions">Latest: {{ trend[-1].total_count if trend else '—' }}</span>
                     <span class="chart-stat" data-stat="range-total-sessions">Range total: {{ trend | sum_attribute('total_count') }}</span>
                 </div>
             </div>
+            <p class="chart-card__note">{{ chart_notes.sessions }}</p>
             {% if trend %}
             <div class="chart-container" id="trend-chart" data-dashboard-chart="sessions"></div>
             {% else %}
@@ -153,13 +153,13 @@
                     <div class="chart-card__title-row">
                         <h2>Prompt Activity Trend</h2>
                     </div>
-                    <p class="chart-card__note">{{ chart_notes.prompts }}</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-prompts">Latest: {{ prompt_activity[-1].total_prompts if prompt_activity else '—' }}</span>
                     <span class="chart-stat" data-stat="range-total-prompts">Range total: {{ prompt_activity | sum_attribute('total_prompts') }}</span>
                 </div>
             </div>
+            <p class="chart-card__note">{{ chart_notes.prompts }}</p>
             {% if prompt_activity %}
             <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
             {% else %}
@@ -174,13 +174,13 @@
                     <div class="chart-card__title-row">
                         <h2>Token Trend</h2>
                     </div>
-                    <p class="chart-card__note">{{ chart_notes.tokens }}</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-tokens">Latest: {{ (trend[-1].total_tokens if trend else 0) | format_number }}</span>
                     <span class="chart-stat" data-stat="range-total-tokens">Range total: {{ trend | sum_attribute('total_tokens') | format_number }}</span>
                 </div>
             </div>
+            <p class="chart-card__note">{{ chart_notes.tokens }}</p>
             {% if trend %}
             <div class="chart-container" id="token-trend-chart" data-dashboard-chart="tokens"></div>
             {% else %}
@@ -195,13 +195,13 @@
                     <div class="chart-card__title-row">
                         <h2>Cache Health</h2>
                     </div>
-                    <p class="chart-card__note">{{ chart_notes.cache_health }}</p>
                 </div>
                 <div class="chart-card__stats">
                     <span class="chart-stat" data-stat="latest-ratio">Latest ratio: {{ cache_health.latest_ratio }}</span>
                     <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: {{ cache_health.lowest_ratio }}</span>
                 </div>
             </div>
+            <p class="chart-card__note">{{ chart_notes.cache_health }}</p>
             {% if cache_health.series %}
             <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
             {% else %}
@@ -437,9 +437,9 @@
             <div class="chart-card__title-row">
                 <h2>Model Mix</h2>
             </div>
-            <p class="chart-card__note">{{ chart_notes.model_mix }}</p>
         </div>
     </div>
+    <p class="chart-card__note">{{ chart_notes.model_mix }}</p>
     {% if single_agent_branch.model_rows %}
     <div class="model-mix-layout" id="model-mix-chart" data-dashboard-chart="model-mix">
         <div class="model-mix-donut-wrap">
@@ -515,9 +515,9 @@
             <div class="chart-card__title-row">
                 <h2>Tool Distribution</h2>
             </div>
-            <p class="chart-card__note">{{ chart_notes.tool_dist }}</p>
         </div>
     </div>
+    <p class="chart-card__note">{{ chart_notes.tool_dist }}</p>
     <div class="chart-container" id="tool-dist-chart" data-dashboard-chart="tool-dist">
         <p class="chart-empty">Tool distribution data unavailable. Current index stores aggregate tool-call counts but not tool names.</p>
     </div>

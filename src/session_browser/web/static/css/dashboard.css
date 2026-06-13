@@ -271,7 +271,7 @@
   gap: 12px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .chart-card__head > :first-child {
   flex: 1;
@@ -288,7 +288,7 @@
   letter-spacing: 0;
 }
 .chart-card__note {
-  margin: 4px 0 0;
+  margin: 0 0 8px;
   max-width: none;
   color: var(--text-subtle);
   font-size: 12px;
