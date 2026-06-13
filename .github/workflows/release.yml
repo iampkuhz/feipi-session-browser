@@ -93,8 +93,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: ./scripts/session-browser.sh test
+      - name: Run release quality gates
+        run: |
+          python -m compileall -q src scripts
+          python scripts/quality/run_quality_gate.py --target python-src --change-id add-github-release-pipeline
+          python scripts/quality/run_quality_gate.py --target harness --change-id add-github-release-pipeline
+          python scripts/quality/run_quality_gate.py --target acceptance-contracts --change-id add-github-release-pipeline
 
       - name: Build Python release packages
         run: ./scripts/session-browser.sh build-dist "${{ steps.release.outputs.version }}"
