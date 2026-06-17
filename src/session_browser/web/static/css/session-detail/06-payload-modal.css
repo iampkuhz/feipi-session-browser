@@ -135,7 +135,7 @@ These use .sd- page prefix only, not bare .payload-modal references. */
 
 .session-detail-page .sd-attribution-topgrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -145,11 +145,18 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   border: 1px solid var(--sd-line-soft, #e2e8f0);
   border-radius: 10px;
   background: #fff;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .session-detail-page .sd-attribution-topcard--wide {
   grid-column: 1 / -1;
+}
+
+.sd-attribution-info-divider {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: var(--sd-line-soft, #e2e8f0);
+  margin: 4px 0;
 }
 
 .session-detail-page .sd-attribution-topcard h3 {
@@ -181,8 +188,6 @@ These use .sd- page prefix only, not bare .payload-modal references. */
 .sd-attribution-topcard .sd-kv span {
   min-width: 0;
   padding: 6px 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
 }

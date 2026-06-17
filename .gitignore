@@ -61,3 +61,5 @@ node_modules/
 *.egg-info/
 /.traces/
 /.refactor-artifacts/
+
+/docs/session-samples/*/*/litellm_calls/

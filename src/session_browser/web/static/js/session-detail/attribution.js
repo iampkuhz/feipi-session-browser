@@ -342,12 +342,13 @@
     var coverageRatio = coverageMetricValue(coverage, "coverage_ratio");
     var coverageResidualTokens = coverageMetricValue(coverage, "residual_tokens");
 
-    // ── Top summary: identity and request/response summary side by side ──
+    // ── Top summary: 2-card layout (调用详情 + 请求/响应摘要) ──
     html += '<div class="sd-attribution-topgrid">';
+    // ── Combined card: 调用身份 + 调用信息 ──
+    html += '<section class="sd-attribution-topcard">';
+    html += '<h3>调用详情</h3>';
+    html += '<div class="sd-attribution-identity-grid">';
     if (callIdentity) {
-      html += '<section class="sd-attribution-topcard">';
-      html += '<h3>调用身份</h3>';
-      html += '<div class="sd-attribution-identity-grid">';
       html += '<div class="sd-kv"><span>Agent</span><span>' + escapeHtml(callIdentity.agent_runtime || "—") + '</span></div>';
       html += '<div class="sd-kv"><span>API Family</span><span>' + escapeHtml(callIdentity.api_family || "—") + '</span></div>';
       html += '<div class="sd-kv"><span>Provider</span><span>' + escapeHtml(callIdentity.provider_or_broker || "—") + '</span></div>';
@@ -359,9 +360,23 @@
       if (callIdentity.mapping_confidence != null) {
         html += '<div class="sd-kv"><span>映射置信度</span><span>' + ((callIdentity.mapping_confidence * 100).toFixed(0)) + '%</span></div>';
       }
-      html += '</div>';
-      html += '</section>';
     }
+    html += '<div class="sd-attribution-info-divider"></div>';
+    html += '<div class="sd-kv"><span>模型</span><span title="' + escapeHtml(model || "—") + '">' + escapeHtml(model || "—") + '</span></div>';
+    if (kind === "request") {
+      var srcLabel = data.source_label || "local logs";
+      html += '<div class="sd-kv"><span>来源</span><span title="' + escapeHtml(srcLabel) + '">' + escapeHtml(srcLabel) + '</span></div>';
+      var callIdVal = data.call_id || "";
+      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(callIdVal || "—") + '">' + escapeHtml(callIdVal || "—") + '</span></div>';
+    } else if (data.call_id) {
+      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(data.call_id) + '">' + escapeHtml(data.call_id) + '</span></div>';
+    }
+    html += '<div class="sd-kv"><span>请求发起</span><span title="' + escapeHtml(timing.request_at || "—") + '">' + escapeHtml(timing.request_at || "—") + '</span></div>';
+    html += '<div class="sd-kv"><span>响应返回</span><span title="' + escapeHtml(timing.response_at || "—") + '">' + escapeHtml(timing.response_at || "—") + '</span></div>';
+    html += '<div class="sd-kv"><span>耗时</span><span title="' + escapeHtml(timing.duration || "—") + '">' + escapeHtml(timing.duration || "—") + '</span></div>';
+    html += '</div>';
+    html += '</section>';
+    // ── Right card: 请求/响应摘要 ──
     html += '<section class="sd-attribution-topcard">';
     html += '<h3>' + (kind === "request" ? "请求摘要" : "响应摘要") + '</h3>';
     html += '<div class="sd-attribution-summary-grid">';
@@ -390,23 +405,6 @@
       html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
       html += '<div class="sd-kv"><span>未定位</span><span title="' + kvTitleAttr(usage.unknown) + '">' + formatTokenValue(usage.unknown) + '</span></div>';
     }
-    html += '</div>';
-    html += '</section>';
-    html += '<section class="sd-attribution-topcard">';
-    html += '<h3>调用信息</h3>';
-    html += '<div class="sd-attribution-call-grid">';
-    html += '<div class="sd-kv"><span>模型</span><span title="' + escapeHtml(model || "—") + '">' + escapeHtml(model || "—") + '</span></div>';
-    if (kind === "request") {
-      var srcLabel = data.source_label || "local logs";
-      html += '<div class="sd-kv"><span>来源</span><span title="' + escapeHtml(srcLabel) + '">' + escapeHtml(srcLabel) + '</span></div>';
-      var callIdVal = data.call_id || "";
-      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(callIdVal || "—") + '">' + escapeHtml(callIdVal || "—") + '</span></div>';
-    } else if (data.call_id) {
-      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(data.call_id) + '">' + escapeHtml(data.call_id) + '</span></div>';
-    }
-    html += '<div class="sd-kv"><span>请求发起</span><span title="' + escapeHtml(timing.request_at || "—") + '">' + escapeHtml(timing.request_at || "—") + '</span></div>';
-    html += '<div class="sd-kv"><span>响应返回</span><span title="' + escapeHtml(timing.response_at || "—") + '">' + escapeHtml(timing.response_at || "—") + '</span></div>';
-    html += '<div class="sd-kv"><span>耗时</span><span title="' + escapeHtml(timing.duration || "—") + '">' + escapeHtml(timing.duration || "—") + '</span></div>';
     html += '</div>';
     html += '</section>';
     html += '</div>';
