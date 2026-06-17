@@ -13,6 +13,11 @@ runtime:
     claude_stop: .claude/hooks/stop.sh
     codex_stop: .codex/hooks/stop_check.sh
     qoder_stop: .qoder/hooks/stop_check.sh
+  skill_entrypoints:
+    openspec_orchestrate_change: skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
+    codex_repo_scope: .agents/skills/feipi-openspec-orchestrate-change
+    codex_convention: .codex/skills/feipi-openspec-orchestrate-change
+    claude: .claude/skills/feipi-openspec-orchestrate-change
 
 entrypoints:
   deps: "./scripts/session-browser.sh deps"
@@ -45,8 +50,15 @@ quality_gates:
     required: true
 
 docs:
+  - skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
   - harness/README.md
   - harness/agent-runtime.md
+  - harness/context/repo-map.md
+  - harness/context/ui-context.md
+  - harness/workflow/change-lifecycle.md
+  - harness/workflow/subagent-execution.md
+  - harness/quality/deterministic-quality-gate.md
+  - harness/quality/quality-gate-matrix.md
 
 local_only:
   - ".claude/settings.local.json"

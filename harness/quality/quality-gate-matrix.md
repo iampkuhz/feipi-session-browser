@@ -1,0 +1,30 @@
+# Quality Gate 矩阵
+
+仅当任务涉及路径分类、required gate 选择、Stop 门禁失败或新增质量目标时读取本文件。
+
+## 真源
+
+- target 列表真源：`scripts/quality/quality_targets.py`
+- 路径分类真源：`scripts/claude_hooks/classify.py`
+- 执行入口：`scripts/quality/run_quality_gate.py`
+- Stop 汇总入口：`scripts/quality/run_required_quality_gates.py`
+
+本文件只解释阅读路线，不复制完整矩阵，避免和脚本漂移。
+
+## 当前 target
+
+| Target | 典型触发路径 | 主要 gate |
+|---|---|---|
+| `session-detail` | UI 模板、CSS、前端 JS | 模板契约、CSS 契约、浏览器布局、pytest |
+| `python-src` | `src/session_browser/**/*.py` | Python compile、pytest |
+| `hook-runtime` | hooks、agent 配置、质量脚本 | settings、bash syntax、python compile、policy、pytest、doctor |
+| `harness` | `harness/**`、`scripts/harness/**` | doctor、仓库结构、harness 结构、OpenSpec 布局 |
+| `acceptance-contracts` | `docs/acceptance-contracts/**`、`tests/**` | 验收契约映射、pytest |
+| `index` | index 相关源码 | index integrity |
+
+## 修改规则
+
+- 新增 target 时同步 `QUALITY_TARGETS`、`GATE_PATTERNS`、分类规则和测试。
+- 改 agent、skill、hook 或 prompt 文件时，必须触发 `hook-runtime` 或 `harness`。
+- 改测试或验收契约时，必须触发 `acceptance-contracts`。
+- 改 UI 页面时，不得只跑静态检查；需要包含对应浏览器或交互 gate。

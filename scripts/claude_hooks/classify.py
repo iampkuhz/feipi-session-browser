@@ -32,8 +32,8 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
     ("quality-gate", ["scripts/quality/**"], True, "hook-runtime", "high", True),
     ("harness", ["harness/**", "scripts/harness/**"], True, "harness", "high", True),
     ("openspec", ["openspec/**"], True, "harness", "medium", True),
-    ("agent-config", [".claude/settings.json", ".claude/agents/**", ".claude/commands/**", ".claude/skills/**", ".codex/hooks.json", ".codex/agents/**", ".qoder/**"], True, "hook-runtime", "high", True),
-    ("docs", ["README.md", "AGENTS.md", "CLAUDE.md", "docs/**"], False, None, "low", True),
+    ("agent-config", ["AGENTS.md", "CLAUDE.md", "skills/**", ".agents/skills/**", ".claude/settings.json", ".claude/agents/**", ".claude/commands/**", ".claude/skills/**", ".codex/**", ".qoder/**"], True, "hook-runtime", "high", True),
+    ("docs", ["README.md", "docs/**"], False, None, "low", True),
     ("local-or-generated", ["tmp/**", "data/**", "output/**", ".venv/**", ".pytest_cache/**", "**/*.sqlite", "**/*.sqlite3", "**/*.db"], False, None, "local", True),
 ]
 
@@ -108,6 +108,13 @@ def _self_test() -> None:
     assert classify_file(".claude/settings.json").quality_target == "hook-runtime"
     assert classify_file(".codex/hooks/stop_check.sh").quality_target == "hook-runtime"
     assert classify_file(".qoder/hooks/stop_check.sh").quality_target == "hook-runtime"
+    assert classify_file(".codex/config.toml").quality_target == "hook-runtime"
+    assert classify_file("skills/authoring/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file(".agents/skills/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file(".codex/skills/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file(".claude/skills/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file("AGENTS.md").quality_target == "hook-runtime"
+    assert classify_file("CLAUDE.md").quality_target == "hook-runtime"
     assert classify_file("tmp/agent_logs/session1/x.jsonl").category == "local-or-generated"
 
 

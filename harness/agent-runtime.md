@@ -1,6 +1,30 @@
 # Agent Runtime Contract
 
-本文件是 Claude Code、Codex、Qoder 在本仓库内复用的 agent 运行契约。`.claude/`、`.codex/`、`.qoder/` 只保留工具自身需要的薄入口；可复用的规则、质量目标、stop 门禁和 handoff 约束必须放在 `harness/`、`scripts/harness/`、`scripts/quality/` 或 `scripts/claude_hooks/`。
+本文件是 Claude Code、Codex、Qoder 在本仓库内复用的 agent 运行契约。`.claude/`、`.codex/`、`.qoder/`、`.agents/` 只保留工具自身需要的薄入口或链接；可复用的 skill、规则、质量目标、Stop 门禁和 handoff 约束必须放在 `skills/`、`harness/`、`scripts/harness/`、`scripts/quality/` 或 `scripts/claude_hooks/`。
+
+## Skill 入口
+
+- 仓库共享 skill 真源放在 `skills/<skill-name>/SKILL.md`。
+- 需要目录分层的正式 skill 使用 `skills/<layer>/<skill-name>/SKILL.md`。
+- Codex repo-scope skill 必须通过 `.agents/skills/<skill-name>` 链接到共享真源，因为 Codex 扫描 `.agents/skills`。
+- `.codex/skills/<skill-name>` 可作为 Codex 目录约定入口，但不得作为唯一发现路径。
+- `.claude/skills/<skill-name>` 链接同一共享真源；Claude Code 专属 skill 可以继续留在 `.claude/skills/`。
+
+## 渐进式加载路由
+
+- 仓库结构和本地运行态边界：`harness/context/repo-map.md`。
+- UI 页面、CSS、前端 JS 和视觉验证：`harness/context/ui-context.md`。
+- OpenSpec 变更生命周期：`harness/workflow/change-lifecycle.md`。
+- subagent 委派和 handoff：`harness/workflow/subagent-execution.md`。
+- required gate summary 语义：`harness/quality/deterministic-quality-gate.md`。
+- target 到 gate 的路线：`harness/quality/quality-gate-matrix.md`。
+
+## Subagent 策略
+
+- 主 agent 应积极寻找可委派边界：长任务、并行探索、独立 QA、日志/大输出隔离、OpenSpec 规划、UI 评审、迁移分析。
+- 简单单文件小改、无明确 scope、需要强串行推理、或多个 agent 会写同一文件时，不委派。
+- 调用前必须提供 `Goal`、`Task id`、`Task source`、`Allowed files/directories`、`Forbidden files/directories`、`Required context files`、`Expected output`、`Validation command`、`Failure policy`。
+- 可写 subagent 必须有不重叠写范围；只读 subagent 不得修改文件。
 
 ## Stop 门禁
 

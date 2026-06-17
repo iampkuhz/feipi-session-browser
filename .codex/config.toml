@@ -1,0 +1,37 @@
+# 本仓库的 Codex 项目默认配置，目标是减少静态上下文。
+# Provider、凭证、遥测和个人插件安装状态仍放在用户级配置。
+
+personality = "none"
+model_verbosity = "low"
+model_reasoning_summary = "none"
+model_instructions_file = "./model-instructions.md"
+
+# 保留 AGENTS.md 作为触发和护栏；仓库 skill 真源在 skills/authoring/，Codex 通过 .agents/skills 链接发现。
+project_doc_max_bytes = 3000
+tool_output_token_limit = 12000
+web_search = "disabled"
+
+[features]
+apps = false
+memories = false
+multi_agent = true
+skill_mcp_dependency_install = false
+
+[memories]
+generate_memories = false
+use_memories = false
+disable_on_external_context = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+job_max_runtime_seconds = 900
+
+[apps._default]
+enabled = false
+destructive_enabled = false
+open_world_enabled = false
+default_tools_enabled = false
+
+[tools]
+view_image = false

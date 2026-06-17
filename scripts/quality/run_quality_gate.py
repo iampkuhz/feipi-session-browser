@@ -308,6 +308,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         if target == "index":
             paths = ["src/session_browser/index", "scripts/quality/check_index_integrity.py"]
         return [python, "-m", "compileall", "-q", *paths]
+    if gate == "languagePolicy":
+        return [python, "scripts/quality/check_language_policy.py"]
+    if gate == "codexAgentPolicy":
+        return [python, "scripts/quality/check_codex_agent_policy.py"]
     if gate == "hookSelfTest":
         return [python, "-m", "scripts.claude_hooks.main", "--self-test"]
     if gate == "templateContract":
@@ -419,9 +423,11 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
                 continue
 
             # For fixture-dependent gates, inject BASE_URL if fixture server is running
-            env_override = None
+            env_override: dict[str, str] = {}
+            if changed_files is not None:
+                env_override["QUALITY_CHANGED_FILES"] = json.dumps(changed_files, ensure_ascii=False)
             if gate in _FIXTURE_GATES and fixture_base_url:
-                env_override = {"BASE_URL": fixture_base_url}
+                env_override["BASE_URL"] = fixture_base_url
             elif gate in _FIXTURE_GATES:
                 details.append(GateDetail(
                     name=gate,
@@ -432,7 +438,7 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
                 ))
                 continue
 
-            details.append(run_cmd(gate, cmd, repo_root, required=True, env_overrides=env_override))
+            details.append(run_cmd(gate, cmd, repo_root, required=True, env_overrides=env_override or None))
     finally:
         if fixture_proc:
             _stop_fixture_server(fixture_proc, fixture_tmpdir)

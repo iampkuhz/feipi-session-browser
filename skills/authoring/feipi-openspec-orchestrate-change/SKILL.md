@@ -1,16 +1,16 @@
 ---
-name: change
+name: feipi-openspec-orchestrate-change
 disable-model-invocation: true
-description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现、验证并汇报。所有功能开发、缺陷修复和重构都使用 `/change`。
+description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创建或复用 change，生成 proposal/design/tasks/spec，按任务推进实现，并运行验证收口。普通单文件修改或只读查询不要使用。
 ---
 
-# change — 端到端 OpenSpec 变更驱动器
+# OpenSpec 变更编排
 
-本技能驱动 OpenSpec 变更的完整生命周期：接收、检查、提案、规划、实现、验证和汇报。它是本仓库中所有功能开发、缺陷修复和重构的标准入口。
+本 skill 是仓库共享真源，用于编排 OpenSpec 变更的完整生命周期：接收、检查、提案、规划、实现、验证和汇报。Claude Code、Codex 和 Qoder 的工具入口只通过 symlink 指向本目录。
 
 ## 策略
 
-- **`prompts/` 下的文件是输入，不是流程权威。** `prompts/` 下的提示词文件提供可复用的脚手架，它们不驱动流程。始终以本技能为入口。
+- **`prompts/` 下的文件是输入，不是流程权威。** `prompts/` 下的提示词文件提供可复用的脚手架，它们不驱动流程。始终以本 skill 为入口。
 - **受保护文件编辑需要活跃的 OpenSpec 变更。** PreToolUse hook（`scripts/hooks/guard_openspec_change.py`）会在 `openspec/changes/` 下不存在活跃变更目录（排除 `archive`）时阻止对受保护文件的 Write/Edit/MultiEdit。
 - **不要自动提交。** 汇报结果后等待用户确认再提交。
 
@@ -36,7 +36,7 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
      "required_gates": ["scripts/openspec/validate_layout.py", ...]
    }
    ```
-3. 子代理通过此文件继承活跃变更上下文。所有子代理工作必须引用 `tmp/active_change.json`。详见 `reference/subagent-contract.md`。完整字段规范见 `tmp/SCHEMA.md`。
+3. 子代理通过此文件继承活跃变更上下文。所有子代理工作必须引用 `tmp/active_change.json`。详见 `references/subagent-contract.md`。完整字段规范见 `tmp/SCHEMA.md`。
 
 ### 阶段 2：检查（Inspect）
 
@@ -69,7 +69,7 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
 3. 在任务下方添加简短验证说明。
 4. **不要跳过或重排任务。**
 5. **不要超出变更描述的范围。**
-6. 对于大型或有边界的任务，委派给项目子代理并明确范围边界。子代理必须读取 `tmp/active_change.json` 获取上下文。详见 `reference/subagent-contract.md`。
+6. 对于大型或有边界的任务，委派给项目子代理并明确范围边界。子代理必须读取 `tmp/active_change.json` 获取上下文。详见 `references/subagent-contract.md`。
 
 ### 阶段 6：验证（Validate）
 
@@ -101,10 +101,10 @@ description: 端到端 OpenSpec 变更驱动器。创建变更、规划、实现
 - **PreToolUse（Bash）：** `.claude/hooks/pre_tool_guard.sh` — 阻止破坏性 shell 命令。
 - **Stop：** `.claude/hooks/stop.sh` — 薄入口，转发到 `scripts/harness/agent_stop_check.py`，执行 OpenSpec 与 required quality gates。
 
-这些 hooks 是强制层。本技能编排流程，hooks 防止策略违规。
+这些 hooks 是强制层。本 skill 编排流程，hooks 防止策略违规。
 
 ## 参考
 
-- 完整 7 阶段流程：`reference/workflow.md`
-- 子代理继承契约：`reference/subagent-contract.md`
+- 完整 7 阶段流程：`references/workflow.md`
+- 子代理继承契约：`references/subagent-contract.md`
 - 模板：`templates/` 目录

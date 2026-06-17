@@ -30,6 +30,13 @@ def test_cross_agent_hook_classification():
     assert classify_file(".codex/hooks/stop_check.sh").quality_target == "hook-runtime"
     assert classify_file(".qoder/hooks/stop_check.sh").quality_target == "hook-runtime"
     assert classify_file(".codex/hooks.json").quality_target == "hook-runtime"
+    assert classify_file(".codex/config.toml").quality_target == "hook-runtime"
+    assert classify_file("skills/authoring/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file(".agents/skills/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file(".codex/skills/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file(".claude/skills/feipi-openspec-orchestrate-change/SKILL.md").quality_target == "hook-runtime"
+    assert classify_file("AGENTS.md").quality_target == "hook-runtime"
+    assert classify_file("CLAUDE.md").quality_target == "hook-runtime"
 
 
 @pytest.mark.contract_case("HOOK-HARNESS-002")

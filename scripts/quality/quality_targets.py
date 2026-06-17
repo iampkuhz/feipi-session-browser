@@ -22,6 +22,8 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "settingsJson",
         "bashSyntax",
         "pythonCompile",
+        "languagePolicy",
+        "codexAgentPolicy",
         "hookSelfTest",
         "pytest",
         "doctor",
@@ -34,6 +36,8 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     "harness": [
         "bashSyntax",
         "pythonCompile",
+        "languagePolicy",
+        "codexAgentPolicy",
         "doctor",
         "repoStructure",
         "harnessStructure",
@@ -124,6 +128,8 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         "repoStructure": [
             ".claude/**",
             ".codex/**",
+            "skills/**",
+            ".agents/skills/**",
             ".qoder/**",
             "scripts/**/*.py",
             "scripts/**/*.sh",
@@ -156,6 +162,23 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "scripts/quality/validate_acceptance_contracts.py",
             "tests/quality/test_contract_case_specs.py",
         ],
+        "languagePolicy": [
+            "AGENTS.md",
+            "CLAUDE.md",
+            "skills/**",
+            ".agents/skills/**",
+            ".codex/**",
+            ".claude/agents/**",
+            ".claude/skills/**",
+            ".qoder/**",
+            "harness/**",
+            "openspec/changes/**",
+            "scripts/quality/check_language_policy.py",
+        ],
+        "codexAgentPolicy": [
+            ".codex/agents/**",
+            "scripts/quality/check_codex_agent_policy.py",
+        ],
     },
     "harness": {
         "bashSyntax": [
@@ -177,6 +200,23 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
         "openspecLayout": [
             "openspec/**",
+        ],
+        "languagePolicy": [
+            "AGENTS.md",
+            "CLAUDE.md",
+            "skills/**",
+            ".agents/skills/**",
+            ".codex/**",
+            ".claude/agents/**",
+            ".claude/skills/**",
+            ".qoder/**",
+            "harness/**",
+            "openspec/changes/**",
+            "scripts/quality/check_language_policy.py",
+        ],
+        "codexAgentPolicy": [
+            ".codex/agents/**",
+            "scripts/quality/check_codex_agent_policy.py",
         ],
     },
     "index": {

@@ -68,6 +68,8 @@ for script in scripts/session-browser.sh .claude/hooks/*.sh .codex/hooks/*.sh .q
 done
 
 python3 -m compileall -q src || fail=1
+python3 scripts/quality/check_language_policy.py || fail=1
+python3 scripts/quality/check_codex_agent_policy.py || fail=1
 
 # CSS ownership validation
 css_output="$(python3 scripts/validate_css_ownership.py 2>&1)" || true

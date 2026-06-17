@@ -1,90 +1,49 @@
 # Feipi Session Browser — Agent 工程规则
 
-本文件只在任务涉及非平凡开发、OpenSpec、harness、质量门、hooks 或仓库规则改造时读取。普通代码定位、单文件修改、简单文档修改不需要读取本文件。
+本文件仅用于非平凡开发、OpenSpec、harness、质量门、hooks、agent 配置或仓库规则改造；普通定位、单文件小改、简单文档修改不扩展上下文。
 
-## 非平凡变更
+## 首要护栏
 
-以下任务属于非平凡变更：
+- 默认使用简体中文；规约、规格、提示词、模板、流程文档和 UI 文案默认中文。
+- 代码标识符、命令、路径、API 保持英文。
+- 先搜索定位，再只读必要片段；不要加载无关 skill、长文档或历史材料。
+- 修改最小化；不覆盖用户改动，不纳入缓存、运行数据、真实 session、密钥、token 或个人配置。
+- `subagent` 默认积极触发：长任务、并行探索、独立验证、日志隔离或清晰分工时主动委派；简单单点改动、缺少 scope 或写冲突时不委派。
+- 调用 `subagent` 前给最小 handoff、allowed scope、forbidden scope、预期输出和验证命令；实现型任务拆成不重叠写范围。
+- 共用 hook、subagent、skill、质量门规则沉淀到 `skills/`、`harness/` 或 `scripts/harness/`；`.claude/`、`.codex/`、`.qoder/`、`.agents/` 只保留入口或链接。
+
+## 任务分流
+
+以下属于非平凡变更：
 
 - 新增或改变产品行为；
 - 改动 OpenSpec、harness、质量门、hooks、agent 配置；
 - 调整目录职责、开发流程、验证流程；
 - 跨多个模块的结构性改造；
-- 会影响长期维护方式的文档或脚本变更。
+- 影响长期维护方式的文档或脚本变更。
 
-非平凡变更应先确认是否已有对应 `openspec/changes/<change-id>/`。如果没有，应先建立或补齐变更任务，再实现代码。
-
-## OpenSpec 规则
-
-- `openspec/specs/` 表示当前长期行为。
-- `openspec/changes/<change-id>/` 表示待实施或正在实施的变更。
-- 实现应按 `openspec/changes/<change-id>/tasks.md` 串行推进。
-- 完成后应同步长期行为到 `openspec/specs/`，再归档变更。
-- 不要绕过 OpenSpec 直接大改受保护路径。
+非平凡变更先确认 `openspec/changes/<change-id>/`；没有时先补齐任务再实现。`openspec/specs/` 是长期真相，`openspec/changes/` 是待实施变更；不要绕过 OpenSpec 大改受保护路径。
 
 ## 受保护路径
 
-修改以下路径时必须明确任务目标，并保持变更最小：
+修改以下路径必须目标明确、范围最小并检查 diff：
 
-| 路径 | 约束 |
-|---|---|
-| `.claude/` | 影响 Claude Code 运行、权限、hooks、agents |
-| `.codex/` | 影响 Codex hooks、agents 与本仓库入口 |
-| `.qoder/` | 影响 Qoder hooks、agents 与本仓库入口 |
-| `openspec/` | 影响规格真相和变更流程 |
-| `harness/` | 影响 agent 工作流和上下文包 |
-| `scripts/` | 影响本地验证、运行、质量门 |
-| `src/session_browser/` | 产品源码 |
-| `tests/` | 测试与回归约束 |
-| `CLAUDE.md` / `AGENTS.md` | agent 常驻或按需规则 |
+- `.claude/`、`.codex/`、`.qoder/`、`.agents/`、`skills/`
+- `openspec/`、`harness/`、`scripts/`
+- `src/session_browser/`、`tests/`
+- `AGENTS.md`、`CLAUDE.md`
 
-## 文件操作规则
-
-- 先搜索定位，再读取文件。
-- 只读取当前任务必需的文件和片段。
-- 修改已有文件时优先局部编辑，避免整文件覆写。
-- 不覆盖用户未提交改动。
-- 不提交缓存、运行数据、真实 session 数据、密钥、token 或个人配置。
-- 不提交被 `.gitignore` 忽略的文件；例如 `openspec/changes/*` 是本地工作态，默认不得 `git add -f` 纳入提交，除非用户明确要求。
-- 仓库不维护“废弃”信息；不再需要的文档、契约用例和对应测试应直接删除，不保留“已废弃/Deprecated/历史保留”说明。
-- Claude Code、Codex、Qoder 可复用的 hook、subagent、skill 和质量门规则应沉淀到 `harness/` 或 `scripts/harness/`；`.claude/`、`.codex/`、`.qoder/` 只保留工具所需的薄入口。
-- 修改后检查 diff，确认没有引入无关文件。
+不提交 `.gitignore` 忽略文件；`openspec/changes/*` 默认不得 `git add -f`，除非用户明确要求。不维护“废弃”信息；不用的文档、契约用例和测试直接删除。
 
 ## 验证原则
 
-修改文件后必须确保本仓库 required quality gates 全部通过，才能把任务描述为完成。
+修改后必须让本次触发的 required quality gates 全部通过，才能描述完成。失败项即使看似非当前 agent 引入，也必须修复或报告阻断；不得把失败、未运行、跳过或“非本人改动”描述为通过。
 
-可先运行与本次改动直接相关的最小验证来快速定位问题，但这只属于中间检查；最终完成前必须运行本次变更触发的完整 required gate baseline。不能因为失败项看起来不是当前 agent 亲自引入的改动，就跳过、忽略或描述为“与本次无关”。只要当前工作树仍有本次任务改动，required gate 失败就是本次任务的阻断项，必须继续分析并修复，或明确向用户报告阻断原因。
-
-常用验证命令：
-
-```bash
-bash scripts/harness/doctor.sh
-python3 scripts/harness/validate_harness_structure.py
-python3 scripts/harness/validate_openspec_layout.py
-./scripts/session-browser.sh test
-python3 scripts/quality/run_quality_gate.py --target session-detail
-```
+完整基线使用 `scripts/quality/run_required_quality_gates.py`。
 
 选择规则：
 
-- 改 `harness/`、`openspec/`、`.claude/`、`scripts/`：优先运行 `bash scripts/harness/doctor.sh`。
+- 改 `skills/`、`harness/`、`openspec/`、agent 配置、`scripts/`、`AGENTS.md` 或 `CLAUDE.md`：优先运行 `bash scripts/harness/doctor.sh`。
 - 改产品代码或测试：运行 `./scripts/session-browser.sh test`。
 - 改 UI 模板、CSS、前端 JS：运行对应 UI 质量门。
-- Stop / handoff 前以 `scripts/quality/run_required_quality_gates.py` 或等价命令执行完整 required gate baseline；该 baseline 不得按 changed-files 裁剪 target 内部 gate。
-- 验证失败时必须保留失败信息，不得把失败、未运行、跳过或“非本人改动”描述为通过。
-
-## 语言策略
-
-- 默认使用简体中文。
-- 规约、规格、提示词、模板、流程文档默认中文。
-- 代码标识符、命令、路径、API、外部工具名保持英文。
-- 面向用户的 UI 文案默认中文。
-
-## 完成标准
-
-- 改动与用户目标直接对应。
-- 没有扩大无关范围。
-- 已运行完整 required quality gates 且全部通过；若环境阻断导致无法运行，必须报告阻断并不得声称任务完成。
-- 文档、脚本、OpenSpec、harness 与代码没有明显冲突。
-- 没有纳入个人配置、缓存、运行数据、真实 session 数据或密钥。
+- Stop / handoff 前运行 `scripts/quality/run_required_quality_gates.py` 或等价 required baseline；该 baseline 不得按 changed-files 裁剪 target 内部 gate。
