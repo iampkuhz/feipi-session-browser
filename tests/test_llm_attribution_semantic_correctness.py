@@ -222,13 +222,13 @@ def test_claude_response_tool_use_children_not_contribute_to_total():
     ro = _make_ro()
     result = build_llm_response_attribution("claude_code", lc, ro)
 
-    # Check tool_use aggregate exists
-    aggregate = next((b for b in result.buckets if b.key == "tool_use"), None)
+    # Check tool_call aggregate exists
+    aggregate = next((b for b in result.buckets if b.key == "tool_call"), None)
     assert aggregate is not None
     assert aggregate.contributes_to_total is True
 
     # Check child buckets
-    children = [b for b in result.buckets if b.key.startswith("tool_use:") and b.key != "tool_use"]
+    children = [b for b in result.buckets if b.key.startswith("tool_call:") and b.key != "tool_call"]
     assert len(children) == 2
     for child in children:
         assert child.contributes_to_total is False, (

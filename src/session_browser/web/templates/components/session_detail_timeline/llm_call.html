@@ -78,9 +78,9 @@
       </div>
       <div class="sd-llm-body sd-llm-body--summary">
         <div class="sd-metrics">
-          {{ sdp.metric_cell('Fresh', call.usage.input|default('—'), hint='Provider-reported request input size for this call; cache read/write are displayed separately.') }}
-          {{ sdp.metric_cell('Cache Read', call.usage.cache_read|default('—'), hint='Provider-reported cache_read_input_tokens reused from prompt cache.') }}
-          {{ sdp.metric_cell('Cache Write', call.usage.cache_write|default('—'), hint='Provider-reported cache_creation_input_tokens written to prompt cache.') }}
+          {{ sdp.metric_cell('Fresh', call.usage.input|default('—'), hint='Mutually exclusive new-input component; OpenAI/Codex subtract Cache Read from Provider Request Input.') }}
+          {{ sdp.metric_cell('Cache Read', call.usage.cache_read|default('—'), hint='Provider/broker accounting for cache-hit input tokens.') }}
+          {{ sdp.metric_cell('Cache Write', call.usage.cache_write|default('—'), hint='Provider/broker accounting for cache creation/write input tokens.') }}
           {{ sdp.metric_cell('Output', call.usage.output|default('—'), hint='Provider-reported visible output_tokens for this LLM call.') }}
         </div>
         {% if call.note %}

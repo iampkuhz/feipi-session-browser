@@ -149,7 +149,7 @@ class LLMResponseAttribution:
 
     total_output: AttributedValue
     visible_text: AttributedValue
-    tool_use: AttributedValue
+    tool_use: AttributedValue  # legacy field name; serialized alias is tool_call
     metadata: AttributedValue
     coverage: AttributedValue
     unknown: AttributedValue

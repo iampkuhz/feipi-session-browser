@@ -43,8 +43,8 @@ metadata 不是 bucket。它必须保留在 payload 中供 review，但不进入
 | 五字段 | UI tokenbar 固定为 `Fresh`、`Cache Read`、`Cache Write`、`Output`、`Total`。 |
 | Total 公式 | `Total = Fresh + Cache Read + Cache Write + Output`。provider raw total 只能作诊断或 fallback。 |
 | Fresh 语义 | `Fresh` 是互斥的新输入分段。OpenAI/Codex 这类 cache read 属于 input 子集时，`Fresh = input_tokens - cached_input_tokens`。 |
-| Request 分母 | request content bucket percent、coverage、unknown/residual 的分母固定为 `Fresh`。 |
-| Response 分母 | response content bucket percent、coverage、unknown/residual 的分母固定为 `Output`。 |
+| Request Content Denominator | request content bucket percent、coverage、unlocated residual 的分母固定为 `Fresh`。 |
+| Response denominator | response content bucket percent、coverage、unlocated residual 的分母固定为 `Output`。 |
 | Cache 角色 | `Cache Read` 和 `Cache Write` 只表示 provider/broker accounting；不得生成 `provider_cached_context` 内容 bucket。 |
 | Config 角色 | `model`、`max_tokens`、`stream`、`thinking`、`output_config`、`context_management`、`cache_control` 等进入 metadata，不进入 content bucket。 |
 | Request/Response 分离 | tool schema、tool result 属于 request；tool call 属于 response；同一内容不得两侧重复计数。 |
@@ -286,7 +286,7 @@ stop
 | `tool_call` | 工具调用结构 | 模型输出的 tool/function call 名称、参数和结构化调用体；单个调用放 `items[]`。 | 是 |
 | `hidden_reasoning` | 隐藏推理输出 | provider 上报的 hidden reasoning token、encrypted reasoning 或不可见 thinking。 | 是 |
 | `structured_response_block` | 结构化响应块 | 作为 assistant 输出正文出现的结构化块。 | 是 |
-| `unknown` | 未定位输出 | `Output - sum(known response content bucket tokens)` 后剩余部分。 | 是 |
+| `unlocated_residual` | 未定位输出 | `Output - sum(known response content bucket tokens)` 后剩余部分。 | 是 |
 
 ### Assistant Text 与 Thinking 边界
 
@@ -422,7 +422,7 @@ stop
 }
 ```
 
-`/response` payload 结构相同，但 `kind="response"`、`request=null`，`response.content_bucket_candidates` 固定使用 `assistant_text`、`assistant_thinking`、`tool_call`、`hidden_reasoning`、`structured_response_block`、`unknown`；`response.metadata_candidates` 固定使用 `response_status`、`reasoning_reference`、`provider_tool_use_metadata`、`citation_metadata`。
+`/response` payload 结构相同，但 `kind="response"`、`request=null`，`response.content_bucket_candidates` 固定使用 `assistant_text`、`assistant_thinking`、`tool_call`、`hidden_reasoning`、`structured_response_block`、`unlocated_residual`；`response.metadata_candidates` 固定使用 `response_status`、`reasoning_reference`、`provider_tool_use_metadata`、`citation_metadata`。
 
 ### Payload 字段说明
 

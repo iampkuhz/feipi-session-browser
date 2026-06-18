@@ -4,15 +4,16 @@ Maps provider-specific usage fields into a unified NormalizedTokenBreakdown
 with a canonical 5-field breakdown.
 
 Provider mappings:
-- Claude Code: input_tokens=fresh request input, cache_read/cache_creation=separate buckets
-- Codex/OpenAI: input_tokens is request input; cached_input_tokens is a subset
-- Qoder: input_tokens is request input; cache read/write stay separate when reported
+- Claude Code: input_tokens=Fresh, cache_read/cache_creation=separate buckets
+- Codex/OpenAI: input_tokens is Provider Request Input; cached_input_tokens is a subset
+- Qoder: input_tokens is Fresh unless an adapter has explicit inclusive-input evidence
 
 Rules:
 1. Every session/LLM call gets 5 int fields: fresh_input, cache_read, cache_write, output, total.
 2. No null/undefined/NaN — all fields default to 0.
 3. Direct fields take priority; aliases are normalized.
-4. Fresh input means the logical request input size. Do not subtract cache buckets.
+4. Fresh means the mutually exclusive new-input component. For OpenAI/Codex
+   cache read is subtracted when it is a Provider Request Input subset.
 5. Metadata records precision, source_kind, total_semantics, and notes.
 """
 
@@ -169,7 +170,7 @@ def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
 
 
 def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
-    """Codex: input_tokens is the logical request input size.
+    """Codex: input_tokens is Provider Request Input, cache read is a subset.
 
     Supports both flat Codex aliases and OpenAI Responses nested aliases.
     OpenAI/Codex cached input is a subset of input_tokens, so UI token
@@ -194,7 +195,9 @@ def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
     fresh = max(raw_input_total - cache_read, 0) if raw_input_total else 0
     cache_write = 0
 
-    # If only reasoning tokens and no output tokens, use reasoning as output fallback
+    # Codex rollout output_tokens is treated as visible output. If only hidden
+    # reasoning is reported, use it as a total-only output fallback so totals do
+    # not disappear.
     output = raw_output
     if raw_output == 0 and raw_reasoning > 0:
         output = raw_reasoning
@@ -366,9 +369,9 @@ def _normalize_qoder_with_text(
 
 
 def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
-    """OpenAI: cached input is a subset of prompt/input tokens."""
+    """OpenAI: cached input is a subset of Provider Request Input."""
     input_tokens = _get_int(usage, "input_tokens") or _get_int(usage, "prompt_tokens")
-    output_tokens = _get_int(usage, "output_tokens") or _get_int(usage, "completion_tokens")
+    provider_output_total = _get_int(usage, "output_tokens") or _get_int(usage, "completion_tokens")
 
     cached = (_get_nested_int(usage, "input_tokens_details", "cached_tokens")
               or _get_nested_int(usage, "prompt_tokens_details", "cached_tokens"))
@@ -378,8 +381,18 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
     cached = min(cached, input_tokens) if input_tokens else cached
     fresh = max(input_tokens - cached, 0) if input_tokens else 0
 
+    output_tokens = provider_output_total
+    if reasoning > 0 and provider_output_total >= reasoning:
+        output_tokens = provider_output_total - reasoning
+
     cache_write = 0
     total = fresh + cached + cache_write + output_tokens
+    notes: list[str] = []
+    if reasoning > 0 and provider_output_total >= reasoning:
+        notes.append(
+            "Hidden reasoning tokens were subtracted from provider output total "
+            "so Output remains the visible-output component."
+        )
 
     return NormalizedTokenBreakdown(
         fresh_input_tokens=fresh,
@@ -391,6 +404,7 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
         total_semantics=TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM,
         source_kind=TokenSourceKind.OPENAI_RESPONSES_USAGE,
         raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
+        notes=notes,
     )
 
 
@@ -470,16 +484,12 @@ def precision_label(precision: str) -> str:
     """Return a human-readable precision label."""
     labels = {
         TokenPrecision.EXACT: "exact",
-        TokenPrecision.PROVIDER_REPORTED: "provider-reported",
+        TokenPrecision.PROVIDER_REPORTED: "provider_reported",
         TokenPrecision.ESTIMATED: "estimated",
-        TokenPrecision.UNKNOWN: "unknown",
-        TokenPrecision.PROVIDER_REPORTED_NORMALIZED: "provider-reported (normalized)",
-        TokenPrecision.PROVIDER_REPORTED_DELTA: "provider-reported (delta)",
-        TokenPrecision.SQLITE_TOKEN_INFO: "SQLite token_info",
-        TokenPrecision.ESTIMATED_PARTIAL: "estimated (partial)",
-        TokenPrecision.REPORTED_TOTAL_ONLY: "reported total only",
+        TokenPrecision.UNKNOWN: "unavailable",
+        TokenPrecision.ZERO_FILLED_UNAVAILABLE: "unavailable",
     }
-    return labels.get(precision, "unknown")
+    return labels.get(precision, "unavailable")
 
 
 def precision_color(precision: str) -> str:
@@ -489,10 +499,6 @@ def precision_color(precision: str) -> str:
         TokenPrecision.PROVIDER_REPORTED: "#3b82f6",
         TokenPrecision.ESTIMATED: "#f59e0b",
         TokenPrecision.UNKNOWN: "#6b7280",
-        TokenPrecision.PROVIDER_REPORTED_NORMALIZED: "#3b82f6",
-        TokenPrecision.PROVIDER_REPORTED_DELTA: "#60a5fa",
-        TokenPrecision.SQLITE_TOKEN_INFO: "#8b5cf6",
-        TokenPrecision.ESTIMATED_PARTIAL: "#f59e0b",
-        TokenPrecision.REPORTED_TOTAL_ONLY: "#9ca3af",
+        TokenPrecision.ZERO_FILLED_UNAVAILABLE: "#6b7280",
     }
     return colors.get(precision, "#6b7280")

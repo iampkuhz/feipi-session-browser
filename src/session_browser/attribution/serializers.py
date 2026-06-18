@@ -122,23 +122,35 @@ def _normalize_bucket_percents_for_display(buckets: list[dict]) -> list[dict]:
 
 
 def _request_distribution_denominator(attr: LLMRequestAttribution) -> float:
-    """Return the request distribution denominator used by the UI.
+    """Return the Request Content Denominator used by the UI.
 
-    For Codex and Qoder, Cache Read is provider accounting metadata and not an
-    additional local request-content source, so bucket percentages use Fresh.
-    Claude-style full message arrays may include cached prefix content, so they
-    keep the historical Fresh + Cache Read denominator. Cache Write remains
-    summary-only for all agents.
+    Cache Read/Write are provider accounting components, not request content
+    buckets. Bucket percentages, coverage, and residual tokens therefore use
+    Fresh for every agent unless a future OpenSpec defines an explicit
+    exception.
     """
     fresh = _num(attr.fresh_input.value)
-    cache_read = _num(attr.cache_read.value)
-    if attr.agent in {"codex", "qoder"} and fresh > 0:
-        denominator = fresh
-    else:
-        denominator = fresh + cache_read
-    if denominator > 0:
-        return denominator
+    if fresh > 0:
+        return fresh
     return _num(attr.total_input.value)
+
+
+def _provider_request_input(attr: LLMRequestAttribution) -> float:
+    """Best-effort raw Provider Request Input for attribution metadata."""
+    fresh = _num(attr.fresh_input.value)
+    cache_read = _num(attr.cache_read.value)
+    if attr.agent == "codex":
+        return fresh + cache_read
+    return fresh
+
+
+def _input_side_component_total(attr: LLMRequestAttribution) -> float:
+    """Fresh + Cache Read + Cache Write accounting total."""
+    return (
+        _num(attr.fresh_input.value)
+        + _num(attr.cache_read.value)
+        + _num(attr.cache_write.value)
+    )
 
 
 def _normalize_request_bucket_percents_for_display(
@@ -190,6 +202,21 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
         # ── Usage summary with AttributedValue fields (v2) ──
         "usage_summary": {
             "total_input": attributed_value_to_dict(attr.total_input),
+            "provider_request_input": {
+                **attributed_value_to_dict(attr.fresh_input),
+                "value": _provider_request_input(attr),
+                "note": "Provider Request Input raw accounting value when derivable.",
+            },
+            "input_side_component_total": {
+                **attributed_value_to_dict(attr.total_input),
+                "value": _input_side_component_total(attr),
+                "note": "Fresh + Cache Read + Cache Write.",
+            },
+            "request_content_denominator": {
+                **attributed_value_to_dict(attr.fresh_input),
+                "value": _request_distribution_denominator(attr),
+                "note": "Fresh denominator for request content bucket coverage and residual.",
+            },
             "fresh_input": attributed_value_to_dict(attr.fresh_input),
             "cache_read": attributed_value_to_dict(attr.cache_read),
             "cache_write": attributed_value_to_dict(attr.cache_write),
@@ -256,6 +283,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
         "usage_summary": {
             "total_output": attributed_value_to_dict(attr.total_output),
             "visible_text": attributed_value_to_dict(attr.visible_text),
+            "tool_call": attributed_value_to_dict(attr.tool_use),
             "tool_use": attributed_value_to_dict(attr.tool_use),
             "hidden_reasoning": attributed_value_to_dict(_get_hidden_reasoning(attr)),
             "metadata": attributed_value_to_dict(attr.metadata),
@@ -283,6 +311,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
         "usage": {
             "total_output": attributed_value_to_dict(attr.total_output),
             "visible_text": attributed_value_to_dict(attr.visible_text),
+            "tool_call": attributed_value_to_dict(attr.tool_use),
             "tool_use": attributed_value_to_dict(attr.tool_use),
             "metadata": attributed_value_to_dict(attr.metadata),
             "coverage": attributed_value_to_dict(attr.coverage),
@@ -359,6 +388,8 @@ def _build_coverage(attr) -> dict:
     total_val = (attr.total_input.value if hasattr(attr, 'total_input') and attr.total_input else 0) or 0
     cache_read_val = (attr.cache_read.value if hasattr(attr, 'cache_read') and attr.cache_read else 0) or 0
     request_content_total = _request_distribution_denominator(attr)
+    provider_request_input = _provider_request_input(attr)
+    input_side_total = _input_side_component_total(attr)
     unknown_val = (attr.unknown.value if hasattr(attr, 'unknown') and attr.unknown else 0) or 0
     reconstructed = sum(
         max(_num(getattr(bucket, "tokens", 0)), 0)
@@ -375,7 +406,11 @@ def _build_coverage(attr) -> dict:
         reconstructed = max(0, request_content_total - unknown_val)
     return {
         "provider_total_input": total_val,
+        "provider_raw_total": total_val,
+        "provider_request_input": provider_request_input,
+        "input_side_component_total": input_side_total,
         "request_content_total": request_content_total,
+        "request_content_denominator": request_content_total,
         "accounting_cache_read_tokens": cache_read_val,
         "reconstructed_total": int(reconstructed),
         "coverage_ratio": round(reconstructed / request_content_total, 3) if request_content_total > 0 else 0.0,

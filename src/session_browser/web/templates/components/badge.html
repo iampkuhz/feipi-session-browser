@@ -6,7 +6,7 @@
      {% from "components/badge.html" import badge %}
 
      状态 badge:  {{ badge("success", variant="status", value="success") }}
-     Token badge: {{ badge("Input Fresh", variant="token", value="input") }}
+     Token badge: {{ badge("Fresh", variant="token", value="input") }}
      Agent badge: {{ badge("CC", variant="agent", value="claude") }}
      Tool badge:  {{ badge("Read", variant="tool") }}
      Anomaly badge: {{ badge("Long Duration", variant="anomaly", value="warning") }}
@@ -40,10 +40,10 @@
 {% macro status_info(label="信息") %}{{ badge(label, "status", "info") }}{% endmacro %}
 {% macro status_muted(label="") %}{{ badge(label, "status", "muted") }}{% endmacro %}
 
-{% macro token_input(label="Input Fresh") %}{{ badge(label, "token", "input") }}{% endmacro %}
+{% macro token_input(label="Fresh") %}{{ badge(label, "token", "input") }}{% endmacro %}
 {% macro token_cache_read(label="Cache Read") %}{{ badge(label, "token", "cache-read") }}{% endmacro %}
 {% macro token_cache_write(label="Cache Write") %}{{ badge(label, "token", "cache-write") }}{% endmacro %}
-{% macro token_output(label="Output Visible") %}{{ badge(label, "token", "output") }}{% endmacro %}
+{% macro token_output(label="Output") %}{{ badge(label, "token", "output") }}{% endmacro %}
 {% macro token_reasoning(label="Reasoning") %}{{ badge(label, "token", "reasoning") }}{% endmacro %}
 
 {% macro agent_claude(label="CC") %}{{ badge(label, "agent", "claude") }}{% endmacro %}

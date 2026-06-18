@@ -156,7 +156,7 @@ def test_claude_code_availability_rows():
         r.field if hasattr(r, "field") else r["field"]
         for r in result.availability_rows
     }
-    assert "total_input" in fields
+    assert "input_side_component_total" in fields
     assert "fresh_input" in fields
     assert "cache_read" in fields
     assert "cache_write" in fields

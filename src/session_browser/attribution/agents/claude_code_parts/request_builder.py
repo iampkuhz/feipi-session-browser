@@ -96,8 +96,8 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     #   cache_read_input_tokens / cached_input_tokens = cache read
     #   cache_creation_input_tokens = cache write
     #   total = input + cache_read + cache_write (exclusive accounting components)
-    # Request attribution distribution uses input + cache_read; cache_write is
-    # shown as provider accounting, not as an additional request source bucket.
+    # Request attribution distribution uses Fresh only; cache read/write are
+    # provider accounting, not additional request source buckets.
     total_input_val = lc.input_tokens or 0
     cache_read_val = lc.cache_read_tokens or 0
     cache_write_val = lc.cache_write_tokens or 0
@@ -106,15 +106,15 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     # input — it does NOT include cache_read.  So fresh_input == input_tokens.
     fresh_input_val = total_input_val
 
-    request_distribution_input = total_input_val + cache_read_val
-    total_call_input = request_distribution_input + cache_write_val
+    request_content_denominator = fresh_input_val
+    total_call_input = fresh_input_val + cache_read_val + cache_write_val
 
     total_input = AttributedValue(
         value=total_call_input,
         unit="tokens",
         precision=ValuePrecision.PROVIDER_REPORTED,
         source=ValueSource.PROVIDER_USAGE,
-        fill_strategy="input_tokens + cache_read_tokens + cache_write_tokens",
+        fill_strategy="Fresh + Cache Read + Cache Write input-side component total",
     )
     fresh_input = AttributedValue(
         value=fresh_input_val,
@@ -281,7 +281,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             + local_instruction_tokens + agent_subagent_tokens
             + mcp_metadata_tokens
         )
-        top_level_system_tokens = min(500, max(0, request_distribution_input - known_before_system))
+        top_level_system_tokens = min(500, max(0, request_content_denominator - known_before_system))
         # Clamp: don't exceed cache_read
         top_level_system_tokens = min(top_level_system_tokens, cache_read_val)
     if top_level_system_tokens > 0:
@@ -317,8 +317,8 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
     )
 
     unlocated_residual = (
-        max(request_distribution_input - known_sum, 0)
-        if request_distribution_input > 0 else 0
+        max(request_content_denominator - known_sum, 0)
+        if request_content_denominator > 0 else 0
     )
 
     buckets = []
@@ -336,7 +336,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             key="current_user_message",
             label="当前用户输入",
             tokens=current_user_msg_tokens,
-            percent=_pct(current_user_msg_tokens, request_distribution_input),
+            percent=_pct(current_user_msg_tokens, request_content_denominator),
             precision=ValuePrecision.ESTIMATED,
             source=ValueSource.TRANSCRIPT,
             confidence_label="中高",
@@ -366,7 +366,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             key="preceding_tool_results",
             label="前序工具结果",
             tokens=tool_results_tokens,
-            percent=_pct(tool_results_tokens, request_distribution_input),
+            percent=_pct(tool_results_tokens, request_content_denominator),
             count_label=f"{len(tool_result_texts)} results" if tool_result_texts else "",
             precision=ValuePrecision.ESTIMATED,
             source=ValueSource.TOOL_LOGS,
@@ -411,7 +411,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         key="full_messages_array",
         label="API messages 数组",
         tokens=full_messages_tokens,
-        percent=_pct(full_messages_tokens, request_distribution_input),
+        percent=_pct(full_messages_tokens, request_content_denominator),
         count_label=f"{full_msg_count} messages" if full_messages_array else "",
         precision=ValuePrecision.ESTIMATED,
         source=ValueSource.TRANSCRIPT,
@@ -464,7 +464,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         key="tool_schemas",
         label="工具定义",
         tokens=tool_schema_tokens,
-        percent=_pct(tool_schema_tokens, request_distribution_input),
+        percent=_pct(tool_schema_tokens, request_content_denominator),
         count_label=f"{len(tools_for_schema)} tools",
         precision=tool_schemas_availability if tool_schema_tokens > 0 else ValuePrecision.UNAVAILABLE,
         source=tool_schemas_source,
@@ -499,7 +499,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         key="local_instruction_context",
         label="本地指令上下文",
         tokens=local_instruction_tokens,
-        percent=_pct(local_instruction_tokens, request_distribution_input),
+        percent=_pct(local_instruction_tokens, request_content_denominator),
         precision=local_instruction_availability,
         source=ValueSource.LOCAL_RULES,
         confidence_label="中低" if local_instruction_tokens > 0 else "低",
@@ -532,7 +532,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         key="agent_subagent_prompt",
         label="Agent/Subagent 提示",
         tokens=agent_subagent_tokens,
-        percent=_pct(agent_subagent_tokens, request_distribution_input),
+        percent=_pct(agent_subagent_tokens, request_content_denominator),
         precision=agent_subagent_availability,
         source=ValueSource.LOCAL_RULES,
         confidence_label="中低" if agent_subagent_tokens > 0 else "低",
@@ -553,7 +553,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         key="mcp_tool_metadata",
         label="MCP 工具元数据",
         tokens=mcp_metadata_tokens,
-        percent=_pct(mcp_metadata_tokens, request_distribution_input),
+        percent=_pct(mcp_metadata_tokens, request_content_denominator),
         precision=mcp_metadata_availability,
         source=ValueSource.SESSION_METADATA,
         confidence_label="中低" if mcp_metadata_tokens > 0 else "低",
@@ -575,7 +575,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             key="top_level_system_estimate",
             label="顶层系统提示估算",
             tokens=top_level_system_tokens,
-            percent=_pct(top_level_system_tokens, request_distribution_input),
+            percent=_pct(top_level_system_tokens, request_content_denominator),
             precision=ValuePrecision.HEURISTIC,
             source=ValueSource.HEURISTIC,
             confidence_label="低",
@@ -619,7 +619,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         key="hidden_builtin_system_estimate",
         label="内置系统提示",
         tokens=hidden_builtin_tokens,
-        percent=_pct(hidden_builtin_tokens, request_distribution_input),
+        percent=_pct(hidden_builtin_tokens, request_content_denominator),
         precision=hidden_builtin_precision,
         source=hidden_builtin_source,
         confidence_label="低",
@@ -645,22 +645,23 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         key="unlocated_residual",
         label="未定位",
         tokens=unlocated_residual,
-        percent=_pct(unlocated_residual, request_distribution_input),
+        percent=_pct(unlocated_residual, request_content_denominator),
         precision=ValuePrecision.RESIDUAL,
         source=ValueSource.RESIDUAL,
         confidence_label="中",
-        summary="Total input 减去已知所有 bucket 后的剩余部分。",
+        summary="Fresh 减去已知 request 内容 bucket 后的剩余部分。",
         details=unlocated_details,
     ))
 
     # ── Step 3b: normalize heuristic buckets ─────────────────────
     buckets = normalize_request_reconstruction_buckets(
         buckets,
-        total_input=request_distribution_input,
+        request_content_denominator=request_content_denominator,
+        total_input=total_call_input,
         fresh_input=fresh_input_val,
     )
 
-    # Extract normalized residual for unknown value.
+    # Extract normalized residual for legacy unknown value field.
     normalized_residual = next(
         (b.tokens for b in buckets if b.key == "unlocated_residual"),
         unlocated_residual,
@@ -671,17 +672,17 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         b.tokens for b in buckets
         if b.key not in ("unlocated_residual",) and b.contributes_to_total
     )
-    if request_distribution_input > 0:
-        coverage_val = min(known_bucket_sum / request_distribution_input, 1.0)
+    if request_content_denominator > 0:
+        coverage_val = min(known_bucket_sum / request_content_denominator, 1.0)
     else:
         coverage_val = 0.0
 
     # ── Step 5: availability rows ──────────────────────────────────
     avail_rows = [
-        self._avail("total_input", "Total input tokens", True,
+        self._avail("input_side_component_total", "Input-side component total", True,
                     precision=ValuePrecision.PROVIDER_REPORTED,
                     source=ValueSource.PROVIDER_USAGE,
-                    fill_strategy="input_tokens + cache_read_tokens + cache_write_tokens"),
+                    fill_strategy="fresh_input + cache_read_tokens + cache_write_tokens"),
         self._avail("fresh_input", "Fresh input tokens", True,
                     precision=ValuePrecision.PROVIDER_REPORTED,
                     source=ValueSource.PROVIDER_USAGE,
@@ -744,16 +745,16 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
                     precision=mcp_metadata_availability,
                     source=ValueSource.SESSION_METADATA,
                     fill_strategy="mcp_tools count × 50"),
-        self._avail("unknown", "Unknown / residual", True, exact=False,
+        self._avail("unlocated_residual", "Unlocated residual", True, exact=False,
                     precision=ValuePrecision.RESIDUAL,
                     source=ValueSource.RESIDUAL,
-                    fill_strategy="residual = fresh + cache_read - all_known"),
+                    fill_strategy="residual = Fresh - all_known_request_content_buckets"),
     ]
 
     notes = []
     if cache_read_val > 0:
         notes.append(f"Cache read {cache_read_val:,} tokens — 主要来自历史消息和系统提示，但无法逐块确认。")
-    notes.append(f"Tool schemas 基于 Claude Code SDK 真实定义，{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。")
+    notes.append(f"工具定义基于 Claude Code SDK 真实定义，{len(tools_for_schema)} 个工具共 {tool_schema_tokens} tokens。")
     if not available_tools or available_tools_source_kind == "default_builtin":
         notes.append("注意：无法从本地日志获取可用工具定义列表，使用默认工具列表代替。")
     notes.append(
@@ -791,14 +792,14 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
             unit="ratio",
             precision=ValuePrecision.ESTIMATED,
             source=ValueSource.HEURISTIC,
-            fill_strategy="known_buckets / (fresh_input + cache_read)",
+            fill_strategy="known_buckets / request_content_denominator(Fresh)",
         ),
         unknown=AttributedValue(
             value=normalized_residual,
             unit="tokens",
             precision=ValuePrecision.RESIDUAL,
             source=ValueSource.RESIDUAL,
-            fill_strategy="fresh_input + cache_read - sum(all_known_buckets)",
+            fill_strategy="Fresh - sum(all_known_request_content_buckets)",
         ),
         buckets=buckets,
         captured_context_preview="",

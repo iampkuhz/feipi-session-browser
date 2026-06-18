@@ -179,7 +179,7 @@ class BaseAttributionBuilder:
             captured_context_preview="",
             attribution_notes=["No agent-specific builder available."],
             availability_rows=[
-                self._avail("total_input", "Total input tokens", total > 0,
+                self._avail("input_side_component_total", "Input-side component total", total > 0,
                             precision=ValuePrecision.PROVIDER_REPORTED if total > 0 else ValuePrecision.UNAVAILABLE,
                             source=ValueSource.PROVIDER_USAGE if total > 0 else ValueSource.HEURISTIC,
                             fill_strategy="direct from llm_call.input_tokens" if total > 0 else "unavailable"),
@@ -253,7 +253,7 @@ class BaseAttributionBuilder:
                             precision=ValuePrecision.UNAVAILABLE,
                             source=ValueSource.HEURISTIC,
                             fill_strategy="unknown"),
-                self._avail("tool_use", "Tool use tokens", False,
+                self._avail("tool_call", "Tool call tokens", False,
                             precision=ValuePrecision.UNAVAILABLE,
                             source=ValueSource.HEURISTIC,
                             fill_strategy="unknown"),

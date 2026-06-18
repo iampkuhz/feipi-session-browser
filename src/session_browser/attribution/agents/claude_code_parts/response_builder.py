@@ -142,37 +142,37 @@ def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
         tool_item_count = len(tool_use_detail_items) or (1 if lc.tool_calls_raw else 0)
         for item in tool_use_detail_items:
             buckets.append(ResponseAttributionBucket(
-                key=f"tool_use:{item['name']}",
-                label=f"tool_cmd: {item['name']}",
+                key=f"tool_call:{item['name']}",
+                label=f"Tool call: {item['name']}",
                 tokens=item["call_tokens"],
                 percent=0.0,
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="中",
-                summary=f"本地待执行工具命令，约 {item['call_tokens']} tokens。",
+                summary=f"模型输出的工具调用结构，约 {item['call_tokens']} tokens。",
                 contributes_to_total=False,
-                parent_key="tool_use",
-                display_group="tool_use",
+                parent_key="tool_call",
+                display_group="tool_call",
             ))
             block_refs.append(item['tool_use_id'])
 
         tool_use_details = {
-            "kind": "tool_commands",
+            "kind": "tool_calls",
             "total_call_tokens": tool_use_call_tokens,
             "total_items": tool_item_count,
             "items": tool_use_detail_items,
             "raw_preview": truncate_preview(lc.tool_calls_raw or "", 500) if lc.tool_calls_raw else "",
         }
         buckets.append(ResponseAttributionBucket(
-            key="tool_use",
-            label="Tool command (total)",
+            key="tool_call",
+            label="Tool call",
             tokens=tool_use_tokens,
             percent=_pct(tool_use_tokens, total_output_val),
             precision=ValuePrecision.ESTIMATED,
             source=ValueSource.TRANSCRIPT,
             confidence_label="中",
             summary=(
-                f"工具命令：{tool_use_call_tokens} tokens，"
+                f"工具调用结构：{tool_use_call_tokens} tokens，"
                 f"共 {tool_item_count} 个本地工具调用。"
             ),
             block_refs=block_refs,
@@ -226,12 +226,12 @@ def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
                     precision=ValuePrecision.ESTIMATED,
                     source=ValueSource.TRANSCRIPT,
                     fill_strategy="estimated from text"),
-        self._avail("tool_use_structure", "Tool use structure",
+        self._avail("tool_call_structure", "Tool call structure",
                     bool(lc.content_blocks or lc.tool_calls_raw), exact=True,
                     precision=ValuePrecision.TRANSCRIPT_EXACT,
                     source=ValueSource.TRANSCRIPT,
                     fill_strategy="from content_blocks or tool_calls_raw"),
-        self._avail("tool_use_tokens", "Tool use tokens", True,
+        self._avail("tool_call_tokens", "Tool call tokens", True,
                     exact=False,
                     precision=ValuePrecision.ESTIMATED,
                     source=ValueSource.TRANSCRIPT,
@@ -283,7 +283,7 @@ def build_response(self: "BaseAttributionBuilder") -> LLMResponseAttribution:
             unit="tokens",
             precision=ValuePrecision.ESTIMATED,
             source=ValueSource.TRANSCRIPT,
-            fill_strategy="estimate_tokens_from_text(serialized tool command blocks)",
+            fill_strategy="estimate_tokens_from_text(serialized tool call blocks)",
         ),
         metadata=AttributedValue(
             value=metadata_tokens,

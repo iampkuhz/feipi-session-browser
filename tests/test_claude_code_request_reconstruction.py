@@ -9,8 +9,8 @@ Verifies the expanded bucket model from task-02d:
 6. local_instruction_context from system-reminder/CLAUDE.md fixture
 7. agent_subagent_prompt from .claude/agents fixture
 8. hidden_builtin_system_estimate labeled heuristic, no fake content
-9. unlocated_residual = total_input - located
-10. located_rate = located / total_input
+9. unlocated_residual = request content denominator - located
+10. located_rate = located / request content denominator
 """
 
 import pytest
@@ -219,29 +219,29 @@ def test_hidden_builtin_system_heuristic_label():
 # ── 9. unlocated_residual = request distribution input - located ────────
 
 def test_unlocated_residual_equals_total_minus_located():
-    """unlocated_residual should use Fresh + Cache Read, excluding Cache Write."""
+    """unlocated_residual should use Fresh, excluding Cache Read/Write."""
     lc = _make_lc(input_tokens=8200, cache_read_tokens=5000, cache_write_tokens=500)
     ro = _make_ro(user_content="hello world")
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    total = (result.fresh_input.value or 0) + (result.cache_read.value or 0)
+    total = result.fresh_input.value or 0
     residual_bucket = next(b for b in result.buckets if b.key == "unlocated_residual")
     other_sum = sum(b.tokens for b in result.buckets if b.key != "unlocated_residual")
 
     assert residual_bucket.tokens == max(total - other_sum, 0)
 
 
-# ── 10. located_rate = located / total_input ───────────────────────────
+# ── 10. located_rate = located / request content denominator ───────────
 
 def test_located_rate_calculation():
-    """Coverage (located_rate) should be located / total_input."""
+    """Coverage (located_rate) should be located / Fresh denominator."""
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="hello world test message")
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    total = result.total_input.value
+    total = result.fresh_input.value
     if total > 0:
         located = sum(
             b.tokens for b in result.buckets

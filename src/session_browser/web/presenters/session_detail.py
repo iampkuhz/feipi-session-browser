@@ -270,13 +270,13 @@ def build_llm_calls(
     subagent_runs: list[dict],
     agent: str = "",
 ) -> list[LLMCall]:
-    """Extract individual LLMCall objects (one per LLM turn).
+    """Extract LLMCall objects, the token/attribution semantic boundary.
 
-    Main agent: one call per assistant message.
-    Subagent: one call per internal turn (so the LLM Calls tab shows all).
+    Main agent: one call per assistant response usage boundary.
+    Subagent: one call per sidechain LLM call.
 
     For agents without llm_call_id (e.g. Codex), a synthetic ID is generated
-    and round assignment is done by sequential matching against rounds.
+    and trace-row assignment is done by sequential matching against rounds.
     """
     llm_calls: list[LLMCall] = []
 

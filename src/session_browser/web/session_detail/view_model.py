@@ -1013,7 +1013,7 @@ def _build_session_diagnostics(
             if not token_round:
                 continue
             badge = (
-                f"cost driver {row['driver']} · "
+                f"Token Driver {row['driver']} · "
                 f"{row['tokens_label']} · {row['share']} · {row['reason']}"
             )
             token_round.setdefault("badges", []).append(badge)
@@ -1190,7 +1190,7 @@ def _build_session_diagnostics(
         subagent_cost_share = subagent_cost.get("share") or _format_ratio_pct(llm_tokens, driver_total)
         subagent_cost_reason = subagent_cost.get("reason") or f"{calls} LLM call{'s' if calls != 1 else ''}"
         subagent_cost_note = (
-            f"Cost driver = {subagent_cost_label} · {subagent_cost_share} · {subagent_cost_reason}"
+            f"Token Driver = {subagent_cost_label} · {subagent_cost_share} · {subagent_cost_reason}"
         )
         subagent_breakdown.append({
             "subagent": agent_type,
@@ -1333,8 +1333,8 @@ def _build_session_diagnostics(
                 subagent_context_tokens += parts["fresh"] + parts["cache_read"] + parts["cache_write"]
     segments = [
         {"label": "System", "tokens": None, "source": "unavailable", "precision": "unavailable"},
-        {"label": "History Messages", "tokens": cache_read_tokens, "source": "provider cache read", "precision": "exact"},
-        {"label": "Current User Prompt", "tokens": fresh_tokens, "source": "provider fresh input", "precision": "exact"},
+        {"label": "Provider Cached Input", "tokens": cache_read_tokens, "source": "provider accounting cache read", "precision": "provider_reported"},
+        {"label": "Current User Input", "tokens": fresh_tokens, "source": "provider fresh input component", "precision": "provider_reported"},
         {"label": "Tool Results", "tokens": tool_result_tokens, "source": "transcript result length", "precision": "estimated"},
         {"label": "Subagent Context", "tokens": subagent_context_tokens, "source": "subagent usage", "precision": "estimated"},
         {"label": "Output", "tokens": output_tokens, "source": "provider output", "precision": "exact"},
@@ -2717,9 +2717,9 @@ def _build_v11_view_model(
 
     status_label = "Completed"
     if session_anomalies.anomalies:
-        status_label = "Completed with issues"
+        status_label = "Completed with issue signals"
     if total_failed > 0:
-        status_label = "Completed with issues"
+        status_label = "Completed with issue signals"
 
     fresh_tokens = getattr(session, "fresh_input_tokens", 0) or session.input_tokens
     cache_read_tokens = getattr(session, "cache_read_tokens", 0) or session.cached_input_tokens
@@ -2869,7 +2869,7 @@ def _build_v11_view_model(
         or issue_summary.get("attribution_errors")
         or getattr(session_anomalies, "anomalies", [])
     )
-    status_label = "Completed with issues" if has_run_issues else "Completed"
+    status_label = "Completed with issue signals" if has_run_issues else "Completed"
 
     source_total = getattr(session, "total_tokens", 0) or total_tokens
     token_total_matches = not source_total or source_total == computed_total_tokens
@@ -2877,7 +2877,7 @@ def _build_v11_view_model(
     if not token_total_matches:
         token_total_note = (
             f"component sum {_format_compact_token(computed_total_tokens)} "
-            f"does not match source total {_format_compact_token(source_total)}"
+            f"does not match Provider Raw Total {_format_compact_token(source_total)}"
         )
 
     model_seconds = float(getattr(session, "model_execution_seconds", 0) or 0)

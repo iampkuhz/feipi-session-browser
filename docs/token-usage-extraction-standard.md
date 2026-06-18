@@ -58,7 +58,7 @@ if (cache field unavailable?) then (yes)
   :Use 0 for aggregate UI;
   :Mark precision unavailable/not_reported where needed;
 else (no)
-  :Use provider-reported value, including 0;
+  :Use provider_reported value, including 0;
 endif
 :Total = mutually exclusive Fresh + Cache Read + Cache Write + Output;
 if (raw total exists and differs?) then (yes)

@@ -16,7 +16,7 @@ from session_browser.attribution.api_families.openai_responses.usage_parser impo
 )
 
 
-def test_openai_responses_fresh_keeps_request_input():
+def test_openai_responses_fresh_subtracts_cache_read_subset():
     usage = {
         "input_tokens": 3500,
         "input_tokens_details": {"cached_tokens": 1200},
@@ -27,14 +27,14 @@ def test_openai_responses_fresh_keeps_request_input():
     parsed = parse_openai_responses_usage(usage)
     normalized = normalize_openai_responses_usage(parsed)
 
-    assert normalized.fresh_input == 3500
+    assert normalized.fresh_input == 2300
     assert normalized.cache_read == 1200
     assert normalized.cache_write is None
-    assert normalized.output == 780
-    assert normalized.total_input == 4700
+    assert normalized.output == 680
+    assert normalized.total_input == 3500
 
 
-def test_openai_chat_fresh_keeps_prompt_tokens():
+def test_openai_chat_fresh_subtracts_cache_read_subset():
     usage = {
         "prompt_tokens": 2000,
         "prompt_tokens_details": {"cached_tokens": 500},
@@ -45,8 +45,8 @@ def test_openai_chat_fresh_keeps_prompt_tokens():
     parsed = parse_openai_chat_usage(usage)
     normalized = normalize_openai_chat_usage(parsed)
 
-    assert normalized.fresh_input == 2000
+    assert normalized.fresh_input == 1500
     assert normalized.cache_read == 500
     assert normalized.cache_write is None
-    assert normalized.output == 300
-    assert normalized.total_input == 2500
+    assert normalized.output == 260
+    assert normalized.total_input == 2000

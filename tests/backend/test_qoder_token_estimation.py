@@ -233,7 +233,7 @@ class TestRealUsagePreserved:
     def test_qoder_provider_usage_normalized_to_canonical_buckets(self):
         """Qoder provider input_tokens 应保留为 Fresh request input size。
 
-        关键：provider-reported cache_creation_input_tokens=0 不能被下一条
+        关键：provider_reported cache_creation_input_tokens=0 不能被下一条
         cache_read 差值覆盖。推断值只进入 qoder_cache_write_inferred_tokens。
         """
         events = [
@@ -262,7 +262,7 @@ class TestRealUsagePreserved:
         ]
 
         records = _assistant_records(events)
-        # Call 1: Fresh 保留 provider request input，cache_write 保持 provider-reported 0
+        # Call 1: Fresh 保留 provider request input，cache_write 保持 provider_reported 0
         assert records[0]["usage"]["input_tokens"] == 1000
         assert records[0]["usage"]["cache_creation_input_tokens"] == 0  # 不被推断覆盖
         assert records[0]["usage"]["qoder_input_tokens_total"] == 1000

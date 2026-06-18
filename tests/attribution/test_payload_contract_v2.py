@@ -177,7 +177,7 @@ class TestRequestAttributionPayloadV2:
         assert "residual_tokens" in cov
         assert "residual_likely_sources" in cov
         assert cov["provider_total_input"] == 1000
-        assert cov["request_content_total"] == 1000
+        assert cov["request_content_total"] == 600
         assert cov["accounting_cache_read_tokens"] == 400
         assert "unclassified overhead" not in cov["residual_likely_sources"]
 

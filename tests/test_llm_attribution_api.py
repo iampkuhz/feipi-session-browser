@@ -257,11 +257,13 @@ def test_normalization_heuristic_buckets_not_exceed_fresh():
         RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
     ]
 
-    total_input = 2000
+    request_content_denominator = 2000
     fresh_input = 1500  # less than total heuristic would allow
 
     result = normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets,
+        request_content_denominator=request_content_denominator,
+        fresh_input=fresh_input,
     )
 
     measured = sum(b.tokens for b in result if b.key == "current_user_message")
@@ -273,7 +275,7 @@ def test_normalization_heuristic_buckets_not_exceed_fresh():
 
 
 def test_normalization_unlocated_residual_recomputed():
-    """unlocated_residual should be recomputed as max(total_input - known_sum, 0)."""
+    """unlocated_residual should be recomputed from the request content denominator."""
     from session_browser.attribution.contracts import RequestAttributionBucket
 
     buckets = [
@@ -282,16 +284,18 @@ def test_normalization_unlocated_residual_recomputed():
         RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
     ]
 
-    total_input = 2000
+    request_content_denominator = 2000
     fresh_input = 2000
 
     result = normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets,
+        request_content_denominator=request_content_denominator,
+        fresh_input=fresh_input,
     )
 
     residual = next(b for b in result if b.key == "unlocated_residual")
     known_sum = sum(b.tokens for b in result if b.key != "unlocated_residual")
-    assert residual.tokens == max(total_input - known_sum, 0)
+    assert residual.tokens == max(request_content_denominator - known_sum, 0)
 
 
 def test_normalization_measured_never_scaled_down():
@@ -307,11 +311,13 @@ def test_normalization_measured_never_scaled_down():
     ]
 
     # Very small fresh_input: heuristic must be scaled to near zero
-    total_input = 1500
+    request_content_denominator = 1500
     fresh_input = 1100  # barely above measured
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets,
+        request_content_denominator=request_content_denominator,
+        fresh_input=fresh_input,
     )
 
     measured = next(b for b in buckets if b.key == "current_user_message")
@@ -330,7 +336,9 @@ def test_normalization_zero_fresh_input():
 
     # Should not crash
     result = normalize_request_reconstruction_buckets(
-        buckets, total_input=1000, fresh_input=0,
+        buckets,
+        request_content_denominator=1000,
+        fresh_input=0,
     )
     assert result is not None
 
@@ -346,7 +354,9 @@ def test_normalization_percentages_recomputed():
     ]
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=2000, fresh_input=2000,
+        buckets,
+        request_content_denominator=2000,
+        fresh_input=2000,
     )
 
     total_pct = sum(b.percent for b in buckets)
@@ -376,20 +386,20 @@ def test_located_rate_never_exceeds_100():
     assert result.coverage.value <= 1.0
 
 
-def test_bucket_tokens_sum_not_exceed_total_input():
-    """Sum of all contributing buckets should not exceed total_input."""
+def test_bucket_tokens_sum_not_exceed_request_content_denominator():
+    """Sum of all contributing buckets should not exceed the Fresh denominator."""
     lc = _make_lc(input_tokens=5000, output_tokens=2000,
                    cache_read_tokens=1000, cache_write_tokens=500)
     ro = _make_ro()
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    total_input = result.total_input.value
+    request_content_denominator = result.fresh_input.value or 0
     contributing_sum = sum(
         b.tokens for b in result.buckets
         if b.key != "unlocated_residual" and b.contributes_to_total
     )
-    assert contributing_sum <= total_input
+    assert contributing_sum <= request_content_denominator
 
 
 # ── Details field in serialized buckets ──────────────────────────────

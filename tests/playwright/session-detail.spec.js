@@ -646,21 +646,21 @@ test.describe('会话详情 — Phase 1', () => {
       expect(
         tagText,
         '带诊断标签的 round tooltip 应展示至少一种完整 badge text，而不是截断 badge 文本',
-      ).toMatch(/low cache|fresh spike|payload gap|cost driver/);
+      ).toMatch(/low cache|fresh spike|payload gap|Token Driver/);
     }
   });
 
-  test('[UI-SD-032] agents breakdown 承载 main/subagent 成本信号且无独立成本卡', async ({ page }) => {
+  test('[UI-SD-032] agents breakdown 承载 main/subagent token footprint 信号且无独立 token footprint 卡', async ({ page }) => {
     if (!sessionUrl) {
-      console.log('无测试会话 URL；跳过 token call cost tooltip 测试。');
+      console.log('无测试会话 URL；跳过 token footprint tooltip 测试。');
       test.skip();
     }
 
     await page.setViewportSize({ width: 2048, height: 768 });
     await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sd-call-distribution')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Call Cost Distribution' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Top Cost Drivers' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Call Token Footprint Distribution' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Top Token Drivers' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Main Agent Breakdown' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Subagent Breakdown' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
@@ -676,7 +676,7 @@ test.describe('会话详情 — Phase 1', () => {
     const tooltipText = await tooltip.innerText();
     expect(tooltipText, 'Agents Breakdown main tooltip 应保留 Calls 摘要').toContain('Calls');
     expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 Call Tokens 行').not.toContain('Call Tokens');
-    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 Call Cost fallback 行').not.toContain('Call Cost');
+    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 Call Token Footprint fallback 行').not.toContain('Call Token Footprint');
     expect(tooltipText, 'Agents Breakdown main tooltip 不应展示难以理解的 Top Call 行').not.toContain('Top Call');
     expect(tooltipText, 'Agents Breakdown main tooltip 不应展示难以理解的 Top Lane 行').not.toContain('Top Lane');
     expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 main/subagent split').not.toMatch(/\d+\s+main\s+·\s+\d+\s+sub/);

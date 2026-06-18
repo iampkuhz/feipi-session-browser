@@ -209,7 +209,7 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([req_data])
-        assert "Provider 总计" in html
+        assert "Provider Raw Total" in html
         assert "本地重建" in html
         assert "残差" in html
         assert "覆盖率与不确定性" not in html
@@ -219,9 +219,9 @@ class TestAttributionModalContract:
         """Dynamic attribution JS should keep coverage fields in the top summary only."""
         js_path = Path(__file__).resolve().parents[1] / "src/session_browser/web/static/js/session-detail/attribution.js"
         js = js_path.read_text(encoding="utf-8")
-        assert "Provider 总计" in js
+        assert "Provider Raw Total" in js
         assert "本地重建" in js
-        assert "残差" in js
+        assert "未定位" in js
         assert "覆盖率与不确定性" not in js
         assert "sd-attribution-coverage-sources" not in js
         assert "可能来源：" not in js
@@ -446,7 +446,7 @@ class TestAttributionModalContract:
         html = _render_payload_sources([resp_data])
         assert "总输出" in html
         assert "可见文本" in html
-        assert "工具命令" in html
+        assert "工具调用" in html
         assert "元数据" in html
         assert "Finish reason" in html
 

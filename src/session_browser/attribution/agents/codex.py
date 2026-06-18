@@ -1266,7 +1266,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
         # ── Step 7: availability rows ──────────────────────────────────
         avail_rows = [
-            self._avail("total_input", "Total input tokens", raw_input_total > 0,
+            self._avail("input_side_component_total", "Input-side component total", raw_input_total > 0,
                         precision=precision_total,
                         source=source_total,
                         fill_strategy="token_breakdown_normalized or session usage"),
@@ -1342,7 +1342,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 f"input-side total={raw_input_total}。"
             )
             notes.append(
-                "Cache Read 只作为 provider-reported accounting 展示；"
+                "Cache Read 只作为 provider_reported accounting 展示；"
                 "不作为 request 内容 bucket 参与分布或本地重建覆盖率。"
             )
         else:
@@ -1456,7 +1456,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         response_text = lc.response_full or ""
         visible_text_tokens = estimate_tokens_from_text(response_text)
 
-        # Tool use / function_call / apply_patch / shell command blocks
+        # Tool/function call / apply_patch / shell command blocks
         tool_use_tokens = 0
         block_refs = []
         for cb in (lc.content_blocks or []):
@@ -1476,7 +1476,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
         if total_output_val > 0:
             if known_sum > total_output_val:
-                # Scale estimated buckets, but DO NOT scale provider-reported reasoning tokens
+                # Scale estimated buckets, but DO NOT scale provider_reported reasoning tokens
                 estimated_sum = visible_text_tokens + tool_use_tokens + metadata_tokens
                 if estimated_sum > 0:
                     # Check if reasoning > total (anomalous)
@@ -1521,19 +1521,19 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
         if tool_use_tokens > 0:
             buckets.append(ResponseAttributionBucket(
-                key="tool_use",
-                label="Tool use / function_call",
+                key="tool_call",
+                label="Tool call",
                 tokens=tool_use_tokens,
                 percent=_pct(tool_use_tokens, total_output_val),
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="中",
-                summary="Tool use 结构序列化估算。",
+                summary="Tool/function call 结构序列化估算。",
                 block_refs=block_refs,
                 contributes_to_total=True,
             ))
 
-        # Reasoning output tokens bucket (hidden, provider-reported)
+        # Reasoning output tokens bucket (hidden, provider_reported)
         if reasoning_output_tokens > 0:
             buckets.append(ResponseAttributionBucket(
                 key="reasoning_output_tokens",
@@ -1609,12 +1609,12 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                         precision=ValuePrecision.ESTIMATED if visible_text_tokens > 0 else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TRANSCRIPT,
                         fill_strategy="estimated from response_full"),
-            self._avail("tool_use_structure", "Tool use structure",
+            self._avail("tool_call_structure", "Tool call structure",
                         bool(lc.content_blocks or lc.tool_calls_raw), exact=True,
                         precision=ValuePrecision.TRANSCRIPT_EXACT,
                         source=ValueSource.TRANSCRIPT,
                         fill_strategy="from content_blocks or tool_calls_raw"),
-            self._avail("tool_use_tokens", "Tool use tokens",
+            self._avail("tool_call_tokens", "Tool call tokens",
                         tool_use_tokens > 0, exact=False,
                         precision=ValuePrecision.ESTIMATED if tool_use_tokens > 0 else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TRANSCRIPT,

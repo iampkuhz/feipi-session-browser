@@ -16,14 +16,14 @@ def validate_attribution(
     """验证归因结果的不变量。
 
     检查项：
-    1. request span allocated tokens sum <= total_input
+    1. request span allocated tokens sum <= UsageBreakdown.total_input
     2. OpenAI cache_write unavailable
     3. Qoder/estimate 不标 provider_reported
     4. current user message 不双算（由上游保证）
     5. response tool schema 不计 output（由上游保证）
     6. **新增**: total == fresh + cache_read + cache_write（允许 +/-1 误差）
-    7. **新增**: cache_read <= total_input
-    8. **新增**: cache_write <= total_input
+    7. **新增**: cache_read <= UsageBreakdown.total_input
+    8. **新增**: cache_write <= UsageBreakdown.total_input
     9. **新增**: Qoder 不因为 field shape 设置 underlying_provider=anthropic/openai
     10. **新增**: 0 值是 known value
 
@@ -32,7 +32,7 @@ def validate_attribution(
     """
     results: list[dict] = []
 
-    # 1. span sum <= total_input
+    # 1. span sum <= UsageBreakdown.total_input
     if usage and usage.total_input and usage.total_input > 0:
         allocated_sum = sum(
             s.cache_read_tokens + s.cache_write_tokens + s.fresh_tokens
@@ -97,7 +97,7 @@ def validate_attribution(
             ),
         })
 
-    # 7. cache_read <= total_input
+    # 7. cache_read <= UsageBreakdown.total_input
     if usage and usage.total_input and usage.total_input > 0:
         cache_read = usage.cache_read or 0
         passed = cache_read <= usage.total_input
@@ -107,7 +107,7 @@ def validate_attribution(
             "detail": f"cache_read={cache_read}, total_input={usage.total_input}",
         })
 
-    # 8. cache_write <= total_input
+    # 8. cache_write <= UsageBreakdown.total_input
     if usage and usage.total_input and usage.total_input > 0:
         cache_write = usage.cache_write or 0
         passed = cache_write <= usage.total_input

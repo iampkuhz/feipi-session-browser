@@ -113,10 +113,10 @@
     </div>
     <div class="mb-2">
         <span class="text-sm glossary-label">Token:</span>
-        {{ token_input("Input Fresh") }}
+        {{ token_input("Fresh") }}
         {{ token_cache_read("Cache Read") }}
         {{ token_cache_write("Cache Write") }}
-        {{ token_output("Output Visible") }}
+        {{ token_output("Output") }}
     </div>
     <div class="mb-2">
         <span class="text-sm glossary-label">Agent:</span>
@@ -150,16 +150,16 @@
         </thead>
         <tbody>
             <tr>
-                <td>{{ token_input("Input Fresh") }}</td>
-                <td class="text-sm">Provider request input size for this call; cache buckets are displayed separately.</td>
-                <td class="mono text-xs"><code>input_tokens</code> / <code>prompt_tokens</code></td>
-                <td class="text-sm">Anthropic: <code>input_tokens</code>; OpenAI/Codex: <code>input_tokens</code>; Qoder: <code>input_tokens</code> when reported.</td>
+                <td>{{ token_input("Fresh") }}</td>
+                <td class="text-sm">Mutually exclusive new-input component used by UI tokenbar and Total Tokens.</td>
+                <td class="mono text-xs">Anthropic-like: <code>input_tokens</code>; OpenAI/Codex: <code>Provider Request Input - Cache Read</code></td>
+                <td class="text-sm">Provider Request Input remains raw accounting metadata; it is not stacked as Fresh beside cached input.</td>
             </tr>
             <tr>
                 <td>{{ token_cache_read("Cache Read") }}</td>
-                <td class="text-sm">Provider cache hit input tokens.</td>
+                <td class="text-sm">Provider/broker accounting for cache-hit input tokens.</td>
                 <td class="mono text-xs"><code>cache_read_input_tokens</code></td>
-                <td class="text-sm">Anthropic: <code>cache_read_input_tokens</code>; OpenAI: <code>cached_tokens</code>; Codex/Qoder: <span class="badge badge-muted">Not reported</span></td>
+                <td class="text-sm">Anthropic: <code>cache_read_input_tokens</code>; OpenAI: <code>cached_tokens</code>; Codex: <code>cached_input_tokens</code>; Qoder: <code>cache_read_input_tokens</code> / <code>cached_tokens</code> when reported.</td>
             </tr>
             <tr>
                 <td>{{ token_cache_write("Cache Write") }}</td>
@@ -168,21 +168,21 @@
                 <td class="text-sm">Anthropic: <code>cache_creation_input_tokens</code>; OpenAI/Codex/Qoder: <span class="badge badge-muted">Not reported</span></td>
             </tr>
             <tr>
-                <td>{{ token_output("Output Visible") }}</td>
+                <td>{{ token_output("Output") }}</td>
                 <td class="text-sm">Visible model output tokens, excluding hidden reasoning where reported separately.</td>
                 <td class="mono text-xs"><code>output_tokens</code></td>
                 <td class="text-sm">Anthropic: <code>output_tokens</code>; OpenAI: <code>completion_tokens - reasoning_tokens</code>; Codex/Qoder: provider total output field when available.</td>
             </tr>
             <tr>
-                <td><span class="badge badge-primary">Input-side Total</span></td>
+                <td><span class="badge badge-primary">Input-side Component Total</span></td>
                 <td class="text-sm">All input-side token buckets combined.</td>
-                <td class="mono text-xs"><code>Input Fresh + Cache Read + Cache Write</code></td>
+                <td class="mono text-xs"><code>Fresh + Cache Read + Cache Write</code></td>
                 <td class="text-sm">Derived from available provider fields; missing buckets are not treated as zero unless the provider explicitly reports zero.</td>
             </tr>
             <tr>
                 <td><span class="badge badge-primary">Total Tokens</span></td>
                 <td class="text-sm">Input-side total plus visible output.</td>
-                <td class="mono text-xs"><code>Input-side Total + Output Visible</code></td>
+                <td class="mono text-xs"><code>Fresh + Cache Read + Cache Write + Output</code></td>
                 <td class="text-sm">Used by Dashboard, Sessions, Project Detail, and Session Detail token cells.</td>
             </tr>
         </tbody>
@@ -208,17 +208,17 @@
         <tbody>
             <tr>
                 <td><span class="badge badge-primary">Cache Read Ratio</span></td>
-                <td class="mono text-xs"><code>Cache Read / Input-side Total</code></td>
+                <td class="mono text-xs"><code>Cache Read / Input-side Component Total</code></td>
                 <td class="text-sm">cache reuse health; used in Dashboard token charts, Sessions token cell, and Session Detail KPIs.</td>
             </tr>
             <tr>
                 <td><span class="badge badge-primary">Cache Write Ratio</span></td>
-                <td class="mono text-xs"><code>Cache Write / Input-side Total</code></td>
+                <td class="mono text-xs"><code>Cache Write / Input-side Component Total</code></td>
                 <td class="text-sm">Shows active prompt cache creation in Dashboard and Session Detail token diagnostics.</td>
             </tr>
             <tr>
-                <td><span class="badge badge-primary">Output Ratio</span></td>
-                <td class="mono text-xs"><code>Output Visible / Input-side Total</code></td>
+                <td><span class="badge badge-primary">Output/Input Ratio</span></td>
+                <td class="mono text-xs"><code>Output / Input-side Component Total</code></td>
                 <td class="text-sm">Highlights output density in Dashboard charts and Session Detail payload analysis.</td>
             </tr>
             <tr>

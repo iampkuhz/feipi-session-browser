@@ -1,12 +1,12 @@
 """Tests for LLM attribution bucket normalization.
 
 Verifies:
-1. Heuristic buckets sum cannot exceed total_input.
+1. Heuristic buckets sum cannot exceed request_content_denominator.
 2. Hidden builtin / provider wrapper scaled down for small total.
 3. Unlocated_residual computed correctly.
 4. Coverage never exceeds 100%.
 5. Measured buckets never scaled down.
-6. Normalization with zero total_input.
+6. Normalization with zero request_content_denominator.
 7. Percentages recomputed after normalization.
 """
 
@@ -29,7 +29,7 @@ def _make_bucket(key, tokens, **kwargs):
 # ── Heuristic bucket constraints ─────────────────────────────────────
 
 
-def test_heuristic_buckets_sum_cannot_exceed_total_input():
+def test_heuristic_buckets_sum_cannot_exceed_request_content_denominator():
     """Sum of measured + estimated + heuristic buckets must not exceed fresh_input."""
     buckets = [
         _make_bucket("current_user_message", 2000),
@@ -39,11 +39,11 @@ def test_heuristic_buckets_sum_cannot_exceed_total_input():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 4000
-    fresh_input = 3000  # less than measured + heuristic
+    fresh_input = 3000
+    request_content_denominator = fresh_input  # less than measured + heuristic
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     measured = sum(b.tokens for b in buckets if b.key in ("current_user_message",))
@@ -69,11 +69,11 @@ def test_hidden_builtin_scaled_down_for_small_total():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 1500
-    fresh_input = 1100  # barely above measured
+    fresh_input = 1100
+    request_content_denominator = fresh_input  # barely above measured
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     hidden = next(b for b in buckets if b.key == "hidden_builtin_system_estimate")
@@ -97,11 +97,11 @@ def test_heuristic_fixed_not_zeroed_when_no_budget():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 2000
-    fresh_input = 1500  # exactly measured, no room for heuristic
+    fresh_input = 1500
+    request_content_denominator = fresh_input  # exactly measured, no room for heuristic
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     hidden = next(b for b in buckets if b.key == "hidden_builtin_system_estimate")
@@ -111,32 +111,32 @@ def test_heuristic_fixed_not_zeroed_when_no_budget():
     assert hidden.tokens == 500
     assert tool_schemas.tokens == 300
 
-    # residual absorbs the overflow (total=2000, known=1000+500+500+300=2300 > total)
+    # residual absorbs the overflow (Fresh=1500, known=1000+500+500+300=2300 > Fresh)
     residual = next(b for b in buckets if b.key == "unlocated_residual")
-    assert residual.tokens == 0  # max(2000 - 2300, 0) = 0
+    assert residual.tokens == 0  # max(1500 - 2300, 0) = 0
 
 
 # ── Unlocated residual ───────────────────────────────────────────────
 
 
 def test_unlocated_residual_computed_correctly():
-    """unlocated_residual should be max(total_input - known_sum, 0)."""
+    """unlocated_residual should be max(request_content_denominator - known_sum, 0)."""
     buckets = [
         _make_bucket("current_user_message", 1000),
         _make_bucket("tool_schemas", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 3000
+    request_content_denominator = 3000
     fresh_input = 3000
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     residual = next(b for b in buckets if b.key == "unlocated_residual")
     known_sum = sum(b.tokens for b in buckets if b.key != "unlocated_residual")
-    assert residual.tokens == max(total_input - known_sum, 0)
+    assert residual.tokens == max(request_content_denominator - known_sum, 0)
 
 
 def test_unlocated_residual_non_negative():
@@ -146,11 +146,11 @@ def test_unlocated_residual_non_negative():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 3000  # less than measured!
+    request_content_denominator = 3000  # less than measured!
     fresh_input = 3000
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     residual = next(b for b in buckets if b.key == "unlocated_residual")
@@ -169,18 +169,18 @@ def test_coverage_never_exceeds_100_percent():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 2000
+    request_content_denominator = 2000
     fresh_input = 2000
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     contributing_sum = sum(
         b.tokens for b in buckets
         if b.key != "unlocated_residual" and b.contributes_to_total
     )
-    coverage = contributing_sum / total_input if total_input > 0 else 0
+    coverage = contributing_sum / request_content_denominator if request_content_denominator > 0 else 0
     assert coverage <= 1.0
 
 
@@ -197,11 +197,11 @@ def test_measured_buckets_never_scaled_down():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 2500
-    fresh_input = 2100  # barely above measured
+    fresh_input = 2100
+    request_content_denominator = fresh_input  # barely above measured
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     measured = next(b for b in buckets if b.key == "current_user_message")
@@ -216,22 +216,22 @@ def test_measured_bucket_preceding_tool_results_preserved():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 2500
     fresh_input = 1600
+    request_content_denominator = fresh_input
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     measured = next(b for b in buckets if b.key == "preceding_tool_results")
     assert measured.tokens == 1500
 
 
-# ── Zero total_input ─────────────────────────────────────────────────
+# ── Zero request_content_denominator ─────────────────────────────────────────────────
 
 
-def test_normalization_with_zero_total_input():
-    """Normalization should handle zero total_input without crashing."""
+def test_normalization_with_zero_request_content_denominator():
+    """Normalization should handle zero request_content_denominator without crashing."""
     buckets = [
         _make_bucket("current_user_message", 0),
         _make_bucket("hidden_builtin_system_estimate", 500),
@@ -240,7 +240,7 @@ def test_normalization_with_zero_total_input():
 
     # Should not crash
     result = normalize_request_reconstruction_buckets(
-        buckets, total_input=0, fresh_input=0,
+        buckets, request_content_denominator=0, fresh_input=0,
     )
     assert result is not None
 
@@ -256,11 +256,11 @@ def test_percentages_recomputed_after_normalization():
         _make_bucket("unlocated_residual", 500, percent=25.0),
     ]
 
-    total_input = 2000
+    request_content_denominator = 2000
     fresh_input = 2000
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     total_pct = sum(b.percent for b in buckets)
@@ -277,11 +277,11 @@ def test_percentages_valid_range():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 5000
     fresh_input = 3000
+    request_content_denominator = fresh_input
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     for b in buckets:
@@ -292,7 +292,7 @@ def test_percentages_valid_range():
 
 
 def test_estimated_buckets_scaled_when_exceed_remaining():
-    """Estimated buckets should be scaled proportionally when they exceed total_input budget."""
+    """Estimated buckets should be scaled proportionally when they exceed Fresh budget."""
     buckets = [
         _make_bucket("current_user_message", 500),
         _make_bucket("local_instruction_context", 800),  # estimated
@@ -300,19 +300,19 @@ def test_estimated_buckets_scaled_when_exceed_remaining():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 1200  # measured(500) + estimated(1400) = 1900 > total_input
-    fresh_input = 1000  # fresh is small but estimated now uses total_input for budget
+    fresh_input = 1000  # measured(500) + estimated(1400) = 1900 > Fresh
+    request_content_denominator = fresh_input  # Fresh is the request content denominator
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     estimated_sum = sum(
         b.tokens for b in buckets
         if b.key in ("local_instruction_context", "agent_subagent_prompt")
     )
-    # Estimated is now scaled against total_input: remaining = 1200 - 500 = 700
-    remaining = total_input - 500
+    # Estimated is scaled against Fresh: remaining = 1000 - 500 = 500
+    remaining = fresh_input - 500
     assert estimated_sum <= remaining
 
 
@@ -322,7 +322,7 @@ def test_estimated_buckets_scaled_when_exceed_remaining():
 def test_empty_buckets():
     """Empty bucket list should return unchanged."""
     result = normalize_request_reconstruction_buckets(
-        [], total_input=1000, fresh_input=1000,
+        [], request_content_denominator=1000, fresh_input=1000,
     )
     assert result == []
 
@@ -334,11 +334,11 @@ def test_single_bucket_no_normalization_needed():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 2000
+    request_content_denominator = 2000
     fresh_input = 2000
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     measured = next(b for b in buckets if b.key == "current_user_message")
@@ -388,12 +388,12 @@ def test_estimated_bucket_details_scaled_proportionally():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    # total_input < measured + estimated to trigger scaling
-    total_input = 900
+    # request_content_denominator < measured + estimated to trigger scaling
+    request_content_denominator = 900
     fresh_input = 900
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     li_bucket = next(b for b in buckets if b.key == "local_instruction_context")
@@ -420,14 +420,12 @@ def test_estimated_buckets_preserve_floor_with_content():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    # With the new total_input-based budget:
-    # remaining = total_input(1200) - measured(1000) = 200 >= estimated(200)
-    # So the estimated bucket is NOT scaled.
-    total_input = 1200
-    fresh_input = 1000  # fresh is small but estimated uses total_input now
+    # When measured already fills Fresh, estimated content is preserved and residual absorbs overflow.
+    fresh_input = 1000  # Fresh is fully used by measured content
+    request_content_denominator = fresh_input
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     li_bucket = next(b for b in buckets if b.key == "local_instruction_context")
@@ -439,9 +437,8 @@ def test_estimated_buckets_preserve_floor_with_content():
 def test_estimated_buckets_not_crushed_by_high_cache_hit():
     """Estimated buckets should not be crushed to 0 when cache hit rate is high.
 
-    When most input is cached, fresh_input becomes small but total_input
-    stays the same. Estimated buckets (CLAUDE.md, agent prompts) represent
-    real content and should be preserved against total_input budget.
+    When most provider input is cached, Fresh can be smaller than measured content.
+    Estimated buckets with real content are preserved and residual absorbs overflow.
     """
     buckets = [
         _make_bucket("current_user_message", 2000),
@@ -451,11 +448,11 @@ def test_estimated_buckets_not_crushed_by_high_cache_hit():
         _make_bucket("unlocated_residual", 0),
     ]
 
-    total_input = 10000
     fresh_input = 2000  # very small due to high cache hit rate
+    request_content_denominator = fresh_input
 
     normalize_request_reconstruction_buckets(
-        buckets, total_input=total_input, fresh_input=fresh_input,
+        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
     )
 
     li_bucket = next(b for b in buckets if b.key == "local_instruction_context")

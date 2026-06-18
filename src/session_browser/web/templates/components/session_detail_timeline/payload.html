@@ -88,7 +88,7 @@
           {% set cv = usage.coverage|default({}) %}
           {% set un = usage.unknown|default({}) %}
           {% set coverage_meta = payload.data.coverage|default({}) %}
-          {% set request_denominator = coverage_meta.request_content_total|default(fi.value|default(0, true), true)|int %}
+          {% set request_denominator = coverage_meta.request_content_denominator|default(coverage_meta.request_content_total|default(fi.value|default(0, true), true), true)|int %}
           {% set call_identity = payload.data.call_identity|default({}) %}
           <main class="sd-attribution-canvas">
             <div class="sd-attribution-banner">基于本地日志重建，不等同于真实 provider request/response body。</div>
@@ -98,7 +98,7 @@
                 <div class="sd-attribution-identity-grid">
                   <div class="sd-kv"><span>Agent</span><span>{{ payload.data.agent|default('—') }}</span></div>
                   <div class="sd-kv"><span>Model</span><span>{{ payload.data.model|default('—') }}</span></div>
-                  <div class="sd-kv"><span>Source</span><span>{{ payload.data.source_label|default('—') }}</span></div>
+                  <div class="sd-kv"><span>Evidence Source</span><span>{{ payload.data.source_label|default('—') }}</span></div>
                   <div class="sd-kv"><span>API Family</span><span>{{ call_identity.api_family|default('—') }}</span></div>
                   <div class="sd-kv"><span>Provider</span><span>{{ call_identity.provider_or_broker|default('—') }}</span></div>
                   <div class="sd-kv"><span>Call ID</span><span class="sd-mono">{{ payload.data.call_id|default('—') }}</span></div>
@@ -107,12 +107,13 @@
               <section class="sd-attribution-topcard">
                 <h3>请求摘要</h3>
                 <div class="sd-attribution-summary-grid">
-                  <div class="sd-kv"><span>内容分母</span><span title="Request 内容 bucket 分母；Cache Read 是 provider accounting，不作为并列内容来源。">{{ request_denominator|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision|default('unavailable')) }}</span></span></div>
-                  <div class="sd-kv"><span>新鲜输入</span><span>{{ fi.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision|default('unavailable')) }}</span></span></div>
-                  <div class="sd-kv"><span>缓存读取</span><span>{{ cr.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cr.precision|default('unavailable') }}">{{ precision_label(cr.precision|default('unavailable')) }}</span></span></div>
-                  <div class="sd-kv"><span>缓存写入</span><span>{{ cw.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cw.precision|default('unavailable') }}">{{ precision_label(cw.precision|default('unavailable')) }}</span></span></div>
+                  <div class="sd-kv"><span>Request Content Denominator</span><span title="Request 内容 bucket 分母；固定为 Fresh。Cache Read 是 provider accounting，不作为并列内容来源。">{{ request_denominator|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision|default('unavailable')) }}</span></span></div>
+                  <div class="sd-kv"><span>Fresh</span><span>{{ fi.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ fi.precision|default('unavailable') }}">{{ precision_label(fi.precision|default('unavailable')) }}</span></span></div>
+                  <div class="sd-kv"><span>Cache Read</span><span>{{ cr.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cr.precision|default('unavailable') }}">{{ precision_label(cr.precision|default('unavailable')) }}</span></span></div>
+                  <div class="sd-kv"><span>Cache Write</span><span>{{ cw.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ cw.precision|default('unavailable') }}">{{ precision_label(cw.precision|default('unavailable')) }}</span></span></div>
                   {% if coverage_meta %}
-                  <div class="sd-kv"><span>Provider 总计</span><span title="Provider input-side total；包含 Fresh 与 Cache Read。">{{ coverage_meta.provider_total_input|default(0)|format_compact_token }}</span></div>
+                  <div class="sd-kv"><span>Provider Raw Total</span><span title="Provider raw/input-side diagnostic total；不作为 request content denominator。">{{ coverage_meta.provider_raw_total|default(coverage_meta.provider_total_input|default(0), true)|format_compact_token }}</span></div>
+                  <div class="sd-kv"><span>Input-side Component Total</span><span title="Fresh + Cache Read + Cache Write。">{{ coverage_meta.input_side_component_total|default(0)|format_compact_token }}</span></div>
                   <div class="sd-kv"><span>本地重建</span><span title="本地日志可重建并已归因的 request 内容，不包含 provider cache hit accounting。">{{ coverage_meta.reconstructed_total|default(0)|format_compact_token }}</span></div>
                   <div class="sd-kv"><span>覆盖率</span><span>{{ coverage_meta.coverage_ratio|default(0)|format_coverage }}</span></div>
                   <div class="sd-kv"><span>残差</span><span>{{ coverage_meta.residual_tokens|default(0)|format_compact_token }}</span></div>
@@ -164,7 +165,7 @@
                     <div class="sd-empty-state">暂无可用于总览图归因的 bucket。</div>
                   {% endif %}
                 </div>
-                <div class="sd-attribution-distribution__note">分母 Fresh = {{ request_denominator|format_compact_token }}；Cache Read 仅在摘要中作为 provider accounting 展示</div>
+                <div class="sd-attribution-distribution__note">Request Content Denominator = Fresh = {{ request_denominator|format_compact_token }}；Cache Read 仅在摘要中作为 provider accounting 展示</div>
                 <div class="sd-attribution-legend">
                   {% for b in payload.data.buckets if b.contributes_to_total and b.key not in ['unlocated_residual', 'unknown_overhead', 'unknown'] %}
                     {% set legend_color_idx = loop.index0 % 8 %}
@@ -195,7 +196,7 @@
                     </div>
                       <div class="sd-attribution-bucket-body" hidden{% if b.details and b.details.kind %} data-bucket-detail-kind="{{ b.details.kind }}"{% endif %}>
                       {% if b.details %}
-                        {% if b.details.kind == 'tool_commands' %}
+                        {% if b.details.kind in ['tool_calls', 'tool_commands'] %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">
@@ -360,7 +361,7 @@
           {% set usage = payload.data.usage|default({}) %}
           {% set total_output = usage.total_output|default({}) %}
           {% set visible_text = usage.visible_text|default({}) %}
-          {% set tool_use = usage.tool_use|default({}) %}
+          {% set tool_use = usage.tool_call|default(usage.tool_use|default({}), true) %}
           {% set metadata = usage.metadata|default({}) %}
           {% set coverage = usage.coverage|default({}) %}
           {% set unknown = usage.unknown|default({}) %}
@@ -386,7 +387,7 @@
                 <div class="sd-attribution-summary-grid">
                   <div class="sd-kv"><span>总输出</span><span>{{ total_output.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ total_output.precision|default('unavailable') }}">{{ precision_label(total_output.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>可见文本</span><span>{{ visible_text.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ visible_text.precision|default('unavailable') }}">{{ precision_label(visible_text.precision|default('unavailable')) }}</span></span></div>
-                  <div class="sd-kv"><span>工具命令</span><span>{{ tool_use.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ tool_use.precision|default('unavailable') }}">{{ precision_label(tool_use.precision|default('unavailable')) }}</span></span></div>
+                  <div class="sd-kv"><span>工具调用</span><span>{{ tool_use.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ tool_use.precision|default('unavailable') }}">{{ precision_label(tool_use.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>元数据</span><span>{{ metadata.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ metadata.precision|default('unavailable') }}">{{ precision_label(metadata.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>覆盖率</span><span>{{ coverage.value|default(0)|format_coverage }} <span class="sd-precision-tag sd-precision-tag--{{ coverage.precision|default('unavailable') }}">{{ precision_label(coverage.precision|default('unavailable')) }}</span></span></div>
                   <div class="sd-kv"><span>未定位</span><span>{{ unknown.value|default(0)|format_compact_token }} <span class="sd-precision-tag sd-precision-tag--{{ unknown.precision|default('unavailable') }}">{{ precision_label(unknown.precision|default('unavailable')) }}</span></span></div>
@@ -466,7 +467,7 @@
                     </div>
                       <div class="sd-attribution-bucket-body" hidden{% if b.details and b.details.kind %} data-bucket-detail-kind="{{ b.details.kind }}"{% endif %}>
                       {% if b.details %}
-                        {% if b.details.kind == 'tool_commands' %}
+                        {% if b.details.kind in ['tool_calls', 'tool_commands'] %}
                         <ul class="sd-bucket-detail-list">
                           {% for item in b.details['items'] %}
                           <li class="sd-bucket-detail-item sd-bucket-detail-item--expandable" data-tool-detail-toggle style="cursor:pointer">

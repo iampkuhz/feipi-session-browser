@@ -133,7 +133,7 @@ class TestOpenAINormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.OPENAI)
 
-        assert result.output_tokens == 800
+        assert result.output_tokens == 500
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_new_format(self):
@@ -147,7 +147,7 @@ class TestOpenAINormalization:
 
         assert result.fresh_input_tokens == 2000
         assert result.cache_read_tokens == 2000
-        assert result.output_tokens == 600
+        assert result.output_tokens == 400
 
 
 # ─── Codex tests ─────────────────────────────────────────────────────────
@@ -181,6 +181,20 @@ class TestCodexNormalization:
         assert result.output_tokens == 2000
         assert result.total_tokens == 7000
         assert result.total_semantics == TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
+
+    @pytest.mark.contract_case("DATA-PRESENTER-008")
+    def test_codex_cached_input_subset_does_not_double_count_total(self):
+        usage = {
+            "input_tokens": 100,
+            "cached_input_tokens": 40,
+            "output_tokens": 10,
+        }
+        result = normalize_tokens(usage, provider=TokenProvider.CODEX)
+
+        assert result.fresh_input_tokens == 60
+        assert result.cache_read_tokens == 40
+        assert result.output_tokens == 10
+        assert result.total_tokens == 110
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_delta_values(self):
@@ -439,6 +453,6 @@ class TestFormatHelpers:
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_precision_label(self):
         assert precision_label(TokenPrecision.EXACT) == "exact"
-        assert precision_label(TokenPrecision.PROVIDER_REPORTED) == "provider-reported"
+        assert precision_label(TokenPrecision.PROVIDER_REPORTED) == "provider_reported"
         assert precision_label(TokenPrecision.ESTIMATED) == "estimated"
-        assert precision_label(TokenPrecision.UNKNOWN) == "unknown"
+        assert precision_label(TokenPrecision.UNKNOWN) == "unavailable"

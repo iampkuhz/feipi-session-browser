@@ -158,17 +158,13 @@ def test_unknown_equals_residual(agent):
                          response_full="assistant response text here")
     ro = _make_round(user_content="test user message content")
     req = build_llm_request_attribution(agent, lc, ro)
-    total_req = req.total_input.value or 0
-    if agent == "claude_code":
-        total_req = (req.fresh_input.value or 0) + (req.cache_read.value or 0)
-    elif agent in ("qoder", "codex"):
-        total_req = req.fresh_input.value or 0
+    total_req = req.fresh_input.value or 0
     known_req = sum(
         b.tokens for b in req.buckets
         if b.key not in ("unknown_overhead", "unlocated_residual")
         and getattr(b, "contributes_to_total", True)
     )
-    assert req.unknown.value == total_req - known_req
+    assert req.unknown.value == max(total_req - known_req, 0)
 
     resp = build_llm_response_attribution(agent, lc, ro)
     total_resp = resp.total_output.value or 0

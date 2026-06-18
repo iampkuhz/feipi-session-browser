@@ -45,7 +45,7 @@ class Evidence:
         - provider_usage: provider/broker usage 数据
         - inferred: 推断信息
     kind: 证据类型（user_message / tool_result / tool_schema / system_prompt / …）
-    precision: 精确度（exact / provider_reported / extracted / inferred / heuristic / residual / unavailable）
+    precision: 精确度（exact / provider_reported / transcript_exact / estimated / heuristic / residual / unavailable）
     confidence: 0.0–1.0 置信度
     """
     evidence_id: str
@@ -56,7 +56,7 @@ class Evidence:
     content_ref: ContentRef | None = None
     text_preview: str = ""
     raw_value: Any = None
-    precision: str = "inferred"
+    precision: str = "heuristic"
     confidence: float = 0.5
     redaction_state: str = ""
 

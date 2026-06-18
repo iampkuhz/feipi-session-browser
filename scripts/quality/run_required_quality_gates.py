@@ -96,7 +96,11 @@ def compute_required_targets(changed_files: list[str], excluded: set[str]) -> li
     return [t for t in all_targets if t not in excluded]
 
 
-def run_gate(target: str, change_id: str, changed_files: list[str]) -> tuple[bool, str]:
+def run_gate(
+    target: str,
+    change_id: str,
+    changed_files: list[str] | None = None,
+) -> tuple[bool, str]:
     """Run run_quality_gate.py for a single target. Returns (passed, artifact_path)."""
     cmd = [
         sys.executable,
@@ -108,7 +112,10 @@ def run_gate(target: str, change_id: str, changed_files: list[str]) -> tuple[boo
 
     try:
         env = os.environ.copy()
-        env["QUALITY_CHANGED_FILES"] = json.dumps(changed_files, ensure_ascii=False)
+        # changed_files selects required targets in this runner. Do not forward
+        # it into target execution; each selected target must run its full
+        # baseline instead of per-file pruning.
+        env.pop("QUALITY_CHANGED_FILES", None)
         proc = subprocess.run(
             cmd,
             cwd=REPO_ROOT,
@@ -187,7 +194,7 @@ def main() -> int:
     blocked = False
     for target in sorted(all_required):
         print(f"[run_required_quality_gates] running target: {target}", file=sys.stderr)
-        passed, artifact_path = run_gate(target, change_id, changed_files)
+        passed, artifact_path = run_gate(target, change_id)
         status_str = "PASS" if passed else "FAIL"
         print(
             f"[run_required_quality_gates] {status_str} target={target} artifact={artifact_path}",

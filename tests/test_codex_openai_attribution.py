@@ -444,8 +444,8 @@ class TestFlatCodexUsageVariants:
         bd = normalize_tokens(usage, provider=TokenProvider.OPENAI)
         assert bd.fresh_input_tokens == 2000
         assert bd.cache_read_tokens == 2000
-        assert bd.output_tokens == 600
-        assert bd.total_tokens == 4600
+        assert bd.output_tokens == 400
+        assert bd.total_tokens == 4400
 
 
 # ── Context builder Codex fixes ─────────────────────────────────────────────

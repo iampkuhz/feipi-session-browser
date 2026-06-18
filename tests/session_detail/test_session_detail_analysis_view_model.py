@@ -102,7 +102,7 @@ def test_run_analysis_hero_kpi_contract_and_global_tool_count():
         "active_time",
     }.issubset(metrics)
     assert int(metrics["tool_calls"]) == 2
-    assert metrics["run_health"] == "Completed with issues"
+    assert metrics["run_health"] == "Completed with issue signals"
     assert int(metrics["failed_tools"]) == 1
     assert vm["diagnostics"]["issue_summary"]["tool_failures"] == 1
     assert any(row["has_issues"] for row in vm["trace_rows"])
@@ -303,7 +303,7 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
     )
 
     token_round = vm["diagnostics"]["token_rounds"][0]
-    assert any("cost driver R1" in badge for badge in token_round["badges"])
+    assert any("Token Driver R1" in badge for badge in token_round["badges"])
 
     assert vm["hero_metrics"]["subagent_llm_calls"] == "1"
     assert vm["hero_metrics"]["workload"] == "2"
@@ -434,8 +434,8 @@ def test_run_analysis_template_sections_exist():
 
     assert "Payload Availability" not in session_html
     assert "sd-coverage-matrix" not in session_html
-    assert "Call Cost Distribution" not in session_html
-    assert "Top Cost Drivers" not in session_html
+    assert "Call Token Footprint Distribution" not in session_html
+    assert "Top Token Drivers" not in session_html
     assert "Main Agent Breakdown" not in session_html
     assert "Subagent Breakdown" not in session_html
     assert "sd-driver-table" not in session_html

@@ -152,6 +152,7 @@ def _make_resp_data(**overrides):
             "usage": {
                 "total_output": {"value": 2000, "precision": "provider_reported"},
                 "visible_text": {"value": 1500, "precision": "estimated"},
+                "tool_call": {"value": 400, "precision": "heuristic"},
                 "tool_use": {"value": 400, "precision": "heuristic"},
                 "metadata": {"value": 100, "precision": "estimated"},
                 "coverage": {"value": 1900, "precision": "heuristic"},
@@ -292,7 +293,7 @@ class TestAttributionTemplateRendering:
         assert "sd-attribution-topgrid" in html
         assert "claude_code" in html
         assert "claude-sonnet-4" in html
-        assert "内容分母" in html
+        assert "Request Content Denominator" in html
         assert "2.0K" in html
 
     def test_response_attribution_renders_with_data(self):
@@ -493,7 +494,7 @@ class TestDistributionBar:
                     "precision": "provider_reported",
                 },
                 {
-                    "key": "tool_use", "label": "tool use", "tokens": 400,
+                    "key": "tool_call", "label": "Tool call", "tokens": 400,
                     "percent": 20.0, "contributes_to_total": True,
                     "precision": "heuristic",
                 },

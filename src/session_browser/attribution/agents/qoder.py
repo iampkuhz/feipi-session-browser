@@ -3,10 +3,10 @@
 Qoder 是 broker/runtime。通过标准化后的 LLMCall 字段获取真实 usage 数据：
 - ``lc.input_tokens`` 为本次请求输入规模，作为 Fresh
 - ``lc.cache_read_tokens`` 对应 cache_read_input_tokens
-- ``lc.cache_write_tokens`` 对应 cache_creation_input_tokens（provider-reported）
+- ``lc.cache_write_tokens`` 对应 cache_creation_input_tokens（provider_reported）
 - usage summary total = fresh + cache_read + cache_write
-- request attribution denominator = fresh + cache_read; cache_write is shown
-  in the summary but not treated as an extra request-source bucket
+- request attribution denominator = Fresh; cache read/write are summary-only
+  provider/broker accounting components
 - 0 是有效值，不能显示为 unavailable。
 """
 
@@ -629,7 +629,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         # ── Step 5: availability rows ──────────────────────────────────
         has_usage = total_input > 0
         avail_rows = [
-            self._avail("total_input", "Total input tokens", has_usage,
+            self._avail("input_side_component_total", "Input-side component total", has_usage,
                         precision=ValuePrecision.PROVIDER_REPORTED if has_usage else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.PROVIDER_USAGE if has_usage else ValueSource.HEURISTIC,
                         fill_strategy="from normalized usage (fresh + cache_read + cache_write)"),
@@ -711,7 +711,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
             notes.append("Qoder 无 provider usage 数据，使用本地估算。")
         if cache_read > 0:
             notes.append(
-                "Cache Read 只作为 provider-reported accounting 展示；"
+                "Cache Read 只作为 provider_reported accounting 展示；"
                 "不作为 request 内容 bucket 参与分布或本地重建覆盖率。"
             )
         if cache_write > 0:
@@ -761,7 +761,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         response_text = lc.response_full or ""
         visible_text_tokens = estimate_tokens_from_text(response_text)
 
-        # Tool use blocks
+        # Tool/function call blocks
         tool_use_tokens = 0
         block_refs = []
         for cb in (lc.content_blocks or []):
@@ -816,14 +816,14 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
 
         if tool_use_tokens > 0:
             buckets.append(ResponseAttributionBucket(
-                key="tool_use",
-                label="Tool use",
+                key="tool_call",
+                label="Tool call",
                 tokens=tool_use_tokens,
                 percent=_pct(tool_use_tokens, total_output_val),
                 precision=ValuePrecision.ESTIMATED,
                 source=ValueSource.TRANSCRIPT,
                 confidence_label="中",
-                summary="Tool use 结构从 content_blocks 获取，token 通过 JSON 估算。",
+                summary="Tool/function call 结构从 content_blocks 获取，token 通过 JSON 估算。",
                 block_refs=block_refs,
                 contributes_to_total=True,
             ))
@@ -875,12 +875,12 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                         precision=ValuePrecision.ESTIMATED,
                         source=ValueSource.TRANSCRIPT,
                         fill_strategy="estimated"),
-            self._avail("tool_use_structure", "Tool use structure",
+            self._avail("tool_call_structure", "Tool call structure",
                         bool(lc.content_blocks or lc.tool_calls_raw), exact=True,
                         precision=ValuePrecision.TRANSCRIPT_EXACT,
                         source=ValueSource.TRANSCRIPT,
                         fill_strategy="from content_blocks or tool_calls_raw"),
-            self._avail("tool_use_tokens", "Tool use tokens", True,
+            self._avail("tool_call_tokens", "Tool call tokens", True,
                         exact=False,
                         precision=ValuePrecision.ESTIMATED,
                         source=ValueSource.TRANSCRIPT,

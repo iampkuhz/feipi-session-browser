@@ -160,7 +160,7 @@ def _normalize_qoder_provider_usage(records: list[dict]) -> None:
     关键语义：
     - 保留原始 ``input_tokens`` 到 ``qoder_input_tokens_total`` 便于追溯。
     - **不**把 "下一条 cache_read - 当前 cache_read" 写回
-      ``cache_creation_input_tokens``。provider-reported 值必须保留。
+      ``cache_creation_input_tokens``。provider_reported 值必须保留。
     - 如需保留跨 call 推断，写入单独的 inferred 字段，不污染原始 provider usage。
     - ``input_tokens`` 保持为 Fresh request input size。
     """
@@ -177,7 +177,7 @@ def _normalize_qoder_provider_usage(records: list[dict]) -> None:
         cache_read = int(usage.get("cache_read_input_tokens", 0) or 0)
         raw_cache_write = int(usage.get("cache_creation_input_tokens", 0) or 0)
 
-        # 保留 provider-reported cache_write，不做跨 call 推断
+        # 保留 provider_reported cache_write，不做跨 call 推断
         cache_write = raw_cache_write
 
         # 跨 call 推断（仅用于 diagnostic，不污染 provider 字段）
@@ -193,7 +193,7 @@ def _normalize_qoder_provider_usage(records: list[dict]) -> None:
         usage["qoder_input_tokens_total"] = raw_input_total
         usage["input_tokens"] = raw_input_total
         usage["cache_read_input_tokens"] = cache_read
-        # 保留 provider-reported cache_write，不覆盖
+        # 保留 provider_reported cache_write，不覆盖
         usage["cache_creation_input_tokens"] = cache_write
 
         # 跨 call 推断写入单独字段（diagnostic only）
@@ -201,7 +201,7 @@ def _normalize_qoder_provider_usage(records: list[dict]) -> None:
             usage["qoder_cache_write_inferred_tokens"] = inferred_cache_write
             usage["qoder_cache_write_inferred"] = True
             usage["qoder_cache_write_inference_note"] = (
-                "derived from next cache_read delta; not provider-reported"
+                "derived from next cache_read delta; not provider_reported"
             )
 
 

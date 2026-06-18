@@ -10,11 +10,9 @@ def normalize_openai_chat_usage(breakdown: UsageBreakdown) -> UsageBreakdown:
         return breakdown
     fresh = breakdown.fresh_input or 0
     cache_read = breakdown.cache_read or 0
-    if fresh > 0:
-        cache_read = min(cache_read, fresh)
-    total_input = fresh + cache_read
+    input_side_component_total = fresh + cache_read
     return UsageBreakdown(
-        total_input=total_input if total_input > 0 else None,
+        total_input=input_side_component_total if input_side_component_total > 0 else None,
         fresh_input=fresh if fresh > 0 else None,
         cache_read=cache_read if (fresh > 0 and cache_read > 0) else (0 if fresh > 0 else None),
         cache_write=None,

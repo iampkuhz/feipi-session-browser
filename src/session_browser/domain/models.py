@@ -12,16 +12,17 @@ from datetime import datetime, timezone
 
 class TokenPrecision:
     EXACT = "exact"
-    PROVIDER_REPORTED = "provider-reported"
+    PROVIDER_REPORTED = "provider_reported"
     ESTIMATED = "estimated"
-    UNKNOWN = "unknown"
-    # New precision enum values for unified breakdown
-    PROVIDER_REPORTED_NORMALIZED = "provider_reported_normalized"
-    PROVIDER_REPORTED_DELTA = "provider_reported_delta"
-    SQLITE_TOKEN_INFO = "sqlite_token_info"
-    ESTIMATED_PARTIAL = "estimated_partial"
-    ZERO_FILLED_UNAVAILABLE = "zero_filled_unavailable"
-    REPORTED_TOTAL_ONLY = "reported_total_only"
+    UNKNOWN = "unavailable"
+    # Internal-only precision/source refinements. UI-facing precision labels
+    # normalize these to the public enum in attribution.contracts.
+    PROVIDER_REPORTED_NORMALIZED = PROVIDER_REPORTED
+    PROVIDER_REPORTED_DELTA = PROVIDER_REPORTED
+    SQLITE_TOKEN_INFO = "exact"
+    ESTIMATED_PARTIAL = ESTIMATED
+    ZERO_FILLED_UNAVAILABLE = "unavailable"
+    REPORTED_TOTAL_ONLY = PROVIDER_REPORTED
 
 
 class TokenTotalSemantics:
@@ -118,7 +119,7 @@ class SessionSummary:
     input_tokens: int = 0
     output_tokens: int = 0
     cached_input_tokens: int = 0  # cache_read_input_tokens
-    cached_output_tokens: int = 0  # cache_creation_input_tokens (write cache)
+    cached_output_tokens: int = 0  # legacy DB column; maps to cache_write_tokens
     has_sensitive_data: bool = True
 
     # Unified 5-field token breakdown (always int, never None)
@@ -158,7 +159,7 @@ class ChatMessage:
     token_ratio: float = 0  # proportion of session tokens used in this message
     llm_call_id: str = ""  # provider/Claude message id, one logical LLM call
     llm_status: str = "ok"  # "ok" | "error"
-    request_full: str = ""  # logged request context preceding this assistant response
+    request_full: str = ""  # rendered request context preceding this assistant response
     stop_reason: str = ""  # e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
     content_parts: list["ContentPart"] = field(default_factory=list)  # typed content parts
     content_blocks: list[dict] = field(default_factory=list)  # raw API-level content blocks in order
@@ -225,7 +226,7 @@ class LLMCall:
     total_tokens: int = 0
     prompt_preview: str = ""         # first ~200 chars of prompt context
     request_preview: str = ""        # first ~200 chars of logged request
-    request_full: str = ""           # full logged request context (rendered, NOT raw HTTP payload)
+    request_full: str = ""           # rendered/reconstructed request context, NOT raw HTTP payload
     response_preview: str = ""       # first ~200 chars of response
     response_full: str = ""          # full response text (for expand)
     # Raw HTTP request payload fields (distinct from request_full)
@@ -247,7 +248,7 @@ class LLMCall:
 
 @dataclass
 class ConversationRound:
-    """One exchange: user message + assistant response + tool calls."""
+    """One trace row used for UI grouping; not the token boundary."""
 
     user_msg: ChatMessage
     assistant_msg: ChatMessage

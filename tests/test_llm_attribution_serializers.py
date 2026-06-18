@@ -2,8 +2,8 @@
 
 Verifies:
 1. attributed_value_to_dict includes precision/source/fill_strategy.
-2. request_attribution_to_payload contains coverage, unknown, captured_context_preview.
-3. response_attribution_to_payload contains coverage, unknown, blocks, captured_output_preview.
+2. request_attribution_to_payload contains coverage, residual, captured_context_preview.
+3. response_attribution_to_payload contains coverage, residual, blocks, captured_output_preview.
 4. Every AttributedValue in payload has precision/source/fill_strategy.
 """
 
@@ -101,6 +101,9 @@ def test_request_payload_has_required_fields():
 
     # Usage
     assert "usage" in payload
+    assert payload["usage_summary"]["request_content_denominator"]["value"] == payload["coverage"]["request_content_denominator"]
+    assert "input_side_component_total" in payload["usage_summary"]
+    assert "provider_request_input" in payload["usage_summary"]
     usage = payload["usage"]
     assert "coverage" in usage
     assert "unknown" in usage
@@ -168,6 +171,7 @@ def test_response_payload_has_required_fields():
     assert "unknown" in usage
     assert "total_output" in usage
     assert "visible_text" in usage
+    assert "tool_call" in usage
     assert "tool_use" in usage
     assert "metadata" in usage
     assert "finish_reason" in usage
@@ -189,7 +193,7 @@ def test_response_payload_attributed_values_have_provenance():
     payload = response_attribution_to_payload(attr)
 
     usage = payload["usage"]
-    for key in ("total_output", "visible_text", "tool_use", "metadata",
+    for key in ("total_output", "visible_text", "tool_call", "tool_use", "metadata",
                 "coverage", "unknown", "finish_reason"):
         val = usage[key]
         assert "precision" in val, f"{key} missing precision"
@@ -248,7 +252,7 @@ def test_response_bucket_serialized_with_contributes_to_total():
 
 
 def test_request_bucket_display_percent_uses_claude_request_denominator():
-    """Claude request bucket percentages use Fresh + Cache Read, not Cache Write."""
+    """Claude request bucket percentages use Request Content Denominator (Fresh)."""
     total_value = AttributedValue(
         value=28700, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
         source=ValueSource.PROVIDER_USAGE,
@@ -305,6 +309,8 @@ def test_request_bucket_display_percent_uses_claude_request_denominator():
     assert current_user["raw_percent"] == 15.5
     assert current_user["percent"] == 31.7
     assert residual["percent"] == 5.8
+    assert payload["coverage"]["request_content_denominator"] == 13900
+    assert payload["coverage"]["input_side_component_total"] == 28700
 
 
 def test_codex_request_bucket_display_percent_uses_fresh_not_cache_read():
@@ -366,6 +372,8 @@ def test_codex_request_bucket_display_percent_uses_fresh_not_cache_read():
     assert residual["percent"] == 50.0
     assert payload["coverage"]["provider_total_input"] == 5000
     assert payload["coverage"]["request_content_total"] == 2000
+    assert payload["coverage"]["request_content_denominator"] == 2000
+    assert payload["coverage"]["input_side_component_total"] == 5000
     assert payload["coverage"]["accounting_cache_read_tokens"] == 3000
     assert payload["coverage"]["reconstructed_total"] == 1000
 
@@ -522,9 +530,9 @@ def test_response_tool_bucket_details_show_actual_command_not_schema():
     attr = build_llm_response_attribution("claude_code", lc, _make_ro())
     payload = response_attribution_to_payload(attr)
 
-    tool_bucket = next(b for b in payload["buckets"] if b["key"] == "tool_use")
-    assert tool_bucket["label"] == "Tool command (total)"
-    assert tool_bucket["details"]["kind"] == "tool_commands"
+    tool_bucket = next(b for b in payload["buckets"] if b["key"] == "tool_call")
+    assert tool_bucket["label"] == "Tool call"
+    assert tool_bucket["details"]["kind"] == "tool_calls"
     assert tool_bucket["details"]["items"][0]["command_preview"] == "pytest -q"
     assert "total_schema_tokens" not in tool_bucket["details"]
     assert "description_preview" not in tool_bucket["details"]["items"][0]
