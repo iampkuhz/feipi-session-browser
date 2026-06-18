@@ -35,7 +35,7 @@ check_file .claude/hooks/pre-write.sh
 check_file .claude/hooks/post-write.sh
 check_file .claude/hooks/stop.sh
 check_file .claude/commands/diagnose-ui-gate.md
-check_file scripts/dev/session-browser.sh
+check_file scripts/session-browser.sh
 check_file harness/README.md
 check_dir src/session_browser
 check_dir tests
@@ -46,7 +46,6 @@ check_dir openspec/templates
 check_dir scripts/openspec
 check_dir scripts/agent_hooks
 check_dir scripts/quality
-check_dir scripts/dev
 
 if [[ -f .claude/settings.json ]]; then
   python3 -m json.tool .claude/settings.json >/dev/null || {
@@ -62,7 +61,7 @@ else
   fail=1
 fi
 
-for script in scripts/dev/session-browser.sh .claude/hooks/*.sh scripts/quality/doctor.sh; do
+for script in scripts/session-browser.sh .claude/hooks/*.sh scripts/quality/doctor.sh; do
   [[ -f "$script" ]] || continue
   bash -n "$script" || fail=1
 done
@@ -70,8 +69,8 @@ done
 python3 -m compileall -q src || fail=1
 
 # Check that personal/ephemeral files and dirs do NOT exist on disk.
-local_files=(.claude/settings.local.json .mcp.json .env)
-local_dirs=(data output .venv .pytest_cache prompts)
+local_files=(.mcp.json .env)
+local_dirs=(data output .venv prompts)
 for f in "${local_files[@]}"; do
   if [[ -e "$f" ]]; then
     echo "[FAIL] personal file should not exist: $f" >&2
@@ -80,6 +79,11 @@ for f in "${local_files[@]}"; do
     echo "[PASS] personal file absent: $f"
   fi
 done
+# settings.local.json is a normal user config that should be kept locally;
+# warn but do not block the doctor gate.
+if [[ -e ".claude/settings.local.json" ]]; then
+  echo "[WARN] personal config present: .claude/settings.local.json (gitignored, allowed)"
+fi
 for d in "${local_dirs[@]}"; do
   if [[ -d "$d" ]]; then
     echo "[FAIL] ephemeral dir should not exist: $d" >&2

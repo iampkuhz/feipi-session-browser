@@ -7,7 +7,8 @@ required = [
     'openspec/specs', 'openspec/changes',
     'openspec/schemas', 'openspec/templates',
     'harness/README.md', 'harness/manifest.yaml',
-    'scripts/openspec', 'scripts/agent_hooks', 'scripts/quality', 'scripts/dev',
+    'scripts/openspec', 'scripts/agent_hooks', 'scripts/quality',
+    'scripts/session-browser.sh',
 ]
 missing = [p for p in required if not (Path.cwd() / p).exists()]
 if missing:
