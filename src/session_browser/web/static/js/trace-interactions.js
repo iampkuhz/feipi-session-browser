@@ -22,7 +22,8 @@
     round.classList.toggle("is-open", open);
     round.classList.toggle("open", open);
     const btn = qs(round, '[data-action="toggle-round"]');
-    const detail = qs(round, "[data-trace-detail]");
+    const roundId = round.getAttribute("data-round");
+    const detail = qs(round, "[data-trace-detail]") || (roundId ? document.getElementById("round-" + roundId + "-detail") : null);
     if(btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
     if(detail) detail.hidden = !open;
   }

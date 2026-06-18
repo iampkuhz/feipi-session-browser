@@ -79,6 +79,7 @@ def _make_summary(
         output_tokens=output_tokens,
         cached_input_tokens=cached_input_tokens,
         cached_output_tokens=cached_output_tokens,
+        total_tokens=input_tokens + output_tokens + cached_input_tokens + cached_output_tokens,
         failed_tool_count=0,
     )
 
@@ -147,13 +148,11 @@ class TestHeaderTokensAggregate:
     """验证 get_sessions_list_aggregate 返回非零 total_tokens。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
-    @pytest.mark.skip(reason="fixture _make_summary does not set total_tokens field (pre-existing fixture bug)")
     def test_aggregate_total_tokens_nonzero(self, populated_db):
         agg = get_sessions_list_aggregate(populated_db)
         assert agg["total_tokens"] > 0, "聚合 total_tokens 应大于 0"
 
     @pytest.mark.contract_case("UI-SESSIONS-009")
-    @pytest.mark.skip(reason="fixture _make_summary does not set total_tokens field (pre-existing fixture bug)")
     def test_aggregate_token_formula(self, populated_db):
         """验证公式：input + cached_input + cached_output + output。"""
         agg = get_sessions_list_aggregate(populated_db)

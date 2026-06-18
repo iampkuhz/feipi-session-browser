@@ -208,13 +208,12 @@ class TestSessionsFilterBar:
             "Project dropdown must have 'All Projects' default"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
-    @pytest.mark.skip(reason="Apply button removed in 9d137e1: real-time search replaces apply")
     def test_apply_button(self):
         content = _read_sessions()
-        assert "data_action='apply'" in content, \
-            "Filter bar must have apply button with data_action"
-        assert "'Apply'" in content, \
-            "Apply button text must be present as macro argument"
+        assert "data_action='apply'" not in content, \
+            "Real-time filtering must not render a stale apply button"
+        assert "'Apply'" not in content, \
+            "Apply button text must not be present"
 
     @pytest.mark.contract_case("UI-SESSIONS-001", "UI-SESSIONS-017")
     def test_clear_all_button_conditional(self):

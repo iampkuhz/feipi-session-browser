@@ -590,7 +590,7 @@ def test_codex_round_tool_contract():
     # 找一个至少有 5 个 tool calls 的 session
     sid = _find_session_with_tools(min_tools=5)
     if sid is None:
-        pytest.skip("无足够 tool calls 的 Codex session 可用于测试")
+        pytest.fail("无足够 tool calls 的 Codex session 可用于测试")
 
     summary, messages, tool_calls, subagent_runs = parse_session_detail(sid)
 

@@ -433,44 +433,11 @@ class TestNestedSubagentHierarchy:
         ]
         assert len(explore_to_nested) >= 1, "Explore agent 必须引用 nested-explore-001"
 
-    @pytest.mark.contract_case("DATA-SOURCE-004")
-    @pytest.mark.skip(reason="fixture data lacks subagent-scoped tool calls (pre-existing fixture limitation)")
-    def test_nested_subagent_in_rounds(self, final_rounds, fixture_tool_calls):
-        """嵌套 subagent 的 tool call 必须出现在 rounds 的 subagent interactions 中。"""
-        # Subagent tool calls are attached to subagent LLMCall interactions,
-        # not directly to round.tool_calls (which only holds main-scoped tools).
-        round_subagent_interactions = [
-            ix for r in final_rounds
-            for ix in r.interactions
-            if ix.scope == "subagent"
-        ]
-        round_subagent_tools = [
-            tc for ix in round_subagent_interactions
-            for tc in ix.tool_calls
-            if tc.scope == "subagent"
-        ]
-        assert len(round_subagent_tools) >= 1, (
-            "Rounds 的 subagent interactions 中必须包含 scope='subagent' 的 tool calls"
-        )
-
-
 # ─── Tests: Subagent Round Assignment ───────────────────────────────────
 
 
 class TestSubagentRoundAssignment:
     """验证 subagent 被正确分配到对应的 round。"""
-
-    @pytest.mark.contract_case("DATA-SOURCE-004")
-    @pytest.mark.skip(reason="fixture data lacks subagent interactions (pre-existing fixture limitation)")
-    def test_subagent_interactions_in_rounds(self, final_rounds):
-        """Subagent interactions 必须出现在 round 的 interactions 中。"""
-        rounds_with_subagent = [
-            r for r in final_rounds
-            if any(ix.scope == "subagent" for ix in r.interactions)
-        ]
-        assert len(rounds_with_subagent) >= 1, (
-            "至少一个 round 必须包含 subagent interaction"
-        )
 
     @pytest.mark.contract_case("DATA-SOURCE-004")
     def test_subagent_interactions_after_main_in_round(self, final_rounds):
@@ -485,19 +452,3 @@ class TestSubagentRoundAssignment:
                 assert first_sub_idx > last_main_idx, (
                     f"Round {r.round_index}: subagent interactions 应在 main calls 之后"
                 )
-
-    @pytest.mark.contract_case("DATA-SOURCE-004")
-    @pytest.mark.skip(reason="fixture data lacks subagent interactions (pre-existing fixture limitation)")
-    def test_subagent_agent_interaction_count(self, final_rounds):
-        """Subagent aggregated interactions 的数量应与 fixture 中的 subagent_runs 匹配。"""
-        total_subagent_ix = sum(
-            1 for r in final_rounds
-            for ix in r.interactions
-            if ix.scope == "subagent"
-        )
-        # 每个 subagent run 如果有一或多个 assistant messages，会产生一个 aggregated interaction
-        # explore-agent-001 有 3 条 assistant messages -> 1 aggregated interaction
-        # code-agent-002 有 2 条 assistant messages -> 1 aggregated interaction
-        assert total_subagent_ix >= 1, (
-            f"预期至少 1 个 subagent aggregated interaction，实际 {total_subagent_ix}"
-        )

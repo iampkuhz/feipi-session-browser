@@ -414,12 +414,10 @@ class TestProjectsFilterCard:
             "Search input must have id='project-search'"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
-    @pytest.mark.skip(reason="Apply button removed: real-time search")
     def test_apply_button(self):
         content = _read_template()
-        assert ('data-action="apply-search"' in content
-                or "data_action='apply-search'" in content), \
-            "Apply button must have data-action='apply-search'"
+        assert 'data-action="apply-search"' not in content, \
+            "Projects search is real-time and must not render a stale apply button"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_clear_button(self):
@@ -1113,11 +1111,10 @@ class TestProjectsFilterRender:
             "Search input with id='project-search' must be present"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
-    @pytest.mark.skip(reason="Apply button removed: real-time search")
     def test_apply_button_present(self, projects_html):
-        """应用搜索按钮必须存在。"""
-        assert 'data-action="apply-search"' in projects_html, \
-            "Apply search button must be present"
+        """实时搜索不应渲染应用搜索按钮。"""
+        assert 'data-action="apply-search"' not in projects_html, \
+            "Real-time project search must not render an apply button"
 
     @pytest.mark.contract_case("UI-PROJECTS-001")
     def test_clear_button_present(self, projects_html):

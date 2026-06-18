@@ -44,8 +44,9 @@
 触发与 skip 语义：
 
 - changed-files / quality target 映射只决定“是否触发”。未被映射选中的测试或 gate 是 not triggered，不得写成 skipped。
-- 一旦人工指定、映射选中或全量回归确认某个测试/gate 必须运行，运行期间出现 skipped tests 不得算 PASS；必须补齐 fixture/env、从触发映射中移除，或报告阻断。
-- 发布回归、full regression、required quality gate 不允许用 skip 替代验证；若环境不满足，应返回 FAIL/BLOCKED 并说明缺失条件。
+- 一旦人工指定、映射选中、required gate、full regression 或 release regression 确认某个测试/gate 必须运行，运行期间出现 skipped outcome 不得算 PASS；必须补齐 fixture/env、从触发映射中移除，或报告 `FAIL`/`BLOCKED`。
+- 发布回归、full regression、required quality gate 不允许用 skip 替代验证；必须证明选中集合是 `0 skipped`，否则返回 `FAIL`/`BLOCKED` 并说明缺失条件。
+- 新增测试 skip API 由 `scripts/quality/check_no_test_skips.py` 的 `noTestSkips` gate 阻止；不得新增 `pytest.skip`、`pytest.mark.skip`、`pytest.mark.skipif`、Playwright `test.skip()`、`test.describe.skip` 或 `test.fixme`。
 
 选择规则：
 

@@ -17,21 +17,32 @@ from __future__ import annotations
 
 import pytest
 import sqlite3
-import os
-import tempfile
-
-# Skip if no database available
-pytestmark = pytest.mark.skipif(
-    not os.path.exists("data/index.db"),
-    reason="需要实际数据库运行 presenter contract 测试",
-)
+import shutil
 
 
 @pytest.fixture
-def conn():
-    """创建到实际数据库的只读连接。"""
-    from session_browser.index.schema import _get_connection
-    c = _get_connection()
+def conn(tmp_path):
+    """创建 deterministic HIFI fixture SQLite 连接。"""
+    from tests.conftest import (
+        FIXTURE_ROOT,
+        HIFFI_AGENT,
+        HIFFI_SESSION_ID,
+        _populate_index_from_fixture,
+    )
+
+    data_dir = tmp_path / "claude_data"
+    shutil.copytree(FIXTURE_ROOT, data_dir)
+    sqlite_path = tmp_path / "index.sqlite"
+    session_key = _populate_index_from_fixture(
+        str(data_dir),
+        str(sqlite_path),
+        expected_agent=HIFFI_AGENT,
+        expected_session_id=HIFFI_SESSION_ID,
+    )
+    assert session_key == f"{HIFFI_AGENT}:{HIFFI_SESSION_ID}"
+
+    c = sqlite3.connect(sqlite_path)
+    c.row_factory = sqlite3.Row
     yield c
     c.close()
 

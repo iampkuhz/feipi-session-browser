@@ -23,14 +23,14 @@ UI_PRIMITIVES_CSS_DIR = STATIC_DIR / "css" / "ui-primitives"
 def _base_source():
     """返回 base.html 文本，如果文件缺失则跳过测试。"""
     if not BASE_HTML.exists():
-        pytest.skip(f"base.html not found at {BASE_HTML}")
+        pytest.fail(f"base.html not found at {BASE_HTML}")
     return BASE_HTML.read_text(encoding="utf-8")
 
 
 def _shell_source():
     """返回 shell.css 文本，如果文件缺失则跳过测试。"""
     if not SHELL_CSS.exists():
-        pytest.skip(f"shell.css not found at {SHELL_CSS}")
+        pytest.fail(f"shell.css not found at {SHELL_CSS}")
     return SHELL_CSS.read_text(encoding="utf-8")
 
 
@@ -56,7 +56,7 @@ def _ui_primitives_source():
         for f in sorted(UI_PRIMITIVES_CSS_DIR.glob("*.css")):
             parts.append(f.read_text(encoding="utf-8"))
     if not parts:
-        pytest.skip(f"ui-primitives.css not found at {UI_PRIMITIVES_CSS}")
+        pytest.fail(f"ui-primitives.css not found at {UI_PRIMITIVES_CSS}")
     return "\n".join(parts)
 
 

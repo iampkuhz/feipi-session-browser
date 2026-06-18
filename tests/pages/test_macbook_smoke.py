@@ -95,7 +95,7 @@ def macbook_smoke_server():
         # 尝试 index.db 作为备选
         index_file = os.path.join(TEST_INDEX_DIR, "index.db")
         if not os.path.exists(index_file):
-            pytest.skip("在 " + TEST_INDEX_DIR + " 未找到本地测试索引")
+            pytest.fail("在 " + TEST_INDEX_DIR + " 未找到本地测试索引")
 
     port = _find_free_port()
     env = os.environ.copy()

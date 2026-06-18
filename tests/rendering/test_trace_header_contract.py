@@ -25,7 +25,7 @@ def _read_trace_header_source() -> str:
     # Fallback to wrapper
     if TIMELINE_HTML.exists():
         return TIMELINE_HTML.read_text(encoding="utf-8")
-    pytest.skip("trace_header template not found")
+    pytest.fail("trace_header template not found")
 
 
 @pytest.fixture(scope="module")

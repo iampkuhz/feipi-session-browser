@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import socket
@@ -352,6 +353,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         if target == "index":
             paths = ["src/session_browser/index", "scripts/quality/check_index_integrity.py"]
         return [python, "-m", "compileall", "-q", *paths]
+    if gate == "noTestSkips":
+        return [python, "scripts/quality/check_no_test_skips.py"]
     if gate == "languagePolicy":
         return [python, "scripts/quality/check_language_policy.py"]
     if gate == "codexAgentPolicy":
@@ -458,7 +461,7 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
     fixture_error = None
 
     if needs_fixture:
-        default_base = os.environ.get("BASE_URL", "http://127.0.0.1:18999")
+        default_base = os.environ.get("BASE_URL", "http://127.0.0.1:19099")
         if not _fixture_session_available(default_base):
             fixture_proc, fixture_base_url, fixture_tmpdir, fixture_error = _start_fixture_server()
             if fixture_proc and fixture_base_url:
@@ -477,11 +480,13 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
 
             # For fixture-dependent gates, inject BASE_URL if fixture server is running
             env_override: dict[str, str] = {}
+            env_override["SESSION_BROWSER_PYTHON"] = _project_python(repo_root)
             if changed_files is not None:
                 env_override["QUALITY_CHANGED_FILES"] = json.dumps(changed_files, ensure_ascii=False)
             if gate in _FIXTURE_GATES and fixture_base_url:
                 env_override["BASE_URL"] = fixture_base_url
                 env_override["PW_SESSION_URL"] = f"{fixture_base_url}/sessions/claude_code/hifi-viz-session-001"
+                env_override["SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER"] = "1"
             elif gate in _FIXTURE_GATES:
                 details.append(GateDetail(
                     name=gate,

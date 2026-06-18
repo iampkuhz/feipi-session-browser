@@ -113,7 +113,7 @@ class TestUIPageSizeOptionsConsistency:
         # e.g. {%- set effective_options = page_size_options if page_size_options else [25, 50, 100] -%}
         match = re.search(r'else\s+\[([^\]]+)\]', content)
         if not match:
-            pytest.skip("无法在 ui_primitives.html 中找到 effective_options 默认值")
+            pytest.fail("无法在 ui_primitives.html 中找到 effective_options 默认值")
         return [int(x.strip()) for x in match.group(1).split(",")]
 
     def _extract_routes_page_size_urls(self) -> list[str]:
@@ -123,7 +123,7 @@ class TestUIPageSizeOptionsConsistency:
         # 匹配 for ps in ("20", "100", "500", "all")
         match = re.search(r'for\s+ps\s+in\s+\(([^)]+)\)', content)
         if not match:
-            pytest.skip("无法在 routes.py 中找到 page_size_urls 循环")
+            pytest.fail("无法在 routes.py 中找到 page_size_urls 循环")
         return [x.strip().strip('"\'') for x in match.group(1).split(",")]
 
     @pytest.mark.contract_case("DATA-PRESENTER-014")

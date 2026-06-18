@@ -117,24 +117,30 @@ test.describe('会话列表页', () => {
     const nextBtn = page.locator('.pagination [data-action="next-page"]');
     await expect(nextBtn).toBeVisible();
 
-    // Skip gracefully when fixture is too small for pagination
     const isDisabled = await nextBtn.isDisabled();
-    if (isDisabled) {
-      console.log('[skip] next-page button is disabled — fixture too small for pagination.');
-      test.skip();
-    }
+    expect(isDisabled, 'fixture must contain enough sessions for pagination').toBe(false);
 
-    // Click next once
-    await nextBtn.click();
+    const pageInput = page.locator('.page-input');
+    await expect(pageInput).toHaveValue('1');
 
-    // Wait for URL to reflect page=2 (not page=3)
-    await page.waitForURL(/page=2/, { timeout: 10000 });
+    // AJAX pagination updates the DOM and history.pushState without a load navigation.
+    const page2Response = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === '/sessions'
+        && url.searchParams.get('page') === '2'
+        && response.request().headers()['x-requested-with'] === 'XMLHttpRequest';
+    }, { timeout: 10000 });
+    await Promise.all([
+      page2Response,
+      nextBtn.click(),
+    ]);
 
-    // Assert page=2 in URL
-    expect(page.url()).toMatch(/page=2/);
-
-    // Assert page input value is 2
-    await expect(page.locator('.page-input')).toHaveValue('2');
+    await expect(pageInput).toHaveValue('2', { timeout: 10000 });
+    await expect.poll(() => new URL(page.url()).searchParams.get('page'), {
+      message: 'one next click must settle on page=2',
+      timeout: 10000,
+    }).toBe('2');
+    expect(new URL(page.url()).searchParams.get('page')).not.toBe('3');
 
     // Assert session rows are non-empty (data loaded)
     const rows = page.locator('tr[data-action="row"], .sessions-row');

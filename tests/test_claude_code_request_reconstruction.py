@@ -73,24 +73,24 @@ def test_prior_conversation_only_with_explicit_prior():
         assert prior_bucket.tokens == 0 or prior_bucket.precision == ValuePrecision.UNAVAILABLE
 
 
-@pytest.mark.skip(reason="prior_conversation_messages replaced by full_messages_array in split refactor (pre-existing)")
 def test_prior_conversation_with_prior_messages():
-    """With prior_messages, prior_conversation_messages should have tokens."""
+    """With full_messages_array, conversation messages should have tokens."""
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="current message")
     ctx = {
-        "prior_messages": [
-            {"role": "user", "content": "What is Python?"},
-            {"role": "assistant", "content": "Python is a programming language."},
+        "full_messages_array": [
+            {"role": "user", "content": "What is Python?", "content_token_estimate": 4},
+            {"role": "assistant", "content": "Python is a programming language.", "content_token_estimate": 6},
+            {"role": "user", "content": "current message", "content_token_estimate": 2},
         ]
     }
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
 
-    prior_bucket = next((b for b in result.buckets if b.key == "prior_conversation_messages"), None)
-    assert prior_bucket is not None
-    assert prior_bucket.tokens > 0
-    assert prior_bucket.precision == ValuePrecision.ESTIMATED
+    full_messages_bucket = next((b for b in result.buckets if b.key == "full_messages_array"), None)
+    assert full_messages_bucket is not None
+    assert full_messages_bucket.tokens > 0
+    assert full_messages_bucket.precision == ValuePrecision.ESTIMATED
 
 
 # ── 3. preceding_tool_results from session_context only ────────────────

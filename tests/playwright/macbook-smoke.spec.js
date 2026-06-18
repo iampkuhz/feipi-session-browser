@@ -36,7 +36,7 @@ for (const [viewportName, size] of Object.entries(VIEWPORTS)) {
     test('[UI-VISUAL-009] Dashboard has metric cards', async ({ page }) => {
       await page.goto('/dashboard');
       const cards = page.locator('.metric-card');
-      await expect(cards).toHaveCount(4);
+      await expect(cards).toHaveCount(6);
     });
 
     test('[UI-VISUAL-009] Sessions List has data table', async ({ page }) => {

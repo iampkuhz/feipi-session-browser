@@ -22,7 +22,7 @@ SESSIONS_LIST_JS = "/static/js/sessions-list.js"
 def _read(path: Path) -> str:
     """读取文件文本，如果缺失则跳过测试。"""
     if not path.exists():
-        pytest.skip(f"{path.name} not found at {path}")
+        pytest.fail(f"{path.name} not found at {path}")
     return path.read_text(encoding="utf-8")
 
 

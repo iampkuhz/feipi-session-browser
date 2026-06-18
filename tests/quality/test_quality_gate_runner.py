@@ -103,12 +103,14 @@ class TestQualityTargets:
         assert "settingsJson" in gates
         assert "bashSyntax" in gates
         assert "pythonCompile" in gates
+        assert "noTestSkips" in gates
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_session_detail_gates(self):
         gates = required_gates_for_target("session-detail")
         assert "pytest" in gates
         assert "pythonCompile" in gates
+        assert "noTestSkips" in gates
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_validate_unknown_target(self):
@@ -119,6 +121,7 @@ class TestQualityTargets:
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_acceptance_contract_gates(self):
         gates = required_gates_for_target("acceptance-contracts")
+        assert "noTestSkips" in gates
         assert "acceptanceContracts" in gates
         assert "pytest" in gates
 
@@ -129,6 +132,22 @@ class TestQualityTargets:
             ["scripts/quality/validate_acceptance_contracts.py"],
         )
         assert "acceptanceContracts" in gates
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_acceptance_contracts_runs_no_skip_gate_for_test_changes(self):
+        gates = applicable_gates_for_target(
+            "acceptance-contracts",
+            ["tests/playwright/session-detail.spec.js"],
+        )
+        assert "noTestSkips" in gates
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_hook_runtime_runs_no_skip_gate_for_gate_changes(self):
+        gates = applicable_gates_for_target(
+            "hook-runtime",
+            ["scripts/quality/check_no_test_skips.py"],
+        )
+        assert "noTestSkips" in gates
 
 
 class TestQualityGateRuntime:
@@ -144,6 +163,18 @@ class TestQualityGateRuntime:
         (tests_dir / "test_web_template_contract.py").write_text("", encoding="utf-8")
         cmd = run_quality_gate.gate_command("pytest", tmp_path, "session-detail")
         assert cmd[:4] == ["/tmp/dev-python", "-m", "pytest", "-q"]
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_no_test_skips_gate_command(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(
+            run_quality_gate,
+            "_project_python",
+            lambda repo_root, *, dev=False: "/tmp/runtime-python",
+        )
+
+        cmd = run_quality_gate.gate_command("noTestSkips", tmp_path, "hook-runtime")
+
+        assert cmd == ["/tmp/runtime-python", "scripts/quality/check_no_test_skips.py"]
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_browser_layout_gate_includes_dashboard_chart_coordinates(self, tmp_path):
@@ -224,9 +255,9 @@ class TestQualityGateRuntime:
         details = run_quality_gate.run_target(tmp_path, "session-detail")
 
         assert details[0].status == PASS
-        assert captured_env["BASE_URL"] == "http://127.0.0.1:18999"
+        assert captured_env["BASE_URL"] == "http://127.0.0.1:19099"
         assert captured_env["PW_SESSION_URL"] == (
-            "http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001"
+            "http://127.0.0.1:19099/sessions/claude_code/hifi-viz-session-001"
         )
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")

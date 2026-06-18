@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import pytest
 import re
+from pathlib import Path
 
 # ─── 常量 ──────────────────────────────────────────────────────────────
+
+ROOT = Path(__file__).resolve().parents[2]
 
 # 2560x1440 (QHD / 2K 显示器) User-Agent
 DISPLAY_2K_UA = (
@@ -269,19 +272,8 @@ class TestDisplay2KCSSSupport:
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_style_css_has_wide_media_query(self):
         """shell.css 应包含宽视口的媒体查询。"""
-        css_path = "src/session_browser/web/static/css/shell.css"
-        import os
-        full_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "..", css_path
-        )
-        full_path = os.path.normpath(os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            css_path
-        ))
-
-        if not os.path.exists(full_path):
-            pytest.skip(f"CSS file not found at {full_path}")
+        full_path = ROOT / "src/session_browser/web/static/css/shell.css"
+        assert full_path.exists(), f"CSS file not found at {full_path}"
 
         with open(full_path) as f:
             content = f.read()
@@ -297,15 +289,8 @@ class TestDisplay2KCSSSupport:
     @pytest.mark.contract_case("UI-VISUAL-008")
     def test_dashboard_css_responsive(self):
         """Dashboard CSS must be responsive-aware."""
-        css_path = "src/session_browser/web/static/css/dashboard.css"
-        import os
-        full_path = os.path.normpath(os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            css_path
-        ))
-
-        if not os.path.exists(full_path):
-            pytest.skip(f"CSS file not found at {full_path}")
+        full_path = ROOT / "src/session_browser/web/static/css/dashboard.css"
+        assert full_path.exists(), f"CSS file not found at {full_path}"
 
         with open(full_path) as f:
             content = f.read()

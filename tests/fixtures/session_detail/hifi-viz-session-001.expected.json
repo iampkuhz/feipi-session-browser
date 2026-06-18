@@ -50,7 +50,7 @@
     "rounds": [
       {"index": 0, "tool_count": 2, "total_tokens": 1285, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 2, "signal_count": 0},
       {"index": 1, "tool_count": 1, "total_tokens": 7120, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 0},
-      {"index": 2, "tool_count": 1, "total_tokens": 12150, "llm_call_count": 4, "llm_error_count": 0, "interaction_count": 2, "signal_count": 0},
+      {"index": 2, "tool_count": 1, "total_tokens": 12150, "llm_call_count": 4, "llm_error_count": 0, "interaction_count": 1, "signal_count": 0},
       {"index": 3, "tool_count": 1, "total_tokens": 14490, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 1},
       {"index": 4, "tool_count": 2, "total_tokens": 24870, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 0},
       {"index": 5, "tool_count": 1, "total_tokens": 30080, "llm_call_count": 1, "llm_error_count": 0, "interaction_count": 1, "signal_count": 1},

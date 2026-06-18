@@ -27,7 +27,7 @@ def _read_source_with_splits(main_file, split_dir):
 @pytest.fixture(scope="module")
 def css_text():
     if not CSS_PATH.exists():
-        pytest.skip(f"ui-primitives.css not found at {CSS_PATH}")
+        pytest.fail(f"ui-primitives.css not found at {CSS_PATH}")
     return _read_source_with_splits(CSS_PATH, CSS_DIR)
 
 

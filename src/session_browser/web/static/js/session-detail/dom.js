@@ -25,7 +25,8 @@
   function setRoundOpen(round, open) {
     if (!round) return;
     var btn = qs(round, '[data-action="toggle-round"]');
-    var detail = qs(round, '[data-trace-detail]');
+    var roundId = round.getAttribute('data-round');
+    var detail = qs(round, '[data-trace-detail]') || (roundId ? document.getElementById('round-' + roundId + '-detail') : null);
     round.classList.toggle('is-open', open);
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (detail) detail.hidden = !open;

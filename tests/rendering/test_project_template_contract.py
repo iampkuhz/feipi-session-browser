@@ -23,7 +23,7 @@ UI_PRIMITIVES_DIR = TEMPLATE_DIR / "components" / "ui_primitives"
 
 def _read_template(path: Path) -> str:
     if not path.exists():
-        pytest.skip(f"{path.name} not found at {path}")
+        pytest.fail(f"{path.name} not found at {path}")
     return path.read_text(encoding="utf-8")
 
 
@@ -82,7 +82,7 @@ import project.html session rows must carry data-title and data-session-id
         """Session rows must include data-session-id attribute."""
         rows = self._extract_tbody_rows(project_html)
         if not rows:
-            pytest.skip("No session rows found in project.html tbody")
+            pytest.fail("No session rows found in project.html tbody")
         for row in rows:
             assert "data-session-id" in row, (
                 f"Session row lacks data-session-id attribute: {row[:120]}..."
@@ -93,7 +93,7 @@ import project.html session rows must carry data-title and data-session-id
         """Session rows must include data-title attribute for search."""
         rows = self._extract_tbody_rows(project_html)
         if not rows:
-            pytest.skip("No session rows found in project.html tbody")
+            pytest.fail("No session rows found in project.html tbody")
         for row in rows:
             assert "data-title" in row, (
                 f"Session row lacks data-title attribute: {row[:120]}..."

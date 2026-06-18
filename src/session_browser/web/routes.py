@@ -14,7 +14,7 @@ import time
 import urllib.parse
 import uuid
 from datetime import datetime, timezone
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 from session_browser.index.indexer import (
@@ -1309,11 +1309,17 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
 
 
+class SessionBrowserServer(ThreadingHTTPServer):
+    """Threaded server keeps parallel browser tests from starving requests."""
+
+    daemon_threads = True
+
+
 def create_server(
     host: str = "127.0.0.1",
     port: int = 8899,
 ) -> HTTPServer:
     """Create and return an HTTPServer instance."""
-    server = HTTPServer((host, port), SessionBrowserHandler)
+    server = SessionBrowserServer((host, port), SessionBrowserHandler)
     server.allow_reuse_address = True
     return server

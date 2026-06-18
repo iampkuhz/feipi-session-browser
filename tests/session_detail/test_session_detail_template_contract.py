@@ -43,14 +43,14 @@ def _timeline_component():
 @pytest.fixture(scope="module")
 def base_text():
     if not BASE_HTML_PATH.exists():
-        pytest.skip(f"base.html not found at {BASE_HTML_PATH}")
+        pytest.fail(f"base.html not found at {BASE_HTML_PATH}")
     return BASE_HTML_PATH.read_text()
 
 
 @pytest.fixture(scope="module")
 def session_text():
     if not SESSION_HTML_PATH.exists():
-        pytest.skip(f"session.html not found at {SESSION_HTML_PATH}")
+        pytest.fail(f"session.html not found at {SESSION_HTML_PATH}")
     return SESSION_HTML_PATH.read_text()
 
 

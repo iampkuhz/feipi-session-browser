@@ -27,7 +27,7 @@ PRIMITIVES_HTML = COMPONENTS / "session_detail_primitives.html"
 
 def _read(path: pathlib.Path) -> str:
     if not path.exists():
-        pytest.skip(f"Template not found: {path}")
+        pytest.fail(f"Template not found: {path}")
     return path.read_text(encoding="utf-8")
 
 
@@ -166,7 +166,7 @@ class TestHeroArea:
 
 
 class TestTabNavigation:
-    """Tab navigation must have Trace, Metrics, Payloads tabs."""
+    """Tab navigation must have Trace and Payload tabs."""
 
     @pytest.fixture(scope="class")
     def session(self):
@@ -188,13 +188,12 @@ class TestTabNavigation:
             "Missing data-tab=\"trace\""
 
     @pytest.mark.contract_case("UI-SD-001")
-    @pytest.mark.skip(reason="metrics tab removed in 72b3157")
-    def test_metrics_tab_exists(self, session):
-        """Metrics tab must exist with data-action=\"tab-metrics\"."""
-        assert 'data-action="tab-metrics"' in session, \
-            "Missing Metrics tab"
-        assert 'data-tab="metrics"' in session, \
-            "Missing data-tab=\"metrics\""
+    def test_payload_tab_exists(self, session):
+        """Payload tab must exist with data-action=\"tab-payload\"."""
+        assert 'data-action="tab-payload"' in session, \
+            "Missing Payload tab"
+        assert 'data-tab="payload"' in session, \
+            "Missing data-tab=\"payload\""
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_trace_tab_is_active(self, session):

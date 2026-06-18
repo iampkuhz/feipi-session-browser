@@ -9,8 +9,10 @@
 - required gate 失败、缺失或被跳过时，不得给 overall `PASS`。
 - changed files 只用于选择 target；target 一旦选中，内部 gate 必须运行完整 baseline。
 - 路径映射没有选中某个 target/gate 时，状态是 not triggered，不是 skipped。
-- target/gate 被人工指定、路径映射选中或全量回归要求运行后，测试框架报告的 skipped tests 视为未验证完成；必须补齐 fixture/env、调整触发映射，或以 `FAIL`/`BLOCKED` 收口。
+- target/gate 被人工指定、路径映射选中、required baseline、full regression 或 release regression 要求运行后，测试框架报告的 skipped outcome 视为未验证完成；必须补齐 fixture/env、调整触发映射，或以 `FAIL`/`BLOCKED` 收口。
+- full regression 和 release regression 必须证明完整选中集合是 `0 skipped`；任何 skipped tests 都不能作为 PASS 证据。
 - Playwright gate 被选中时必须提供必要的 fixture URL，并且命令输出中出现 skipped tests 时不得 PASS。
+- `noTestSkips` gate 运行 `scripts/quality/check_no_test_skips.py`，用于阻止新增 pytest / Playwright skip API；该 gate 失败时不得降级为 warning。
 
 ## 当前执行链
 
@@ -27,7 +29,10 @@
 | changed-files 映射未命中某个 target/gate | not triggered | 是；因为该测试不在本次 required baseline 中 |
 | target/gate 被映射选中但命令未运行 | missing / BLOCKED | 否 |
 | target/gate 被映射选中且测试框架报告 skipped tests | skipped after trigger | 否 |
+| selected / required gate 出现 skipped outcome | FAIL 或 BLOCKED | 否 |
+| full regression / release regression 报告非 `0 skipped` | FAIL 或 BLOCKED | 否 |
 | full regression / release regression 中测试缺少 fixture/env | BLOCKED 或 FAIL | 否 |
+| `check_no_test_skips.py` 发现新增 skip API | FAIL | 否 |
 
 不得用“跳过”描述 not triggered 的测试；也不得用 not triggered 掩盖已经确认需要运行的测试。
 

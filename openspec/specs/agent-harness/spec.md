@@ -64,6 +64,7 @@ Quality gates SHALL run with a project dependency-capable Python interpreter ins
 ### Requirement: Test trigger mapping and skip semantics
 
 The harness SHALL distinguish tests that are not triggered by path-to-target mapping from tests that are triggered but skipped at runtime.
+Any selected test or required gate SHALL treat skipped outcomes as failed or blocked validation, and full or release regression SHALL prove zero skipped tests.
 
 #### Scenario: Change mapping does not select a gate
 
@@ -79,9 +80,24 @@ The harness SHALL distinguish tests that are not triggered by path-to-target map
 - **Then** the gate SHALL fail or block instead of passing
 - **And** the agent SHALL either provide the missing fixture/environment or remove the test from the triggered mapping
 
+#### Scenario: Selected pytest gate reports skipped tests
+
+- **Given** a pytest gate is selected by path mapping, explicit command, required baseline, or full regression
+- **When** pytest reports one or more skipped outcomes
+- **Then** the gate SHALL fail or block instead of passing
+- **And** the report SHALL identify the outcome as skipped after trigger, not not triggered
+
 #### Scenario: Full regression is requested
 
 - **Given** a release or full regression has been requested
 - **When** any included test would skip because required fixture or environment is missing
 - **Then** the regression SHALL be reported as `FAIL` or `BLOCKED`
 - **And** skipped tests SHALL NOT be counted as passing validation
+- **And** the successful regression evidence SHALL show `0 skipped`
+
+#### Scenario: New test skip API is introduced
+
+- **Given** a change adds `pytest.skip`, `pytest.mark.skip`, `pytest.mark.skipif`, Playwright `test.skip()`, `test.describe.skip`, or `test.fixme`
+- **When** the `noTestSkips` gate runs `scripts/quality/check_no_test_skips.py`
+- **Then** the gate SHALL fail with the file and line number
+- **And** the new skip SHALL NOT be accepted as a passing quality gate result

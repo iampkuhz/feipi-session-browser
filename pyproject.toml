@@ -46,4 +46,5 @@ testpaths = ["tests"]
 addopts = "-n auto"
 markers = [
     "contract_case: Mark test with acceptance contract case ID(s)",
+    "playwright: Mark pytest tests that exercise browser DOM via Playwright",
 ]

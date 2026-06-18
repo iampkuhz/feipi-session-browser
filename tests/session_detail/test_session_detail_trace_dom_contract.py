@@ -45,7 +45,7 @@ def _read_source_with_splits(main_file, split_dir):
 def template_source():
     """Load the timeline component template source (with split-aware reading)."""
     if not TIMELINE.exists():
-        pytest.skip(f"Template not found: {TIMELINE}")
+        pytest.fail(f"Template not found: {TIMELINE}")
     return _read_source_with_splits(TIMELINE, TIMELINE_DIR)
 
 

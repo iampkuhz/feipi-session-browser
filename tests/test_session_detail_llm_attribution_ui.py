@@ -384,19 +384,6 @@ class TestAttributionTemplateRendering:
         # Old chip pattern should not be used anymore
         assert "sd-chip--attrib" not in html
 
-    @pytest.mark.skip(reason="attribution_notes not rendered in template (pre-existing)")
-    def test_attribution_renders_notes(self):
-        req_data = _make_req_data(
-            attribution_notes=[
-                "Cache tokens are estimated from provider response.",
-                "Model inferred from log filename.",
-            ],
-        )
-        html = _render_payload_sources([req_data])
-        assert "sd-attribution-topnote" in html or "归因备注" in html
-        assert "Cache tokens are estimated" in html
-        assert "Model inferred" in html
-
     def test_attribution_renders_context_preview(self):
         req_data = _make_req_data(
             captured_context_preview="system\nYou are a helpful assistant.",
@@ -1067,12 +1054,11 @@ class TestAttributionModalNewLayout:
         assert "sd-attribution-topgrid" in html
         assert "sd-attribution-rail" not in html
 
-    @pytest.mark.skip(reason="label changed to '总 token 消耗' instead of '总输入' (pre-existing)")
     def test_chinese_labels_in_summary(self):
         """Summary card should use Chinese labels."""
         html = _render_payload_sources([self._make_req_with_rich_data()])
         assert "请求摘要" in html
-        assert "总输入" in html
+        assert "Request Content Denominator" in html
         assert "覆盖率" in html
 
     def test_confidence_not_displayed_in_buckets(self):

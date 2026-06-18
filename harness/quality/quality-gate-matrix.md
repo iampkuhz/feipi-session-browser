@@ -17,9 +17,9 @@
 |---|---|---|
 | `session-detail` | UI 模板、CSS、前端 JS | 模板契约、CSS 契约、浏览器布局、pytest |
 | `python-src` | `src/session_browser/**/*.py` | Python compile、pytest |
-| `hook-runtime` | hooks、agent 配置、质量脚本 | settings、bash syntax、python compile、policy、pytest、doctor |
-| `harness` | `harness/**`、`scripts/harness/**` | doctor、仓库结构、harness 结构、OpenSpec 布局 |
-| `acceptance-contracts` | `docs/acceptance-contracts/**`、`tests/**` | 验收契约映射、pytest |
+| `hook-runtime` | hooks、agent 配置、质量脚本 | settings、bash syntax、python compile、policy、pytest、doctor、noTestSkips |
+| `harness` | `harness/**`、`scripts/harness/**` | doctor、仓库结构、harness 结构、OpenSpec 布局、noTestSkips |
+| `acceptance-contracts` | `docs/acceptance-contracts/**`、`tests/**` | 验收契约映射、pytest、noTestSkips |
 | `index` | index 相关源码 | index integrity |
 
 ## 修改规则
@@ -29,5 +29,6 @@
 - 改测试或验收契约时，必须触发 `acceptance-contracts`。
 - 改 UI 页面时，不得只跑静态检查；需要包含对应浏览器或交互 gate。
 - `GATE_PATTERNS` 只表达触发映射。未命中的 gate 是 not triggered；不要在汇报中称为 skipped。
-- 被 target 选中的 gate 必须运行完整 baseline。若测试框架输出 skipped tests，应视为 gate 未完成验证，而不是 PASS。
-- 全量回归和发布回归不走 changed-files 裁剪；任何 skipped tests 都必须先解释为 fixture/env 缺失并修复，或报告 `FAIL`/`BLOCKED`。
+- 被 target 选中的 gate 必须运行完整 baseline。若测试框架输出 skipped tests，应视为 gate 未完成验证，而不是 PASS；selected / required gate 出现 skipped outcome 必须返回 `FAIL`/`BLOCKED`。
+- 全量回归和发布回归不走 changed-files 裁剪；必须证明完整集合 `0 skipped`，任何 skipped tests 都必须先解释为 fixture/env 缺失并修复，或报告 `FAIL`/`BLOCKED`。
+- 新增 pytest / Playwright skip API 由 `scripts/quality/check_no_test_skips.py` 的 `noTestSkips` gate 阻止；不得通过 allowlist 保留历史测试 skip。

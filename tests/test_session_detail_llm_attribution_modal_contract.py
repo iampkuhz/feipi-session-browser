@@ -331,7 +331,6 @@ class TestAttributionModalContract:
         assert "响应摘要" in html
         assert "归因诊断" in html
 
-    @pytest.mark.skip(reason="residual precision tag not rendered for unknown bucket (pre-existing)")
     def test_precision_labels_render_correctly_in_template(self):
         """Precision tag should render the correct label in the template output."""
         req_data = {

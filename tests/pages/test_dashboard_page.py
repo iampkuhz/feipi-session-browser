@@ -98,7 +98,7 @@ class TestDashboardMetrics:
         cards = re.findall(r'class="metric-card\b', dashboard_html)
         # If page renders empty state, skip this check
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         assert len(cards) == 6, \
             f"预期 6 个指标卡片，发现 {len(cards)} 个"
 
@@ -118,7 +118,7 @@ class TestDashboardMetrics:
             dashboard_html
         )
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         assert len(values) == 6, \
             f"预期 6 个指标值，发现 {len(values)} 个"
 
@@ -142,7 +142,7 @@ class TestDashboardMetrics:
     def test_has_info_buttons(self, dashboard_html):
         """每个指标卡片必须有 row tooltip，不保留 KPI info button。"""
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         assert 'data-action="kpi-info"' not in dashboard_html, \
             "Dashboard KPI 不得保留已废弃的 KPI info button"
         assert 'data-kpi-tooltip=' in dashboard_html, \
@@ -171,7 +171,7 @@ class TestDashboardCharts:
     def test_chart_containers_rendered(self, dashboard_html):
         """图表必须有专用的容器元素。"""
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         containers = re.findall(r'data-dashboard-chart', dashboard_html)
         assert len(containers) >= 2, \
             f"预期至少 2 个图表容器，发现 {len(containers)} 个"
@@ -180,7 +180,7 @@ class TestDashboardCharts:
     def test_chart_json_data_embedded(self, dashboard_html):
         """Dashboard 必须将图表数据嵌入为 JSON。"""
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         # 查找包含图表数据的 script 标签
         assert 'id="dashboard-graph-data"' in dashboard_html, \
             "Dashboard 必须嵌入趋势图表 JSON 数据"
@@ -191,7 +191,7 @@ class TestDashboardCharts:
     def test_chart_json_parseable(self, dashboard_html):
         """嵌入的图表 JSON 必须是有效的。"""
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         match = re.search(
             r'id="dashboard-graph-data">(\[.*?\])</script>',
             dashboard_html,
@@ -206,7 +206,7 @@ class TestDashboardCharts:
     def test_chart_has_legend(self, dashboard_html):
         """图表必须有图例（JS 渲染，检查图例相关 CSS 类是否被引用）。"""
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         # 图例由 JS 动态渲染，静态 HTML 中验证 legend CSS 被加载即可
         assert "legend-row" in dashboard_html or "ui-primitives.css" in dashboard_html, \
             "Dashboard 必须加载包含图例样式的 CSS"
@@ -218,7 +218,7 @@ class TestDashboardCharts:
     def test_chart_subtitles(self, dashboard_html):
         """图表说明必须收敛到 chart note，不渲染 subtitle。"""
         if "暂无已索引 session" in dashboard_html:
-            pytest.skip("Fixture 未产生数据，页面渲染空态")
+            pytest.fail("Fixture 未产生数据，页面渲染空态")
         assert "chart-card__subtitle" not in dashboard_html
         for phrase in [
             "session count by agent",

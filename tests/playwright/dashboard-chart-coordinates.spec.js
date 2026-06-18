@@ -114,7 +114,7 @@ test.describe('Dashboard chart coordinates', () => {
       { query: 'qoder', prefix: 'qoder' },
       { query: 'claude-code', prefix: 'claude_code' },
     ];
-    let result = null;
+    const evaluatedScopes = [];
 
     for (const scope of scopes) {
       await page.goto(`/dashboard?agent=${scope.query}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -143,16 +143,23 @@ test.describe('Dashboard chart coordinates', () => {
         };
       }, { prefix: scope.prefix });
 
-      if (scopeResult.missingIndexes.length > 0) {
-        result = scopeResult;
-        break;
-      }
+      evaluatedScopes.push(scopeResult);
     }
 
-    test.skip(!result, 'fixture has no highlighted Cache Health scope with missing ratio points');
-    for (const index of result.missingIndexes) {
-      expect(result.markerByIndex[index], `missing ${result.prefix} ratio at index ${index} must not render a marker`).toBe(false);
-      expect(result.pointYByIndex[index], `missing ${result.prefix} ratio at index ${index} must not pin tooltip to bottom`).toBe('');
+    expect(evaluatedScopes.length, 'fixture must render at least one Cache Health chart scope').toBeGreaterThan(0);
+    const missingCases = evaluatedScopes.flatMap((scopeResult) => (
+      scopeResult.missingIndexes.map((index) => ({ scopeResult, index }))
+    ));
+    if (missingCases.length === 0) {
+      const markerCount = evaluatedScopes.reduce(
+        (total, scopeResult) => total + scopeResult.markerByIndex.filter(Boolean).length,
+        0,
+      );
+      expect(markerCount, 'current fixture has complete ratios and must render highlighted markers').toBeGreaterThan(0);
+    }
+    for (const { scopeResult, index } of missingCases) {
+      expect(scopeResult.markerByIndex[index], `missing ${scopeResult.prefix} ratio at index ${index} must not render a marker`).toBe(false);
+      expect(scopeResult.pointYByIndex[index], `missing ${scopeResult.prefix} ratio at index ${index} must not pin tooltip to bottom`).toBe('');
     }
   });
 });

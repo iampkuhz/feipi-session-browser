@@ -21,14 +21,14 @@ PROJECTS_JS = STATIC_JS / "projects.js"
 def _projects_template():
     """返回 projects.html 文本，如果文件缺失则跳过测试。"""
     if not PROJECTS_HTML.exists():
-        pytest.skip(f"projects.html not found at {PROJECTS_HTML}")
+        pytest.fail(f"projects.html not found at {PROJECTS_HTML}")
     return PROJECTS_HTML.read_text(encoding="utf-8")
 
 
 def _projects_js():
     """返回 projects.js 文本，如果文件缺失则跳过测试。"""
     if not PROJECTS_JS.exists():
-        pytest.skip(f"projects.js not found at {PROJECTS_JS}")
+        pytest.fail(f"projects.js not found at {PROJECTS_JS}")
     return PROJECTS_JS.read_text(encoding="utf-8")
 
 
@@ -82,7 +82,7 @@ class TestProjectsFilterFooterStructure:
 
 
 class TestProjectsJsUpdateFilterChipSelector:
-    """projects.js 的 updateFilterChip 必须定义有效的 CSS 选择器。"""
+    """projects.js 的 updateFilterChip 必须定位 active-filters 容器。"""
 
     def _extract_update_filter_chip(self, js_text):
         """从 JS 文本中提取 updateFilterChip 函数体。"""
@@ -92,7 +92,7 @@ class TestProjectsJsUpdateFilterChipSelector:
             re.DOTALL,
         )
         if not match:
-            pytest.skip("updateFilterChip function not found in projects.js")
+            pytest.fail("updateFilterChip function not found in projects.js")
         return match.group(1)
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
@@ -103,28 +103,16 @@ class TestProjectsJsUpdateFilterChipSelector:
         )
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
-    @pytest.mark.skip(reason="updateFilterChip uses getElementById, not querySelector (pre-existing)")
     def test_update_filter_chip_has_selector(self, projects_js):
-        """updateFilterChip 必须使用 querySelector 与 CSS 选择器。"""
+        """updateFilterChip 必须定位 projects-active-filters 容器。"""
         body = self._extract_update_filter_chip(projects_js)
-        assert "querySelector" in body, (
-            "updateFilterChip lacks querySelector call"
-        )
+        assert "getElementById('projects-active-filters')" in body
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
-    @pytest.mark.skip(reason="updateFilterChip uses getElementById, not querySelector (pre-existing)")
     def test_update_filter_chip_selector_value(self, projects_js):
-        """提取并验证选择器指向 active-filters 元素。"""
+        """验证定位目标指向 active-filters 元素。"""
         body = self._extract_update_filter_chip(projects_js)
-        # 从 querySelector('...') 中提取选择器字符串
-        match = re.search(r"querySelector\(['\"]([^'\"]+)['\"]\)", body)
-        assert match, "updateFilterChip querySelector lacks a string argument"
-        selector = match.group(1)
-
-        # 选择器必须以某种形式引用 active-filters
-        assert "active-filters" in selector, (
-            f"updateFilterChip selector '{selector}' does not reference .active-filters"
-        )
+        assert "projects-active-filters" in body
 
 
 # ── Template-JS contract: selector matches template structure ────────────
@@ -139,16 +127,21 @@ class TestTemplateJsContractMatch:
     足够宽泛以匹配现有元素。
     """
 
-    def _extract_selector(self, js_text):
-        """从 updateFilterChip 中提取 CSS 选择器。"""
+    def _extract_filter_target(self, js_text):
+        """从 updateFilterChip 中提取 DOM 定位目标。"""
         match = re.search(
-            r'function\s+updateFilterChip\s*\([^)]*\)\s*\{[^}]*querySelector\([\'"]([^\'"]+)[\'"]\)',
+            r'function\s+updateFilterChip\s*\([^)]*\)\s*\{(?P<body>.*?)\n    \}',
             js_text,
             re.DOTALL,
         )
-        if not match:
-            return None
-        return match.group(1)
+        assert match, "updateFilterChip function not found"
+        body = match.group("body")
+        id_match = re.search(r"getElementById\(['\"]([^'\"]+)['\"]\)", body)
+        if id_match:
+            return "#" + id_match.group(1)
+        selector_match = re.search(r"querySelector\(['\"]([^'\"]+)['\"]\)", body)
+        assert selector_match, "Cannot extract selector from updateFilterChip"
+        return selector_match.group(1)
 
     @pytest.mark.contract_case("UI-PROJECTS-008")
     def test_js_selector_compatible_with_template(self, projects_html, projects_js):
@@ -160,9 +153,14 @@ class TestTemplateJsContractMatch:
           两个角色的单一组合类）。
         - 如果选择器指向模板中定义的类，则通过。
         """
-        selector = self._extract_selector(projects_js)
-        if not selector:
-            pytest.skip("Cannot extract selector from updateFilterChip")
+        selector = self._extract_filter_target(projects_js)
+
+        if selector.startswith("#"):
+            assert selector[1:] in projects_html, (
+                f"Template projects.html does not contain id '{selector[1:]}' "
+                f"referenced by JS selector '{selector}'"
+            )
+            return
 
         # 将选择器拆分为各部分（按空格拆分为后代选择器）
         parts = selector.split()

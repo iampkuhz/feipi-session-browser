@@ -6,10 +6,10 @@ Usage:
     python scripts/start_fixture_server.py
 
     # In terminal 2:
-    PW_SESSION_URL=http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001 npx playwright test
+    PW_SESSION_URL=http://127.0.0.1:19099/sessions/claude_code/hifi-viz-session-001 npx playwright test
 
     # For long session tests:
-    PW_LONG_SESSION_URL=http://127.0.0.1:18999/sessions/claude_code/long-session-001 npx playwright test --grep "Long Session"
+    PW_LONG_SESSION_URL=http://127.0.0.1:19099/sessions/claude_code/long-session-001 npx playwright test --grep "Long Session"
 """
 import os
 import sys
@@ -22,7 +22,7 @@ import signal
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE_ROOT = os.path.join(SB_ROOT, "tests", "fixtures", "session_hifi_fixture")
 LONG_FIXTURE_ROOT = os.path.join(SB_ROOT, "tests", "fixtures", "session_hifi_long_fixture")
-PORT = 18999
+DEFAULT_PORT = 19099
 VENV_PYTHON = os.path.join(SB_ROOT, ".venv", "bin", "python")
 if not os.path.exists(VENV_PYTHON):
     VENV_PYTHON = sys.executable
@@ -65,6 +65,15 @@ def populate_index(claude_data_dir, sqlite_path):
 
 
 def main():
+    base_url_env = os.environ.get("BASE_URL", "")
+    port = int(os.environ.get("SESSION_BROWSER_PLAYWRIGHT_PORT") or DEFAULT_PORT)
+    if base_url_env:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(base_url_env)
+        if parsed.port:
+            port = parsed.port
+
     tmpdir = tempfile.mkdtemp(prefix="playwright_fixture_")
     index_dir = os.path.join(tmpdir, "index")
     os.makedirs(index_dir)
@@ -121,32 +130,39 @@ def main():
     env["INDEX_DIR"] = index_dir
     env["CLAUDE_DATA_DIR"] = data_dir
     env["SERVER_HOST"] = "127.0.0.1"
-    env["SERVER_PORT"] = str(PORT)
+    env["SERVER_PORT"] = str(port)
     env["SESSION_BROWSER_LOG_LEVEL"] = "WARNING"
     env["PYTHONUNBUFFERED"] = "1"
 
-    print(f"Starting fixture server on http://127.0.0.1:{PORT}")
+    print(f"Starting fixture server on http://127.0.0.1:{port}")
     print(f"  Data dir: {data_dir}")
     print(f"  Index: {sqlite_path}")
     print(f"  Session URLs:")
-    print(f"    http://127.0.0.1:{PORT}/sessions/claude_code/hifi-viz-session-001")
-    print(f"    http://127.0.0.1:{PORT}/sessions/claude_code/long-session-001")
+    print(f"    http://127.0.0.1:{port}/sessions/claude_code/hifi-viz-session-001")
+    print(f"    http://127.0.0.1:{port}/sessions/claude_code/long-session-001")
     print(f"  TMPDIR: {tmpdir}")
 
     proc = subprocess.Popen(
         [VENV_PYTHON, "-m", "session_browser", "serve", "--allow-empty", "--no-scan"],
         cwd=SB_ROOT,
         env=env,
-        start_new_session=True,  # New process group so we can kill the whole group on exit
     )
 
     # Wait for server to start
     import urllib.request
-    base_url = f"http://127.0.0.1:{PORT}"
+    base_url = f"http://127.0.0.1:{port}"
     for _ in range(30):
         try:
-            resp = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)
-            if resp.status == 200:
+            dashboard = urllib.request.urlopen(f"{base_url}/dashboard", timeout=2)
+            session = urllib.request.urlopen(
+                f"{base_url}/sessions/claude_code/hifi-viz-session-001",
+                timeout=2,
+            )
+            long_session = urllib.request.urlopen(
+                f"{base_url}/sessions/claude_code/long-session-001",
+                timeout=2,
+            )
+            if dashboard.status == session.status == long_session.status == 200:
                 break
         except Exception:
             time.sleep(0.5)
@@ -161,16 +177,18 @@ def main():
     print(f"Press Ctrl+C to stop and clean up")
 
     def cleanup(signum=None, frame=None):
-        print(f"\nShutting down server (PGID {proc.pid})...")
+        print(f"\nShutting down server (PID {proc.pid})...")
         try:
-            os.killpg(proc.pid, signal.SIGTERM)
+            proc.terminate()
             proc.wait(timeout=5)
         except (ProcessLookupError, subprocess.TimeoutExpired):
             try:
-                os.killpg(proc.pid, signal.SIGKILL)
+                proc.kill()
                 proc.wait(timeout=3)
             except ProcessLookupError:
                 pass
+        except PermissionError:
+            pass
         shutil.rmtree(tmpdir, ignore_errors=True)
         print("Cleaned up.")
         sys.exit(0)
@@ -185,14 +203,16 @@ def main():
         if proc.poll() is not None:
             return
         try:
-            os.killpg(proc.pid, signal.SIGTERM)
+            proc.terminate()
             proc.wait(timeout=5)
         except (ProcessLookupError, subprocess.TimeoutExpired):
             try:
-                os.killpg(proc.pid, signal.SIGKILL)
+                proc.kill()
                 proc.wait(timeout=3)
             except ProcessLookupError:
                 pass
+        except PermissionError:
+            pass
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     atexit.register(_atexit_cleanup)

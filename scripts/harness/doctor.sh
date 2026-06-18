@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
+PYTHON="${SESSION_BROWSER_PYTHON:-python3}"
 
 fail=0
 
@@ -56,7 +57,7 @@ check_dir tests
 check_dir scripts/claude_hooks
 
 if [[ -f .claude/settings.json ]]; then
-  python3 -m json.tool .claude/settings.json >/dev/null || {
+  "$PYTHON" -m json.tool .claude/settings.json >/dev/null || {
     echo "[FAIL] invalid JSON: .claude/settings.json" >&2
     fail=1
   }
@@ -67,12 +68,12 @@ for script in scripts/session-browser.sh .claude/hooks/*.sh .codex/hooks/*.sh .q
   bash -n "$script" || fail=1
 done
 
-python3 -m compileall -q src || fail=1
-python3 scripts/quality/check_language_policy.py || fail=1
-python3 scripts/quality/check_codex_agent_policy.py || fail=1
+"$PYTHON" -m compileall -q src || fail=1
+"$PYTHON" scripts/quality/check_language_policy.py || fail=1
+"$PYTHON" scripts/quality/check_codex_agent_policy.py || fail=1
 
 # CSS ownership validation
-css_output="$(python3 scripts/validate_css_ownership.py 2>&1)" || true
+css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || true
 css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
 css_expected=1  # .sd-shell duplicate (pre-existing)
 if [[ "$css_total" -gt "$css_expected" ]]; then

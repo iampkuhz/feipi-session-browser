@@ -5,10 +5,6 @@ and asserts the page renders successfully (HTTP 200, key DOM elements present).
 """
 
 import pytest
-try:
-    from bs4 import BeautifulSoup
-except ImportError:
-    pytest.skip("bs4 not installed", allow_module_level=True)
 
 
 class TestSessionDetailRoute:

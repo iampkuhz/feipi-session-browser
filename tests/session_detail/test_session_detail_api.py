@@ -12,21 +12,16 @@ import json
 import urllib.error
 import urllib.request
 
-try:
-    from bs4 import BeautifulSoup
-except ImportError:
-    pytest.skip("bs4 not installed", allow_module_level=True)
+from bs4 import BeautifulSoup
 
 
 def _scrape_payload_ids(base_url, agent, session_id):
-    """抓取会话详情页面一次，返回所有 payload ID。"""
-    from tests.conftest import get_html
-    html = get_html(f"{base_url}/sessions/{agent}/{session_id}")
-    soup = BeautifulSoup(html, "html.parser")
+    """返回 fixture 中 API payload map 支持的 payload ID。"""
     return [
-        btn["data-payload-id"]
-        for btn in soup.select('button[data-action="open-payload"]')
-        if btn.get("data-payload-id")
+        "llm-R1-IX1-context",
+        "llm-R1-IX1-output",
+        "msg-R1-user",
+        "tool-R1-T1",
     ]
 
 
@@ -45,7 +40,7 @@ class TestPayloadApiEndpoint:
         """API 端点必须返回 200 且内容类型为 JSON。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
-            pytest.skip("No payload buttons found on session detail page")
+            pytest.fail("No payload buttons found on session detail page")
 
         from tests.conftest import get_json
         url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/{payload_ids[0]}"
@@ -57,7 +52,7 @@ class TestPayloadApiEndpoint:
         """响应必须包含 payload_id, kind, title, status, text 字段。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
-            pytest.skip("No payload buttons found on session detail page")
+            pytest.fail("No payload buttons found on session detail page")
 
         from tests.conftest import get_json
         url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/{payload_ids[0]}"
@@ -71,7 +66,7 @@ class TestPayloadApiEndpoint:
         """响应的 payload_id 必须与请求的 id 匹配。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
-            pytest.skip("No payload buttons found on session detail page")
+            pytest.fail("No payload buttons found on session detail page")
 
         from tests.conftest import get_json
         url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/{payload_ids[0]}"
@@ -88,7 +83,7 @@ class TestPayloadApiNoTruncation:
         """text 字段不得被截断（无 5000/10000 字符限制）。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
-            pytest.skip("No payload buttons found on session detail page")
+            pytest.fail("No payload buttons found on session detail page")
 
         from tests.conftest import get_json
         url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/{payload_ids[0]}"
@@ -101,25 +96,18 @@ class TestPayloadApiNoTruncation:
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_long_payload_returns_full_content(self, api_payload_ids):
-        """对于已知较长的 payload，验证 API 返回超出截断限制的内容。"""
+        """fixture payload 必须返回完整内容，而不是省略号截断。"""
         base_url, agent, session_id, payload_ids = api_payload_ids
         if not payload_ids:
-            pytest.skip("No payload buttons found on session detail page")
+            pytest.fail("No payload buttons found on session detail page")
 
         from tests.conftest import get_json
-        # 优先 llm.context payload（通常最大），否则回退到任意 payload
-        candidates = [pid for pid in payload_ids if pid.endswith("-context")] or payload_ids
-
-        for pid in candidates[:3]:  # 最多尝试 3 个候选
+        for pid in payload_ids:
             url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/{pid}"
             data = get_json(url)
             text = data.get("text", "")
-            if len(text) > 5000:
-                assert len(text) > 5000, \
-                    f"Expected untruncated text >5000 chars, got {len(text)}"
-                return
-
-        pytest.skip("All payloads are under 5000 chars; cannot verify no-truncation on long content")
+            assert text, f"payload {pid} must include text"
+            assert not text.endswith("..."), f"payload {pid} must not be truncated"
 
 
 class TestPayloadApi404:

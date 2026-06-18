@@ -8,6 +8,12 @@ function resolveWorkers() {
   return 8;
 }
 
+const fixtureBaseURL = process.env.BASE_URL || 'http://127.0.0.1:19099';
+const reuseFixtureServer = process.env.SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER === '1';
+process.env.BASE_URL = fixtureBaseURL;
+process.env.PW_SESSION_URL = process.env.PW_SESSION_URL || `${fixtureBaseURL}/sessions/claude_code/hifi-viz-session-001`;
+process.env.PW_LONG_SESSION_URL = process.env.PW_LONG_SESSION_URL || `${fixtureBaseURL}/sessions/claude_code/long-session-001`;
+
 /**
  * Playwright 视觉/冒烟质量门禁配置
  *
@@ -28,10 +34,20 @@ module.exports = defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: resolveWorkers(),
-  reporter: [['html', { outputFolder: 'reports/playwright-report' }], ['list']],
+  reporter: [
+    ['./tests/playwright/no-skip-reporter.js'],
+    ['html', { outputFolder: 'reports/playwright-report' }],
+    ['list'],
+  ],
+  webServer: {
+    command: 'python scripts/start_fixture_server.py',
+    url: `${fixtureBaseURL}/dashboard`,
+    reuseExistingServer: reuseFixtureServer,
+    timeout: 30_000,
+  },
 
   use: {
-    baseURL: process.env.BASE_URL || 'http://127.0.0.1:18999',
+    baseURL: fixtureBaseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     viewport: { width: 1280, height: 900 },

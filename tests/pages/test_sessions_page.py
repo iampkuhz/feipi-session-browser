@@ -314,41 +314,40 @@ class TestSearch:
     """验证搜索输入契约。"""
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="search placeholder text differs from expectation (pre-existing)")
     def test_search_placeholder_session_id(self):
-        """搜索占位符应仅指示 Session ID。"""
+        """搜索占位符应说明支持 title/project/agent/model/session id。"""
         content = _read_sessions_templates()
-        assert "仅支持 Session ID" in content
+        assert "Search title, project, agent, model, session id" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="search hint text differs from expectation (pre-existing)")
     def test_search_hint_chinese(self):
-        """搜索提示必须为中文：仅支持 Session ID。"""
+        """搜索提示应内联在 placeholder 中。"""
         content = _read_sessions_templates()
-        assert "仅支持 Session ID" in content
+        assert "Search title, project, agent, model, session id" in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="search hint text differs from expectation (pre-existing)")
     def test_search_placeholder_in_input(self):
         """搜索提示应在搜索输入内作为 placeholder，而非单独元素。"""
         content = _read_sessions_templates()
         assert "placeholder=" in content
-        assert "仅支持 Session ID" in content
+        assert "Search title, project, agent, model, session id" in content
         # 不得有单独的 hint 元素
         assert 'sessions-search-hint' not in content
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="search placeholder mentions title (pre-existing, expected behavior)")
     def test_no_broad_search_placeholder(self):
-        """搜索占位符不得提及 title、project 或 prompt。"""
+        """搜索占位符应提及当前支持的 searchable 字段。"""
         content = _read_sessions_templates()
         # 提取 placeholder 值（单引号或双引号）
         import re
         match = re.search(r"placeholder=['\"]([^'\"]*)['\"]", content)
         assert match, "搜索输入必须有 placeholder"
         hint = match.group(1).lower()
-        assert "title" not in hint
-        assert "project" not in hint
+        assert "session id" in hint
+        assert "title" in hint
+        assert "project" in hint
+        assert "agent" in hint
+        assert "model" in hint
         assert "prompt" not in hint
 
 
@@ -369,12 +368,12 @@ class TestSessionsTemplateJS:
         assert "#sessions-table tbody" not in js, "应移除旧的 tbody 选择器"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="tbody.querySelectorAll('tr.sessions-row') is legitimate DOM traversal (pre-existing)")
     def test_no_tr_selector_in_filter(self):
-        """应移除旧的 'tr' 查询选择器。"""
+        """过滤逻辑应只遍历 sessions row。"""
         with open("src/session_browser/web/static/js/sessions-list.js") as f:
             js = f.read()
-        assert "tbody.querySelectorAll" not in js, "应移除旧的 tbody querySelectorAll"
+        assert "tbody.querySelectorAll('tr.sessions-row')" in js, \
+            "过滤逻辑应限定为 tr.sessions-row"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_no_data_sessions_grid(self):
@@ -791,11 +790,10 @@ class TestSessionsListFiltering:
             "搜索输入必须存在"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="placeholder is English 'Search by session ID or title...' (pre-existing)")
     def test_search_placeholder_chinese(self, sessions_list_html):
-        """搜索输入占位符必须为中文。"""
-        assert "仅支持 Session ID" in sessions_list_html, \
-            "搜索占位符必须为中文"
+        """搜索输入占位符必须说明支持的 searchable 字段。"""
+        assert "Search title, project, agent, model, session id" in sessions_list_html, \
+            "搜索占位符必须说明支持的 searchable 字段"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_agent_filter_select(self, sessions_list_html):
@@ -822,11 +820,10 @@ class TestSessionsListFiltering:
             "Reset 按钮必须可见"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
-    @pytest.mark.skip(reason="Apply button removed: real-time search")
     def test_apply_button_present(self, sessions_list_html):
-        """Apply 按钮必须存在。"""
-        assert ">Apply<" in sessions_list_html, \
-            "Apply 按钮必须可见"
+        """实时过滤不应渲染 Apply 按钮。"""
+        assert ">Apply<" not in sessions_list_html, \
+            "实时过滤不应渲染 Apply 按钮"
 
     @pytest.mark.contract_case("UI-SESSIONS-001")
     def test_filter_form_uses_get(self, sessions_list_html):

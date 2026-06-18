@@ -311,7 +311,6 @@ class TestSessionDetailSnapshot:
             f"Expected {expected['rounds']['count']} rounds, got {snapshot['rounds']['count']}"
 
     @pytest.mark.contract_case("UI-SD-015")
-    @pytest.mark.skip(reason="fixture interaction_count mismatch: actual=1 vs expected=2 (pre-existing snapshot drift)")
     def test_round_details(self, snapshot):
         """每个 round 的 tool 数量、token 总计、交互次数必须匹配。"""
         expected = _load_expected()

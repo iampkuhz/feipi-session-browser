@@ -23,7 +23,7 @@ UI_PRIMITIVES = TEMPLATE_DIR / "components" / "ui_primitives.html"
 
 def _read_template(path: Path) -> str:
     if not path.exists():
-        pytest.skip(f"{path.name} not found at {path}")
+        pytest.fail(f"{path.name} not found at {path}")
     return path.read_text(encoding="utf-8")
 
 
@@ -85,7 +85,7 @@ class TestProjectDetailTitleLink:
         """如果链接存在，应遵循规范的会话 URL 模式。"""
         title_content = self._extract_title_td_content(project_html)
         if not title_content:
-            pytest.skip("No title cell content found")
+            pytest.fail("No title cell content found")
 
         # 检查规范模式：/sessions/{{ s.agent }}/{{ s.session_id }}
         # 或渲染等效形式：/sessions/

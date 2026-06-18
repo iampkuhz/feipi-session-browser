@@ -429,7 +429,7 @@ class TestEventDelegationPresent:
                 "事件委托应在 session_detail_timeline.js 中处理 toggle-round"
             )
         else:
-            pytest.skip("未找到 session_detail_timeline.js")
+            pytest.fail("未找到 session_detail_timeline.js")
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_expand_all(self):
@@ -446,7 +446,7 @@ class TestEventDelegationPresent:
                 "session_detail_timeline.js 必须处理 collapse-all"
             )
         else:
-            pytest.skip("未找到 session_detail_timeline.js")
+            pytest.fail("未找到 session_detail_timeline.js")
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_delegation_handles_collapse_all(self):
@@ -461,7 +461,7 @@ class TestEventDelegationPresent:
                 "session_detail_timeline.js 必须处理 collapse-all"
             )
         else:
-            pytest.skip("未找到 session_detail_timeline.js")
+            pytest.fail("未找到 session_detail_timeline.js")
 
 class TestAccordionBehavior:
     """验证 session_detail_timeline.js 中的手风琴逻辑。"""
@@ -480,7 +480,7 @@ class TestAccordionBehavior:
                 "session_detail_timeline.js 必须有 toggleRound 函数"
             )
         else:
-            pytest.skip("未找到 session_detail_timeline.js")
+            pytest.fail("未找到 session_detail_timeline.js")
 
     @pytest.mark.contract_case("UI-INTERACTION-007")
     def test_toggle_round_detail_calls_collapse_others(self):
@@ -498,4 +498,4 @@ class TestAccordionBehavior:
                 "toggleRound 应处理手风琴行为（折叠其他 round）"
             )
         else:
-            pytest.skip("未找到 session_detail_timeline.js")
+            pytest.fail("未找到 session_detail_timeline.js")

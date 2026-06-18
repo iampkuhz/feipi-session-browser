@@ -5,6 +5,7 @@ from __future__ import annotations
 QUALITY_TARGETS: dict[str, list[str]] = {
     "session-detail": [
         "pythonCompile",
+        "noTestSkips",
         "templateContract",
         "staticCssContract",
         "cssOwnership",
@@ -22,6 +23,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "settingsJson",
         "bashSyntax",
         "pythonCompile",
+        "noTestSkips",
         "languagePolicy",
         "codexAgentPolicy",
         "hookSelfTest",
@@ -36,6 +38,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     "harness": [
         "bashSyntax",
         "pythonCompile",
+        "noTestSkips",
         "languagePolicy",
         "codexAgentPolicy",
         "doctor",
@@ -44,6 +47,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         "openspecLayout",
     ],
     "acceptance-contracts": [
+        "noTestSkips",
         "acceptanceContracts",
         "pytest",
     ],
@@ -84,6 +88,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         "pythonCompile": [
             "src/session_browser/**/*.py",
         ],
+        "noTestSkips": [
+            "tests/**/*.py",
+            "tests/**/*.js",
+            "tests/**/*.ts",
+            "playwright.config.js",
+            "scripts/quality/check_no_test_skips.py",
+        ],
     },
     "python-src": {
         "pythonCompile": [
@@ -108,6 +119,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "scripts/hooks/**/*.py",
             "scripts/agent_hooks/**/*.py",
             "scripts/quality/**/*.py",
+        ],
+        "noTestSkips": [
+            "tests/**/*.py",
+            "tests/**/*.js",
+            "tests/**/*.ts",
+            "playwright.config.js",
+            "scripts/quality/check_no_test_skips.py",
         ],
         "hookSelfTest": [
             "scripts/claude_hooks/**/*.py",
@@ -188,6 +206,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             "scripts/harness/**/*.py",
             "scripts/quality/**/*.py",
         ],
+        "noTestSkips": [
+            "tests/**/*.py",
+            "tests/**/*.js",
+            "tests/**/*.ts",
+            "playwright.config.js",
+            "scripts/quality/check_no_test_skips.py",
+        ],
         "doctor": [
             "scripts/harness/**/*.sh",
         ],
@@ -227,6 +252,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
     },
     "acceptance-contracts": {
+        "noTestSkips": [
+            "tests/**/*.py",
+            "tests/**/*.js",
+            "tests/**/*.ts",
+            "playwright.config.js",
+            "scripts/quality/check_no_test_skips.py",
+        ],
         "acceptanceContracts": [
             "docs/acceptance-contracts/**/*.md",
             "tests/**/*.py",
