@@ -55,7 +55,8 @@ playwright/.cache/
 
 # Node
 node_modules/
-/tmp/
+/tmp/*
+!/tmp/.gitkeep
 /tests/playwright/*-snapshots/
 
 *.egg-info/
