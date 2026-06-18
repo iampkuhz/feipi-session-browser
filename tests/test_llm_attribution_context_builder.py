@@ -73,7 +73,7 @@ def _tool_schema_bucket_from_context(lc: LLMCall, ro: ConversationRound, ctx: di
     from session_browser.attribution.agents.claude_code import ClaudeCodeAttributionBuilder
 
     attr = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx).build_request()
-    return next(bucket for bucket in attr.buckets if bucket.key == "tool_schemas")
+    return next(bucket for bucket in attr.buckets if bucket.key == "tool_definitions")
 
 
 def test_context_returns_non_null():

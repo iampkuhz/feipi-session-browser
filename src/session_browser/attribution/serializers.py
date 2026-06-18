@@ -1,6 +1,6 @@
-"""Serializers for attribution data layer.
+"""Attribution 数据层序列化器。
 
-Converts internal dataclass objects to dict payloads for routes.py.
+把内部 dataclass 对象转换成 routes.py 可返回的 dict payload。
 输出 route payload 字段与 v2 attribution 字段（schema_version,
 call_identity, ordered_spans, semantic_buckets, coverage,
 credit_summary, diagnostics）。
@@ -25,7 +25,7 @@ from session_browser.attribution.taxonomy import (
 
 
 def attributed_value_to_dict(v: AttributedValue) -> dict:
-    """Convert an AttributedValue to a serializable dict."""
+    """把 AttributedValue 转成可序列化 dict。"""
     return {
         "value": v.value,
         "unit": v.unit,
@@ -37,7 +37,7 @@ def attributed_value_to_dict(v: AttributedValue) -> dict:
 
 
 def _request_bucket_to_dict(b: RequestAttributionBucket) -> dict:
-    """Convert a request bucket to a serializable dict."""
+    """把 request bucket 转成可序列化 dict。"""
     return {
         "key": b.key,
         "label": b.label,
@@ -58,7 +58,7 @@ def _request_bucket_to_dict(b: RequestAttributionBucket) -> dict:
 
 
 def _response_bucket_to_dict(b: ResponseAttributionBucket) -> dict:
-    """Convert a response bucket to a serializable dict."""
+    """把 response bucket 转成可序列化 dict。"""
     return {
         "key": b.key,
         "label": b.label,
@@ -78,7 +78,7 @@ def _response_bucket_to_dict(b: ResponseAttributionBucket) -> dict:
 
 
 def _num(value) -> float:
-    """Best-effort numeric conversion for UI distribution math."""
+    """用于 UI 分布计算的宽松数值转换。"""
     try:
         return float(value or 0)
     except (TypeError, ValueError):
@@ -86,11 +86,10 @@ def _num(value) -> float:
 
 
 def _normalize_bucket_percents_for_display(buckets: list[dict]) -> list[dict]:
-    """Normalize bucket percentages used by attribution bars and legends.
+    """归一化 attribution 条形图和图例使用的 bucket 百分比。
 
-    Builders may compute percent against provider totals or intermediate
-    denominators. The modal distribution needs a stable visual share where no
-    bucket exceeds 100% and contributing buckets add up to the displayed stack.
+    builder 可能使用 provider 合计或中间分母计算 percent；modal 展示需要稳定
+    占比，确保单个 bucket 不超过 100%，参与合计的 bucket 可叠加成展示总量。
     """
     contributing = [
         b for b in buckets
@@ -122,21 +121,19 @@ def _normalize_bucket_percents_for_display(buckets: list[dict]) -> list[dict]:
 
 
 def _request_distribution_denominator(attr: LLMRequestAttribution) -> float:
-    """Return the Request Content Denominator used by the UI.
+    """返回 UI 使用的 Request Content Denominator。
 
-    Cache Read/Write are provider accounting components, not request content
-    buckets. Bucket percentages, coverage, and residual tokens therefore use
-    Fresh for every agent unless a future OpenSpec defines an explicit
-    exception.
+    Cache Read/Write 是 provider 计量组件，不是 request content bucket。
+    bucket 百分比、覆盖率和残差默认都使用 Fresh；除非后续 OpenSpec 明确定义例外。
     """
     fresh = _num(attr.fresh_input.value)
     if fresh > 0:
         return fresh
-    return _num(attr.total_input.value)
+    return _input_side_component_total(attr)
 
 
 def _provider_request_input(attr: LLMRequestAttribution) -> float:
-    """Best-effort raw Provider Request Input for attribution metadata."""
+    """尽量还原 provider request input 原始计量值。"""
     fresh = _num(attr.fresh_input.value)
     cache_read = _num(attr.cache_read.value)
     if attr.agent == "codex":
@@ -145,7 +142,7 @@ def _provider_request_input(attr: LLMRequestAttribution) -> float:
 
 
 def _input_side_component_total(attr: LLMRequestAttribution) -> float:
-    """Fresh + Cache Read + Cache Write accounting total."""
+    """Fresh + Cache Read + Cache Write 输入侧组件合计。"""
     return (
         _num(attr.fresh_input.value)
         + _num(attr.cache_read.value)
@@ -153,11 +150,23 @@ def _input_side_component_total(attr: LLMRequestAttribution) -> float:
     )
 
 
+def _input_side_component_value(attr: LLMRequestAttribution) -> dict:
+    """构造输入侧组件合计的 AttributedValue 形态。"""
+    return attributed_value_to_dict(AttributedValue(
+        value=_input_side_component_total(attr),
+        unit="tokens",
+        precision=attr.fresh_input.precision,
+        source=attr.fresh_input.source,
+        fill_strategy="Fresh + Cache Read + Cache Write",
+        note="Fresh + Cache Read + Cache Write。",
+    ))
+
+
 def _normalize_request_bucket_percents_for_display(
     buckets: list[dict],
     denominator: float,
 ) -> list[dict]:
-    """Compute request bucket percentages against the request-content denominator."""
+    """按 request-content denominator 计算 request bucket 百分比。"""
     for b in buckets:
         b["raw_percent"] = b.get("percent", 0.0)
         if not b.get("contributes_to_total", True):
@@ -168,14 +177,14 @@ def _normalize_request_bucket_percents_for_display(
 
 
 def availability_row_to_dict(row: AvailabilityRow | dict) -> dict:
-    """Convert an AvailabilityRow or legacy dict row to a serializable dict."""
+    """将 AvailabilityRow 或已构造的 dict 转成可序列化对象。"""
     if isinstance(row, dict):
         return row
     return asdict(row)
 
 
 def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict | None = None) -> dict:
-    """Serialize a full LLMRequestAttribution to a route-ready payload dict.
+    """把完整 LLMRequestAttribution 序列化为 route payload。
 
     包含 schema_version, call_identity, usage_summary (AttributedValue 格式),
     ordered_spans, semantic_buckets, coverage, credit_summary, diagnostics。
@@ -196,49 +205,48 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
         # ── v2 schema ──
         "schema_version": "llm_attribution_v2",
 
-        # ── Call identity (v2) ──
+        # ── 调用身份（v2） ──
         "call_identity": v2_extra.get("call_identity", _build_call_identity(attr)),
 
-        # ── Usage summary with AttributedValue fields (v2) ──
+        # ── 使用量摘要：字段值保留 AttributedValue 结构（v2） ──
         "usage_summary": {
-            "total_input": attributed_value_to_dict(attr.total_input),
             "provider_request_input": {
                 **attributed_value_to_dict(attr.fresh_input),
                 "value": _provider_request_input(attr),
-                "note": "Provider Request Input raw accounting value when derivable.",
+                "note": "可推导时的 provider request input 原始计量值。",
             },
             "input_side_component_total": {
-                **attributed_value_to_dict(attr.total_input),
+                **_input_side_component_value(attr),
                 "value": _input_side_component_total(attr),
-                "note": "Fresh + Cache Read + Cache Write.",
+                "note": "Fresh + Cache Read + Cache Write。",
             },
             "request_content_denominator": {
                 **attributed_value_to_dict(attr.fresh_input),
                 "value": _request_distribution_denominator(attr),
-                "note": "Fresh denominator for request content bucket coverage and residual.",
+                "note": "request content bucket 覆盖率与残差使用的 Fresh 分母。",
             },
-            "fresh_input": attributed_value_to_dict(attr.fresh_input),
+            "fresh": attributed_value_to_dict(attr.fresh_input),
             "cache_read": attributed_value_to_dict(attr.cache_read),
             "cache_write": attributed_value_to_dict(attr.cache_write),
             "output": attributed_value_to_dict(_get_output_from_notes(attr)),
         },
 
-        # ── Ordered spans (v2) ──
+        # ── 有序片段（v2） ──
         "ordered_spans": v2_extra.get("ordered_spans", []),
 
-        # ── Semantic buckets (v2) ──
+        # ── 语义 bucket（v2） ──
         "semantic_buckets": v2_extra.get("semantic_buckets", []),
 
-        # ── Coverage (v2) ──
+        # ── 覆盖率（v2） ──
         "coverage": v2_extra.get("coverage", _build_coverage(attr)),
 
-        # ── Credit summary (v2, Qoder) ──
+        # ── Credit 摘要（v2，Qoder） ──
         "credit_summary": v2_extra.get("credit_summary", None),
 
-        # ── Diagnostics (v2) ──
+        # ── 诊断信息（v2） ──
         "diagnostics": v2_extra.get("diagnostics", _build_diagnostics(attr)),
 
-        # ── Route payload fields ──
+        # ── route payload 字段 ──
         "kind": "llm.request_attribution",
         "agent": attr.agent,
         "model": attr.model,
@@ -248,8 +256,22 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
         "confidence_label": attr.confidence_label,
         "raw_body_available": attr.raw_body_available,
         "usage": {
-            "total_input": attributed_value_to_dict(attr.total_input),
-            "fresh_input": attributed_value_to_dict(attr.fresh_input),
+            "provider_request_input": {
+                **attributed_value_to_dict(attr.fresh_input),
+                "value": _provider_request_input(attr),
+                "note": "可推导时的 provider request input 原始计量值。",
+            },
+            "input_side_component_total": {
+                **_input_side_component_value(attr),
+                "value": _input_side_component_total(attr),
+                "note": "Fresh + Cache Read + Cache Write。",
+            },
+            "request_content_denominator": {
+                **attributed_value_to_dict(attr.fresh_input),
+                "value": _request_distribution_denominator(attr),
+                "note": "request content bucket 覆盖率与残差使用的 Fresh 分母。",
+            },
+            "fresh": attributed_value_to_dict(attr.fresh_input),
             "cache_read": attributed_value_to_dict(attr.cache_read),
             "cache_write": attributed_value_to_dict(attr.cache_write),
             "coverage": attributed_value_to_dict(attr.coverage),
@@ -269,17 +291,17 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
 
 
 def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict | None = None) -> dict:
-    """Serialize a full LLMResponseAttribution to a route-ready payload dict."""
+    """把完整 LLMResponseAttribution 序列化为 route payload。"""
     v2_extra = v2_extra or {}
 
     payload = {
         # ── v2 schema ──
         "schema_version": "llm_attribution_v2",
 
-        # ── Call identity (v2) ──
+        # ── 调用身份（v2） ──
         "call_identity": v2_extra.get("call_identity", _build_call_identity(attr)),
 
-        # ── Usage summary (v2) ──
+        # ── 使用量摘要（v2） ──
         "usage_summary": {
             "total_output": attributed_value_to_dict(attr.total_output),
             "visible_text": attributed_value_to_dict(attr.visible_text),
@@ -290,16 +312,16 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
             "residual": attributed_value_to_dict(attr.unknown),
         },
 
-        # ── Response spans (v2) ──
+        # ── response 片段（v2） ──
         "response_spans": v2_extra.get("response_spans", []),
 
-        # ── Semantic buckets (v2) ──
+        # ── 语义 buckets（v2） ──
         "semantic_buckets": v2_extra.get("semantic_buckets", []),
 
-        # ── Diagnostics (v2) ──
+        # ── 诊断信息（v2） ──
         "diagnostics": v2_extra.get("diagnostics", _build_response_diagnostics(attr)),
 
-        # ── Route payload fields ──
+        # ── route payload 字段 ──
         "kind": "llm.response_attribution",
         "agent": attr.agent,
         "model": attr.model,
@@ -385,11 +407,10 @@ def _get_hidden_reasoning(attr) -> AttributedValue:
 
 def _build_coverage(attr) -> dict:
     """构建 coverage v2 对象。"""
-    total_val = (attr.total_input.value if hasattr(attr, 'total_input') and attr.total_input else 0) or 0
+    input_side_component_total = _input_side_component_total(attr)
     cache_read_val = (attr.cache_read.value if hasattr(attr, 'cache_read') and attr.cache_read else 0) or 0
-    request_content_total = _request_distribution_denominator(attr)
+    request_content_denominator = _request_distribution_denominator(attr)
     provider_request_input = _provider_request_input(attr)
-    input_side_total = _input_side_component_total(attr)
     unknown_val = (attr.unknown.value if hasattr(attr, 'unknown') and attr.unknown else 0) or 0
     reconstructed = sum(
         max(_num(getattr(bucket, "tokens", 0)), 0)
@@ -402,18 +423,15 @@ def _build_coverage(attr) -> dict:
             "provider_cached_context",
         }
     )
-    if reconstructed <= 0 and total_val > 0:
-        reconstructed = max(0, request_content_total - unknown_val)
+    if reconstructed <= 0 and input_side_component_total > 0:
+        reconstructed = max(0, request_content_denominator - unknown_val)
     return {
-        "provider_total_input": total_val,
-        "provider_raw_total": total_val,
         "provider_request_input": provider_request_input,
-        "input_side_component_total": input_side_total,
-        "request_content_total": request_content_total,
-        "request_content_denominator": request_content_total,
+        "input_side_component_total": input_side_component_total,
+        "request_content_denominator": request_content_denominator,
         "accounting_cache_read_tokens": cache_read_val,
         "reconstructed_total": int(reconstructed),
-        "coverage_ratio": round(reconstructed / request_content_total, 3) if request_content_total > 0 else 0.0,
+        "coverage_ratio": round(reconstructed / request_content_denominator, 3) if request_content_denominator > 0 else 0.0,
         "residual_tokens": unknown_val,
         "residual_likely_sources": [],
     }
@@ -422,7 +440,7 @@ def _build_coverage(attr) -> dict:
 def _build_diagnostics(attr) -> dict:
     """构建 diagnostics v2 对象。"""
     return {
-        "invariants": [{"name": "legacy_mode", "passed": True}],
+        "invariants": [{"name": "current_contract", "passed": True}],
         "warnings": [],
     }
 
@@ -431,7 +449,7 @@ def _build_response_diagnostics(attr) -> dict:
     """构建 response diagnostics v2 对象。"""
     return {
         "tool_schema_counted_as_output": False,
-        "invariants": [{"name": "legacy_mode", "passed": True}],
+        "invariants": [{"name": "current_contract", "passed": True}],
         "warnings": [],
     }
 
@@ -443,10 +461,9 @@ def attribution_error_to_payload(
     error_type: str,
     message: str,
 ) -> dict:
-    """Create a diagnostic error payload when attribution building fails.
+    """attribution 构建失败时创建诊断 payload。
 
-    This payload is intentionally minimal — it does NOT include full
-    tracebacks to avoid leaking sensitive data into the UI.
+    payload 故意保持最小；不包含完整 traceback，避免把敏感信息泄漏到 UI。
     """
     return {
         "kind": "llm.attribution_error",
@@ -455,5 +472,5 @@ def attribution_error_to_payload(
         "round_id": round_id,
         "error_type": error_type,
         "message": message,
-        "fallback": "Attribution unavailable; base LLM context/output payloads are still available.",
+        "fallback": "归因数据不可用；基础 LLM 上下文和输出 payload 仍可查看。",
     }

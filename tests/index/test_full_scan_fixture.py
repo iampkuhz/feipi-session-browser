@@ -188,8 +188,8 @@ class TestFullScanClaudeBasic:
             assert row["ended_at"] != "", f"ended_at is empty for {key}"
 
             # Token 计数应 > 0（我们的 fixture 包含 usage 数据）
-            assert row["input_tokens"] > 0, f"input_tokens is 0 for {key}"
-            assert row["output_tokens"] > 0, f"output_tokens is 0 for {key}"
+            assert row["fresh_input_tokens"] > 0, f"fresh_input_tokens 为 0: {key}"
+            assert row["output_tokens"] > 0, f"output_tokens 为 0: {key}"
 
             # 消息计数应 > 0
             assert row["user_message_count"] > 0, f"user_message_count is 0 for {key}"

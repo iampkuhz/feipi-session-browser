@@ -47,7 +47,7 @@
 {% set m_total_failed = namespace(value=0) %}
 {% for p in projects %}
 {% set m_total_sessions.value = m_total_sessions.value + p.total_sessions %}
-{% set m_total_tokens.value = m_total_tokens.value + p.total_input_tokens + p.total_cached_tokens + p.total_cache_write_tokens + p.total_output_tokens %}
+{% set m_total_tokens.value = m_total_tokens.value + p.total_fresh_input_tokens + p.total_cache_read_tokens + p.total_cache_write_tokens + p.total_output_tokens %}
 {% set m_total_failed.value = m_total_failed.value + p.total_failed_tools %}
 {% endfor %}
 <section class="metric-grid" aria-label="Project overview metrics">
@@ -155,9 +155,9 @@
                 </thead>
                 <tbody>
                     {% for p in projects %}
-                    {% set p_total_tokens = p.total_input_tokens + p.total_cached_tokens + p.total_cache_write_tokens + p.total_output_tokens %}
-                    {% set p_fresh = p.total_input_tokens %}
-                    {% set p_read = p.total_cached_tokens %}
+                    {% set p_total_tokens = p.total_fresh_input_tokens + p.total_cache_read_tokens + p.total_cache_write_tokens + p.total_output_tokens %}
+                    {% set p_fresh = p.total_fresh_input_tokens %}
+                    {% set p_read = p.total_cache_read_tokens %}
                     {% set p_write = p.total_cache_write_tokens %}
                     {% set p_out = p.total_output_tokens %}
                     {% if p_total_tokens > 0 %}

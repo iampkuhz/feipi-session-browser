@@ -1,7 +1,7 @@
 """Semantic correctness tests for LLM attribution data layer.
 
 Verifies the core semantic fixes from Task 02b:
-1. Tool schemas != actual tool_calls without available_tools
+1. 工具定义 != actual tool_calls without available_tools
 2. History messages require explicit prior_messages
 3. Captured context fragment handles unclassifiable request_full
 4. Response bucket double-count prevention via contributes_to_total
@@ -48,30 +48,30 @@ def _make_ro(user_content="hello", tool_calls=None, interactions=None):
     )
 
 
-# ─── P0-1: Tool schemas != actual tool_calls ───────────────────────────
+# ─── P0-1: 工具定义 != actual tool_calls ───────────────────────────
 
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
-def test_tool_schemas_zero_without_available_tools(agent):
+def test_tool_definitions_zero_without_available_tools(agent):
     """When only actual tool_calls exist without available_tools,
-    tool_schemas tokens depend on agent fallback behavior."""
+    tool_definitions tokens depend on agent fallback behavior."""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="test", tool_calls=[tc])
     result = build_llm_request_attribution(agent, lc, ro)
 
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
-    assert schema_bucket is not None, f"Missing tool_schemas bucket for {agent}"
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
+    assert schema_bucket is not None, f"Missing tool_definitions bucket for {agent}"
     assert schema_bucket.tokens > 0, (
-        f"tool_schemas tokens should use default schema fallback for {agent}"
+        f"tool_definitions tokens should use default schema fallback for {agent}"
     )
     if agent == "codex":
         assert "Codex builtin tool catalog" in schema_bucket.summary
         assert schema_bucket.count_label == "5 tools"
 
 
-def test_claude_code_tool_schemas_from_available_tools():
-    """Claude Code: with available_tools, tool_schemas uses real SDK token counts."""
+def test_claude_code_tool_definitions_from_available_tools():
+    """Claude Code: with available_tools, tool_definitions uses real SDK token counts."""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="test", tool_calls=[tc])
@@ -79,7 +79,7 @@ def test_claude_code_tool_schemas_from_available_tools():
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
 
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
     # Now uses real SDK schema tokens instead of 240/tool heuristic
     assert schema_bucket.tokens > 3 * 240, (
@@ -88,8 +88,8 @@ def test_claude_code_tool_schemas_from_available_tools():
     assert "3 tools" in schema_bucket.count_label
 
 
-def test_tool_schemas_count_label_from_available_not_observed():
-    """Tool schemas count_label must come from available_tools count,
+def test_tool_definitions_count_label_from_available_not_observed():
+    """工具定义 count_label must come from available_tools count,
     NOT observed tool_calls count."""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
@@ -98,7 +98,7 @@ def test_tool_schemas_count_label_from_available_not_observed():
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
 
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
     # Now uses real SDK schema tokens instead of 240/tool heuristic
     assert schema_bucket.tokens > 5 * 240, (
@@ -179,8 +179,8 @@ def test_provider_cache_accounting_is_not_a_request_content_bucket(
     assert "provider_cache_read_context" not in CATEGORY_BY_KEY
 
     coverage = payload["coverage"]
-    assert coverage["provider_total_input"] == 2000 + cache_read_tokens + cache_write_tokens
-    assert coverage["request_content_total"] == 2000
+    assert coverage["input_side_component_total"] == 2000 + cache_read_tokens + cache_write_tokens
+    assert coverage["request_content_denominator"] == 2000
     assert coverage["accounting_cache_read_tokens"] == cache_read_tokens
     assert coverage["reconstructed_total"] + coverage["residual_tokens"] == 2000
 

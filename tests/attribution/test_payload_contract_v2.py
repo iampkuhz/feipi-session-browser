@@ -147,7 +147,7 @@ class TestRequestAttributionPayloadV2:
         attr = _make_request_attribution()
         payload = request_attribution_to_payload(attr)
         us = payload["usage_summary"]
-        for key in ("total_input", "fresh_input", "cache_read", "cache_write", "output"):
+        for key in ("provider_request_input", "input_side_component_total", "request_content_denominator", "fresh", "cache_read", "cache_write", "output"):
             assert key in us
             av = us[key]
             assert "value" in av
@@ -169,15 +169,15 @@ class TestRequestAttributionPayloadV2:
         attr = _make_request_attribution()
         payload = request_attribution_to_payload(attr)
         cov = payload["coverage"]
-        assert "provider_total_input" in cov
-        assert "request_content_total" in cov
+        assert "provider_request_input" in cov
+        assert "request_content_denominator" in cov
         assert "accounting_cache_read_tokens" in cov
         assert "reconstructed_total" in cov
         assert "coverage_ratio" in cov
         assert "residual_tokens" in cov
         assert "residual_likely_sources" in cov
-        assert cov["provider_total_input"] == 1000
-        assert cov["request_content_total"] == 600
+        assert cov["provider_request_input"] == 600
+        assert cov["request_content_denominator"] == 600
         assert cov["accounting_cache_read_tokens"] == 400
         assert "unclassified overhead" not in cov["residual_likely_sources"]
 

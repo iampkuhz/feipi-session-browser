@@ -426,7 +426,6 @@ print_usage() {
   verify-dist [x.y.z]              校验 Python 发布包版本与关键资源
   build [x.y.z]                    构建本地 Podman 镜像
   release-check [x.y.z]            测试、构建发布包、校验发布包、构建本地镜像
-  release [x.y.z]                  release-check 的兼容别名
 
 Podman 部署：
   deploy [x.y.z]                   构建镜像并用 Podman 启动
@@ -498,7 +497,7 @@ case "$CMD" in
     verify-dist)
         verify_dist "${1:-$(read_version)}"
         ;;
-    release|publish-local|release-check)
+    release-check)
         if [[ $# -ge 1 ]]; then
             set_version "$1"
         fi
@@ -540,6 +539,8 @@ case "$CMD" in
         "${PODMAN_BIN:-podman}" ps -a --filter "name=$(container_name)"
         ;;
     *)
+        echo "未知命令：$CMD" >&2
         print_usage
+        exit 1
         ;;
 esac

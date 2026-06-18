@@ -94,7 +94,7 @@ def test_claude_code_response_attribution():
 
 
 def test_claude_code_tool_schema_estimation_no_available_tools():
-    """Without available_tools list, tool_schemas uses default CC tools for tokens.
+    """Without available_tools list, tool_definitions uses default CC tools for tokens.
 
     When local logs don't provide available_tools, we fall back to the default
     Claude Code tool list so that the token count matches the displayed detail
@@ -108,8 +108,8 @@ def test_claude_code_tool_schema_estimation_no_available_tools():
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    # Should have a tool_schemas bucket with non-zero tokens (default CC tools)
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    # Should have a tool_definitions bucket with non-zero tokens (default CC tools)
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
     assert schema_bucket.tokens > 0
     assert schema_bucket.precision == ValuePrecision.UNAVAILABLE
@@ -127,7 +127,7 @@ def test_claude_code_unlocated_residual_is_last_bucket():
 
 
 def test_claude_code_tool_schema_from_available_tools():
-    """When available_tools is provided, tool_schemas should use that count."""
+    """When available_tools is provided, tool_definitions should use that count."""
     tc1 = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="result1")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="do something", tool_calls=[tc1])
@@ -138,7 +138,7 @@ def test_claude_code_tool_schema_from_available_tools():
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=session_context)
     result = builder.build_request()
 
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
     # Uses real SDK schema tokens now (Read+Bash+Edit ~4035 tokens)
     assert schema_bucket.tokens > 3 * 240

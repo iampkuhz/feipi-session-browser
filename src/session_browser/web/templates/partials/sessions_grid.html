@@ -3,9 +3,9 @@
 <div class="sessions-table-scroll">
     <div class="sessions-grid" role="table" aria-label="Sessions table" data-sessions-grid>
         {% for s in sessions %}
-        {% set total_tokens = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-        {% set fresh_pct = (s.input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
-        {% set cache_pct = ((s.cached_input_tokens + s.cached_output_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+        {% set total_tokens = s.fresh_input_tokens + s.cache_read_tokens + s.cache_write_tokens + s.output_tokens %}
+        {% set fresh_pct = (s.fresh_input_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
+        {% set cache_pct = ((s.cache_read_tokens + s.cache_write_tokens) / total_tokens * 100) | int if total_tokens > 0 else 0 %}
         {% set output_pct = (s.output_tokens / total_tokens * 100) | int if total_tokens > 0 else 0 %}
         <div class="sessions-row"
              data-agent="{{ s.agent }}"

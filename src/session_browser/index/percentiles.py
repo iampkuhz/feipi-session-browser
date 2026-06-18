@@ -13,7 +13,7 @@ from typing import Optional
 FALLBACK_THRESHOLDS = {
     "duration_seconds": {"warning": 3600, "critical": 7200},  # 1h / 2h
     "tool_call_count": {"warning": 200, "critical": 500},
-    "cached_output_tokens": {"warning": 200000, "critical": 500000},  # cache write hotspot
+    "cache_write_tokens": {"warning": 200000, "critical": 500000},  # cache write hotspot
 }
 
 MIN_ROWS = 20
@@ -96,7 +96,7 @@ def compute_session_thresholds(
     metrics_map = {
         "duration_seconds": "duration_seconds",
         "tool_call_count": "tool_call_count",
-        "cached_output_tokens": "cached_output_tokens",
+        "cache_write_tokens": "cache_write_tokens",
     }
 
     for metric_key, db_key in metrics_map.items():

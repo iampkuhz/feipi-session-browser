@@ -227,7 +227,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
         cache_read = lc.cache_read_tokens or 0
         cache_write = lc.cache_write_tokens or 0
 
-        # marker 只用于兼容旧记录中缺失 lc.input_tokens 的情况，不覆盖组件合计。
+        # qoder_input_tokens_total 是 broker 原始证据；仅在 LLMCall 缺省时补齐 Fresh。
         ctx = self.session_context or {}
         qoder_total = ctx.get("qoder_input_tokens_total")
         if fresh_input <= 0 and qoder_total is not None:
@@ -576,7 +576,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
 
         if tool_schema_tokens > 0:
             buckets.append(RequestAttributionBucket(
-                key="tool_schemas",
+                key="tool_definitions",
                 label="Tool schemas",
                 tokens=tool_schema_tokens,
                 percent=_pct(tool_schema_tokens, denominator),
@@ -680,7 +680,7 @@ class QoderAttributionBuilder(BaseAttributionBuilder):
                         precision=ValuePrecision.ESTIMATED,
                         source=ValueSource.TOOL_LOGS,
                         fill_strategy="estimated from text"),
-            self._avail("tool_schemas_tokens", "Tool schemas tokens",
+            self._avail("tool_definitions_tokens", "工具定义 tokens",
                         tool_schema_tokens > 0, exact=False,
                         precision=ValuePrecision.HEURISTIC,
                         source=ValueSource.TOOL_LIST,

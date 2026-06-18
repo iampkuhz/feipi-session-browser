@@ -118,9 +118,10 @@
     "session_id": "missing-payload-test-001",
     "title": "Missing raw payload fixture test session",
     "model": "claude-sonnet-4-20250514",
-    "input_tokens": 18000,
+    "fresh_input_tokens": 18000,
     "output_tokens": 630,
-    "cached_input_tokens": 13500,
-    "cached_output_tokens": 6000
+    "cache_read_tokens": 13500,
+    "cache_write_tokens": 6000,
+    "total_tokens": 38130
   }
 }

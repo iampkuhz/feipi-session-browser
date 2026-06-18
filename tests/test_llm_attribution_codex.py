@@ -209,8 +209,8 @@ def test_codex_request_full_tool_outputs_are_buckets_cache_read_is_summary_only(
     assert "tool output body" in tool_outputs.details["items"][0]["full_content"]
     assert cache_bucket is None
     assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
-    assert payload["coverage"]["provider_total_input"] == 2800
-    assert payload["coverage"]["request_content_total"] == 2000
+    assert payload["coverage"]["provider_request_input"] == 2800
+    assert payload["coverage"]["request_content_denominator"] == 2000
     assert payload["coverage"]["accounting_cache_read_tokens"] == 800
     assert result.coverage.value is not None
     assert 0 <= result.coverage.value <= 1

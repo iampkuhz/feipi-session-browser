@@ -1513,7 +1513,7 @@ def _build_v11_view_model(
     started = session.started_at[:10] if session.started_at else "—"
 
     total_tokens = getattr(session, "total_tokens", 0) or (
-        session.input_tokens + session.output_tokens + session.cached_input_tokens + session.cached_output_tokens
+        session.fresh_input_tokens + session.output_tokens + session.cache_read_tokens + session.cache_write_tokens
     )
     total_rounds = len(rounds)
     total_tools = len(tool_calls)
@@ -2142,22 +2142,22 @@ def _build_v11_view_model(
             preview_title = preview_title.replace(_fw, "***")
         preview_subtitle = f"{len(r.tool_calls)} tool{'s' if len(r.tool_calls) != 1 else ''}" if r.tool_calls else "no tools"
 
-        total_input = 0
+        total_fresh = 0
         total_cache_read = 0
         total_cache_write = 0
         total_output = 0
         for _ix in r.interactions:
             parts = _usage_parts_from_call(_ix)
-            total_input += parts["fresh"]
+            total_fresh += parts["fresh"]
             total_cache_read += parts["cache_read"]
             total_cache_write += parts["cache_write"]
             total_output += parts["output"]
         if not r.interactions:
-            total_input = rb["input"]
+            total_fresh = rb["input"]
             total_cache_read = rb["cache_read"]
             total_cache_write = rb["cache_write"]
             total_output = rb["output"]
-        rt_sum = total_input + total_cache_read + total_cache_write + total_output
+        rt_sum = total_fresh + total_cache_read + total_cache_write + total_output
         token_total = _format_compact_token(rt_sum) if rt_sum > 0 else "—"
 
         all_tools = set()
@@ -2175,7 +2175,7 @@ def _build_v11_view_model(
 
         token_mix = {"fresh": 0, "read": 0, "write": 0, "out": 0}
         if rt_sum > 0:
-            token_mix["fresh"] = round(total_input / rt_sum * 100, 1)
+            token_mix["fresh"] = round(total_fresh / rt_sum * 100, 1)
             token_mix["read"] = round(total_cache_read / rt_sum * 100, 1)
             token_mix["write"] = round(total_cache_write / rt_sum * 100, 1)
             token_mix["out"] = round(total_output / rt_sum * 100, 1)
@@ -2221,7 +2221,7 @@ def _build_v11_view_model(
                 "token_total": token_total,
                 "token_total_raw": rt_sum,
                 "token_mix": token_mix,
-                "token_input": total_input,
+                "token_input": total_fresh,
                 "token_cache_read": total_cache_read,
                 "token_cache_write": total_cache_write,
                 "token_output": total_output,
@@ -2687,7 +2687,7 @@ def _build_v11_view_model(
             "token_total": token_total,
             "token_total_raw": rt_sum,
             "token_mix": token_mix,
-            "token_input": total_input,
+            "token_input": total_fresh,
             "token_cache_read": total_cache_read,
             "token_cache_write": total_cache_write,
             "token_output": total_output,
@@ -2711,7 +2711,7 @@ def _build_v11_view_model(
     subagent_count = len(subagent_runs)
 
     cache_write_pct = ""
-    cwt = getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens
+    cwt = getattr(session, "cache_write_tokens", 0) or session.cache_write_tokens
     if total_tokens > 0 and cwt:
         cache_write_pct = f"{cwt / total_tokens * 100:.1f}%"
 
@@ -2721,9 +2721,9 @@ def _build_v11_view_model(
     if total_failed > 0:
         status_label = "Completed with issue signals"
 
-    fresh_tokens = getattr(session, "fresh_input_tokens", 0) or session.input_tokens
-    cache_read_tokens = getattr(session, "cache_read_tokens", 0) or session.cached_input_tokens
-    cache_write_tokens = getattr(session, "cache_write_tokens", 0) or session.cached_output_tokens
+    fresh_tokens = getattr(session, "fresh_input_tokens", 0) or session.fresh_input_tokens
+    cache_read_tokens = getattr(session, "cache_read_tokens", 0) or session.cache_read_tokens
+    cache_write_tokens = getattr(session, "cache_write_tokens", 0) or session.cache_write_tokens
     output_tokens = session.output_tokens
     computed_total_tokens = fresh_tokens + cache_read_tokens + cache_write_tokens + output_tokens
     input_side_tokens = fresh_tokens + cache_read_tokens + cache_write_tokens

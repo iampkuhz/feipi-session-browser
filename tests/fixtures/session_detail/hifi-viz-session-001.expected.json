@@ -7,10 +7,10 @@
   "summary": {
     "title": "Implement a new feature that adds token usage visualization to the dashboard.",
     "model": "claude-sonnet-4-20250514",
-    "input_tokens": 61600,
+    "fresh_input_tokens": 61600,
     "output_tokens": 970,
-    "cached_input_tokens": 45950,
-    "cached_output_tokens": 22230,
+    "cache_read_tokens": 45950,
+    "cache_write_tokens": 22230,
     "total_tokens": 130750,
     "user_message_count": 2,
     "assistant_message_count": 8,
@@ -40,7 +40,7 @@
         "message_count": 5,
         "assistant_turn_count": 3,
         "assistant_turn_llm_call_ids": ["msg-subagent-001", "msg-subagent-002", "msg-subagent-003"],
-        "total_input_tokens": 1200,
+        "total_fresh_input_tokens": 1200,
         "total_output_tokens": 95
       }
     ]

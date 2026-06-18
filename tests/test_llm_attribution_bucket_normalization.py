@@ -33,7 +33,7 @@ def test_heuristic_buckets_sum_cannot_exceed_request_content_denominator():
     """Sum of measured + estimated + heuristic buckets must not exceed fresh_input."""
     buckets = [
         _make_bucket("current_user_message", 2000),
-        _make_bucket("tool_schemas", 500),
+        _make_bucket("tool_definitions", 500),
         _make_bucket("local_instruction_context", 300),
         _make_bucket("hidden_builtin_system_estimate", 500),
         _make_bucket("unlocated_residual", 0),
@@ -48,7 +48,7 @@ def test_heuristic_buckets_sum_cannot_exceed_request_content_denominator():
 
     measured = sum(b.tokens for b in buckets if b.key in ("current_user_message",))
     estimated = sum(b.tokens for b in buckets if b.key in ("local_instruction_context",))
-    heuristic_fixed = sum(b.tokens for b in buckets if b.key == "tool_schemas")
+    heuristic_fixed = sum(b.tokens for b in buckets if b.key == "tool_definitions")
     heuristic_scaled = sum(b.tokens for b in buckets if b.key == "hidden_builtin_system_estimate")
 
     # measured + estimated should fit within fresh_input (estimated is scaled)
@@ -86,14 +86,14 @@ def test_heuristic_fixed_not_zeroed_when_no_budget():
     """When fresh_input equals measured, heuristic_fixed should keep values.
 
     Previously heuristic_fixed was zeroed when budget was exhausted.
-    Now we preserve these values (e.g. tool_schemas represents real known
+    Now we preserve these values (e.g. tool_definitions represents real known
     token costs from SDK definitions) and let residual absorb the overflow.
     """
     buckets = [
         _make_bucket("current_user_message", 1000),
         _make_bucket("preceding_tool_results", 500),
         _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("tool_schemas", 300),
+        _make_bucket("tool_definitions", 300),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -105,11 +105,11 @@ def test_heuristic_fixed_not_zeroed_when_no_budget():
     )
 
     hidden = next(b for b in buckets if b.key == "hidden_builtin_system_estimate")
-    tool_schemas = next(b for b in buckets if b.key == "tool_schemas")
+    tool_definitions = next(b for b in buckets if b.key == "tool_definitions")
 
     # heuristic_fixed buckets keep their original values
     assert hidden.tokens == 500
-    assert tool_schemas.tokens == 300
+    assert tool_definitions.tokens == 300
 
     # residual absorbs the overflow (Fresh=1500, known=1000+500+500+300=2300 > Fresh)
     residual = next(b for b in buckets if b.key == "unlocated_residual")
@@ -123,7 +123,7 @@ def test_unlocated_residual_computed_correctly():
     """unlocated_residual should be max(request_content_denominator - known_sum, 0)."""
     buckets = [
         _make_bucket("current_user_message", 1000),
-        _make_bucket("tool_schemas", 500),
+        _make_bucket("tool_definitions", 500),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -164,7 +164,7 @@ def test_coverage_never_exceeds_100_percent():
     """Coverage (known/total) should never exceed 1.0 after normalization."""
     buckets = [
         _make_bucket("current_user_message", 1000),
-        _make_bucket("tool_schemas", 500),
+        _make_bucket("tool_definitions", 500),
         _make_bucket("hidden_builtin_system_estimate", 500),
         _make_bucket("unlocated_residual", 0),
     ]
@@ -271,7 +271,7 @@ def test_percentages_valid_range():
     """All bucket percentages should be in [0, 100]."""
     buckets = [
         _make_bucket("current_user_message", 1000),
-        _make_bucket("tool_schemas", 500),
+        _make_bucket("tool_definitions", 500),
         _make_bucket("local_instruction_context", 300),
         _make_bucket("hidden_builtin_system_estimate", 500),
         _make_bucket("unlocated_residual", 0),
@@ -362,7 +362,7 @@ def test_all_bucket_keys_classified():
     # Should include the expected keys
     assert "current_user_message" in MEASURED_BUCKET_KEYS
     assert "preceding_tool_results" in MEASURED_BUCKET_KEYS
-    assert "tool_schemas" in HEURISTIC_FIXED_KEYS  # moved from estimated
+    assert "tool_definitions" in HEURISTIC_FIXED_KEYS  # moved from estimated
     assert "local_instruction_context" in ESTIMATED_BUCKET_KEYS
     assert "hidden_builtin_system_estimate" in HEURISTIC_FIXED_KEYS
     # provider_wrapper_estimate removed — now noted in attribution_notes instead
@@ -444,7 +444,7 @@ def test_estimated_buckets_not_crushed_by_high_cache_hit():
         _make_bucket("current_user_message", 2000),
         _make_bucket("preceding_tool_results", 3000),
         _make_bucket("local_instruction_context", 500),
-        _make_bucket("tool_schemas", 800),
+        _make_bucket("tool_definitions", 800),
         _make_bucket("unlocated_residual", 0),
     ]
 
@@ -476,8 +476,8 @@ def _make_full_lc(**kwargs):
     return LLMCall(**defaults)
 
 
-def test_tool_schemas_details_sorted():
-    """Tool schemas details items should be sorted by name for stable display."""
+def test_tool_definitions_details_sorted():
+    """工具定义 details items should be sorted by name for stable display."""
     from session_browser.attribution.agents.claude_code import ClaudeCodeAttributionBuilder
     from session_browser.domain.models import LLMCall, ChatMessage, ConversationRound
 
@@ -498,8 +498,8 @@ def test_tool_schemas_details_sorted():
     builder = ClaudeCodeAttributionBuilder(lc, ro, None, session_context)
     attr = builder.build_request()
 
-    # Find tool_schemas bucket
-    tool_bucket = next(b for b in attr.buckets if b.key == "tool_schemas")
+    # Find tool_definitions bucket
+    tool_bucket = next(b for b in attr.buckets if b.key == "tool_definitions")
     items = tool_bucket.details["items"]
     names = [item["name"] for item in items]
     assert names == sorted(names), f"Tool names not sorted: {names}"

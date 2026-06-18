@@ -618,9 +618,9 @@ def test_codex_round_tool_contract():
     rounds = build_rounds(
         messages=messages,
         tool_calls=tool_calls,
-        session_input_tokens=summary.fresh_input_tokens or summary.input_tokens,
+        session_input_tokens=summary.fresh_input_tokens,
         session_output_tokens=summary.output_tokens,
-        session_cached_tokens=summary.cache_read_tokens or summary.cached_input_tokens,
+        session_cached_tokens=summary.cache_read_tokens,
         session_cache_write_tokens=summary.cache_write_tokens,
         agent="codex",
         md_filter=lambda x: x,

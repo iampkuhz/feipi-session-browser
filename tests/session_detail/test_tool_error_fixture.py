@@ -87,8 +87,8 @@ def fixture_session(tool_error_fixture):
 
 @pytest.fixture(scope="module")
 def built_rounds(fixture_messages, fixture_tool_calls, fixture_session):
-    """Build rounds from fixture data."""
-    # md_filter is identity for tests
+    """用 fixture 数据构建 rounds。"""
+    # 测试中保留 markdown 原文。
     def identity_md(text):
         return text
 
@@ -96,10 +96,10 @@ def built_rounds(fixture_messages, fixture_tool_calls, fixture_session):
     return build_rounds(
         messages=fixture_messages,
         tool_calls=fixture_tool_calls,
-        session_input_tokens=session["input_tokens"],
+        session_input_tokens=session["fresh_input_tokens"],
         session_output_tokens=session["output_tokens"],
-        session_cached_tokens=session["cached_input_tokens"],
-        session_cache_write_tokens=session["cached_output_tokens"],
+        session_cached_tokens=session["cache_read_tokens"],
+        session_cache_write_tokens=session["cache_write_tokens"],
         agent=session["agent"],
         md_filter=identity_md,
     )

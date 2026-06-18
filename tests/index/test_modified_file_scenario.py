@@ -105,7 +105,7 @@ class TestModifiedFileScenario:
         3. 向 sess-001.jsonl 追加两条新的 assistant 消息（带 usage tokens）。
         4. 通过 os.utime 推进 mtime。
         5. 运行 incremental_scan。
-        6. 验证 input_tokens 和 output_tokens 增加。
+        6. 验证 fresh_input_tokens 和 output_tokens 增加。
         7. 验证 assistant_message_count 增加。
         """
         data_dir = tmp_path / "claude_data"
@@ -117,7 +117,7 @@ class TestModifiedFileScenario:
         # 记录基线指标
         row_before = _get_session_row(db_path, "claude_code:sess-001")
         assert row_before is not None, "sess-001 should exist after full_scan"
-        input_tokens_before = row_before["input_tokens"]
+        input_tokens_before = row_before["fresh_input_tokens"]
         output_tokens_before = row_before["output_tokens"]
         assistant_msgs_before = row_before["assistant_message_count"]
         user_msgs_before = row_before["user_message_count"]
@@ -175,8 +175,8 @@ class TestModifiedFileScenario:
         row_after = _get_session_row(db_path, "claude_code:sess-001")
         assert row_after is not None, "sess-001 should still exist after incremental_scan"
 
-        assert row_after["input_tokens"] > input_tokens_before, (
-            f"input_tokens should increase: {input_tokens_before} -> {row_after['input_tokens']}"
+        assert row_after["fresh_input_tokens"] > input_tokens_before, (
+            f"input_tokens should increase: {input_tokens_before} -> {row_after['fresh_input_tokens']}"
         )
         assert row_after["output_tokens"] > output_tokens_before, (
             f"output_tokens should increase: {output_tokens_before} -> {row_after['output_tokens']}"
@@ -194,7 +194,7 @@ class TestModifiedFileScenario:
         # sess-002 未被修改，所以如果增量扫描跳过了它，指标保持不变
         # （我们无法与之前的精确值比较，因为没有做快照，
         #  但可以验证它仍有非零值）
-        assert row_sess002["input_tokens"] > 0, "sess-002 should still have input_tokens"
+        assert row_sess002["fresh_input_tokens"] > 0, "sess-002 should still have fresh_input_tokens"
         assert row_sess002["output_tokens"] > 0, "sess-002 should still have output_tokens"
 
     @pytest.mark.contract_case("DATA-INDEX-005")
@@ -381,10 +381,10 @@ class TestModifiedFileScenario:
 
         # 比较所有关键指标
         for col in [
-            "input_tokens",
+            "fresh_input_tokens",
             "output_tokens",
-            "cached_input_tokens",
-            "cached_output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
             "user_message_count",
             "assistant_message_count",
             "tool_call_count",

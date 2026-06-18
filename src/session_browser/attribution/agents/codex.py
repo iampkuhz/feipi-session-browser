@@ -880,15 +880,14 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         if raw_payload_available and rb.get("reasoning_config_obj"):
             reasoning_config_tokens = self._estimate_json_tokens(rb["reasoning_config_obj"])
 
-        # Provider-reported cache read is accounting metadata, not an additional
-        # local request-content source.  Keep it in usage summary, but do not
-        # add it as a bucket beside conversation messages or tool outputs.
-        request_content_total = max(0, fresh_input_tokens)
+        # Provider 上报的 cache read 是计量元数据，不是额外的本地
+        # request-content 来源；只放在 usage summary，不与消息/工具结果并列成 bucket。
+        request_content_denominator = max(0, fresh_input_tokens)
 
-        # Provider wrapper overhead (heuristic)
+        # Provider wrapper 开销估算。
         provider_wrapper_tokens = 0
         if raw_payload_available:
-            # Estimate from model name, store, include, etc.
+            # 从 model、store、include 等请求配置估算。
             overhead_fields = {}
             for key in ("model", "store", "include", "max_output_tokens", "previous_response_id"):
                 if key in req_body:
@@ -915,7 +914,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             reasoning_config_tokens,
         ]
         estimated_sum = sum(estimated_buckets)
-        estimated_budget = request_content_total
+        estimated_budget = request_content_denominator
 
         if raw_input_total > 0 and estimated_sum > estimated_budget:
             scale = estimated_budget / estimated_sum if estimated_sum > 0 else 0
@@ -933,7 +932,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             + tool_schema_tokens + reasoning_config_tokens
         )
 
-        unknown_val = max(request_content_total - known_sum, 0) if request_content_total > 0 else 0
+        unknown_val = max(request_content_denominator - known_sum, 0) if request_content_denominator > 0 else 0
 
         if raw_payload_available and rb.get("instructions_text"):
             instruction_detail_items = [
@@ -1174,7 +1173,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         # Tool schemas
         if tool_schema_tokens > 0:
             buckets.append(RequestAttributionBucket(
-                key="tool_schemas",
+                key="tool_definitions",
                 label="Tool schemas",
                 tokens=tool_schema_tokens,
                 percent=_pct(tool_schema_tokens, raw_input_total),
@@ -1187,7 +1186,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             ))
         else:
             buckets.append(RequestAttributionBucket(
-                key="tool_schemas",
+                key="tool_definitions",
                 label="Tool schemas",
                 tokens=0,
                 percent=0.0,
@@ -1233,12 +1232,12 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 display_group="metadata",
             ))
 
-        # Unknown / residual
+        # 未定位残差。
         buckets.append(RequestAttributionBucket(
             key="unknown_overhead",
             label="未定位",
             tokens=unknown_val,
-            percent=_pct(unknown_val, request_content_total),
+            percent=_pct(unknown_val, request_content_denominator),
             precision=ValuePrecision.RESIDUAL,
             source=ValueSource.RESIDUAL,
             confidence_label="中",
@@ -1261,8 +1260,8 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             b.tokens for b in buckets
             if b.key not in ("unknown_overhead",) and b.contributes_to_total
         )
-        coverage_val = (min(known_bucket_sum / request_content_total, 1.0)
-                        if request_content_total > 0 else 0.0)
+        coverage_val = (min(known_bucket_sum / request_content_denominator, 1.0)
+                        if request_content_denominator > 0 else 0.0)
 
         # ── Step 7: availability rows ──────────────────────────────────
         avail_rows = [
@@ -1317,7 +1316,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                         precision=ValuePrecision.ESTIMATED if captured_context_tokens > 0 else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TRANSCRIPT if captured_context_tokens > 0 else ValueSource.HEURISTIC,
                         fill_strategy="request_full fragments excluding current user and tool outputs" if captured_context_tokens > 0 else "no extra request_full fragments"),
-            self._avail("tool_schemas_tokens", "Tool schemas tokens",
+            self._avail("tool_definitions_tokens", "工具定义 tokens",
                         tool_schema_tokens > 0, exact=False,
                         precision=ValuePrecision.ESTIMATED if tool_schema_tokens > 0 else ValuePrecision.UNAVAILABLE,
                         source=ValueSource.TOOL_LIST,

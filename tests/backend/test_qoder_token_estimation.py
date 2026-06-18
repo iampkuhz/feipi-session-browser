@@ -274,11 +274,11 @@ class TestRealUsagePreserved:
         assert records[1]["usage"]["cache_read_input_tokens"] == 990
 
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
-        # input_tokens 是各 call Fresh 之和: 1000 + 1200 = 2200
-        assert summary.input_tokens == 2200
-        assert summary.cached_input_tokens == 990
-        # cached_output_tokens 是 cache_creation_input_tokens 之和: 0 + 0 = 0
-        assert summary.cached_output_tokens == 0
+        # fresh_input_tokens 是各 call Fresh 之和: 1000 + 1200 = 2200
+        assert summary.fresh_input_tokens == 2200
+        assert summary.cache_read_tokens == 990
+        # cache_write_tokens 是 cache_creation_input_tokens 之和: 0 + 0 = 0
+        assert summary.cache_write_tokens == 0
         assert summary.output_tokens == 30
         assert summary.total_tokens == 3220
 
@@ -615,14 +615,14 @@ class TestCacheNoFabrication:
 
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
 
-        assert summary.cached_input_tokens == 0, (
-            f"cached_input_tokens 应为 0，实际为 {summary.cached_input_tokens}"
+        assert summary.cache_read_tokens == 0, (
+            f"cache_read_tokens 应为 0，实际为 {summary.cache_read_tokens}"
         )
-        assert summary.cached_output_tokens == 0, (
-            f"cached_output_tokens 应为 0，实际为 {summary.cached_output_tokens}"
+        assert summary.cache_write_tokens == 0, (
+            f"cache_write_tokens 应为 0，实际为 {summary.cache_write_tokens}"
         )
         # token 仍应被估算（非零）
-        assert summary.input_tokens > 0
+        assert summary.fresh_input_tokens > 0
         assert summary.output_tokens > 0
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")
@@ -639,9 +639,9 @@ class TestCacheNoFabrication:
 
         summary = _build_summary_from_events(events, "sess-1", "/tmp")
 
-        assert summary.cached_input_tokens == 0
-        assert summary.cached_output_tokens == 0
-        assert summary.input_tokens == 100
+        assert summary.cache_read_tokens == 0
+        assert summary.cache_write_tokens == 0
+        assert summary.fresh_input_tokens == 100
         assert summary.output_tokens == 50
 
     @pytest.mark.contract_case("DATA-SOURCE-010", "DATA-SOURCE-013")

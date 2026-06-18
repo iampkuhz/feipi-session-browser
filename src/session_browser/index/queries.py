@@ -1,4 +1,4 @@
-"""Query functions for reading from the session index SQLite database."""
+"""会话索引读取查询。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from session_browser.index.writers import _row_to_summary
 
 
 def get_session(conn: sqlite3.Connection, session_key: str) -> SessionSummary | None:
-    """Get a single session by key."""
+    """按 session_key 读取单个会话。"""
     row = conn.execute(
         "SELECT * FROM sessions WHERE session_key = ?", (session_key,)
     ).fetchone()
@@ -36,7 +36,7 @@ def list_sessions(
     order_by: str = "ended_at",
     order_dir: str = "desc",
 ) -> list[SessionSummary]:
-    """List sessions with filtering and pagination."""
+    """按筛选和分页读取会话列表。"""
     clauses = []
     params: list = []
 
@@ -67,7 +67,7 @@ def list_sessions(
     valid_orders = {
         "ended_at": "ended_at",
         "started_at": "started_at",
-        "input_tokens": "input_tokens",
+        "fresh_input_tokens": "fresh_input_tokens",
         "total_tokens": "total_tokens",
         "assistant_message_count": "assistant_message_count",
         "tool_call_count": "tool_call_count",
@@ -189,9 +189,9 @@ def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStat
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
             MIN(started_at) as first_seen,
             MAX(ended_at) as last_seen,
-            COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) as total_cached_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
             COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
@@ -216,9 +216,9 @@ def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStat
         qoder_sessions=row["qoder_sessions"],
         first_seen=row["first_seen"] or "",
         last_seen=row["last_seen"] or "",
-        total_input_tokens=row["total_input_tokens"],
+        total_fresh_input_tokens=row["total_fresh_input_tokens"],
         total_output_tokens=row["total_output_tokens"],
-        total_cached_tokens=row["total_cached_tokens"],
+        total_cache_read_tokens=row["total_cache_read_tokens"],
         total_cache_write_tokens=row["total_cache_write_tokens"],
         total_tool_calls=row["total_tool_calls"],
         total_failed_tools=row["total_failed_tools"],
@@ -280,9 +280,9 @@ def list_projects(
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
             MIN(started_at) as first_seen,
             MAX(ended_at) as last_seen,
-            COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
             COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) as total_cached_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
             COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
             COALESCE(SUM(total_tokens), 0) as total_tokens,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
@@ -308,9 +308,9 @@ def list_projects(
             qoder_sessions=r["qoder_sessions"],
             first_seen=r["first_seen"] or "",
             last_seen=r["last_seen"] or "",
-            total_input_tokens=r["total_input_tokens"],
+            total_fresh_input_tokens=r["total_fresh_input_tokens"],
             total_output_tokens=r["total_output_tokens"],
-            total_cached_tokens=r["total_cached_tokens"],
+            total_cache_read_tokens=r["total_cache_read_tokens"],
             total_cache_write_tokens=r["total_cache_write_tokens"],
             total_tool_calls=r["total_tool_calls"],
             total_failed_tools=r["total_failed_tools"],
@@ -526,12 +526,11 @@ def list_agents(conn: sqlite3.Connection) -> list[dict]:
 
 
 def list_model_stats(conn: sqlite3.Connection) -> list[dict]:
-    """List per-model stats with agent info.
+    """按 model 汇总当前 token 组件和工具统计。
 
-    Returns list of {agent, model, total_sessions, total_tokens,
-                     input_tokens, output_tokens, cache_read_tokens,
-                     cache_write_tokens, tool_calls, failed_tools,
-                     process_seconds, avg_process_seconds}.
+    返回字段包含 agent、model、total_sessions、total_tokens、
+    fresh_input_tokens、output_tokens、cache_read_tokens、cache_write_tokens、
+    tool_calls、failed_tools、process_seconds、avg_process_seconds。
     """
     rows = conn.execute(
         """
@@ -540,7 +539,7 @@ def list_model_stats(conn: sqlite3.Connection) -> list[dict]:
             model,
             COUNT(*) as total_sessions,
             COALESCE(SUM(total_tokens), 0) as total_tokens,
-            COALESCE(SUM(fresh_input_tokens), 0) as input_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as fresh_input_tokens,
             COALESCE(SUM(output_tokens), 0) as output_tokens,
             COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
             COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens,

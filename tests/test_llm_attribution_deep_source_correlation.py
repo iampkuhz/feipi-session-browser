@@ -1,7 +1,7 @@
 """Tests for LLM attribution deep source correlation (bucket details).
 
 Covers:
-1. tool_schemas details.items contains tool name/source/description_preview/estimated_tokens
+1. tool_definitions details.items contains tool name/source/description_preview/estimated_tokens
 2. local_instruction_context details.items contains CLAUDE.md/system-reminder/agent prompt sources
 3. message_history details.items contains prior rounds, not current call response
 4. current user message not double-counted in history
@@ -181,7 +181,7 @@ class TestTruncatePreview:
 
 
 class TestBucketDetailsToolSchemas:
-    """Verify tool_schemas bucket has details.items with expected fields."""
+    """Verify tool_definitions bucket has details.items with expected fields."""
 
     def _make_builder(self, session_context, **call_kwargs):
         from session_browser.domain.models import LLMCall, ConversationRound, ChatMessage
@@ -219,7 +219,7 @@ class TestBucketDetailsToolSchemas:
 
         schema_bucket = None
         for b in result.buckets:
-            if b.key == "tool_schemas":
+            if b.key == "tool_definitions":
                 schema_bucket = b
                 break
 
@@ -247,7 +247,7 @@ class TestBucketDetailsToolSchemas:
 
         schema_bucket = None
         for b in result.buckets:
-            if b.key == "tool_schemas":
+            if b.key == "tool_definitions":
                 schema_bucket = b
                 break
 

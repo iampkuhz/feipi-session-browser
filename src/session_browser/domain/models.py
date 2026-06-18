@@ -1,4 +1,4 @@
-"""Domain models for session-browser."""
+"""session-browser 领域模型。"""
 
 from __future__ import annotations
 
@@ -15,8 +15,7 @@ class TokenPrecision:
     PROVIDER_REPORTED = "provider_reported"
     ESTIMATED = "estimated"
     UNKNOWN = "unavailable"
-    # Internal-only precision/source refinements. UI-facing precision labels
-    # normalize these to the public enum in attribution.contracts.
+    # 内部精度/source 细分；UI 展示前会归一到 attribution.contracts 的公开枚举。
     PROVIDER_REPORTED_NORMALIZED = PROVIDER_REPORTED
     PROVIDER_REPORTED_DELTA = PROVIDER_REPORTED
     SQLITE_TOKEN_INFO = "exact"
@@ -26,7 +25,7 @@ class TokenPrecision:
 
 
 class TokenTotalSemantics:
-    """Enumerates how total_tokens is derived."""
+    """枚举 total_tokens 的来源语义。"""
     EXCLUSIVE_COMPONENT_SUM = "exclusive_components_sum"
     REPORTED_TOTAL = "reported_total"
     REPORTED_CUMULATIVE_DELTA = "reported_cumulative_delta"
@@ -37,7 +36,7 @@ class TokenTotalSemantics:
 
 
 class TokenSourceKind:
-    """Enumerates the source of token data."""
+    """枚举 token 数据来源。"""
     CLAUDE_CODE_JSONL_USAGE = "claude_code_jsonl_usage"
     CODEX_ROLLOUT_TOKEN_COUNT = "codex_rollout_token_count"
     OPENAI_RESPONSES_USAGE = "openai_responses_usage"
@@ -60,10 +59,9 @@ class TokenProvider:
 
 @dataclass
 class NormalizedTokenBreakdown:
-    """Unified 5-field token breakdown for every session/LLM call.
+    """每个 session/LLM call 统一使用的五字段 token breakdown。
 
-    All five int fields are guaranteed to be present (never None/null/NaN).
-    Metadata fields document precision and semantics.
+    五个 int 字段始终存在（不会是 None/null/NaN）；metadata 字段记录精度和语义。
     """
     fresh_input_tokens: int = 0
     cache_read_tokens: int = 0
@@ -97,7 +95,7 @@ class NormalizedTokenBreakdown:
 
 @dataclass
 class SessionSummary:
-    """Unified session index model for Claude Code, Codex, and Qoder."""
+    """会话索引的当前领域模型，只暴露五字段 token 组件。"""
 
     agent: str  # "claude_code" | "codex" | "qoder"
     session_id: str
@@ -116,24 +114,20 @@ class SessionSummary:
     user_message_count: int = 0
     assistant_message_count: int = 0
     tool_call_count: int = 0
-    input_tokens: int = 0
     output_tokens: int = 0
-    cached_input_tokens: int = 0  # cache_read_input_tokens
-    cached_output_tokens: int = 0  # legacy DB column; maps to cache_write_tokens
     has_sensitive_data: bool = True
 
-    # Unified 5-field token breakdown (always int, never None)
+    # 当前统一 token 组件：始终为 int，缺失时填 0。
     fresh_input_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     total_tokens: int = 0
 
-    # New fields for token breakdown
     token_breakdown: Optional["NormalizedTokenBreakdown"] = None
     failed_tool_count: int = 0
     subagent_instance_count: int = 0
-    parse_diagnostics: Optional[dict] = None  # domain ParseDiagnostics.to_dict() payload, attached by adapters
-    file_path: str = ""  # indexed source file path; used by detail parsers to avoid re-search
+    parse_diagnostics: Optional[dict] = None  # adapter 附加的 ParseDiagnostics.to_dict() payload
+    file_path: str = ""  # 已索引源文件路径，详情页 parser 直接复用
 
     @property
     def session_key(self) -> str:
@@ -147,7 +141,7 @@ class SessionSummary:
 
 @dataclass
 class ChatMessage:
-    """A single chat message (user or assistant) in a session."""
+    """session 中的一条 chat message（user 或 assistant）。"""
 
     role: str  # "user" | "assistant"
     content: str
@@ -167,7 +161,7 @@ class ChatMessage:
 
 @dataclass
 class ToolCall:
-    """A tool invocation record."""
+    """一条工具调用记录。"""
 
     name: str
     parameters: dict = field(default_factory=dict)
@@ -192,23 +186,22 @@ class ToolCall:
 
     @property
     def is_failed(self) -> bool:
-        """Tool call itself failed (runtime error, API error, user rejection, etc.).
+        """工具调用本身失败（运行时错误、API 错误、用户拒绝等）。
 
-        A nonzero exit_code from Bash does NOT mean the tool call failed —
-        it just records the command's return code, which may be business
-        logic (e.g. rg found no matches, grep returned 1, test failed).
+        Bash 的非零 exit_code 不等同于工具调用失败；它只记录命令返回码，
+        可能是业务语义（例如 rg 无匹配、grep 返回 1、测试失败）。
         """
         return self.status == "error"
 
     @property
     def has_nonzero_exit(self) -> bool:
-        """Command returned a nonzero exit code, regardless of tool status."""
+        """命令返回了非零 exit code，不代表 tool status 一定失败。"""
         return self.exit_code is not None and self.exit_code != 0
 
 
 @dataclass
 class LLMCall:
-    """One logical LLM API call (main agent or subagent)."""
+    """一次逻辑 LLM API call（main agent 或 subagent）。"""
 
     id: str                          # msg["id"] — the llm_call_id
     model: str                       # e.g. "qwen3.6-plus", "claude-sonnet-4-6"
@@ -248,7 +241,7 @@ class LLMCall:
 
 @dataclass
 class ConversationRound:
-    """One trace row used for UI grouping; not the token boundary."""
+    """UI 分组使用的一条 trace row；不是 token 边界。"""
 
     user_msg: ChatMessage
     assistant_msg: ChatMessage
@@ -265,7 +258,7 @@ class ConversationRound:
 
     @staticmethod
     def _compact_preview_text(text: str, limit: int = 120) -> str:
-        """Compress whitespace and truncate text for preview display."""
+        """压缩空白并截断为 preview 文本。"""
         import re
         if not text:
             return ""
@@ -276,8 +269,9 @@ class ConversationRound:
 
     @staticmethod
     def _format_tool_counts(tools: list[ToolCall]) -> str:
-        """Return tool count fragments as HTML-safe <span> tags for each tool.
-        Format: <span class=\"preview-tool\">Bash</span>×1 · <span class=\"preview-tool\">Read</span>×2
+        """返回每种工具的 HTML-safe 计数字段。
+
+        格式：<span class=\"preview-tool\">Bash</span>×1 · <span class=\"preview-tool\">Read</span>×2
         """
         if not tools:
             return ""
@@ -291,14 +285,13 @@ class ConversationRound:
         return ' · '.join(parts)
 
     def compute_preview(self) -> None:
-        """Derive preview fields from interactions/tool_calls after they are assigned.
+        """在 interactions/tool_calls 赋值后派生 preview 字段。
 
-        Splits preview into two orthogonal parts:
-        - preview_text: text-only summary (user msg or assistant response), NO tool badges
-        - tool_summary_html: structured tool count chips
+        preview 被拆成两个正交部分：
+        - preview_text：纯文本摘要（user msg 或 assistant response），不含 tool badges。
+        - tool_summary_html：结构化 tool count chips。
         """
-        # Use round.tool_calls (authoritative), not interactions[].tool_calls
-        # to avoid double-counting when multiple interactions exist in one round.
+        # 使用 round.tool_calls（权威来源），避免同一 round 多个 interactions 时重复计数。
         all_tools = self.tool_calls if self.tool_calls else []
         tool_summary_html = self._format_tool_counts(all_tools) if all_tools else ""
 
@@ -355,18 +348,18 @@ class ConversationRound:
 
     @property
     def cache_write_tokens(self) -> int:
-        """cache_creation_input_tokens: tokens being written to cache this turn."""
+        """cache_creation_input_tokens：本 turn 写入 cache 的 token。"""
         if self.assistant_msg.usage:
             return self.assistant_msg.usage.get("cache_creation_input_tokens", 0)
         return 0
 
     def token_breakdown(self) -> dict:
-        """Return a dict of token categories for this round."""
+        """返回当前 round 的 token 分类 dict。"""
         if not self.assistant_msg.usage:
             return {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0}
         return {
             "input": self.assistant_msg.usage.get("input_tokens", 0),
-            # Codex uses cached_input_tokens; Claude/Qoder use cache_read_input_tokens
+            # Codex 使用 cached_input_tokens；Claude/Qoder 使用 cache_read_input_tokens。
             "cache_read": self.assistant_msg.usage.get(
                 "cache_read_input_tokens",
                 self.assistant_msg.usage.get("cached_input_tokens", 0),
@@ -378,7 +371,7 @@ class ConversationRound:
 
 @dataclass
 class ProjectStats:
-    """Aggregated statistics for a project."""
+    """项目聚合统计。"""
 
     project_key: str
     project_name: str
@@ -388,10 +381,10 @@ class ProjectStats:
     qoder_sessions: int = 0
     first_seen: str = ""
     last_seen: str = ""
-    total_input_tokens: int = 0
+    total_fresh_input_tokens: int = 0
     total_output_tokens: int = 0
-    total_cached_tokens: int = 0  # cache read
-    total_cache_write_tokens: int = 0  # cache write
+    total_cache_read_tokens: int = 0  # 缓存读取
+    total_cache_write_tokens: int = 0  # 缓存写入
     total_tool_calls: int = 0
     total_user_messages: int = 0
     total_assistant_messages: int = 0

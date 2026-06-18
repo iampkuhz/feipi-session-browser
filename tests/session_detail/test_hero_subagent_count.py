@@ -1,4 +1,4 @@
-"""Hero area subagent count tests.
+"""Hero 区 subagent 数量测试。
 
 验证 session detail hero 区域的 Subagents 计数正确:
 - session_summary.subagent_count 必须等于 len(subagent_runs)
@@ -15,7 +15,7 @@ from session_browser.web.routes import _build_v11_view_model
 
 
 class _FakeSession:
-    """Minimal session object for testing."""
+    """测试用最小 session 对象。"""
     def __init__(self, **kwargs):
         self.agent = kwargs.get("agent", "claude_code")
         self.session_id = kwargs.get("session_id", "test-session-001")
@@ -25,10 +25,7 @@ class _FakeSession:
         self.started_at = kwargs.get("started_at", "2025-01-01T00:00:00Z")
         self.project_key = kwargs.get("project_key", "/tmp/test")
         self.project_name = kwargs.get("project_name", "test")
-        self.input_tokens = kwargs.get("input_tokens", 10000)
         self.output_tokens = kwargs.get("output_tokens", 5000)
-        self.cached_input_tokens = kwargs.get("cached_input_tokens", 5000)
-        self.cached_output_tokens = kwargs.get("cached_output_tokens", 1000)
         self.fresh_input_tokens = kwargs.get("fresh_input_tokens", 10000)
         self.cache_read_tokens = kwargs.get("cache_read_tokens", 5000)
         self.cache_write_tokens = kwargs.get("cache_write_tokens", 1000)
@@ -63,7 +60,7 @@ def _make_empty_round():
 
 
 class TestHeroSubagentCount:
-    """Hero area subagent_count must reflect actual subagent run count."""
+    """Hero 区 subagent_count 必须反映真实 subagent run 数量。"""
 
     @pytest.mark.contract_case("UI-SD-031")
     def test_subagent_count_matches_subagent_runs(self):

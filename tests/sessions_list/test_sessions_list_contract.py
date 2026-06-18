@@ -52,10 +52,10 @@ def _make_summary(
     project: str = "proj-a",
     model: str = "model-x",
     rounds: int = 1,
-    input_tokens: int = 100,
+    fresh_input_tokens: int = 100,
     output_tokens: int = 100,
-    cached_input_tokens: int = 0,
-    cached_output_tokens: int = 0,
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
 ) -> SessionSummary:
     return SessionSummary(
         agent=agent,
@@ -75,11 +75,11 @@ def _make_summary(
         user_message_count=1,
         assistant_message_count=rounds,
         tool_call_count=1,
-        input_tokens=input_tokens,
+        fresh_input_tokens=fresh_input_tokens,
         output_tokens=output_tokens,
-        cached_input_tokens=cached_input_tokens,
-        cached_output_tokens=cached_output_tokens,
-        total_tokens=input_tokens + output_tokens + cached_input_tokens + cached_output_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
+        total_tokens=fresh_input_tokens + output_tokens + cache_read_tokens + cache_write_tokens,
         failed_tool_count=0,
     )
 
@@ -108,10 +108,10 @@ def populated_db(tmp_path):
             agent=agent,
             project=project,
             rounds=rounds,
-            input_tokens=100 * i,
+            fresh_input_tokens=100 * i,
             output_tokens=50 * i,
-            cached_input_tokens=20 * i,
-            cached_output_tokens=10 * i,
+            cache_read_tokens=20 * i,
+            cache_write_tokens=10 * i,
         )
         upsert_session(conn, s)
 

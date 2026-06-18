@@ -213,10 +213,10 @@
             </thead>
             <tbody>
                 {% for s in sessions %}
-                {% set s_total = s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-                {% set s_fresh_pct = (s.input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
-                {% set s_read_pct = (s.cached_input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
-                {% set s_write_pct = (s.cached_output_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                {% set s_total = s.fresh_input_tokens + s.cache_read_tokens + s.cache_write_tokens + s.output_tokens %}
+                {% set s_fresh_pct = (s.fresh_input_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                {% set s_read_pct = (s.cache_read_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
+                {% set s_write_pct = (s.cache_write_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
                 {% set s_out_pct = (s.output_tokens / s_total * 100) | round(1) if s_total > 0 else 0 %}
                 {% set process_seconds = (s.model_execution_seconds or 0) + (s.tool_execution_seconds or 0) %}
                 <tr data-action="open-session" data-href="/sessions/{{ s.agent }}/{{ s.session_id }}" data-title="{{ s.title }}" data-session-id="{{ s.session_id }}" class="{{ 'row--failed' if s.failed_tool_count > 0 else '' }}">
@@ -236,9 +236,9 @@
                         read_pct=s_read_pct,
                         write_pct=s_write_pct,
                         out_pct=s_out_pct,
-                        fresh_val=s.input_tokens | format_compact_token,
-                        read_val=s.cached_input_tokens | format_compact_token,
-                        write_val=s.cached_output_tokens | format_compact_token,
+                        fresh_val=s.fresh_input_tokens | format_compact_token,
+                        read_val=s.cache_read_tokens | format_compact_token,
+                        write_val=s.cache_write_tokens | format_compact_token,
                         out_val=s.output_tokens | format_compact_token,
                         fresh_pct_val=s_fresh_pct,
                         read_pct_val=s_read_pct,

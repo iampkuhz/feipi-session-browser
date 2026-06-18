@@ -100,13 +100,13 @@ def test_codex_request_api_payload_has_complete_tool_schema_details():
         session_context={"available_tools": ["exec_command", "apply_patch"]},
     )
     payload = request_attribution_to_payload(builder.build_request())
-    tool_schemas = next((b for b in payload["buckets"] if b["key"] == "tool_schemas"), None)
+    tool_definitions = next((b for b in payload["buckets"] if b["key"] == "tool_definitions"), None)
 
-    assert tool_schemas is not None
-    assert tool_schemas["tokens"] >= 3000
-    assert tool_schemas["count_label"] == "5 tools"
-    assert "observed tools" not in tool_schemas["summary"]
-    details = tool_schemas["details"]
+    assert tool_definitions is not None
+    assert tool_definitions["tokens"] >= 3000
+    assert tool_definitions["count_label"] == "5 tools"
+    assert "observed tools" not in tool_definitions["summary"]
+    details = tool_definitions["details"]
     assert details["kind"] == "tools"
     assert details["total_items"] == 5
     assert len(details["items"]) == 5
@@ -252,7 +252,7 @@ def test_normalization_heuristic_buckets_not_exceed_fresh():
 
     buckets = [
         RequestAttributionBucket(key="current_user_message", label="User", tokens=1000, percent=0),
-        RequestAttributionBucket(key="tool_schemas", label="Schemas", tokens=500, percent=0),
+        RequestAttributionBucket(key="tool_definitions", label="Schemas", tokens=500, percent=0),
         RequestAttributionBucket(key="hidden_builtin_system_estimate", label="Hidden", tokens=500, percent=0),
         RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
     ]
@@ -267,7 +267,7 @@ def test_normalization_heuristic_buckets_not_exceed_fresh():
     )
 
     measured = sum(b.tokens for b in result if b.key == "current_user_message")
-    estimated = sum(b.tokens for b in result if b.key == "tool_schemas")
+    estimated = sum(b.tokens for b in result if b.key == "tool_definitions")
     heuristic = sum(b.tokens for b in result if b.key == "hidden_builtin_system_estimate")
 
     # measured + estimated + heuristic should not exceed fresh_input
@@ -425,11 +425,11 @@ def test_request_bucket_serialization_includes_details():
     assert len(buckets) > 0
 
     # Check that details is present on buckets
-    tool_schemas = next((b for b in buckets if b["key"] == "tool_schemas"), None)
-    assert tool_schemas is not None
-    assert "details" in tool_schemas
-    assert tool_schemas["details"].get("kind") == "tools"
-    assert len(tool_schemas["details"].get("items", [])) > 0
+    tool_definitions = next((b for b in buckets if b["key"] == "tool_definitions"), None)
+    assert tool_definitions is not None
+    assert "details" in tool_definitions
+    assert tool_definitions["details"].get("kind") == "tools"
+    assert len(tool_definitions["details"].get("items", [])) > 0
 
 
 def test_response_bucket_serialization_includes_details():

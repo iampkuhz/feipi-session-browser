@@ -241,7 +241,7 @@ class TestPreviousResponseIdResidual:
 class TestToolSchemasFromRawRequest:
     """Test section 8.5: Tool schemas from raw request."""
 
-    def test_raw_request_tool_schemas(self):
+    def test_raw_request_tool_definitions(self):
         raw_request = {
             "model": "gpt-5.1-codex-max",
             "input": [{"role": "user", "content": "fix this"}],
@@ -261,7 +261,7 @@ class TestToolSchemasFromRawRequest:
         builder = CodexAttributionBuilder(lc, ro)
         result = builder.build_request()
 
-        tool_schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+        tool_schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
         assert tool_schema_bucket is not None
         assert tool_schema_bucket.tokens > 0
 
@@ -278,7 +278,7 @@ class TestToolSchemasFromRawRequest:
         )
         result = builder.build_request()
 
-        tool_schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+        tool_schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
         assert tool_schema_bucket is not None
         assert tool_schema_bucket.tokens >= 3000
         assert tool_schema_bucket.count_label == "5 tools"

@@ -37,9 +37,10 @@ def _make_mock_session(
     m.project_name = f"Project {index}"
     m.cwd = f"/home/user/projects/proj-{index}"
     m.git_branch = "main"
-    m.input_tokens = 1000 * index
-    m.cached_input_tokens = 500 * index
-    m.cached_output_tokens = 200 * index
+    m.fresh_input_tokens = 1000 * index
+    m.cache_read_tokens = 500 * index
+    m.cache_write_tokens = 200 * index
+    m.total_tokens = 2000 * index
     m.output_tokens = 300 * index
     m.assistant_message_count = 10 * index
     m.tool_call_count = 5 * index

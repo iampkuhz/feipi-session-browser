@@ -246,9 +246,9 @@ def test_parse_session_detail_includes_subagent_diagnostics():
     assert summary.assistant_message_count == 1
     assert summary.tool_call_count == 3
     assert summary.failed_tool_count == 1
-    assert summary.input_tokens == 306  # 父 100 + 子 msg-child-1 max input 200 + 子 msg-child-2 6
-    assert summary.cached_input_tokens == 300
-    assert summary.cached_output_tokens == 300
+    assert summary.fresh_input_tokens == 306  # 父 100 + 子 msg-child-1 max input 200 + 子 msg-child-2 6
+    assert summary.cache_read_tokens == 300
+    assert summary.cache_write_tokens == 300
 
     assert len(subagent_runs) == 1
     assert subagent_runs[0]["summary"]["agent_id"] == "child"

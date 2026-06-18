@@ -23,6 +23,28 @@ def _render_payload_sources(payload_sources):
     return macro.payload_sources(payload_sources)
 
 
+def _request_usage(
+    *,
+    provider_request_input: int = 5000,
+    fresh: int | None = 2000,
+    cache_read: int = 3000,
+    cache_write: int | None = 500,
+    coverage: float = 4500,
+    unknown: int = 500,
+) -> dict:
+    """构造当前 request attribution 用量契约。"""
+    return {
+        "provider_request_input": {"value": provider_request_input, "precision": "provider_reported"},
+        "input_side_component_total": {"value": provider_request_input + (cache_write or 0), "precision": "provider_reported"},
+        "request_content_denominator": {"value": fresh, "precision": "estimated"},
+        "fresh": {"value": fresh, "precision": "estimated" if fresh is not None else "unavailable"},
+        "cache_read": {"value": cache_read, "precision": "provider_reported"},
+        "cache_write": {"value": cache_write, "precision": "provider_reported" if cache_write is not None else "unavailable"},
+        "coverage": {"value": coverage, "precision": "heuristic"},
+        "unknown": {"value": unknown, "precision": "residual"},
+    }
+
+
 class TestAttributionModalContract:
     """Verify attribution modal rendering matches the expected contract."""
 
@@ -34,17 +56,9 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {
-                    "total_input": {"value": 5000, "precision": "provider_reported"},
-                    "fresh_input": {"value": 2000, "precision": "estimated"},
-                    "cache_read": {"value": 3000, "precision": "provider_reported"},
-                    "cache_write": {"value": 500, "precision": "provider_reported"},
-                    "coverage": {"value": 4500, "precision": "heuristic"},
-                    "unknown": {"value": 500, "precision": "residual"},
-                },
+                "usage": _request_usage(),
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
-                "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
                 "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
             },
         }
@@ -95,14 +109,7 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {
-                    "total_input": {"value": 5000, "precision": "provider_reported"},
-                    "fresh_input": {"value": 2000, "precision": "estimated"},
-                    "cache_read": {"value": 3000, "precision": "provider_reported"},
-                    "cache_write": {"value": 500, "precision": "provider_reported"},
-                    "coverage": {"value": 4500, "precision": "heuristic"},
-                    "unknown": {"value": 500, "precision": "residual"},
-                },
+                "usage": _request_usage(),
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
                 "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
@@ -121,12 +128,7 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {"total_input": {"value": 5000, "precision": "provider_reported"},
-                          "fresh_input": {"value": 2000, "precision": "estimated"},
-                          "cache_read": {"value": 3000, "precision": "provider_reported"},
-                          "cache_write": {"value": 500, "precision": "provider_reported"},
-                          "coverage": {"value": 4500, "precision": "heuristic"},
-                          "unknown": {"value": 500, "precision": "residual"}},
+                "usage": _request_usage(),
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
                 "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
@@ -145,12 +147,7 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {"total_input": {"value": 5000, "precision": "provider_reported"},
-                          "fresh_input": {"value": 2000, "precision": "estimated"},
-                          "cache_read": {"value": 3000, "precision": "provider_reported"},
-                          "cache_write": {"value": 500, "precision": "provider_reported"},
-                          "coverage": {"value": 4500, "precision": "heuristic"},
-                          "unknown": {"value": 500, "precision": "residual"}},
+                "usage": _request_usage(),
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
                 "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
@@ -167,12 +164,7 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {"total_input": {"value": 5000, "precision": "provider_reported"},
-                          "fresh_input": {"value": 2000, "precision": "estimated"},
-                          "cache_read": {"value": 3000, "precision": "provider_reported"},
-                          "cache_write": {"value": 500, "precision": "provider_reported"},
-                          "coverage": {"value": 4500, "precision": "heuristic"},
-                          "unknown": {"value": 500, "precision": "residual"}},
+                "usage": _request_usage(),
                 "buckets": [], "availability_rows": [],
                 "captured_context_preview": "", "attribution_notes": [],
                 "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
@@ -190,14 +182,11 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {"total_input": {"value": 5000, "precision": "provider_reported"},
-                          "fresh_input": {"value": 2000, "precision": "estimated"},
-                          "cache_read": {"value": 3000, "precision": "provider_reported"},
-                          "cache_write": {"value": 500, "precision": "provider_reported"},
-                          "coverage": {"value": 0.9, "precision": "heuristic"},
-                          "unknown": {"value": 500, "precision": "residual"}},
+                "usage": _request_usage(coverage=0.9),
                 "coverage": {
-                    "provider_total_input": 5000,
+                    "provider_request_input": 5000,
+                    "input_side_component_total": 5500,
+                    "request_content_denominator": 2000,
                     "reconstructed_total": 4500,
                     "coverage_ratio": 0.9,
                     "residual_tokens": 500,
@@ -209,7 +198,7 @@ class TestAttributionModalContract:
             },
         }
         html = _render_payload_sources([req_data])
-        assert "Provider Raw Total" in html
+        assert "Provider 请求输入" in html
         assert "本地重建" in html
         assert "残差" in html
         assert "覆盖率与不确定性" not in html
@@ -219,7 +208,7 @@ class TestAttributionModalContract:
         """Dynamic attribution JS should keep coverage fields in the top summary only."""
         js_path = Path(__file__).resolve().parents[1] / "src/session_browser/web/static/js/session-detail/attribution.js"
         js = js_path.read_text(encoding="utf-8")
-        assert "Provider Raw Total" in js
+        assert "Provider 请求输入" in js
         assert "本地重建" in js
         assert "未定位" in js
         assert "覆盖率与不确定性" not in js
@@ -283,12 +272,7 @@ class TestAttributionModalContract:
                     "agent": "claude_code", "model": "claude-sonnet-4",
                     "source_label": "transcript", "confidence_label": "高",
                     "request_id": "req-1", "call_id": "call-1",
-                    "usage": {"total_input": {"value": 5000, "precision": "provider_reported"},
-                              "fresh_input": {"value": 2000, "precision": "estimated"},
-                              "cache_read": {"value": 3000, "precision": "provider_reported"},
-                              "cache_write": {"value": 500, "precision": "provider_reported"},
-                              "coverage": {"value": 4500, "precision": "heuristic"},
-                              "unknown": {"value": 500, "precision": "residual"}},
+                    "usage": _request_usage(),
                     "buckets": [], "availability_rows": [],
                     "captured_context_preview": "", "attribution_notes": [],
                 "timing": {"request_at": "—", "response_at": "—", "duration": "—"},
@@ -339,14 +323,7 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {
-                    "total_input": {"value": 5000, "precision": "provider_reported"},
-                    "fresh_input": {"value": None, "precision": "unavailable"},
-                    "cache_read": {"value": 3000, "precision": "provider_reported"},
-                    "cache_write": {"value": None, "precision": "unavailable"},
-                    "coverage": {"value": 3000, "precision": "heuristic"},
-                    "unknown": {"value": 2000, "precision": "residual"},
-                },
+                "usage": _request_usage(fresh=None, cache_write=None, coverage=3000, unknown=2000),
                 "buckets": [
                     {
                         "key": "current_user_message", "label": "当前用户输入",
@@ -356,7 +333,7 @@ class TestAttributionModalContract:
                         "content_preview": "",
                     },
                     {
-                        "key": "tool_schemas", "label": "工具定义",
+                        "key": "tool_definitions", "label": "工具定义",
                         "tokens": 500, "percent": 10.0, "contributes_to_total": True,
                         "precision": "heuristic", "source": "tool_list",
                         "confidence_label": "中低", "summary": "工具定义估算",
@@ -382,12 +359,7 @@ class TestAttributionModalContract:
                 "agent": "claude_code", "model": "claude-sonnet-4",
                 "source_label": "transcript", "confidence_label": "高",
                 "request_id": "req-abc", "call_id": "call-001",
-                "usage": {"total_input": {"value": 5000, "precision": "provider_reported"},
-                          "fresh_input": {"value": 2000, "precision": "estimated"},
-                          "cache_read": {"value": 3000, "precision": "provider_reported"},
-                          "cache_write": {"value": 500, "precision": "provider_reported"},
-                          "coverage": {"value": 4500, "precision": "heuristic"},
-                          "unknown": {"value": 500, "precision": "residual"}},
+                "usage": _request_usage(),
                 "buckets": [],
                 "captured_context_preview": "",
                 "attribution_notes": [],

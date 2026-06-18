@@ -84,10 +84,10 @@ def _build_view_model():
         rounds = build_rounds(
             messages,
             tool_calls,
-            summary.input_tokens,
+            summary.fresh_input_tokens,
             summary.output_tokens,
-            summary.cached_input_tokens,
-            summary.cached_output_tokens,
+            summary.cache_read_tokens,
+            summary.cache_write_tokens,
             agent,
             md_filter=md_filter,
         )
@@ -102,10 +102,10 @@ def _build_view_model():
 
         # 摘要
         total_tokens = (
-            summary.input_tokens
+            summary.fresh_input_tokens
             + summary.output_tokens
-            + summary.cached_input_tokens
-            + summary.cached_output_tokens
+            + summary.cache_read_tokens
+            + summary.cache_write_tokens
         )
 
         # 消息
@@ -130,14 +130,20 @@ def _build_view_model():
                 "message_count": len(sub_msgs),
                 "assistant_turn_count": len(sub_assistant),
                 "assistant_turn_llm_call_ids": [m.llm_call_id for m in sub_assistant],
-                "total_input_tokens": sub_input,
+                "total_fresh_input_tokens": sub_input,
                 "total_output_tokens": sub_output,
             })
+
+        input_side_total = (
+            summary.fresh_input_tokens
+            + summary.cache_read_tokens
+            + summary.cache_write_tokens
+        )
 
         # 轮次
         round_details = []
         for i, r in enumerate(rounds):
-            signals = compute_round_signals(r, i + 1, summary.input_tokens)
+            signals = compute_round_signals(r, i + 1, input_side_total)
             round_details.append({
                 "index": i,
                 "tool_count": len(r.tool_calls),
@@ -160,7 +166,7 @@ def _build_view_model():
         signals_by_round = {}
         total_signal_count = 0
         for i, r in enumerate(rounds):
-            signals = compute_round_signals(r, i + 1, summary.input_tokens)
+            signals = compute_round_signals(r, i + 1, input_side_total)
             total_signal_count += len(signals)
             if signals:
                 signals_by_round[str(i + 1)] = [
@@ -175,10 +181,10 @@ def _build_view_model():
             "summary": {
                 "title": summary.title,
                 "model": summary.model,
-                "input_tokens": summary.input_tokens,
+                "fresh_input_tokens": summary.fresh_input_tokens,
                 "output_tokens": summary.output_tokens,
-                "cached_input_tokens": summary.cached_input_tokens,
-                "cached_output_tokens": summary.cached_output_tokens,
+                "cache_read_tokens": summary.cache_read_tokens,
+                "cache_write_tokens": summary.cache_write_tokens,
                 "total_tokens": total_tokens,
                 "user_message_count": summary.user_message_count,
                 "assistant_message_count": summary.assistant_message_count,
@@ -274,8 +280,8 @@ class TestSessionDetailSnapshot:
         """所有 token 类别总计必须与预期值匹配。"""
         expected = _load_expected()
         for key in (
-            "input_tokens", "output_tokens",
-            "cached_input_tokens", "cached_output_tokens", "total_tokens",
+            "fresh_input_tokens", "output_tokens",
+            "cache_read_tokens", "cache_write_tokens", "total_tokens",
         ):
             assert snapshot["summary"][key] == expected["summary"][key], \
                 f"Token '{key}' mismatch: {snapshot['summary'][key]} != {expected['summary'][key]}"

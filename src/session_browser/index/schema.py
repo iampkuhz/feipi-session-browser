@@ -36,7 +36,7 @@ SESSION_ARTIFACTS_SCHEMA_SQL = """
 
 
 def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
-    """Get a SQLite connection to the index database."""
+    """打开会话索引 SQLite 连接。"""
     from session_browser.config import INDEX_PATH, ensure_index_dir
 
     ensure_index_dir()
@@ -50,15 +50,14 @@ def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
 
 
 def ensure_session_artifacts_schema(conn: sqlite3.Connection) -> None:
-    """Create the session artifact side table without touching session rows."""
+    """创建会话产物附表，不修改 session 行。"""
     conn.executescript(SESSION_ARTIFACTS_SCHEMA_SQL)
 
 
 def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
-    """Drop old schema and recreate with current structure.
+    """重建当前索引结构。
 
-    Adds file_mtime and file_path columns for incremental scan support.
-    NOTE: This drops all existing data -- run a full scan afterwards.
+    本函数会清空旧数据并创建当前 schema；升级后请重新执行 full scan。
     """
     if conn is None:
         conn = _get_connection()
@@ -87,10 +86,7 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
             user_message_count INTEGER NOT NULL DEFAULT 0,
             assistant_message_count INTEGER NOT NULL DEFAULT 0,
             tool_call_count INTEGER NOT NULL DEFAULT 0,
-            input_tokens INTEGER NOT NULL DEFAULT 0,
             output_tokens INTEGER NOT NULL DEFAULT 0,
-            cached_input_tokens INTEGER NOT NULL DEFAULT 0,
-            cached_output_tokens INTEGER NOT NULL DEFAULT 0,
             fresh_input_tokens INTEGER NOT NULL DEFAULT 0,
             cache_read_tokens INTEGER NOT NULL DEFAULT 0,
             cache_write_tokens INTEGER NOT NULL DEFAULT 0,

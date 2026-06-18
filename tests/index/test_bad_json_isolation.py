@@ -273,19 +273,19 @@ class TestBadJsonSessionIndexing:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            "SELECT input_tokens, output_tokens FROM sessions WHERE session_key = ?",
+            "SELECT fresh_input_tokens, output_tokens FROM sessions WHERE session_key = ?",
             ("claude_code:bad-sess-001",),
         ).fetchone()
         conn.close()
 
         assert row is not None
-        # input_tokens: 150 + 200 + 180 + 100 = 630（来自 4 条 assistant 记录）
-        assert row["input_tokens"] == 630, (
-            f"Expected 630 input tokens, got {row['input_tokens']}"
+        # fresh_input_tokens: 150 + 200 + 180 + 100 = 630（来自 4 条 assistant 记录）
+        assert row["fresh_input_tokens"] == 630, (
+            f"期望 fresh_input_tokens 为 630，实际为 {row['fresh_input_tokens']}"
         )
         # output_tokens: 80 + 60 + 70 + 40 = 250
         assert row["output_tokens"] == 250, (
-            f"Expected 250 output tokens, got {row['output_tokens']}"
+            f"期望 output_tokens 为 250，实际为 {row['output_tokens']}"
         )
 
     @pytest.mark.contract_case("DATA-INDEX-006")

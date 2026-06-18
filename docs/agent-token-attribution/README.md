@@ -12,7 +12,7 @@
 | Codex | `codex.md` | `codex` | `openai_responses` | `openai` |
 | Qoder | `qoder.md` | `qoder` | `qoder_broker` | `qoder` |
 
-未知 agent 只能走 fallback；不得套用上述三类 agent 的细则。
+未知 agent 只能走 estimate-only 缺省处理；不得套用上述三类 agent 的细则。
 
 ## 归因对象模型
 
@@ -32,7 +32,7 @@ metadata 不是 bucket。它必须保留在 payload 中供 review，但不进入
 | LLM call | 一次实际模型请求/响应。token、request 归因、response 归因都必须挂到具体 LLM call。 |
 | content bucket | 一组同类 token 来源。bucket 不是原始 JSONL 字段，也不是 UI 卡片。 |
 | 原始绑定路径 | 实现必须读取的原始 session JSONL 字段路径，或明确列出的本地补充来源路径。不能从 UI 文案反推。 |
-| 估算策略 | 历史实现曾使用 reported/estimated/heuristic/residual/unavailable 等标签；当前 normalized scan artifact 和默认 API payload 不再逐字段暴露 `precision`。 |
+| 估算策略 | 用 reported/estimated/heuristic/residual/unavailable 等标签表达数据可靠性；normalized scan artifact 不逐字段暴露 `precision`，按需 attribution payload 才输出可用性说明。 |
 | residual | 已知 content bucket 解释后剩余的 token。只能作为“未定位”展示，不得编造来源。 |
 
 ## 固定不变的规则
@@ -41,7 +41,7 @@ metadata 不是 bucket。它必须保留在 payload 中供 review，但不进入
 |---|---|
 | LLM call 边界 | 先确定逻辑 LLM call，再归属 token 和内容；UI round、可见 assistant 文本、phase 不得改变 token 边界。 |
 | 五字段 | UI tokenbar 固定为 `Fresh`、`Cache Read`、`Cache Write`、`Output`、`Total`。 |
-| Total 公式 | `Total = Fresh + Cache Read + Cache Write + Output`。provider raw total 只能作诊断或 fallback。 |
+| Total 公式 | `Total = Fresh + Cache Read + Cache Write + Output`。provider raw total 只能作诊断或缺省处理。 |
 | Fresh 语义 | `Fresh` 是互斥的新输入分段。OpenAI/Codex 这类 cache read 属于 input 子集时，`Fresh = input_tokens - cached_input_tokens`。 |
 | Request Content Denominator | request content bucket percent、coverage、unlocated residual 的分母固定为 `Fresh`。 |
 | Response denominator | response content bucket percent、coverage、unlocated residual 的分母固定为 `Output`。 |
@@ -178,7 +178,7 @@ normalized artifact 明确不保存这些可派生或高成本字段：`context_
 |---|---|
 | 解析目标 call | 用 `roundNumber` 和 `subRoundNum` 定位 scan 阶段建立的 `LLMCall`。 |
 | 构建 call-scoped context | 调用 `build_attribution_session_context`，取本 call 前的消息、工具结果、工具定义、项目指令、MCP 信息。 |
-| 选择 agent builder | `claude_code`、`codex`、`qoder` 使用专用 builder；未知 agent 走 fallback。 |
+| 选择 agent builder | `claude_code`、`codex`、`qoder` 使用专用 builder；未知 agent 走 estimate-only 缺省处理。 |
 | 计算 request/response bucket | 只计算当前接口需要的一侧；另一侧不应顺带计算。 |
 | 生成 payload | 计算 tokens、share、coverage、residual、source_refs、items、metadata、diagnostics。 |
 

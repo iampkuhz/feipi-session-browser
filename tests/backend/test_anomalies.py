@@ -34,7 +34,7 @@ def _session(overrides: dict | None = None) -> dict:
         "input_tokens": 0,
         "output_tokens": 0,
         "cached_input_tokens": 0,
-        "cached_output_tokens": 0,
+        "cache_write_tokens": 0,
         "assistant_message_count": 0,
     }
     if overrides:
@@ -190,7 +190,7 @@ class TestCacheWriteHotspot:
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_label_is_cache_creation(self):
         sa = detect_session_anomalies(_session({
-            "cached_output_tokens": 250_000,
+            "cache_write_tokens": 250_000,
         }))
         hotspot_anomalies = [a for a in sa.anomalies if a.type == AnomalyType.CACHE_WRITE_SPIKE]
         assert len(hotspot_anomalies) == 1
@@ -199,7 +199,7 @@ class TestCacheWriteHotspot:
     @pytest.mark.contract_case("DATA-INDEX-001")
     def test_below_threshold(self):
         sa = detect_session_anomalies(_session({
-            "cached_output_tokens": 100_000,
+            "cache_write_tokens": 100_000,
         }))
         assert AnomalyType.CACHE_WRITE_SPIKE not in _anomaly_types(sa)
 

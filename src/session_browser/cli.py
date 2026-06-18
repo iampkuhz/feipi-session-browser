@@ -1,4 +1,4 @@
-"""CLI entry point for session-browser.
+"""session-browser CLI 入口。
 
 Usage:
     python -m session_browser scan        # Full scan
@@ -182,10 +182,10 @@ def _print_database_locked_help(exc: sqlite3.OperationalError) -> None:
 
 
 def cmd_scan(args: argparse.Namespace) -> None:
-    """Run a full or incremental scan."""
+    """执行 full scan 或 incremental scan。"""
     from session_browser.index.indexer import full_scan, incremental_scan, init_schema, _get_connection
 
-    # Check if a scan is already running
+    # 启动前检查是否已有 scan 进程。
     force = getattr(args, "force", False)
     scan_pid = _find_running_scan_pid()
     if scan_pid is not None:
@@ -215,7 +215,7 @@ def cmd_scan(args: argparse.Namespace) -> None:
         conn = _get_connection()
 
         if args.incremental:
-            # Only create tables if they don't exist; don't drop existing data
+            # 只创建缺失表；不清空现有数据。
             _ensure_schema_exists(conn)
             print(f"Starting incremental scan{label}...")
             start = time.time()
@@ -250,48 +250,52 @@ def cmd_scan(args: argparse.Namespace) -> None:
             conn.close()
 
 
-def _migrate_model_execution_seconds(conn) -> None:
-    """Add model_execution_seconds column if it doesn't exist."""
-    try:
-        columns = [r[0] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
-        if "model_execution_seconds" not in columns:
-            conn.execute(
-                "ALTER TABLE sessions ADD COLUMN model_execution_seconds REAL NOT NULL DEFAULT 0"
-            )
-            conn.commit()
-    except Exception:
-        pass
+_CURRENT_SESSION_COLUMNS = {
+    "session_key",
+    "agent",
+    "session_id",
+    "title",
+    "project_key",
+    "project_name",
+    "cwd",
+    "started_at",
+    "ended_at",
+    "duration_seconds",
+    "model_execution_seconds",
+    "tool_execution_seconds",
+    "model",
+    "git_branch",
+    "source",
+    "user_message_count",
+    "assistant_message_count",
+    "tool_call_count",
+    "output_tokens",
+    "fresh_input_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "total_tokens",
+    "failed_tool_count",
+    "subagent_instance_count",
+    "indexed_at",
+    "file_mtime",
+    "file_path",
+}
 
 
-def _migrate_tool_execution_seconds(conn) -> None:
-    """Add tool_execution_seconds column if it doesn't exist."""
-    try:
-        columns = [r[0] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
-        if "tool_execution_seconds" not in columns:
-            conn.execute(
-                "ALTER TABLE sessions ADD COLUMN tool_execution_seconds REAL NOT NULL DEFAULT 0"
-            )
-            conn.commit()
-    except Exception:
-        pass
-
-
-def _migrate_token_breakdown_columns(conn) -> None:
-    """Add canonical token breakdown columns if they don't exist."""
-    try:
-        columns = [r[0] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
-        for column in ("fresh_input_tokens", "cache_read_tokens", "cache_write_tokens", "total_tokens"):
-            if column not in columns:
-                conn.execute(
-                    f"ALTER TABLE sessions ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0"
-                )
-        conn.commit()
-    except Exception:
-        pass
+def _assert_current_session_schema(conn) -> None:
+    """确认索引表已经是当前 schema；旧索引需要重新扫描。"""
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    missing = sorted(_CURRENT_SESSION_COLUMNS - columns)
+    if missing:
+        raise RuntimeError(
+            "当前本地索引 schema 缺少列 "
+            + ", ".join(missing)
+            + "；请删除旧索引或运行 full scan 重建。"
+        )
 
 
 def _ensure_schema_exists(conn) -> None:
-    """Create tables if they don't exist, without dropping data."""
+    """按当前 schema 创建索引表；旧索引请通过 full scan 重建。"""
     from session_browser.index.schema import ensure_session_artifacts_schema
 
     conn.executescript("""
@@ -314,15 +318,13 @@ def _ensure_schema_exists(conn) -> None:
             user_message_count INTEGER NOT NULL DEFAULT 0,
             assistant_message_count INTEGER NOT NULL DEFAULT 0,
             tool_call_count INTEGER NOT NULL DEFAULT 0,
-            input_tokens INTEGER NOT NULL DEFAULT 0,
             output_tokens INTEGER NOT NULL DEFAULT 0,
-            cached_input_tokens INTEGER NOT NULL DEFAULT 0,
-            cached_output_tokens INTEGER NOT NULL DEFAULT 0,
             fresh_input_tokens INTEGER NOT NULL DEFAULT 0,
             cache_read_tokens INTEGER NOT NULL DEFAULT 0,
             cache_write_tokens INTEGER NOT NULL DEFAULT 0,
             total_tokens INTEGER NOT NULL DEFAULT 0,
             failed_tool_count INTEGER NOT NULL DEFAULT 0,
+            subagent_instance_count INTEGER NOT NULL DEFAULT 0,
             indexed_at REAL NOT NULL DEFAULT 0,
             file_mtime REAL NOT NULL DEFAULT 0,
             file_path TEXT NOT NULL DEFAULT ''
@@ -344,16 +346,12 @@ def _ensure_schema_exists(conn) -> None:
         );
     """)
     ensure_session_artifacts_schema(conn)
-    conn.commit()
-    _migrate_model_execution_seconds(conn)
-    _migrate_tool_execution_seconds(conn)
-    _migrate_token_breakdown_columns(conn)
-    ensure_session_artifacts_schema(conn)
+    _assert_current_session_schema(conn)
     conn.commit()
 
 
 def _is_orphan(pid: int) -> bool:
-    """Check if a process is orphaned (PPID == 1 on macOS/Linux)."""
+    """检查进程是否已成为孤儿进程（macOS/Linux 上 PPID == 1）。"""
     try:
         result = subprocess.run(
             ["ps", "-o", "ppid=", "-p", str(pid)],
@@ -368,7 +366,7 @@ def _is_orphan(pid: int) -> bool:
 
 
 def _find_pids_on_port(port: int) -> list[int]:
-    """Find PIDs of processes listening on the given port."""
+    """查找监听指定端口的进程 PID。"""
     pids = []
     try:
         result = _run_command(["lsof", "-ti", f":{port}"], timeout=5)
@@ -566,7 +564,7 @@ class _BackgroundScanner:
 
             try:
                 conn = _get_connection()
-                # Ensure tables exist without dropping data
+                # 确保表存在，但不清空数据。
                 from session_browser.cli import _ensure_schema_exists
                 _ensure_schema_exists(conn)
 

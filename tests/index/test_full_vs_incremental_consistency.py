@@ -152,9 +152,9 @@ class TestFullVsIncrementalConsistency:
             incr_row = snapshot_incr[key]
             full_row = snapshot_full_2[key]
         # 对比应一致的关键指标
-            assert incr_row["input_tokens"] == full_row["input_tokens"], (
-                f"input_tokens mismatch for {key}: incr={incr_row['input_tokens']} "
-                f"vs full={full_row['input_tokens']}"
+            assert incr_row["fresh_input_tokens"] == full_row["fresh_input_tokens"], (
+                f"fresh_input_tokens mismatch for {key}: incr={incr_row['fresh_input_tokens']} "
+                f"vs full={full_row['fresh_input_tokens']}"
             )
             assert incr_row["output_tokens"] == full_row["output_tokens"], (
                 f"output_tokens mismatch for {key}"
@@ -215,8 +215,8 @@ class TestFullVsIncrementalConsistency:
         for key in snapshot_full:
             incr_row = snapshot_incr[key]
             full_row = snapshot_full[key]
-            assert incr_row["input_tokens"] == full_row["input_tokens"], (
-                f"input_tokens mismatch for {key}"
+            assert incr_row["fresh_input_tokens"] == full_row["fresh_input_tokens"], (
+                f"fresh_input_tokens mismatch for {key}"
             )
             assert incr_row["output_tokens"] == full_row["output_tokens"], (
                 f"output_tokens mismatch for {key}"
@@ -317,8 +317,8 @@ class TestFullVsIncrementalConsistency:
         for key in snapshot_full:
             incr_row = snapshot_incr[key]
             full_row = snapshot_full[key]
-            assert incr_row["input_tokens"] == full_row["input_tokens"], (
-                f"input_tokens mismatch for {key}"
+            assert incr_row["fresh_input_tokens"] == full_row["fresh_input_tokens"], (
+                f"fresh_input_tokens mismatch for {key}"
             )
             assert incr_row["output_tokens"] == full_row["output_tokens"], (
                 f"output_tokens mismatch for {key}"
@@ -372,7 +372,7 @@ class TestFullVsIncrementalConsistency:
         for key in snapshot_full:
             incr_row = snapshot_incr[key]
             full_row = snapshot_full[key]
-            assert incr_row["input_tokens"] == full_row["input_tokens"]
+            assert incr_row["fresh_input_tokens"] == full_row["fresh_input_tokens"]
             assert incr_row["output_tokens"] == full_row["output_tokens"]
             assert incr_row["title"] == full_row["title"]
 

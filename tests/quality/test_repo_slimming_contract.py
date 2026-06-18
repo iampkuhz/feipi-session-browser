@@ -31,44 +31,44 @@ class TestNoHistoricalVersionComments:
         assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_hifi_version_warns(self, tmp_path):
+    def test_hifi_version_blocks(self, tmp_path):
         f = tmp_path / "shell.css"
         f.write_text("/* HIFI v99: Table header */\n.header { display: flex; }")
         errors, warnings = check_no_historical_version_comments([f])
-        assert errors == []
-        assert len(warnings) == 1
+        assert len(errors) == 1
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_deprecated_task_warns(self, tmp_path):
+    def test_deprecated_task_blocks(self, tmp_path):
         f = tmp_path / "code.py"
         f.write_text("# DEPRECATED T001 — migrated to new system\nx = 1")
         errors, warnings = check_no_historical_version_comments([f])
-        assert errors == []
-        assert len(warnings) == 1
+        assert len(errors) == 1
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_migrated_task_warns(self, tmp_path):
+    def test_migrated_task_blocks(self, tmp_path):
         f = tmp_path / "notes.md"
         f.write_text("migrated Task 42 to the new module")
         errors, warnings = check_no_historical_version_comments([f])
-        assert errors == []
-        assert len(warnings) == 1
+        assert len(errors) == 1
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_session_browser_hifi_v_warns(self, tmp_path):
+    def test_session_browser_hifi_v_blocks(self, tmp_path):
         f = tmp_path / "config.yaml"
         f.write_text("# session_browser_hifi_v99 configuration")
         errors, warnings = check_no_historical_version_comments([f])
-        assert errors == []
-        assert len(warnings) == 1
+        assert len(errors) == 1
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_session_detail_payload_v_warns(self, tmp_path):
+    def test_session_detail_payload_v_blocks(self, tmp_path):
         f = tmp_path / "design.md"
         f.write_text("session-detail-payload-v99 design")
         errors, warnings = check_no_historical_version_comments([f])
-        assert errors == []
-        assert len(warnings) == 1
+        assert len(errors) == 1
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_multiple_files_reports_per_file(self, tmp_path):
@@ -77,8 +77,9 @@ class TestNoHistoricalVersionComments:
         good.write_text(".a { margin: 0; }")
         bad.write_text("/* HIFI v99: new */")
         errors, warnings = check_no_historical_version_comments([good, bad])
-        assert len(warnings) == 1
-        assert "bad.css" in warnings[0]
+        assert len(errors) == 1
+        assert "bad.css" in errors[0]
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_no_false_positive_on_normal_version(self, tmp_path):
@@ -101,49 +102,49 @@ class TestHarnessCurrentStateOnly:
         assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_deleted_keyword_warns(self, tmp_path):
+    def test_deleted_keyword_blocks(self, tmp_path):
         f = tmp_path / "changelog.md"
         f.write_text("# Changes\n\n- deleted old module X")
         errors, warnings = check_harness_current_state([f])
-        assert errors == []
-        assert len(warnings) == 1
-        assert "deleted" in warnings[0].lower()
+        assert len(errors) == 1
+        assert warnings == []
+        assert "deleted" in errors[0].lower()
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_changelog_keyword_warns(self, tmp_path):
+    def test_changelog_keyword_blocks(self, tmp_path):
         f = tmp_path / "history.md"
         f.write_text("# changelog for 2024")
         errors, warnings = check_harness_current_state([f])
-        assert errors == []
-        assert len(warnings) == 1
-        assert "changelog" in warnings[0].lower()
+        assert len(errors) == 1
+        assert warnings == []
+        assert "changelog" in errors[0].lower()
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_agent_quality_warns(self, tmp_path):
+    def test_agent_quality_blocks(self, tmp_path):
         f = tmp_path / "config.md"
         f.write_text("Logs stored in .agent/quality/results/")
         errors, warnings = check_harness_current_state([f])
-        assert errors == []
-        assert len(warnings) == 1
-        assert ".agent/quality" in warnings[0]
+        assert len(errors) == 1
+        assert warnings == []
+        assert ".agent/quality" in errors[0]
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_mmdd_log_path_warns(self, tmp_path):
+    def test_mmdd_log_path_blocks(self, tmp_path):
         f = tmp_path / "logging.md"
         f.write_text("Logs are at tmp/agent_logs/MMDD_<session-id>/")
         errors, warnings = check_harness_current_state([f])
-        assert errors == []
-        assert len(warnings) == 1
-        assert "tmp/agent_logs/MMDD" in warnings[0]
+        assert len(errors) == 1
+        assert warnings == []
+        assert "tmp/agent_logs/MMDD" in errors[0]
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_已删除_warns(self, tmp_path):
+    def test_已删除_blocks(self, tmp_path):
         f = tmp_path / "notes.md"
         f.write_text("已删除的模块需要重新评估")
         errors, warnings = check_harness_current_state([f])
-        assert errors == []
-        assert len(warnings) == 1
-        assert "已删除" in warnings[0]
+        assert len(errors) == 1
+        assert warnings == []
+        assert "已删除" in errors[0]
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_empty_file_passes(self, tmp_path):
@@ -301,13 +302,14 @@ class TestNoDeadCompatShim:
         assert errors == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_legacy_display_none_warns(self, tmp_path):
+    def test_legacy_display_none_blocks(self, tmp_path):
         css = tmp_path / "compat.css"
         css.write_text(".old-header {\n  display: none;\n}")
         errors, warnings = check_no_dead_compat_shim([css], [])
-        # 带有 "old" 选择器和 display:none 应该触发警告
-        assert len(warnings) == 1
-        assert "兼容垫片" in warnings[0]
+        # 带有 "old" 选择器和 display:none 应该触发 BLOCK
+        assert len(errors) == 1
+        assert "兼容垫片" in errors[0]
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_normal_display_none_no_warn(self, tmp_path):
@@ -338,17 +340,14 @@ class TestActualRepoState:
         assert errors == [], f"dead compat shim found: {errors}"
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
-    def test_historical_version_warnings_exist(self):
-        """验证已有历史版本注释能被检测为 WARN。
-
-        Note: Historical version comments have been cleaned up; this test
-        now verifies the checker runs without error rather than expecting warnings.
+    def test_historical_version_blocks_absent(self):
+        """验证仓库当前 CSS 不含历史版本注释 BLOCK。
         """
         static = ROOT / "src/session_browser/web/static"
         css_files = list(static.rglob("*.css"))
         errors, warnings = check_no_historical_version_comments(css_files)
-        # Historical comments have been cleaned up; verify no errors at least
         assert errors == [], f"Unexpected BLOCK errors: {errors}"
+        assert warnings == []
 
     @pytest.mark.contract_case("HOOK-HARNESS-011")
     def test_repo_slimming_contract_passes_no_block(self):
@@ -356,4 +355,4 @@ class TestActualRepoState:
         from repo_slimming_contract_check import check_repo_slimming
         errors, warnings = check_repo_slimming(ROOT)
         assert errors == [], f"Unexpected BLOCK errors: {errors}"
-        # Historical residues have been cleaned up; warnings may be zero
+        assert warnings == []

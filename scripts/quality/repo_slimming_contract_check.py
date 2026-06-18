@@ -30,8 +30,7 @@ def check_no_historical_version_comments(
 ) -> tuple[list[str], list[str]]:
     """扫描文件中的历史版本注释模式。
 
-    当前仓库中仍存在少量历史残留（sessions-list.css 等），
-    因此采用 WARN 策略，不 BLOCK。如果未来清零，可升级为 BLOCK。
+    命中即 BLOCK：仓库文档和代码只描述当前状态，不维护版本残留说明。
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -43,10 +42,10 @@ def check_no_historical_version_comments(
         for pattern in HISTORICAL_VERSION_PATTERNS:
             matches = pattern.findall(text)
             if matches:
-                warnings.append(
+                errors.append(
                     f"{path}: 发现历史版本注释模式 "
                     f"'{matches[0]}'（共 {len(matches)} 处），"
-                    f"应清理并禁止新增（rule: no-historical-version-comments）。"
+                    f"必须清理（rule: no-historical-version-comments）。"
                 )
     return errors, warnings
 
@@ -85,8 +84,7 @@ def check_harness_current_state(
 ) -> tuple[list[str], list[str]]:
     """检查 harness/ 中是否包含历史痕迹。
 
-    由于 harness/README.md 等文档中仍有 tmp/agent_logs/MMDD 的文档引用
-    （描述日志目录格式），此处使用 WARN。真正的 BLOCK 留给新增内容。
+    命中即 BLOCK：harness 只描述当前可执行状态。
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -101,7 +99,7 @@ def check_harness_current_state(
                     # 检查上下文豁免
                     if _line_has_allowed_context(line):
                         continue
-                    warnings.append(
+                    errors.append(
                         f"{path}:{lineno}: harness 中出现 '{label}' "
                         f"（rule: harness-current-state-only），"
                         f"harness 应只描述当前状态。"
@@ -207,7 +205,7 @@ def check_no_dead_compat_shim(
     被引用，且没有其他规则引用它，这是死兼容垫片。
 
     BLOCK：只有注释/空白的 CSS/JS 文件。
-    WARN：display:none 用于保持未引用的旧选择器。
+    BLOCK：display:none 用于保持未引用的旧选择器。
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -235,8 +233,7 @@ def check_no_dead_compat_shim(
                 f"无有效代码，rule: no-dead-compat-shim）。"
             )
 
-    # Check 4b: display:none on selectors that look like legacy aliases
-    # Only warn, not block — display:none is a legitimate CSS pattern.
+    # Check 4b: display:none on selectors that look like compatibility aliases.
     legacy_like_pattern = re.compile(
         r"\.(?:old[-_]?|legacy[-_]?|deprecated[-_]?|compat[-_]?|v\d[-_]?)",
         re.IGNORECASE,
@@ -262,10 +259,10 @@ def check_no_dead_compat_shim(
 
                 selector_text = " ".join(selector_lines)
                 if legacy_like_pattern.search(selector_text):
-                    warnings.append(
+                    errors.append(
                         f"{path}:{lineno}: display:none 用于疑似兼容垫片选择器 "
                         f"（rule: no-dead-compat-shim），"
-                        f"确认该选择器是否仍有必要。"
+                        f"请删除垫片或改为当前选择器。"
                     )
 
     return errors, warnings

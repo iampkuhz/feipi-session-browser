@@ -461,7 +461,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
         "truncated": False,
     }
     buckets.append(RequestAttributionBucket(
-        key="tool_schemas",
+        key="tool_definitions",
         label="工具定义",
         tokens=tool_schema_tokens,
         percent=_pct(tool_schema_tokens, request_content_denominator),
@@ -725,7 +725,7 @@ def build_request(self: "BaseAttributionBuilder") -> LLMRequestAttribution:
                     precision=ValuePrecision.ESTIMATED,
                     source=ValueSource.TOOL_LOGS,
                     fill_strategy="estimated from text"),
-        self._avail("tool_schemas_tokens", "Tool schemas tokens",
+        self._avail("tool_definitions_tokens", "工具定义 tokens",
                     True, exact=False,
                     precision=tool_schemas_availability,
                     source=tool_schemas_source,

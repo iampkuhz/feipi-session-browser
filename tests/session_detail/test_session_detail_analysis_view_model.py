@@ -1,4 +1,4 @@
-"""Session Detail run-analysis view model contracts."""
+"""Session Detail 运行分析 view model 契约。"""
 
 from pathlib import Path
 
@@ -22,10 +22,7 @@ class _FakeSession:
         self.project_key = kwargs.get("project_key", "/tmp/project")
         self.project_name = kwargs.get("project_name", "project")
         self.file_path = kwargs.get("file_path", "/tmp/project/.claude/session.jsonl")
-        self.input_tokens = kwargs.get("input_tokens", 1400)
         self.output_tokens = kwargs.get("output_tokens", 300)
-        self.cached_input_tokens = kwargs.get("cached_input_tokens", 600)
-        self.cached_output_tokens = kwargs.get("cached_output_tokens", 200)
         self.fresh_input_tokens = kwargs.get("fresh_input_tokens", 1400)
         self.cache_read_tokens = kwargs.get("cache_read_tokens", 600)
         self.cache_write_tokens = kwargs.get("cache_write_tokens", 200)

@@ -102,15 +102,14 @@ def detect_session_anomalies(
     duration = session.get("duration_seconds", 0) or 0
     tools = session.get("tool_call_count", 0) or 0
     failed = session.get("failed_tool_count", 0) or 0
-    input_tokens = session.get("input_tokens", 0) or 0
+    fresh_input_tokens = session.get("fresh_input_tokens", 0) or 0
     output_tokens = session.get("output_tokens", 0) or 0
-    cache_read = session.get("cached_input_tokens", 0) or 0
-    cache_write = session.get("cached_output_tokens", 0) or 0
+    cache_read = session.get("cache_read_tokens", 0) or 0
+    cache_write = session.get("cache_write_tokens", 0) or 0
     rounds = session.get("assistant_message_count", 0) or 0
     title = session.get("title", "")
 
-    total_input = input_tokens + cache_read + cache_write
-    input_side_total = total_input
+    input_side_total = fresh_input_tokens + cache_read + cache_write
 
     # ─── Failed run (ratio-based thresholds) ───
     # Occasional failures are normal (esp. for certain models).
@@ -163,8 +162,8 @@ def detect_session_anomalies(
     # ─── Cache creation (cache_creation_input_tokens) ───
     # Shows how much context this session wrote to the prompt cache.
     # Expected for multi-turn sessions — info/warning only, not a problem.
-    warn = FALLBACK_THRESHOLDS["cached_output_tokens"]["warning"]
-    crit = FALLBACK_THRESHOLDS["cached_output_tokens"]["critical"]
+    warn = FALLBACK_THRESHOLDS["cache_write_tokens"]["warning"]
+    crit = FALLBACK_THRESHOLDS["cache_write_tokens"]["critical"]
 
     if cache_write >= crit:
         anomalies.append(Anomaly(

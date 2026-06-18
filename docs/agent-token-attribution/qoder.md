@@ -22,10 +22,10 @@ partition "scan 启动阶段" {
   :定位 Qoder JSONL;
   :读取 SessionSummary.project_key 和 cwd;
   :定位 project_dir;
-  :加载 Qoder 工具 schema fallback;
+  :加载 Qoder 工具定义缺省来源;
   note right
-  Qoder 不持久化完整 tools schema。
-  fallback 来源是 claude_code_tool_schemas.py:
+  Qoder 不持久化完整 tools 定义。
+  缺省来源是 claude_code_tool_schemas.py:
   ALL_CLAUDE_CODE_TOOLS、get_cached_schemas()、
   get_all_tool_schema_tokens()。
   同时补充本 session observed tools。
@@ -81,7 +81,7 @@ stop
 |---|---|---|---|
 | 1 | session 文件 | `SessionSummary.file_path` | 定位 Qoder JSONL；所有 `record_index` 以该文件行序为准。 |
 | 2 | 项目目录 | `SessionSummary.project_key`、`SessionSummary.cwd`、JSONL top-level project/workspace 字段 | 作为读取 Qoder rules、本地指令、MCP 配置的根。 |
-| 3 | 工具 schema fallback | `src/session_browser/attribution/agents/claude_code_tool_schemas.py` 的 `ALL_CLAUDE_CODE_TOOLS/get_cached_schemas/get_all_tool_schema_tokens` | Qoder 无完整 tools schema 时使用 Claude-Code-like 默认 schema，并补充 observed tools。 |
+| 3 | 工具定义缺省来源 | `src/session_browser/attribution/agents/claude_code_tool_schemas.py` 的 `ALL_CLAUDE_CODE_TOOLS/get_cached_schemas/get_all_tool_schema_tokens` | Qoder 无完整 tools 定义时使用 Claude-Code-like 默认工具定义，并补充 observed tools。 |
 | 4 | observed tools | assistant `message.content[type=tool_use].name`、`tool_calls_raw`、context `available_tools` | 只作为补充，不代表完整可用工具列表。 |
 | 5 | broker/system locator | Qoder JSONL 或 app support 中可见 `system/tools/messages/request_full` | scan 只保存 locator；不可见 broker state 不伪造。 |
 | 6 | model/config | assistant `message.model`、event top-level `model`、`metadata.model`、app support config/log | 按优先级绑定到 call metadata locator。 |
@@ -100,7 +100,7 @@ stop
 | 追加 | 相同 `message.id` 的后续 fragment 追加到同一 LLM call。 |
 | 切换 | 不同非空 `message.id` 出现时，先 finalize 旧 group，再开启新 group。 |
 | 收尾 | 文件结束时 finalize 最后一个非空 group。 |
-| 缺失 | 写 `missing_message_id` diagnostics；只有可由 broker request locator 明确绑定时才用顺序 fallback。 |
+| 缺失 | 写 `missing_message_id` diagnostics；只有可由 broker request locator 明确绑定时才用顺序缺省绑定。 |
 
 ### Scan 输出
 
@@ -138,7 +138,7 @@ else (否)
   :标记 Cache Read 和 Cache Write unavailable;
 endif
 if (kind 是 request?) then (是)
-  :读取 request refs、request_full、full_messages_array 和工具 schema fallback;
+  :读取 request refs、request_full、full_messages_array 和工具定义缺省来源;
   :计算 request content buckets 和 metadata;
   :输出 request coverage、residual、items、source_refs;
 else (否)
@@ -158,12 +158,12 @@ stop
 | 信息 | 动态读取来源路径 | 方法简述 | 截断/去重 |
 |---|---|---|---|
 | 目标 call | scan 输出的 `LLMCall.id == message.id`、`roundNumber/subRoundNum` | 只定位一个 assistant message group。 | 不为其它 message.id 计算 bucket。 |
-| usage | assistant `message.usage`；fallback estimate-only | 有 usage 时按 whole-snapshot 规则；无 usage 时用可见 transcript 估算 Fresh/Output。 | cache read/write 缺失标记 unavailable。 |
+| usage | assistant `message.usage`；缺省来源 estimate-only | 有 usage 时按 whole-snapshot 规则；无 usage 时用可见 transcript 估算 Fresh/Output。 | cache read/write 缺失标记 unavailable。 |
 | 当前用户输入 | user `message.content[type=text]`；`request_full` 当前用户段 | 优先显式 user prompt；缺失用 request_full。 | 与 request_full 相同片段去重。 |
 | 对话历史 | `build_attribution_session_context.full_messages_array`、`prior_messages`、显式 `history_messages` | 按 call 边界取当前 call 前历史。 | `content_preview` 200 字符；token 按全文或可读切片估算。 |
 | 工具结果 | user `message.content[type=tool_result]`、`request_full` 中 `Tool result for ...` | 只取当前 call 前已返回的工具结果。 | 同一 `tool_use_id` 只计一次。 |
 | 仓库/文件上下文 | `request_full`、工具结果、文件片段、diff、搜索结果 | 从文本结构和工具名识别文件上下文。 | preview 截断；全文由 source_ref 加载。 |
-| 工具定义 | Qoder 可见 tools；fallback `ALL_CLAUDE_CODE_TOOLS` + observed tools | 默认 schema 作为基线，observed Qoder-only tools 用保守估算。 | 同名 tool 只计一次；unknown tool 使用固定估算。 |
+| 工具定义 | Qoder 可见 tools；缺省来源 `ALL_CLAUDE_CODE_TOOLS` + observed tools | 默认工具定义作为基线，observed Qoder-only tools 用保守估算。 | 同名 tool 只计一次；unknown tool 使用固定估算。 |
 | MCP 元数据 | `.mcp.json` server/tool 名称 | 只输出 server 和 tool 名。 | 不读取密钥和 command env。 |
 | Skill/Plugin 能力目录 | Qoder 可见 capability/agent list、system/tool messages | 仅可见时产出。 | 不从隐藏 broker state 推断。 |
 | 平台默认指令 | broker/system locator、可见 system messages | 可见才归入 `platform_default_instructions`。 | 不可见只写 diagnostics/residual。 |
@@ -179,13 +179,13 @@ stop
 
 | 字段 | 原始 session JSONL/本地绑定路径 | 标准取值 | 缺失/冲突处理 |
 |---|---|---|---|
-| LLM call key | assistant record 的 `message.id`。 | 同 id fragments 合并为一个 call。 | 无 id 时用事件顺序 fallback，并写 diagnostics。 |
+| LLM call key | assistant record 的 `message.id`。 | 同 id fragments 合并为一个 call。 | 无 id 时用事件顺序缺省绑定，并写 diagnostics。 |
 | Provider request input | `message.usage.input_tokens` / `prompt_tokens`，或 Qoder usage snapshot 同义字段。 | Qoder broker 上报的 request input 总量；可能包含 cache read。 | 无 usage 时用可见上下文估算。 |
 | `Fresh` | Provider request input 与 `Cache Read`。 | 若 broker input 包含 cache read，则 `max(provider request input - Cache Read, 0)`；若存在明确 fresh 字段则用 fresh 字段。 | 不得直接把 inclusive `input_tokens` 当 Fresh；无 usage 时为估算值。 |
 | `Cache Read` | `cache_read_input_tokens`、`cache_read_tokens`、`cached_tokens`。 | provider/broker 原值。 | 0 是有效值；字段缺失才 `unavailable`。 |
 | `Cache Write` | `cache_creation_input_tokens`、`cache_write_input_tokens`、`cache_write_tokens`。 | provider/broker 原值。 | 不得用下一次 cache read delta 覆盖；推断值只能进 diagnostics。 |
 | `Output` | `output_tokens`、`completion_tokens`，必要时合并非重复 thinking/reasoning。 | provider/broker 可见输出。 | 无 usage 时按 assistant 文本估算。 |
-| `Total` | 归一化组件。 | `Fresh + Cache Read + Cache Write + Output`。 | broker raw total 只作诊断或 fallback。 |
+| `Total` | 归一化组件。 | `Fresh + Cache Read + Cache Write + Output`。 | broker raw total 只作诊断或缺省处理。 |
 | Credits | Qoder credit 数据或本地 billing log。 | 单独 `credit_summary`。 | 不反推 token。 |
 
 ## Usage fragment 合并

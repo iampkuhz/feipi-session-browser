@@ -1,11 +1,4 @@
-"""Session detail LLM attribution UI layer tests.
-
-Verifies:
-1. Round row renders request/response attribution buttons with correct attributes.
-2. Attribution buttons have proper title and aria-label attributes.
-3. trace row carries request_attribution and response_attribution payload actions.
-4. Template rendering of attribution payloads produces expected structure.
-"""
+"""Session Detail LLM 归因 UI 层测试。"""
 
 import pytest
 
@@ -27,10 +20,7 @@ class _FakeSession:
         self.started_at = "2025-01-01T00:00:00Z"
         self.project_key = "/tmp/test"
         self.project_name = "test"
-        self.input_tokens = 10000
         self.output_tokens = 5000
-        self.cached_input_tokens = 5000
-        self.cached_output_tokens = 1000
         self.fresh_input_tokens = 10000
         self.cache_read_tokens = 5000
         self.cache_write_tokens = 1000
@@ -116,8 +106,10 @@ def _make_req_data(**overrides):
             "request_id": "req-abc",
             "call_id": "call-001",
             "usage": {
-                "total_input": {"value": 5000, "precision": "provider_reported"},
-                "fresh_input": {"value": 2000, "precision": "estimated"},
+                "provider_request_input": {"value": 5000, "precision": "provider_reported"},
+                "input_side_component_total": {"value": 5500, "precision": "provider_reported"},
+                "request_content_denominator": {"value": 2000, "precision": "estimated"},
+                "fresh": {"value": 2000, "precision": "estimated"},
                 "cache_read": {"value": 3000, "precision": "provider_reported"},
                 "cache_write": {"value": 500, "precision": "provider_reported"},
                 "coverage": {"value": 4500, "precision": "heuristic"},
@@ -293,7 +285,7 @@ class TestAttributionTemplateRendering:
         assert "sd-attribution-topgrid" in html
         assert "claude_code" in html
         assert "claude-sonnet-4" in html
-        assert "Request Content Denominator" in html
+        assert "Request 内容分母" in html
         assert "2.0K" in html
 
     def test_response_attribution_renders_with_data(self):
@@ -1003,7 +995,7 @@ class TestAttributionModalNewLayout:
                     },
                 },
                 {
-                    "key": "tool_schemas", "label": "工具定义",
+                    "key": "tool_definitions", "label": "工具定义",
                     "tokens": 2400, "percent": 24.0, "contributes_to_total": True,
                     "precision": "heuristic", "source": "tool_list",
                     "details": {
@@ -1058,7 +1050,7 @@ class TestAttributionModalNewLayout:
         """Summary card should use Chinese labels."""
         html = _render_payload_sources([self._make_req_with_rich_data()])
         assert "请求摘要" in html
-        assert "Request Content Denominator" in html
+        assert "Request 内容分母" in html
         assert "覆盖率" in html
 
     def test_confidence_not_displayed_in_buckets(self):

@@ -317,7 +317,7 @@
     var data = payload.data || payload;
     var html = "";
 
-    // Disclaimer in Chinese
+    // 本地重建免责声明。
     html += '<div class="sd-attribution-disclaimer">基于本地日志重建，不等同于真实提供方请求/响应体。</div>';
 
     var usage = data.usage || {};
@@ -332,28 +332,26 @@
     var coverage = data.coverage || null;
     var creditSummary = data.credit_summary || null;
     var diagnostics = data.diagnostics || null;
-    var totalInput = coalesceDefined(usageSummary.total_input, usage.total_input);
-    var freshInput = coalesceDefined(usageSummary.fresh_input, usage.fresh_input);
+    var providerRequestInput = coalesceDefined(usageSummary.provider_request_input, usage.provider_request_input);
+    var freshInput = coalesceDefined(usageSummary.fresh, usage.fresh);
     var cacheRead = coalesceDefined(usageSummary.cache_read, usage.cache_read);
     var cacheWrite = coalesceDefined(usageSummary.cache_write, usage.cache_write);
-    var coverageProviderRawTotal = coverageMetricValue(coverage, "provider_raw_total");
-    var coverageProviderTotal = coverageMetricValue(coverage, "provider_total_input");
+    var coverageProviderRequestInput = coverageMetricValue(coverage, "provider_request_input");
     var coverageInputSideTotal = coverageMetricValue(coverage, "input_side_component_total");
-    var coverageRequestContentTotal = coverageMetricValue(coverage, "request_content_denominator") ||
-      coverageMetricValue(coverage, "request_content_total");
+    var coverageRequestContentTotal = coverageMetricValue(coverage, "request_content_denominator");
     var coverageReconstructedTotal = coverageMetricValue(coverage, "reconstructed_total");
     var coverageRatio = coverageMetricValue(coverage, "coverage_ratio");
     var coverageResidualTokens = coverageMetricValue(coverage, "residual_tokens");
 
-    // ── Top summary: 2-card layout (调用详情 + 请求/响应摘要) ──
+    // ── 顶部摘要：调用详情 + 请求/响应摘要 ──
     html += '<div class="sd-attribution-topgrid">';
-    // ── Combined card: 调用身份 + 调用信息 ──
+    // ── 组合卡片：调用身份 + 调用信息 ──
     html += '<section class="sd-attribution-topcard">';
     html += '<h3>调用详情</h3>';
     html += '<div class="sd-attribution-identity-grid">';
     if (callIdentity) {
       html += '<div class="sd-kv"><span>Agent</span><span>' + escapeHtml(callIdentity.agent_runtime || "—") + '</span></div>';
-      html += '<div class="sd-kv"><span>API Family</span><span>' + escapeHtml(callIdentity.api_family || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>API 系列</span><span>' + escapeHtml(callIdentity.api_family || "—") + '</span></div>';
       html += '<div class="sd-kv"><span>Provider</span><span>' + escapeHtml(callIdentity.provider_or_broker || "—") + '</span></div>';
       if (callIdentity.underlying_provider) {
         html += '<div class="sd-kv"><span>底层 Provider</span><span>' + escapeHtml(callIdentity.underlying_provider) + '</span></div>';
@@ -368,33 +366,33 @@
     html += '<div class="sd-kv"><span>模型</span><span title="' + escapeHtml(model || "—") + '">' + escapeHtml(model || "—") + '</span></div>';
     if (kind === "request") {
       var srcLabel = data.source_label || "local logs";
-      html += '<div class="sd-kv"><span>Evidence Source</span><span title="' + escapeHtml(srcLabel) + '">' + escapeHtml(srcLabel) + '</span></div>';
+      html += '<div class="sd-kv"><span>证据来源</span><span title="' + escapeHtml(srcLabel) + '">' + escapeHtml(srcLabel) + '</span></div>';
       var callIdVal = data.call_id || "";
-      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(callIdVal || "—") + '">' + escapeHtml(callIdVal || "—") + '</span></div>';
+      html += '<div class="sd-kv"><span>调用 ID</span><span title="' + escapeHtml(callIdVal || "—") + '">' + escapeHtml(callIdVal || "—") + '</span></div>';
     } else if (data.call_id) {
-      html += '<div class="sd-kv"><span>Call ID</span><span title="' + escapeHtml(data.call_id) + '">' + escapeHtml(data.call_id) + '</span></div>';
+      html += '<div class="sd-kv"><span>调用 ID</span><span title="' + escapeHtml(data.call_id) + '">' + escapeHtml(data.call_id) + '</span></div>';
     }
     html += '<div class="sd-kv"><span>请求发起</span><span title="' + escapeHtml(timing.request_at || "—") + '">' + escapeHtml(timing.request_at || "—") + '</span></div>';
     html += '<div class="sd-kv"><span>响应返回</span><span title="' + escapeHtml(timing.response_at || "—") + '">' + escapeHtml(timing.response_at || "—") + '</span></div>';
     html += '<div class="sd-kv"><span>耗时</span><span title="' + escapeHtml(timing.duration || "—") + '">' + escapeHtml(timing.duration || "—") + '</span></div>';
     html += '</div>';
     html += '</section>';
-    // ── Right card: 请求/响应摘要 ──
+    // ── 右侧卡片：请求/响应摘要 ──
     html += '<section class="sd-attribution-topcard">';
     html += '<h3>' + (kind === "request" ? "请求摘要" : "响应摘要") + '</h3>';
     html += '<div class="sd-attribution-summary-grid">';
     if (kind === "request") {
       var requestDenominator = coverageRequestContentTotal || numericValue(freshInput);
-      html += '<div class="sd-kv"><span>Request Content Denominator</span><span title="Request 内容 bucket 分母；固定为 Fresh。Cache Read 是 provider accounting，不作为并列内容来源">' + formatCompactToken(requestDenominator) + '</span></div>';
+      html += '<div class="sd-kv"><span>Request 内容分母</span><span title="Request 内容 bucket 分母；固定为 Fresh。Cache Read 是 provider 计量，不作为并列内容来源">' + formatCompactToken(requestDenominator) + '</span></div>';
       html += '<div class="sd-kv"><span>Fresh</span><span title="' + kvTitleAttr(freshInput) + '">' + formatTokenValue(freshInput) + '</span></div>';
       html += '<div class="sd-kv"><span>Cache Read</span><span title="' + kvTitleAttr(cacheRead) + '">' + formatTokenValue(cacheRead) + '</span></div>';
       html += '<div class="sd-kv"><span>Cache Write</span><span title="' + kvTitleAttr(cacheWrite) + '">' + formatTokenValue(cacheWrite) + '</span></div>';
       if (coverage) {
-        html += '<div class="sd-kv"><span>Provider Raw Total</span><span title="Provider raw/input-side diagnostic total；不作为 request content denominator">' + formatCompactToken(coverageProviderRawTotal || coverageProviderTotal) + '</span></div>';
-        html += '<div class="sd-kv"><span>Input-side Component Total</span><span title="Fresh + Cache Read + Cache Write">' + formatCompactToken(coverageInputSideTotal) + '</span></div>';
+        html += '<div class="sd-kv"><span>Provider 请求输入</span><span title="Provider request input 原始计量值；不作为 request 内容分母">' + formatCompactToken(coverageProviderRequestInput) + '</span></div>';
+        html += '<div class="sd-kv"><span>输入侧组件合计</span><span title="Fresh + Cache Read + Cache Write">' + formatCompactToken(coverageInputSideTotal) + '</span></div>';
         html += '<div class="sd-kv"><span>本地重建</span><span title="本地日志可重建并已归因的 request 内容，不包含 provider cache hit accounting">' + formatCompactToken(coverageReconstructedTotal) + '</span></div>';
-        html += '<div class="sd-kv"><span>覆盖率</span><span title="本地重建 / Request Content Denominator">' + formatPercentNumber(coverageRatio) + '</span></div>';
-        html += '<div class="sd-kv"><span>未定位</span><span title="Request Content Denominator - 本地重建">' + formatCompactToken(coverageResidualTokens) + '</span></div>';
+        html += '<div class="sd-kv"><span>覆盖率</span><span title="本地重建 / Request 内容分母">' + formatPercentNumber(coverageRatio) + '</span></div>';
+        html += '<div class="sd-kv"><span>未定位</span><span title="Request 内容分母 - 本地重建">' + formatCompactToken(coverageResidualTokens) + '</span></div>';
       } else {
         html += '<div class="sd-kv"><span>覆盖率</span><span title="' + kvTitleAttr(usage.coverage) + '">' + formatRatioValue(usage.coverage) + '</span></div>';
         var unkValTop = numericValue(usage.unknown);
@@ -414,13 +412,13 @@
     html += '</section>';
     html += '</div>';
 
-    // ── Full-width attribution canvas ──
+    // ── 全宽 attribution 画布 ──
     html += '<div class="sd-payload-shell sd-payload-shell--attribution">';
     html += '<main class="sd-payload-main sd-attribution-canvas">';
 
     var buckets = data.buckets || [];
     if (buckets.length > 0) {
-      // Distribution bar
+      // 分布条。
       html += '<div class="sd-attribution-section-label">用量分布</div>';
       html += '<div class="sd-attribution-distribution__bar">';
       var residualKeys = { "unlocated_residual": true, "unknown_overhead": true, "unknown": true };
@@ -435,7 +433,7 @@
         var requestInputDenominator = coverageRequestContentTotal || numericValue(freshInput);
         if (requestInputDenominator > 0) {
           grandTotal = requestInputDenominator;
-          denominatorLabel = "Request Content Denominator = Fresh = " + formatCompactToken(requestInputDenominator) + "；Cache Read 仅在摘要中作为 provider accounting 展示";
+          denominatorLabel = "Request 内容分母 = Fresh = " + formatCompactToken(requestInputDenominator) + "；Cache Read 仅在摘要中作为 provider 计量 展示";
         }
       }
       contributingBuckets.forEach(function (b) {
@@ -451,7 +449,7 @@
       html += '</div>';
       html += '<div class="sd-attribution-distribution__note">' + escapeHtml(denominatorLabel) + '</div>';
 
-      // Bucket cards (expandable)
+      // 可展开 bucket 卡片。
       html += '<div class="sd-attribution-section-label">贡献来源</div>';
       html += '<div class="sd-attribution-bucket-list">';
       buckets.forEach(function (b) {
@@ -693,7 +691,6 @@
       "prior_conversation_messages": "sd-attribution-segment--prior",
       "conversation_messages": "sd-attribution-segment--prior",
       "tool_call": "sd-attribution-segment--tool",
-      "tool_schemas": "sd-attribution-segment--schema",
       "tool_definitions": "sd-attribution-segment--schema",
       "local_instruction_context": "sd-attribution-segment--local",
       "agent_subagent_prompt": "sd-attribution-segment--agent",

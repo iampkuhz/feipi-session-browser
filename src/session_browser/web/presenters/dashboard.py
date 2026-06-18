@@ -704,7 +704,7 @@ _QODER_CACHE_METRIC_KEYS = (
     "cache_read_input_tokens",
     "cache_creation_input_tokens",
     "cached_tokens",
-    "cached_input_tokens",
+    "cache_read_tokens",
     "qoder_input_tokens_total",
 )
 
@@ -946,13 +946,17 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
         display = _DB_AGENT_DISPLAY.get(db_agent, db_agent)
         total_sessions = m.get("total_sessions", 0)
         total_tokens = m.get("total_tokens", 0)
-        input_tokens = m.get("input_tokens", 0) + m.get("cache_read_tokens", 0) + m.get("cache_write_tokens", 0)
+        input_side_tokens = (
+            m.get("fresh_input_tokens", 0)
+            + m.get("cache_read_tokens", 0)
+            + m.get("cache_write_tokens", 0)
+        )
         output_tokens = m.get("output_tokens", 0)
         cache_read = m.get("cache_read_tokens", 0)
         failed_tools = m.get("failed_tools", 0)
 
         tokens_per_session = total_tokens / total_sessions if total_sessions > 0 else 0
-        cache_ratio = _safe_ratio_float(cache_read, input_tokens)
+        cache_ratio = _safe_ratio_float(cache_read, input_side_tokens)
         failure_per_session = failed_tools / total_sessions if total_sessions > 0 else 0
 
         efficiency_rows.append({
@@ -963,7 +967,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "sessions_raw": total_sessions,
             "tokens_per_session": _fmt_compact(tokens_per_session),
             "tokens_per_session_raw": tokens_per_session,
-            "input_tokens": _fmt_compact(input_tokens),
+            "input_side_tokens": _fmt_compact(input_side_tokens),
             "output_tokens": _fmt_compact(output_tokens),
             "cache_read": f"{cache_ratio * 100:.1f}%" if cache_ratio is not None else "N/A",
             "cache_read_raw": cache_ratio if cache_ratio is not None else -1,
@@ -1006,7 +1010,11 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
             continue
         total_sessions = m.get("total_sessions", 0)
         total_tokens = m.get("total_tokens", 0)
-        input_side = m.get("input_tokens", 0) + m.get("cache_read_tokens", 0) + m.get("cache_write_tokens", 0)
+        input_side = (
+            m.get("fresh_input_tokens", 0)
+            + m.get("cache_read_tokens", 0)
+            + m.get("cache_write_tokens", 0)
+        )
         cache_read = m.get("cache_read_tokens", 0)
         failed_tools = m.get("failed_tools", 0)
         tool_calls = m.get("tool_calls", 0)

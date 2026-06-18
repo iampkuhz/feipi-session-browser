@@ -258,11 +258,11 @@ class TestFixtureDirectParser:
     def test_fixture_has_token_usage(self):
         """Fixture 在各类别中必须有非零的 token 计数。"""
         summary, messages, tool_calls, subagent_runs = self._parse_fixture()
-        assert summary.input_tokens > 0, f"input_tokens is 0"
-        assert summary.output_tokens > 0, f"output_tokens is 0"
-        # At least one of cache categories should be nonzero
-        assert (summary.cached_input_tokens > 0 or summary.cached_output_tokens > 0), \
-            "Both cache token counts are 0"
+        assert summary.fresh_input_tokens > 0, "fresh_input_tokens 为 0"
+        assert summary.output_tokens > 0, "output_tokens 为 0"
+        # Cache Read 或 Cache Write 至少一类应非零。
+        assert (summary.cache_read_tokens > 0 or summary.cache_write_tokens > 0), \
+            "Cache Read 和 Cache Write 都为 0"
 
     @pytest.mark.contract_case("UI-SD-030")
     def test_fixture_has_multiple_tool_types(self):

@@ -304,6 +304,7 @@ _DEFAULT_BUCKET_CATEGORY_MAP = {
     "runtime_environment_context": "runtime_environment_context",
     "task_goal_context": "task_goal_context",
     "tool_schemas": "tool_definitions",
+    "tool_definitions": "tool_definitions",
     "mcp_tool_metadata": "mcp_tool_metadata",
     "previous_response_state": "provider_conversation_state",
     "reasoning_config": "reasoning_config",

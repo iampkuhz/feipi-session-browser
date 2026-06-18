@@ -107,8 +107,8 @@ def test_request_payload_has_required_fields():
     usage = payload["usage"]
     assert "coverage" in usage
     assert "unknown" in usage
-    assert "total_input" in usage
-    assert "fresh_input" in usage
+    assert "provider_request_input" in usage
+    assert "fresh" in usage
     assert "cache_read" in usage
     assert "cache_write" in usage
 
@@ -134,7 +134,7 @@ def test_request_payload_attributed_values_have_provenance():
     payload = request_attribution_to_payload(attr)
 
     usage = payload["usage"]
-    for key in ("total_input", "fresh_input", "cache_read", "cache_write", "coverage", "unknown"):
+    for key in ("provider_request_input", "input_side_component_total", "request_content_denominator", "fresh", "cache_read", "cache_write", "coverage", "unknown"):
         val = usage[key]
         assert "precision" in val, f"{key} missing precision"
         assert "source" in val, f"{key} missing source"
@@ -370,8 +370,8 @@ def test_codex_request_bucket_display_percent_uses_fresh_not_cache_read():
     residual = next(b for b in payload["buckets"] if b["key"] == "unknown_overhead")
     assert tool_outputs["percent"] == 50.0
     assert residual["percent"] == 50.0
-    assert payload["coverage"]["provider_total_input"] == 5000
-    assert payload["coverage"]["request_content_total"] == 2000
+    assert payload["coverage"]["input_side_component_total"] == 5000
+    assert payload["coverage"]["request_content_denominator"] == 2000
     assert payload["coverage"]["request_content_denominator"] == 2000
     assert payload["coverage"]["input_side_component_total"] == 5000
     assert payload["coverage"]["accounting_cache_read_tokens"] == 3000
@@ -426,9 +426,9 @@ def test_request_bucket_taxonomy_normalizes_labels_and_color_keys_across_agents(
         )
 
     payloads = [
-        request_attribution_to_payload(make_attr("claude_code", "tool_schemas", "工具定义")),
-        request_attribution_to_payload(make_attr("codex", "tool_schemas", "Tool schemas")),
-        request_attribution_to_payload(make_attr("qoder", "tool_schemas", "Tool schemas")),
+        request_attribution_to_payload(make_attr("claude_code", "tool_definitions", "工具定义")),
+        request_attribution_to_payload(make_attr("codex", "tool_definitions", "工具定义")),
+        request_attribution_to_payload(make_attr("qoder", "tool_definitions", "工具定义")),
     ]
 
     tool_buckets = [payload["buckets"][0] for payload in payloads]
@@ -436,8 +436,8 @@ def test_request_bucket_taxonomy_normalizes_labels_and_color_keys_across_agents(
     assert {bucket["canonical_key"] for bucket in tool_buckets} == {"tool_definitions"}
     assert {bucket["color_key"] for bucket in tool_buckets} == {"tool_definitions"}
     assert {bucket["category_key"] for bucket in tool_buckets} == {"tooling_context"}
-    assert {bucket["agent_bucket_key"] for bucket in tool_buckets} == {"tool_schemas"}
-    assert {bucket["agent_label"] for bucket in tool_buckets} == {"工具定义", "Tool schemas"}
+    assert {bucket["agent_bucket_key"] for bucket in tool_buckets} == {"tool_definitions"}
+    assert {bucket["agent_label"] for bucket in tool_buckets} == {"工具定义", "工具定义"}
 
 
 def test_request_bucket_taxonomy_maps_agent_specific_history_keys_to_one_category():

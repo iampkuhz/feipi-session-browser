@@ -338,9 +338,10 @@
     "session_id": "subagent-test-session-001",
     "title": "Subagent fixture test session",
     "model": "claude-sonnet-4-20250514",
-    "input_tokens": 22000,
+    "fresh_input_tokens": 22000,
     "output_tokens": 450,
-    "cached_input_tokens": 16500,
-    "cached_output_tokens": 6500
+    "cache_read_tokens": 16500,
+    "cache_write_tokens": 6500,
+    "total_tokens": 45450
   }
 }

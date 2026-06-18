@@ -1,11 +1,4 @@
-"""Session detail LLM attribution payload tests.
-
-Verifies:
-1. Attribution payloads are correctly integrated into routes payload_sources.
-2. Both request and response attribution payloads exist for LLM calls.
-3. Payload structure matches the expected contract.
-4. No regression in existing payload types.
-"""
+"""Session Detail LLM 归因 payload 测试。"""
 
 import json
 import pytest
@@ -27,10 +20,7 @@ class _FakeSession:
         self.started_at = "2025-01-01T00:00:00Z"
         self.project_key = "/tmp/test"
         self.project_name = "test"
-        self.input_tokens = 10000
         self.output_tokens = 5000
-        self.cached_input_tokens = 5000
-        self.cached_output_tokens = 1000
         self.fresh_input_tokens = 10000
         self.cache_read_tokens = 5000
         self.cache_write_tokens = 1000
@@ -182,8 +172,10 @@ def test_request_attribution_payload_structure():
 
     # Check usage fields
     usage = data["usage"]
-    assert "total_input" in usage
-    assert "fresh_input" in usage
+    assert "provider_request_input" in usage
+    assert "input_side_component_total" in usage
+    assert "request_content_denominator" in usage
+    assert "fresh" in usage
     assert "cache_read" in usage
     assert "cache_write" in usage
 
@@ -256,7 +248,7 @@ def test_qoder_attribution_payload_has_no_cache():
     assert req_payload is not None
     data = req_payload.get("data", {})
     usage = data.get("usage", {})
-    assert usage["fresh_input"]["value"] == lc.input_tokens
+    assert usage["fresh"]["value"] == lc.input_tokens
     assert usage["cache_read"]["value"] in (0, None) or usage["cache_read"]["precision"] == "unavailable"
     assert usage["cache_write"]["value"] in (0, None) or usage["cache_write"]["precision"] == "unavailable"
 
@@ -288,8 +280,8 @@ def test_codex_attribution_payload_has_no_cache():
     assert req_payload is not None
     data = req_payload.get("data", {})
     usage = data.get("usage", {})
-    assert usage["fresh_input"]["value"] == lc.input_tokens
-    assert usage["fresh_input"]["precision"] == "provider_reported"
+    assert usage["fresh"]["value"] == lc.input_tokens
+    assert usage["fresh"]["precision"] == "provider_reported"
     assert usage["cache_read"]["value"] is None or usage["cache_read"]["precision"] == "unavailable"
     assert usage["cache_write"]["value"] is None or usage["cache_write"]["precision"] == "unavailable"
 

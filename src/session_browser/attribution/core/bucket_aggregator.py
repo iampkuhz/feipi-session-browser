@@ -13,7 +13,7 @@ SEMANTIC_BUCKET_DEFS: dict[str, dict] = {
     "current_user_prompt": {"label": "当前用户输入", "kinds": {"user_text"}},
     "conversation_history": {"label": "对话历史", "kinds": {"assistant_text", "prior_user_text"}},
     "tool_results": {"label": "工具结果", "kinds": {"tool_result"}},
-    "tool_schemas": {"label": "工具定义", "kinds": {"tool_schema"}},
+    "tool_definitions": {"label": "工具定义", "kinds": {"tool_schema"}},
     "local_instructions": {"label": "本地指令", "kinds": {"system_prompt"}},
     "project_rules": {"label": "项目规则", "kinds": {"repo_context", "agent_prompt"}},
     "agent_prompt": {"label": "Agent 内置 prompt", "kinds": {"agent_prompt"}},

@@ -1,4 +1,4 @@
-"""Writer functions for persisting session data to the SQLite index."""
+"""会话索引写入函数。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def upsert_session(
     file_mtime: float = 0,
     file_path: str = "",
 ) -> None:
-    """Insert or update a single session in the index."""
+    """写入或更新一条会话索引记录。"""
     conn.execute(
         """
         INSERT INTO sessions (
@@ -23,11 +23,10 @@ def upsert_session(
             cwd, started_at, ended_at, duration_seconds, model_execution_seconds,
             tool_execution_seconds,
             model, git_branch, source, user_message_count, assistant_message_count,
-            tool_call_count, input_tokens, output_tokens, cached_input_tokens,
-            cached_output_tokens, fresh_input_tokens, cache_read_tokens,
+            tool_call_count, output_tokens, fresh_input_tokens, cache_read_tokens,
             cache_write_tokens, total_tokens, failed_tool_count, subagent_instance_count, indexed_at,
             file_mtime, file_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_key) DO UPDATE SET
             title=excluded.title,
             project_key=excluded.project_key,
@@ -44,10 +43,7 @@ def upsert_session(
             user_message_count=excluded.user_message_count,
             assistant_message_count=excluded.assistant_message_count,
             tool_call_count=excluded.tool_call_count,
-            input_tokens=excluded.input_tokens,
             output_tokens=excluded.output_tokens,
-            cached_input_tokens=excluded.cached_input_tokens,
-            cached_output_tokens=excluded.cached_output_tokens,
             fresh_input_tokens=excluded.fresh_input_tokens,
             cache_read_tokens=excluded.cache_read_tokens,
             cache_write_tokens=excluded.cache_write_tokens,
@@ -77,10 +73,7 @@ def upsert_session(
             summary.user_message_count,
             summary.assistant_message_count,
             summary.tool_call_count,
-            summary.input_tokens,
             summary.output_tokens,
-            summary.cached_input_tokens,
-            summary.cached_output_tokens,
             summary.fresh_input_tokens,
             summary.cache_read_tokens,
             summary.cache_write_tokens,
@@ -137,7 +130,7 @@ def upsert_session_artifact(
 
 
 def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSummary:
-    """Convert a DB row to SessionSummary."""
+    """把当前 schema 的 DB 行转换为 SessionSummary。"""
     title = row["title"]
     if truncate_title:
         title = sanitize_list_title(title)
@@ -159,10 +152,7 @@ def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSu
         user_message_count=row["user_message_count"],
         assistant_message_count=row["assistant_message_count"],
         tool_call_count=row["tool_call_count"],
-        input_tokens=row["input_tokens"],
         output_tokens=row["output_tokens"],
-        cached_input_tokens=row["cached_input_tokens"],
-        cached_output_tokens=row["cached_output_tokens"],
         fresh_input_tokens=row["fresh_input_tokens"],
         cache_read_tokens=row["cache_read_tokens"],
         cache_write_tokens=row["cache_write_tokens"],

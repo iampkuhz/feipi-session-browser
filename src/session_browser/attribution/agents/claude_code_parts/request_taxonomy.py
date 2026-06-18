@@ -8,6 +8,7 @@ REQUEST_BUCKET_CATEGORY_MAP = {
     "preceding_tool_results": "tool_result_context",
     "full_messages_array": "conversation_messages",
     "tool_schemas": "tool_definitions",
+    "tool_definitions": "tool_definitions",
     "local_instruction_context": "local_instruction_context",
     "project_instruction_files": "project_instruction_files",
     "agent_subagent_prompt": "agent_subagent_prompt",

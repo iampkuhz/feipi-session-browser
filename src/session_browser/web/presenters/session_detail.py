@@ -103,7 +103,7 @@ def _make_round(
             round_output = assistant_msg.usage.get("output_tokens", 0)
             round_cached = assistant_msg.usage.get(
                 "cache_read_input_tokens",
-                assistant_msg.usage.get("cached_input_tokens", 0),
+                assistant_msg.usage.get("cache_read_tokens", 0),
             )
             round_cache_write = assistant_msg.usage.get("cache_creation_input_tokens", 0)
 
@@ -158,44 +158,33 @@ def _normalize_codex_usage(
     usage: dict,
     cumulative_state: dict,
 ) -> dict:
-    """Normalize Codex per-turn usage from cumulative totals to deltas.
-
-    Some Codex usage payloads expose ``total_token_usage`` cumulative values.
-    For display, those records need per-call delta values.  Plain
-    ``last_token_usage`` values are already per-call and should bypass this
-    helper.
-
-    Args:
-        usage: Raw cumulative usage from Codex source.
-        cumulative_state: Mutable dict tracking previous cumulative values.
-            Pass the same dict for each call to compute deltas.
-
-    Returns:
-        Dict with per-turn delta values for input_tokens, cache_read_input_tokens,
-        cache_creation_input_tokens, and output_tokens.
-    """
+    """将 Codex 累计用量转换为单次调用 delta。"""
     raw_input = usage.get("input_tokens", 0) or 0
-    cached = usage.get("cached_input_tokens", 0) or 0
+    cached = (
+        usage.get("cached_input_tokens")
+        or usage.get("cache_read_input_tokens")
+        or usage.get("cache_read_tokens")
+        or 0
+    )
     output = usage.get("output_tokens", 0) or 0
-    cache_write = usage.get("cache_creation_input_tokens", 0) or 0
+    cache_write = usage.get("cache_creation_input_tokens", usage.get("cache_write_tokens", 0)) or 0
 
-    # Get previous cumulative values
+    # 读取上一条累计快照，字段名必须与写入状态保持一致。
     prev_input = cumulative_state.get("input_tokens", 0)
     prev_cached = cumulative_state.get("cached_input_tokens", 0)
     prev_output = cumulative_state.get("output_tokens", 0)
     prev_cache_write = cumulative_state.get("cache_creation_input_tokens", 0)
 
-    # Compute deltas (values should be non-decreasing, but guard against resets)
+    # 累计值理论上单调递增；若 provider 重置，按 0 处理本段负 delta。
     delta_input = max(raw_input - prev_input, 0)
     delta_cached = max(cached - prev_cached, 0)
     delta_output = max(output - prev_output, 0)
     delta_cache_write = max(cache_write - prev_cache_write, 0)
 
-    # Keep the provider's inclusive input delta here. The display normalizer
-    # converts it into mutually exclusive Fresh + Cache Read buckets.
+    # 这里保留 provider_request_input delta，后续 normalizer 再拆出 Fresh。
     delta_fresh = delta_input
 
-    # Update cumulative state for next call
+    # 更新状态供下一次累计快照计算 delta。
     cumulative_state["input_tokens"] = raw_input
     cumulative_state["cached_input_tokens"] = cached
     cumulative_state["output_tokens"] = output
@@ -244,11 +233,14 @@ def _codex_usage_for_llm_call(usage: dict, cumulative_state: dict) -> dict:
         "input_tokens": _usage_int(usage, "input_tokens", "prompt_tokens", "input"),
         "cache_read_input_tokens": _usage_int(
             usage,
-            "cache_read_input_tokens",
             "cached_input_tokens",
+            "cache_read_input_tokens",
+            "cache_read_tokens",
             "cached_tokens",
         ),
-        "cache_creation_input_tokens": _usage_int(usage, "cache_creation_input_tokens"),
+        "cache_creation_input_tokens": _usage_int(
+            usage, "cache_creation_input_tokens", "cache_write_tokens"
+        ),
         "output_tokens": _usage_int(usage, "output_tokens", "completion_tokens", "output"),
     }
 
@@ -362,7 +354,7 @@ def build_llm_calls(
             status=msg.llm_status,
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
-            cache_read_tokens=usage.get("cache_read_input_tokens", usage.get("cached_input_tokens", 0)),
+            cache_read_tokens=usage.get("cache_read_input_tokens", usage.get("cache_read_tokens", 0)),
             cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
             prompt_preview=prompt_hint,
             request_preview=request_preview,
@@ -431,7 +423,7 @@ def build_llm_calls(
                 status="ok",
                 input_tokens=usage.get("input_tokens", 0),
                 output_tokens=usage.get("output_tokens", 0),
-                cache_read_tokens=usage.get("cache_read_input_tokens", usage.get("cached_input_tokens", 0)),
+                cache_read_tokens=usage.get("cache_read_input_tokens", usage.get("cache_read_tokens", 0)),
                 cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
                 prompt_preview=f"Subagent turn ({msg.content[:80]})" if msg.content else "Subagent turn",
                 request_preview=request_preview,
@@ -482,7 +474,7 @@ def _build_subagent_interactions(
             continue
 
         parent_round = sub_calls[0].round_index
-        total_input = sum(c.input_tokens for c in sub_calls)
+        total_fresh_input = sum(c.input_tokens for c in sub_calls)
         total_output = sum(c.output_tokens for c in sub_calls)
         total_cr = sum(c.cache_read_tokens for c in sub_calls)
         total_cw = sum(c.cache_write_tokens for c in sub_calls)
@@ -510,7 +502,7 @@ def _build_subagent_interactions(
             parent_tool_name=parent_tc.name if parent_tc else "Agent",
             timestamp=sub_calls[0].timestamp,
             status="ok",
-            input_tokens=total_input,
+            input_tokens=total_fresh_input,
             output_tokens=total_output,
             cache_read_tokens=total_cr,
             cache_write_tokens=total_cw,

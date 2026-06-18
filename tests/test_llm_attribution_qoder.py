@@ -187,8 +187,8 @@ def test_qoder_full_messages_are_request_buckets_cache_read_is_summary_only():
     assert messages.details["total_items"] == 2
     assert cache is None
     assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
-    assert payload["coverage"]["provider_total_input"] == 5000
-    assert payload["coverage"]["request_content_total"] == 2000
+    assert payload["coverage"]["input_side_component_total"] == 5000
+    assert payload["coverage"]["request_content_denominator"] == 2000
     assert payload["coverage"]["accounting_cache_read_tokens"] == 3000
     assert result.coverage.value is not None
     assert 0 <= result.coverage.value <= 1
@@ -216,12 +216,12 @@ def test_qoder_tool_schema_uses_claude_like_default_registry():
     builder = QoderAttributionBuilder(lc, ro, session_context={"available_tools": ["Skill"]})
 
     result = builder.build_request()
-    tool_schemas = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    tool_definitions = next((b for b in result.buckets if b.key == "tool_definitions"), None)
 
-    assert tool_schemas is not None
-    assert tool_schemas.tokens > 10000
-    assert tool_schemas.details["kind"] == "tools"
-    assert any(item["name"] == "Skill" for item in tool_schemas.details["items"])
+    assert tool_definitions is not None
+    assert tool_definitions.tokens > 10000
+    assert tool_definitions.details["kind"] == "tools"
+    assert any(item["name"] == "Skill" for item in tool_definitions.details["items"])
 
 
 def test_qoder_availability_notes_cache_from_usage():

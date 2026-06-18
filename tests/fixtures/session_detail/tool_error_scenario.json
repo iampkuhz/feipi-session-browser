@@ -188,9 +188,10 @@
     "session_id": "tool-error-test-session-001",
     "title": "Test session with tool errors",
     "model": "claude-sonnet-4-20250514",
-    "input_tokens": 32700,
+    "fresh_input_tokens": 32700,
     "output_tokens": 650,
-    "cached_input_tokens": 22300,
-    "cached_output_tokens": 5000
+    "cache_read_tokens": 22300,
+    "cache_write_tokens": 5000,
+    "total_tokens": 60650
   }
 }

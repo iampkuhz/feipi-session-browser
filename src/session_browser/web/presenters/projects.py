@@ -184,9 +184,9 @@ def _fmt_seconds(value: float) -> str:
 
 def _session_input_side(session: Any) -> int:
     return int(
-        getattr(session, "input_tokens", 0)
-        + getattr(session, "cached_input_tokens", 0)
-        + getattr(session, "cached_output_tokens", 0)
+        getattr(session, "fresh_input_tokens", 0)
+        + getattr(session, "cache_read_tokens", 0)
+        + getattr(session, "cache_write_tokens", 0)
     )
 
 
@@ -240,9 +240,9 @@ def _build_project_token_trend(sessions: list[Any], grain: str) -> dict[str, Any
             continue
         key = _bucket_for_grain(dt, grain)
         bucket = buckets[key]
-        fresh = int(getattr(session, "input_tokens", 0))
-        read = int(getattr(session, "cached_input_tokens", 0))
-        write = int(getattr(session, "cached_output_tokens", 0))
+        fresh = int(getattr(session, "fresh_input_tokens", 0))
+        read = int(getattr(session, "cache_read_tokens", 0))
+        write = int(getattr(session, "cache_write_tokens", 0))
         output = int(getattr(session, "output_tokens", 0))
         bucket["fresh"] += fresh
         bucket["cache_read"] += read
@@ -310,7 +310,7 @@ def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -
         if process > 0:
             process_times.append(process)
         input_side = _session_input_side(session)
-        read = int(getattr(session, "cached_input_tokens", 0) or 0)
+        read = int(getattr(session, "cache_read_tokens", 0) or 0)
         if input_side > 0:
             eligible_sessions += 1
             if read / input_side < 0.2:
@@ -326,8 +326,8 @@ def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -
         agent_failed[agent] += failed
 
     input_side_total = int(
-        _project_number(project, "total_input_tokens", 0)
-        + _project_number(project, "total_cached_tokens", 0)
+        _project_number(project, "total_fresh_input_tokens", 0)
+        + _project_number(project, "total_cache_read_tokens", 0)
         + _project_number(project, "total_cache_write_tokens", 0)
     )
     total_tokens = int(input_side_total + _project_number(project, "total_output_tokens", 0))
@@ -367,13 +367,13 @@ def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -
         },
         "tokens_kpi": {
             "total": total_tokens,
-            "fresh": int(_project_number(project, "total_input_tokens", 0)),
-            "cache_read": int(_project_number(project, "total_cached_tokens", 0)),
+            "fresh": int(_project_number(project, "total_fresh_input_tokens", 0)),
+            "cache_read": int(_project_number(project, "total_cache_read_tokens", 0)),
             "cache_write": int(_project_number(project, "total_cache_write_tokens", 0)),
             "output": int(_project_number(project, "total_output_tokens", 0)),
         },
         "cache_kpi": {
-            "ratio": _fmt_percent(_project_number(project, "total_cached_tokens", 0), input_side_total),
+            "ratio": _fmt_percent(_project_number(project, "total_cache_read_tokens", 0), input_side_total),
             "eligible_sessions": eligible_sessions,
             "low_read_sessions": low_read_sessions,
         },

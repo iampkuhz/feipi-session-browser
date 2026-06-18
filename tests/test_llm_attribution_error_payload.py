@@ -1,10 +1,7 @@
-"""Tests for attribution error diagnostics.
+"""归因错误诊断测试。
 
-After Task 03a, attribution is built on-demand via API rather than in
-_build_v11_view_model.  Error handling is now tested by
-test_llm_attribution_api.py.  This file retains a regression test that
-base payloads (llm.context / llm.output) are still produced even when
-attribution is no longer built server-side.
+归因按需通过 API 构建；本文件验证基础 payload（llm.context / llm.output）
+在归因不可用时仍会生成。
 """
 
 import pytest
@@ -26,10 +23,10 @@ class _FakeSession:
         self.started_at = "2025-01-01T00:00:00Z"
         self.project_key = "/tmp/test"
         self.project_name = "test"
-        self.input_tokens = 10000
         self.output_tokens = 5000
-        self.cached_input_tokens = 5000
-        self.cached_output_tokens = 1000
+        self.fresh_input_tokens = 10000
+        self.cache_read_tokens = 5000
+        self.cache_write_tokens = 1000
         self.total_tokens = 21000
         self.failed_tool_count = 0
 

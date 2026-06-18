@@ -702,10 +702,7 @@ def _build_summary_from_events(
         user_message_count=user_count,
         assistant_message_count=assistant_count,
         tool_call_count=len(tool_ids),
-        input_tokens=input_tokens,
         output_tokens=output_tokens,
-        cached_input_tokens=cached_tokens,
-        cached_output_tokens=cache_write_tokens,
         fresh_input_tokens=fresh_input_tokens,
         cache_read_tokens=cache_read_tokens,
         cache_write_tokens=cache_write_tokens_sum,
@@ -1069,13 +1066,10 @@ def _apply_subagent_totals(
     summary.failed_tool_count = sum(1 for tc in tool_calls if tc.is_failed)
     for run in subagent_runs:
         s = run["summary"]
-        summary.input_tokens += s.get("input_tokens", 0)
+        summary.fresh_input_tokens += s.get("input_tokens", 0)
         summary.output_tokens += s.get("output_tokens", 0)
-        summary.cached_input_tokens += s.get("cache_read_input_tokens", 0)
-        summary.cached_output_tokens += s.get("cache_creation_input_tokens", 0)
-    summary.fresh_input_tokens = summary.input_tokens
-    summary.cache_read_tokens = summary.cached_input_tokens
-    summary.cache_write_tokens = summary.cached_output_tokens
+        summary.cache_read_tokens += s.get("cache_read_input_tokens", 0)
+        summary.cache_write_tokens += s.get("cache_creation_input_tokens", 0)
     summary.total_tokens = (
         summary.fresh_input_tokens
         + summary.cache_read_tokens

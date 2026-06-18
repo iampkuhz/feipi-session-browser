@@ -20,6 +20,7 @@ REQUEST_BUCKET_CATEGORY_MAP = {
     "captured_context_fragment": "captured_runtime_context",
     "repository_file_context": "repository_file_context",
     "tool_schemas": "tool_definitions",
+    "tool_definitions": "tool_definitions",
     "reasoning_config": "reasoning_config",
     "provider_wrapper_overhead": "runtime_wrapper_overhead",
     "unknown_overhead": "unlocated_residual",

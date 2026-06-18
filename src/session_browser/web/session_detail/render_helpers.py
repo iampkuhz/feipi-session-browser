@@ -151,17 +151,16 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                                      response_text: str = "",
                                      tool_calls: list = None,
                                      max_blocks: int = 20) -> str:
-    """Generate HTML content blocks for a response payload.
+    """为 response payload 生成 HTML 内容块。
 
-    Renders all API-level content block types (text, thinking, tool_use)
-    in their original interleaved order. Falls back to legacy
-    response_text + tool_calls when content_blocks is unavailable.
+    优先按 API 原始顺序渲染 text、thinking、tool_use；content_blocks 缺省时
+    使用 response_text 和 tool_calls 作为不可用处理。
     """
     blocks = []
     block_index = 0
 
     if content_blocks:
-        # New path: render structured blocks in original order
+        # 按 API 原始顺序渲染结构化 blocks。
         for block in content_blocks:
             if block_index >= max_blocks:
                 break

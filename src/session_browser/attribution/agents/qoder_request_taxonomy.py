@@ -14,6 +14,7 @@ REQUEST_BUCKET_CATEGORY_MAP = {
     "custom_agent_profile": "custom_agent_profile",
     "repository_file_context": "repository_file_context",
     "tool_schemas": "tool_definitions",
+    "tool_definitions": "tool_definitions",
     "qoder_runtime_context_estimate": "runtime_wrapper_overhead",
     "unknown_overhead": "unlocated_residual",
 }

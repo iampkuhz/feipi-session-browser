@@ -395,10 +395,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         rounds = build_rounds(
             messages,
             tool_calls,
-            session.input_tokens,
+            session.fresh_input_tokens,
             session.output_tokens,
-            session.cached_input_tokens,
-            session.cached_output_tokens,
+            session.cache_read_tokens,
+            session.cache_write_tokens,
             agent,
             md_filter=_md_filter,
         )
@@ -420,7 +420,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         # Payload visibility mismatch: check actual llm_calls for missing payloads.
         # Only flag when input tokens exist but NO call has request_full data.
-        has_input = session.input_tokens > 0
+        has_input = session.fresh_input_tokens > 0
         has_any_request = any(c.request_full for c in llm_calls) if llm_calls else False
         has_any_response = any(c.response_full for c in llm_calls) if llm_calls else False
         if has_input and not has_any_request and not has_any_response:
@@ -439,7 +439,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 compute_round_signals(
                     r,
                     i + 1,
-                    session.input_tokens + session.cached_input_tokens + session.cached_output_tokens,
+                    session.fresh_input_tokens + session.cache_read_tokens + session.cache_write_tokens,
                 )
             )
 
@@ -542,10 +542,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         rounds = build_rounds(
             messages,
             tool_calls,
-            session.input_tokens,
+            session.fresh_input_tokens,
             session.output_tokens,
-            session.cached_input_tokens,
-            session.cached_output_tokens,
+            session.cache_read_tokens,
+            session.cache_write_tokens,
             agent,
             md_filter=_md_filter,
         )
@@ -785,10 +785,10 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         rounds = build_rounds(
             messages,
             tool_calls,
-            session.input_tokens,
+            session.fresh_input_tokens,
             session.output_tokens,
-            session.cached_input_tokens,
-            session.cached_output_tokens,
+            session.cache_read_tokens,
+            session.cache_write_tokens,
             source,
             md_filter=_md_filter,
         )
@@ -845,7 +845,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         r = rounds[target_idx]
         signals = compute_round_signals(
             r, round_index,
-            _session.input_tokens + _session.cached_input_tokens + _session.cached_output_tokens,
+            _session.fresh_input_tokens + _session.cache_read_tokens + _session.cache_write_tokens,
         )
 
         # Build view model for just this one round. Use skip_attribution=True
@@ -1018,8 +1018,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
             rounds = build_rounds(
                 messages, tool_calls,
-                session.input_tokens, session.output_tokens,
-                session.cached_input_tokens, session.cached_output_tokens,
+                session.fresh_input_tokens, session.output_tokens,
+                session.cache_read_tokens, session.cache_write_tokens,
                 source, md_filter=_md_filter,
             )
             target_idx = round_index - 1
@@ -1098,8 +1098,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
             rounds = build_rounds(
                 messages, tool_calls,
-                session.input_tokens, session.output_tokens,
-                session.cached_input_tokens, session.cached_output_tokens,
+                session.fresh_input_tokens, session.output_tokens,
+                session.cache_read_tokens, session.cache_write_tokens,
                 source, md_filter=_md_filter,
             )
             llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, source)

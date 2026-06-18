@@ -22,14 +22,14 @@ partition "scan 启动阶段" {
   :定位 Claude Code JSONL;
   :读取 SessionSummary.project_key 和 cwd;
   :定位 project_dir;
-  :加载 Claude 默认工具 schema registry;
+  :加载 Claude 默认工具定义 registry;
   note right
   来源是 claude_code_tool_schemas.py:
   ALL_CLAUDE_CODE_TOOLS、
   .tool_schemas_cache.json、
   extract_tool_schemas()、
   _BINARY_TOOL_DESCRIPTIONS、
-  sdk-tools.d.ts fallback
+  sdk-tools.d.ts 缺省来源
   end note
   :扫描 agent-setting 事件;
   :读取 agentSetting 和 timestamp;
@@ -106,7 +106,7 @@ stop
 |---|---|---|---|
 | 1 | session 文件 | `SessionSummary.file_path` | 定位 Claude JSONL；后续 `record_index` 都以该文件行序为准。 |
 | 2 | 项目目录 | `SessionSummary.project_key`、`SessionSummary.cwd`、JSONL top-level `cwd` | 作为读取项目指令、agent 文件、MCP 配置的根。 |
-| 3 | 默认工具 schema | `src/session_browser/attribution/agents/claude_code_tool_schemas.py` 的 `ALL_CLAUDE_CODE_TOOLS`、`extract_tool_schemas()`、`.tool_schemas_cache.json` | 提供 Claude Code 默认 tools 完整列表和 schema token 估算；cache 缺失时回退 `_BINARY_TOOL_DESCRIPTIONS` / `sdk-tools.d.ts`。 |
+| 3 | 默认工具定义 | `src/session_browser/attribution/agents/claude_code_tool_schemas.py` 的 `ALL_CLAUDE_CODE_TOOLS`、`extract_tool_schemas()`、`.tool_schemas_cache.json` | 提供 Claude Code 默认 tools 完整列表和工具定义 token 估算；cache 缺失时回退 `_BINARY_TOOL_DESCRIPTIONS` / `sdk-tools.d.ts`。 |
 | 4 | 当前 main agent | JSONL `type="agent-setting"` 的 `agentSetting`、`timestamp` | 选择目标 call 时间点之前最后一次 agent 设置。 |
 | 5 | custom agent prompt/tools | `{project_dir}/.claude/agents/{agent}.md`、`~/.claude/agents/{agent}.md` | 解析 frontmatter `name:`、`tools:`；正文进入 `custom_agent_profile` locator。 |
 | 6 | subagent prompt/tools | `{project_dir}/.claude/agents/{subagent_type}.md` | subagent route 才读取；覆盖 main agent profile。 |
@@ -125,7 +125,7 @@ stop
 | 追加 | 后续 assistant 对象 `message.id == active_message_id` 时追加到同一 LLM call。 |
 | 切换 | 读到不同非空 `message.id` 时，先 finalize 旧 `active_message_id`，再创建新 group。 |
 | 收尾 | 文件结束或 sidechain 结束时 finalize 最后一个非空 `active_message_id`。 |
-| 缺失 | 写 `missing_message_id` diagnostics；只有能用相邻 raw request 明确绑定时才用顺序 fallback。 |
+| 缺失 | 写 `missing_message_id` diagnostics；只有能用相邻 raw request 明确绑定时才用顺序缺省绑定。 |
 
 ### Scan 输出
 
@@ -186,7 +186,7 @@ stop
 | 对话历史 | `build_attribution_session_context.full_messages_array`；raw request `messages[]` | 按 call 边界取当前 call 前历史。 | `content_preview` 200 字符；token 用全文估算。 |
 | 工具结果 | user `message.content[type=tool_result]`、`toolUseResult`、`request_full` 中 `Tool result for ...` | 只取当前 call 之前已返回且会进入本次 request 的结果。 | 同一 `tool_use_id` 只计一次。 |
 | 仓库/文件上下文 | `toolUseResult`、Read/Bash/Grep 输出、raw request `messages[]` 文件片段 | 按工具结果类型识别文件内容、diff、搜索结果、目录列表。 | 明细 preview 截断；全文由 source_ref 加载。 |
-| 工具定义 | raw request `tools[]`；否则 `available_tools` + `claude_code_tool_schemas.py` | raw request 最优先；fallback 用默认 registry 取完整 schema token。 | 同名 tool 只计一次。 |
+| 工具定义 | raw request `tools[]`；否则 `available_tools` + `claude_code_tool_schemas.py` | raw request 最优先；缺省使用默认 registry 取完整工具定义 token。 | 同名 tool 只计一次。 |
 | Skill/Plugin 能力目录 | `<system-reminder>`、`attachment.type=skill_listing` | 识别 skill list、plugin list、slash command/capability 描述。 | 占位符 tag 不单独成 bucket。 |
 | 平台默认指令 | raw request `system[]`；`<system-reminder>` 中 Claude Code 默认段 | 按来源归入 `platform_default_instructions`。 | 与项目指令、custom agent prompt 去重。 |
 | 项目指令文件 | `CLAUDE.md`、`.claude/CLAUDE.md` | on-demand 读取 locator；分类为 `project_instruction_files`。 | context 默认保留 2048 字符预览；token 可按全文或可读切片估算。 |
@@ -203,10 +203,10 @@ stop
 
 | 字段 | 原始 session JSONL/本地绑定路径 | 标准取值 | 缺失/冲突处理 |
 |---|---|---|---|
-| LLM call key | assistant record 的 `message.id`。 | 同 id fragments 合并为一个 call。 | 无 id 时才用事件顺序 fallback，并写 diagnostics。 |
+| LLM call key | assistant record 的 `message.id`。 | 同 id fragments 合并为一个 call。 | 无 id 时才用事件顺序缺省绑定，并写 diagnostics。 |
 | Provider request input | assistant `message.usage.input_tokens`。 | provider 上报的 request input。 | 多 fragment 取同组最大非零 request input snapshot。 |
 | `Fresh` | assistant `message.usage.input_tokens`。 | `input_tokens`。 | 无 usage 为 0/`unavailable`。 |
-| `Cache Read` | `message.usage.cache_read_input_tokens`；兼容 `cached_input_tokens`。 | provider 原值。 | 0 是有效值；字段缺失才 `unavailable`。 |
+| `Cache Read` | `message.usage.cache_read_input_tokens`；`cached_input_tokens` 仅作为 provider/raw alias 证据。 | provider 原值。 | 0 是有效值；字段缺失才 `unavailable`。 |
 | `Cache Write` | `message.usage.cache_creation_input_tokens`。 | provider 原值。 | 0 是有效值；字段缺失才 `unavailable`。 |
 | `Output` | `message.usage.output_tokens`。 | provider 可见输出 token。 | response 文本估算只用于 bucket，不反写 provider output。 |
 | `Total` | 归一化组件。 | `Fresh + Cache Read + Cache Write + Output`。 | 不用 provider raw total 覆盖组件和。 |

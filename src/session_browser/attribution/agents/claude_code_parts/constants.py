@@ -1,4 +1,4 @@
-"""Constants for Claude Code attribution builder."""
+"""Claude Code 归因构建器常量。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ ESTIMATED_BUCKET_KEYS = frozenset({
 })
 HEURISTIC_FIXED_KEYS = frozenset({
     "hidden_builtin_system_estimate",
-    "tool_schemas",
+    "tool_definitions",
 })
 HEURISTIC_SCALED_KEYS = frozenset({
     "top_level_system_estimate",

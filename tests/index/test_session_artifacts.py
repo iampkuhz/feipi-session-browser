@@ -172,6 +172,7 @@ def test_ensure_schema_exists_creates_artifact_table_for_incremental_scan(tmp_pa
         "cache_read_tokens",
         "cache_write_tokens",
         "total_tokens",
+        "subagent_instance_count",
     }.issubset(session_columns)
 
     artifact_columns = {

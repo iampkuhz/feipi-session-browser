@@ -8,12 +8,12 @@ import sqlite3
 
 @dataclass
 class TokenBreakdown:
-    """Token usage breakdown across all sessions."""
+    """所有会话的当前 token 组件汇总。"""
 
-    total_input: int = 0
+    total_fresh_input: int = 0
     total_output: int = 0
-    total_cached_input: int = 0  # cache read
-    total_cached_output: int = 0  # cache write
+    total_cache_read: int = 0
+    total_cache_write: int = 0
     total_tool_calls: int = 0
     total_failed_tools: int = 0
 
@@ -30,24 +30,24 @@ class ModelDistribution:
 
 
 def get_token_breakdown(conn: sqlite3.Connection) -> TokenBreakdown:
-    """Get total token usage across all indexed sessions."""
+    """汇总全部已索引会话的当前 token 组件。"""
     row = conn.execute(
         """
         SELECT
-            COALESCE(SUM(input_tokens), 0) as total_input,
+            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input,
             COALESCE(SUM(output_tokens), 0) as total_output,
-            COALESCE(SUM(cached_input_tokens), 0) as total_cached_input,
-            COALESCE(SUM(cached_output_tokens), 0) as total_cached_output,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read,
+            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools
         FROM sessions
         """
     ).fetchone()
     return TokenBreakdown(
-        total_input=row[0],
+        total_fresh_input=row[0],
         total_output=row[1],
-        total_cached_input=row[2],
-        total_cached_output=row[3],
+        total_cache_read=row[2],
+        total_cache_write=row[3],
         total_tool_calls=row[4],
         total_failed_tools=row[5],
     )
@@ -107,7 +107,7 @@ def get_top_projects_by_tokens(conn: sqlite3.Connection, limit: int = 10) -> lis
         SELECT
             project_key,
             project_name,
-            COALESCE(SUM(input_tokens + output_tokens + cached_input_tokens + cached_output_tokens), 0) as total_tokens,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
             COUNT(*) as session_count
         FROM sessions
         GROUP BY project_key
@@ -178,16 +178,16 @@ def get_high_cache_read_sessions(conn: sqlite3.Connection, limit: int = 10) -> l
             title,
             agent,
             model,
-            cached_input_tokens,
-            input_tokens,
+            cache_read_tokens,
+            fresh_input_tokens,
             project_name,
             CASE
-                WHEN input_tokens + cached_input_tokens > 0
-                THEN ROUND(100.0 * cached_input_tokens / (input_tokens + cached_input_tokens), 1)
+                WHEN fresh_input_tokens + cache_read_tokens > 0
+                THEN ROUND(100.0 * cache_read_tokens / (fresh_input_tokens + cache_read_tokens), 1)
                 ELSE 0
             END as cache_hit_pct
         FROM sessions
-        WHERE cached_input_tokens > 0
+        WHERE cache_read_tokens > 0
         ORDER BY cache_hit_pct DESC
         LIMIT ?
         """,
@@ -218,15 +218,15 @@ def compute_derived_metrics(session_row: dict) -> dict:
     Returns:
         Original dict enriched with derived metrics (mutated in place).
     """
-    input_tokens = session_row.get("input_tokens", 0) or 0
+    fresh_input_tokens = session_row.get("fresh_input_tokens", 0) or 0
     output_tokens = session_row.get("output_tokens", 0) or 0
-    cache_read = session_row.get("cached_input_tokens", 0) or 0
-    cache_write = session_row.get("cached_output_tokens", 0) or 0
+    cache_read = session_row.get("cache_read_tokens", 0) or 0
+    cache_write = session_row.get("cache_write_tokens", 0) or 0
     tools = session_row.get("tool_call_count", 0) or 0
     duration = session_row.get("duration_seconds", 0) or 0
     rounds = session_row.get("assistant_message_count", 0) or 0
 
-    input_side_total = input_tokens + cache_read + cache_write
+    input_side_total = fresh_input_tokens + cache_read + cache_write
 
     cache_reuse_ratio = safe_div(cache_read, input_side_total)
     cache_write_ratio = safe_div(cache_write, input_side_total)
@@ -256,24 +256,24 @@ def compute_aggregate_metrics(conn: sqlite3.Connection) -> dict:
     row = conn.execute(
         """
         SELECT
-            COALESCE(SUM(input_tokens), 0) as total_input,
+            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input,
             COALESCE(SUM(output_tokens), 0) as total_output,
-            COALESCE(SUM(cached_input_tokens), 0) as total_cache_read,
-            COALESCE(SUM(cached_output_tokens), 0) as total_cache_write,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read,
+            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write,
             COALESCE(SUM(tool_call_count), 0) as total_tools,
             COALESCE(SUM(assistant_message_count), 0) as total_rounds
         FROM sessions
         """
     ).fetchone()
 
-    total_input = row["total_input"]
+    total_fresh_input = row["total_fresh_input"]
     total_output = row["total_output"]
     total_cache_read = row["total_cache_read"]
     total_cache_write = row["total_cache_write"]
     total_tools = row["total_tools"]
     total_rounds = row["total_rounds"]
 
-    input_side_total = total_input + total_cache_read + total_cache_write
+    input_side_total = total_fresh_input + total_cache_read + total_cache_write
 
     return {
         "input_side_total": input_side_total,
@@ -299,10 +299,10 @@ def compute_agent_efficiency(conn: sqlite3.Connection) -> list[dict]:
             COALESCE(model, 'unknown') as model,
             COUNT(*) as session_count,
             AVG(duration_seconds) as avg_duration,
-            COALESCE(SUM(input_tokens + cached_input_tokens + cached_output_tokens), 0) as total_input_side,
+            COALESCE(SUM(fresh_input_tokens + cache_read_tokens + cache_write_tokens), 0) as total_input_side,
             COALESCE(SUM(tool_call_count), 0) as total_tools,
             COALESCE(SUM(assistant_message_count), 0) as total_rounds,
-            COALESCE(SUM(cached_input_tokens), 0) as total_cache_read,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read,
             COALESCE(SUM(failed_tool_count), 0) as total_failed
         FROM sessions
         GROUP BY agent, model

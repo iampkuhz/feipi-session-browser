@@ -391,17 +391,15 @@ def _build_full_messages_array(
     if found_current:
         return candidate
 
-    # Subagent attribution currently receives the parent session transcript, so
-    # a subagent call id will not be found there.  In that case, use the
-    # call-scoped request text instead of attributing the parent transcript.
+    # Subagent 归因拿到的是父 session transcript，通常找不到 subagent call id。
+    # 此时使用 call-scoped request_full，避免把父 transcript 误计入当前请求。
     if current_call_id and current_request_full:
         return _messages_array_from_request_full(current_request_full)
 
-    # Older unit fixtures and providers may not hydrate request_full.  Keep a
-    # transcript fallback, but still stop before the current assistant when an
-    # id match is available.
+    # request_full 缺省时使用 transcript 构造 messages；若能匹配当前 call id，
+    # 仍然在当前 assistant 前停止。
     if not saw_request_full:
-        return _build_full_messages_array_legacy(all_messages, current_call_id)
+        return _build_full_messages_array_from_transcript(all_messages, current_call_id)
 
     return candidate
 
@@ -534,8 +532,8 @@ def _append_assistant_message_entries(messages_array: list[dict], msg, msg_index
     return msg_index
 
 
-def _build_full_messages_array_legacy(all_messages: list | None, current_call_id: str = "") -> list[dict]:
-    """Fallback for fixtures without request_full hydration."""
+def _build_full_messages_array_from_transcript(all_messages: list | None, current_call_id: str = "") -> list[dict]:
+    """从 transcript 构造 request messages，用于 request_full 缺省场景。"""
     if not all_messages:
         return []
 

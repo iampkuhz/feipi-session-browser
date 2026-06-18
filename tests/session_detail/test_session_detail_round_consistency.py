@@ -132,10 +132,7 @@ def _index_session_from_data_dir(data_dir: str, sqlite_path: str) -> tuple:
 
 
 def _parse_and_build_rounds(data_dir: str, session_id: str, project_key: str) -> tuple:
-    """Parse session detail and build rounds.
-
-    Returns (summary, messages, rounds_count).
-    """
+    """解析 session detail 并构建 rounds，返回 summary、messages 和 round 数。"""
     import sys
     import importlib
 
@@ -159,12 +156,13 @@ def _parse_and_build_rounds(data_dir: str, session_id: str, project_key: str) ->
             project_key, session_id, verbose=False
         )
 
+        session = summary
         rounds = build_rounds(
             messages, tool_calls,
-            session.input_tokens if (session := summary) else 0,
+            session.fresh_input_tokens if session else 0,
             session.output_tokens,
-            session.cached_input_tokens,
-            session.cached_output_tokens,
+            session.cache_read_tokens,
+            session.cache_write_tokens,
             "qoder",
             md_filter=lambda s: s,
         )
@@ -354,19 +352,11 @@ class TestQoderFileNotFoundRoundConsistency:
 
 
 class TestDbCanonicalMergeStrategy:
-    """SD-14: DB summary is canonical. raw parse must NOT overwrite confirmed fields.
-
-    The session detail endpoint merges raw_summary (fresh parse) with the
-    DB session (indexed canonical data). The merge strategy must be:
-    - DB fields that are non-zero are authoritative -- do NOT overwrite.
-    - raw_summary only supplements fields that are empty/null/zero in DB.
-    - assistant_message_count (round count) must stay consistent between
-      list page and detail page.
-    """
+    """SD-14：DB 摘要为准，raw parse 只补齐缺省字段。"""
 
     @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_db_canonical_assistant_count_not_overwritten_by_zero(self):
-        """If DB has assistant_message_count=3, raw_summary=0 must NOT overwrite it."""
+        """DB 的 assistant_message_count=3 时，raw_summary=0 不得覆盖它。"""
         from session_browser.domain.models import SessionSummary
         from session_browser.web.routes import _merge_raw_into_db_summary
 
@@ -388,10 +378,11 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=2,
             assistant_message_count=3,
             tool_call_count=1,
-            input_tokens=350,
+            fresh_input_tokens=350,
             output_tokens=60,
-            cached_input_tokens=0,
-            cached_output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            total_tokens=410,
             failed_tool_count=0,
             file_path="/tmp/test.jsonl",
         )
@@ -414,10 +405,11 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=0,
             assistant_message_count=0,
             tool_call_count=0,
-            input_tokens=0,
+            fresh_input_tokens=0,
             output_tokens=0,
-            cached_input_tokens=0,
-            cached_output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            total_tokens=0,
             failed_tool_count=0,
             file_path="",
         )
@@ -425,17 +417,17 @@ class TestDbCanonicalMergeStrategy:
         result = _merge_raw_into_db_summary(db_summary, raw_summary)
 
         assert result.assistant_message_count == 3, (
-            f"DB canonical assistant_message_count=3 must NOT be overwritten by raw=0. "
-            f"Got {result.assistant_message_count}. This is the SD-14 bug."
+            f"DB canonical assistant_message_count=3 不得被 raw=0 覆盖，"
+            f"实际为 {result.assistant_message_count}。"
         )
-        assert result.user_message_count == 2, "DB user_message_count must be preserved"
-        assert result.tool_call_count == 1, "DB tool_call_count must be preserved"
-        assert result.input_tokens == 350, "DB input_tokens must be preserved"
-        assert result.output_tokens == 60, "DB output_tokens must be preserved"
+        assert result.user_message_count == 2, "DB user_message_count 必须保留"
+        assert result.tool_call_count == 1, "DB tool_call_count 必须保留"
+        assert result.fresh_input_tokens == 350, "DB fresh_input_tokens 必须保留"
+        assert result.output_tokens == 60, "DB output_tokens 必须保留"
 
     @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_claude_raw_token_components_refresh_stale_db_fields(self):
-        """Claude detail page token components should come from raw sidechain parsing."""
+        """Claude 详情页 token 组件应使用 raw sidechain 解析结果。"""
         from session_browser.domain.models import SessionSummary
         from session_browser.web.routes import _merge_raw_into_db_summary
 
@@ -457,11 +449,8 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=5,
             assistant_message_count=8,
             tool_call_count=10,
-            input_tokens=168,
-            output_tokens=11_659,
-            cached_input_tokens=1_149_424,
-            cached_output_tokens=66_746,
             fresh_input_tokens=168,
+            output_tokens=11_659,
             cache_read_tokens=1_149_424,
             cache_write_tokens=66_746,
             total_tokens=1_224_289,
@@ -487,11 +476,8 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=0,
             assistant_message_count=0,
             tool_call_count=0,
-            input_tokens=10_412,
-            output_tokens=11_659,
-            cached_input_tokens=1_315_472,
-            cached_output_tokens=140_698,
             fresh_input_tokens=10_412,
+            output_tokens=11_659,
             cache_read_tokens=1_315_472,
             cache_write_tokens=140_698,
             total_tokens=1_478_241,
@@ -501,8 +487,8 @@ class TestDbCanonicalMergeStrategy:
 
         result = _merge_raw_into_db_summary(db_summary, raw_summary)
 
-        assert result.assistant_message_count == 8, "DB round count must remain canonical"
-        assert result.tool_call_count == 10, "DB tool count must remain canonical"
+        assert result.assistant_message_count == 8, "DB round count 必须保持为准"
+        assert result.tool_call_count == 10, "DB tool count 必须保持为准"
         assert result.fresh_input_tokens == 10_412
         assert result.cache_read_tokens == 1_315_472
         assert result.cache_write_tokens == 140_698
@@ -511,7 +497,7 @@ class TestDbCanonicalMergeStrategy:
 
     @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_supplements_empty_db_fields(self):
-        """raw_summary must fill in DB fields that are zero/empty."""
+        """raw_summary 只补齐 DB 中为零或为空的字段。"""
         from session_browser.domain.models import SessionSummary
         from session_browser.web.routes import _merge_raw_into_db_summary
 
@@ -533,10 +519,11 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=0,
             assistant_message_count=0,
             tool_call_count=0,
-            input_tokens=0,
+            fresh_input_tokens=0,
             output_tokens=0,
-            cached_input_tokens=0,
-            cached_output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            total_tokens=0,
             failed_tool_count=0,
             file_path="",
         )
@@ -559,10 +546,11 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=2,
             assistant_message_count=3,
             tool_call_count=1,
-            input_tokens=350,
+            fresh_input_tokens=350,
             output_tokens=60,
-            cached_input_tokens=100,
-            cached_output_tokens=20,
+            cache_read_tokens=100,
+            cache_write_tokens=20,
+            total_tokens=530,
             failed_tool_count=0,
             file_path="/tmp/parsed.jsonl",
         )
@@ -572,16 +560,17 @@ class TestDbCanonicalMergeStrategy:
         assert result.assistant_message_count == 3
         assert result.user_message_count == 2
         assert result.tool_call_count == 1
-        assert result.input_tokens == 350
+        assert result.fresh_input_tokens == 350
         assert result.output_tokens == 60
-        assert result.cached_input_tokens == 100
-        assert result.cached_output_tokens == 20
+        assert result.cache_read_tokens == 100
+        assert result.cache_write_tokens == 20
+        assert result.total_tokens == 530
         assert result.duration_seconds == 300.0
         assert result.file_path == "/tmp/parsed.jsonl"
 
     @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_none_returns_db_unchanged(self):
-        """When raw_summary is None, DB summary must be returned as-is."""
+        """raw_summary 为 None 时返回原 DB 摘要对象。"""
         from session_browser.domain.models import SessionSummary
         from session_browser.web.routes import _merge_raw_into_db_summary
 
@@ -603,21 +592,22 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=5,
             assistant_message_count=8,
             tool_call_count=10,
-            input_tokens=1000,
+            fresh_input_tokens=1000,
             output_tokens=500,
-            cached_input_tokens=200,
-            cached_output_tokens=100,
+            cache_read_tokens=200,
+            cache_write_tokens=100,
+            total_tokens=1800,
             failed_tool_count=1,
             file_path="/tmp/claude.jsonl",
         )
 
         result = _merge_raw_into_db_summary(db_summary, None)
 
-        assert result is db_summary, "DB summary must be returned unchanged when raw is None"
+        assert result is db_summary, "raw 为 None 时 DB summary 必须原样返回"
 
     @pytest.mark.contract_case("DATA-PRESENTER-011")
     def test_raw_duration_used_when_db_duration_is_zero(self):
-        """duration_seconds should use raw value when DB has zero."""
+        """DB duration_seconds 为零时使用 raw 值。"""
         from session_browser.domain.models import SessionSummary
         from session_browser.web.routes import _merge_raw_into_db_summary
 
@@ -639,10 +629,11 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=0,
             assistant_message_count=0,
             tool_call_count=0,
-            input_tokens=0,
+            fresh_input_tokens=0,
             output_tokens=0,
-            cached_input_tokens=0,
-            cached_output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            total_tokens=0,
             failed_tool_count=0,
             file_path="",
         )
@@ -665,10 +656,11 @@ class TestDbCanonicalMergeStrategy:
             user_message_count=0,
             assistant_message_count=0,
             tool_call_count=0,
-            input_tokens=0,
+            fresh_input_tokens=0,
             output_tokens=0,
-            cached_input_tokens=0,
-            cached_output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            total_tokens=0,
             failed_tool_count=0,
             file_path="",
         )
@@ -676,5 +668,5 @@ class TestDbCanonicalMergeStrategy:
         result = _merge_raw_into_db_summary(db_summary, raw_summary)
 
         assert result.duration_seconds == 450.0, (
-            "raw duration should be used when DB duration is zero"
+            "DB duration 为零时应使用 raw duration"
         )

@@ -4,8 +4,8 @@ Verifies the expanded bucket model from task-02d:
 1. current_user_message not double-counted
 2. prior_conversation_messages only from prior calls
 3. preceding_tool_results from session_context only
-4. tool_schemas generates non-zero estimate when available_tools exist
-5. tool_schemas precision=heuristic when no raw schema
+4. tool_definitions generates non-zero estimate when available_tools exist
+5. tool_definitions precision=heuristic when no raw schema
 6. local_instruction_context from system-reminder/CLAUDE.md fixture
 7. agent_subagent_prompt from .claude/agents fixture
 8. hidden_builtin_system_estimate labeled heuristic, no fake content
@@ -113,34 +113,34 @@ def test_preceding_tool_results_from_session_context():
     assert tool_bucket.source == ValueSource.TOOL_LOGS
 
 
-# ── 4. tool_schemas generates non-zero estimate when available_tools ───
+# ── 4. tool_definitions generates non-zero estimate when available_tools ───
 
-def test_tool_schemas_nonzero_with_available_tools():
-    """tool_schemas should have positive tokens when available_tools exist."""
+def test_tool_definitions_nonzero_with_available_tools():
+    """tool_definitions should have positive tokens when available_tools exist."""
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="hello")
     ctx = {"available_tools": ["Read", "Bash", "Edit", "Grep"]}
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
 
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
     # Uses real SDK schema tokens now, not 240/tool heuristic
     assert schema_bucket.tokens > 0
     assert "4 tools" in schema_bucket.count_label
 
 
-# ── 5. tool_schemas precision=estimated when using real SDK schemas ────
+# ── 5. tool_definitions precision=estimated when using real SDK schemas ────
 
-def test_tool_schemas_precision_heuristic():
-    """tool_schemas should be estimated precision when using real SDK schemas."""
+def test_tool_definitions_precision_heuristic():
+    """tool_definitions should be estimated precision when using real SDK schemas."""
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="hello")
     ctx = {"available_tools": ["Read", "Bash"]}
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
 
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_schemas"), None)
+    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
     # Now uses real SDK schemas, so precision is 'estimated' not 'heuristic'
     assert schema_bucket.precision == ValuePrecision.ESTIMATED

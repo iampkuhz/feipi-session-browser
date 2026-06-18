@@ -7,10 +7,10 @@
     {% set raw_fresh_input = s.fresh_input_tokens | default(none) %}
     {% set raw_cache_read = s.cache_read_tokens | default(none) %}
     {% set raw_cache_write = s.cache_write_tokens | default(none) %}
-    {% set total_tokens = raw_total_tokens if raw_total_tokens is number else s.input_tokens + s.cached_input_tokens + s.cached_output_tokens + s.output_tokens %}
-    {% set fresh_input = raw_fresh_input if raw_fresh_input is number else s.input_tokens %}
-    {% set cache_read = raw_cache_read if raw_cache_read is number else s.cached_input_tokens %}
-    {% set cache_write = raw_cache_write if raw_cache_write is number else s.cached_output_tokens %}
+    {% set total_tokens = raw_total_tokens if raw_total_tokens is number else s.fresh_input_tokens + s.cache_read_tokens + s.cache_write_tokens + s.output_tokens %}
+    {% set fresh_input = raw_fresh_input if raw_fresh_input is number else s.fresh_input_tokens %}
+    {% set cache_read = raw_cache_read if raw_cache_read is number else s.cache_read_tokens %}
+    {% set cache_write = raw_cache_write if raw_cache_write is number else s.cache_write_tokens %}
     {% set output = s.output_tokens %}
     {% set fresh_pct = (fresh_input / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
     {% set read_pct = (cache_read / total_tokens * 100) | round(1) if total_tokens > 0 else 0 %}
