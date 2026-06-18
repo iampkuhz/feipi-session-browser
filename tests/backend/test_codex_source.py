@@ -560,21 +560,168 @@ def test_session_file_search():
 # ── Codex 解析完整性门禁 ────────────────────────────────────────────
 
 
-def _find_session_with_tools(min_tools: int = 5) -> str | None:
+def _write_codex_tool_session(tmp_path: Path) -> tuple[str, dict]:
+    """Create a deterministic Codex session with multiple tool calls."""
+    sid = "codex-tool-contract-fixture"
+    rollout_path = tmp_path / "rollout-2026-06-10T00-00-00-codex-tool-contract-fixture.jsonl"
+    events = [
+        {
+            "timestamp": "2026-06-10T00:00:00.000Z",
+            "type": "session_meta",
+            "payload": {"cwd": "/tmp/codex-fixture", "model_provider": "gpt-test"},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:01.000Z",
+            "type": "event_msg",
+            "payload": {"type": "user_message", "message": "run tool contract fixture"},
+        },
+        {
+            "timestamp": "2026-06-10T00:00:02.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "first tool batch"}],
+            },
+        },
+        *[
+            {
+                "timestamp": f"2026-06-10T00:00:0{idx + 2}.100Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "call_id": f"call_{idx}",
+                    "name": "exec_command",
+                    "arguments": json.dumps({"cmd": f"echo {idx}"}),
+                },
+            }
+            for idx in range(1, 4)
+        ],
+        {
+            "timestamp": "2026-06-10T00:00:06.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                        "total_tokens": 130,
+                    },
+                },
+            },
+        },
+        *[
+            {
+                "timestamp": f"2026-06-10T00:00:0{idx + 6}.000Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": f"call_{idx}",
+                    "output": "Process exited with code 0\nWall time: 0.1 seconds",
+                },
+            }
+            for idx in range(1, 4)
+        ],
+        {
+            "timestamp": "2026-06-10T00:00:10.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "second tool batch"}],
+            },
+        },
+        *[
+            {
+                "timestamp": f"2026-06-10T00:00:{idx + 10:02d}.100Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "call_id": f"call_{idx}",
+                    "name": "exec_command",
+                    "arguments": json.dumps({"cmd": f"echo {idx}"}),
+                },
+            }
+            for idx in range(4, 6)
+        ],
+        {
+            "timestamp": "2026-06-10T00:00:16.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 150,
+                        "cached_input_tokens": 30,
+                        "output_tokens": 20,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": 250,
+                        "cached_input_tokens": 50,
+                        "output_tokens": 30,
+                        "total_tokens": 330,
+                    },
+                },
+            },
+        },
+        *[
+            {
+                "timestamp": f"2026-06-10T00:00:{idx + 16:02d}.000Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": f"call_{idx}",
+                    "output": "Process exited with code 0\nWall time: 0.1 seconds",
+                },
+            }
+            for idx in range(4, 6)
+        ],
+    ]
+    with rollout_path.open("w", encoding="utf-8") as f:
+        for event in events:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    threads_db = {
+        sid: {
+            "id": sid,
+            "title": "Codex tool contract fixture",
+            "cwd": "/tmp/codex-fixture",
+            "model": "gpt-test",
+            "tokens_used": 20000,
+            "created_at": 0,
+            "updated_at": 0,
+            "git_branch": "main",
+            "source": "test",
+            "model_provider": "openai",
+            "cli_version": "test",
+            "rollout_path": str(rollout_path),
+            "first_user_message": "run tool contract fixture",
+        }
+    }
+    return sid, threads_db
+
+
+def _find_session_with_tools(min_tools: int = 5, threads_db: dict | None = None) -> str | None:
     """找一个至少有 min_tools 个 tool calls 的 Codex session ID。"""
     from session_browser.sources.codex import read_threads_db, parse_session_detail
-    threads = read_threads_db()
+    threads = threads_db if threads_db is not None else read_threads_db()
     for sid, info in threads.items():
         if info.get("tokens_used", 0) < 10000:
             continue
-        summary, messages, tool_calls, _ = parse_session_detail(sid)
+        _summary, _messages, tool_calls, _subagent_runs = parse_session_detail(sid, threads)
         if len(tool_calls) >= min_tools:
             return sid
     return None
 
 
 @pytest.mark.contract_case("DATA-SOURCE-008")
-def test_codex_round_tool_contract():
+def test_codex_round_tool_contract(tmp_path):
     """Codex 解析门禁：每个 round 必须有 token 统计和 tool 统计。
 
     验证项：
@@ -584,15 +731,16 @@ def test_codex_round_tool_contract():
     4. round 的 token 统计必须非零（至少 input 或 output > 0）
     5. session 总 token 应 >= 各 round token 之和（允许误差）
     """
-    from session_browser.sources.codex import read_threads_db, parse_session_detail
+    from session_browser.sources.codex import parse_session_detail
     from session_browser.web.presenters.session_detail import build_rounds
 
-    # 找一个至少有 5 个 tool calls 的 session
-    sid = _find_session_with_tools(min_tools=5)
+    sid, threads_db = _write_codex_tool_session(tmp_path)
+    # 找一个至少有 5 个 tool calls 的 deterministic session
+    sid = _find_session_with_tools(min_tools=5, threads_db=threads_db)
     if sid is None:
         pytest.fail("无足够 tool calls 的 Codex session 可用于测试")
 
-    summary, messages, tool_calls, subagent_runs = parse_session_detail(sid)
+    summary, messages, tool_calls, subagent_runs = parse_session_detail(sid, threads_db)
 
     assistant_msgs = [m for m in messages if m.role == "assistant"]
     assert len(assistant_msgs) > 0, "至少应有一个 assistant 消息"
