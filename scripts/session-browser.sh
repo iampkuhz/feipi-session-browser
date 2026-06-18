@@ -197,12 +197,12 @@ build_dist() {
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
     cleanup_python_build_artifacts
-    if ! "$(python_bin)" -m build --sdist --wheel --outdir "$DIST_DIR"; then
+    if ! "$(python_bin)" -m build --sdist --outdir "$DIST_DIR"; then
         cleanup_python_build_artifacts
         exit 1
     fi
     cleanup_python_build_artifacts
-    echo "Python 发布包已构建：$DIST_DIR"
+    echo "Python source 发布包已构建：$DIST_DIR"
 }
 
 verify_dist() {
@@ -213,42 +213,23 @@ verify_dist() {
 import os
 import sys
 import tarfile
-import zipfile
 from pathlib import Path
 
 version = os.environ["VERSION_TO_VERIFY"]
 dist_dir = Path(os.environ["DIST_DIR_TO_VERIFY"])
 normalized = "feipi_session_browser"
-wheel = dist_dir / f"{normalized}-{version}-py3-none-any.whl"
 sdist = dist_dir / f"{normalized}-{version}.tar.gz"
 
-missing_artifacts = [str(path) for path in (wheel, sdist) if not path.exists()]
+missing_artifacts = [str(path) for path in (sdist,) if not path.exists()]
 if missing_artifacts:
     print("缺少发布包：" + ", ".join(missing_artifacts), file=sys.stderr)
     sys.exit(1)
 
-required_wheel_entries = {
-    "session_browser/web/templates/base.html",
-    "session_browser/web/static/css/base.css",
-    "session_browser/web/static/js/app.js",
-    "session_browser/web/static/js/session-detail/init.js",
-    "session_browser/web/static/images/favicon.svg",
-}
-with zipfile.ZipFile(wheel) as zf:
-    names = set(zf.namelist())
-    missing = sorted(required_wheel_entries - names)
-    if missing:
-        print("wheel 缺少必要资源：" + ", ".join(missing), file=sys.stderr)
-        sys.exit(1)
-    metadata_name = f"{normalized}-{version}.dist-info/METADATA"
-    metadata = zf.read(metadata_name).decode("utf-8")
-    if f"Version: {version}" not in metadata:
-        print(f"wheel metadata 版本不匹配：{metadata_name}", file=sys.stderr)
-        sys.exit(1)
-
 required_sdist_suffixes = {
     f"{normalized}-{version}/VERSION",
+    f"{normalized}-{version}/pyproject.toml",
     f"{normalized}-{version}/src/session_browser/web/templates/base.html",
+    f"{normalized}-{version}/src/session_browser/web/static/css/base.css",
     f"{normalized}-{version}/src/session_browser/web/static/js/session-detail/init.js",
     f"{normalized}-{version}/src/session_browser/web/static/images/favicon.svg",
 }
@@ -259,7 +240,7 @@ with tarfile.open(sdist, "r:gz") as tf:
         print("sdist 缺少必要资源：" + ", ".join(missing), file=sys.stderr)
         sys.exit(1)
 
-print(f"发布包校验通过：{wheel.name}, {sdist.name}")
+print(f"source 发布包校验通过：{sdist.name}")
 PY
 }
 
@@ -380,8 +361,6 @@ run_local_serve() {
     echo "  地址：http://$host:$port"
     echo "  日志级别：$SESSION_BROWSER_LOG_LEVEL"
     echo "  本地测试索引：$index_dir"
-    echo "  Podman 默认端口：$(host_port)"
-    echo "  Podman 默认索引：$(expand_path "${SESSION_BROWSER_DATA_DIR:-$DEFAULT_PODMAN_DATA_DIR}")"
     echo "  运行方式：前台进程；Ctrl-C 后本地测试服务立即关闭"
     echo "  源码目录：$SRC_DIR"
     INDEX_DIR="$index_dir" exec "$(python_bin)" -m session_browser serve --allow-empty "${serve_args[@]}"
@@ -422,27 +401,15 @@ print_usage() {
 版本与发布验证：
   version                          输出当前版本
   set-version <x.y.z>              更新 VERSION
-  build-dist [x.y.z]               构建 Python sdist/wheel 到 tmp/release/dist
-  verify-dist [x.y.z]              校验 Python 发布包版本与关键资源
-  build [x.y.z]                    构建本地 Podman 镜像
-  release-check [x.y.z]            测试、构建发布包、校验发布包、构建本地镜像
-
-Podman 部署：
-  deploy [x.y.z]                   构建镜像并用 Podman 启动
-  podman-up [x.y.z]                使用已有本地镜像启动
-  podman-down                      停止并移除本地容器
-  podman-logs                      跟随查看容器日志
-  podman-status                    查看容器状态
+  build-dist [x.y.z]               构建 Python source 发布包到 tmp/release/dist
+  verify-dist [x.y.z]              校验 Python source 发布包版本与关键资源
+  release-check [x.y.z]            测试、构建 source 发布包并校验发布包
 
 常用环境变量：
   SESSION_BROWSER_VENV_DIR         默认：./.venv
-  SESSION_BROWSER_IMAGE_REPO       默认：localhost/feipi/session-browser
-  SESSION_BROWSER_CONTAINER_NAME   默认：session-browser
   SESSION_BROWSER_LOCAL_HOST       默认：127.0.0.1
   SESSION_BROWSER_LOCAL_PORT       默认：18999
   SESSION_BROWSER_LOCAL_DATA_DIR   默认：~/.local/share/feipi/session-browser/local-test-index
-  SESSION_BROWSER_HOST_PORT        默认：8899
-  SESSION_BROWSER_DATA_DIR         默认：~/.local/share/feipi/session-browser/index
   SESSION_BROWSER_LOG_LEVEL        默认：INFO；本地 serve 使用 DEBUG
   CLAUDE_DATA_DIR                  默认：~/.claude
   CODEX_DATA_DIR                   默认：~/.codex
@@ -452,13 +419,14 @@ Podman 部署：
 示例：
   ./scripts/session-browser.sh serve
   ./scripts/session-browser.sh scan --incremental
-  ./scripts/session-browser.sh release-check 0.2.0
-  ./scripts/session-browser.sh deploy 0.2.0
-  ./scripts/session-browser.sh podman-logs
+  ./scripts/session-browser.sh release-check 0.3.0
 EOF
 }
 
 case "$CMD" in
+    help|-h|--help)
+        print_usage
+        ;;
     dev)
         echo "提示：dev 已合并到 serve；等同执行 ./scripts/session-browser.sh serve。" >&2
         run_local_serve "$@"
@@ -505,10 +473,8 @@ case "$CMD" in
         run_tests
         build_dist "$version"
         verify_dist "$version"
-        build_image "$version"
         echo "本地发布验证通过："
         echo "  dist: $DIST_DIR"
-        echo "  image: $(image_repo):$version"
         ;;
     deploy)
         if [[ $# -ge 1 ]]; then

@@ -9,9 +9,9 @@ on:
       version:
         description: "发布版本号，不带 v 前缀"
         required: true
-        default: "0.2.0"
+        default: "0.3.0"
       publish:
-        description: "发布 GitHub Release 和 GHCR 镜像；正式发布建议直接 push tag"
+        description: "发布 GitHub Release；正式发布建议直接 push tag"
         required: true
         type: boolean
         default: false
@@ -25,7 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
 
     steps:
       - name: Checkout
@@ -81,12 +80,8 @@ jobs:
             exit 1
           fi
 
-          owner_lc="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          image="ghcr.io/${owner_lc}/feipi-session-browser"
-
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
-          echo "image=$image" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: |
@@ -96,14 +91,14 @@ jobs:
       - name: Run release quality gates
         run: |
           python -m compileall -q src scripts
-          python scripts/quality/run_quality_gate.py --target python-src --change-id add-github-release-pipeline
-          python scripts/quality/run_quality_gate.py --target harness --change-id add-github-release-pipeline
-          python scripts/quality/run_quality_gate.py --target acceptance-contracts --change-id add-github-release-pipeline
+          python scripts/quality/run_quality_gate.py --target python-src --change-id release-v${{ steps.release.outputs.version }}
+          python scripts/quality/run_quality_gate.py --target harness --change-id release-v${{ steps.release.outputs.version }}
+          python scripts/quality/run_quality_gate.py --target acceptance-contracts --change-id release-v${{ steps.release.outputs.version }}
 
-      - name: Build Python release packages
+      - name: Build Python source release package
         run: ./scripts/session-browser.sh build-dist "${{ steps.release.outputs.version }}"
 
-      - name: Verify Python release packages
+      - name: Verify Python source release package
         run: ./scripts/session-browser.sh verify-dist "${{ steps.release.outputs.version }}"
 
       - name: Upload dist artifact
@@ -113,48 +108,22 @@ jobs:
           path: tmp/release/dist/*
           if-no-files-found: error
 
-      - name: Build container image
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="${{ steps.release.outputs.version }}"
-          image="${{ steps.release.outputs.image }}"
-          tags=(-t "${image}:${version}")
-          if [[ "$version" != *-* ]]; then
-            tags+=(-t "${image}:latest")
-          fi
-
-          docker build \
-            --build-arg "SESSION_BROWSER_VERSION=${version}" \
-            --label "org.opencontainers.image.version=${version}" \
-            --label "org.opencontainers.image.title=session-browser" \
-            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
-            "${tags[@]}" \
-            .
-
-      - name: Publish container image to GHCR
-        if: steps.release.outputs.publish == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          version="${{ steps.release.outputs.version }}"
-          image="${{ steps.release.outputs.image }}"
-
-          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker push "${image}:${version}"
-          if [[ "$version" != *-* ]]; then
-            docker push "${image}:latest"
-          fi
-
       - name: Create GitHub Release
         if: steps.release.outputs.publish == 'true'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
+          notes_file="docs/releases/v${version}.md"
+          notes_args=(--generate-notes)
+          if [[ -f "$notes_file" ]]; then
+            notes_args=(--notes-file "$notes_file")
+          fi
+
           gh release create "v${{ steps.release.outputs.version }}" \
             tmp/release/dist/* \
             --verify-tag \
             --title "v${{ steps.release.outputs.version }}" \
-            --generate-notes
+            "${notes_args[@]}"
