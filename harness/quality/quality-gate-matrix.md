@@ -28,3 +28,6 @@
 - 改 agent、skill、hook 或 prompt 文件时，必须触发 `hook-runtime` 或 `harness`。
 - 改测试或验收契约时，必须触发 `acceptance-contracts`。
 - 改 UI 页面时，不得只跑静态检查；需要包含对应浏览器或交互 gate。
+- `GATE_PATTERNS` 只表达触发映射。未命中的 gate 是 not triggered；不要在汇报中称为 skipped。
+- 被 target 选中的 gate 必须运行完整 baseline。若测试框架输出 skipped tests，应视为 gate 未完成验证，而不是 PASS。
+- 全量回归和发布回归不走 changed-files 裁剪；任何 skipped tests 都必须先解释为 fixture/env 缺失并修复，或报告 `FAIL`/`BLOCKED`。

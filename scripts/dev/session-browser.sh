@@ -128,7 +128,11 @@ python_bin() {
 
 run_tests() {
     cd "$PROJECT_DIR"
-    PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}" "$(python_bin)" -m pytest tests "$@"
+    if [[ $# -gt 0 ]]; then
+        PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}" "$(python_bin)" -m pytest "$@"
+    else
+        PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}" "$(python_bin)" -m pytest tests
+    fi
 }
 
 install_deps() {

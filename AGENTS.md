@@ -41,6 +41,12 @@
 
 完整基线使用 `scripts/quality/run_required_quality_gates.py`。
 
+触发与 skip 语义：
+
+- changed-files / quality target 映射只决定“是否触发”。未被映射选中的测试或 gate 是 not triggered，不得写成 skipped。
+- 一旦人工指定、映射选中或全量回归确认某个测试/gate 必须运行，运行期间出现 skipped tests 不得算 PASS；必须补齐 fixture/env、从触发映射中移除，或报告阻断。
+- 发布回归、full regression、required quality gate 不允许用 skip 替代验证；若环境不满足，应返回 FAIL/BLOCKED 并说明缺失条件。
+
 选择规则：
 
 - 改 `skills/`、`harness/`、`openspec/`、agent 配置、`scripts/`、`AGENTS.md` 或 `CLAUDE.md`：优先运行 `bash scripts/harness/doctor.sh`。

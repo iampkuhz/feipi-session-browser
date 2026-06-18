@@ -1,6 +1,13 @@
 // @ts-check
 const { defineConfig } = require('@playwright/test');
 
+function resolveWorkers() {
+  const raw = process.env.SESSION_BROWSER_PLAYWRIGHT_WORKERS || process.env.PLAYWRIGHT_WORKERS || '';
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isFinite(parsed)) return Math.max(8, parsed);
+  return 8;
+}
+
 /**
  * Playwright 视觉/冒烟质量门禁配置
  *
@@ -20,7 +27,7 @@ module.exports = defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 4,
+  workers: resolveWorkers(),
   reporter: [['html', { outputFolder: 'reports/playwright-report' }], ['list']],
 
   use: {

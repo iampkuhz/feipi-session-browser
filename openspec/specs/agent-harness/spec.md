@@ -60,3 +60,28 @@ Quality gates SHALL run with a project dependency-capable Python interpreter ins
 - **When** the temporary fixture server cannot start
 - **Then** the fixture-dependent browser gate SHALL return `BLOCKED`
 - **And** it SHALL NOT continue into a long Playwright timeout
+
+### Requirement: Test trigger mapping and skip semantics
+
+The harness SHALL distinguish tests that are not triggered by path-to-target mapping from tests that are triggered but skipped at runtime.
+
+#### Scenario: Change mapping does not select a gate
+
+- **Given** a changed file does not match any pattern for a gate
+- **When** required quality targets and gates are computed
+- **Then** that gate SHALL be treated as not triggered
+- **And** reports SHALL NOT describe it as a skipped test
+
+#### Scenario: Selected Playwright gate reports skipped tests
+
+- **Given** a Playwright gate is selected by path mapping, explicit command, or full regression
+- **When** the Playwright command reports one or more skipped tests
+- **Then** the gate SHALL fail or block instead of passing
+- **And** the agent SHALL either provide the missing fixture/environment or remove the test from the triggered mapping
+
+#### Scenario: Full regression is requested
+
+- **Given** a release or full regression has been requested
+- **When** any included test would skip because required fixture or environment is missing
+- **Then** the regression SHALL be reported as `FAIL` or `BLOCKED`
+- **And** skipped tests SHALL NOT be counted as passing validation

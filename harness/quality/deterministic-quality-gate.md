@@ -8,6 +8,9 @@
 - summary 不允许出现 `score`、`rating`、`qualityScore` 等主观字段。
 - required gate 失败、缺失或被跳过时，不得给 overall `PASS`。
 - changed files 只用于选择 target；target 一旦选中，内部 gate 必须运行完整 baseline。
+- 路径映射没有选中某个 target/gate 时，状态是 not triggered，不是 skipped。
+- target/gate 被人工指定、路径映射选中或全量回归要求运行后，测试框架报告的 skipped tests 视为未验证完成；必须补齐 fixture/env、调整触发映射，或以 `FAIL`/`BLOCKED` 收口。
+- Playwright gate 被选中时必须提供必要的 fixture URL，并且命令输出中出现 skipped tests 时不得 PASS。
 
 ## 当前执行链
 
@@ -16,6 +19,17 @@
 3. `scripts/claude_hooks/classify.py` 将路径映射到 quality target。
 4. `scripts/quality/run_required_quality_gates.py` 运行需要的 target。
 5. `scripts/quality/run_quality_gate.py` 写入 `tmp/quality/<change-id>/quality-gate-summary.<target>.json`。
+
+## Trigger vs Skip
+
+| 场景 | 语义 | 允许作为 PASS |
+|---|---|---|
+| changed-files 映射未命中某个 target/gate | not triggered | 是；因为该测试不在本次 required baseline 中 |
+| target/gate 被映射选中但命令未运行 | missing / BLOCKED | 否 |
+| target/gate 被映射选中且测试框架报告 skipped tests | skipped after trigger | 否 |
+| full regression / release regression 中测试缺少 fixture/env | BLOCKED 或 FAIL | 否 |
+
+不得用“跳过”描述 not triggered 的测试；也不得用 not triggered 掩盖已经确认需要运行的测试。
 
 ## Summary 语义
 

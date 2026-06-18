@@ -4,6 +4,7 @@ import json
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from scripts.quality.quality_artifact import (
     GateDetail,
@@ -153,7 +154,80 @@ class TestQualityGateRuntime:
         cmd = run_quality_gate.gate_command("browserLayout", tmp_path, "session-detail")
 
         assert "dashboard-chart-coordinates" in cmd
-        assert "--workers=1" in cmd
+        assert "--workers=8" in cmd
+        assert "--workers=1" not in cmd
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_browser_interaction_gate_uses_parallel_workers(self, tmp_path):
+        (tmp_path / "tests" / "playwright").mkdir(parents=True)
+        (tmp_path / "playwright.config.js").write_text("", encoding="utf-8")
+        (tmp_path / "node_modules").mkdir()
+
+        cmd = run_quality_gate.gate_command("browserInteraction", tmp_path, "session-detail")
+
+        assert "sessions-list.spec.js" in cmd
+        assert "--workers=8" in cmd
+        assert "--workers=1" not in cmd
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_playwright_workers_clamps_low_override(self, monkeypatch):
+        monkeypatch.setenv("SESSION_BROWSER_PLAYWRIGHT_WORKERS", "1")
+
+        assert run_quality_gate._playwright_workers() == 8
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_playwright_workers_allows_higher_override(self, monkeypatch):
+        monkeypatch.setenv("SESSION_BROWSER_PLAYWRIGHT_WORKERS", "12")
+
+        assert run_quality_gate._playwright_workers() == 12
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_selected_playwright_gate_fails_when_tests_skip(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(run_quality_gate.shutil, "which", lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            "run",
+            lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="2 passed\n1 skipped\n"),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            "browserInteraction",
+            ["npx", "playwright", "test", "session-detail.spec.js", "--workers=8"],
+            tmp_path,
+        )
+
+        assert detail.status == FAIL
+        assert "selected Playwright gate reported 1 skipped tests" in detail.output
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_fixture_playwright_gate_injects_session_url(self, monkeypatch, tmp_path):
+        captured_env = {}
+
+        monkeypatch.setattr(
+            run_quality_gate,
+            "applicable_gates_for_target",
+            lambda target, changed_files=None: ["browserInteraction"],
+        )
+        monkeypatch.setattr(
+            run_quality_gate,
+            "gate_command",
+            lambda gate, repo_root, target: ["npx", "playwright", "test", "session-detail.spec.js", "--workers=8"],
+        )
+        monkeypatch.setattr(run_quality_gate, "_fixture_session_available", lambda base_url: True)
+
+        def capture_run_cmd(name, cmd, cwd, required=True, env_overrides=None):
+            captured_env.update(env_overrides or {})
+            return GateDetail(name=name, status=PASS, command=cmd)
+
+        monkeypatch.setattr(run_quality_gate, "run_cmd", capture_run_cmd)
+
+        details = run_quality_gate.run_target(tmp_path, "session-detail")
+
+        assert details[0].status == PASS
+        assert captured_env["BASE_URL"] == "http://127.0.0.1:18999"
+        assert captured_env["PW_SESSION_URL"] == (
+            "http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001"
+        )
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_fixture_gate_blocks_without_running_playwright(self, monkeypatch, tmp_path):

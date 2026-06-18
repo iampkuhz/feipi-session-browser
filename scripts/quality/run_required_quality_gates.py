@@ -170,11 +170,11 @@ def main() -> int:
 
     # Targets actually executed after exclusions
     all_required = [t for t in full_required if t not in effective_excluded]
-    skipped = [t for t in full_required if t in effective_excluded]
+    excluded = [t for t in full_required if t in effective_excluded]
 
     print(f"[run_required_quality_gates] required targets: {', '.join(sorted(full_required)) if full_required else '(none)'}", file=sys.stderr)
-    if skipped:
-        print(f"[run_required_quality_gates] skipped targets (excluded): {', '.join(sorted(skipped))}", file=sys.stderr)
+    if excluded:
+        print(f"[run_required_quality_gates] excluded targets (handled elsewhere): {', '.join(sorted(excluded))}", file=sys.stderr)
 
     if not changed_files:
         print("[run_required_quality_gates] no changed files, exit 0", file=sys.stderr)
@@ -188,7 +188,7 @@ def main() -> int:
         for t in sorted(all_required):
             print(f"[run_required_quality_gates] would run target: {t}", file=sys.stderr)
         for t in sorted(effective_excluded & set(full_required)):
-            print(f"[run_required_quality_gates] skip target handled elsewhere: {t}", file=sys.stderr)
+            print(f"[run_required_quality_gates] excluded target handled elsewhere: {t}", file=sys.stderr)
         return 0
 
     blocked = False
@@ -203,9 +203,10 @@ def main() -> int:
         if not passed:
             blocked = True
 
-    # Log skipped targets
+    # Log excluded targets. These were selected by mapping but are handled by a
+    # separate runner; they are not test skips.
     for t in sorted(effective_excluded & set(full_required)):
-        print(f"[run_required_quality_gates] skip target handled elsewhere: {t}", file=sys.stderr)
+        print(f"[run_required_quality_gates] excluded target handled elsewhere: {t}", file=sys.stderr)
 
     return 1 if blocked else 0
 

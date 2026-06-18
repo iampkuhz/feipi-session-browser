@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -122,12 +123,45 @@ def _project_python(repo_root: Path, *, dev: bool = False) -> str:
     return _project_python_cached(str(repo_root), modules)
 
 
+def _playwright_workers() -> int:
+    """Return the minimum parallelism for Playwright quality gates."""
+    raw = (
+        os.environ.get("SESSION_BROWSER_PLAYWRIGHT_WORKERS")
+        or os.environ.get("PLAYWRIGHT_WORKERS")
+        or ""
+    ).strip()
+    if raw:
+        try:
+            return max(8, int(raw))
+        except ValueError:
+            pass
+    return 8
+
+
 def _tail_file(path: Path, max_chars: int = 2000) -> str:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
     return text[-max_chars:].strip()
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
+
+
+def _is_playwright_command(cmd: list[str]) -> bool:
+    return len(cmd) >= 3 and Path(cmd[0]).name == "npx" and cmd[1:3] == ["playwright", "test"]
+
+
+def _playwright_skip_count(output: str) -> int:
+    """Return Playwright's reported skipped test count from command output."""
+    clean = _strip_ansi(output)
+    matches = re.findall(r"\b(\d+)\s+skipped\b", clean)
+    return sum(int(value) for value in matches)
 
 
 def _fixture_session_available(base_url: str) -> bool:
@@ -267,9 +301,19 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True,
         output = (proc.stdout or "").strip()
         if len(output) > 4000:
             output = output[-4000:]
+        status = PASS if proc.returncode == 0 else FAIL
+        skipped = _playwright_skip_count(output) if status == PASS and _is_playwright_command(cmd) else 0
+        if skipped:
+            status = FAIL
+            output = (
+                f"{output}\n\n"
+                f"[quality-gate] FAIL: selected Playwright gate reported {skipped} skipped tests. "
+                "If a test is not required for this change, remove it from the triggered mapping/command; "
+                "if it is required, provide the needed fixture or environment instead of skipping."
+            )
         return GateDetail(
             name=name,
-            status=PASS if proc.returncode == 0 else FAIL,
+            status=status,
             command=cmd,
             exitCode=proc.returncode,
             durationMs=duration,
@@ -322,11 +366,20 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
         return [python, "scripts/quality/check_css_ownership.py"]
     if gate == "browserLayout":
         if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
-            return ["npx", "playwright", "test", "session-detail-layout", "shell-states", "dashboard-chart-coordinates", "--workers=1"]
+            return [
+                "npx", "playwright", "test",
+                "session-detail-layout", "shell-states", "dashboard-chart-coordinates",
+                f"--workers={_playwright_workers()}",
+            ]
         return []
     if gate == "browserInteraction":
         if (repo_root / "tests" / "playwright").exists() and (repo_root / "playwright.config.js").exists() and (repo_root / "node_modules").exists():
-            return ["npx", "playwright", "test", "session-detail.spec.js", "sessions-list.spec.js", "--grep-invert", "100 轮"]
+            return [
+                "npx", "playwright", "test",
+                "session-detail.spec.js", "sessions-list.spec.js",
+                "--grep-invert", "100 轮",
+                f"--workers={_playwright_workers()}",
+            ]
         return []
     if gate == "pytest":
         test_candidates = {
@@ -428,6 +481,7 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
                 env_override["QUALITY_CHANGED_FILES"] = json.dumps(changed_files, ensure_ascii=False)
             if gate in _FIXTURE_GATES and fixture_base_url:
                 env_override["BASE_URL"] = fixture_base_url
+                env_override["PW_SESSION_URL"] = f"{fixture_base_url}/sessions/claude_code/hifi-viz-session-001"
             elif gate in _FIXTURE_GATES:
                 details.append(GateDetail(
                     name=gate,
