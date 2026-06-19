@@ -4,6 +4,42 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
+VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.venv}"
+
+python_is_compatible() {
+  local candidate="$1"
+  "$candidate" - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+}
+
+python_bin() {
+  if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
+    if python_is_compatible "$SESSION_BROWSER_PYTHON"; then
+      printf '%s\n' "$SESSION_BROWSER_PYTHON"
+      return 0
+    fi
+    echo "[FAIL] SESSION_BROWSER_PYTHON 不可执行或低于 Python 3.10：$SESSION_BROWSER_PYTHON" >&2
+    return 1
+  fi
+  if [[ -x "$VENV_DIR/bin/python" ]] && python_is_compatible "$VENV_DIR/bin/python"; then
+    printf '%s\n' "$VENV_DIR/bin/python"
+    return 0
+  fi
+  if command -v python >/dev/null 2>&1 && python_is_compatible python; then
+    printf 'python\n'
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1 && python_is_compatible python3; then
+    printf 'python3\n'
+    return 0
+  fi
+  echo "[FAIL] 未找到可用 Python 解释器（需要 Python >= 3.10）。" >&2
+  return 1
+}
+
+PYTHON="$(python_bin)" || PYTHON=""
 
 fail=0
 
@@ -36,6 +72,10 @@ check_file .claude/hooks/post-write.sh
 check_file .claude/hooks/stop.sh
 check_file .claude/commands/diagnose-ui-gate.md
 check_file scripts/session-browser.sh
+check_file requirements.txt
+check_file requirements-dev.txt
+check_file requirements.lock
+check_file requirements-dev.lock
 check_file harness/README.md
 check_dir src/session_browser
 check_dir tests
@@ -47,14 +87,22 @@ check_dir scripts/openspec
 check_dir scripts/agent_hooks
 check_dir scripts/quality
 
-if [[ -f .claude/settings.json ]]; then
-  python3 -m json.tool .claude/settings.json >/dev/null || {
+if [[ -n "$PYTHON" ]]; then
+  echo "[INFO] python: $PYTHON"
+  "$PYTHON" scripts/harness/python_env.py report || fail=1
+  "$PYTHON" scripts/harness/python_env.py check-installed --profile test || fail=1
+else
+  fail=1
+fi
+
+if [[ -f .claude/settings.json && -n "$PYTHON" ]]; then
+  "$PYTHON" -m json.tool .claude/settings.json >/dev/null || {
     echo "[FAIL] invalid JSON: .claude/settings.json" >&2
     fail=1
   }
 fi
 
-if python3 -c "import yaml; yaml.safe_load(open('openspec/config.yaml'))" 2>/dev/null; then
+if [[ -n "$PYTHON" ]] && "$PYTHON" -c "import yaml; yaml.safe_load(open('openspec/config.yaml'))" 2>/dev/null; then
   echo "[PASS] openspec/config.yaml is valid YAML"
 else
   echo "[FAIL] openspec/config.yaml is not valid YAML" >&2
@@ -66,11 +114,13 @@ for script in scripts/session-browser.sh .claude/hooks/*.sh scripts/quality/doct
   bash -n "$script" || fail=1
 done
 
-python3 -m compileall -q src || fail=1
+if [[ -n "$PYTHON" ]]; then
+  "$PYTHON" -m compileall -q src || fail=1
+fi
 
 # Check that personal/ephemeral files and dirs do NOT exist on disk.
 local_files=(.mcp.json .env)
-local_dirs=(data output .venv prompts)
+local_dirs=(data output prompts)
 for f in "${local_files[@]}"; do
   if [[ -e "$f" ]]; then
     echo "[FAIL] personal file should not exist: $f" >&2

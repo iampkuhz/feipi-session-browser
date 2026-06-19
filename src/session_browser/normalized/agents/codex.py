@@ -28,10 +28,13 @@ def parse_codex_rollout_file(
     """Parse a Codex rollout JSONL file into normalized session JSON."""
     rollout_path = Path(path)
     events, _ = parse_jsonl_events(rollout_path)
+    session_id = (thread_info or {}).get("id") or _session_id_from_path(str(rollout_path))
+    subagent_runs = _parse_subagent_rollouts_for_parent(rollout_path, session_id)
     normalized = parse_codex_events(
         events,
         source_path=str(rollout_path),
         thread_info=thread_info or {},
+        subagent_runs=subagent_runs,
     )
     return normalized
 
@@ -40,10 +43,15 @@ def parse_codex_events(
     events: list[dict],
     source_path: str = "",
     thread_info: dict | None = None,
+    subagent_runs: list[dict] | None = None,
 ) -> dict:
     """Parse Codex rollout events into the intermediate normalized contract."""
     thread_info = thread_info or {}
-    state = _CodexBuildState(source_path=source_path, thread_info=thread_info)
+    state = _CodexBuildState(
+        source_path=source_path,
+        thread_info=thread_info,
+        subagent_runs=subagent_runs or [],
+    )
 
     for order, event in enumerate(events, 1):
         if not isinstance(event, dict):
@@ -69,9 +77,31 @@ def parse_codex_events(
 
 
 class _CodexBuildState:
-    def __init__(self, source_path: str, thread_info: dict) -> None:
+    def __init__(
+        self,
+        source_path: str,
+        thread_info: dict,
+        *,
+        subagent_runs: list[dict] | None = None,
+        scope: str = "main",
+        subagent_id: str = "",
+        parent_tool_use_id: str = "",
+        parent_tool_name: str = "",
+        call_id_prefix: str = "codex-call-",
+    ) -> None:
         self.source_path = source_path
         self.thread_info = thread_info
+        self.subagent_runs = subagent_runs or []
+        self.subagent_runs_by_id = {
+            str((run.get("summary") or {}).get("agent_id") or ""): run
+            for run in self.subagent_runs
+            if isinstance(run, dict)
+        }
+        self.scope = scope
+        self.subagent_id = subagent_id
+        self.parent_tool_use_id = parent_tool_use_id
+        self.parent_tool_name = parent_tool_name
+        self.call_id_prefix = call_id_prefix
         self.event_order = 0
         self.session_meta: dict = {}
         self.latest_turn_context: dict = {}
@@ -179,6 +209,14 @@ class _CodexBuildState:
                 "role": "codex_rollout",
                 "path": self.source_path,
         }]
+        for run in self.subagent_runs:
+            summary = run.get("summary") or {}
+            source_files.append({
+                "role": "subagent_session",
+                "path": str(run.get("path") or ""),
+                "subagent_id": str(summary.get("agent_id") or ""),
+                "parent_tool_use_id": str(run.get("parent_tool_use_id") or ""),
+            })
         normalized = build_normalized_session_model(
             agent="codex",
             session=session,
@@ -186,6 +224,7 @@ class _CodexBuildState:
             call_drafts=self.rounds,
             parse_warnings=self.parse_warnings,
         )
+        _annotate_subagent_calls(normalized, self.rounds)
         if self.token_fragments:
             normalized["diagnostics"].extend(self.token_fragments)
         return normalized
@@ -218,7 +257,7 @@ class _CodexBuildState:
             })
 
         round_id = len(self.rounds) + 1
-        call_id = f"codex-call-{round_id:04d}"
+        call_id = f"{self.call_id_prefix}{round_id:04d}"
         request_tool_results = list(self.pending_tool_results)
 
         tools = _collect_tools(self.segment_response_items, self.segment_tool_events)
@@ -232,6 +271,11 @@ class _CodexBuildState:
             usage=usage,
             request_tool_results=request_tool_results,
             tools=tools,
+            subagent_runs_by_id=self.subagent_runs_by_id,
+            scope=self.scope,
+            subagent_id=self.subagent_id,
+            parent_tool_use_id=self.parent_tool_use_id,
+            parent_tool_name=self.parent_tool_name,
         )
         self.rounds.append(round_obj)
 
@@ -287,12 +331,18 @@ def _build_round(
     usage: dict,
     request_tool_results: list[dict],
     tools: list[dict],
+    subagent_runs_by_id: dict[str, dict],
+    scope: str,
+    subagent_id: str,
+    parent_tool_use_id: str,
+    parent_tool_name: str,
 ) -> dict:
     fresh_tokens = max(usage["input_tokens"] - usage["cached_input_tokens"], 0)
     token_total = fresh_tokens + usage["cached_input_tokens"] + usage["output_tokens"]
     steps = _build_steps(
         timestamp=timestamp,
         tools=tools,
+        subagent_runs_by_id=subagent_runs_by_id,
     )
     return {
         "round_id": round_id,
@@ -302,6 +352,10 @@ def _build_round(
             "turn_id": turn_id,
             "model": model,
             "timestamp": timestamp,
+            "scope": scope,
+            "subagent_id": subagent_id,
+            "parent_tool_use_id": parent_tool_use_id,
+            "parent_tool_name": parent_tool_name,
         },
         "metrics": {
             "tokens": {
@@ -374,6 +428,9 @@ def _collect_tools(response_items: list[dict], tool_events: list[dict]) -> list[
                 status = str(payload.get("status") or "")
                 if status and status != "completed":
                     result["status"] = status
+                output = payload.get("output")
+                if output is not None:
+                    result["output"] = output
     for event in tool_events:
         payload = event["payload"]
         call_id = payload.get("call_id") or ""
@@ -398,6 +455,10 @@ def _collect_tools(response_items: list[dict], tool_events: list[dict]) -> list[
             "exit_code": result_info.get("exit_code"),
             "duration_ms": result_info.get("duration_ms", 0),
         }
+        subagent_summary = _subagent_summary_from_tool_result(name, result_info.get("output"))
+        if subagent_summary:
+            tool["subagent_id"] = subagent_summary["agent_id"]
+            tool["subagent_summary"] = subagent_summary
         if status != "completed":
             tool["status"] = status
         calls.append(tool)
@@ -441,6 +502,7 @@ def _build_steps(
     *,
     timestamp: str,
     tools: list[dict],
+    subagent_runs_by_id: dict[str, dict],
 ) -> list[dict]:
     steps: list[dict] = []
     if tools:
@@ -450,6 +512,22 @@ def _build_steps(
             "ended_at": timestamp,
             "duration_ms": sum(int(t.get("duration_ms") or 0) for t in tools),
             "tools": tools,
+        })
+    for tool in tools:
+        subagent_id = str(tool.get("subagent_id") or "")
+        run = subagent_runs_by_id.get(subagent_id)
+        if not subagent_id or not run:
+            continue
+        run["parent_tool_use_id"] = tool.get("tool_call_id") or ""
+        summary = run.get("summary") or {}
+        steps.append({
+            "type": "subagent_run",
+            "step_id": f"subagent-{subagent_id}",
+            "parent_tool_call_id": tool.get("tool_call_id") or "",
+            "subagent_id": subagent_id,
+            "subagent_type": summary.get("agent_type") or "",
+            "description": summary.get("description") or "",
+            "sub_rounds": run.get("rounds") or [],
         })
     return steps
 
@@ -469,6 +547,150 @@ def _tool_status(result_info: dict) -> str:
     if exit_code not in (None, 0):
         return "error"
     return "completed"
+
+
+def _subagent_summary_from_tool_result(name: str, output: Any) -> dict:
+    if name != "spawn_agent":
+        return {}
+    data = _json_dict(output)
+    agent_id = str(data.get("agent_id") or "")
+    if not agent_id:
+        return {}
+    return {
+        "agent_id": agent_id,
+        "agent_type": str(data.get("agent_role") or data.get("agent_type") or ""),
+        "nickname": str(data.get("nickname") or data.get("agent_nickname") or ""),
+    }
+
+
+def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: str) -> list[dict]:
+    if not parent_session_id or not parent_path.exists():
+        return []
+    runs: list[dict] = []
+    for candidate in sorted(parent_path.parent.glob("rollout-*.jsonl")):
+        if candidate == parent_path:
+            continue
+        events, _ = parse_jsonl_events(candidate)
+        meta = _first_session_meta(events)
+        spawn = _codex_subagent_spawn(meta)
+        if spawn.get("parent_thread_id") != parent_session_id:
+            continue
+        agent_id = str(meta.get("id") or _session_id_from_path(str(candidate)))
+        call_prefix = f"codex-subagent-{_safe_id_fragment(agent_id)}-call-"
+        state = _CodexBuildState(
+            source_path=str(candidate),
+            thread_info={
+                "id": agent_id,
+                "title": f"subagent {spawn.get('agent_role') or ''}".strip(),
+                "cwd": meta.get("cwd") or "",
+                "source": "subagent",
+                "model": meta.get("model_provider") or "",
+            },
+            scope="subagent",
+            subagent_id=agent_id,
+            parent_tool_name="spawn_agent",
+            call_id_prefix=call_prefix,
+        )
+        for order, event in enumerate(events, 1):
+            if not isinstance(event, dict):
+                continue
+            state.event_order = order
+            etype = event.get("type", "")
+            payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+            timestamp = str(event.get("timestamp") or "")
+            if etype == "session_meta":
+                state.accept_session_meta(payload, timestamp)
+            elif etype == "turn_context":
+                state.accept_turn_context(payload, timestamp)
+            elif etype == "compacted":
+                state.accept_compacted(payload, timestamp)
+            elif etype == "response_item":
+                state.accept_response_item(payload, timestamp)
+            elif etype == "event_msg":
+                state.accept_event_msg(payload, timestamp)
+        state.finish()
+        runs.append({
+            "path": str(candidate),
+            "parent_tool_use_id": "",
+            "summary": {
+                "agent_id": agent_id,
+                "agent_type": str(spawn.get("agent_role") or ""),
+                "agent_nickname": str(spawn.get("agent_nickname") or ""),
+                "parent_thread_id": parent_session_id,
+                "depth": _int(spawn.get("depth")),
+                "llm_call_count": len(state.rounds),
+                "tool_call_count": sum(
+                    len((step.get("tools") or []))
+                    for round_obj in state.rounds
+                    for step in (round_obj.get("steps") or [])
+                    if step.get("type") == "tool_batch"
+                ),
+                "input_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("fresh", 0) for r in state.rounds),
+                "cache_read_input_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("cache_read", 0) for r in state.rounds),
+                "output_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("output", 0) for r in state.rounds),
+            },
+            "rounds": state.rounds,
+        })
+    return runs
+
+
+def _first_session_meta(events: list[dict]) -> dict:
+    for event in events:
+        if event.get("type") == "session_meta" and isinstance(event.get("payload"), dict):
+            return event["payload"]
+    return {}
+
+
+def _codex_subagent_spawn(meta: dict) -> dict:
+    source = meta.get("source") if isinstance(meta.get("source"), dict) else {}
+    subagent = source.get("subagent") if isinstance(source.get("subagent"), dict) else {}
+    spawn = subagent.get("thread_spawn") if isinstance(subagent.get("thread_spawn"), dict) else {}
+    return spawn
+
+
+def _annotate_subagent_calls(normalized: dict, rounds: list[dict]) -> None:
+    metadata_by_call: dict[str, dict] = {}
+
+    def walk(round_list: list[dict], parent_tool_name: str = "") -> None:
+        for round_obj in round_list:
+            main_call = round_obj.get("main_call") if isinstance(round_obj.get("main_call"), dict) else {}
+            call_id = str(main_call.get("call_id") or "")
+            if call_id:
+                metadata_by_call[call_id] = {
+                    "subagent_id": str(main_call.get("subagent_id") or ""),
+                    "parent_tool_name": str(main_call.get("parent_tool_name") or parent_tool_name),
+                }
+            for step in round_obj.get("steps") or []:
+                if not isinstance(step, dict) or step.get("type") != "subagent_run":
+                    continue
+                for child in step.get("sub_rounds") or []:
+                    if isinstance(child, dict):
+                        walk([child], parent_tool_name="spawn_agent")
+
+    walk(rounds)
+    for call in normalized.get("calls") or []:
+        meta = metadata_by_call.get(call.get("call_id") or "", {})
+        if meta.get("subagent_id"):
+            call["subagent_id"] = meta["subagent_id"]
+        if meta.get("parent_tool_name"):
+            call["parent_tool_name"] = meta["parent_tool_name"]
+
+
+def _json_dict(value: Any) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _safe_id_fragment(value: str) -> str:
+    fragment = re.sub(r"[^A-Za-z0-9]+", "-", value or "").strip("-")
+    return fragment[:12] or "unknown"
 
 
 def _duration_ms(duration: dict) -> int:

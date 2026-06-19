@@ -418,13 +418,16 @@ def test_run_analysis_template_sections_exist():
         ROOT / "src/session_browser/web/templates/components/session_detail_timeline/summary.html"
     ).read_text(encoding="utf-8")
 
-    for title in [
+    diagnostic_titles = [
         "Agents Breakdown",
+        "Context Budget",
         "Tool Impact",
         "Issues &amp; Repro Seeds",
-        "Context Budget",
-    ]:
+    ]
+    for title in diagnostic_titles:
         assert title in session_html
+    diagnostic_positions = [session_html.index(title) for title in diagnostic_titles]
+    assert diagnostic_positions == sorted(diagnostic_positions)
 
     for label in ["Run Health", "Total Tokens", "Cache Health", "Workload", "Active Time"]:
         assert label in summary_html
@@ -436,6 +439,7 @@ def test_run_analysis_template_sections_exist():
     assert "Main Agent Breakdown" not in session_html
     assert "Subagent Breakdown" not in session_html
     assert "sd-driver-table" not in session_html
+    assert "sd-diagnostic-card--context" in session_html
     assert "sd-subagent-workbench" in session_html
     assert 'data-action="select-subagent"' in session_html
     assert "sd-subagent-timeline" in session_html
@@ -458,6 +462,8 @@ def test_context_budget_uses_shared_segment_bar_and_legend_colors():
     assert "sd-context-segment__pct" in session_html
     assert "sd-context-segment--{{ loop.index }}" in session_html
     assert "sd-context-budget__dot--{{ loop.index }}" in session_html
+    assert ".sd-diagnostic-card--context" in css
+    assert "grid-column: 1 / -1" in css
 
     for index in range(1, 7):
         assert f".sd-context-segment--{index}," in css

@@ -42,15 +42,41 @@ def _read_timeline_with_splits() -> str:
     return "\n".join(parts)
 
 
+@pytest.fixture(scope="class")
+def timeline():
+    return _read_timeline_with_splits()
+
+
+@pytest.fixture(scope="class")
+def session():
+    return _read(SESSION_HTML)
+
+
+@pytest.fixture(scope="class")
+def primitives():
+    return _read(PRIMITIVES_HTML)
+
+
+def test_no_class_scoped_instance_method_fixtures():
+    offenders = []
+    for path in sorted((ROOT / "tests").rglob("*.py")):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for line_no, line in enumerate(lines, 1):
+            if not line.startswith((" ", "\t")):
+                continue
+            if re.match(r"\s+@pytest\.fixture\(.*scope=[\"']class[\"']", line):
+                offenders.append(f"{path.relative_to(ROOT)}:{line_no}")
+    assert not offenders, (
+        "class-scoped fixtures must be module-level or explicit classmethods: "
+        + ", ".join(offenders)
+    )
+
+
 # ── 主视觉区 ────────────────────────────────────────────────────────
 
 
 class TestHeroArea:
     """Hero area must have agent pill, KPIs, and summary strip."""
-
-    @pytest.fixture(scope="class")
-    def timeline(self):
-        return _read_timeline_with_splits()
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_hero_section_exists(self, timeline):
@@ -168,10 +194,6 @@ class TestHeroArea:
 class TestTabNavigation:
     """Tab navigation must have Trace and Payload tabs."""
 
-    @pytest.fixture(scope="class")
-    def session(self):
-        return _read(SESSION_HTML)
-
     @pytest.mark.contract_case("UI-SD-001")
     def test_tab_container_exists(self, session):
         """Tab nav must use .sd-tabs with data-session-tabs."""
@@ -221,14 +243,6 @@ class TestTabNavigation:
 
 class TestTraceTableStructure:
     """Trace table must use round-row + expanded-row <tr> pattern."""
-
-    @pytest.fixture(scope="class")
-    def timeline(self):
-        return _read_timeline_with_splits()
-
-    @pytest.fixture(scope="class")
-    def session(self):
-        return _read(SESSION_HTML)
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_trace_table_element(self, session):
@@ -338,10 +352,6 @@ class TestTraceTableStructure:
 class TestFilterButtons:
     """Trace header must have filter buttons with correct data-actions."""
 
-    @pytest.fixture(scope="class")
-    def timeline(self):
-        return _read_timeline_with_splits()
-
     @pytest.mark.contract_case("UI-SD-001")
     def test_filter_status_action(self, timeline):
         """Filter buttons must use status-all and status-failed actions (no filter-status)."""
@@ -408,14 +418,6 @@ class TestFilterButtons:
 
 class TestTokenBar:
     """Token bar must have 4 segments: fresh, read, write, out."""
-
-    @pytest.fixture(scope="class")
-    def timeline(self):
-        return _read_timeline_with_splits()
-
-    @pytest.fixture(scope="class")
-    def primitives(self):
-        return _read(PRIMITIVES_HTML)
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_tokenbar_in_row(self, timeline):
@@ -491,14 +493,6 @@ class TestTokenBar:
 
 class TestPayloadModal:
     """Payload modal must have correct structure and data attributes."""
-
-    @pytest.fixture(scope="class")
-    def timeline(self):
-        return _read_timeline_with_splits()
-
-    @pytest.fixture(scope="class")
-    def primitives(self):
-        return _read(PRIMITIVES_HTML)
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_modal_element_exists(self, timeline):
@@ -612,10 +606,6 @@ class TestPayloadModal:
 
 class TestSessionPageMarkers:
     """Session page must have page-level markers for JS wiring."""
-
-    @pytest.fixture(scope="class")
-    def session(self):
-        return _read(SESSION_HTML)
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_trace_page_marker(self, session):

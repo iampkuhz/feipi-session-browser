@@ -18,6 +18,10 @@
   grid-column: 1 / -1;
 }
 
+.sd-diagnostic-card--context {
+  grid-column: 1 / -1;
+}
+
 .sd-diagnostic-card__head {
   height: 44px;
   display: flex;
@@ -414,10 +418,6 @@
 .sd-subagent-instance--subagent-3 { background: #059669; }
 .sd-subagent-instance--subagent-4 { background: #be123c; }
 .sd-subagent-instance--main { background: #334155; }
-
-.sd-diagnostic-card--agents {
-  order: -1;
-}
 
 .sd-diagnostic-card--agents .sd-diagnostic-card__body {
   display: grid;
@@ -1108,7 +1108,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .sd-diagnostic-card--wide {
+  .sd-diagnostic-card--wide,
+  .sd-diagnostic-card--context {
     grid-column: auto;
   }
 

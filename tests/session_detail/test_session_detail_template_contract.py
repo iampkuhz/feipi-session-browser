@@ -223,6 +223,23 @@ class TestSessionHtml:
         assert "switchContentView" not in session_text, \
             "switchContentView JS must be removed"
 
+    @pytest.mark.contract_case("UI-SD-032")
+    def test_diagnostic_cards_order_and_context_layout_hook(self, session_text):
+        """Diagnostics DOM order and Context Budget full-row hook follow v0.4."""
+        titles = [
+            "Agents Breakdown",
+            "Context Budget",
+            "Tool Impact",
+            "Issues &amp; Repro Seeds",
+        ]
+        positions = [session_text.index(title) for title in titles]
+        assert positions == sorted(positions), \
+            "diagnostic cards must render in v0.4 DOM order"
+        assert 'sd-diagnostic-card--wide sd-diagnostic-card--subagents sd-diagnostic-card--agents' in session_text, \
+            "Agents Breakdown must keep the wide two-column card hook"
+        assert 'sd-diagnostic-card sd-diagnostic-card--context' in session_text, \
+            "Context Budget must use a dedicated full-row card hook"
+
 
 # ── Issue Strip ──
 

@@ -29,7 +29,7 @@ JS_PATH = "src/session_browser/web/static/js/app.js"
 
 
 def _read(path: str) -> str:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -46,17 +46,17 @@ class TestCSSAbsent:
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_before_pseudo(self):
-        css = open(CSS_PATH).read()
+        css = _read(CSS_PATH)
         assert ".table-wrap::before" not in css, ".table-wrap::before 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_after_pseudo(self):
-        css = open(CSS_PATH).read()
+        css = _read(CSS_PATH)
         assert ".table-wrap::after" not in css, ".table-wrap::after 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_scroll_state_classes(self):
-        css = open(CSS_PATH).read()
+        css = _read(CSS_PATH)
         assert "is-scroll-left" not in css, "is-scroll-left 类应被移除"
         assert "is-scroll-right" not in css, "is-scroll-right 类应被移除"
 
@@ -66,29 +66,29 @@ class TestJSAbsent:
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_update_scroll_shadow(self):
-        js = open(JS_PATH).read()
+        js = _read(JS_PATH)
         assert "updateScrollShadow" not in js, "updateScrollShadow 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_init_scroll_shadows(self):
-        js = open(JS_PATH).read()
+        js = _read(JS_PATH)
         assert "initScrollShadows" not in js, "initScrollShadows 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_init_all_scroll_shadows(self):
-        js = open(JS_PATH).read()
+        js = _read(JS_PATH)
         assert "initAllScrollShadows" not in js, "initAllScrollShadows 应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_scroll_shadow_resize(self):
-        js = open(JS_PATH).read()
+        js = _read(JS_PATH)
         # 滚动阴影的 resize 监听器应已移除
         assert "resize" not in js or "scroll" not in js, \
             "resize+scroll 阴影监听器应被移除"
 
     @pytest.mark.contract_case("UI-VISUAL-010")
     def test_no_profile_loaded_shadow(self):
-        js = open(JS_PATH).read()
+        js = _read(JS_PATH)
         assert "profile-loaded" not in js, "profile-loaded 阴影重新初始化应被移除"
 
 

@@ -269,3 +269,39 @@ stop
 | config 被计入 bucket | `reasoning/max_tokens/model/store/include` 出现在分布里。 | 全部移入 metadata；只让 residual 承担不可解释差值。 |
 | `agent_message` 与 `response_item.message` 重复展示 | 两者文本相同或引用同一输出。 | 以 `response_item.message` 为 canonical；`agent_message` 只作 mirror/缺省处理。 |
 | 工具定义缺失 | raw request 没有 `tools`。 | 使用 Codex builtin catalog，再合并本 session 观测到的额外工具。 |
+
+## 脱敏样例：Codex `spawn_agent` 子线程归属
+
+来源：父 session URL `http://127.0.0.1:18999/sessions/codex/019edb11-581d-7070-83c7-500239a85403` 的可见 rollout 证据。以下只保留 `record_index`、字段名、短 preview 和脱敏/截断 ID；不包含真实 session 全文、完整 prompt、密钥或个人路径。
+
+### 父线程关键记录
+
+| record_index | event | 字段 | 脱敏 preview | 归属规则 |
+|---:|---|---|---|---|
+| 26 | `response_item.function_call` | `name=spawn_agent`、`call_id=call_cBN...tqgc`、`arguments.agent_type=implementer` | `message="Goal: 构造一个尽可能小..."` | 父级 subagent parent tool；该 tool 本身属于 main scope。 |
+| 27 | `response_item.function_call_output` | `call_id=call_cBN...tqgc`、`output.agent_id=019edb13...9328`、`output.nickname=Chandrasekhar` | `{"agent_id":"019edb13...9328","nickname":"Chandrasekhar"}` | 用 `agent_id` 连接 child session；填充父 tool 的 `subagent_summary`。 |
+| 30 | `response_item.function_call` | `name=wait_agent`、`arguments.targets=[019edb13...9328]` | `timeout_ms=120000` | 普通 main tool；结果作为下一次 main LLM request 的 tool output。 |
+| 31 | `response_item.function_call_output` | `status[019edb13...9328].completed` | `Status: PASS ... Changed files ...` | 父线程工具结果，不改写 child 内部 LLM/tool 归属。 |
+| 33 | `response_item.message(role=assistant)` | assistant text | `<subagent_notification>{"agent_path":"019edb13...9328",...}` | assistant text canonical source；仅作为父 call response 文本。 |
+| 38 | `response_item.function_call` | `name=close_agent`、`arguments.target=019edb13...9328` | `target="019edb13...9328"` | 普通 main tool。 |
+| 39 | `response_item.function_call_output` | `previous_status.completed` | `Status: PASS ...` | 父线程工具结果。 |
+
+### 子线程关键记录
+
+| record_index | event | 字段 | 脱敏 preview | 归属规则 |
+|---:|---|---|---|---|
+| 1 | `session_meta` | `id=019edb13...9328`、`source.subagent.thread_spawn.parent_thread_id=019edb11...5403`、`depth=1`、`agent_role=implementer`、`agent_nickname=Chandrasekhar` | `source.subagent.thread_spawn={parent_thread_id, depth, agent_role, agent_nickname}` | 判定该 rollout 是父线程派生的 Codex subagent。 |
+| 9 | `response_item.function_call` | `name=exec_command`、`call_id=call_PnC...yuZQ` | `cmd="ls -ld tmp ..."` | child 内部 tool，`scope="subagent"`、`subagent_id=019edb13...9328`。 |
+| 10 | `response_item.function_call_output` | `call_id=call_PnC...yuZQ` | `Process exited with code 0 ...` | 归属到 child 下一次 LLM request，不进入 main tool 统计。 |
+| 11 | `event_msg.token_count` | `last_token_usage.input_tokens=22794`、`cached_input_tokens=0`、`output_tokens=157`、`total_tokens=22951` | `total_token_usage.total_tokens=22951` | child LLM call #1，`scope="subagent"`。 |
+| 13 | `response_item.function_call` | `name=exec_command`、`call_id=call_W5R...vv5` | `cmd="cat > tmp/minimal-subagent-session.md ..."` | child 内部 tool。 |
+| 15 | `event_msg.token_count` | `last_token_usage.input_tokens=23017`、`output_tokens=161`、`total_tokens=23178` | `total_token_usage.total_tokens=46129` | child LLM call #2。 |
+| 18 | `response_item.message(role=assistant)` | assistant text | `Status: PASS ... Changed files ...` | child response text。 |
+| 19 | `event_msg.token_count` | `last_token_usage.input_tokens=23224`、`output_tokens=229`、`total_tokens=23453` | `total_token_usage.total_tokens=69582` | child LLM call #3。 |
+
+### 样例覆盖要求
+
+- `spawn_agent` 父 tool 从 output JSON 提取 `subagent_id` 和 `nickname`，并在父 `ToolCall.subagent_summary` 中保留脱敏摘要字段。
+- child `session_meta.source.subagent.thread_spawn.parent_thread_id` 必须指向父 session，`agent_role` 和 `agent_nickname` 只作为展示/关联元数据。
+- child LLM call 与 child tool 均设置 `scope="subagent"`、稳定 `subagent_id` 和 `parent_tool_call_id=spawn_agent.call_id`；父 main call 不吞并 child 内部 tool 或 token。
+- `wait_agent`、`close_agent` 和 `subagent_notification` 是父线程可见事件；它们不是 child LLM call，也不能替代 child rollout 的 token_count 边界。

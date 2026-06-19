@@ -163,6 +163,7 @@ class TestQualityGateRuntime:
         (tests_dir / "test_web_template_contract.py").write_text("", encoding="utf-8")
         cmd = run_quality_gate.gate_command("pytest", tmp_path, "session-detail")
         assert cmd[:4] == ["/tmp/dev-python", "-m", "pytest", "-q"]
+        assert cmd[4:6] == ["-W", "error"]
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_no_test_skips_gate_command(self, monkeypatch, tmp_path):
@@ -229,6 +230,167 @@ class TestQualityGateRuntime:
 
         assert detail.status == FAIL
         assert "selected Playwright gate reported 1 skipped tests" in detail.output
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_selected_gate_fails_when_output_reports_warning(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(run_quality_gate.shutil, "which", lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            "run",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0,
+                stdout="================ warnings summary ================\n"
+                "test_warn.py::test_case\n"
+                "  UserWarning: fixture warning\n"
+                "1 passed, 1 warning\n",
+            ),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            "pytest",
+            ["python3", "-m", "pytest", "-q", "tests"],
+            tmp_path,
+        )
+
+        assert detail.status == FAIL
+        assert "warning after trigger" in detail.output
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_css_ownership_warn_metadata_does_not_fail_warning_gate(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(run_quality_gate.shutil, "which", lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            "run",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0,
+                stdout="CSS Ownership Gate Report\n"
+                "Warnings:           2\n\n"
+                "--- Warnings ---\n"
+                "  [WARN]  hardcoded-color (L1): page.css — known debt\n\n"
+                "CSS ownership: PASS (2 warnings)\n",
+            ),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            "cssOwnership",
+            ["python3", "scripts/quality/check_css_ownership.py"],
+            tmp_path,
+        )
+
+        assert detail.status == PASS
+        assert "warning after trigger" not in detail.output
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_css_ownership_real_warning_still_fails_warning_gate(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(run_quality_gate.shutil, "which", lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            "run",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0,
+                stdout="CSS Ownership Gate Report\n"
+                "Warnings:           1\n"
+                "UserWarning: runtime warning from quality script\n"
+                "CSS ownership: PASS (1 warning)\n",
+            ),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            "cssOwnership",
+            ["python3", "scripts/quality/check_css_ownership.py"],
+            tmp_path,
+        )
+
+        assert detail.status == FAIL
+        assert "UserWarning" in detail.output
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_playwright_env_removes_no_color_when_force_color_is_set(self, monkeypatch, tmp_path):
+        captured_env = {}
+        monkeypatch.setattr(run_quality_gate.shutil, "which", lambda name: name)
+        monkeypatch.setenv("FORCE_COLOR", "1")
+        monkeypatch.setenv("NO_COLOR", "1")
+
+        def fake_run(*args, **kwargs):
+            captured_env.update(kwargs["env"])
+            return SimpleNamespace(returncode=0, stdout="1 passed\n")
+
+        monkeypatch.setattr(run_quality_gate.subprocess, "run", fake_run)
+
+        detail = run_quality_gate.run_cmd(
+            "browserLayout",
+            ["npx", "playwright", "test", "session-detail-layout", "--workers=8"],
+            tmp_path,
+        )
+
+        assert detail.status == PASS
+        assert captured_env["FORCE_COLOR"] == "1"
+        assert "NO_COLOR" not in captured_env
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_playwright_known_node_deprecation_noise_does_not_fail(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(run_quality_gate.shutil, "which", lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            "run",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0,
+                stdout="(node:123) [DEP0205] DeprecationWarning: `module.register()` is deprecated. "
+                "Use `module.registerHooks()` instead.\n"
+                "(Use `node --trace-warnings ...` to show where the warning was created)\n"
+                "1 passed\n",
+            ),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            "browserLayout",
+            ["npx", "playwright", "test", "session-detail-layout", "--workers=8"],
+            tmp_path,
+        )
+
+        assert detail.status == PASS
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_playwright_real_deprecation_warning_still_fails(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(run_quality_gate.shutil, "which", lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            "run",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0,
+                stdout="(node:123) DeprecationWarning: test emitted deprecated API warning\n1 passed\n",
+            ),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            "browserLayout",
+            ["npx", "playwright", "test", "session-detail-layout", "--workers=8"],
+            tmp_path,
+        )
+
+        assert detail.status == FAIL
+        assert "DeprecationWarning" in detail.output
+
+    @pytest.mark.contract_case("HOOK-HARNESS-010")
+    def test_warning_after_trigger_is_recorded_in_summary(self):
+        started = "2026-01-01T00:00:00Z"
+        summary = build_summary(
+            "hook-runtime",
+            "test",
+            started,
+            [
+                GateDetail(
+                    name="pytest",
+                    status=FAIL,
+                    output="[quality-gate] FAIL: warning after trigger: selected gate reported 1 warning(s)",
+                )
+            ],
+            not_triggered_gates=["doctor"],
+        )
+
+        assert summary.status == FAIL
+        assert summary.warnings == ["pytest: warning after trigger"]
+        assert summary.artifacts["notTriggeredGates"] == ["doctor"]
 
     @pytest.mark.contract_case("HOOK-HARNESS-010")
     def test_fixture_playwright_gate_injects_session_url(self, monkeypatch, tmp_path):

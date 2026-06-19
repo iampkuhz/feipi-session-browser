@@ -41,6 +41,7 @@ from scripts.quality.quality_artifact import (
     BLOCKED,
 )
 from scripts.quality.quality_targets import required_gates_for_target, applicable_gates_for_target, validate_target
+from scripts.harness.python_env import resolve_python
 
 
 # 01. 命令执行工具
@@ -55,14 +56,14 @@ def _python_candidates(repo_root: Path) -> list[str]:
     venv_dir = os.environ.get("SESSION_BROWSER_VENV_DIR")
     if venv_dir:
         candidates.append(str(Path(venv_dir) / "bin" / "python"))
-
-    candidates.append(str(repo_root / ".venv" / "bin" / "python"))
-    candidates.append(sys.executable)
+    else:
+        candidates.append(str(repo_root / ".venv" / "bin" / "python"))
 
     for name in ("python", "python3"):
         resolved = shutil.which(name)
         if resolved:
             candidates.append(resolved)
+    candidates.append(sys.executable)
 
     result: list[str] = []
     seen: set[str] = set()
@@ -110,11 +111,8 @@ def _python_supports_modules(executable: str, repo_root: Path, modules: tuple[st
 
 @lru_cache(maxsize=8)
 def _project_python_cached(repo_root: str, modules: tuple[str, ...]) -> str:
-    root = Path(repo_root)
-    for candidate in _python_candidates(root):
-        if _python_supports_modules(candidate, root, modules):
-            return candidate
-    return sys.executable
+    del modules
+    return resolve_python(Path(repo_root))
 
 
 def _project_python(repo_root: Path, *, dev: bool = False) -> str:
@@ -163,6 +161,88 @@ def _playwright_skip_count(output: str) -> int:
     clean = _strip_ansi(output)
     matches = re.findall(r"\b(\d+)\s+skipped\b", clean)
     return sum(int(value) for value in matches)
+
+
+def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str]) -> str:
+    """Remove known non-test warning metadata before enforcing warning-free gates."""
+    clean = _strip_ansi(output)
+
+    if gate_name == "cssOwnership":
+        lines: list[str] = []
+        for line in clean.splitlines():
+            stripped = line.strip()
+            if re.match(r"^Warnings:\s*\d+\s*$", stripped, flags=re.IGNORECASE):
+                continue
+            if re.match(r"^\[WARN\]\s+", stripped, flags=re.IGNORECASE):
+                continue
+            if re.match(r"^CSS ownership:\s+PASS\s+\(\d+\s+warnings?\)\s*$", stripped, flags=re.IGNORECASE):
+                continue
+            lines.append(line)
+        return "\n".join(lines)
+
+    if _is_playwright_command(cmd):
+        lines = []
+        skip_trace_for_allowed_warning = False
+        for line in clean.splitlines():
+            stripped = line.strip()
+            is_no_color_noise = (
+                "Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set."
+                in stripped
+            )
+            is_module_register_noise = bool(re.match(
+                r"^\(node:\d+\)\s+\[DEP0205\]\s+DeprecationWarning:\s+`module\.register\(\)` is deprecated\.",
+                stripped,
+            ))
+            if is_no_color_noise or is_module_register_noise:
+                skip_trace_for_allowed_warning = True
+                continue
+            if skip_trace_for_allowed_warning and stripped == "(Use `node --trace-warnings ...` to show where the warning was created)":
+                skip_trace_for_allowed_warning = False
+                continue
+            skip_trace_for_allowed_warning = False
+            lines.append(line)
+        return "\n".join(lines)
+
+    return clean
+
+
+def _warning_after_trigger_reason(output: str, *, gate_name: str = "", cmd: list[str] | None = None) -> str | None:
+    """Return a failure reason when a selected gate reports warnings."""
+    clean = _strip_allowed_warning_noise(output, gate_name=gate_name, cmd=cmd or [])
+    warning_count = 0
+    count_patterns = (
+        r"\b([1-9]\d*)\s+warnings?\b",
+        r"\bwarnings?\s*:\s*([1-9]\d*)\b",
+        r"\bwarningCount[\"']?\s*:\s*([1-9]\d*)\b",
+        r"\b([1-9]\d*)\s+项(?:\s+)?警告\b",
+    )
+    for pattern in count_patterns:
+        warning_count += sum(int(value) for value in re.findall(pattern, clean, flags=re.IGNORECASE))
+
+    warning_markers = (
+        "warnings summary",
+        "warning after trigger",
+        "pass (with warnings)",
+    )
+    warning_classes = re.findall(
+        r"\b(?:Pytest|Deprecation|PendingDeprecation|Future|Runtime|Resource|User)Warning\b",
+        clean,
+    )
+    warning_lines = [
+        line.strip()
+        for line in clean.splitlines()
+        if re.match(r"^(?:\[.*?\]\s*)?(?:WARN|WARNING)\b", line.strip(), flags=re.IGNORECASE)
+    ]
+
+    if warning_count:
+        return f"warning after trigger: selected gate reported {warning_count} warning(s)"
+    if any(marker in clean.lower() for marker in warning_markers):
+        return "warning after trigger: selected gate output contains warning summary"
+    if warning_classes:
+        return f"warning after trigger: selected gate emitted {warning_classes[0]}"
+    if warning_lines:
+        return f"warning after trigger: {warning_lines[0]}"
+    return None
 
 
 def _fixture_session_available(base_url: str) -> bool:
@@ -294,6 +374,9 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True,
     run_env = os.environ.copy()
     if env_overrides:
         run_env.update(env_overrides)
+    if _is_playwright_command(cmd) and run_env.get("FORCE_COLOR") and run_env.get("NO_COLOR"):
+        # Node warns when both are present; Playwright output is parsed after ANSI stripping.
+        run_env.pop("NO_COLOR", None)
 
     try:
         proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE,
@@ -311,6 +394,15 @@ def run_cmd(name: str, cmd: list[str], cwd: Path, required: bool = True,
                 f"[quality-gate] FAIL: selected Playwright gate reported {skipped} skipped tests. "
                 "If a test is not required for this change, remove it from the triggered mapping/command; "
                 "if it is required, provide the needed fixture or environment instead of skipping."
+            )
+        warning_reason = _warning_after_trigger_reason(output, gate_name=name, cmd=cmd) if status == PASS else None
+        if warning_reason:
+            status = FAIL
+            output = (
+                f"{output}\n\n"
+                f"[quality-gate] FAIL: {warning_reason}. "
+                "Triggered pytest/quality/full/release gates must be warning-free; "
+                "fix the warning or mark the gate BLOCKED instead of reporting PASS."
             )
         return GateDetail(
             name=name,
@@ -421,7 +513,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
             "index": ["tests/index/"],
         }
         items = [x for x in test_candidates.get(target, ["tests"]) if (repo_root / x).exists()]
-        return [dev_python, "-m", "pytest", "-q", *items] if items else []
+        return [dev_python, "-m", "pytest", "-q", "-W", "error", *items] if items else []
     if gate == "doctor":
         return ["bash", "scripts/harness/doctor.sh"]
     if gate == "repoStructure":
@@ -507,9 +599,20 @@ def run_target(repo_root: Path, target: str, changed_files: list[str] | None = N
 
 
 # 04. summary 生成
-def build_summary(target: str, change_id: str, started_at: str, details: list[GateDetail]) -> QualitySummary:
+def build_summary(
+    target: str,
+    change_id: str,
+    started_at: str,
+    details: list[GateDetail],
+    not_triggered_gates: list[str] | None = None,
+) -> QualitySummary:
     required = {detail.name: detail.status for detail in details}
     status, failures = compute_overall(required)
+    warning_failures = [
+        f"{detail.name}: warning after trigger"
+        for detail in details
+        if "warning after trigger" in (detail.output or "")
+    ]
     return QualitySummary(
         schemaVersion=3,
         status=status,
@@ -519,8 +622,8 @@ def build_summary(target: str, change_id: str, started_at: str, details: list[Ga
         finishedAt=utc_now(),
         requiredGates=required,
         blockingFailures=failures,
-        warnings=[],
-        artifacts={},
+        warnings=warning_failures,
+        artifacts={"notTriggeredGates": not_triggered_gates or []},
         gateDetails=[detail.__dict__ for detail in details],
     )
 
@@ -551,8 +654,20 @@ def main() -> int:
         import json
         changed_files = json.loads(args.changed_files)
 
+    not_triggered_gates: list[str] = []
+    if changed_files is not None:
+        selected = set(applicable_gates_for_target(args.target, changed_files))
+        not_triggered_gates = [
+            gate for gate in required_gates_for_target(args.target) if gate not in selected
+        ]
+        if not_triggered_gates:
+            print(
+                "[run_quality_gate] not triggered gates: " + ", ".join(not_triggered_gates),
+                file=sys.stderr,
+            )
+
     details = run_target(repo_root, args.target, changed_files)
-    summary = build_summary(args.target, args.change_id, started_at, details)
+    summary = build_summary(args.target, args.change_id, started_at, details, not_triggered_gates)
     out = write_quality_summary(repo_root / out_dir, summary, target_specific=True)
     print(f"quality summary: {out}")
     print(f"status: {summary.status}")

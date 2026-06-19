@@ -177,11 +177,11 @@ def main() -> int:
         print(f"[run_required_quality_gates] excluded targets (handled elsewhere): {', '.join(sorted(excluded))}", file=sys.stderr)
 
     if not changed_files:
-        print("[run_required_quality_gates] no changed files, exit 0", file=sys.stderr)
+        print("[run_required_quality_gates] no changed files; quality targets not triggered", file=sys.stderr)
         return 0
 
     if not all_required:
-        print("[run_required_quality_gates] no required targets after exclusions, exit 0", file=sys.stderr)
+        print("[run_required_quality_gates] no required targets after exclusions; selected targets not triggered", file=sys.stderr)
         return 0
 
     if args.dry_run:
@@ -195,7 +195,7 @@ def main() -> int:
     for target in sorted(all_required):
         print(f"[run_required_quality_gates] running target: {target}", file=sys.stderr)
         passed, artifact_path = run_gate(target, change_id)
-        status_str = "PASS" if passed else "FAIL"
+        status_str = "PASS" if passed else "FAIL/BLOCKED"
         print(
             f"[run_required_quality_gates] {status_str} target={target} artifact={artifact_path}",
             file=sys.stderr,

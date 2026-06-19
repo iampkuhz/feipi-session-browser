@@ -696,6 +696,46 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-action="select-subagent"][data-agent-scope="main"]')).toContainText('main agent');
     await expect(page.getByRole('heading', { name: 'Context Budget' })).toBeVisible({ timeout: 10000 });
+    const diagnostics = page.locator('[data-session-diagnostics] > .sd-diagnostic-card');
+    await expect(diagnostics).toHaveCount(4);
+    await expect(diagnostics.nth(0).getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible();
+    await expect(diagnostics.nth(1).getByRole('heading', { name: 'Context Budget' })).toBeVisible();
+    await expect(diagnostics.nth(2).getByRole('heading', { name: 'Tool Impact' })).toBeVisible();
+    await expect(diagnostics.nth(3).getByRole('heading', { name: 'Issues & Repro Seeds' })).toBeVisible();
+    const desktopDiagnosticLayout = await diagnostics.evaluateAll((cards) => cards.map((card) => {
+      const rect = card.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: rect.width };
+    }));
+    expect(
+      Math.abs(desktopDiagnosticLayout[0].left - desktopDiagnosticLayout[1].left),
+      'Agents 和 Context Budget 都应从诊断区左侧起始',
+    ).toBeLessThanOrEqual(2);
+    expect(
+      desktopDiagnosticLayout[1].width,
+      'Context Budget 应独占整行，宽度接近 Agents Breakdown',
+    ).toBeGreaterThanOrEqual(desktopDiagnosticLayout[0].width - 2);
+    expect(
+      Math.abs(desktopDiagnosticLayout[2].top - desktopDiagnosticLayout[3].top),
+      'Tool Impact 和 Issues & Repro Seeds 应在桌面左右排列',
+    ).toBeLessThanOrEqual(2);
+    expect(
+      desktopDiagnosticLayout[2].left,
+      'Tool Impact 应位于 Issues & Repro Seeds 左侧',
+    ).toBeLessThan(desktopDiagnosticLayout[3].left);
+    await page.setViewportSize({ width: 900, height: 900 });
+    const mobileDiagnosticLayout = await diagnostics.evaluateAll((cards) => cards.map((card) => {
+      const rect = card.getBoundingClientRect();
+      return { left: rect.left, top: rect.top };
+    }));
+    expect(
+      mobileDiagnosticLayout.map((rect) => Math.round(rect.top)),
+      '移动端诊断区应按 DOM 顺序单列排列',
+    ).toEqual([...mobileDiagnosticLayout].map((rect) => Math.round(rect.top)).sort((a, b) => a - b));
+    expect(
+      Math.max(...mobileDiagnosticLayout.map((rect) => rect.left)) - Math.min(...mobileDiagnosticLayout.map((rect) => rect.left)),
+      '移动端所有诊断卡应回到同一列',
+    ).toBeLessThanOrEqual(2);
+    await page.setViewportSize({ width: 2048, height: 768 });
 
     const rounds = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent) .sd-token-round');
     await expect(rounds.first()).toBeVisible({ timeout: 10000 });

@@ -64,70 +64,6 @@
   {% set diag_issue_summary = diagnostics.issue_summary|default({}) %}
 
   <section class="sd-diagnostics" data-session-diagnostics aria-label="Session diagnostics">
-    <article class="sd-diagnostic-card">
-      <header class="sd-diagnostic-card__head">
-        <h2>Context Budget</h2>
-        <span>{{ diagnostics.context_scope|default('Session-level') }}</span>
-      </header>
-      <div class="sd-diagnostic-card__body">
-        <div class="sd-context-segmented" aria-label="Context budget segmented bar">
-          {% for segment in diagnostics.context_segments %}
-          {% set share_value = segment.share_value|default(0) %}
-          <span
-            class="sd-context-segment sd-context-segment--{{ loop.index }} sd-context-segment--{{ segment.status }}{% if segment.status != 'unavailable' and share_value < 8 %} sd-context-segment--tiny{% elif segment.status != 'unavailable' and share_value < 18 %} sd-context-segment--small{% endif %}"
-            style="--seg-width: {{ share_value }}%"
-            title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}"
-          >
-            <span class="sd-context-segment__label">{{ segment.label }}</span>
-            <span class="sd-context-segment__pct">{{ segment.share }}</span>
-          </span>
-          {% endfor %}
-        </div>
-        <div class="sd-context-budget" aria-label="Session Context legend">
-          {% for segment in diagnostics.context_segments %}
-          <div class="sd-context-budget__item sd-context-budget__item--{{ segment.status }}" title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}">
-            <i class="sd-context-budget__dot sd-context-budget__dot--{{ loop.index }}" aria-hidden="true"></i>
-            <span>{{ segment.label }}</span>
-            <b>{{ segment.tokens_label }} · {{ segment.share }}</b>
-          </div>
-          {% endfor %}
-        </div>
-        <div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>
-      </div>
-    </article>
-
-    <article class="sd-diagnostic-card">
-      <header class="sd-diagnostic-card__head">
-        <h2>Tool Impact</h2>
-        <span title="Global total; split shown in row tooltip">{{ diag_tool_impact.all_tool_calls|default(0) }} calls</span>
-      </header>
-      <div class="sd-diagnostic-card__body">
-        {% if diag_tool_impact.rows %}
-        <table class="sd-compact-table">
-          <thead><tr><th>Tool</th><th>Calls</th><th>Result Tokens</th><th>Failures</th></tr></thead>
-          <tbody>
-            {% for row in diag_tool_impact.rows %}
-            <tr title="{{ row.split_note }} · {{ row.note }}">
-              <td>{{ row.tool }}</td>
-              <td>{{ row.calls }}</td>
-              <td>{{ row.tokens }}</td>
-              <td><span class="sd-rate sd-rate--{{ row.failure_tone|default('ok') }}">{{ row.failures }} · {{ row.failure_rate }}</span></td>
-            </tr>
-            {% endfor %}
-            <tr class="sd-table-summary-row">
-              <td>Summary</td>
-              <td>{{ diag_tool_impact.all_tool_calls|default(0) }}</td>
-              <td>{{ diag_tool_impact.distinct_tools|default(0) }} tools</td>
-              <td><span class="sd-rate sd-rate--{{ diag_tool_impact.failed_tools_tone|default('ok') }}">{{ diag_tool_impact.failed_tools|default(0) }} · {{ diag_tool_impact.failed_tools_rate|default('N/A') }}</span></td>
-            </tr>
-          </tbody>
-        </table>
-        {% else %}
-        <div class="sd-card-empty">No tool calls indexed</div>
-        {% endif %}
-      </div>
-    </article>
-
     <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--subagents sd-diagnostic-card--agents">
       <header class="sd-diagnostic-card__head">
         <h2>Agents Breakdown</h2>
@@ -231,6 +167,70 @@
         </div>
         {% else %}
         <div class="sd-card-empty">No agent runs indexed</div>
+        {% endif %}
+      </div>
+    </article>
+
+    <article class="sd-diagnostic-card sd-diagnostic-card--context">
+      <header class="sd-diagnostic-card__head">
+        <h2>Context Budget</h2>
+        <span>{{ diagnostics.context_scope|default('Session-level') }}</span>
+      </header>
+      <div class="sd-diagnostic-card__body">
+        <div class="sd-context-segmented" aria-label="Context budget segmented bar">
+          {% for segment in diagnostics.context_segments %}
+          {% set share_value = segment.share_value|default(0) %}
+          <span
+            class="sd-context-segment sd-context-segment--{{ loop.index }} sd-context-segment--{{ segment.status }}{% if segment.status != 'unavailable' and share_value < 8 %} sd-context-segment--tiny{% elif segment.status != 'unavailable' and share_value < 18 %} sd-context-segment--small{% endif %}"
+            style="--seg-width: {{ share_value }}%"
+            title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}"
+          >
+            <span class="sd-context-segment__label">{{ segment.label }}</span>
+            <span class="sd-context-segment__pct">{{ segment.share }}</span>
+          </span>
+          {% endfor %}
+        </div>
+        <div class="sd-context-budget" aria-label="Session Context legend">
+          {% for segment in diagnostics.context_segments %}
+          <div class="sd-context-budget__item sd-context-budget__item--{{ segment.status }}" title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}">
+            <i class="sd-context-budget__dot sd-context-budget__dot--{{ loop.index }}" aria-hidden="true"></i>
+            <span>{{ segment.label }}</span>
+            <b>{{ segment.tokens_label }} · {{ segment.share }}</b>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>
+      </div>
+    </article>
+
+    <article class="sd-diagnostic-card">
+      <header class="sd-diagnostic-card__head">
+        <h2>Tool Impact</h2>
+        <span title="Global total; row tooltip shows Main and Subagent call counts">{{ diag_tool_impact.all_tool_calls|default(0) }} calls</span>
+      </header>
+      <div class="sd-diagnostic-card__body">
+        {% if diag_tool_impact.rows %}
+        <table class="sd-compact-table">
+          <thead><tr><th>Tool</th><th>Calls</th><th>Result Tokens</th><th>Failures</th></tr></thead>
+          <tbody>
+            {% for row in diag_tool_impact.rows %}
+            <tr title="{{ row.split_note }} · {{ row.note }}">
+              <td>{{ row.tool }}</td>
+              <td>{{ row.calls }}</td>
+              <td>{{ row.tokens }}</td>
+              <td><span class="sd-rate sd-rate--{{ row.failure_tone|default('ok') }}">{{ row.failures }} · {{ row.failure_rate }}</span></td>
+            </tr>
+            {% endfor %}
+            <tr class="sd-table-summary-row">
+              <td>Summary</td>
+              <td>{{ diag_tool_impact.all_tool_calls|default(0) }}</td>
+              <td>{{ diag_tool_impact.distinct_tools|default(0) }} tools</td>
+              <td><span class="sd-rate sd-rate--{{ diag_tool_impact.failed_tools_tone|default('ok') }}">{{ diag_tool_impact.failed_tools|default(0) }} · {{ diag_tool_impact.failed_tools_rate|default('N/A') }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+        {% else %}
+        <div class="sd-card-empty">No tool calls indexed</div>
         {% endif %}
       </div>
     </article>

@@ -4,7 +4,42 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-PYTHON="${SESSION_BROWSER_PYTHON:-python3}"
+VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.venv}"
+
+python_is_compatible() {
+  local candidate="$1"
+  "$candidate" - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+}
+
+python_bin() {
+  if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
+    if python_is_compatible "$SESSION_BROWSER_PYTHON"; then
+      printf '%s\n' "$SESSION_BROWSER_PYTHON"
+      return 0
+    fi
+    echo "[FAIL] SESSION_BROWSER_PYTHON 不可执行或低于 Python 3.10：$SESSION_BROWSER_PYTHON" >&2
+    return 1
+  fi
+  if [[ -x "$VENV_DIR/bin/python" ]] && python_is_compatible "$VENV_DIR/bin/python"; then
+    printf '%s\n' "$VENV_DIR/bin/python"
+    return 0
+  fi
+  if command -v python >/dev/null 2>&1 && python_is_compatible python; then
+    printf 'python\n'
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1 && python_is_compatible python3; then
+    printf 'python3\n'
+    return 0
+  fi
+  echo "[FAIL] 未找到可用 Python 解释器（需要 Python >= 3.10）。" >&2
+  return 1
+}
+
+PYTHON="$(python_bin)" || PYTHON=""
 
 fail=0
 
@@ -34,6 +69,8 @@ check_file README.md
 check_file pyproject.toml
 check_file requirements.txt
 check_file requirements-dev.txt
+check_file requirements.lock
+check_file requirements-dev.lock
 check_file scripts/session-browser.sh
 check_file .claude/settings.json
 # Hook entry scripts — each hook type has its own shell script.
@@ -56,7 +93,15 @@ check_dir src/session_browser
 check_dir tests
 check_dir scripts/claude_hooks
 
-if [[ -f .claude/settings.json ]]; then
+if [[ -n "$PYTHON" ]]; then
+  echo "[INFO] python: $PYTHON"
+  "$PYTHON" scripts/harness/python_env.py report || fail=1
+  "$PYTHON" scripts/harness/python_env.py check-installed --profile test || fail=1
+else
+  fail=1
+fi
+
+if [[ -f .claude/settings.json && -n "$PYTHON" ]]; then
   "$PYTHON" -m json.tool .claude/settings.json >/dev/null || {
     echo "[FAIL] invalid JSON: .claude/settings.json" >&2
     fail=1
@@ -68,9 +113,11 @@ for script in scripts/session-browser.sh .claude/hooks/*.sh .codex/hooks/*.sh .q
   bash -n "$script" || fail=1
 done
 
-"$PYTHON" -m compileall -q src || fail=1
-"$PYTHON" scripts/quality/check_language_policy.py || fail=1
-"$PYTHON" scripts/quality/check_codex_agent_policy.py || fail=1
+if [[ -n "$PYTHON" ]]; then
+  "$PYTHON" -m compileall -q src || fail=1
+  "$PYTHON" scripts/quality/check_language_policy.py || fail=1
+  "$PYTHON" scripts/quality/check_codex_agent_policy.py || fail=1
+fi
 
 # CSS ownership validation
 css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || true
@@ -89,7 +136,7 @@ fi
 local_files=(.mcp.json .env)
 # Note: .pytest_cache is NOT checked here because it is a normal side-effect
 # of running pytest (which doctor itself triggers via product tests).
-local_dirs=(data output .venv)
+local_dirs=(data output)
 for f in "${local_files[@]}"; do
   if [[ -e "$f" ]]; then
     echo "[FAIL] personal file should not exist: $f" >&2

@@ -33,7 +33,11 @@ Token 指标必须只使用 5 个当前组件字段：
 
 #### Scenario: Analysis cards 展示
 
-页面必须展示 Agents Breakdown、Context Budget、Tool Impact、Issues & Repro Seeds。Agents Breakdown 在桌面端必须横跨完整分析网格宽度，并将 `main agent` 作为第一个可选项，后面列出 subagent runs。切换候选项时，同一卡片内的 token/cache timeline 必须同步切换。Context Budget、Tool Impact、Issues & Repro Seeds 在桌面端使用两列网格，窄屏使用单列布局。
+页面必须展示 Agents Breakdown、Context Budget、Tool Impact、Issues & Repro Seeds。Agents Breakdown 在桌面端必须横跨完整分析网格宽度，并将 `main agent` 作为第一个可选项，后面列出 subagent runs。切换候选项时，同一卡片内的 token/cache timeline 必须同步切换。Context Budget 在桌面端必须横跨完整分析网格宽度并独占一行，Tool Impact 与 Issues & Repro Seeds 在下一行左右排列；窄屏使用单列布局并保持相同语义顺序。
+
+#### Scenario: Removed token-driver cards are absent
+
+页面不得把 `Top Token Drivers` 或 `Call Token Footprint Distribution` 渲染为独立诊断卡。Token-driver 明细只能出现在 `Agents Breakdown` 的 tooltip/候选行 metadata，或出现在 `Tool Impact` 指定的工具结果 token pressure 位置。相关 tooltip 不得展示旧标签 `Call Tokens`、`Call Token Footprint`、`Top Call`、`Top Lane` 或原始 main/subagent split 文案。
 
 #### Scenario: Issue 摘要展示
 
@@ -66,6 +70,8 @@ Expanded timeline 不渲染独立的 LLM summary card 或 LLM call card。LLM us
 Assistant thinking、assistant text 和不可用处理事件行必须使用与 tool call 行一致的紧凑单行高度。Assistant text row payload 只包含 assistant text/thinking 内容；同一 model response 中的 tool_use commands 必须由独立 tool call 行展示，不得在 assistant text row payload 中重复。展开 detail 面板必须和展开 round 行、下一条 round 行保持可见间距。
 
 Codex rollouts 中，同一 assistant 文案如果同时出现在 `event_msg.agent_message` 和 `response_item.message role=assistant`，Session Detail 必须把两者关联为一个 assistant text 事件。存在 `response_item.message` 时它是 canonical payload source；`event_msg.agent_message` 只作为 UI/status mirror 或缺省展示来源，不得生成第二条相同 timeline row。
+
+Codex rollouts 中，父线程通过 `spawn_agent` tool 创建子线程且 child rollout 暴露 `session_meta.source.subagent.thread_spawn.parent_thread_id` 等稳定证据时，Session Detail 必须把 child LLM calls 和 child tools 归属为 `scope="subagent"`，设置稳定 `subagent_id` 和 `parent_tool_call_id`，并用父 `spawn_agent` tool output 填充 `subagent_summary`。父 main agent 的 token、tool 和 attribution totals 不得吞并 child 内部 LLM calls 或 tools；缺少稳定可见证据时不得从隐藏 runtime 推断 subagent。
 
 Round rows 与 subagent round summary rows 必须直接暴露 request attribution 和 response attribution 状态/action。每个 subagent round summary row 必须可独立点击并支持键盘展开/折叠。可见 attribution action label 固定为 `request` 和 `response`；用户不得为了访问 attribution 再打开内部 LLM call card。
 
@@ -176,3 +182,22 @@ Session Detail 页面不得渲染：
 ### Requirement: Global shell simplification
 
 Session Detail 的全局导航必须保持精简。Inspector panel 不得作为 Session Detail 页面默认第三列渲染。
+
+### Requirement: Codex subagent diagnostics
+
+Session Detail SHALL surface recognized Codex subagent runs through Agents Breakdown and Trace without merging child usage into the main agent.
+
+#### Scenario: Recognized Codex subagent appears in Agents Breakdown
+
+- **Given** a normalized Codex session includes one or more recognized subagent runs
+- **When** Session Detail builds the diagnostics view model
+- **Then** the `Agents Breakdown` candidate list SHALL contain `main agent` first
+- **And** each Codex subagent run SHALL appear after `main agent` with its own LLM calls, footprint tokens, tools, and failures
+- **And** selecting the subagent candidate SHALL switch the timeline to subagent rounds without navigating away from the card.
+
+#### Scenario: Recognized Codex subagent appears in Trace
+
+- **Given** a Codex round has a recognized subagent run
+- **When** the Trace round is expanded
+- **Then** the round SHALL show a `Subagent Run` event row
+- **And** each visible subagent round summary row SHALL expose `request` and `response` attribution actions when payload ids are available.

@@ -27,15 +27,15 @@ read_version() {
         tr -d '[:space:]' < "$VERSION_FILE"
         printf '\n'
     else
-        printf '0.0.0-dev\n'
+        printf '0.0-dev\n'
     fi
 }
 
 validate_version() {
     local version="$1"
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?$|^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
         echo "版本号不合法：$version" >&2
-        echo "请使用语义化版本，例如 0.2.0 或 0.2.0-rc.1" >&2
+        echo "请使用版本号 x.y 或 x.y.z，例如 0.4 或 0.4.1-rc.1" >&2
         exit 1
     fi
 }
@@ -121,38 +121,69 @@ warn_if_podman_running() {
 
 python_bin() {
     if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
-        printf '%s\n' "$SESSION_BROWSER_PYTHON"
-    elif [[ -x "$VENV_DIR/bin/python" ]]; then
+        if python_is_compatible "$SESSION_BROWSER_PYTHON"; then
+            printf '%s\n' "$SESSION_BROWSER_PYTHON"
+            return 0
+        fi
+        echo "SESSION_BROWSER_PYTHON 不可执行或低于 Python 3.10：$SESSION_BROWSER_PYTHON" >&2
+        exit 1
+    fi
+
+    if [[ -x "$VENV_DIR/bin/python" ]] && python_is_compatible "$VENV_DIR/bin/python"; then
         printf '%s\n' "$VENV_DIR/bin/python"
-    elif command -v python >/dev/null 2>&1 && python - <<'PY' >/dev/null 2>&1
+        return 0
+    fi
+
+    if command -v python >/dev/null 2>&1 && python_is_compatible python; then
+        printf 'python\n'
+        return 0
+    fi
+
+    if command -v python3 >/dev/null 2>&1 && python_is_compatible python3; then
+        printf 'python3\n'
+        return 0
+    fi
+
+    echo "未找到可用 Python 解释器（需要 Python >= 3.10）。" >&2
+    exit 1
+}
+
+python_is_compatible() {
+    local candidate="$1"
+    "$candidate" - <<'PY' >/dev/null 2>&1
 import sys
 raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
-    then
-        printf 'python\n'
-    else
-        printf 'python3\n'
-    fi
 }
 
 run_tests() {
     cd "$PROJECT_DIR"
+    "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" check-installed --profile test
+    local -a pytest_args
+    pytest_args=(-W error)
     if [[ $# -gt 0 ]]; then
-        PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}" "$(python_bin)" -m pytest "$@"
+        pytest_args+=("$@")
     else
-        PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}" "$(python_bin)" -m pytest tests
+        pytest_args+=(tests)
     fi
+    PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}" "$(python_bin)" -m pytest "${pytest_args[@]}"
 }
 
 install_deps() {
     cd "$PROJECT_DIR"
+    if [[ "${1:-}" == "--dry-run" ]]; then
+        "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" report
+        echo "[DRY-RUN] 未安装依赖；锁文件一致性检查完成。"
+        return 0
+    fi
     if [[ ! -x "$VENV_DIR/bin/python" ]]; then
         python3 -m venv "$VENV_DIR"
     fi
-    "$VENV_DIR/bin/python" -m pip install -r requirements-dev.txt "$@"
+    "$(python_bin)" -m pip install -r requirements-dev.txt "$@"
 }
 
 ensure_runtime_deps() {
+    "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" check-installed --profile runtime
     "$(python_bin)" - <<'PY'
 import importlib
 import sys
@@ -393,6 +424,7 @@ print_usage() {
 
 本地验证：
   deps [pip options]               安装本地运行/测试依赖
+  deps --dry-run                   仅检查 Python、依赖声明和锁文件一致性
   serve [serve options]            前台启动本地服务，默认 DEBUG 日志
   scan [scan options]              扫描到本地测试索引
   stop [--port 18999]              按端口停止本地测试服务进程
@@ -400,13 +432,14 @@ print_usage() {
 
 版本与发布验证：
   version                          输出当前版本
-  set-version <x.y.z>              更新 VERSION
-  build-dist [x.y.z]               构建 Python source 发布包到 tmp/release/dist
-  verify-dist [x.y.z]              校验 Python source 发布包版本与关键资源
-  release-check [x.y.z]            测试、构建 source 发布包并校验发布包
+  set-version <x.y>                更新 VERSION
+  build-dist [x.y]                 构建 Python source 发布包到 tmp/release/dist
+  verify-dist [x.y]                校验 Python source 发布包版本与关键资源
+  release-check [x.y]              测试、构建 source 发布包并校验发布包
 
 常用环境变量：
   SESSION_BROWSER_VENV_DIR         默认：./.venv
+  SESSION_BROWSER_PYTHON           显式 Python；优先级高于虚拟环境
   SESSION_BROWSER_LOCAL_HOST       默认：127.0.0.1
   SESSION_BROWSER_LOCAL_PORT       默认：18999
   SESSION_BROWSER_LOCAL_DATA_DIR   默认：~/.local/share/feipi/session-browser/local-test-index
@@ -419,7 +452,7 @@ print_usage() {
 示例：
   ./scripts/session-browser.sh serve
   ./scripts/session-browser.sh scan --incremental
-  ./scripts/session-browser.sh release-check 0.3.0
+  ./scripts/session-browser.sh release-check 0.4
 EOF
 }
 
@@ -451,7 +484,7 @@ case "$CMD" in
         ;;
     set-version)
         if [[ $# -lt 1 ]]; then
-            echo "用法：$0 set-version <x.y.z>" >&2
+            echo "用法：$0 set-version <x.y>" >&2
             exit 1
         fi
         set_version "$1"

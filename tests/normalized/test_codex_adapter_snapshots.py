@@ -13,6 +13,7 @@ from session_browser.sources.codex import parse_normalized_session_file
 FIXTURE_DIR = Path("tests/fixtures/normalized/codex")
 TOOL_LOOP_INPUT = FIXTURE_DIR / "tool_loop.input" / "rollout.jsonl"
 TOOL_LOOP_EXPECTED = FIXTURE_DIR / "tool_loop.expected.json"
+SUBAGENT_INPUT = FIXTURE_DIR / "subagent.input" / "rollout-2026-06-18T14-11-04-parent-thread.jsonl"
 
 
 def _thread_info() -> dict:
@@ -180,3 +181,38 @@ def test_codex_normalized_skips_duplicate_cumulative_token_count():
     assert fragment["status"] == "duplicate_token_count"
     assert fragment["contribution"] == 0
     assert fragment["cumulative_total_tokens"] == 67802
+
+
+def test_codex_subagent_rollout_links_parent_tool_and_child_calls():
+    actual = parse_codex_rollout_file(
+        SUBAGENT_INPUT,
+        thread_info={
+            "id": "parent-thread",
+            "title": "Codex subagent fixture",
+            "cwd": "/repo",
+            "source": "fixture",
+            "model": "gpt-5.5",
+            "git_branch": "main",
+        },
+    )
+
+    validate_normalized_session(actual)
+
+    calls = actual["calls"]
+    assert [call["scope"] for call in calls] == ["main", "subagent", "subagent", "main", "main"]
+    sub_calls = [call for call in calls if call["scope"] == "subagent"]
+    assert {call["subagent_id"] for call in sub_calls} == {"child-thread"}
+    assert {call["parent_tool_call_id"] for call in sub_calls} == {"call_spawn"}
+    assert {call["parent_tool_name"] for call in sub_calls} == {"spawn_agent"}
+    assert [call["usage"]["total"] for call in sub_calls] == [78, 92]
+
+    parent_spawn = next(tool for tool in actual["tool_executions"] if tool["tool_call_id"] == "call_spawn")
+    assert parent_spawn["name"] == "spawn_agent"
+    assert parent_spawn["scope"] == "main"
+    assert parent_spawn["subagent_id"] == "child-thread"
+    assert parent_spawn["result_consumed_by_call_id"] == "codex-call-0002"
+
+    child_tool = next(tool for tool in actual["tool_executions"] if tool["tool_call_id"] == "call_child_exec")
+    assert child_tool["scope"] == "subagent"
+    assert child_tool["declared_by_call_id"].startswith("codex-subagent-child-thread-call-")
+    assert child_tool["result_consumed_by_call_id"].startswith("codex-subagent-child-thread-call-")

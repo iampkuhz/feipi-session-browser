@@ -10,6 +10,8 @@ Covers:
 7. Flat Codex usage variants (section 8.7)
 """
 
+from pathlib import Path
+
 import pytest
 
 from session_browser.domain.models import (
@@ -24,6 +26,12 @@ from session_browser.attribution.agents.codex import (
 from session_browser.attribution.contracts import ValuePrecision
 from session_browser.sources.codex import _extract_codex_usage
 from session_browser.web.presenters.session_detail import _normalize_codex_usage
+
+
+CODEX_SUBAGENT_FIXTURE = (
+    Path("tests/fixtures/normalized/codex/subagent.input")
+    / "rollout-2026-06-18T14-11-04-parent-thread.jsonl"
+)
 
 
 def _make_lc(**kwargs):
@@ -470,6 +478,58 @@ class TestCodexContextBuilder:
         assert len(result) > 0
         assert "Read" in result
         assert "Bash" in result
+
+
+class TestCodexSubagentAttributionFixture:
+    """Codex spawn_agent evidence stays separate from child tool ownership."""
+
+    def test_source_parser_marks_spawn_agent_and_child_tools(self):
+        from session_browser.sources.codex import (
+            _attach_subagents_to_spawn_tools,
+            _extract_tool_calls,
+            _flatten_subagent_tool_calls,
+            _parse_subagent_runs,
+        )
+        from session_browser.sources.jsonl_reader import parse_jsonl_events
+
+        events, _ = parse_jsonl_events(CODEX_SUBAGENT_FIXTURE)
+        parent_tools = _extract_tool_calls(events)
+        subagent_runs = _parse_subagent_runs(CODEX_SUBAGENT_FIXTURE, "parent-thread")
+        _attach_subagents_to_spawn_tools(parent_tools, subagent_runs)
+        all_tools = parent_tools + _flatten_subagent_tool_calls(subagent_runs)
+
+        spawn = next(tool for tool in parent_tools if tool.name == "spawn_agent")
+        assert spawn.scope == "main"
+        assert spawn.subagent_id == "child-thread"
+        assert spawn.subagent_summary["agent_type"] == "implementer"
+        assert spawn.subagent_summary["agent_nickname"] == "Chandrasekhar"
+        assert spawn.llm_call_count == 2
+
+        child_tool = next(tool for tool in all_tools if tool.tool_use_id == "call_child_exec")
+        assert child_tool.scope == "subagent"
+        assert child_tool.subagent_id == "child-thread"
+        assert child_tool.parent_tool_use_id == "call_spawn"
+        assert child_tool.parent_tool_name == "spawn_agent"
+
+    def test_subagent_llm_call_request_builder_does_not_use_parent_scope(self):
+        lc = _make_lc(
+            id="codex-subagent-child-thread-call-0001",
+            scope="subagent",
+            subagent_id="child-thread",
+            parent_id="call_spawn",
+            parent_tool_name="spawn_agent",
+            input_tokens=70,
+            output_tokens=8,
+            response_full="",
+        )
+        ro = _make_ro(user_content="Goal: write a tiny sanitized fixture.")
+        builder = CodexAttributionBuilder(lc, ro)
+
+        result = builder.build_request()
+
+        assert result.agent == "codex"
+        assert result.call_id == "codex-subagent-child-thread-call-0001"
+        assert result.total_input.value == 70
 
 
 # ── extract_codex_usage source priority tests ───────────────────────────────

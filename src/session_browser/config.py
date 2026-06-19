@@ -50,9 +50,9 @@ SERVER_PORT = int(os.environ.get("SERVER_PORT", "18999"))
 def _default_version() -> str:
     version_file = Path(__file__).resolve().parents[2] / "VERSION"
     try:
-        return version_file.read_text(encoding="utf-8").strip() or "0.0.0-dev"
+        return version_file.read_text(encoding="utf-8").strip() or "0.0-dev"
     except OSError:
-        return "0.0.0-dev"
+        return "0.0-dev"
 
 
 SESSION_BROWSER_VERSION = _default_version()

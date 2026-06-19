@@ -340,6 +340,10 @@ def parse_session_detail(
         model_from_db = session_meta.get("model_provider", "")
     messages = _extract_messages(events, model=model_from_db)
     tool_calls = _extract_tool_calls(events)
+    subagent_runs = _parse_subagent_runs(session_file, session_id)
+    _attach_subagents_to_spawn_tools(tool_calls, subagent_runs)
+    tool_calls.extend(_flatten_subagent_tool_calls(subagent_runs))
+    summary.subagent_instance_count = len(subagent_runs)
 
     # Attach parse diagnostics from JSONL reader
     parse_diag = build_parse_diagnostics(
@@ -350,7 +354,7 @@ def parse_session_detail(
     summary.file_path = str(session_file)
     summary.parse_diagnostics = parse_diag.to_dict()
 
-    return summary, messages, tool_calls, []
+    return summary, messages, tool_calls, subagent_runs
 
 
 def parse_session_detail_with_normalized(
@@ -366,7 +370,7 @@ def parse_session_detail_with_normalized(
         ParseSeverity,
         build_parse_diagnostics,
     )
-    from session_browser.normalized.agents.codex import parse_codex_events
+    from session_browser.normalized.agents.codex import parse_codex_rollout_file
 
     thread_info = (threads_db or {}).get(session_id, {})
     rollout_path = thread_info.get("rollout_path", "")
@@ -397,6 +401,10 @@ def parse_session_detail_with_normalized(
     model_from_db = thread_info.get("model", "") or session_meta.get("model_provider", "")
     messages = _extract_messages(events, model=model_from_db)
     tool_calls = _extract_tool_calls(events)
+    subagent_runs = _parse_subagent_runs(session_file, session_id)
+    _attach_subagents_to_spawn_tools(tool_calls, subagent_runs)
+    tool_calls.extend(_flatten_subagent_tool_calls(subagent_runs))
+    summary.subagent_instance_count = len(subagent_runs)
 
     parse_diag = build_parse_diagnostics(
         session_key=summary.session_key,
@@ -412,12 +420,11 @@ def parse_session_detail_with_normalized(
     normalized_thread_info.setdefault("cwd", summary.cwd)
     normalized_thread_info.setdefault("git_branch", summary.git_branch)
     normalized_thread_info.setdefault("model", summary.model)
-    normalized = parse_codex_events(
-        events,
-        source_path=str(session_file),
+    normalized = parse_codex_rollout_file(
+        session_file,
         thread_info=normalized_thread_info,
     )
-    return summary, messages, tool_calls, [], normalized, session_file
+    return summary, messages, tool_calls, subagent_runs, normalized, session_file
 
 
 def parse_session_detail_normalized(
@@ -981,6 +988,145 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                 ))
 
     return tool_calls
+
+
+def _parse_subagent_runs(session_file: Path, parent_session_id: str) -> list[dict]:
+    """Parse Codex child rollout files that declare this thread as parent."""
+    if not parent_session_id or not session_file.exists():
+        return []
+    runs: list[dict] = []
+    for candidate in sorted(session_file.parent.glob("rollout-*.jsonl")):
+        if candidate == session_file:
+            continue
+        events, _ = parse_jsonl_events(candidate)
+        meta = _first_session_meta(events)
+        spawn = _codex_thread_spawn(meta)
+        if spawn.get("parent_thread_id") != parent_session_id:
+            continue
+        agent_id = str(meta.get("id") or _session_id_from_path(str(candidate)))
+        model = str(meta.get("model_provider") or "")
+        messages = _extract_messages(events, model=model)
+        tool_calls = _extract_tool_calls(events)
+        for tc in tool_calls:
+            tc.scope = "subagent"
+            tc.subagent_id = agent_id
+            tc.parent_tool_name = "spawn_agent"
+        summary = _subagent_summary_from_events(events, candidate, agent_id, spawn)
+        runs.append({
+            "path": str(candidate),
+            "messages": messages,
+            "tool_calls": tool_calls,
+            "summary": summary,
+        })
+    return runs
+
+
+def _first_session_meta(events: list[dict]) -> dict:
+    for event in events:
+        if event.get("type") == "session_meta" and isinstance(event.get("payload"), dict):
+            return event["payload"]
+    return {}
+
+
+def _codex_thread_spawn(meta: dict) -> dict:
+    source = meta.get("source") if isinstance(meta.get("source"), dict) else {}
+    subagent = source.get("subagent") if isinstance(source.get("subagent"), dict) else {}
+    spawn = subagent.get("thread_spawn") if isinstance(subagent.get("thread_spawn"), dict) else {}
+    return spawn
+
+
+def _subagent_summary_from_events(
+    events: list[dict],
+    path: Path,
+    agent_id: str,
+    spawn: dict,
+) -> dict:
+    llm_calls = 0
+    input_tokens = 0
+    cache_read = 0
+    output_tokens = 0
+    first_ts = ""
+    last_ts = ""
+    for event in events:
+        ts = str(event.get("timestamp") or "")
+        if ts and not first_ts:
+            first_ts = ts
+        if ts:
+            last_ts = ts
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        if event.get("type") == "event_msg" and payload.get("type") == "token_count":
+            usage = _extract_codex_usage({"payload": payload})
+            if usage:
+                llm_calls += 1
+                input_tokens += max(_int_or_zero(usage.get("input_tokens")) - _int_or_zero(usage.get("cached_input_tokens")), 0)
+                cache_read += _int_or_zero(usage.get("cached_input_tokens"))
+                output_tokens += _int_or_zero(usage.get("output_tokens"))
+    return {
+        "agent_id": agent_id,
+        "agent_type": str(spawn.get("agent_role") or ""),
+        "agent_nickname": str(spawn.get("agent_nickname") or ""),
+        "parent_thread_id": str(spawn.get("parent_thread_id") or ""),
+        "depth": _int_or_zero(spawn.get("depth")),
+        "path": str(path),
+        "started_at": first_ts,
+        "ended_at": last_ts,
+        "llm_call_count": llm_calls,
+        "tool_call_count": sum(
+            1
+            for event in events
+            if event.get("type") == "response_item"
+            and (event.get("payload") or {}).get("type") in {"function_call", "custom_tool_call"}
+        ),
+        "failed_tool_count": 0,
+        "input_tokens": input_tokens,
+        "cache_read_input_tokens": cache_read,
+        "cache_creation_input_tokens": 0,
+        "output_tokens": output_tokens,
+    }
+
+
+def _attach_subagents_to_spawn_tools(tool_calls: list[ToolCall], subagent_runs: list[dict]) -> None:
+    by_id = {(run.get("summary") or {}).get("agent_id", ""): run for run in subagent_runs}
+    for tc in tool_calls:
+        if tc.name != "spawn_agent":
+            continue
+        data = _json_dict(tc.result)
+        agent_id = str(data.get("agent_id") or "")
+        run = by_id.get(agent_id)
+        if not run:
+            continue
+        summary = run.get("summary") or {}
+        tc.subagent_id = agent_id
+        tc.subagent_summary = {
+            **summary,
+            "nickname": data.get("nickname") or summary.get("agent_nickname", ""),
+        }
+        tc.llm_call_count = summary.get("llm_call_count", 0)
+        tc.llm_error_count = 0
+        tc.subagent_tool_call_count = summary.get("tool_call_count", 0)
+        tc.subagent_failed_tool_count = summary.get("failed_tool_count", 0)
+        for child in run.get("tool_calls") or []:
+            child.parent_tool_use_id = tc.tool_use_id
+            child.parent_tool_name = tc.name
+
+
+def _flatten_subagent_tool_calls(subagent_runs: list[dict]) -> list[ToolCall]:
+    result: list[ToolCall] = []
+    for run in subagent_runs:
+        result.extend(run.get("tool_calls") or [])
+    return result
+
+
+def _json_dict(value: object) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
 
 
 def scan_all_sessions(
