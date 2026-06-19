@@ -16,6 +16,7 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+uv.lock
 
 # SQLite index
 *.sqlite

@@ -15,6 +15,14 @@ from session_browser.normalized.artifacts import (
 )
 
 
+SCAN_COMMIT_EVERY = 25
+
+
+def _commit_periodically(conn, count: int) -> None:
+    if count > 0 and count % SCAN_COMMIT_EVERY == 0:
+        conn.commit()
+
+
 # --- File location helpers ---------------------------------------------------
 
 
@@ -342,6 +350,7 @@ def full_scan(
                 verbose=verbose,
             )
             claude_count += 1
+            _commit_periodically(conn, claude_count)
             if verbose and claude_count % 50 == 0:
                 print(f"  Claude: {claude_count} sessions")
 
@@ -419,6 +428,7 @@ def full_scan(
                 verbose=verbose,
             )
             codex_count += 1
+            _commit_periodically(conn, codex_count)
             if verbose and codex_count % 50 == 0:
                 print(f"  Codex: {codex_count} sessions")
 
@@ -474,6 +484,7 @@ def full_scan(
                 verbose=verbose,
             )
             qoder_count += 1
+            _commit_periodically(conn, qoder_count)
             if verbose and qoder_count % 50 == 0:
                 print(f"  Qoder: {qoder_count} sessions")
 
@@ -681,6 +692,7 @@ def incremental_scan(
                 verbose=verbose,
             )
             claude_count += 1
+            _commit_periodically(conn, claude_count)
 
         conn.commit()
 
@@ -794,6 +806,7 @@ def incremental_scan(
                 verbose=verbose,
             )
             codex_count += 1
+            _commit_periodically(conn, codex_count)
 
         conn.commit()
 
@@ -892,6 +905,7 @@ def incremental_scan(
                 verbose=verbose,
             )
             qoder_count += 1
+            _commit_periodically(conn, qoder_count)
 
         conn.commit()
 

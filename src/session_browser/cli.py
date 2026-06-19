@@ -14,6 +14,7 @@ Environment variables:
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import logging
 import os
 import signal
@@ -37,6 +38,15 @@ from session_browser.config import (
 
 
 logger = logging.getLogger("session_browser")
+
+
+class ScanLockUnavailable(RuntimeError):
+    """Raised when another session-browser scan owns the inter-process lock."""
+
+    def __init__(self, lock_path, holder: str):
+        super().__init__("session-browser scan lock is unavailable")
+        self.lock_path = lock_path
+        self.holder = holder
 
 
 def configure_logging(level: str | None = None) -> None:
@@ -97,6 +107,78 @@ def _run_command(
         ) from exc
 
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+
+
+def _scan_lock_timeout_seconds() -> float:
+    raw = os.environ.get("SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS")
+    if raw is None:
+        raw = os.environ.get("SESSION_BROWSER_SCAN_LOCK_TIMEOUT")
+    if raw is None:
+        return 120.0
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        logger.warning("Invalid SESSION_BROWSER_SCAN_LOCK_TIMEOUT=%r; using default", raw)
+        return 120.0
+
+
+def _read_scan_lock_holder(lock_file) -> str:
+    try:
+        lock_file.seek(0)
+        return lock_file.read().strip()
+    except OSError:
+        return ""
+
+
+def _write_scan_lock_holder(lock_file, owner: str) -> None:
+    started_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    payload = f"pid={os.getpid()} owner={owner} started_at={started_at}\n"
+    lock_file.seek(0)
+    lock_file.truncate()
+    lock_file.write(payload)
+    lock_file.flush()
+    os.fsync(lock_file.fileno())
+
+
+@contextmanager
+def _scan_lock(owner: str, *, blocking: bool, timeout_seconds: float = 0.0):
+    """Coordinate foreground, startup, and background scans across processes."""
+    try:
+        import fcntl
+    except ImportError:
+        # fcntl is unavailable on some platforms; SQLite busy_timeout still applies.
+        yield
+        return
+
+    from session_browser.config import ensure_index_dir
+
+    ensure_index_dir()
+    lock_path = INDEX_DIR / "scan.lock"
+    lock_path.touch(exist_ok=True)
+    lock_file = lock_path.open("r+", encoding="utf-8")
+    acquired = False
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    try:
+        while True:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                break
+            except BlockingIOError as exc:
+                if not blocking or time.monotonic() >= deadline:
+                    holder = _read_scan_lock_holder(lock_file)
+                    raise ScanLockUnavailable(lock_path, holder) from exc
+                time.sleep(0.25)
+
+        _write_scan_lock_holder(lock_file, owner)
+        yield
+    finally:
+        if acquired:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+        lock_file.close()
 
 
 def _find_running_scan_pid() -> int | None:
@@ -181,9 +263,22 @@ def _print_database_locked_help(exc: sqlite3.OperationalError) -> None:
         print(result.stdout.strip(), file=sys.stderr)
 
 
+def _print_scan_lock_help(exc: ScanLockUnavailable) -> None:
+    """Print diagnostics when the session-browser scan lock is already held."""
+    print("Scan failed: another session-browser scan is already running.", file=sys.stderr)
+    print(f"Lock path: {exc.lock_path}", file=sys.stderr)
+    if exc.holder:
+        print(f"Lock holder: {exc.holder}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("处理方式：", file=sys.stderr)
+    print("  1. 等待当前前台 scan 或后台 incremental scan 完成。", file=sys.stderr)
+    print(f"  2. 如由本地服务触发，可停止服务：./scripts/session-browser.sh stop --port {SERVER_PORT}", file=sys.stderr)
+    print("  3. 如确认没有扫描运行，可删除同目录 scan.lock 后重试。", file=sys.stderr)
+
+
 def cmd_scan(args: argparse.Namespace) -> None:
     """执行 full scan 或 incremental scan。"""
-    from session_browser.index.indexer import full_scan, incremental_scan, init_schema, _get_connection
+    from session_browser.index.indexer import full_scan, incremental_scan, _get_connection
 
     # 启动前检查是否已有 scan 进程。
     force = getattr(args, "force", False)
@@ -212,34 +307,38 @@ def cmd_scan(args: argparse.Namespace) -> None:
 
     conn = None
     try:
-        conn = _get_connection()
+        owner = "foreground incremental scan" if args.incremental else "foreground full scan"
+        with _scan_lock(owner, blocking=True, timeout_seconds=_scan_lock_timeout_seconds()):
+            conn = _get_connection()
 
-        if args.incremental:
-            # 只创建缺失表；不清空现有数据。
-            _ensure_schema_exists(conn)
-            print(f"Starting incremental scan{label}...")
-            start = time.time()
-            result = incremental_scan(conn, verbose=True, agent=agent)
-            elapsed = time.time() - start
-            print(f"\nIncremental scan complete in {elapsed:.1f}s")
-            print(f"  Updated Claude: {result['claude_count']} sessions")
-            print(f"  Updated Codex:  {result['codex_count']} sessions")
-            if 'qoder_count' in result:
-                print(f"  Updated Qoder:  {result['qoder_count']} sessions")
-            print(f"  Skipped:        {result['skipped']} sessions")
-            print(f"  Total updated:  {result['total']} sessions")
-        else:
-            init_schema(conn)
-            print(f"Starting full scan{label}...")
-            start = time.time()
-            result = full_scan(conn, verbose=True, agent=agent)
-            elapsed = time.time() - start
-            print(f"\nScan complete in {elapsed:.1f}s")
-            print(f"  Claude Code: {result['claude_count']} sessions")
-            print(f"  Codex:       {result['codex_count']} sessions")
-            if 'qoder_count' in result:
-                print(f"  Qoder:       {result['qoder_count']} sessions")
-            print(f"  Total:       {result['total']} sessions")
+            if args.incremental:
+                # 只创建缺失表；不清空现有数据。
+                _ensure_schema_exists(conn)
+                print(f"Starting incremental scan{label}...")
+                start = time.time()
+                result = incremental_scan(conn, verbose=True, agent=agent)
+                elapsed = time.time() - start
+                print(f"\nIncremental scan complete in {elapsed:.1f}s")
+                print(f"  Updated Claude: {result['claude_count']} sessions")
+                print(f"  Updated Codex:  {result['codex_count']} sessions")
+                if 'qoder_count' in result:
+                    print(f"  Updated Qoder:  {result['qoder_count']} sessions")
+                print(f"  Skipped:        {result['skipped']} sessions")
+                print(f"  Total updated:  {result['total']} sessions")
+            else:
+                print(f"Starting full scan{label}...")
+                start = time.time()
+                result = full_scan(conn, verbose=True, agent=agent)
+                elapsed = time.time() - start
+                print(f"\nScan complete in {elapsed:.1f}s")
+                print(f"  Claude Code: {result['claude_count']} sessions")
+                print(f"  Codex:       {result['codex_count']} sessions")
+                if 'qoder_count' in result:
+                    print(f"  Qoder:       {result['qoder_count']} sessions")
+                print(f"  Total:       {result['total']} sessions")
+    except ScanLockUnavailable as exc:
+        _print_scan_lock_help(exc)
+        sys.exit(2)
     except sqlite3.OperationalError as exc:
         if "database is locked" in str(exc).lower():
             _print_database_locked_help(exc)
@@ -460,17 +559,24 @@ def cmd_serve(args: argparse.Namespace) -> None:
         logger.info("Running startup incremental scan before serving")
         start = time.time()
         try:
-            # Only scan recent sessions at startup to avoid blocking the server.
-            # The background scanner will pick up older changed sessions over time.
-            result = incremental_scan(conn, verbose=False, max_age_seconds=2 * 3600)
-            count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+            with _scan_lock("startup incremental scan", blocking=False):
+                # Only scan recent sessions at startup to avoid blocking the server.
+                # The background scanner will pick up older changed sessions over time.
+                result = incremental_scan(conn, verbose=False, max_age_seconds=2 * 3600)
+                count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+                logger.info(
+                    "Startup scan complete: total_indexed=%s updated=%s new=%s skipped=%s elapsed=%.1fs",
+                    count,
+                    result.get("total", 0),
+                    result.get("new_count", 0),
+                    result.get("skipped", 0),
+                    time.time() - start,
+                )
+        except ScanLockUnavailable as exc:
             logger.info(
-                "Startup scan complete: total_indexed=%s updated=%s new=%s skipped=%s elapsed=%.1fs",
-                count,
-                result.get("total", 0),
-                result.get("new_count", 0),
-                result.get("skipped", 0),
-                time.time() - start,
+                "Skipping startup scan because another scan is running: lock=%s holder=%s",
+                exc.lock_path,
+                exc.holder or "unknown",
             )
         except Exception:
             logger.exception("Startup scan failed")
@@ -563,28 +669,42 @@ class _BackgroundScanner:
                 continue
 
             try:
-                conn = _get_connection()
-                # 确保表存在，但不清空数据。
-                from session_browser.cli import _ensure_schema_exists
-                _ensure_schema_exists(conn)
+                with _scan_lock("background incremental scan", blocking=False):
+                    conn = None
+                    try:
+                        conn = _get_connection()
+                        # 确保表存在，但不清空数据。
+                        from session_browser.cli import _ensure_schema_exists
+                        _ensure_schema_exists(conn)
 
+                        if needs_hot:
+                            result = incremental_scan(conn, max_age_seconds=self.hot_seconds)
+                            if result.get("new_count", 0) > 0:
+                                print(f"  [hot scan] {result['new_count']} new session(s), "
+                                      f"{result['total'] - result['new_count']} updated, "
+                                      f"{result['skipped']} skipped")
+                            self._last_hot_scan = time.time()
+
+                        if needs_warm:
+                            result = incremental_scan(conn, max_age_seconds=self.warm_seconds)
+                            if result.get("new_count", 0) > 0:
+                                print(f"  [warm scan] {result['new_count']} new session(s), "
+                                      f"{result['total'] - result['new_count']} updated, "
+                                      f"{result['skipped']} skipped")
+                            self._last_warm_scan = time.time()
+                    finally:
+                        if conn is not None:
+                            conn.close()
+            except ScanLockUnavailable as exc:
                 if needs_hot:
-                    result = incremental_scan(conn, max_age_seconds=self.hot_seconds)
-                    if result.get("new_count", 0) > 0:
-                        print(f"  [hot scan] {result['new_count']} new session(s), "
-                              f"{result['total'] - result['new_count']} updated, "
-                              f"{result['skipped']} skipped")
                     self._last_hot_scan = time.time()
-
                 if needs_warm:
-                    result = incremental_scan(conn, max_age_seconds=self.warm_seconds)
-                    if result.get("new_count", 0) > 0:
-                        print(f"  [warm scan] {result['new_count']} new session(s), "
-                              f"{result['total'] - result['new_count']} updated, "
-                              f"{result['skipped']} skipped")
                     self._last_warm_scan = time.time()
-
-                conn.close()
+                logger.debug(
+                    "Skipping background scan because another scan is running: lock=%s holder=%s",
+                    exc.lock_path,
+                    exc.holder or "unknown",
+                )
             except Exception:
                 logger.exception("Background incremental scan failed")
 
