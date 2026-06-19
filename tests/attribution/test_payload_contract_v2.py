@@ -201,6 +201,40 @@ class TestRequestAttributionPayloadV2:
         assert "invariants" in diag
         assert isinstance(diag["invariants"], list)
 
+    def test_accounting_attribution_groups_request_candidates(self):
+        attr = _make_request_attribution()
+        attr.buckets = [
+            RequestAttributionBucket(
+                key="current_user_message", label="当前用户输入",
+                tokens=200, percent=20.0, precision=ValuePrecision.ESTIMATED,
+                source=ValueSource.TRANSCRIPT, confidence_label="高",
+                summary="用户 prompt", contributes_to_total=True,
+            ),
+            RequestAttributionBucket(
+                key="tool_definitions", label="工具定义",
+                tokens=100, percent=10.0, precision=ValuePrecision.ESTIMATED,
+                source=ValueSource.TOOL_LIST, confidence_label="中",
+                summary="工具 schema", contributes_to_total=True,
+            ),
+        ]
+        payload = request_attribution_to_payload(attr)
+
+        accounting = payload["accounting_attribution"]
+        assert accounting["field_order"] == [
+            "fresh_input_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "output_tokens",
+        ]
+        fresh = accounting["fresh_input_tokens"]
+        assert fresh["tokens"] == 600
+        candidates = {item["candidate"]: item for item in fresh["candidates"]}
+        assert candidates["user_input"]["tokens"] == 200
+        assert candidates["tool_definitions"]["tokens"] == 100
+        assert accounting["cache_read_tokens"]["tokens"] == 400
+        assert accounting["cache_read_tokens"]["candidates"] == []
+        assert "不推断 per-candidate split" in accounting["cache_read_tokens"]["notes"][0]
+
 
 class TestResponseAttributionPayloadV2:
     """Response attribution payload v2 contract tests。"""
@@ -254,6 +288,32 @@ class TestResponseAttributionPayloadV2:
         diag = payload["diagnostics"]
         assert "invariants" in diag
         assert "tool_schema_counted_as_output" in diag
+
+    def test_accounting_attribution_groups_response_candidates(self):
+        attr = _make_response_attribution()
+        attr.buckets = [
+            ResponseAttributionBucket(
+                key="assistant_text", label="Assistant text",
+                tokens=300, percent=60.0, precision=ValuePrecision.ESTIMATED,
+                source=ValueSource.TRANSCRIPT, confidence_label="中",
+                summary="助手文本", contributes_to_total=True,
+            ),
+            ResponseAttributionBucket(
+                key="tool_call", label="Tool call",
+                tokens=100, percent=20.0, precision=ValuePrecision.ESTIMATED,
+                source=ValueSource.TRANSCRIPT, confidence_label="中",
+                summary="工具调用", contributes_to_total=True,
+            ),
+        ]
+        payload = response_attribution_to_payload(attr)
+
+        accounting = payload["accounting_attribution"]
+        assert accounting["fresh_input_tokens"]["tokens"] == 0
+        output = accounting["output_tokens"]
+        assert output["tokens"] == 500
+        candidates = {item["candidate"]: item for item in output["candidates"]}
+        assert candidates["assistant_output"]["tokens"] == 300
+        assert candidates["tool_calls"]["tokens"] == 100
 
 
 class TestAttributedValueContract:

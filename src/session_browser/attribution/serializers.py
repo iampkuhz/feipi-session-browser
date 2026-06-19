@@ -176,6 +176,236 @@ def _normalize_request_bucket_percents_for_display(
     return buckets
 
 
+def _request_candidate_for_bucket(bucket: dict) -> str | None:
+    """把 canonical request bucket metadata 映射到共享 candidate vocabulary。"""
+    key = str(bucket.get("canonical_key") or bucket.get("key") or "")
+    mapping = {
+        "current_user_input": "user_input",
+        "user_attachments": "user_input",
+        "conversation_messages": "conversation_history",
+        "tool_result_context": "tool_results",
+        "repository_file_context": "repo_context",
+        "tool_definitions": "tool_definitions",
+        "mcp_tool_metadata": "tool_definitions",
+        "skill_plugin_catalog": "skill_definitions",
+        "instruction_context": "system_instructions",
+        "platform_default_instructions": "system_instructions",
+        "session_injected_instructions": "system_instructions",
+        "project_instruction_files": "system_instructions",
+        "local_instruction_context": "system_instructions",
+        "agent_subagent_prompt": "system_instructions",
+        "custom_agent_profile": "system_instructions",
+        "builtin_system_prompt": "system_instructions",
+        "hidden_instruction_estimate": "system_instructions",
+        "captured_runtime_context": "runtime_context",
+        "permission_sandbox_policy": "runtime_context",
+        "client_app_context": "runtime_context",
+        "collaboration_mode_policy": "runtime_context",
+        "runtime_environment_context": "runtime_context",
+        "task_goal_context": "runtime_context",
+        "provider_conversation_state": "reasoning_state",
+        "reasoning_config": "reasoning_state",
+        "runtime_wrapper_overhead": "runtime_context",
+    }
+    return mapping.get(key)
+
+
+def _response_candidate_for_bucket(bucket: dict) -> str | None:
+    """把 response bucket keys 映射到共享 response-side candidate vocabulary。"""
+    key = str(bucket.get("key") or "")
+    if key == "assistant_text" or key == "visible_text":
+        return "assistant_output"
+    if key in {"assistant_thinking", "hidden_reasoning", "reasoning_output_tokens"}:
+        return "reasoning_output"
+    if key == "tool_call" or key == "tool_use" or key.startswith("tool_call:"):
+        return "tool_calls"
+    if key in {"structured_response_block", "structured_items"}:
+        return "structured_output"
+    return None
+
+
+def _candidate_entry(candidate: str) -> dict:
+    return {
+        "candidate": candidate,
+        "tokens": 0,
+        "percent": 0.0,
+        "sources": [],
+    }
+
+
+def _candidate_sources_from_buckets(
+    buckets: list[dict],
+    candidate_resolver,
+    denominator: float,
+) -> tuple[list[dict], int]:
+    """把 legacy buckets 聚合为共享 Attribution Candidate entries。
+
+    现有 builders 仍生成 bucket-shaped local reconstructions。这个兼容层只暴露
+    field-first view，不编造 per-candidate cache allocation。
+    """
+    by_candidate: dict[str, dict] = {}
+    unattributed = 0.0
+    for bucket in buckets:
+        if not bucket.get("contributes_to_total", True):
+            continue
+        tokens = max(_num(bucket.get("tokens")), 0.0)
+        candidate = candidate_resolver(bucket)
+        if not candidate:
+            unattributed += tokens
+            continue
+        entry = by_candidate.setdefault(candidate, _candidate_entry(candidate))
+        entry["tokens"] += tokens
+        entry["sources"].append({
+            "bucket_key": bucket.get("key", ""),
+            "canonical_key": bucket.get("canonical_key", bucket.get("key", "")),
+            "label": bucket.get("label", ""),
+            "tokens": tokens,
+            "precision": bucket.get("precision", ""),
+            "source": bucket.get("source", ""),
+            "summary": bucket.get("summary", ""),
+        })
+
+    result = []
+    for entry in by_candidate.values():
+        tokens = int(round(entry["tokens"]))
+        entry["tokens"] = tokens
+        entry["percent"] = round((tokens / denominator) * 100.0, 1) if denominator > 0 else 0.0
+        result.append(entry)
+    result.sort(key=lambda item: item["candidate"])
+    return result, int(round(unattributed))
+
+
+def _accounting_field_payload(
+    field: str,
+    value: AttributedValue,
+    candidates: list[dict] | None = None,
+    *,
+    unattributed_tokens: int = 0,
+    notes: list[str] | None = None,
+) -> dict:
+    """构造 additive v2 payload 的单个 token accounting field group。"""
+    value_dict = attributed_value_to_dict(value)
+    return {
+        "field": field,
+        "tokens": _num(value.value),
+        "value": value_dict,
+        "candidates": candidates or [],
+        "candidate_total_tokens": sum(_num(item.get("tokens")) for item in (candidates or [])),
+        "unattributed_tokens": unattributed_tokens,
+        "notes": notes or [],
+    }
+
+
+def _zero_accounting_value(note: str = "") -> AttributedValue:
+    return AttributedValue(
+        value=0,
+        unit="tokens",
+        precision="unavailable",
+        source="heuristic",
+        fill_strategy="not applicable",
+        note=note,
+    )
+
+
+def _build_request_accounting_attribution(
+    attr: LLMRequestAttribution,
+    request_buckets: list[dict],
+) -> dict:
+    """按 TokenAccountingField -> candidates 暴露 request attribution。"""
+    fresh_total = _num(attr.fresh_input.value)
+    fresh_candidates, unattributed = _candidate_sources_from_buckets(
+        request_buckets,
+        _request_candidate_for_bucket,
+        fresh_total,
+    )
+    return {
+        "schema": "token_accounting_fields.v1",
+        "field_order": [
+            "fresh_input_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "output_tokens",
+        ],
+        "fresh_input_tokens": _accounting_field_payload(
+            "fresh_input_tokens",
+            attr.fresh_input,
+            fresh_candidates,
+            unattributed_tokens=unattributed,
+            notes=[
+                "现有 request buckets 在这里按统一 Attribution Candidates 暴露。",
+                "当前本地重建无法提供 candidate-level cache 分配。",
+            ],
+        ),
+        "cache_read_tokens": _accounting_field_payload(
+            "cache_read_tokens",
+            attr.cache_read,
+            [],
+            notes=[
+                "Provider 上报的 cache read accounting；不推断 per-candidate split。",
+            ],
+        ),
+        "cache_write_tokens": _accounting_field_payload(
+            "cache_write_tokens",
+            attr.cache_write,
+            [],
+            notes=[
+                "Provider 上报的 cache write accounting 可用时展示；不推断 per-candidate split。",
+            ],
+        ),
+        "output_tokens": _accounting_field_payload(
+            "output_tokens",
+            _zero_accounting_value("Request attribution payload 不包含 response output allocation。"),
+            [],
+        ),
+    }
+
+
+def _build_response_accounting_attribution(
+    attr: LLMResponseAttribution,
+    response_buckets: list[dict],
+) -> dict:
+    """按 TokenAccountingField -> candidates 暴露 response attribution。"""
+    output_total = _num(attr.total_output.value)
+    output_candidates, unattributed = _candidate_sources_from_buckets(
+        response_buckets,
+        _response_candidate_for_bucket,
+        output_total,
+    )
+    return {
+        "schema": "token_accounting_fields.v1",
+        "field_order": [
+            "fresh_input_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "output_tokens",
+        ],
+        "fresh_input_tokens": _accounting_field_payload(
+            "fresh_input_tokens",
+            _zero_accounting_value("Response attribution payload 不包含 request input allocation。"),
+            [],
+        ),
+        "cache_read_tokens": _accounting_field_payload(
+            "cache_read_tokens",
+            _zero_accounting_value("Response attribution payload 不包含 request cache-read allocation。"),
+            [],
+        ),
+        "cache_write_tokens": _accounting_field_payload(
+            "cache_write_tokens",
+            _zero_accounting_value("Response attribution payload 不包含 request cache-write allocation。"),
+            [],
+        ),
+        "output_tokens": _accounting_field_payload(
+            "output_tokens",
+            attr.total_output,
+            output_candidates,
+            unattributed_tokens=unattributed,
+            notes=[
+                "现有 response buckets 在这里按统一 response-side Attribution Candidates 暴露。",
+            ],
+        ),
+    }
+
+
 def availability_row_to_dict(row: AvailabilityRow | dict) -> dict:
     """将 AvailabilityRow 或已构造的 dict 转成可序列化对象。"""
     if isinstance(row, dict):
@@ -246,6 +476,12 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
         # ── 诊断信息（v2） ──
         "diagnostics": v2_extra.get("diagnostics", _build_diagnostics(attr)),
 
+        # ── field-first 归因（v2 additive） ──
+        "accounting_attribution": v2_extra.get(
+            "accounting_attribution",
+            _build_request_accounting_attribution(attr, request_buckets),
+        ),
+
         # ── route payload 字段 ──
         "kind": "llm.request_attribution",
         "agent": attr.agent,
@@ -293,6 +529,9 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
 def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict | None = None) -> dict:
     """把完整 LLMResponseAttribution 序列化为 route payload。"""
     v2_extra = v2_extra or {}
+    response_buckets = _normalize_bucket_percents_for_display([
+        _response_bucket_to_dict(b) for b in attr.buckets
+    ])
 
     payload = {
         # ── v2 schema ──
@@ -321,6 +560,12 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
         # ── 诊断信息（v2） ──
         "diagnostics": v2_extra.get("diagnostics", _build_response_diagnostics(attr)),
 
+        # ── field-first 归因（v2 additive） ──
+        "accounting_attribution": v2_extra.get(
+            "accounting_attribution",
+            _build_response_accounting_attribution(attr, response_buckets),
+        ),
+
         # ── route payload 字段 ──
         "kind": "llm.response_attribution",
         "agent": attr.agent,
@@ -340,9 +585,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
             "unknown": attributed_value_to_dict(attr.unknown),
             "finish_reason": attributed_value_to_dict(attr.finish_reason),
         },
-        "buckets": _normalize_bucket_percents_for_display([
-            _response_bucket_to_dict(b) for b in attr.buckets
-        ]),
+        "buckets": response_buckets,
         "blocks": list(attr.blocks),
         "captured_output_preview": attr.captured_output_preview,
         "attribution_notes": list(attr.attribution_notes),
