@@ -72,28 +72,66 @@
       <div class="sd-diagnostic-card__body">
         {% if diag_agents %}
         <div class="sd-subagent-workbench" data-subagent-workbench>
-          <div class="sd-subagent-list" aria-label="Agent candidates">
-            {% for row in diag_agents %}
-            <button
-              type="button"
-              class="sd-subagent-select {% if row.is_selected %}is-active{% endif %}"
-              data-action="select-subagent"
-              data-subagent="{{ row.subagent_id|default('') }}"
-              data-agent-scope="{{ row.scope|default('subagent') }}"
-              aria-pressed="{% if row.is_selected %}true{% else %}false{% endif %}"
-            >
-              <span class="sd-subagent-select__main">
-                <b>{{ row.subagent }}</b>
-                <span class="sd-subagent-instance sd-subagent-instance--{{ row.color|default('subagent-0') }}">{{ row.short_id }}</span>
-              </span>
-              <span class="sd-subagent-select__metrics">
-                <span title="{% if row.scope|default('subagent') == 'main' %}Main agent LLM calls{% else %}Subagent internal LLM calls{% endif %}">{{ row.llm_calls }} LLM</span>
-                <span title="{{ row.token_note|default('') }}">{{ row.tokens }} · {{ row.cost_share|default('N/A') }}</span>
-                <span>{{ row.tools }} tools</span>
-                <span><b class="sd-rate sd-rate--{{ row.failure_tone|default('ok') }}">{{ row.failures }} · {{ row.failure_rate }}</b></span>
-              </span>
-            </button>
-            {% endfor %}
+          <div class="sd-subagent-table-scroll" aria-label="Agent candidates">
+            <table class="sd-subagent-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Session file</th>
+                  <th>Session id</th>
+                  <th>LLM</th>
+                  <th>Tokens</th>
+                  <th>Tools</th>
+                  <th>Failures</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in diag_agents %}
+                <tr
+                  class="sd-subagent-row {% if row.is_selected %}is-active{% endif %}"
+                  data-subagent-row
+                  data-subagent="{{ row.subagent_id|default('') }}"
+                  data-agent-scope="{{ row.scope|default('subagent') }}"
+                >
+                  <td class="sd-subagent-table__agent">
+                    <button
+                      type="button"
+                      class="sd-subagent-select {% if row.is_selected %}is-active{% endif %}"
+                      data-action="select-subagent"
+                      data-subagent="{{ row.subagent_id|default('') }}"
+                      data-agent-scope="{{ row.scope|default('subagent') }}"
+                      aria-pressed="{% if row.is_selected %}true{% else %}false{% endif %}"
+                    >
+                      <span class="sd-subagent-select__main">
+                        <b>{{ row.subagent }}</b>
+                        <span class="sd-subagent-instance sd-subagent-instance--{{ row.color|default('subagent-0') }}">{{ row.short_id }}</span>
+                      </span>
+                    </button>
+                  </td>
+                  <td class="sd-subagent-table__copy-cell">
+                    {% if row.session_file %}
+                    <span class="sd-subagent-copy-value" title="{{ row.session_file }}">{{ row.session_file_display }}</span>
+                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ row.session_file }}" aria-label="Copy session file" title="Copy full session file">Copy</button>
+                    {% else %}
+                    <span class="sd-subagent-copy-value is-empty">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="sd-subagent-table__copy-cell">
+                    {% if row.session_id %}
+                    <span class="sd-subagent-copy-value" title="{{ row.session_id }}">{{ row.session_id_display }}</span>
+                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ row.session_id }}" aria-label="Copy session id" title="Copy full session id">Copy</button>
+                    {% else %}
+                    <span class="sd-subagent-copy-value is-empty">—</span>
+                    {% endif %}
+                  </td>
+                  <td title="{% if row.scope|default('subagent') == 'main' %}Main agent LLM calls{% else %}Subagent internal LLM calls{% endif %}">{{ row.llm_calls }} LLM</td>
+                  <td title="{{ row.token_note|default('') }}">{{ row.tokens }} · {{ row.cost_share|default('N/A') }}</td>
+                  <td>{{ row.tools }} tools</td>
+                  <td title="{{ row.failure_note|default('Failures among related tool calls') }}"><b class="sd-rate sd-rate--{{ row.failure_tone|default('ok') }}">{{ row.failure_label|default(row.failures ~ ' failed · ' ~ row.failure_rate) }}</b></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
           <div class="sd-subagent-timeline-area">
             {% for timeline in diag_agent_timelines %}

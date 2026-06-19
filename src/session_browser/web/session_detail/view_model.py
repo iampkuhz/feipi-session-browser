@@ -140,6 +140,44 @@ def _session_file_path(session) -> str:
     return ""
 
 
+def _middle_truncate(value: str, max_chars: int, head: int, tail: int) -> str:
+    value = str(value or "")
+    if len(value) <= max_chars:
+        return value
+    if max_chars <= 1:
+        return "…"
+    head = max(1, min(head, max_chars - 1))
+    tail = max(1, min(tail, max_chars - head - 1))
+    return f"{value[:head]}…{value[-tail:]}"
+
+
+def _agent_session_file_display(path: str) -> str:
+    path = str(path or "")
+    if not path:
+        return "—"
+    display_path = _display_path(path).replace("\\", "/")
+    parts = [part for part in display_path.split("/") if part]
+    filename = _middle_truncate(parts[-1] if parts else display_path, 24, 9, 11)
+    if len(parts) < 2:
+        return filename
+    parent = _middle_truncate(parts[-2], 14, 6, 6)
+    if display_path.startswith("~/"):
+        return f"~/…/{parent}/{filename}"
+    if display_path.startswith("/"):
+        return f"/…/{parent}/{filename}"
+    root = parts[0]
+    if len(parts) == 2:
+        return f"{root}/{filename}"
+    return f"{root}/…/{parent}/{filename}"
+
+
+def _agent_session_id_display(session_id: str) -> str:
+    session_id = str(session_id or "")
+    if not session_id:
+        return "—"
+    return _middle_truncate(session_id, 18, 8, 7)
+
+
 def _timestamp_sort_key(value: str) -> tuple[int, str]:
     if not value:
         return (1, "")
@@ -217,6 +255,20 @@ def _usage_parts_from_call(call) -> dict:
         "output": output,
         "total": total,
     }
+
+
+def _subagent_id_from_tool(tc) -> str:
+    summary = getattr(tc, "subagent_summary", {}) or {}
+    if isinstance(summary, dict) and summary.get("agent_id"):
+        return str(summary.get("agent_id") or "")
+    return str(getattr(tc, "subagent_id", "") or "")
+
+
+def _is_subagent_parent_tool(tc, subagent_id: str = "") -> bool:
+    if getattr(tc, "scope", "main") == "subagent":
+        return False
+    candidate = _subagent_id_from_tool(tc)
+    return bool(candidate) and (not subagent_id or candidate == subagent_id)
 
 
 def _median(values: list[int]) -> float:
@@ -413,10 +465,7 @@ def _build_payload_tab_index(
             continue
         for r_idx, r in enumerate(rounds):
             for tc in r.tool_calls:
-                if (
-                    getattr(tc, "subagent_id", "") == sa_id
-                    or getattr(tc, "subagent_summary", {}).get("agent_id") == sa_id
-                ):
+                if _is_subagent_parent_tool(tc, sa_id):
                     subagent_parent_round[sa_id] = r_idx + 1
                     break
             if sa_id in subagent_parent_round:
@@ -558,10 +607,7 @@ def _build_session_diagnostics(
             continue
         for r_idx, r in enumerate(rounds, start=1):
             for tc in r.tool_calls:
-                if (
-                    getattr(tc, "subagent_id", "") == sa_id
-                    or getattr(tc, "subagent_summary", {}).get("agent_id") == sa_id
-                ):
+                if _is_subagent_parent_tool(tc, sa_id):
                     subagent_parent_round[sa_id] = r_idx
                     break
             if sa_id in subagent_parent_round:
@@ -1038,17 +1084,19 @@ def _build_session_diagnostics(
         summary = run.get("summary", {})
         sa_id = summary.get("agent_id", "")
         agent_type = summary.get("agent_type", "") or "subagent"
+        session_file = str(summary.get("path") or run.get("path") or "")
         sa_tools = [tc for tc in tool_calls if getattr(tc, "subagent_id", "") == sa_id]
         parent_agent_tools = [
             tc for tc in tool_calls
-            if getattr(tc, "name", "") == "Agent"
-            and getattr(tc, "subagent_summary", {}).get("agent_id") == sa_id
+            if _is_subagent_parent_tool(tc, sa_id)
         ]
+        related_tool_count = len(sa_tools) + len(parent_agent_tools)
         parent_failed = any(
             getattr(tc, "is_failed", False)
             for tc in parent_agent_tools
         )
         failures = sum(1 for tc in sa_tools if getattr(tc, "is_failed", False)) + (1 if parent_failed else 0)
+        failure_rate = _format_ratio_pct(failures, related_tool_count)
         calls = 0
         llm_tokens = 0
         sub_calls = sub_calls_by_agent.get(sa_id, [])
@@ -1197,6 +1245,10 @@ def _build_session_diagnostics(
             "agent_id": sa_id,
             "subagent_id": sa_id,
             "short_id": sa_id[-8:] if sa_id else "unknown",
+            "session_file": session_file,
+            "session_file_display": _agent_session_file_display(session_file),
+            "session_id": sa_id,
+            "session_id_display": _agent_session_id_display(sa_id),
             "color": f"subagent-{subagent_color_map.get(sa_id, 0)}",
             "llm_calls": calls,
             "tokens": _format_compact_token(footprint_tokens),
@@ -1213,8 +1265,14 @@ def _build_session_diagnostics(
             "cost_rank": subagent_cost.get("rank", 0),
             "tools": len(sa_tools),
             "failures": failures,
-            "failure_rate": _format_ratio_pct(failures, len(sa_tools) + len(parent_agent_tools)),
-            "failure_tone": _ratio_tone(_ratio_value(failures, len(sa_tools) + len(parent_agent_tools))),
+            "failure_rate": failure_rate,
+            "failure_label": f"{failures} failed · {failure_rate}",
+            "failure_tone": _ratio_tone(_ratio_value(failures, related_tool_count)),
+            "failure_note": (
+                "Failures among subagent tool calls and the parent spawn tool"
+                if related_tool_count
+                else "No related tool calls for failure-rate calculation"
+            ),
             "result": result,
             "round_id": subagent_parent_round.get(sa_id, 0),
             "target_subagent_round": "",
@@ -1248,6 +1306,9 @@ def _build_session_diagnostics(
         if not getattr(tc, "subagent_id", "") and getattr(tc, "scope", "main") != "subagent"
     ]
     main_failed_tools = [tc for tc in main_tool_calls if getattr(tc, "is_failed", False)]
+    main_failure_rate = _format_ratio_pct(len(main_failed_tools), len(main_tool_calls))
+    main_session_file = _session_file_path(session)
+    main_session_id = str(getattr(session, "session_id", "") or "")
     main_tokens = sum(int(row.get("total", 0) or 0) for row in token_rounds)
     main_fresh_tokens = sum(int(row.get("token_input", 0) or 0) for row in trace_rows)
     main_cache_read_tokens = sum(int(row.get("token_cache_read", 0) or 0) for row in trace_rows)
@@ -1259,6 +1320,10 @@ def _build_session_diagnostics(
         "agent_id": "",
         "subagent_id": "",
         "short_id": "main",
+        "session_file": main_session_file,
+        "session_file_display": _agent_session_file_display(main_session_file),
+        "session_id": main_session_id,
+        "session_id_display": _agent_session_id_display(main_session_id),
         "color": "main",
         "llm_calls": main_llm_call_count,
         "tokens": _format_compact_token(main_tokens),
@@ -1276,8 +1341,14 @@ def _build_session_diagnostics(
         "cost_rank": 0,
         "tools": len(main_tool_calls),
         "failures": len(main_failed_tools),
-        "failure_rate": _format_ratio_pct(len(main_failed_tools), len(main_tool_calls)),
+        "failure_rate": main_failure_rate,
+        "failure_label": f"{len(main_failed_tools)} failed · {main_failure_rate}",
         "failure_tone": _ratio_tone(_ratio_value(len(main_failed_tools), len(main_tool_calls))),
+        "failure_note": (
+            "Failures among main-scope tool calls"
+            if main_tool_calls
+            else "No main-scope tool calls for failure-rate calculation"
+        ),
         "result": "completed" if main_llm_call_count else "unknown",
         "round_id": token_rounds[0].get("round_id", 0) if token_rounds else 0,
         "target_subagent_round": "",
@@ -1744,7 +1815,7 @@ def _build_v11_view_model(
         parent_tc = next(
             (
                 tc for tc in tool_calls
-                if tc.name == "Agent" and tc.subagent_summary.get("agent_id") == sa_id
+                if _is_subagent_parent_tool(tc, sa_id)
             ),
             None,
         )
@@ -2098,7 +2169,7 @@ def _build_v11_view_model(
     for run in subagent_runs:
         sa_id = run["summary"]["agent_id"]
         parent_tc = next(
-            (tc for tc in tool_calls if tc.name == "Agent" and tc.subagent_summary.get("agent_id") == sa_id),
+            (tc for tc in tool_calls if _is_subagent_parent_tool(tc, sa_id)),
             None,
         )
         if parent_tc:
@@ -2186,8 +2257,7 @@ def _build_v11_view_model(
             for _ix_skip in r.interactions:
                 global_main_call_num += 1
             slim_has_subagent = any(
-                getattr(tc, "name", "") == "Agent"
-                and (getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id"))
+                _is_subagent_parent_tool(tc)
                 for tc in r.tool_calls
             )
             slim_req_actions = [
@@ -2281,7 +2351,7 @@ def _build_v11_view_model(
             ix_tools = []
             if hasattr(ix, 'tool_calls') and ix.tool_calls:
                 for tc in ix.tool_calls:
-                    if tc.name == "Agent" or not tc.subagent_id:
+                    if _is_subagent_parent_tool(tc) or not tc.subagent_id:
                         ix_tools.append(tc)
 
             tool_rows = []
@@ -2318,7 +2388,7 @@ def _build_v11_view_model(
             context_payload_id = f"llm-R{rid}-IX{iix}-context"
             ix_tool_calls_for_llm = [
                 tc for tc in (getattr(ix, "tool_calls", []) or [])
-                if tc.name == "Agent" or not getattr(tc, "subagent_id", "")
+                if _is_subagent_parent_tool(tc) or not getattr(tc, "subagent_id", "")
             ]
 
             if ix.request_full:
@@ -2343,7 +2413,7 @@ def _build_v11_view_model(
                     prev_ix = r.interactions[prev_ix_idx]
                     if hasattr(prev_ix, 'tool_calls') and prev_ix.tool_calls:
                         for tc in prev_ix.tool_calls:
-                            if not getattr(tc, "subagent_id", ""):
+                            if _is_subagent_parent_tool(tc) or not getattr(tc, "subagent_id", ""):
                                 tc_result = getattr(tc, "result", "") or ""
                                 ctx_blocks.append({
                                     "kind": "tool_result",
@@ -2622,8 +2692,8 @@ def _build_v11_view_model(
                 items.append(row)
 
             for tc in ix_tool_calls_for_llm:
-                sa_id = getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id", "")
-                if tc.name == "Agent" and sa_id:
+                sa_id = _subagent_id_from_tool(tc)
+                if _is_subagent_parent_tool(tc, sa_id):
                     sa_info = subagent_lookup.get(sa_id)
                     if sa_info:
                         round_has_subagent = True
@@ -2642,8 +2712,8 @@ def _build_v11_view_model(
 
         if not items and r.tool_calls:
             for tc_idx, tc in enumerate(r.tool_calls):
-                sa_id = getattr(tc, "subagent_id", "") or getattr(tc, "subagent_summary", {}).get("agent_id", "")
-                if sa_id:
+                sa_id = _subagent_id_from_tool(tc)
+                if _is_subagent_parent_tool(tc, sa_id):
                     sa_info = subagent_lookup.get(sa_id)
                     if sa_info:
                         items.append({

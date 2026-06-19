@@ -255,6 +255,25 @@ def _token_breakdown_for_agent(usage: dict, agent: str):
     return normalize_tokens(usage)
 
 
+def _find_subagent_parent_tool(tool_calls: list[ToolCall], agent_id: str) -> ToolCall | None:
+    """Find the main-scope tool call that spawned a subagent run.
+
+    Claude records this as an ``Agent`` tool, while Codex records it as
+    ``spawn_agent``.  The stable association is the normalized subagent id, not
+    the provider-specific tool name.
+    """
+    if not agent_id:
+        return None
+    for tc in tool_calls:
+        if tc.scope != "main":
+            continue
+        summary = tc.subagent_summary or {}
+        linked_agent_id = tc.subagent_id or summary.get("agent_id", "")
+        if linked_agent_id == agent_id:
+            return tc
+    return None
+
+
 def build_llm_calls(
     messages: list[ChatMessage],
     tool_calls: list[ToolCall],
@@ -381,11 +400,7 @@ def build_llm_calls(
         summary = run["summary"]
         agent_id = summary["agent_id"]
 
-        parent_tc = None
-        for tc in tool_calls:
-            if tc.name == "Agent" and tc.subagent_summary.get("agent_id") == agent_id:
-                parent_tc = tc
-                break
+        parent_tc = _find_subagent_parent_tool(tool_calls, agent_id)
 
         parent_round = 0
         if parent_tc:
@@ -462,11 +477,7 @@ def _build_subagent_interactions(
         summary = run["summary"]
         agent_id = summary["agent_id"]
 
-        parent_tc = None
-        for tc in tool_calls:
-            if tc.name == "Agent" and tc.subagent_summary.get("agent_id") == agent_id:
-                parent_tc = tc
-                break
+        parent_tc = _find_subagent_parent_tool(tool_calls, agent_id)
 
         # Find individual subagent calls for this run
         sub_calls = [c for c in llm_calls if c.scope == "subagent" and c.subagent_id == agent_id]

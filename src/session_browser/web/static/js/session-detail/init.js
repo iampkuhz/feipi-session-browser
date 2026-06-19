@@ -104,13 +104,17 @@
     var workbench = button.closest('[data-subagent-workbench]');
     if (!workbench) return;
     var subagent = button.getAttribute('data-subagent') || "";
+    var scope = button.getAttribute('data-agent-scope') || "subagent";
     qsa(workbench, '[data-action="select-subagent"]').forEach(function (item) {
       var isActive = item === button;
       item.classList.toggle('is-active', isActive);
       item.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      var row = item.closest('[data-subagent-row]');
+      if (row) row.classList.toggle('is-active', isActive);
     });
     qsa(workbench, '[data-subagent-timeline-panel]').forEach(function (panel) {
-      var isActive = panel.getAttribute('data-subagent') === subagent;
+      var isActive = panel.getAttribute('data-subagent') === subagent
+        && (panel.getAttribute('data-agent-scope') || "subagent") === scope;
       panel.classList.toggle('is-active', isActive);
       if (isActive) {
         panel.removeAttribute('hidden');

@@ -1,0 +1,586 @@
+{
+  // schema_version: 当前唯一支持的 normalized contract 版本；只用于判断 artifact 是否需要重建。
+  "schema_version": "session-detail.normalized.v2",
+  // agent: 生成该 artifact 的 agent 类型。
+  "agent": "codex",
+  // source: 原始会话来源定位信息；展示时据此重新读取 JSONL。
+  "source": {
+    // files: 本样例涉及的原始文件列表。
+    "files": [
+      {
+        // role: 原始文件在会话中的角色；Codex 主线程为 codex_rollout，子线程为 subagent_session。
+        "role": "codex_rollout",
+        // path: repo 内样例路径或本地源路径。
+        "path": "docs/session-samples/codex/019ede24-67de-7b11-b46f-7922530907a9/019ede24-67de-7b11-b46f-7922530907a9.jsonl"
+      },
+      {
+        // role: 原始文件在会话中的角色；Codex 主线程为 codex_rollout，子线程为 subagent_session。
+        "role": "subagent_session",
+        // path: repo 内样例路径或本地源路径。
+        "path": "docs/session-samples/codex/019ede24-67de-7b11-b46f-7922530907a9/rollout-2026-06-19T12-32-38-019ede26-ff03-7a82-bb34-cfab716a498a.jsonl",
+        // subagent_id: 子线程 session id；仅 subagent_session 文件需要。
+        "subagent_id": "019ede26-ff03-7a82-bb34-cfab716a498a",
+        // parent_tool_use_id: 触发子线程的父级工具调用 id；仅 subagent_session 文件需要。
+        "parent_tool_use_id": "call_WXDapWp0rdv8wbYvzV0Uaul6"
+      },
+      {
+        // role: 原始文件在会话中的角色；Codex 主线程为 codex_rollout，子线程为 subagent_session。
+        "role": "subagent_session",
+        // path: repo 内样例路径或本地源路径。
+        "path": "docs/session-samples/codex/019ede24-67de-7b11-b46f-7922530907a9/rollout-2026-06-19T12-32-38-019ede26-fff1-7790-ad39-a8a29eda9af4.jsonl",
+        // subagent_id: 子线程 session id；仅 subagent_session 文件需要。
+        "subagent_id": "019ede26-fff1-7790-ad39-a8a29eda9af4",
+        // parent_tool_use_id: 触发子线程的父级工具调用 id；仅 subagent_session 文件需要。
+        "parent_tool_use_id": "call_LHCEV4tjrTp2y8CcNsXAAO7d"
+      }
+    ]
+  },
+  // session: 会话级元信息，只保留索引和定位需要的字段。
+  "session": {
+    // session_key: agent 与 session_id 拼成的全局稳定键。
+    "session_key": "codex:019ede24-67de-7b11-b46f-7922530907a9",
+    // session_id: agent 原生会话 id。
+    "session_id": "019ede24-67de-7b11-b46f-7922530907a9",
+    // title: 会话标题或首条用户意图摘要。
+    "title": "你是 `feipi-session-browser` 仓库的主 agent。请并行 spawn 2 个 scoped subagent，并等待两者结束后只汇总状态。",
+    // agent: 生成该 artifact 的 agent 类型。
+    "agent": "codex",
+    // model: 本会话或本次 LLM call 的模型名。
+    "model": "gpt-5.5",
+    // cwd: 会话运行时工作目录。
+    "cwd": "/Users/zhehan/Documents/tools/llm/feipi-session-browser",
+    // started_at: 会话开始时间。
+    "started_at": "2026-06-19T04:32:03.942Z",
+    // ended_at: 会话结束时间。
+    "ended_at": "2026-06-19T04:32:55.464Z",
+    // git_branch: 会话源记录中的 git 分支。
+    "git_branch": "main",
+    // source: Codex 会话来源；本样例来自 Codex Desktop / VS Code。
+    "source": "vscode"
+  },
+  // calls: LLM call 顺序表；normalized v2 的主体；subagent call 嵌套在触发它的父 call 之后。
+  "calls": [
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-call-0001",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 1,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C1",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede26-74d8-7440-9549-67f38c6e3ab1",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "gpt-5.5",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:13.073Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 25284,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 166,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 25450
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": []
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "call_XsbhHJb7vGOu1oAP5oFqgBr7"
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-call-0002",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 2,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C2",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede26-74d8-7440-9549-67f38c6e3ab1",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "gpt-5.5",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:38.522Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 13443,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 16384,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 1112,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 30939
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": []
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "call_WXDapWp0rdv8wbYvzV0Uaul6",
+          "call_LHCEV4tjrTp2y8CcNsXAAO7d"
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-subagent-019ede26-ff0-call-0001",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 3,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C3",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "subagent",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "codex-call-0002",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "call_WXDapWp0rdv8wbYvzV0Uaul6",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede26-ff74-7a61-a7d9-6215ddb8b668",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "litellm-local",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:46.899Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24167,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 209,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 24376
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": []
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "call_7BjPOqFW5SBNNMRchUmIqrvS"
+        ]
+      },
+      // subagent_id: subagent scope call 所属的 Codex 子线程 id。
+      "subagent_id": "019ede26-ff03-7a82-bb34-cfab716a498a",
+      // parent_tool_name: 触发该 subagent call 的父级工具名。
+      "parent_tool_name": "spawn_agent"
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-subagent-019ede26-ff0-call-0002",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 4,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C4",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "subagent",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "codex-call-0002",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "call_WXDapWp0rdv8wbYvzV0Uaul6",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede26-ff74-7a61-a7d9-6215ddb8b668",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "litellm-local",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:49.292Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24430,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 26,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 24456
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "call_7BjPOqFW5SBNNMRchUmIqrvS"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": []
+      },
+      // subagent_id: subagent scope call 所属的 Codex 子线程 id。
+      "subagent_id": "019ede26-ff03-7a82-bb34-cfab716a498a",
+      // parent_tool_name: 触发该 subagent call 的父级工具名。
+      "parent_tool_name": "spawn_agent"
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-subagent-019ede26-fff-call-0001",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 5,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C5",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "subagent",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "codex-call-0002",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "call_LHCEV4tjrTp2y8CcNsXAAO7d",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede27-004f-7d10-8a78-fcaf8a6e7cd6",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "litellm-local",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:47.241Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24167,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 215,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 24382
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": []
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "call_1C3DJ6WVGuymTlkE5kRiCQXM"
+        ]
+      },
+      // subagent_id: subagent scope call 所属的 Codex 子线程 id。
+      "subagent_id": "019ede26-fff1-7790-ad39-a8a29eda9af4",
+      // parent_tool_name: 触发该 subagent call 的父级工具名。
+      "parent_tool_name": "spawn_agent"
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-subagent-019ede26-fff-call-0002",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 6,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C6",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "subagent",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "codex-call-0002",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "call_LHCEV4tjrTp2y8CcNsXAAO7d",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede27-004f-7d10-8a78-fcaf8a6e7cd6",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "litellm-local",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:49.682Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 24433,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 32,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 24465
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "call_1C3DJ6WVGuymTlkE5kRiCQXM"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": []
+      },
+      // subagent_id: subagent scope call 所属的 Codex 子线程 id。
+      "subagent_id": "019ede26-fff1-7790-ad39-a8a29eda9af4",
+      // parent_tool_name: 触发该 subagent call 的父级工具名。
+      "parent_tool_name": "spawn_agent"
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-call-0003",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 7,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C7",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede26-74d8-7440-9549-67f38c6e3ab1",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "gpt-5.5",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:49.309Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 31024,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 83,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 31107
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "call_WXDapWp0rdv8wbYvzV0Uaul6",
+          "call_LHCEV4tjrTp2y8CcNsXAAO7d"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "call_N0CIUBMVfXmv22ci6Y19Yws5"
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-call-0004",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 8,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C8",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede26-74d8-7440-9549-67f38c6e3ab1",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "gpt-5.5",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:52.983Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 30573,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 47,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 30620
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "call_N0CIUBMVfXmv22ci6Y19Yws5"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": [
+          "call_QXXohnAs1Dn3vcfriEFbLIbR"
+        ]
+      }
+    },
+    {
+      // call_id: 单次 LLM call 的稳定 id；Codex 主线程使用 token_count 顺序，子线程带 subagent id 片段。
+      "call_id": "codex-call-0005",
+      // call_index: 当前 artifact 内的 1-based call 顺序。
+      "call_index": 9,
+      // call_key: 面向 UI 的短 key。
+      "call_key": "C9",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // parent_call_id: subagent call 所属的父级 LLM call id。
+      "parent_call_id": "",
+      // parent_tool_call_id: 触发 subagent 的父级工具调用 id。
+      "parent_tool_call_id": "",
+      // turn_id: Codex 原生 turn 标识；没有则为空字符串。
+      "turn_id": "019ede26-74d8-7440-9549-67f38c6e3ab1",
+      // model: 本会话或本次 LLM call 的模型名。
+      "model": "gpt-5.5",
+      // timestamp: LLM call 对应 token_count 记录的时间戳。
+      "timestamp": "2026-06-19T04:32:55.419Z",
+      // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
+      "usage": {
+        // fresh: 本次请求实际新增/发送的输入 token 规模。
+        "fresh": 30767,
+        // cache_read: provider cache 命中的输入 token。
+        "cache_read": 0,
+        // cache_write: 写入 provider cache 的输入 token；Codex rollout 当前不提供。
+        "cache_write": 0,
+        // output: 模型输出 token。
+        "output": 17,
+        // total: 当前 call 的总 token；由四个分量求和。
+        "total": 30784
+      },
+      // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
+      "request": {
+        // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
+        "tool_result_ids": [
+          "call_QXXohnAs1Dn3vcfriEFbLIbR"
+        ]
+      },
+      // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
+      "response": {
+        // tool_call_ids: 本次 response 声明的工具调用 id 列表。
+        "tool_call_ids": []
+      }
+    }
+  ],
+  // tool_executions: 工具调用边表；只存连接和少量必要执行元数据。
+  "tool_executions": [
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "call_XsbhHJb7vGOu1oAP5oFqgBr7",
+      // name: 工具名。
+      "name": "tool_search",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "codex-call-0001",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "",
+      // status: 非默认工具状态；缺省 completed，本样例保留 parser 对内置 tool_search 的 missing 标记。
+      "status": "missing"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "call_WXDapWp0rdv8wbYvzV0Uaul6",
+      // name: 工具名。
+      "name": "spawn_agent",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "codex-call-0002",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "codex-call-0003",
+      // subagent_id: spawn_agent 输出中的 Codex 子线程 id。
+      "subagent_id": "019ede26-ff03-7a82-bb34-cfab716a498a"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "call_LHCEV4tjrTp2y8CcNsXAAO7d",
+      // name: 工具名。
+      "name": "spawn_agent",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "codex-call-0002",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "codex-call-0003",
+      // subagent_id: spawn_agent 输出中的 Codex 子线程 id。
+      "subagent_id": "019ede26-fff1-7790-ad39-a8a29eda9af4"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "call_7BjPOqFW5SBNNMRchUmIqrvS",
+      // name: 工具名。
+      "name": "exec_command",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "subagent",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "codex-subagent-019ede26-ff0-call-0001",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "codex-subagent-019ede26-ff0-call-0002"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "call_1C3DJ6WVGuymTlkE5kRiCQXM",
+      // name: 工具名。
+      "name": "exec_command",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "subagent",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "codex-subagent-019ede26-fff-call-0001",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "codex-subagent-019ede26-fff-call-0002"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "call_N0CIUBMVfXmv22ci6Y19Yws5",
+      // name: 工具名。
+      "name": "wait_agent",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "codex-call-0003",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "codex-call-0004"
+    },
+    {
+      // tool_call_id: 当前 normalized v2 字段。
+      "tool_call_id": "call_QXXohnAs1Dn3vcfriEFbLIbR",
+      // name: 工具名。
+      "name": "wait_agent",
+      // scope: main 或 subagent，用于区分主会话和子会话。
+      "scope": "main",
+      // declared_by_call_id: 声明该工具调用的 LLM call id。
+      "declared_by_call_id": "codex-call-0004",
+      // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
+      "result_consumed_by_call_id": "codex-call-0005"
+    }
+  ],
+  // diagnostics: normalized 层保留的非派生异常列表；JSONL 解析诊断留在 source/index 层。
+  "diagnostics": []
+}

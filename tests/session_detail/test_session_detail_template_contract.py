@@ -240,6 +240,26 @@ class TestSessionHtml:
         assert 'sd-diagnostic-card sd-diagnostic-card--context' in session_text, \
             "Context Budget must use a dedicated full-row card hook"
 
+    @pytest.mark.contract_case("UI-SD-032")
+    def test_agents_breakdown_table_copy_contract(self, session_text):
+        """Agents Breakdown selector is a scrollable table with copyable identifiers."""
+        assert 'class="sd-subagent-table-scroll"' in session_text, \
+            "Agents Breakdown selector must have a horizontal scroll wrapper"
+        assert 'class="sd-subagent-table"' in session_text, \
+            "Agents Breakdown selector must render as a table"
+        for heading in ["Agent", "Session file", "Session id", "LLM", "Tokens", "Tools", "Failures"]:
+            assert f"<th>{heading}</th>" in session_text
+        assert 'data-subagent-row' in session_text, \
+            "Agent rows must expose row-level active state hooks"
+        assert 'data-copy-text="{{ row.session_file }}"' in session_text, \
+            "Session file copy button must copy the full untruncated path"
+        assert 'data-copy-text="{{ row.session_id }}"' in session_text, \
+            "Session id copy button must copy the full untruncated id"
+        assert "{{ row.session_file_display }}" in session_text
+        assert "{{ row.session_id_display }}" in session_text
+        assert "{{ row.failure_label|default(row.failures ~ ' failed · ' ~ row.failure_rate) }}" in session_text
+        assert "{{ row.failure_note|default('Failures among related tool calls') }}" in session_text
+
 
 # ── Issue Strip ──
 

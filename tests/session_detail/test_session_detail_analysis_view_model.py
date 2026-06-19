@@ -140,6 +140,65 @@ def test_analysis_cards_view_model_fields_renderable():
     assert first_payload_item["response_attribution_status"] == "partial"
 
 
+def test_agent_breakdown_rows_expose_truncated_copy_fields_and_failure_rate_na():
+    main_ix = _llm(0, "one")
+    rounds = [_round(1, main_ix, [])]
+    main_session_id = "019ede24-67de-7b11-b46f-7922530907a9"
+    main_file = (
+        "/Users/example/.codex/sessions/2026/06/19/"
+        "rollout-2026-06-19T10-14-27-019ede24-67de-7b11-b46f-7922530907a9.jsonl"
+    )
+    subagent_id = "019ede58-af12-7892-8fc4-0e8b2949608f"
+    subagent_file = (
+        "/Users/example/.codex/sessions/2026/06/19/"
+        "rollout-2026-06-19T10-16-00-019ede58-af12-7892-8fc4-0e8b2949608f.jsonl"
+    )
+    subagent_call = _llm(
+        0,
+        "sub-copy",
+        scope="subagent",
+        subagent_id=subagent_id,
+        input_tokens=80,
+        output_tokens=20,
+    )
+
+    vm = _build_v11_view_model(
+        session=_FakeSession(session_id=main_session_id, file_path=main_file),
+        rounds=rounds,
+        llm_calls=[main_ix, subagent_call],
+        tool_calls=[],
+        subagent_runs=[{
+            "path": subagent_file,
+            "summary": {
+                "agent_id": subagent_id,
+                "agent_type": "ui-architect",
+                "path": subagent_file,
+            },
+            "messages": [],
+        }],
+        session_anomalies=_FakeAnomalies(),
+        slim=True,
+    )
+
+    main_row, subagent_row = vm["diagnostics"]["agent_breakdown"][:2]
+    assert main_row["session_file"] == main_file
+    assert main_row["session_file_display"] != main_file
+    assert "…" in main_row["session_file_display"]
+    assert main_row["session_id"] == main_session_id
+    assert main_row["session_id_display"] != main_session_id
+    assert "…" in main_row["session_id_display"]
+    assert main_row["failure_rate"] == "N/A"
+    assert main_row["failure_label"] == "0 failed · N/A"
+    assert "No main-scope tool calls" in main_row["failure_note"]
+
+    assert subagent_row["session_file"] == subagent_file
+    assert subagent_row["session_file_display"] != subagent_file
+    assert subagent_row["session_id"] == subagent_id
+    assert subagent_row["session_id_display"] != subagent_id
+    assert subagent_row["failure_rate"] == "N/A"
+    assert subagent_row["failure_label"] == "0 failed · N/A"
+
+
 def test_payload_lookup_uses_global_llm_call_ids():
     ix1 = _llm(0, "one", request_full="request 1", response_full="response 1")
     ix2 = _llm(1, "two", request_full="request 2", response_full="response 2")
@@ -358,6 +417,103 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
     assert payload_items[0]["subagent_round_id"] == 1
 
 
+def test_codex_spawn_agent_subagent_appears_in_breakdown_and_trace():
+    main_ix = _llm(
+        0,
+        "codex-main",
+        input_tokens=120,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+        output_tokens=40,
+    )
+    parent_tool = ToolCall(
+        name="spawn_agent",
+        result='{"agent_id":"codex-sa-1","nickname":"Chandrasekhar"}',
+        status="completed",
+        tool_use_id="spawn-tool-1",
+        scope="main",
+        subagent_id="codex-sa-1",
+        subagent_summary={
+            "agent_id": "codex-sa-1",
+            "agent_type": "implementer",
+            "agent_nickname": "Chandrasekhar",
+        },
+    )
+    main_ix.tool_calls = [parent_tool]
+    rounds = [_round(1, main_ix, [parent_tool])]
+
+    subagent_call = _llm(
+        0,
+        "codex-sub",
+        scope="subagent",
+        subagent_id="codex-sa-1",
+        parent_id="spawn-tool-1",
+        parent_tool_name="spawn_agent",
+        input_tokens=200,
+        cache_read_tokens=50,
+        cache_write_tokens=0,
+        output_tokens=70,
+        request_full="subagent request",
+        response_full="subagent response",
+    )
+    subagent_runs = [{
+        "summary": {
+            "agent_id": "codex-sa-1",
+            "agent_type": "implementer",
+            "agent_nickname": "Chandrasekhar",
+        },
+        "messages": [
+            ChatMessage(
+                "assistant",
+                "subagent response",
+                "2026-01-01T00:00:03Z",
+                llm_call_id=subagent_call.id,
+                usage={
+                    "input_tokens": 200,
+                    "cached_input_tokens": 50,
+                    "output_tokens": 70,
+                },
+                request_full="subagent request",
+            ),
+        ],
+    }]
+
+    vm = _build_v11_view_model(
+        session=_FakeSession(agent="codex", model="gpt-5.1-codex", total_tokens=480),
+        rounds=rounds,
+        llm_calls=[main_ix, subagent_call],
+        tool_calls=[parent_tool],
+        subagent_runs=subagent_runs,
+        session_anomalies=_FakeAnomalies(),
+        slim=False,
+        skip_attribution=True,
+    )
+
+    agent_rows = vm["diagnostics"]["agent_breakdown"]
+    assert agent_rows[0]["scope"] == "main"
+    assert agent_rows[1]["scope"] == "subagent"
+    assert agent_rows[1]["subagent_id"] == "codex-sa-1"
+
+    trace_row = vm["trace_rows"][0]
+    assert trace_row["has_subagent"] is True
+    subagent_item = next(
+        item for item in trace_row["timeline_items"]
+        if item.get("type") == "subagent"
+    )
+    assert subagent_item["subagent_id"] == "codex-sa-1"
+    assert subagent_item["parent_call_index"] == 1
+    assert subagent_item["sub_rounds"][0]["request_attribution"]["payload_id"]
+    assert subagent_item["sub_rounds"][0]["response_attribution"]["payload_id"]
+
+    tool_item = next(
+        item for item in trace_row["timeline_items"]
+        if item.get("type") == "tool_call"
+    )
+    assert tool_item["tool_name"] == "spawn_agent"
+    assert trace_row["token_input"] == 120
+    assert trace_row["token_output"] == 40
+
+
 def test_call_distribution_time_labels_and_per_subagent_legend():
     main_ix = _llm(0, "main", timestamp="2026-01-01T01:02:03")
     rounds = [_round(1, main_ix, [])]
@@ -441,7 +597,14 @@ def test_run_analysis_template_sections_exist():
     assert "sd-driver-table" not in session_html
     assert "sd-diagnostic-card--context" in session_html
     assert "sd-subagent-workbench" in session_html
+    assert "sd-subagent-table-scroll" in session_html
+    assert "sd-subagent-table" in session_html
+    assert "Session file" in session_html
+    assert "Session id" in session_html
+    assert "Failures" in session_html
     assert 'data-action="select-subagent"' in session_html
+    assert 'data-copy-text="{{ row.session_file }}"' in session_html
+    assert 'data-copy-text="{{ row.session_id }}"' in session_html
     assert "sd-subagent-timeline" in session_html
     assert "Call Selector" in session_html
     assert 'data-action="payload-filter"' in session_html
@@ -470,15 +633,17 @@ def test_context_budget_uses_shared_segment_bar_and_legend_colors():
         assert f".sd-context-budget__dot--{index}" in css
 
 
-def test_subagent_breakdown_list_is_single_line_and_scroll_limited():
+def test_agents_breakdown_table_scroll_and_copy_styles_exist():
     css = (
         ROOT / "src/session_browser/web/static/css/session-detail/08-payload-tab.css"
     ).read_text(encoding="utf-8")
 
     assert "--sd-subagent-row-height: 40px" in css
-    assert "max-height: calc((var(--sd-subagent-row-height) * 5) + (6px * 4))" in css
-    assert "overflow-y: auto" in css
+    assert ".sd-subagent-table-scroll" in css
+    assert "overflow: auto" in css
+    assert ".sd-subagent-table {\n  min-width: 820px;" in css
+    assert "white-space: nowrap" in css
+    assert ".sd-subagent-row.is-active td" in css
+    assert ".sd-subagent-copy-btn" in css
     assert ".sd-subagent-select {\n" in css
-    assert "grid-template-columns:" in css
-    assert ".sd-subagent-select__main {\n  min-width: 0;\n  display: contents;" in css
-    assert ".sd-subagent-select__metrics {\n  display: contents;" in css
+    assert ".sd-subagent-select__main {\n  min-width: 0;\n  display: inline-flex;" in css
