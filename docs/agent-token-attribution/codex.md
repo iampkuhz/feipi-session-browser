@@ -57,34 +57,82 @@ tool_result becomes input only in a later model call
 
 Codex 专用来源必须先映射到统一 `Attribution Candidate`。同一个 candidate 再根据 call 状态映射到不同 accounting field。
 
-| Codex 来源 | 统一候选 |
-|---|---|
-| `session_meta.payload.base_instructions.text` | `system_instructions` |
-| `response_item.message(role="developer")` | 根据内容标签和来源语义映射到 `system_instructions`、`runtime_context`、`skill_definitions` 或 `repo_context`。 |
-| `response_item.message(role="system")` | 根据内容标签和来源语义映射到 `system_instructions`、`runtime_context`、`skill_definitions` 或 `repo_context`。 |
-| `<skills_instructions>` | `skill_definitions` |
-| `<plugins_instructions>` | `skill_definitions` |
-| `<permissions instructions>` | `runtime_context` |
-| `<app-context>` | `runtime_context` |
-| `<collaboration_mode>` | `runtime_context` |
-| `<environment_context>` | `runtime_context` |
-| `AGENTS.md`、`.codex/AGENTS.md`、`CLAUDE.md`、`.claude/CLAUDE.md`、可见 `<INSTRUCTIONS>` | 行为规则映射到 `system_instructions`；仓库内容映射到 `repo_context`。 |
-| raw request `tools[]` | `tool_definitions` |
-| `session_meta.payload.dynamic_tools` | `tool_definitions` |
-| Codex builtin tool catalog fallback | `tool_definitions` |
-| `tool_search_output.tools[]` | `tool_definitions` |
-| `.mcp.json` 中进入模型提示的 tool/server 名称 | schema 文本映射到 `tool_definitions`；运行连接事实映射到 `runtime_context`。 |
-| `event_msg.user_message.message` | `user_input` |
-| `event_msg.user_message.images`、`local_images`、`text_elements` | `user_input` |
-| raw request `input[]` prior items | `conversation_history` |
-| rollout 中的 prior assistant messages | 原始输出 call 后，在后续 call 中映射为 `conversation_history`。 |
-| `response_item.function_call_output.output` | 被下一次 call 消费时映射为 `tool_results`。 |
-| `response_item.custom_tool_call_output.output` | 被下一次 call 消费时映射为 `tool_results`。 |
-| 包含 file/search/diff 内容的 tool output | 主要映射为 `tool_results`，可在 sub-source note 中标记 `repo_context`，不得重复计数。 |
-| `response_item.reasoning` | 当前 `reasoning_output`；后续 provider state 可映射为 `reasoning_state`。 |
-| `response_item.function_call`、`response_item.custom_tool_call` | `tool_calls` |
-| `response_item.message(role="assistant")` 自然语言 | `assistant_output` |
-| `response_item.message(role="assistant")` 结构化 citation/protocol block | `structured_output` |
+本节只使用可代码化规则：字段路径、role、content part type、精确 tag、source locator、call 边界和内容哈希。不得用大模型或语义判断把一段文本再细分。
+
+### 4.1 拆分与去重规则
+
+scan 先把原始记录规范化为 `source_unit`，再按表格路由到 candidate。表格中的每一行都匹配一个独立 `source_unit`，不依赖上一行或下一行。
+
+`source_unit` 至少包含：
+
+```text
+source_id = call_id + origin_path + event_order + part_index + unit_type + byte_range
+dedupe_key = call_id + canonical_source_locator + unit_type + sha256(normalized_content)
+origin_path = JSONL 字段路径、raw request 字段路径或本地 source locator
+canonical_source_locator = project wrapper 中的文件路径；没有显式文件路径时等于 origin_path
+unit_type = 下表中的确定性类型
+content = 原始文本或 JSON payload
+```
+
+去重和优先级：
+
+- 同一个 `source_id` 只能贡献一次 token；父级容器只做 provenance，不再贡献 token。
+- 同一个 `dedupe_key` 在同一 call 中只保留优先级最高的来源；用于合并 raw request 和 rollout 中内容相同的可见注入。
+- 同一 call 同时有 raw request body 和 rollout fallback 时，raw request 的 `instructions` / `input[]` / `tools[]` 优先；fallback 只补 raw 中不存在的来源。
+- `AGENTS.md` / `CLAUDE.md` 可见注入和 `<INSTRUCTIONS>` 是同一个 project-instruction 来源的两种外观；命中 project instruction wrapper 后只生成一个 `project_instruction_bundle`，不得再按文件名或标签重复生成第二个来源。
+- 如果同一内容后来作为 tool output 再出现，它属于新的 runtime event；进入后续 call 时归为 `tool_results`，可带 `sub_source=repo_context`，但不得额外生成独立 `repo_context` token。
+
+对 `raw request instructions`、`response_item.message(role in {"developer","system"}).content[].text`，以及未匹配 `event_msg.user_message.message` 且整个 text part 命中下表任一精确 wrapper/tag 的 model-input 文本，使用下面的确定性 text splitter：
+
+1. 按精确起止标记抽取已知 block；匹配大小写敏感，tag 不完整或嵌套不配对时不抽取。
+2. 已抽取 block 的 byte range 标记为 consumed；不允许重叠 range。
+3. 未 consumed 的非空文本生成 `prompt_plain_text`；该默认归类只由容器来源决定，不分析文本语义。
+
+| text splitter 产物 | 精确匹配规则 | 来源内容说明 | 统一候选 |
+|---|---|---|---|
+| `project_instruction_bundle` | 整个 text part 符合 `# <file> instructions for <path>` + 空行 + `<INSTRUCTIONS>...</INSTRUCTIONS>`；`<file>` 只接受 `AGENTS.md`、`.codex/AGENTS.md`、`CLAUDE.md`、`.claude/CLAUDE.md`。 | Codex 注入的项目指令文件内容和其来源路径。 | `system_instructions` |
+| `visible_instructions_block` | 整个 text part 是完整 `<INSTRUCTIONS>...</INSTRUCTIONS>` block，且不带 `# <file> instructions for <path>` header。 | 无文件 header 的可见项目/会话指令块。 | `system_instructions` |
+| `skills_instructions_block` | 完整 `<skills_instructions>...</skills_instructions>` block。 | skill 清单、触发规则、读取方式和资源复用规则。 | `skill_definitions` |
+| `plugins_instructions_block` | 完整 `<plugins_instructions>...</plugins_instructions>` block。 | plugin 使用规则及其 skills、MCP tools、apps 能力关系。 | `skill_definitions` |
+| `permissions_block` | 完整 `<permissions instructions>...</permissions instructions>` block。 | sandbox、审批策略、文件系统和网络权限。 | `runtime_context` |
+| `app_context_block` | 完整 `<app-context>...</app-context>` block。 | Codex 桌面应用能力和交互约束。 | `runtime_context` |
+| `collaboration_mode_block` | 完整 `<collaboration_mode>...</collaboration_mode>` block。 | 当前协作模式和用户输入等待策略。 | `runtime_context` |
+| `environment_context_block` | 完整 `<environment_context>...</environment_context>` block。 | cwd、shell、日期时区、workspace root 和文件系统权限。 | `runtime_context` |
+| `prompt_plain_text` | 上述 block 抽取后剩余的非空文本，来源必须是 `raw request instructions` 或 role 为 `developer` / `system` 的 message text part。 | 未带已知 tag 的 developer/system 指令文本。 | `system_instructions` |
+
+Codex 适配器不按自然语言内容把 `AGENTS.md` / `CLAUDE.md` 拆成“行为规则”和“仓库内容”。这类可见注入整体归为 `system_instructions`；普通仓库文件、diff、搜索命中只在 raw input 文件上下文或 tool output 中出现时进入 `repo_context` 相关记录。
+
+### 4.2 Source unit 到候选的路由表
+
+| 匹配条件（确定性） | 来源内容说明 | 提取方法 | 统一候选 |
+|---|---|---|---|
+| `session_meta.payload.base_instructions.text` 为非空 string | 会话基础指令文本。 | 整个 string 生成一个 `base_instructions_text` unit。 | `system_instructions` |
+| `session_meta.payload.dynamic_tools[]` 为 array | 会话动态工具目录。 | 每个 top-level array item 生成一个结构化 unit；保留工具名、描述和 schema。 | `tool_definitions` |
+| `session_meta.payload.cwd`、`originator`、`cli_version`、`source`、`thread_source`、`model_provider`、`git.*` 非空 | 会话运行事实。 | 收集白名单字段为一个 `session_runtime_metadata` JSON unit。 | `runtime_context` |
+| raw request `instructions` 为 string | OpenAI Responses 顶层 instructions。 | 对该 string 运行 4.1 text splitter；按产物 candidate 输出。 | 由 splitter 产物决定 |
+| `response_item.message(role in {"developer","system"}).content[]` 中 text part 非空 | Codex rollout 可见 developer/system message。 | 对每个 text part 运行 4.1 text splitter；按产物 candidate 输出。 | 由 splitter 产物决定 |
+| raw request `tools[]` 为 array | 本次请求发送给模型的工具 schema。 | 每个 tool JSON 生成一个 `raw_tool_schema` unit。 | `tool_definitions` |
+| Codex builtin tool catalog fallback 被启用 | raw request `tools[]` 不可用时的内置工具目录。 | 仅在 raw tools 缺失时，按 catalog tool item 生成 unit。 | `tool_definitions` |
+| `tool_search_output.tools[]` 为 array | tool search 返回的工具定义候选。 | 记录为 `discovered_tool_schema`；只有该 tool 后续进入 raw `tools[]`、`dynamic_tools` 或 fallback catalog 时才计入对应 call input。 | `tool_definitions` |
+| `.mcp.json` reader 产出 `server/tool schema` unit | MCP server/tool 的名称、描述和参数 schema。 | 只读取 JSON 中确定字段：`mcpServers.*`、`tools[].name`、`tools[].description`、`tools[].inputSchema`。 | `tool_definitions` |
+| `.mcp.json` reader 产出 `connection metadata` unit | MCP server 启用、命令、连接或权限事实。 | 只读取 JSON 中确定字段：server key、`command`、`args`、`env` key 名、启用状态；敏感值脱敏。 | `runtime_context` |
+| `event_msg.user_message.message` 存在 | 当前用户输入文本。 | 整个 message 字段生成 `current_user_text` unit；不解析其中的 XML-like 文本。 | `user_input` |
+| `event_msg.user_message.images`、`local_images`、`text_elements` 非空 | 当前用户多模态输入。 | 每个图片引用、本地路径或 text element 生成 unit。 | `user_input` |
+| raw request `input[]` 中属于当前 call 的用户 item | 当前 call 消费的用户消息。 | 用 call 边界和对应 `event_msg.user_message` 匹配；生成 `current_user_input_item`。 | `user_input` |
+| raw request `input[]` 中 `type="message"` 且早于当前 call 的 user/assistant item | 历史对话消息。 | 按 item 原样生成 `prior_message_item`；不重新拆分为当前输出。 | `conversation_history` |
+| raw request `input[]` 中 `type` 为 `function_call` / `custom_tool_call` 且早于当前 call 的 item | 历史模型工具调用结构。 | 按 item 原样生成 `prior_tool_call_item`。 | `conversation_history` |
+| raw request `input[]` 中 `type` 为 `function_call_output` / `custom_tool_call_output` 的 item | 被当前 call 消费的工具结果。 | 提取 result `output` / `content` payload，生成 `request_tool_result`。 | `tool_results` |
+| raw request `input[]` 或 provider state 中显式 reasoning state item | provider 回传或复用的历史推理状态。 | 只在存在明确 reasoning/state item 或引用字段时生成 unit。 | `reasoning_state` |
+| rollout 中当前 call 之前的 assistant message 被后续 call 重放 | 后续 call 的历史 assistant 输出。 | 以原始 assistant output 的 content hash 关联，生成 `prior_assistant_message`。 | `conversation_history` |
+| `response_item.function_call_output.output` 或 `response_item.custom_tool_call_output.output` | tool runtime result。 | 当前 event 只入 pending；被下一次 call 消费时生成 `request_tool_result`。 | `tool_results` |
+| tool output 的 tool adapter 已确定 `output_kind` 为 `file` / `search` / `diff` | 工具返回的仓库文件片段、搜索命中或 diff。 | 仍按 `request_tool_result` 计入；只附加 `sub_source=repo_context`，不从文本内容二次判定。 | `tool_results` |
+| raw request `input[]` 中存在显式 file context item 或 text part 以 `File:` / `file:` / `path:` 行开头 | 请求直接携带的仓库文件上下文。 | 提取该 item/text part 为 `request_file_context`；不与 tool result 重复。 | `repo_context` |
+| 当前 call 的 `response_item.reasoning` | 当前 call 生成的 reasoning item。 | 在产生它的 call 中生成 `reasoning_output` unit。 | `reasoning_output` |
+| 当前 call 的 `response_item.function_call` 或 `response_item.custom_tool_call` | 当前 call 生成的工具调用请求。 | 提取工具名、参数和 call id。 | `tool_calls` |
+| 当前 call 的 `response_item.message(role="assistant").content[]` text / output_text part | 当前 call 生成的 assistant 自然语言或 Markdown。 | 提取 text 字段；annotations/citations 作为该 text 的 metadata，不单独计 token。 | `assistant_output` |
+| 当前 call 的 `response_item.message(role="assistant").content[]` 非 text part，或 raw response 中显式 JSON/schema/citation block item | 当前 call 生成的机器可读结构化输出。 | 只按 part `type` 或 raw response item type 判定；不根据文本长相猜测。 | `structured_output` |
+
+未命中任何匹配条件的记录不得强行归因；只能进入 diagnostics（例如 `unclassified_visible_input`），并保留 origin path 供后续补规则。
 
 raw request 或 raw response 可用时优先使用 raw body；不可用时从 rollout 可见事件重建，不编造 hidden content。
 
