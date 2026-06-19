@@ -6,6 +6,8 @@
 - [ ] UI 优化：Context Budget 独占一行，Tool Impact 和 Issues & Repro Seeds 左右排列
 - [ ] 当前仓库只声明最低 Python 版本和未锁定依赖，缺少本地/发布 venv 的 Python 版本、依赖锁定与质量门一致性校验，后续应独立建立 Python 环境契约并让 doctor 校验环境一致性而非仅检查 .venv 是否存在
 - [ ] tests/session_detail/test_session_detail_page.py 中 class-scoped fixture 仍以实例方法定义，pytest 10 将移除该用法，后续应改为模块级 fixture 或明确的 classmethod fixture 以消除 PytestRemovedIn10Warning
+- [ ] codex subagent 被当做主 agent，在 session 列表中被展示了：http://127.0.0.1:18999/sessions/codex/019edfc9-2ecb-7ee3-9520-3242799bfe14 
+- [ ] 耗时过长： http://127.0.0.1:18999/sessions/codex/019edfbc-8d75-7023-b9b6-d3216365caa4 启动了一个 subagent qa-verify，但是一直没有停，运行了 40min+，显示关闭 subagent，但是一直没成功
 
 - [x] 完成版本发布流水线
 - [x] 配置 codex 使用 litellm 监控
