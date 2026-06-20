@@ -161,10 +161,6 @@ test.describe('会话详情 — Phase 1', () => {
       'collapse-all',
       'jump-round',
       'open-payload',
-      'open-payload-tab',
-      'open-trace-step',
-      'payload-filter',
-      'select-payload-call',
       'copy',
       'close-payload',
       'retry-attribution',
@@ -182,7 +178,6 @@ test.describe('会话详情 — Phase 1', () => {
       'status-failed',
       'status-low-cache',
       'tab-trace',
-      'tab-payload',
       'toggle-all',
     ]);
 
@@ -842,58 +837,29 @@ test.describe('会话详情 — Phase 1', () => {
 
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────
 
-  test('[UI-SD-010] 点击 payload tab 后 payload 面板可见、trace 面板隐藏', async ({ page }) => {
+  test('[UI-SD-010] 只渲染 trace 顶层视图', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
-    // 验证初始状态：trace 面板可见
     const tracePanel = page.locator('[data-tab-panel="trace"]');
     await expect(tracePanel).toBeVisible({ timeout: 5000 });
-
-    // 点击 payload tab
-    const payloadTab = page.locator('[data-tab="payload"]');
-    await expect(payloadTab).toBeVisible({ timeout: 5000 });
-    await payloadTab.click();
-    await page.waitForTimeout(200);
-
-    // payload tab 应激活
-    await expect(payloadTab).toHaveClass(/is-active/);
-
-    // payload 面板应可见
-    const payloadPanel = page.locator('[data-tab-panel="payload"]');
-    await expect(payloadPanel).toBeVisible({ timeout: 5000 });
-
-    // trace 面板应隐藏
-    await expect(tracePanel).toBeHidden({ timeout: 5000 });
+    await expect(page.locator('[data-tab="trace"]')).toHaveClass(/is-active/);
+    await expect(page.locator('[data-tab="payload"]')).toHaveCount(0);
+    await expect(page.locator('[data-payload-tab-panel]')).toHaveCount(0);
   });
 
-  test('[UI-SD-012] 点击 trace tab 后 trace 面板恢复可见', async ({ page }) => {
+  test('[UI-SD-012] payload 深链回退到 trace 视图', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
-    await gotoSessionDetail(page, sessionUrl);
+    await gotoSessionDetail(page, `${sessionUrl}?tab=payload`);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
-    // 先切到 payload
-    await page.locator('[data-tab="payload"]').click();
-    await page.waitForTimeout(200);
-    await expect(page.locator('[data-tab-panel="payload"]')).toBeVisible({ timeout: 5000 });
-
-    // 再切回 trace
     const traceTab = page.locator('[data-tab="trace"]');
-    await traceTab.click();
-    await page.waitForTimeout(200);
-
-    // trace tab 应激活
     await expect(traceTab).toHaveClass(/is-active/);
-
-    // trace 面板应恢复可见
-    const tracePanel = page.locator('[data-tab-panel="trace"]');
-    await expect(tracePanel).toBeVisible({ timeout: 5000 });
-
-    // payload 面板应隐藏
-    await expect(page.locator('[data-tab-panel="payload"]')).toBeHidden({ timeout: 5000 });
+    await expect(page.locator('[data-tab-panel="trace"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-tab-panel="payload"]')).toHaveCount(0);
   });
 });
 

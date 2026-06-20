@@ -747,7 +747,6 @@ class TestBucketDetails:
         assert "formatPayloadTokenEstimate" in payload_js
         assert "payloadSubtitle(payloadId, payload)" in payload_js
         assert 'appendKv(meta, "result tokens", tokenSummary)' in payload_js
-        assert 'appendPayloadDetailMeta(meta, "result tokens", tokenSummary)' in payload_js
         assert "data-payload-token-estimate" in lazy_js
         assert "payloadNodeFromJson(src)" in lazy_js
 

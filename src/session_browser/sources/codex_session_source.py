@@ -511,6 +511,7 @@ def _build_summary_from_events(
 
     user_count = 0
     assistant_count = 0
+    llm_call_count = 0
     tool_count = 0
     tokens_used = thread_info.get("tokens_used", 0)
 
@@ -533,6 +534,8 @@ def _build_summary_from_events(
 
         if not first_ts:
             first_ts = ts
+        if ts:
+            last_ts = ts
 
         if etype == "event_msg":
             msg_type = payload.get("type", "")
@@ -545,7 +548,18 @@ def _build_summary_from_events(
                 # last_token_usage is 该 last LLM call's usage (not 一个 delta),
                 # so we 仅 use total_token_usage cumulative deltas.
                 info = payload.get("info") or {}
+                last_usage = info.get("last_token_usage") or payload.get("last_token_usage")
                 cumulative_usage = info.get("total_token_usage") or payload.get("total_token_usage")
+                if (
+                    isinstance(cumulative_usage, dict)
+                    and _codex_is_duplicate_cumulative(cumulative_usage, prev_cumulative)
+                ):
+                    prev_cumulative = cumulative_usage
+                    continue
+
+                extracted_last_usage = _extract_codex_usage(last_usage) if isinstance(last_usage, dict) else {}
+                if extracted_last_usage or isinstance(cumulative_usage, dict):
+                    llm_call_count += 1
 
                 if cumulative_usage and isinstance(cumulative_usage, dict):
                     # 使用 _extract_codex_usage，用于 proper alias handling
@@ -590,8 +604,6 @@ def _build_summary_from_events(
             rtype = payload.get("type", "")
             if rtype == "function_call":
                 tool_count += 1
-
-        last_ts = ts
 
     # Codex: input_tokens is 该 logical request input size; cached is reported separately.
     raw_input_total = sum_fresh
@@ -638,7 +650,7 @@ def _build_summary_from_events(
         git_branch=git_branch,
         source=source,
         user_message_count=user_count,
-        assistant_message_count=assistant_count,
+        assistant_message_count=llm_call_count or assistant_count,
         tool_call_count=tool_count,
         output_tokens=output,
         fresh_input_tokens=fresh,

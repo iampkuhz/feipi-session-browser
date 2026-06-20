@@ -1,8 +1,8 @@
 """Page-specific pytest for session detail structure and contracts.
 
-Covers:
+Cover:
 - Hero area structure (agent pill, KPIs, summary strip)
-- Tab navigation (Trace/Metrics/Payloads)
+- Tab navigation (Trace only)
 - Trace table structure (round-row + expanded-row pattern)
 - Filter buttons (status-all, status-failed, collapse-all)
 - Token bar 4-segment structure (fresh/read/write/out)
@@ -192,7 +192,7 @@ class TestHeroArea:
 
 
 class TestTabNavigation:
-    """Tab navigation must have Trace and Payload tabs."""
+    """Tab navigation must expose Trace as the only top-level view."""
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_tab_container_exists(self, session):
@@ -210,12 +210,14 @@ class TestTabNavigation:
             "Missing data-tab=\"trace\""
 
     @pytest.mark.contract_case("UI-SD-001")
-    def test_payload_tab_exists(self, session):
-        """Payload tab must exist with data-action=\"tab-payload\"."""
-        assert 'data-action="tab-payload"' in session, \
-            "Missing Payload tab"
-        assert 'data-tab="payload"' in session, \
-            "Missing data-tab=\"payload\""
+    def test_payload_tab_is_removed(self, session):
+        """Payload tab and persistent payload panel must not render."""
+        assert 'data-action="tab-payload"' not in session, \
+            "Payload tab action must be removed"
+        assert 'data-tab="payload"' not in session, \
+            "Payload top-level tab must be removed"
+        assert "data-payload-tab-panel" not in session, \
+            "Persistent Payload panel must be removed"
 
     @pytest.mark.contract_case("UI-SD-001")
     def test_trace_tab_is_active(self, session):

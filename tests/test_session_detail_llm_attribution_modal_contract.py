@@ -216,13 +216,27 @@ class TestAttributionModalContract:
         assert "可能来源：" not in js
 
     def test_dynamic_modal_fetches_attribution_api(self):
-        """Clicking attribution actions should render from the backend API response."""
+        """Attribution API renderer remains available for non-direct attribution payloads."""
         js_path = Path(__file__).resolve().parents[1] / "src/session_browser/web/static/js/session-detail/attribution.js"
         js = js_path.read_text(encoding="utf-8")
         assert "attributionApiUrl(button, apiKind)" in js
         assert '"/api/sessions/"' in js
         assert "fetch(url, { headers: { \"Accept\": \"application/json\" } })" in js
         assert "renderAttributionSuccess(body, payload, kind, url)" in js
+
+    def test_trace_attribution_buttons_open_direct_request_response_payloads(self):
+        """Trace request/response attribution buttons should map to raw payload IDs."""
+        js_path = Path(__file__).resolve().parents[1] / "src/session_browser/web/static/js/session-detail/payload.js"
+        js = js_path.read_text(encoding="utf-8")
+        open_payload = js[js.index("function openPayload(button)"):]
+        assert "directPayloadTargetForAttribution(button)" in open_payload
+        assert open_payload.index("directPayloadTargetForAttribution(button)") < open_payload.index("openAttributionModal")
+        assert 'kind === "llm.request_attribution"' in js
+        assert 'kind === "llm.response_attribution"' in js
+        assert 'payloadId.replace(/-request-attribution$/, "-context")' in js
+        assert 'payloadId.replace(/-response-attribution$/, "-output")' in js
+        assert '"-ctx"' in js
+        assert '"-rsp"' in js
 
     def test_response_modal_has_response_specific_sections(self):
         """Response attribution should have topgrid response summary."""

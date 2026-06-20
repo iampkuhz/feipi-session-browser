@@ -131,11 +131,10 @@
   });
 
   document.addEventListener('DOMContentLoaded', function () {
-    // Initialize tab panels and Payload selector state.
+    // Initialize the trace panel; legacy payload deep links fall back to Trace.
     var page = document.querySelector('[data-trace-page]') || document;
-    if (typeof initPayloadTab === 'function') initPayloadTab(page);
     var params = new URLSearchParams(window.location.search || "");
-    var initialTab = (params.get("tab") === "payload" || params.get("payload_call_id")) ? "payload" : "trace";
+    var initialTab = "trace";
     switchTab(page, initialTab, false);
     qsa(document, '[data-trace-round-row]').forEach(function (round) {
       var button = qs(round, '[data-action="toggle-round"]');

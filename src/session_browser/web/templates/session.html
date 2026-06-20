@@ -310,9 +310,6 @@
     <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace" role="tab" aria-selected="true" aria-controls="sd-tab-panel-trace">
       <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
     </a>
-    <a class="sd-tab" href="#" data-action="tab-payload" data-tab="payload" role="tab" aria-selected="false" aria-controls="sd-tab-panel-payload">
-      <span class="sd-tab-icon" aria-hidden="true">&#x1F4E6;</span>Payload
-    </a>
   </nav>
 
   <section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
@@ -353,93 +350,6 @@
       </tbody>
     </table>
     {% endif %}
-  </section>
-
-  <section
-    class="sd-payload-tab-panel"
-    id="sd-tab-panel-payload"
-    data-payload-tab-panel
-    data-tab-panel="payload"
-    role="tabpanel"
-    data-default-payload-call="{{ payload_index.default_call_id|default('') }}"
-    hidden
-  >
-    <div class="sd-payload-workbench" data-payload-tab>
-      <aside class="sd-payload-selector" aria-label="Payload call selector">
-        <div class="sd-payload-selector__head">
-          <h2>Call Selector</h2>
-          <span>{{ payload_index.payload_count|default(0) }} items</span>
-        </div>
-        <div class="sd-payload-filter" role="group" aria-label="Payload availability filter">
-          <button type="button" class="is-active" data-action="payload-filter" data-payload-filter="all">All</button>
-          <button type="button" data-action="payload-filter" data-payload-filter="failed">Failed</button>
-          <button type="button" data-action="payload-filter" data-payload-filter="missing">Missing</button>
-          <button type="button" data-action="payload-filter" data-payload-filter="error">Error</button>
-        </div>
-        <div class="sd-payload-selector__list">
-          {% if payload_index.groups %}
-            {% for group in payload_index.groups %}
-            <section class="sd-payload-group" data-payload-group>
-              <h3>{{ group.title }}</h3>
-              {% for item in group["items"] %}
-              <button
-                type="button"
-                class="sd-payload-call"
-                data-action="select-payload-call"
-                data-call-id="{{ item.call_id }}"
-                data-kind="{{ item.kind }}"
-                data-round="{{ item.round_id }}"
-                data-subagent="{{ item.subagent_id|default('') }}"
-                data-subagent-round="{{ item.subagent_round_id|default('') }}"
-                data-title="{{ item.title }}"
-                data-model="{{ item.model }}"
-                data-status="{{ item.call_status }}"
-                data-availability="{{ item.status }}"
-                data-filter-status="{{ item.status }}"
-                data-token-summary="{{ item.token_summary }}"
-                data-timestamp="{{ item.timestamp }}"
-                data-request-payload-id="{{ item.request_payload_id }}"
-                data-response-payload-id="{{ item.response_payload_id }}"
-                data-request-attribution-id="{{ item.request_attribution_id|default('') }}"
-                data-response-attribution-id="{{ item.response_attribution_id|default('') }}"
-                data-request-attribution-status="{{ item.request_attribution_status|default('') }}"
-                data-response-attribution-status="{{ item.response_attribution_status|default('') }}"
-                data-result-payload-ids="{{ item.result_payload_ids|join(',') }}"
-                data-primary-payload-id="{{ item.primary_payload_id }}"
-              >
-                <span class="sd-payload-call__main">
-                  <b>{{ item.title }}</b>
-                  <small>{{ item.meta }}</small>
-                </span>
-                <span class="sd-payload-call__badge sd-payload-call__badge--{{ item.status }}">{{ item.status }}</span>
-              </button>
-              {% endfor %}
-            </section>
-            {% endfor %}
-          {% else %}
-          <div class="sd-card-empty">No payload-capable calls</div>
-          {% endif %}
-        </div>
-      </aside>
-
-      <article class="sd-selected-call" aria-label="Selected Call Detail">
-        <header class="sd-selected-call__head">
-          <div>
-            <h2>Selected Call Detail</h2>
-            <p data-selected-call-title>No call selected</p>
-            <span data-selected-call-meta>—</span>
-          </div>
-          <div class="sd-selected-call__actions">
-            <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="copy" data-copy-text="" data-payload-copy="raw">Copy raw</button>
-            <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-trace-step">Open trace step</button>
-            <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="copy" data-copy-text="" data-payload-copy="call-id">Copy call id</button>
-          </div>
-        </header>
-        <div class="sd-selected-call__body" data-payload-tab-body>
-          <div class="sd-card-empty">Select a call to inspect payload content</div>
-        </div>
-      </article>
-    </div>
   </section>
 
   {% if not slim_mode | default(false) %}

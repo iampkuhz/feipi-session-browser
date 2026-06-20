@@ -1,7 +1,7 @@
 """会话详情追踪中 LLM payload 与事件行契约测试。
 
 Expanded timeline 不再渲染 LLM call card:
-- LLM usage / attribution 入口在 round row、Payload tab 和 payload modal 表达
+- LLM usage / attribution 入口在 round row 和 payload modal 表达
 - expanded detail 保留 user/assistant/tool/subagent 事件行
 - Payload 按钮: data-action="open-payload" 带 data-payload-id
 """

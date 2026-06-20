@@ -4,6 +4,44 @@ import json
 from pathlib import Path
 
 
+def test_codex_sample_indexed_round_count_matches_detail_trace():
+    """Regression: sessions list round count must match Codex detail LLM rounds."""
+    from session_browser.sources.codex_session_source import parse_session_detail
+
+    session_id = "019ede24-67de-7b11-b46f-7922530907a9"
+    sample_dir = (
+        Path(__file__).resolve().parents[2]
+        / "docs"
+        / "session-samples"
+        / "codex"
+        / session_id
+    )
+    rollout_path = next(sample_dir.glob(f"rollout-*{session_id}.jsonl"))
+    threads = {
+        session_id: {
+            "id": session_id,
+            "title": "round count sample",
+            "cwd": "/tmp/round-count-sample",
+            "model": "gpt-test",
+            "git_branch": "main",
+            "rollout_path": str(rollout_path),
+        }
+    }
+
+    summary, messages, _tool_calls, _subagent_runs = parse_session_detail(session_id, threads)
+    main_assistant_messages = [m for m in messages if m.role == "assistant"]
+
+    assert summary.assistant_message_count == 5
+    assert len(main_assistant_messages) == 5
+    assert [m.llm_call_id for m in main_assistant_messages] == [
+        "codex-call-0001",
+        "codex-call-0002",
+        "codex-call-0003",
+        "codex-call-0004",
+        "codex-call-0005",
+    ]
+
+
 def test_extract_messages_carries_function_call_output_to_next_request():
     """Codex function_call_output 是下一次模型调用的 request-side tool output。"""
     from session_browser.sources.codex_session_source import _extract_messages

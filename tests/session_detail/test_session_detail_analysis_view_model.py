@@ -606,11 +606,10 @@ def test_run_analysis_template_sections_exist():
     assert 'data-copy-text="{{ row.session_file }}"' in session_html
     assert 'data-copy-text="{{ row.session_id }}"' in session_html
     assert "sd-subagent-timeline" in session_html
-    assert "Call Selector" in session_html
-    assert 'data-action="payload-filter"' in session_html
-    assert 'data-payload-filter="failed"' in session_html
-    assert 'data-request-attribution-status=' in session_html
-    assert 'data-response-attribution-status=' in session_html
+    assert "Call Selector" not in session_html
+    assert 'data-action="payload-filter"' not in session_html
+    assert 'data-payload-filter="failed"' not in session_html
+    assert "data-payload-tab-panel" not in session_html
 
 
 def test_context_budget_uses_shared_segment_bar_and_legend_colors():

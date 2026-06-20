@@ -3,9 +3,9 @@
 验证 session detail 模板（session.html）满足
 静态标签页到面板的契约：
 
-1. 标签页区域必须包含以下 data-tab 条目：trace、payload。
+1. 标签页区域必须只包含顶层 data-tab 条目：trace。
 2. 面板区域必须包含对应的 data-panel 条目：
-   trace、payload。
+   trace。
 3. 每个声明的标签页必须有对应的面板。
 
 这是纯静态（文本）审计；不涉及渲染或运行时执行。
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SESSION_HTML = ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
 
 # 所需的标签页和面板
-REQUIRED_TABS = {"trace", "payload"}
+REQUIRED_TABS = {"trace"}
 
 
 @pytest.fixture(scope="module")
@@ -59,10 +59,10 @@ class TestTabsPanelsContract:
         assert "trace" in tabs, f"Missing data-tab=\"trace\" in session.html. Found tabs: {tabs}"
 
     @pytest.mark.contract_case("UI-SD-023")
-    def test_tabs_contain_payload(self, session_source):
-        """Tabs must include 'payload'."""
+    def test_tabs_do_not_contain_payload(self, session_source):
+        """Tabs must not include the removed top-level Payload view."""
         tabs = _find_data_tabs(session_source)
-        assert "payload" in tabs, f"Missing data-tab=\"payload\" in session.html. Found tabs: {tabs}"
+        assert "payload" not in tabs, f"Unexpected data-tab=\"payload\" in session.html. Found tabs: {tabs}"
 
     @pytest.mark.contract_case("UI-SD-023")
     def test_panels_contain_trace(self, session_source):
@@ -74,13 +74,10 @@ class TestTabsPanelsContract:
         )
 
     @pytest.mark.contract_case("UI-SD-023")
-    def test_panels_contain_payload(self, session_source):
-        """Panels must include 'payload'."""
+    def test_panels_do_not_contain_payload(self, session_source):
+        """Panels must not include the removed persistent Payload panel."""
         panels = _find_data_panels(session_source)
-        assert "payload" in panels, (
-            f"Missing payload panel (data-panel=\"payload\" or data-tab-panel=\"payload\") in session.html. "
-            f"Found panels: {panels}"
-        )
+        assert "payload" not in panels, f"Unexpected payload panel in session.html. Found panels: {panels}"
 
     @pytest.mark.contract_case("UI-SD-023")
     def test_tab_panel_one_to_one(self, session_source):
