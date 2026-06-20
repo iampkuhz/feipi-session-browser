@@ -21,7 +21,7 @@ def detect_usage_shape(usage: dict | None) -> str:
     if not usage or not isinstance(usage, dict):
         return "unavailable"
 
-    # Anthropic-style fields
+    # 说明：Anthropic-style fields
     has_anthropic_cache = (
         "cache_read_input_tokens" in usage
         or "cache_creation_input_tokens" in usage
@@ -29,17 +29,17 @@ def detect_usage_shape(usage: dict | None) -> str:
     if has_anthropic_cache:
         return "anthropic_messages_like"
 
-    # OpenAI Responses-style fields
+    # 说明：OpenAI Responses-style fields
     input_details = usage.get("input_tokens_details")
     if isinstance(input_details, dict) and "cached_tokens" in input_details:
         return "openai_responses_like"
 
-    # OpenAI Chat Completions-style fields
+    # 说明：OpenAI Chat Completions-style fields
     prompt_details = usage.get("prompt_tokens_details")
     if isinstance(prompt_details, dict) and "cached_tokens" in prompt_details:
         return "openai_chat_like"
 
-    # Check nested details for reasoning tokens (OpenAI Responses indicator)
+    # 检查 nested details，用于 reasoning tokens (OpenAI Responses indicator)
     output_details = usage.get("output_tokens_details")
     if isinstance(output_details, dict) and "reasoning_tokens" in output_details:
         return "openai_responses_like"
@@ -48,7 +48,7 @@ def detect_usage_shape(usage: dict | None) -> str:
     if isinstance(completion_details, dict) and "reasoning_tokens" in completion_details:
         return "openai_chat_like"
 
-    # Has basic token fields but no cache info
+    # 说明：Has basic token fields but no cache info
     has_basic_tokens = (
         "input_tokens" in usage
         or "prompt_tokens" in usage

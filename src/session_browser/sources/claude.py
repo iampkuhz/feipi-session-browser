@@ -1,4 +1,4 @@
-"""Parser for Claude Code local session data.
+"""Claude Code 本地 session 数据解析器。
 
 Data sources:
 - ~/.claude/history.jsonl: session index (sessionId, project, display, timestamp)
@@ -20,7 +20,7 @@ from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
 def parse_history() -> list[dict]:
-    """Parse ~/.claude/history.jsonl and return raw session index entries.
+    """解析 ~/.claude/history.jsonl 和 return raw session index entries.
 
     Returns list of dicts with: session_id, project, display, timestamp
     """
@@ -50,7 +50,7 @@ def parse_history() -> list[dict]:
 
 
 def _ts_ms_to_iso(ts_ms: int | float) -> str:
-    """Convert millisecond timestamp to ISO8601 string."""
+    """转换 millisecond timestamp to ISO8601 string."""
     if not ts_ms:
         return ""
     from datetime import datetime, timezone
@@ -59,7 +59,7 @@ def _ts_ms_to_iso(ts_ms: int | float) -> str:
 
 
 def _ts_to_iso(ts: int | float) -> str:
-    """Convert second timestamp to ISO8601 string."""
+    """转换 second timestamp to ISO8601 string."""
     if not ts:
         return ""
     from datetime import datetime, timezone
@@ -68,7 +68,7 @@ def _ts_to_iso(ts: int | float) -> str:
 
 
 def _assistant_message_key(ev: dict) -> str:
-    """Return a stable key for one logical assistant/LLM response."""
+    """返回 一个 stable key，用于 一个 logical assistant/LLM response."""
     msg = ev.get("message", {})
     if isinstance(msg, dict) and msg.get("id"):
         return str(msg["id"])
@@ -83,7 +83,7 @@ def _usage_int(usage: dict, key: str) -> int:
 
 
 def _merge_usage_dicts(usages: list[dict]) -> dict:
-    """Choose the best Claude usage snapshot for one logical response.
+    """Choose 该 best Claude usage snapshot，用于 一个 logical response.
 
     Claude Code may persist one assistant response as several JSONL rows
     (thinking/text/tool_use fragments). Usage rows are whole provider
@@ -119,7 +119,7 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
 
     def score(index_and_usage: tuple[int, dict]) -> tuple[int, int, int, int]:
         index, usage = index_and_usage
-        # Priority 2: cache field PRESENCE — key exists, value 0 counts
+        # 说明：Priority 2: cache field PRESENCE — key exists, value 0 counts
         cache_field_count = sum(1 for key in cache_keys if key in usage)
         output_present = 1 if _usage_int(usage, "output_tokens") > 0 else 0
         token_total = sum(_usage_int(usage, key) for key in numeric_keys)
@@ -127,10 +127,10 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
 
     _, best_usage = max(enumerate(usages), key=score)
 
-    # Derive input_tokens from the fragment with the largest non-zero value.
-    # This avoids picking the final fragment's streaming-delta input_tokens
-    # (often just ~6 tokens) when earlier fragments report the true request
-    # size (thousands of tokens).
+    # Derive input_tokens，来源于 该 fragment，使用 该 largest non-zero value.
+    # This avoids picking 该 final fragment's streaming-delta input_tokens
+    # (often just ~6 tokens)，当 earlier fragments report 该 true request
+    # 说明：size (thousands of tokens).
     max_input = max(
         (_usage_int(u, "input_tokens") for u in usages),
         default=0,
@@ -143,7 +143,7 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
 
 
 def _assistant_records(events: list[dict]) -> list[dict]:
-    """Merge assistant fragments by message id.
+    """合并 assistant fragments by message id.
 
     Returns records with: id, timestamp, model, text_parts, tool_calls,
     content_blocks, usage, and raw row count. content_blocks preserves
@@ -236,7 +236,7 @@ def _assistant_records(events: list[dict]) -> list[dict]:
 
 
 def _extract_user_text(ev: dict) -> str:
-    """Extract human-visible user text, ignoring tool_result-only events."""
+    """提取 human-visible user text, ignoring tool_result-only events."""
     msg = ev.get("message", {})
     if not isinstance(msg, dict):
         return ""
@@ -258,7 +258,7 @@ def parse_session_detail(
     history_entry: dict | None = None,
     verbose: bool = False,
 ) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
-    """Parse a single Claude session's full event stream.
+    """解析 一个 single Claude session's full event stream.
 
     Args:
         project_key: The project path from history.jsonl.
@@ -276,15 +276,15 @@ def parse_session_detail(
         build_parse_diagnostics,
     )
 
-    # Locate the session file
+    # Locate 该 session file
     project_dir = CLAUDE_DATA_DIR / "projects" / _normalize_project_segment(project_key)
     session_file = project_dir / f"{session_id}.jsonl"
     if not session_file.exists():
-        # Try to find it by scanning
+        # 说明：Try to find it by scanning
         session_file = _find_session_file(project_key, session_id)
         if session_file is None:
             s = _session_from_history(session_id, history_entry)
-            # Attach FILE_NOT_FOUND diagnostics to fallback session
+            # 附加 FILE_NOT_FOUND diagnostics to fallback session
             s.parse_diagnostics = ParseDiagnostics(
                 session_key=s.session_key,
                 issues=[ParseIssueItem(
@@ -306,7 +306,7 @@ def parse_session_detail(
     tool_calls.extend(nested_tool_calls)
     _apply_subagent_totals(summary, subagent_runs, tool_calls)
 
-    # Attach parse diagnostics from JSONL reader
+    # 附加 parse diagnostics，来源于 JSONL reader
     parse_diag = build_parse_diagnostics(
         session_key=summary.session_key,
         file_path=str(session_file),
@@ -323,7 +323,7 @@ def parse_session_detail_normalized(
     session_id: str,
     history_entry: dict | None = None,
 ) -> dict:
-    """Parse a Claude Code session into the normalized intermediate contract."""
+    """解析 一个 Claude Code session，转换为 该 normalized intermediate contract."""
     from session_browser.normalized.agents.claude_code_normalization import parse_claude_code_session_file
 
     project_dir = CLAUDE_DATA_DIR / "projects" / _normalize_project_segment(project_key)
@@ -346,7 +346,7 @@ def parse_normalized_session_file(
     project_key: str = "",
     session_id: str | None = None,
 ) -> dict:
-    """Parse a Claude Code JSONL file directly into normalized JSON."""
+    """解析 一个 Claude Code JSONL file directly，转换为 normalized JSON."""
     from session_browser.normalized.agents.claude_code_normalization import parse_claude_code_session_file
 
     return parse_claude_code_session_file(
@@ -364,7 +364,7 @@ def build_normalized_session(
     subagent_runs: list[dict],
     source_path: str,
 ) -> dict:
-    """Build normalized JSON from the models already parsed for indexing."""
+    """构建 normalized JSON，来源于 该 models already parsed，用于 indexing."""
     from session_browser.normalized.agents.claude_code_normalization import build_claude_code_normalized_session
 
     return build_claude_code_normalized_session(
@@ -377,26 +377,26 @@ def build_normalized_session(
 
 
 def _normalize_project_segment(project_key: str) -> str:
-    """Convert a full project path to the directory name used in ~/.claude/projects/."""
+    """转换 一个 full project path to 该 directory name used in ~/.claude/projects/."""
     if not project_key:
         return ""
-    # The projects directory uses a URL-encoded style of the full path
-    # For now, return as-is; the actual mapping is 1:1 with path segments
+    # The projects directory uses 一个 URL-encoded style of 该 full path
+    # For now, return as-is; 该 actual mapping is 1:1，使用 path segments
     return project_key
 
 
 def _find_session_file(project_key: str, session_id: str) -> Path | None:
-    """Search for a session file under projects/."""
+    """搜索，用于 一个 session file under projects/."""
     projects_dir = CLAUDE_DATA_DIR / "projects"
     if not projects_dir.exists():
         return None
 
-    # Try direct match
+    # 说明：Try direct match
     candidate = projects_dir / project_key / f"{session_id}.jsonl"
     if candidate.exists():
         return candidate
 
-    # Search all project directories
+    # 搜索 所有 project directories
     for proj_dir in projects_dir.iterdir():
         if not proj_dir.is_dir():
             continue
@@ -407,7 +407,7 @@ def _find_session_file(project_key: str, session_id: str) -> Path | None:
 
 
 def _empty_session(session_id: str, project_key: str) -> SessionSummary:
-    """Create an empty session summary as fallback."""
+    """创建 一个 empty session summary as fallback."""
     from pathlib import PurePosixPath
     project_name = PurePosixPath(project_key).name if project_key else "unknown"
     return SessionSummary(
@@ -423,7 +423,7 @@ def _empty_session(session_id: str, project_key: str) -> SessionSummary:
 
 
 def _session_from_history(session_id: str, history_entry: dict | None = None) -> SessionSummary:
-    """Create a session summary from history.jsonl metadata when the event file is missing.
+    """创建 一个 session summary，来源于 history.jsonl metadata，当 该 event file is missing.
 
     This ensures sessions with deleted .jsonl files still appear in the index
     with valid timestamps and titles from history.jsonl.
@@ -434,12 +434,12 @@ def _session_from_history(session_id: str, history_entry: dict | None = None) ->
     display = (history_entry or {}).get("display", "")
     ts_ms = (history_entry or {}).get("timestamp", 0)
 
-    # Use history timestamp as both started_at and ended_at since we don't
-    # have the actual event stream to determine session duration
+    # 使用 history timestamp as both started_at 和 ended_at since we don't
+    # have 该 actual event stream to determine session duration
     ts_iso = _ts_ms_to_iso(ts_ms) if ts_ms else ""
     project_name = PurePosixPath(project).name if project else "unknown"
 
-    # Clean up title from display field
+    # Clean up title，来源于 display field
     title = _extract_readable_title(display)
 
     return SessionSummary(
@@ -454,11 +454,11 @@ def _session_from_history(session_id: str, history_entry: dict | None = None) ->
     )
 
 
-# ─── Title extraction ─────────────────────────────────────────────────────
+# 说明：─── Title extraction ─────────────────────────────────────────────────────
 
 
 def _extract_readable_title(raw_content: str) -> str:
-    """Extract a readable title from raw content that may contain command envelopes.
+    """提取 一个 readable title，来源于 raw content that may contain command envelopes.
 
     Handles:
     1. <command-message>spec-research</command-message><command-args>... → "spec-research · user-intent"
@@ -470,21 +470,21 @@ def _extract_readable_title(raw_content: str) -> str:
 
     content = raw_content.strip()
 
-    # Detect command envelope pattern
+    # 说明：Detect command envelope pattern
     cmd_match = re.search(r"<command-message>([^<]+)</command-message>", content)
     if cmd_match:
         cmd_name = cmd_match.group(1).strip()
 
-        # Try to extract user intent from <command-args>
+        # Try to extract user intent，来源于 <command-args>
         args_match = re.search(r"<command-args>(.+?)</command-args>", content, re.DOTALL)
         if args_match:
             args_text = args_match.group(1).strip()
-            # Clean up: remove XML-like tags, take first meaningful sentence
+            # 说明：Clean up: remove XML-like tags, take first meaningful sentence
             intent = _summarize_text(args_text)
             if intent:
                 return f"{cmd_name} · {intent}"
 
-        # Fallback: take text after the command envelope
+        # Fallback: take text，在之后 该 command envelope
         after_cmd = content[cmd_match.end():].strip()
         if after_cmd:
             intent = _summarize_text(after_cmd)
@@ -493,28 +493,28 @@ def _extract_readable_title(raw_content: str) -> str:
 
         return cmd_name
 
-    # No command envelope — summarize normally
+    # 说明：No command envelope — summarize normally
     return _summarize_text(content)
 
 
 def _summarize_text(text: str, max_len: int = 80) -> str:
-    """Create a short, readable summary of text.
+    """创建 一个 short, readable summary of text.
 
     Strips tags, takes first sentence or up to max_len chars.
     """
     if not text:
         return ""
 
-    # Strip XML-like tags
+    # 说明：Strip XML-like tags
     text = re.sub(r"<[^>]+>", "", text).strip()
 
-    # Normalize whitespace
+    # 归一化 whitespace
     text = re.sub(r"\s+", " ", text).strip()
 
     if not text:
         return ""
 
-    # Take first sentence (up to first period/question/exclamation followed by space)
+    # 说明：Take first sentence (up to first period/question/exclamation followed by space)
     sentence_match = re.match(r"^(.+?[.!?])\s", text)
     if sentence_match:
         first_sentence = sentence_match.group(1).strip()
@@ -522,17 +522,17 @@ def _summarize_text(text: str, max_len: int = 80) -> str:
             return first_sentence
         return first_sentence[:max_len - 1] + "…"
 
-    # No sentence boundary — truncate
+    # 说明：No sentence boundary — truncate
     if len(text) <= max_len:
         return text
     return text[:max_len - 1] + "…"
 
 
-# ─── Summary building ─────────────────────────────────────────────────────
+# 说明：─── Summary building ─────────────────────────────────────────────────────
 
 
 def _parse_ts_ms(ts_str: str) -> int:
-    """Parse ISO8601 timestamp string to millisecond epoch."""
+    """解析 ISO8601 timestamp string to millisecond epoch."""
     if not ts_str:
         return 0
     from datetime import datetime
@@ -549,7 +549,7 @@ def _build_summary_from_events(
     project_key: str,
     subagent_runs: list | None = None,
 ) -> SessionSummary:
-    """Build SessionSummary from parsed Claude events.
+    """构建 SessionSummary，来源于 parsed Claude events.
 
     Computes timeline-based execution times:
     - model_execution_seconds: merged LLM response intervals (user msg → assistant msg)
@@ -588,11 +588,11 @@ def _build_summary_from_events(
         if not model and rec.get("model"):
             model = rec.get("model", "")
 
-    # Collect timestamps for interval calculation
+    # Collect timestamps，用于 interval calculation
     user_event_timestamps: list[int] = []
     assistant_event_timestamps: list[int] = []
-    tool_use_map: dict[str, int] = {}       # tool_use_id -> start_ts_ms
-    tool_result_map: dict[str, int] = {}    # tool_use_id -> end_ts_ms
+    tool_use_map: dict[str, int] = {}       # 说明：tool_use_id -> start_ts_ms
+    tool_result_map: dict[str, int] = {}    # 说明：tool_use_id -> end_ts_ms
 
     for ev in events:
         etype = ev.get("type", "")
@@ -640,24 +640,24 @@ def _build_summary_from_events(
         if ts_ms:
             last_ts = ts_ms
 
-    # ─── Model execution: LLM response intervals (user → next assistant) ───
+    # 说明：─── Model execution: LLM response intervals (user → next assistant) ───
     llm_intervals: list[tuple[int, int]] = []
     sorted_user_ts = sorted(user_event_timestamps)
     sorted_assistant_ts = sorted(assistant_event_timestamps)
     for u_ts in sorted_user_ts:
-        # Find the next assistant message after this user message
+        # 查找 该 next assistant message，在之后 this user message
         for a_ts in sorted_assistant_ts:
             if a_ts > u_ts:
                 llm_intervals.append((u_ts, a_ts))
                 break
 
-    # ─── Tool execution: tool_use → tool_result intervals ───
+    # 说明：─── Tool execution: tool_use → tool_result intervals ───
     tool_intervals: list[tuple[int, int]] = []
     for tool_id, use_ts in tool_use_map.items():
         if tool_id in tool_result_map:
             tool_intervals.append((use_ts, tool_result_map[tool_id]))
 
-    # ─── Subagent intervals from sidechain event streams ───
+    # ─── Subagent intervals，来源于 sidechain event streams ───
     subagent_intervals: list[tuple[int, int]] = []
     for run in (subagent_runs or []):
         summary = run.get("summary", {})
@@ -676,8 +676,8 @@ def _build_summary_from_events(
     model_execution_seconds = _merge_intervals(llm_intervals) / 1000.0
     tool_execution_seconds = _merge_intervals(tool_intervals + subagent_intervals) / 1000.0
 
-    # Unified 5-field totals (Claude Code: 4 exclusive buckets summed)
-    fresh_input_tokens = input_tokens  # input_tokens = fresh in Claude Code
+    # 说明：Unified 5-field totals (Claude Code: 4 exclusive buckets summed)
+    fresh_input_tokens = input_tokens  # 说明：input_tokens = fresh in Claude Code
     cache_read_tokens = cached_tokens
     cache_write_tokens_sum = cache_write_tokens
     total_tokens = fresh_input_tokens + cache_read_tokens + cache_write_tokens_sum + output_tokens
@@ -712,13 +712,13 @@ def _build_summary_from_events(
 
 
 def _merge_intervals(intervals: list[tuple[int, int]], max_gap_ms: int = 300_000) -> int:
-    """Merge overlapping intervals and return total merged duration in milliseconds.
+    """合并 overlapping intervals 和 return total merged duration in milliseconds.
 
     Filters out individual intervals longer than max_gap_ms (likely idle time).
     """
     if not intervals:
         return 0
-    # Filter out intervals > max_gap_ms (idle time)
+    # 说明：Filter out intervals > max_gap_ms (idle time)
     intervals = [(s, e) for s, e in intervals if (e - s) <= max_gap_ms]
     if not intervals:
         return 0
@@ -733,7 +733,7 @@ def _merge_intervals(intervals: list[tuple[int, int]], max_gap_ms: int = 300_000
 
 
 def _extract_messages(events: list[dict]) -> list[ChatMessage]:
-    """Extract user and assistant chat messages from Claude events.
+    """提取 user 和 assistant chat messages，来源于 Claude events.
 
     Tracks pending request parts (human text + tool_result text) between
     user events and writes them to the next assistant message's request_full.
@@ -742,9 +742,9 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
     assistant_by_id = {rec["id"]: rec for rec in _assistant_records(events)}
     emitted_assistant_ids: set[str] = set()
 
-    # Collect pending request context between user events and the next
-    # assistant message.  This captures both human text and tool_result
-    # text that become part of the API request preceding an assistant reply.
+    # Collect pending request context between user events 和 该 next
+    # assistant message.  This captures both human text 和 tool_result
+    # text that become part of 该 API request preceding 一个 assistant reply.
     pending_request_parts: list[str] = []
 
     for ev in events:
@@ -754,7 +754,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
             content = _extract_user_text(ev)
             ts_str = ev.get("timestamp", "")
 
-            # Collect tool_result text for request context
+            # Collect tool_result text，用于 request context
             msg = ev.get("message", {})
             if isinstance(msg, dict) and isinstance(msg.get("content"), list):
                 for item in msg["content"]:
@@ -767,7 +767,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                         if part:
                             pending_request_parts.append(part)
 
-            # Human user text
+            # 说明：Human user text
             if content:
                 pending_request_parts.append(content)
 
@@ -810,7 +810,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
 
 
 def _stringify_tool_result(result_content) -> str:
-    """Convert Claude tool_result content into compact text."""
+    """转换 Claude tool_result content，转换为 compact text."""
     if result_content is None:
         return ""
     if isinstance(result_content, str):
@@ -832,7 +832,7 @@ def _stringify_tool_result(result_content) -> str:
 
 
 def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
-    """Heuristic for **tool runtime failure** in Claude logs.
+    """Heuristic，用于 **tool runtime failure** in Claude logs.
 
     Only detects failures where the tool itself could not execute:
     - API / model access errors
@@ -850,11 +850,11 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
     if not text:
         return False
 
-    # For Read/Write/Edit/Glob/Grep/LS tools, only trust the JSONL
-    # is_error flag and obvious file-level error messages.  Their
-    # results are file/glob contents which can legitimately contain
-    # words like "error", "failed", "key_model_access_denied" in
-    # source code, logs, or comments.
+    # For Read/Write/Edit/Glob/Grep/LS tools, 仅 trust 该 JSONL
+    # is_error flag 和 obvious file-level error messages.  Their
+    # 说明：results are file/glob contents which can legitimately contain
+    # 说明：words like "error", "failed", "key_model_access_denied" in
+    # source code, logs, 或 comments.
     if tool_name in ("Read", "Write", "Edit", "Glob", "Grep", "LS"):
         first_line = text.split("\n", 1)[0].strip()
         if first_line.startswith((
@@ -872,12 +872,12 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
             return True
         return False
 
-    # For Bash/Agent and others: detect **tool runtime errors**, not
-    # command output that happens to contain error keywords.
+    # For Bash/Agent 和 others: detect **tool runtime errors**, not
+    # 说明：command output that happens to contain error keywords.
 
-    # ── Tool runtime error markers (anchored at line start) ─────
-    # These indicate the tool could not execute, not that it executed
-    # and produced an error result (like lint failures, test failures).
+    # 说明：── Tool runtime error markers (anchored at line start) ─────
+    # These indicate 该 tool could not execute, not that it executed
+    # and produced 一个 error result (like lint failures, test failures).
     line_markers = [
         "api error",
         "tool_use_error",
@@ -885,8 +885,8 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
         "rate limit exceeded",
         "user rejected",
         "request cancelled",
-        "permission denied",       # bash: ./deploy.sh: Permission denied
-        "fatal:",                  # git errors: fatal: not a git repository
+        "permission denied",       # 说明：bash: ./deploy.sh: Permission denied
+        "fatal:",                  # 说明：git errors: fatal: not a git repository
     ]
     for marker in line_markers:
         if text.startswith(marker):
@@ -895,28 +895,28 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
             stripped = line.strip().lstrip("$# ").strip()
             if stripped.startswith(marker):
                 return True
-            # Also match after shell error prefix: "bash: cmd: ..."
-            # e.g. "bash: kubectl: command not found"
+            # Also match，在之后 shell error prefix: "bash: cmd: ..."
+            # 说明：e.g. "bash: kubectl: command not found"
             parts = stripped.split(": ")
             if len(parts) > 1:
                 last_part = parts[-1].strip()
                 if last_part.startswith(marker):
                     return True
 
-    # ── "command not found" at line start or after shell prefix ──
-    # Real shell error: the tool couldn't run the command.
-    # Match: "command not found" at line start, or "bash: xyz: command not found"
+    # ── "command not found" at line start or，在之后 shell prefix ──
+    # Real shell error: 该 tool couldn't run 该 command.
+    # Match: "command not found" at line start, 或 "bash: xyz: command not found"
     if re.search(r"(?:^|\n)\s*command not found", text, re.MULTILINE):
         return True
     for line in text.split("\n"):
         stripped = line.strip()
-        # "bash: xyz: command not found" or "sh: xyz: command not found"
+        # "bash: xyz: command not found" 或 "sh: xyz: command not found"
         m = re.match(r"^(?:ba)?sh:\s+.*:\s+command not found", stripped)
         if m:
             return True
 
-    # ── "timeout" as standalone word at line start ────────────────
-    # Tool execution timed out at the runtime level.
+    # 说明：── "timeout" as standalone word at line start ────────────────
+    # Tool execution timed out at 该 runtime level.
     if re.search(r"(?:^|\n)\s*timeout\b", text, re.MULTILINE):
         return True
 
@@ -924,7 +924,7 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
 
 
 def _usage_totals_from_messages(messages: list[ChatMessage]) -> dict:
-    """Aggregate merged per-message usage into token totals."""
+    """聚合 merged per-message usage，转换为 token totals."""
     totals = {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -942,7 +942,7 @@ def _usage_totals_from_messages(messages: list[ChatMessage]) -> dict:
 
 
 def _parse_subagent_runs(session_file: Path) -> list[dict]:
-    """Parse Claude Code subagent sidechain files for a parent session."""
+    """解析 Claude Code subagent sidechain files，用于 一个 parent session."""
     subagents_dir = session_file.with_suffix("") / "subagents"
     if not subagents_dir.exists():
         return []
@@ -1014,7 +1014,7 @@ def _attach_subagents_to_agent_tools(
     tool_calls: list[ToolCall],
     subagent_runs: list[dict],
 ) -> None:
-    """Attach parsed sidechain summaries to the matching parent Agent tool."""
+    """附加 parsed sidechain summaries to 该 matching parent Agent tool."""
     remaining = list(subagent_runs)
     for tc in tool_calls:
         if tc.name != "Agent" or not remaining:
@@ -1049,7 +1049,7 @@ def _attach_subagents_to_agent_tools(
 
 
 def _flatten_subagent_tool_calls(subagent_runs: list[dict]) -> list[ToolCall]:
-    """Return all parsed child tool calls."""
+    """返回 所有 parsed child tool calls."""
     flattened: list[ToolCall] = []
     for run in subagent_runs:
         flattened.extend(run["tool_calls"])
@@ -1061,7 +1061,7 @@ def _apply_subagent_totals(
     subagent_runs: list[dict],
     tool_calls: list[ToolCall],
 ) -> None:
-    """Add subagent traffic into session-level diagnostic totals."""
+    """Add subagent traffic，转换为 session-level diagnostic totals."""
     summary.tool_call_count = len(tool_calls)
     summary.failed_tool_count = sum(1 for tc in tool_calls if tc.is_failed)
     for run in subagent_runs:
@@ -1082,7 +1082,7 @@ def _extract_tool_calls(
     events: list[dict],
     messages: list[ChatMessage],
 ) -> list[ToolCall]:
-    """Extract tool call records from assistant messages.
+    """提取 tool call records，来源于 assistant messages.
 
     Enhanced to detect:
     - Failed tool calls (error in tool_result)
@@ -1091,9 +1091,9 @@ def _extract_tool_calls(
     """
     tool_calls = []
 
-    # Build a map of tool_use_id → tool_result for status/result display.
-    # We only extract the JSONL is_error flag and raw content here;
-    # the heuristic is applied later once we know the tool name.
+    # 构建 一个 map of tool_use_id → tool_result，用于 status/result display.
+    # We 仅 extract 该 JSONL is_error flag 和 raw content here;
+    # the heuristic is applied later once we know 该 tool name.
     tool_results: dict[str, dict] = {}
     for ev in events:
         if ev.get("type") != "user":
@@ -1113,7 +1113,7 @@ def _extract_tool_calls(
                         "result_text": result_text,
                     }
 
-    # Extract tool calls from assistant messages
+    # 提取 tool calls，来源于 assistant messages
     for msg in messages:
         if msg.role != "assistant":
             continue
@@ -1122,12 +1122,12 @@ def _extract_tool_calls(
             name = tc.get("name", "")
             params = tc.get("parameters", {})
 
-            # Try to find matching tool result
+            # 说明：Try to find matching tool result
             raw = tool_results.get(tool_use_id, {})
             is_error = raw.get("is_error_raw", False)
             result_text = raw.get("result_text", "")
 
-            # Apply heuristic now that we know the tool name
+            # Apply heuristic now that we know 该 tool name
             if _tool_result_looks_failed(result_text, tool_name=name):
                 is_error = True
 
@@ -1135,9 +1135,9 @@ def _extract_tool_calls(
             exit_match = re.search(r"exit code[:\s]*(\d+)", result_text, re.IGNORECASE)
             if exit_match:
                 exit_code = int(exit_match.group(1))
-                # Do NOT set is_error from nonzero exit_code.
-                # exit_code records the command's return status, which may be
-                # business logic (e.g. rg found no matches), not a tool failure.
+                # Do NOT set is_error，来源于 nonzero exit_code.
+                # exit_code records 该 command's return status, which may be
+                # business logic (e.g. rg found no matches), not 一个 tool failure.
 
             error_msg = result_text[:500] if is_error else ""
 
@@ -1145,7 +1145,7 @@ def _extract_tool_calls(
             result = result_text
             files_touched = []
 
-            # For Read/Write/Edit tools, extract file path from params
+            # For Read/Write/Edit tools, extract file path，来源于 params
             file_path = (
                 params.get("file_path", "")
                 or params.get("path", "")
@@ -1154,8 +1154,8 @@ def _extract_tool_calls(
             if file_path:
                 files_touched.append(file_path)
 
-            # For Grep/Glob, extract pattern
-            # For Bash, extract command
+            # 说明：For Grep/Glob, extract pattern
+            # 说明：For Bash, extract command
 
             tool_calls.append(ToolCall(
                 name=name,
@@ -1173,7 +1173,7 @@ def _extract_tool_calls(
 
 
 def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
-    """Scan all Claude sessions and yield SessionSummary for each.
+    """扫描 所有 Claude sessions 和 yield SessionSummary，用于 each.
 
     This is the main entry point for the indexer.
     It reads history.jsonl for the session list, then parses each session file.
@@ -1183,8 +1183,8 @@ def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
     """
     history = parse_history()
 
-    # Group by project
-    # session_id -> project mapping
+    # 分组 by project
+    # 说明：session_id -> project mapping
     session_projects = {}
     for entry in history:
         session_projects[entry["session_id"]] = entry["project"]
@@ -1195,7 +1195,7 @@ def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
         summary, _msgs, _tcs, _sa = parse_session_detail(
             project, sid, history_entry=entry, verbose=verbose
         )
-        # Ensure title from history if empty (fallback)
+        # 确保 title，来源于 history，如果 empty (fallback)
         if not summary.title and entry.get("display"):
             summary.title = _extract_readable_title(entry["display"])
         yield summary

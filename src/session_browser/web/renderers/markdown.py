@@ -1,4 +1,4 @@
-"""Markdown renderer for Feipi Session Browser.
+"""Feipi Session Browser 的 Markdown renderer。
 
 Provides a shared MarkdownIt instance and a Jinja2-compatible filter
 that renders markdown to HTML with XSS-safe escaping.
@@ -10,13 +10,13 @@ import html
 
 from markdown_it import MarkdownIt
 
-# ─── Shared MarkdownIt renderer ──────────────────────────────────────
+# 说明：─── Shared MarkdownIt renderer ──────────────────────────────────────
 
 _md = MarkdownIt().enable("table")
 
 
 def render_markdown(text: str) -> str:
-    """Render markdown text to HTML.
+    """说明：Render markdown text to HTML.
 
     Escapes raw HTML in the input to prevent XSS attacks.
     Returns empty string for empty/None input.

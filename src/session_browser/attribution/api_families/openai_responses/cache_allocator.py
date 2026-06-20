@@ -1,4 +1,4 @@
-"""OpenAI Responses API cache allocator.
+"""说明：OpenAI Responses API cache allocator.
 
 OpenAI cache 分配语义：
   [0, cached_tokens)       => cache_read
@@ -41,7 +41,7 @@ def allocate_openai_responses_cache(
         span_start = offset
         span_end = offset + est
 
-        # [0, cache_read) => cache_read
+        # 区间映射：[0, cache_read) => cache_read
         overlap_start = max(span_start, 0)
         overlap_end = min(span_end, cache_read)
         span_cache_read = max(0, overlap_end - overlap_start)

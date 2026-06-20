@@ -1,4 +1,4 @@
-"""Projects presenter.
+"""说明：Projects presenter。
 
 Extracted view-model construction logic for the projects listing and
 individual project pages. Keeps data-fetching out of the HTTP handler
@@ -23,7 +23,7 @@ from session_browser.index.indexer import (
 from session_browser.web.template_env import _display_path
 
 
-# ── Query parameter defaults ─────────────────────────────────────────
+# 说明：── Query parameter defaults ─────────────────────────────────────────
 
 VALID_PAGE_SIZES = {25, 50, 100}
 PROJECT_SORT_KEY_MAP = {
@@ -49,7 +49,7 @@ PROJECT_TREND_GRAINS = {"day", "week", "month"}
 
 
 def parse_projects_query_params(raw_params: dict[str, list[str]]) -> dict[str, Any]:
-    """Parse URL query parameters into a typed dict for projects pages.
+    """解析 URL query parameters，转换为 一个 typed dict，用于 projects pages.
 
     Args:
         raw_params: Result of urllib.parse.parse_qs().
@@ -57,7 +57,7 @@ def parse_projects_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
     Returns:
         Dict with keys: page, page_size.
     """
-    # Pagination — page
+    # 说明：Pagination — page
     try:
         page = int(raw_params.get("page", ["1"])[0])
         if page < 1:
@@ -65,7 +65,7 @@ def parse_projects_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
     except (ValueError, IndexError):
         page = 1
 
-    # Pagination — page_size
+    # 说明：Pagination — page_size
     raw_size = raw_params.get("page_size", ["25"])[0].strip().lower()
     try:
         page_size_int = int(raw_size)
@@ -97,7 +97,7 @@ def compute_projects_pagination(
     page: int,
     page_size: int | str,
 ) -> dict[str, Any]:
-    """Compute limit, offset and pagination metadata for projects listing.
+    """计算 limit, offset 和 pagination metadata，用于 projects listing.
 
     Returns:
         Dict with keys: limit, offset, effective_page_size, total_pages,
@@ -116,7 +116,7 @@ def compute_projects_pagination(
         offset = (page - 1) * page_size
         effective_page_size = page_size
 
-    # page_start / page_end
+    # 说明：page_start / page_end
     if total_count == 0:
         page_start = 0
         page_end = 0
@@ -136,12 +136,12 @@ def compute_projects_pagination(
         "page_end": page_end,
         "has_prev": has_prev,
         "has_next": has_next,
-        "page": page,  # possibly clamped
+        "page": page,  # 说明：possibly clamped
     }
 
 
 def parse_project_detail_query_params(raw_params: dict[str, list[str]]) -> dict[str, Any]:
-    """Parse query parameters for project detail sessions and trend controls."""
+    """解析 query parameters，用于 project detail sessions 和 trend controls."""
     params = parse_projects_query_params(raw_params)
     raw_sort = raw_params.get("sort", ["updated"])[0].strip().lower()
     params["sort_by"] = PROJECT_DETAIL_SESSION_SORT_KEY_MAP.get(raw_sort, "ended_at")
@@ -394,7 +394,7 @@ def build_projects_view_model(
     raw_params: dict[str, list[str]] | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    """Build the complete view model for the projects listing page.
+    """构建 该 complete view model，用于 该 projects listing page.
 
     Args:
         raw_params: Parsed query string via urllib.parse.parse_qs().
@@ -427,17 +427,17 @@ def build_projects_view_model(
 
     params = parse_projects_query_params(raw_params)
 
-    # Get total count first
+    # 说明：Get total count first
     total_count = int(count_projects(conn, title_like=params["filter_q"]))
 
-    # Compute pagination
+    # 计算 pagination
     pagination = compute_projects_pagination(
         total_count=total_count,
         page=params["page"],
         page_size=params["page_size"],
     )
 
-    # Fetch paginated projects
+    # 说明：Fetch paginated projects
     projects = list_projects(
         conn,
         title_like=params["filter_q"],
@@ -447,8 +447,8 @@ def build_projects_view_model(
         order_dir=params["sort_dir"],
     )
 
-    # Compute display_path for each project: use cwd (actual filesystem path)
-    # with ~ substitution, falling back to project_key if cwd is empty.
+    # 计算 display_path，用于 each project: use cwd (actual filesystem path)
+    # with ~ substitution, falling back to project_key，如果 cwd is empty.
     for p in projects:
         raw_path = p.cwd if hasattr(p, 'cwd') and p.cwd else p.project_key
         p.display_path = _display_path(raw_path)
@@ -476,7 +476,7 @@ def build_project_detail_view_model(
     project_key: str,
     raw_params: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Build the complete view model for a single project page.
+    """构建 该 complete view model，用于 一个 single project page.
 
     Args:
         conn: An open SQLite connection to the session index database.
@@ -516,17 +516,17 @@ def build_project_detail_view_model(
             "has_next": False,
         }
 
-    # Get total count for this project
+    # Get total count，用于 this project
     total_count = int(count_sessions(conn, project_key=project_key, title_like=params["filter_q"]))
 
-    # Compute pagination
+    # 计算 pagination
     pagination = compute_projects_pagination(
         total_count=total_count,
         page=params["page"],
         page_size=params["page_size"],
     )
 
-    # Fetch paginated sessions for this project
+    # Fetch paginated sessions，用于 this project
     sessions = list_sessions(
         conn,
         project_key=project_key,

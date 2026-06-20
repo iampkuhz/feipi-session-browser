@@ -1,4 +1,4 @@
-"""Lightweight validation for normalized session JSON.
+"""normalized session JSON 的轻量校验。
 
 This module intentionally avoids a JSON Schema dependency. The normalized JSON
 contract is still evolving, so tests use focused semantic checks that protect
@@ -14,7 +14,7 @@ NORMALIZED_SCHEMA_VERSION = "session-detail.normalized.v2"
 
 
 class NormalizedValidationError(ValueError):
-    """Raised when normalized session JSON violates the intermediate contract."""
+    """Raised，当 normalized session JSON violates 该 intermediate contract."""
 
 
 def _require(condition: bool, message: str, errors: list[str]) -> None:
@@ -27,7 +27,7 @@ def _as_list(value: Any) -> list:
 
 
 def validate_normalized_session(data: dict) -> None:
-    """Validate the current normalized session contract.
+    """Validate 该 current normalized session contract.
 
     The checks are intentionally semantic rather than exhaustive. They guard
     LLM-call boundaries, request/response separation, usage totals, and tool

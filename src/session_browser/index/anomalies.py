@@ -1,4 +1,4 @@
-"""Anomaly detection engine for session-browser.
+"""Anomaly detection engine，用于 session-browser.
 
 Detects session-level anomalies using percentile-based thresholds with fallbacks.
 Each anomaly output contains: type, severity, label, reason.
@@ -13,7 +13,7 @@ from session_browser.index.percentiles import FALLBACK_THRESHOLDS
 from session_browser.index.diagnostics import SESSION_ANOMALY_DEFINITIONS
 
 
-# ─── Anomaly types ────────────────────────────────────────────────────────
+# 说明：─── Anomaly types ────────────────────────────────────────────────────────
 
 class AnomalyType:
     LONG_DURATION = "long_duration"
@@ -29,11 +29,11 @@ SEVERITY_INFO = "info"
 
 @dataclass
 class Anomaly:
-    """A single anomaly detected for a session."""
+    """A single anomaly detected，用于 一个 session."""
     type: str
-    severity: str  # "critical", "warning", "info"
-    label: str  # Short display label (e.g., "Long Duration")
-    reason: str  # Human-readable explanation
+    severity: str  # 可选值："critical", "warning", "info"
+    label: str  # 短显示标签（例如 "Long Duration"）
+    reason: str  # 可读解释
 
     @property
     def badge_class(self) -> str:
@@ -46,7 +46,7 @@ class Anomaly:
 
 @dataclass
 class SessionAnomalies:
-    """All anomalies for a single session."""
+    """All anomalies，用于 一个 single session."""
     session_key: str
     anomalies: list[Anomaly] = field(default_factory=list)
 
@@ -60,7 +60,7 @@ class SessionAnomalies:
 
     @property
     def main_reason(self) -> str:
-        """Return the reason of the highest-severity anomaly."""
+        """返回 该 reason of 该 highest-severity anomaly."""
         if not self.anomalies:
             return ""
         ordered = sorted(
@@ -75,7 +75,7 @@ class SessionAnomalies:
 
 
 def safe_divide(a: Optional[float], b: Optional[float], default: Optional[float] = None) -> Optional[float]:
-    """Safe division returning default when b is 0 or None."""
+    """Safe division returning default，当 b is 0 或 None."""
     if b is None or b == 0:
         return default
     if a is None:
@@ -87,7 +87,7 @@ def detect_session_anomalies(
     session: dict,
     thresholds: Optional[dict] = None,
 ) -> SessionAnomalies:
-    """Detect anomalies for a single session.
+    """Detect anomalies，用于 一个 single session.
 
     Args:
         session: Dict with session fields (from DB row or enriched dict).
@@ -111,9 +111,9 @@ def detect_session_anomalies(
 
     input_side_total = fresh_input_tokens + cache_read + cache_write
 
-    # ─── Failed run (ratio-based thresholds) ───
-    # Occasional failures are normal (esp. for certain models).
-    # Flag when ratio crosses severity thresholds.
+    # 说明：─── Failed run (ratio-based thresholds) ───
+    # Occasional failures are normal (esp.，用于 certain models).
+    # Flag，当 ratio crosses severity thresholds.
     if failed > 0 and tools > 0:
         fail_ratio = safe_divide(failed, tools, 0)
         if fail_ratio >= 0.25:
@@ -131,10 +131,10 @@ def detect_session_anomalies(
                 reason=f"{failed} failed tool call(s) ({fail_ratio*100:.0f}%)",
             ))
 
-    # ─── Long duration (based on combined active time: model + tool execution) ───
-    # model_execution_seconds = merged LLM response intervals (user → assistant)
-    # tool_execution_seconds = merged tool + subagent intervals, parallel overlap merged
-    # Combined = total active work time excluding idle/wait
+    # 说明：─── Long duration (based on combined active time: model + tool execution) ───
+    # 说明：model_execution_seconds = merged LLM response intervals (user → assistant)
+    # 说明：tool_execution_seconds = merged tool + subagent intervals, parallel overlap merged
+    # 说明：Combined = total active work time excluding idle/wait
     model_exec = session.get("model_execution_seconds", 0) or 0
     tool_exec = session.get("tool_execution_seconds", 0) or 0
     active_time = model_exec + tool_exec
@@ -159,9 +159,9 @@ def detect_session_anomalies(
                 reason=f"Active time {hours:.1f}h (model {model_exec/3600:.1f}h + tool {tool_exec/3600:.1f}h) exceeds warning threshold ({warn/3600:.1f}h)",
             ))
 
-    # ─── Cache creation (cache_creation_input_tokens) ───
-    # Shows how much context this session wrote to the prompt cache.
-    # Expected for multi-turn sessions — info/warning only, not a problem.
+    # 说明：─── Cache creation (cache_creation_input_tokens) ───
+    # Shows how much context this session wrote to 该 prompt cache.
+    # Expected，用于 multi-turn sessions — info/warning only, not 一个 problem.
     warn = FALLBACK_THRESHOLDS["cache_write_tokens"]["warning"]
     crit = FALLBACK_THRESHOLDS["cache_write_tokens"]["critical"]
 
@@ -180,12 +180,12 @@ def detect_session_anomalies(
             reason=f"Cache creation {cache_write:,} tokens exceeds threshold ({warn:,})",
         ))
 
-    # ─── Payload visibility mismatch ───
-    # NOTE: This detection is now done in _serve_session() where llm_calls
-    # are available. The old check (session.get("rendered_context_length"))
-    # used a field that was never populated, causing false positives for all
-    # sessions with input tokens.
-    # Kept here for reference; the constant is still used by templates.
+    # 说明：─── Payload visibility mismatch ───
+    # 说明：NOTE: This detection is now done in _serve_session() where llm_calls
+    # 说明：are available. The old check (session.get("rendered_context_length"))
+    # used 一个 field that was never populated, causing false positives，用于 all
+    # sessions，使用 input tokens.
+    # Kept here，用于 reference; 该 constant is still used by templates.
 
     return SessionAnomalies(session_key=session_key, anomalies=anomalies)
 
@@ -193,7 +193,7 @@ def detect_session_anomalies(
 def detect_all_anomalies(
     sessions_data: list[dict],
 ) -> dict[str, SessionAnomalies]:
-    """Detect anomalies for all sessions.
+    """Detect anomalies，用于 所有 sessions.
 
     Args:
         sessions_data: List of session dicts.
@@ -215,7 +215,7 @@ def get_needs_attention(
     limit: int = 8,
     filter_type: str = "all",
 ) -> list[dict]:
-    """Get top sessions needing attention.
+    """说明：Get top sessions needing attention.
 
     Args:
         anomalies_map: {session_key: SessionAnomalies}
@@ -231,7 +231,7 @@ def get_needs_attention(
         if not sa.anomalies:
             continue
 
-        # Apply filter
+        # 说明：Apply filter
         if filter_type == "critical" and sa.max_severity != SEVERITY_CRITICAL:
             continue
         if filter_type == "long_duration" and not any(a.type == AnomalyType.LONG_DURATION for a in sa.anomalies):
@@ -259,7 +259,7 @@ def get_needs_attention(
             "anomaly_badge_classes": [a.badge_class for a in sa.anomalies],
         })
 
-    # Sort: critical first, then by anomaly count
+    # 说明：Sort: critical first, then by anomaly count
     severity_order = {SEVERITY_CRITICAL: 0, SEVERITY_WARNING: 1, SEVERITY_INFO: 2}
     items.sort(key=lambda x: (severity_order.get(x["max_severity"], 3), -x["anomaly_count"]))
 
@@ -270,7 +270,7 @@ def enrich_sessions_with_anomalies(
     sessions: list,
     anomalies_map: dict[str, SessionAnomalies],
 ) -> list[dict]:
-    """Add anomaly info to a list of SessionSummary objects.
+    """Add anomaly info to 一个 list of SessionSummary objects.
 
     Returns list of dicts with anomaly fields appended.
     """

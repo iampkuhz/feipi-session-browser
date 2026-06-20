@@ -1,4 +1,4 @@
-"""Stable contracts for LLM call attribution.
+"""LLM call attribution 的稳定契约。
 
 All dataclasses and enums used by the attribution layer are defined here
 so that UI and test layers depend on a single source of truth.
@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-# ─── Precision / Source enums ──────────────────────────────────────────
+# 说明：─── Precision / Source enums ──────────────────────────────────────────
 
 
 class ValuePrecision:
@@ -33,12 +33,12 @@ class ValueSource:
     RESIDUAL = "residual"
 
 
-# ─── Core attributed value ─────────────────────────────────────────────
+# 说明：─── Core attributed value ─────────────────────────────────────────────
 
 
 @dataclass
 class AttributedValue:
-    """A single numeric or string value with provenance."""
+    """A single numeric 或 string value，使用 provenance."""
     value: int | float | str | None
     unit: str
     precision: str
@@ -47,12 +47,12 @@ class AttributedValue:
     note: str = ""
 
 
-# ─── Request bucket ────────────────────────────────────────────────────
+# 说明：─── Request bucket ────────────────────────────────────────────────────
 
 
 @dataclass
 class RequestAttributionBucket:
-    """One request-side attribution bucket (e.g. history messages)."""
+    """说明：One request-side attribution bucket (e.g. history messages)."""
     key: str
     label: str
     tokens: int
@@ -70,12 +70,12 @@ class RequestAttributionBucket:
     details: dict = field(default_factory=dict)
 
 
-# ─── Response bucket ───────────────────────────────────────────────────
+# 说明：─── Response bucket ───────────────────────────────────────────────────
 
 
 @dataclass
 class ResponseAttributionBucket:
-    """One response-side attribution bucket (e.g. assistant text)."""
+    """说明：One response-side attribution bucket (e.g. assistant text)."""
     key: str
     label: str
     tokens: int
@@ -94,7 +94,7 @@ class ResponseAttributionBucket:
 
 @dataclass
 class AvailabilityRow:
-    """One row in the parameter availability table for UI consumption."""
+    """One row in 该 parameter availability table，用于 UI consumption."""
     field: str
     label: str
     exact: bool
@@ -105,12 +105,12 @@ class AvailabilityRow:
     note: str = ""
 
 
-# ─── Request attribution result ────────────────────────────────────────
+# 说明：─── Request attribution result ────────────────────────────────────────
 
 
 @dataclass
 class LLMRequestAttribution:
-    """Full request attribution for one LLM call."""
+    """Full request attribution，用于 一个 LLM call."""
     agent: str
     model: str
     request_id: str
@@ -134,12 +134,12 @@ class LLMRequestAttribution:
     accounting_attribution: dict = field(default_factory=dict)
 
 
-# ─── Response attribution result ───────────────────────────────────────
+# 说明：─── Response attribution result ───────────────────────────────────────
 
 
 @dataclass
 class LLMResponseAttribution:
-    """Full response attribution for one LLM call."""
+    """Full response attribution，用于 一个 LLM call."""
     agent: str
     model: str
     request_id: str

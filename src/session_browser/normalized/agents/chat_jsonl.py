@@ -1,4 +1,4 @@
-"""Shared normalized adapter for Anthropic-style local chat JSONL agents."""
+"""Shared normalized adapter，用于 Anthropic-style local chat JSONL agents."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def build_chat_jsonl_normalized_session(
     subagent_runs: list[dict] | None = None,
     parse_warnings: list[dict] | None = None,
 ) -> dict:
-    """Build normalized session JSON from parsed local chat transcript models."""
+    """构建 normalized session JSON，来源于 parsed local chat transcript models."""
     subagent_runs = subagent_runs or []
     parse_warnings = parse_warnings or []
     main_tool_calls = [tc for tc in tool_calls if getattr(tc, "scope", "main") == "main"]

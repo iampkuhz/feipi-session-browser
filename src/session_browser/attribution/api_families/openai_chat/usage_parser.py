@@ -1,4 +1,4 @@
-"""OpenAI Chat Completions API usage parser.
+"""说明：OpenAI Chat Completions API usage parser.
 
 OpenAI Chat usage 语义：
   provider_request_input = prompt_tokens

@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import datetime, timezone
 
 
-# ─── Token types ───────────────────────────────────────────────────────────
+# 说明：─── Token types ───────────────────────────────────────────────────────────
 
 
 class TokenPrecision:
@@ -90,27 +90,27 @@ class NormalizedTokenBreakdown:
         }
 
 
-# ─── Session / Message / Tool models ──────────────────────────────────────
+# 说明：─── Session / Message / Tool models ──────────────────────────────────────
 
 
 @dataclass
 class SessionSummary:
     """会话索引的当前领域模型，只暴露五字段 token 组件。"""
 
-    agent: str  # "claude_code" | "codex" | "qoder"
+    agent: str  # 可选值："claude_code" | "codex" | "qoder"
     session_id: str
     title: str
-    project_key: str  # full normalized path
-    project_name: str  # last path segment
+    project_key: str  # 完整归一化路径
+    project_name: str  # 路径最后一段
     cwd: str
-    started_at: str  # ISO8601
-    ended_at: str  # ISO8601
-    duration_seconds: float = 0  # wall-clock: first event to last event
-    model_execution_seconds: float = 0  # merged LLM response intervals (user msg → assistant msg)
-    tool_execution_seconds: float = 0   # merged tool + subagent intervals (tool_use → tool_result)
+    started_at: str  # ISO8601 时间字符串
+    ended_at: str  # ISO8601 时间字符串
+    duration_seconds: float = 0  # 墙钟耗时：首个 event 到最后一个 event
+    model_execution_seconds: float = 0  # 合并后的 LLM 响应区间（user msg → assistant msg）
+    tool_execution_seconds: float = 0   # 合并后的 tool + subagent 区间（tool_use → tool_result）
     model: str = ""
     git_branch: str = ""
-    source: str = ""  # "cli" | "vscode" | ...
+    source: str = ""  # 可选值："cli" | "vscode" | ...
     user_message_count: int = 0
     assistant_message_count: int = 0
     tool_call_count: int = 0
@@ -143,20 +143,20 @@ class SessionSummary:
 class ChatMessage:
     """session 中的一条 chat message（user 或 assistant）。"""
 
-    role: str  # "user" | "assistant"
+    role: str  # 可选值："user" | "assistant"
     content: str
-    timestamp: str  # ISO8601
+    timestamp: str  # ISO8601 时间字符串
     model: str = ""
-    tool_calls: list[dict] = field(default_factory=list)  # for assistant messages
-    usage: Optional[dict] = None  # token usage for assistant messages
-    content_html: str = ""  # pre-rendered markdown HTML
-    token_ratio: float = 0  # proportion of session tokens used in this message
-    llm_call_id: str = ""  # provider/Claude message id, one logical LLM call
-    llm_status: str = "ok"  # "ok" | "error"
-    request_full: str = ""  # rendered request context preceding this assistant response
-    stop_reason: str = ""  # e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
-    content_parts: list["ContentPart"] = field(default_factory=list)  # typed content parts
-    content_blocks: list[dict] = field(default_factory=list)  # raw API-level content blocks in order
+    tool_calls: list[dict] = field(default_factory=list)  # 用于 assistant messages
+    usage: Optional[dict] = None  # assistant messages 的 token usage
+    content_html: str = ""  # 预渲染的 Markdown HTML
+    token_ratio: float = 0  # 该 message 占 session token 的比例
+    llm_call_id: str = ""  # provider/Claude message id，对应一个逻辑 LLM call
+    llm_status: str = "ok"  # 可选值："ok" | "error"
+    request_full: str = ""  # 该 assistant response 前渲染出的 request context
+    stop_reason: str = ""  # 说明：e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
+    content_parts: list["ContentPart"] = field(default_factory=list)  # 类型化 content parts
+    content_blocks: list[dict] = field(default_factory=list)  # 按顺序保存的原始 API 层 content blocks
 
 
 @dataclass
@@ -166,7 +166,7 @@ class ToolCall:
     name: str
     parameters: dict = field(default_factory=dict)
     result: str = ""
-    status: str = "completed"  # "completed" | "error"
+    status: str = "completed"  # 可选值："completed" | "error"
     duration_ms: float = 0
     timestamp: str = ""
     exit_code: Optional[int] = None
@@ -174,7 +174,7 @@ class ToolCall:
     files_touched: list[str] = field(default_factory=list)
     round_index: int = 0
     tool_use_id: str = ""
-    scope: str = "main"  # "main" | "subagent"
+    scope: str = "main"  # 可选值："main" | "subagent"
     parent_tool_use_id: str = ""
     parent_tool_name: str = ""
     subagent_id: str = ""
@@ -203,36 +203,36 @@ class ToolCall:
 class LLMCall:
     """一次逻辑 LLM API call（main agent 或 subagent）。"""
 
-    id: str                          # msg["id"] — the llm_call_id
-    model: str                       # e.g. "qwen3.6-plus", "claude-sonnet-4-6"
-    scope: str                       # "main" | "subagent"
-    subagent_id: str                 # "" for main; agent_id for subagent
-    round_index: int                 # 0-based round index
-    parent_id: str                   # "" for main; parent Agent tool_use_id for subagent
-    parent_tool_name: str            # "" for main; "Agent" for subagent
-    timestamp: str                   # ISO8601
-    status: str                      # "ok" | "error"
+    id: str                          # msg["id"]，即 llm_call_id
+    model: str                       # 说明：e.g. "qwen3.6-plus", "claude-sonnet-4-6"
+    scope: str                       # 可选值："main" | "subagent"
+    subagent_id: str                 # 可选值："" for main; agent_id for subagent
+    round_index: int                 # 从 0 开始的 round index
+    parent_id: str                   # 可选值："" for main; parent Agent tool_use_id for subagent
+    parent_tool_name: str            # 可选值："" for main; "Agent" for subagent
+    timestamp: str                   # ISO8601 时间字符串
+    status: str                      # 可选值："ok" | "error"
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     total_tokens: int = 0
-    prompt_preview: str = ""         # first ~200 chars of prompt context
-    request_preview: str = ""        # first ~200 chars of logged request
-    request_full: str = ""           # rendered/reconstructed request context, NOT raw HTTP payload
-    response_preview: str = ""       # first ~200 chars of response
-    response_full: str = ""          # full response text (for expand)
-    # Raw HTTP request payload fields (distinct from request_full)
-    request_payload_raw: str = ""    # raw HTTP request JSON sent to the model (if persisted)
-    request_payload_message_count: int = 0  # message count in raw payload
-    request_payload_bytes: int = 0   # byte size of raw payload
-    request_payload_missing_reason: str = ""  # why raw payload is unavailable
-    # Raw HTTP response payload fields (distinct from response_full)
-    response_payload_raw: str = ""   # raw HTTP response JSON from the model (if persisted)
-    response_payload_missing_reason: str = ""  # why raw response is unavailable
-    finish_reason: str = ""          # e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
-    tool_calls_raw: str = ""         # raw tool calls JSON structure (if available)
-    content_blocks: list[dict] = field(default_factory=list)  # raw API-level content blocks in order
+    prompt_preview: str = ""         # prompt context 前约 200 个字符
+    request_preview: str = ""        # logged request 前约 200 个字符
+    request_full: str = ""           # 渲染/重建后的 request context，不是原始 HTTP payload
+    response_preview: str = ""       # response 前约 200 个字符
+    response_full: str = ""          # 完整 response 文本（用于展开）
+    # Raw HTTP request payload fields (distinct，来源于 request_full)
+    request_payload_raw: str = ""    # 发送给模型的原始 HTTP request JSON（如果已持久化）
+    request_payload_message_count: int = 0  # raw payload 中的 message 数量
+    request_payload_bytes: int = 0   # raw payload 字节大小
+    request_payload_missing_reason: str = ""  # raw payload 不可用原因
+    # Raw HTTP response payload fields (distinct，来源于 response_full)
+    response_payload_raw: str = ""   # 模型返回的原始 HTTP response JSON（如果已持久化）
+    response_payload_missing_reason: str = ""  # raw response 不可用原因
+    finish_reason: str = ""          # 说明：e.g. "end_turn", "tool_use", "max_tokens", "stop_sequence"
+    tool_calls_raw: str = ""         # 原始 tool calls JSON 结构（如果可用）
+    content_blocks: list[dict] = field(default_factory=list)  # 按顺序保存的原始 API 层 content blocks
     tool_calls: list["ToolCall"] = field(default_factory=list)
     tool_call_count: int = 0
     failed_tool_count: int = 0
@@ -247,14 +247,14 @@ class ConversationRound:
     assistant_msg: ChatMessage
     tool_calls: list[ToolCall] = field(default_factory=list)
     total_tokens: int = 0
-    token_ratio: float = 0  # proportion of total session tokens
+    token_ratio: float = 0  # 占总 session token 的比例
     round_index: int = 0
     llm_call_count: int = 0
     llm_error_count: int = 0
     interactions: list[LLMCall] = field(default_factory=list)
-    # Preview fields — keep separate to avoid duplication in template
-    preview_text: str = ""           # text-only: user message or assistant response, NO tool badges
-    tool_summary_html: str = ""      # structured tool chips: <span class="preview-tool">Read</span>×2
+    # 说明：Preview fields — keep separate to avoid duplication in template
+    preview_text: str = ""           # 纯文本：user message 或 assistant response，不包含 tool badges
+    tool_summary_html: str = ""      # 结构化 tool chips：例如 <span class="preview-tool">Read</span>×2
 
     @staticmethod
     def _compact_preview_text(text: str, limit: int = 120) -> str:
@@ -321,7 +321,7 @@ class ConversationRound:
         else:
             preview = ""
 
-        # Text-only summary for template
+        # Text-only summary，用于 template
         self.preview_text = preview
         self.tool_summary_html = tool_summary_html
 

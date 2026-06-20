@@ -1,4 +1,4 @@
-"""Codex deterministic prompt text splitter."""
+"""Codex deterministic prompt text 拆分器。"""
 
 from __future__ import annotations
 

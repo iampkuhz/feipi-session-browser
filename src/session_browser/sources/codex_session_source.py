@@ -1,4 +1,4 @@
-"""Parser for Codex local session data.
+"""Codex 本地 session 数据解析器。
 
 Data sources:
 - ~/.codex/session_index.jsonl: thread index (id, thread_name, updated_at)
@@ -27,12 +27,12 @@ from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
 def _as_dict(value):
-    """Return value if it is a dict, else empty dict."""
+    """返回 value，如果 it is 一个 dict, else empty dict."""
     return value if isinstance(value, dict) else {}
 
 
 def _int_or_zero(value):
-    """Safely convert value to int, returning 0 on failure."""
+    """说明：Safely convert value to int, returning 0 on failure."""
     try:
         if value is None:
             return 0
@@ -42,7 +42,7 @@ def _int_or_zero(value):
 
 
 def _nested_int(d, outer, inner):
-    """Safely extract nested int from d[outer][inner]."""
+    """Safely extract nested int，来源于 d[outer][inner]."""
     child = d.get(outer)
     if isinstance(child, dict):
         return _int_or_zero(child.get(inner))
@@ -80,7 +80,7 @@ from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
 def parse_session_index() -> list[dict]:
-    """Parse ~/.codex/session_index.jsonl.
+    """解析 ~/.codex/session_index.jsonl.
 
     Returns list of dicts with: id, thread_name, updated_at.
     """
@@ -109,7 +109,7 @@ def parse_session_index() -> list[dict]:
 
 
 def read_threads_db() -> dict[str, dict]:
-    """Read ~/.codex/state_5.sqlite threads table.
+    """读取 ~/.codex/state_5.sqlite threads table.
 
     Returns dict keyed by thread id.
     Includes rollout_path for direct session file lookup.
@@ -154,7 +154,7 @@ def read_threads_db() -> dict[str, dict]:
 
 
 def _find_session_file(session_id: str, rollout_path: str = "") -> Path | None:
-    """Find a Codex session file under ~/.codex/sessions/.
+    """查找 一个 Codex session file under ~/.codex/sessions/.
 
     If rollout_path is provided (from state_5.sqlite threads table), use it directly.
     Otherwise walk the year/month/day hierarchy to find the file.
@@ -166,13 +166,13 @@ def _find_session_file(session_id: str, rollout_path: str = "") -> Path | None:
         p = Path(rollout_path)
         if p.exists():
             return p
-        # rollout_path may be stale — fall through to hierarchy search
+        # 说明：rollout_path may be stale — fall through to hierarchy search
 
     sessions_dir = CODEX_DATA_DIR / "sessions"
     if not sessions_dir.exists():
         return None
 
-    # Walk the year/month/day hierarchy
+    # Walk 该 year/month/day hierarchy
     for year_dir in sorted(sessions_dir.iterdir()):
         if not year_dir.is_dir():
             continue
@@ -193,7 +193,7 @@ def parse_session_detail(
     threads_db: dict | None = None,
     verbose: bool = False,
 ) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
-    """Parse a single Codex session.
+    """解析 一个 single Codex session.
 
     Args:
         session_id: The Codex thread/session ID.
@@ -210,10 +210,10 @@ def parse_session_detail(
         build_parse_diagnostics,
     )
 
-    # Get metadata from threads DB
+    # Get metadata，来源于 threads DB
     thread_info = (threads_db or {}).get(session_id, {})
 
-    # Find and parse session event stream (use rollout_path from DB if available)
+    # 查找 和 parse session event stream (use rollout_path，来源于 DB，如果 available)
     rollout_path = thread_info.get("rollout_path", "")
     session_file = _find_session_file(session_id, rollout_path)
     if session_file is None:
@@ -230,7 +230,7 @@ def parse_session_detail(
 
     events, jsonl_diag = parse_jsonl_events(session_file, verbose=verbose)
 
-    # Extract session_meta for cwd, source
+    # 提取 session_meta，用于 cwd, source
     session_meta = {}
     for ev in events:
         if ev.get("type") == "session_meta":
@@ -250,7 +250,7 @@ def parse_session_detail(
     tool_calls.extend(_flatten_subagent_tool_calls(subagent_runs))
     summary.subagent_instance_count = len(subagent_runs)
 
-    # Attach parse diagnostics from JSONL reader
+    # 附加 parse diagnostics，来源于 JSONL reader
     parse_diag = build_parse_diagnostics(
         session_key=summary.session_key,
         file_path=str(session_file),
@@ -267,7 +267,7 @@ def parse_session_detail_with_normalized(
     threads_db: dict | None = None,
     verbose: bool = False,
 ) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict], dict, Path | None]:
-    """Parse one Codex session and normalized JSON from a single event pass."""
+    """解析 一个 Codex session 和 normalized JSON，来源于 一个 single event pass."""
     from session_browser.index.diagnostics import (
         ParseDiagnostics,
         ParseIssue,
@@ -336,7 +336,7 @@ def parse_session_detail_normalized(
     session_id: str,
     threads_db: dict | None = None,
 ) -> dict:
-    """Parse a Codex session into the normalized intermediate JSON contract.
+    """解析 一个 Codex session，转换为 该 normalized intermediate JSON contract.
 
     This is the first-stage adapter entry point used by snapshot tests and the
     future importer path. It intentionally does not replace parse_session_detail
@@ -356,7 +356,7 @@ def parse_normalized_session_file(
     session_file: str | Path,
     thread_info: dict | None = None,
 ) -> dict:
-    """Parse a Codex rollout file directly into normalized JSON.
+    """解析 一个 Codex rollout file directly，转换为 normalized JSON.
 
     Tests use this file-level entry point to avoid touching the user's live
     Codex data directory.
@@ -386,15 +386,15 @@ def _empty_session(session_id: str, thread_info: dict) -> SessionSummary:
 
 
 def _ts_iso(ts_str: str) -> str:
-    """Convert ISO8601 string to canonical form."""
+    """转换 ISO8601 string to canonical form."""
     if not ts_str:
         return ""
-    # Normalize: ensure it ends with +00:00 or Z
+    # Normalize: ensure it ends，使用 +00:00 或 Z
     return ts_str.replace("Z", "+00:00")
 
 
 def _ts_to_epoch(ts_str: str) -> float:
-    """Convert ISO8601 to epoch seconds."""
+    """转换 ISO8601 to epoch seconds."""
     if not ts_str:
         return 0
     from datetime import datetime
@@ -411,7 +411,7 @@ def _build_summary_from_events(
     thread_info: dict,
     session_meta: dict,
 ) -> SessionSummary:
-    """Build SessionSummary from Codex events + threads DB."""
+    """构建 SessionSummary，来源于 Codex events + threads DB."""
     from pathlib import PurePosixPath
 
     user_count = 0
@@ -419,18 +419,18 @@ def _build_summary_from_events(
     tool_count = 0
     tokens_used = thread_info.get("tokens_used", 0)
 
-    # Track cumulative token usage for delta recovery
+    # Track cumulative token usage，用于 delta recovery
     prev_cumulative = None
-    # Session-level accumulated component totals
+    # 说明：Session-level accumulated component totals
     sum_fresh = 0
     sum_cache_read = 0
     sum_output = 0
 
-    # Track first/last timestamps
+    # 说明：Track first/last timestamps
     first_ts = ""
     last_ts = ""
 
-    # Process event_msg for message counts
+    # Process event_msg，用于 message counts
     for ev in events:
         etype = ev.get("type", "")
         payload = ev.get("payload", {})
@@ -446,20 +446,20 @@ def _build_summary_from_events(
             elif msg_type == "agent_message":
                 assistant_count += 1
             elif msg_type == "token_count":
-                # Codex provides cumulative totals via total_token_usage.
-                # last_token_usage is the last LLM call's usage (not a delta),
-                # so we only use total_token_usage cumulative deltas.
+                # 说明：Codex provides cumulative totals via total_token_usage.
+                # last_token_usage is 该 last LLM call's usage (not 一个 delta),
+                # so we 仅 use total_token_usage cumulative deltas.
                 info = payload.get("info") or {}
                 cumulative_usage = info.get("total_token_usage") or payload.get("total_token_usage")
 
                 if cumulative_usage and isinstance(cumulative_usage, dict):
-                    # Use _extract_codex_usage for proper alias handling
+                    # 使用 _extract_codex_usage，用于 proper alias handling
                     extracted = _extract_codex_usage(cumulative_usage)
                     usage_for_delta = extracted if extracted else cumulative_usage
                     if prev_cumulative:
                         prev_extracted = _extract_codex_usage(prev_cumulative)
                         prev_for_delta = prev_extracted if prev_extracted else prev_cumulative
-                        # Compute per-turn delta from cumulative
+                        # 计算 per-turn delta，来源于 cumulative
                         delta = {}
                         for key in ("input_tokens", "prompt_tokens", "cached_input_tokens",
                                      "cache_read_input_tokens", "cached_tokens",
@@ -474,13 +474,13 @@ def _build_summary_from_events(
                         sum_cache_read += bd.cache_read_tokens
                         sum_output += bd.output_tokens
                     else:
-                        # First cumulative snapshot — treat as-is
+                        # 说明：First cumulative snapshot — treat as-is
                         bd = normalize_tokens(usage_for_delta, provider="codex")
                         sum_fresh += bd.fresh_input_tokens
                         sum_cache_read += bd.cache_read_tokens
                         sum_output += bd.output_tokens
 
-                    # Track the final cumulative total directly (not summed deltas)
+                    # Track 该 final cumulative total directly (not summed deltas)
                     cumulative_total = (
                         _get_int_safe(cumulative_usage, "total_tokens")
                         or _get_int_safe(cumulative_usage, "total_token_usage")
@@ -498,18 +498,18 @@ def _build_summary_from_events(
 
         last_ts = ts
 
-    # Codex: input_tokens is the logical request input size; cached is reported separately.
+    # Codex: input_tokens is 该 logical request input size; cached is reported separately.
     raw_input_total = sum_fresh
     cache_read = sum_cache_read
     fresh = sum_fresh
     output = sum_output
 
-    # UI token composition uses component sum. SQLite tokens_used is a raw
-    # fallback only when component fields are unavailable.
+    # UI token composition uses component sum. SQLite tokens_used is 一个 raw
+    # fallback only，当 component fields are unavailable.
     component_total = fresh + cache_read + output
     total = component_total if component_total > 0 else tokens_used
 
-    # Get metadata from thread_info (priority from DB)
+    # Get metadata，来源于 thread_info (priority，来源于 DB)
     cwd = thread_info.get("cwd", "")
     if not cwd:
         cwd = session_meta.get("cwd", "")
@@ -520,12 +520,12 @@ def _build_summary_from_events(
     git_branch = thread_info.get("git_branch", "")
     source = thread_info.get("source", "")
 
-    # Compute duration
+    # 计算 duration
     start_epoch = _ts_to_epoch(first_ts)
     end_epoch = _ts_to_epoch(last_ts)
     duration = end_epoch - start_epoch if (start_epoch and end_epoch) else 0
 
-    # Compute project info
+    # 计算 project info
     project_key = cwd
     project_name = PurePosixPath(cwd).name if cwd else "unknown"
 
@@ -554,7 +554,7 @@ def _build_summary_from_events(
 
 
 def _get_int_safe(d: dict, key: str) -> int:
-    """Safely get int from dict."""
+    """Safely get int，来源于 dict."""
     val = d.get(key, 0)
     if val is None:
         return 0
@@ -565,7 +565,7 @@ def _get_int_safe(d: dict, key: str) -> int:
 
 
 def _extract_wall_time_ms(text: str) -> float:
-    """Extract tool wall time from Codex tool output text."""
+    """提取 tool wall time，来源于 Codex tool output text."""
     if not text:
         return 0
     import re
@@ -580,7 +580,7 @@ def _extract_wall_time_ms(text: str) -> float:
 
 
 def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
-    """Extract visible user messages and Codex LLM-call assistant messages.
+    """提取 visible user messages 和 Codex LLM-call assistant messages.
 
     Codex ``event_msg.token_count`` records are the only authoritative boundary
     for model-call token ownership.  Assistant text mirrors and response items
@@ -743,7 +743,7 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
 
 
 def _canonical_response_blocks(blocks: list[dict]) -> list[dict]:
-    """Prefer response_item assistant text over matching event_msg mirrors."""
+    """优先使用 response_item assistant text over matching event_msg mirrors."""
     response_item_texts = {
         str(block.get("content") or block.get("text") or "").strip()
         for block in blocks
@@ -770,7 +770,7 @@ def _canonical_response_blocks(blocks: list[dict]) -> list[dict]:
 
 
 def _response_item_text_blocks(payload: dict) -> list[dict]:
-    """Extract visible assistant text blocks from a Codex response_item."""
+    """提取 visible assistant text blocks，来源于 一个 Codex response_item."""
     blocks: list[dict] = []
     for part in payload.get("content") or []:
         if not isinstance(part, dict):
@@ -799,7 +799,7 @@ def _response_item_reasoning_block(payload: dict) -> dict:
 
 
 def _response_item_tool_block(payload: dict) -> dict:
-    """Return a renderable tool_use block for a Codex function_call item."""
+    """返回 一个 renderable tool_use block，用于 一个 Codex function_call item."""
     call_id = payload.get("call_id", "") or ""
     name = payload.get("name", "") or payload.get("type", "tool").replace("_call", "")
     return {
@@ -825,13 +825,13 @@ def _response_item_tool_arguments(payload: dict) -> dict:
 
 
 def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
-    """Extract tool calls from Codex response_items.
+    """提取 tool calls，来源于 Codex response_items.
 
     Each function_call has a call_id (used as tool_use_id) and a matching
     function_call_output with the result and exit status.
     custom_tool_call (e.g. apply_patch) is also handled the same way.
     """
-    # Pre-index outputs by call_id (both function_call_output and custom_tool_call_output)
+    # Pre-index outputs by call_id (both function_call_output 和 custom_tool_call_output)
     outputs_by_id: dict[str, dict] = {}
     for ev in events:
         if ev.get("type") == "response_item":
@@ -854,7 +854,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
             rtype = payload.get("type", "")
             if rtype in ("function_call", "custom_tool_call"):
                 name = payload.get("name", "")
-                # custom_tool_call uses "input" for args; function_call uses "arguments"
+                # custom_tool_call uses "input"，用于 args; function_call uses "arguments"
                 args = payload.get("arguments", {})
                 if rtype == "custom_tool_call" and not args:
                     args_raw = payload.get("input", "")
@@ -868,7 +868,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                         args = {"raw": args[:200]}
                 call_id = payload.get("call_id", "")
 
-                # Match with output for status/result
+                # Match，使用 output，用于 status/result
                 status = "completed"
                 result = ""
                 duration_ms = 0
@@ -884,7 +884,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
                         ended_at = _ts_to_epoch(output_info.get("timestamp", ""))
                         if started_at > 0 and ended_at > started_at:
                             duration_ms = (ended_at - started_at) * 1000
-                    # Extract exit code from output (e.g. "Process exited with code 1" or "Exit code: 1")
+                    # 提取 exit code，来源于 output (e.g. "Process exited，使用 code 1" 或 "Exit code: 1")
                     import re
                     exit_match = re.search(r"exited with code (\d+)", output_text)
                     if not exit_match:
@@ -909,7 +909,7 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
 
 
 def _parse_subagent_runs(session_file: Path, parent_session_id: str) -> list[dict]:
-    """Parse Codex child rollout files that declare this thread as parent."""
+    """解析 Codex child rollout files that declare this thread as parent."""
     if not parent_session_id or not session_file.exists():
         return []
     runs: list[dict] = []
@@ -1059,7 +1059,7 @@ def scan_all_sessions(
     threads_db: dict | None = None,
     verbose: bool = False,
 ) -> Iterator[SessionSummary]:
-    """Scan all Codex sessions and yield SessionSummary for each.
+    """扫描 所有 Codex sessions 和 yield SessionSummary，用于 each.
 
     Primary source is state_5.sqlite threads table (complete and authoritative).
     session_index.jsonl is used as a fallback to catch sessions that exist
@@ -1068,7 +1068,7 @@ def scan_all_sessions(
     if threads_db is None:
         threads_db = read_threads_db()
 
-    # Load session_index.jsonl for title enrichment AND fallback discovery
+    # 加载 session_index.jsonl，用于 title enrichment AND fallback discovery
     index_entries = {e["id"]: e for e in parse_session_index()}
 
     seen_ids: set[str] = set()
@@ -1076,22 +1076,22 @@ def scan_all_sessions(
     for sid, thread_info in threads_db.items():
         seen_ids.add(sid)
         summary, _msgs, _tcs, _sa = parse_session_detail(sid, threads_db, verbose=verbose)
-        # Enrich title from index if empty in threads DB
+        # Enrich title，来源于 index，如果 empty in threads DB
         if not summary.title:
             idx_entry = index_entries.get(sid)
             if idx_entry and idx_entry.get("thread_name"):
                 summary.title = idx_entry["thread_name"][:120]
-            # Fallback to first_user_message from threads DB
+            # 兜底 to first_user_message，来源于 threads DB
             elif thread_info.get("first_user_message"):
                 summary.title = thread_info["first_user_message"][:120]
         yield summary
 
-    # Fallback: scan session_index.jsonl for sessions not in threads DB
-    # This catches active sessions that haven't been flushed to state_5.sqlite yet
+    # Fallback: scan session_index.jsonl，用于 sessions not in threads DB
+    # 说明：This catches active sessions that haven't been flushed to state_5.sqlite yet
     for sid, idx_entry in index_entries.items():
         if sid in seen_ids:
             continue
-        # Session exists in index but not in threads DB yet
+        # 说明：Session exists in index but not in threads DB yet
         thread_info = {
             "id": sid,
             "title": idx_entry.get("thread_name", ""),

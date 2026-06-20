@@ -1,4 +1,4 @@
-"""Qoder Broker usage parser.
+"""说明：Qoder Broker usage parser.
 
 Qoder 是 broker/runtime，不是固定 provider。usage shape 仅作字段形态分类，
 不推断 underlying provider。

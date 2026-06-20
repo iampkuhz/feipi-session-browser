@@ -1,4 +1,4 @@
-"""OpenAI Chat request order.
+"""说明：OpenAI Chat request order.
 
 Chat Completions 推荐顺序：
   messages[]

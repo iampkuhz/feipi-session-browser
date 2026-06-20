@@ -32,7 +32,7 @@ def validate_attribution(
     """
     results: list[dict] = []
 
-    # 1. span sum <= UsageBreakdown.total_input
+    # 说明：1. span sum <= UsageBreakdown.total_input
     if usage and usage.total_input and usage.total_input > 0:
         allocated_sum = sum(
             s.cache_read_tokens + s.cache_write_tokens + s.fresh_tokens
@@ -45,7 +45,7 @@ def validate_attribution(
             "detail": f"allocated_sum={allocated_sum}, total_input={usage.total_input}",
         })
 
-    # 2. OpenAI cache_write unavailable
+    # 说明：2. OpenAI cache_write unavailable
     if api_family in ("openai_responses", "openai_chat", "openai_like"):
         for s in spans:
             if s.cache_write_tokens > 0:
@@ -97,7 +97,7 @@ def validate_attribution(
             ),
         })
 
-    # 7. cache_read <= UsageBreakdown.total_input
+    # 说明：7. cache_read <= UsageBreakdown.total_input
     if usage and usage.total_input and usage.total_input > 0:
         cache_read = usage.cache_read or 0
         passed = cache_read <= usage.total_input
@@ -107,7 +107,7 @@ def validate_attribution(
             "detail": f"cache_read={cache_read}, total_input={usage.total_input}",
         })
 
-    # 8. cache_write <= UsageBreakdown.total_input
+    # 说明：8. cache_write <= UsageBreakdown.total_input
     if usage and usage.total_input and usage.total_input > 0:
         cache_write = usage.cache_write or 0
         passed = cache_write <= usage.total_input

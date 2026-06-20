@@ -1,4 +1,4 @@
-"""OpenAI Responses API normalizer."""
+"""说明：OpenAI Responses API normalizer."""
 
 from __future__ import annotations
 

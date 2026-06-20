@@ -1,16 +1,16 @@
-"""Schema and connection management for the session index SQLite database."""
+"""session index SQLite 数据库的 schema 和连接管理。"""
 
 from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
 
-# --- Tiered background scan config -------------------------------------------
+# 说明：--- Tiered background scan config -------------------------------------------
 
-TIER_HOT_SECONDS = 30 * 60       # ended_at < 30min -> scan every 30s
-TIER_HOT_INTERVAL = 30            # seconds between hot scans
-TIER_WARM_SECONDS = 24 * 3600    # ended_at 30min~24h -> scan every 5min
-TIER_WARM_INTERVAL = 5 * 60       # seconds between warm scans
+TIER_HOT_SECONDS = 30 * 60       # 说明：ended_at < 30min -> scan every 30s
+TIER_HOT_INTERVAL = 30            # 说明：seconds between hot scans
+TIER_WARM_SECONDS = 24 * 3600    # 说明：ended_at 30min~24h -> scan every 5min
+TIER_WARM_INTERVAL = 5 * 60       # 说明：seconds between warm scans
 
 
 SESSION_ARTIFACTS_SCHEMA_SQL = """

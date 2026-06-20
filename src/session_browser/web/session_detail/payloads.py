@@ -1,4 +1,4 @@
-"""Payload lookup builder and truncation.
+"""Payload lookup builder 和 truncation.
 
 Extracted from routes.py. Builds the payload_id → payload_entry lookup
 dict used by the session detail view model and the /api/.../payload endpoint.
@@ -12,12 +12,12 @@ from session_browser.web.session_detail.render_helpers import _build_tool_comman
 
 
 def _estimate_payload_tokens(text: str) -> int:
-    """Estimate payload text tokens for UI inspection only."""
+    """Estimate payload text tokens，用于 UI inspection only."""
     return estimate_tokens_from_text(text or "")
 
 
 def _truncate_payload(text: str, limit: int) -> str:
-    """Truncate payload text if it exceeds the byte limit."""
+    """截断 payload text，如果 it exceeds 该 byte limit."""
     if not text:
         return ""
     if limit <= 0:
@@ -34,7 +34,7 @@ def _build_payload_lookup(
     subagent_runs: list,
     truncate: bool = True,
 ) -> dict:
-    """Build a payload lookup dict from parsed session data.
+    """构建 一个 payload lookup dict，来源于 parsed session data.
 
     Returns dict: {payload_id: {payload_id, kind, title, status, size, text}}
 
@@ -90,7 +90,7 @@ def _build_payload_lookup(
             entry["tool_status"] = tool_status
         payload_map[payload_id] = entry
 
-    # -- Subagent payloads --
+    # 说明：-- Subagent payloads --
     for run in subagent_runs:
         sa_id = run["summary"]["agent_id"]
         sa_messages = run.get("messages", [])
@@ -114,12 +114,12 @@ def _build_payload_lookup(
                         byte_limit=5000,
                     )
 
-    # -- Round-level payloads (user messages, tool results, LLM calls) --
+    # 说明：-- Round-level payloads (user messages, tool results, LLM calls) --
     global_llm_call_num = 0
     for r_idx, r in enumerate(rounds):
         rid = r_idx + 1
 
-        # User message
+        # 说明：User message
         if r.user_msg.content:
             _add(
                 payload_id=f"msg-R{rid}-user",
@@ -129,16 +129,16 @@ def _build_payload_lookup(
                 byte_limit=5000,
             )
 
-        # Interaction-level payloads
+        # 说明：Interaction-level payloads
         for ix in r.interactions:
             global_llm_call_num += 1
             iix = global_llm_call_num
 
-            # Subagent interactions — payloads already handled above
+            # 说明：Subagent interactions — payloads already handled above
             if ix.scope == "subagent" and ix.subagent_id:
                 continue
 
-            # Tool batch payloads
+            # 说明：Tool batch payloads
             if hasattr(ix, 'tool_calls') and ix.tool_calls:
                 for tc in ix.tool_calls:
                     if tc.subagent_id or not tc.result:
@@ -162,7 +162,7 @@ def _build_payload_lookup(
                         tool_status=f"exit {tc.exit_code}" if getattr(tc, "exit_code", None) is not None else (getattr(tc, "status", "") or "ok"),
                     )
 
-            # LLM context and output payloads
+            # LLM context 和 output payloads
             if ix.request_full:
                 _add(
                     payload_id=f"llm-R{rid}-IX{iix}-context",
@@ -189,7 +189,7 @@ def _build_payload_lookup(
                     byte_limit=10000,
                 )
 
-        # Standalone tool calls (rounds with no interactions but tool_calls present)
+        # Standalone tool calls (rounds，使用 no interactions but tool_calls present)
         if not r.interactions and r.tool_calls:
             for tc_idx, tc in enumerate(r.tool_calls):
                 if tc.subagent_id or not tc.result:

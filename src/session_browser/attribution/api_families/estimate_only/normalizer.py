@@ -1,4 +1,4 @@
-"""Estimate-only normalizer。"""
+"""说明：Estimate-only normalizer。"""
 
 from __future__ import annotations
 from session_browser.attribution.core.models import UsageBreakdown

@@ -1,4 +1,4 @@
-"""Utility functions for Qoder session parsing.
+"""Qoder session 解析辅助函数。
 
 Includes: interval merging, token estimation, timestamp normalization,
 assistant record merging, text extraction, and event classification.
@@ -11,11 +11,11 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ─── Interval merging (shared with Claude) ──────────────────────────────
+# ─── Interval merging (shared，使用 Claude) ──────────────────────────────
 
 
 def _merge_intervals(intervals: list[tuple[int, int]], max_gap_ms: int = 300_000) -> int:
-    """Merge overlapping intervals and return total merged duration in milliseconds.
+    """合并 overlapping intervals 和 return total merged duration in milliseconds.
 
     Filters out individual intervals longer than max_gap_ms (likely idle time).
     """
@@ -34,24 +34,24 @@ def _merge_intervals(intervals: list[tuple[int, int]], max_gap_ms: int = 300_000
     return sum(e - s for s, e in merged)
 
 
-# ─── Token estimation (Qoder does not log usage) ──────────────────────────
+# 说明：─── Token estimation (Qoder does not log usage) ──────────────────────────
 #
 # Qoder 估算固定走 byte-level 启发式，避免 tiktoken encode 的额外开销。
 # tiktoken 不在此模块引入，留给非 qoder provider 或未来精确模式使用。
 
-# Max text length to scan for token estimation (32KB). Beyond this, text is
-# truncated before counting to keep estimation fast.
+# Max text length to scan，用于 token estimation (32KB). Beyond this, text is
+# truncated，在之前 counting to keep estimation fast.
 _ESTIMATE_TEXT_CAP = 32 * 1024
 
 
 def _cap_text(s: str) -> str:
-    """Truncate text to _ESTIMATE_TEXT_CAP bytes for fast estimation."""
+    """截断 text to _ESTIMATE_TEXT_CAP bytes，用于 fast estimation."""
     if not s:
         return ""
     byte_len = len(s.encode("utf-8"))
     if byte_len <= _ESTIMATE_TEXT_CAP:
         return s
-    # Truncate by characters to stay under cap.
+    # 截断 by characters to stay under cap.
     avg_bytes = byte_len / len(s)
     safe_chars = int(_ESTIMATE_TEXT_CAP / avg_bytes)
     truncated = s[:safe_chars]
@@ -61,13 +61,13 @@ def _cap_text(s: str) -> str:
 
 
 def _count_tokens(s: str) -> int:
-    """Byte-length heuristic for Chinese/English/code mix."""
+    """Byte-length heuristic，用于 Chinese/English/code mix."""
     capped = _cap_text(s or "")
     return max(1, int(len(capped.encode("utf-8")) / 3.5))
 
 
 def normalize_timestamp(ts) -> str:
-    """Convert timestamp (ISO8601 str or Unix int/float) to local-time ISO8601 str.
+    """转换 timestamp (ISO8601 str 或 Unix int/float) to local-time ISO8601 str.
 
     Handles ISO8601 strings, Unix seconds (int/float), and Unix milliseconds
     (large ints > 1e12).
@@ -76,7 +76,7 @@ def normalize_timestamp(ts) -> str:
         return ""
     dt = None
     if isinstance(ts, (int, float)):
-        # Detect millisecond timestamps (> 1e12) and convert to seconds
+        # Detect millisecond timestamps (> 1e12) 和 convert to seconds
         actual_ts = ts / 1000 if ts > 1e12 else ts
         dt = datetime.fromtimestamp(actual_ts, tz=timezone.utc).astimezone()
     elif isinstance(ts, str):
@@ -90,7 +90,7 @@ def normalize_timestamp(ts) -> str:
 
 
 def _ts_ms_to_iso(ts_ms: int | float) -> str:
-    """Convert millisecond timestamp to local-time ISO8601 string."""
+    """转换 millisecond timestamp to local-time ISO8601 string."""
     if not ts_ms:
         return ""
     dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).astimezone()
@@ -98,12 +98,12 @@ def _ts_ms_to_iso(ts_ms: int | float) -> str:
 
 
 def _scan_project_dirs(project_dir: Path) -> list[str]:
-    """Scan project directories for Qoder session data (stub)."""
+    """扫描 project directories，用于 Qoder session data (stub)."""
     return []
 
 
 def _assistant_message_key(ev: dict) -> str:
-    """Return a stable key for one logical assistant/LLM response."""
+    """返回 一个 stable key，用于 一个 logical assistant/LLM response."""
     msg = ev.get("message", {})
     if isinstance(msg, dict) and msg.get("id"):
         return str(msg["id"])
@@ -111,7 +111,7 @@ def _assistant_message_key(ev: dict) -> str:
 
 
 def _merge_usage_dicts(usages: list[dict]) -> dict:
-    """Normalize duplicated usage snapshots for one logical response.
+    """归一化 duplicated usage snapshots，用于 一个 logical response.
 
     Qoder can emit multiple assistant fragments for one ``message.id``. Fresh
     input uses the largest request input snapshot, while cache/output fields
@@ -151,7 +151,7 @@ def _merge_usage_dicts(usages: list[dict]) -> dict:
 
 
 def _normalize_qoder_provider_usage(records: list[dict]) -> None:
-    """Normalize Qoder provider usage into canonical token buckets.
+    """归一化 Qoder provider usage，转换为 canonical token buckets.
 
     Qoder provider ``input_tokens`` is the logical request input size. It must
     remain Fresh for UI analysis. Cache read/write are tracked as separate
@@ -206,7 +206,7 @@ def _normalize_qoder_provider_usage(records: list[dict]) -> None:
 
 
 def _extract_qoder_model(record: dict) -> str | None:
-    """Extract model from a Qoder assistant record with fallback strategy.
+    """提取 model，来源于 一个 Qoder assistant record，使用 fallback strategy.
 
     Priority order:
     1. record["model"] — from message.model (primary, already working)
@@ -224,7 +224,7 @@ def _extract_qoder_model(record: dict) -> str | None:
 
 
 def _assistant_records(events: list[dict]) -> list[dict]:
-    """Merge assistant fragments by message id."""
+    """合并 assistant fragments by message id."""
     records: dict[str, dict] = {}
     order: list[str] = []
 
@@ -294,7 +294,7 @@ def _assistant_records(events: list[dict]) -> list[dict]:
                     }
                     rec["tool_calls"].append(tool_block)
                     rec["content_blocks"].append({"type": "tool_use", **tool_block})
-                # Priority 4: look for explicit model field in request/response content
+                # Priority 4: look，用于 explicit model field in request/response content
                 if isinstance(item, dict) and item.get("model"):
                     rec["raw_model"] = item.get("model", "")
 
@@ -308,8 +308,8 @@ def _assistant_records(events: list[dict]) -> list[dict]:
 
 
 def _extract_user_text(ev: dict) -> str:
-    """Extract human-visible user text, ignoring meta/command events."""
-    # Skip meta events (internal commands like /login, /model)
+    """提取 human-visible user text, ignoring meta/command events."""
+    # 跳过 meta events (internal commands like /login, /model)
     if ev.get("isMeta") is True:
         return ""
     msg = ev.get("message", {})
@@ -323,7 +323,7 @@ def _extract_user_text(ev: dict) -> str:
         for item in content:
             if isinstance(item, dict) and item.get("type") == "text":
                 text = item.get("text", "")
-                # Filter out system caveats
+                # 说明：Filter out system caveats
                 if text and "Caveat: The messages below were generated" not in text:
                     parts.append(text)
         return "\n".join(p for p in parts if p)
@@ -331,7 +331,7 @@ def _extract_user_text(ev: dict) -> str:
 
 
 def _summarize_text(text: str, max_len: int = 80) -> str:
-    """Create a short, readable summary of text."""
+    """创建 一个 short, readable summary of text."""
     if not text:
         return ""
     text = re.sub(r"<[^>]+>", "", text).strip()
@@ -350,7 +350,7 @@ def _summarize_text(text: str, max_len: int = 80) -> str:
 
 
 def _extract_readable_title(raw_content: str) -> str:
-    """Extract a readable title from raw content."""
+    """提取 一个 readable title，来源于 raw content."""
     if not raw_content:
         return ""
     content = raw_content.strip()
@@ -373,7 +373,7 @@ def _extract_readable_title(raw_content: str) -> str:
 
 
 def _stringify_tool_result(result_content) -> str:
-    """Convert tool_result content into compact text."""
+    """转换 tool_result content，转换为 compact text."""
     if result_content is None:
         return ""
     if isinstance(result_content, str):
@@ -395,7 +395,7 @@ def _stringify_tool_result(result_content) -> str:
 
 
 def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
-    """Heuristic for **tool runtime failure** in Qoder logs.
+    """Heuristic，用于 **tool runtime failure** in Qoder logs.
 
     Mirrors the Claude parser's conservative approach: only detect failures
     where the tool itself could not execute. Does NOT treat command output
@@ -408,7 +408,7 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
     if not text:
         return False
 
-    # For Read/Write/Edit/Glob/Grep/LS tools, detect file-level errors
+    # 说明：For Read/Write/Edit/Glob/Grep/LS tools, detect file-level errors
     if tool_name in ("Read", "Write", "Edit", "Glob", "Grep", "LS"):
         first_line = text.split("\n", 1)[0].strip()
         if first_line.startswith((
@@ -426,9 +426,9 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
             return True
         return False
 
-    # ── Tool runtime error markers (anchored at line start) ─────
-    # These indicate the tool could not execute, not that it ran and
-    # produced an error result.
+    # 说明：── Tool runtime error markers (anchored at line start) ─────
+    # These indicate 该 tool could not execute, not that it ran and
+    # produced 一个 error result.
     line_markers = [
         "api error",
         "tool_use_error",
@@ -436,8 +436,8 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
         "rate limit exceeded",
         "user rejected",
         "request cancelled",
-        "permission denied",       # bash: ./deploy.sh: Permission denied
-        "fatal:",                  # git errors: fatal: not a git repository
+        "permission denied",       # 说明：bash: ./deploy.sh: Permission denied
+        "fatal:",                  # 说明：git errors: fatal: not a git repository
     ]
     for marker in line_markers:
         if text.startswith(marker):
@@ -446,14 +446,14 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
             stripped = line.strip().lstrip("$# ").strip()
             if stripped.startswith(marker):
                 return True
-            # Also match after shell error prefix: "bash: cmd: ..."
+            # Also match，在之后 shell error prefix: "bash: cmd: ..."
             parts = stripped.split(": ")
             if len(parts) > 1:
                 last_part = parts[-1].strip()
                 if last_part.startswith(marker):
                     return True
 
-    # ── "command not found" at line start or after shell prefix ──
+    # ── "command not found" at line start or，在之后 shell prefix ──
     if re.search(r"(?:^|\n)\s*command not found", text, re.MULTILINE):
         return True
     for line in text.split("\n"):
@@ -462,7 +462,7 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
         if m:
             return True
 
-    # ── "timeout" at line start ──────────────────────────────────
+    # 说明：── "timeout" at line start ──────────────────────────────────
     if re.search(r"(?:^|\n)\s*timeout\b", text, re.MULTILINE):
         return True
 
@@ -470,7 +470,7 @@ def _tool_result_looks_failed(result_content, tool_name: str = "") -> bool:
 
 
 def _extract_event_text(ev: dict) -> tuple[str, str]:
-    """Extract (category, text) from a Qoder event.
+    """提取 (category, text)，来源于 一个 Qoder event.
 
     Categories: "user_prompt", "tool_result", "assistant_text", "assistant_tool_call".
     """
@@ -492,7 +492,7 @@ def _extract_event_text(ev: dict) -> tuple[str, str]:
                         parts.append(text)
             if parts:
                 return "user_prompt", "\n".join(parts)
-            # tool_result content goes back as input on next turn
+            # 说明：tool_result content goes back as input on next turn
             tr_parts = []
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "tool_result":
@@ -519,7 +519,7 @@ def _extract_event_text(ev: dict) -> tuple[str, str]:
 
 
 def _estimate_tokens_from_events(events: list[dict]):
-    """Roughly estimate input/output tokens for a Qoder session.
+    """Roughly estimate input/output tokens，用于 一个 Qoder session.
 
     Qoder does not expose per-call usage in its event logs.  This function
     walks events in order, accumulates visible context tokens, and for each
@@ -535,7 +535,7 @@ def _estimate_tokens_from_events(events: list[dict]):
     Returns (input_tokens, output_tokens, has_estimated) where has_estimated
     is False when real usage data was found in events (so estimation is skipped).
     """
-    # First pass: check whether any event already carries usage dict
+    # 说明：First pass: check whether any event already carries usage dict
     has_real_usage = False
     for ev in events:
         if ev.get("type") == "assistant":
@@ -562,12 +562,12 @@ def _estimate_tokens_from_events(events: list[dict]):
         if cat.startswith("assistant"):
             key = _assistant_message_key(ev)
             if key not in seen_keys:
-                # First fragment: capture visible context as input
+                # 说明：First fragment: capture visible context as input
                 seen_keys.add(key)
                 estimated_input += visible_context_tokens
                 estimated_output += tok
             else:
-                # Subsequent fragments: accumulate output only
+                # 说明：Subsequent fragments: accumulate output only
                 estimated_output += tok
 
         visible_context_tokens += tok

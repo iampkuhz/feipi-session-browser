@@ -1,4 +1,4 @@
-"""Codex rollout JSONL to normalized session JSON."""
+"""Codex rollout JSONL 到 normalized session JSON 的转换。"""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def parse_codex_rollout_file(
     path: str | Path,
     thread_info: dict | None = None,
 ) -> dict:
-    """Parse a Codex rollout JSONL file into normalized session JSON."""
+    """解析 一个 Codex rollout JSONL file，转换为 normalized session JSON."""
     rollout_path = Path(path)
     events, _ = parse_jsonl_events(rollout_path)
     session_id = (thread_info or {}).get("id") or _session_id_from_path(str(rollout_path))
@@ -51,7 +51,7 @@ def parse_codex_events(
     thread_info: dict | None = None,
     subagent_runs: list[dict] | None = None,
 ) -> dict:
-    """Parse Codex rollout events into the intermediate normalized contract."""
+    """解析 Codex rollout events，转换为 该 intermediate normalized contract."""
     thread_info = thread_info or {}
     state = _CodexBuildState(
         source_path=source_path,

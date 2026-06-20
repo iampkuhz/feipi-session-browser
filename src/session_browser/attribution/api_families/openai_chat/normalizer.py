@@ -1,4 +1,4 @@
-"""OpenAI Chat Completions normalizer."""
+"""说明：OpenAI Chat Completions normalizer."""
 
 from __future__ import annotations
 from session_browser.attribution.core.models import UsageBreakdown

@@ -1,4 +1,4 @@
-"""Re-exports for all Qoder session parsing functions.
+"""Re-exports，用于 所有 Qoder session parsing functions.
 
 This package splits the original qoder.py into:
 - utils: interval merging, token estimation, timestamp helpers, text extraction
@@ -13,10 +13,10 @@ via the qoder.py facade.
 
 from __future__ import annotations
 
-# Re-export config constants that were originally imported in qoder.py
+# 说明：Re-export config constants that were originally imported in qoder.py
 from session_browser.config import QODER_DATA_DIR
 
-# utils
+# 说明：utils
 from session_browser.sources.qoder_parts.utils import (
     _merge_intervals,
     _cap_text,
@@ -39,7 +39,7 @@ from session_browser.sources.qoder_parts.utils import (
     _ESTIMATE_TEXT_CAP,
 )
 
-# model_config
+# 说明：model_config
 from session_browser.sources.qoder_parts.model_config import (
     _qoder_app_support_dir,
     _load_qoder_custom_model_names,
@@ -51,7 +51,7 @@ from session_browser.sources.qoder_parts.model_config import (
     _infer_qoder_model_for_session,
 )
 
-# discovery
+# 说明：discovery
 from session_browser.sources.qoder_parts.discovery import (
     _url_decode_path,
     _extract_cwd_from_events,
@@ -60,7 +60,7 @@ from session_browser.sources.qoder_parts.discovery import (
     _build_canonical_id_map,
 )
 
-# parse
+# 说明：parse
 from session_browser.sources.qoder_parts.parse import (
     parse_session_detail,
     parse_session_detail_normalized,
@@ -77,9 +77,9 @@ from session_browser.sources.qoder_parts.parse import (
 )
 
 __all__ = [
-    # config
+    # 说明：config
     "QODER_DATA_DIR",
-    # utils
+    # 说明：utils
     "_merge_intervals",
     "_cap_text",
     "_count_tokens",
@@ -99,7 +99,7 @@ __all__ = [
     "_extract_event_text",
     "_estimate_tokens_from_events",
     "_ESTIMATE_TEXT_CAP",
-    # model_config
+    # 说明：model_config
     "_qoder_app_support_dir",
     "_load_qoder_custom_model_names",
     "_load_qoder_model_selector_names",
@@ -108,13 +108,13 @@ __all__ = [
     "_load_qoder_current_assistant_model",
     "_build_qoder_session_model_map",
     "_infer_qoder_model_for_session",
-    # discovery
+    # 说明：discovery
     "_url_decode_path",
     "_extract_cwd_from_events",
     "_discover_sessions",
     "_discover_cache_sessions",
     "_build_canonical_id_map",
-    # parse
+    # 说明：parse
     "parse_session_detail",
     "parse_session_detail_normalized",
     "parse_normalized_session_file",

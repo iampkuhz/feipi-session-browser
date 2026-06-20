@@ -41,7 +41,7 @@ logger = logging.getLogger("session_browser")
 
 
 class ScanLockUnavailable(RuntimeError):
-    """Raised when another session-browser scan owns the inter-process lock."""
+    """Raised，当 another session-browser scan owns 该 inter-process lock."""
 
     def __init__(self, lock_path, holder: str):
         super().__init__("session-browser scan lock is unavailable")
@@ -50,7 +50,7 @@ class ScanLockUnavailable(RuntimeError):
 
 
 def configure_logging(level: str | None = None) -> None:
-    """Configure process-wide logging for foreground and container runs."""
+    """Configure process-wide logging，用于 foreground 和 container runs."""
     raw_level = (level or SESSION_BROWSER_LOG_LEVEL or "INFO").upper()
     log_level = getattr(logging, raw_level, logging.INFO)
     logging.basicConfig(
@@ -77,7 +77,7 @@ def _run_command(
     *,
     timeout: float,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a short command and clean up its process group on timeout."""
+    """Run 一个 short command 和 clean up its process group on timeout."""
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -142,11 +142,11 @@ def _write_scan_lock_holder(lock_file, owner: str) -> None:
 
 @contextmanager
 def _scan_lock(owner: str, *, blocking: bool, timeout_seconds: float = 0.0):
-    """Coordinate foreground, startup, and background scans across processes."""
+    """Coordinate foreground, startup, 和 background scans across processes."""
     try:
         import fcntl
     except ImportError:
-        # fcntl is unavailable on some platforms; SQLite busy_timeout still applies.
+        # 说明：fcntl is unavailable on some platforms; SQLite busy_timeout still applies.
         yield
         return
 
@@ -182,7 +182,7 @@ def _scan_lock(owner: str, *, blocking: bool, timeout_seconds: float = 0.0):
 
 
 def _find_running_scan_pid() -> int | None:
-    """Find PID of a running 'session_browser scan' process (excluding self)."""
+    """查找 PID of 一个 running 'session_browser scan' process (excluding self)."""
     my_pid = os.getpid()
     try:
         result = subprocess.run(
@@ -205,40 +205,40 @@ def _find_running_scan_pid() -> int | None:
 
 
 def _kill_process(pid: int) -> bool:
-    """Try to kill a process, return True if it actually exits."""
+    """Try to kill 一个 process, return True，如果 it actually exits."""
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
-        return True  # Already gone
+        return True  # 进程已不存在
     except PermissionError:
-        # Fall through to SIGKILL below
+        # 说明：Fall through to SIGKILL below
         pass
 
-    # Wait for the process to exit, escalate to SIGKILL if needed
+    # Wait，用于 该 process to exit, escalate to SIGKILL，如果 needed
     for _ in range(5):
         try:
-            os.kill(pid, 0)  # Check if still alive
+            os.kill(pid, 0)  # 检查进程是否仍存活
         except ProcessLookupError:
-            return True  # Exited
+            return True  # 进程已退出
         time.sleep(1)
 
-    # Still alive after waiting — escalate to SIGKILL
+    # Still alive，在之后 waiting — escalate to SIGKILL
     try:
         os.kill(pid, signal.SIGKILL)
         time.sleep(1)
     except (ProcessLookupError, PermissionError):
         pass
 
-    # Final check
+    # 最终检查
     try:
         os.kill(pid, 0)
-        return False  # Still alive even after SIGKILL
+        return False  # SIGKILL 后进程仍存活
     except ProcessLookupError:
         return True
 
 
 def _print_database_locked_help(exc: sqlite3.OperationalError) -> None:
-    """Print actionable diagnostics for SQLite lock failures."""
+    """Print actionable diagnostics，用于 SQLite lock failures."""
     print(f"Scan failed: SQLite database is locked ({exc})", file=sys.stderr)
     print(f"Index path: {INDEX_PATH}", file=sys.stderr)
     print("", file=sys.stderr)
@@ -264,7 +264,7 @@ def _print_database_locked_help(exc: sqlite3.OperationalError) -> None:
 
 
 def _print_scan_lock_help(exc: ScanLockUnavailable) -> None:
-    """Print diagnostics when the session-browser scan lock is already held."""
+    """Print diagnostics，当 该 session-browser scan lock is already held."""
     print("Scan failed: another session-browser scan is already running.", file=sys.stderr)
     print(f"Lock path: {exc.lock_path}", file=sys.stderr)
     if exc.holder:
@@ -482,7 +482,7 @@ def _find_pids_on_port(port: int) -> list[int]:
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
-    """Start the local web server with tiered background incremental scanner."""
+    """Start 该 local web server，使用 tiered background incremental scanner."""
     from session_browser.web.routes import create_server
     from session_browser.index.indexer import (
         _get_connection, incremental_scan,
@@ -494,7 +494,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
     host = args.host or SERVER_HOST
     force = getattr(args, "force", False)
 
-    # Check if a server is already running on this port
+    # 检查，如果 一个 server is already running on this port
     existing_pids = _find_pids_on_port(port)
     if existing_pids:
         pid_list = ", ".join(str(p) for p in existing_pids)
@@ -512,7 +512,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
                 else:
                     logger.error("Failed to kill orphaned process pid=%s", pid)
             time.sleep(1)
-            # Re-check after killing orphans
+            # Re-check，在之后 killing orphans
             existing_pids = [p for p in existing_pids if p not in orphans]
 
         if existing_pids:
@@ -549,7 +549,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
         QODER_DATA_DIR,
     )
 
-    # Ensure index exists (without dropping existing data)
+    # 确保 index exists (without dropping existing data)
     conn = _get_connection()
     _ensure_schema_exists(conn)
     count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
@@ -560,8 +560,8 @@ def cmd_serve(args: argparse.Namespace) -> None:
         start = time.time()
         try:
             with _scan_lock("startup incremental scan", blocking=False):
-                # Only scan recent sessions at startup to avoid blocking the server.
-                # The background scanner will pick up older changed sessions over time.
+                # Only scan recent sessions at startup to avoid blocking 该 server.
+                # 说明：The background scanner will pick up older changed sessions over time.
                 result = incremental_scan(conn, verbose=False, max_age_seconds=2 * 3600)
                 count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
                 logger.info(
@@ -591,7 +591,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
             logger.error("Refusing to start with empty index without --allow-empty")
             sys.exit(1)
 
-    # Start tiered background scanner
+    # 说明：Start tiered background scanner
     if not args.no_scan:
         scanner = _BackgroundScanner(
             hot_seconds=TIER_HOT_SECONDS,
@@ -625,7 +625,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
 
 class _BackgroundScanner:
-    """Tiered background scanner for incremental session updates.
+    """Tiered background scanner，用于 incremental session updates.
 
     Tiers based on session ended_at:
     - Hot (within TIER_HOT_SECONDS):  scanned every TIER_HOT_INTERVAL seconds
@@ -712,10 +712,10 @@ class _BackgroundScanner:
 
 
 def cmd_stop(args: argparse.Namespace) -> None:
-    """Stop the running web server by killing the process on the port."""
+    """Stop 该 running web server by killing 该 process on 该 port."""
     port = args.port or SERVER_PORT
 
-    # Find PID using lsof
+    # 查找 PID using lsof
     try:
         result = _run_command(
             ["lsof", "-ti", f":{port}"],
@@ -752,7 +752,7 @@ def main() -> None:
     parser.add_argument("--version", action="version", version=f"%(prog)s {SESSION_BROWSER_VERSION}")
     sub = parser.add_subparsers(dest="command")
 
-    # scan command
+    # scan 命令
     scan_p = sub.add_parser("scan", help="Scan and index all local sessions")
     scan_p.add_argument("--incremental", action="store_true",
                         help="Only scan sessions whose source files have changed")
@@ -761,7 +761,7 @@ def main() -> None:
     scan_p.add_argument("--force", "-f", action="store_true",
                         help="Kill existing scan process without prompting")
 
-    # serve command
+    # serve 命令
     serve_p = sub.add_parser("serve", help="Start local web server")
     serve_p.add_argument("--host", default=SERVER_HOST, help=f"Bind address (default: {SERVER_HOST})")
     serve_p.add_argument("--port", type=int, default=SERVER_PORT, help=f"Port (default: {SERVER_PORT})")
@@ -774,7 +774,7 @@ def main() -> None:
     serve_p.add_argument("--log-level", default=SESSION_BROWSER_LOG_LEVEL,
                          help=f"Log level (default: {SESSION_BROWSER_LOG_LEVEL})")
 
-    # stop command
+    # stop 命令
     stop_p = sub.add_parser("stop", help="Stop the running web server")
     stop_p.add_argument("--port", type=int, default=SERVER_PORT, help=f"Port to stop (default: {SERVER_PORT})")
 

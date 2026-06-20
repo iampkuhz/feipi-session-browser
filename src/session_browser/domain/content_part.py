@@ -1,4 +1,4 @@
-"""ContentPart — typed content model for chat message rendering.
+"""ContentPart — typed content model，用于 chat message rendering.
 
 Defines a ContentPart dataclass and detection helpers so downstream viewers
 can safely render text / markdown / json / image / code / html payloads
@@ -14,11 +14,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-# ─── ContentPart type constants ──────────────────────────────────────────
+# 说明：─── ContentPart type constants ──────────────────────────────────────────
 
 
 class ContentPartType:
-    """Allowed content part types (format-level)."""
+    """说明：Allowed content part types (format-level)."""
 
     TEXT = "text"
     MARKDOWN = "markdown"
@@ -28,11 +28,11 @@ class ContentPartType:
     HTML = "html"
 
 
-# ─── Context-level part roles (structural, within API messages) ──────────
+# 说明：─── Context-level part roles (structural, within API messages) ──────────
 
 
 class ContextPartType:
-    """Structural roles for multipart context parts.
+    """Structural roles，用于 multipart context parts.
 
     These describe where a part sits in the API message structure
     (system prompt, user message, tool result, etc.), independently
@@ -50,35 +50,35 @@ class ContextPartType:
     UNKNOWN = "unknown"
 
 
-# ─── Detection helpers ───────────────────────────────────────────────────
+# 说明：─── Detection helpers ───────────────────────────────────────────────────
 
-# Image URL patterns: common image extensions or data URIs
+# Image URL patterns: common image extensions 或 data URIs
 _IMAGE_URL_RE = re.compile(
     r'(?i)https?://\S+\.(?:png|jpe?g|gif|webp|svg|bmp|ico|tiff?)(?:\?\S*)?$'
     r'|'
     r'^data:image/'
     r'|'
-    r'!\[.*?\]\(https?://\S+\)'  # markdown image syntax
+    r'!\[.*?\]\(https?://\S+\)'  # Markdown 图片语法
 )
 
-# JSON detection: starts with { or [ and parses successfully
+# JSON detection: starts，使用 { 或 [ 和 parses successfully
 _JSON_START_RE = re.compile(r'^\s*[\{\[]')
 
-# HTML detection: starts with a tag (possibly after whitespace/BOM)
+# HTML detection: starts，使用 一个 tag (possibly，在之后 whitespace/BOM)
 _HTML_TAG_RE = re.compile(r'^\s*<[a-zA-Z!/][\s\S]*>', re.DOTALL)
 
-# Code block indicators: fenced code block or known code patterns at start
+# Code block indicators: fenced code block 或 known code patterns at start
 _FENCED_CODE_RE = re.compile(r'^```', re.MULTILINE)
 
-# Python / JS / etc. patterns that strongly suggest code (not prose)
+# 说明：Python / JS / etc. patterns that strongly suggest code (not prose)
 _CODE_PATTERNS = [
     re.compile(r'^(def |class |async def |import |from .+ import )', re.MULTILINE),
     re.compile(r'^(const |let |var |function |export |import \{)', re.MULTILINE),
     re.compile(r'^(func |package |import \()', re.MULTILINE),  # Go
-    re.compile(r'^(pub (fn|struct|enum|mod|use|impl|trait))', re.MULTILINE),  # Rust
+    re.compile(r'^(pub (fn|struct|enum|mod|use|impl|trait))', re.MULTILINE),  # Rust 语法模式
 ]
 
-# Common file extensions that indicate code
+# 说明：Common file extensions that indicate code
 _CODE_EXTENSIONS = {
     '.py', '.ts', '.tsx', '.js', '.jsx', '.rb', '.rs', '.go', '.java',
     '.cpp', '.c', '.cs', '.swift', '.kt', '.scala', '.php', '.sh', '.bash',
@@ -88,7 +88,7 @@ _CODE_EXTENSIONS = {
     '.cmake', '.gradle', '.groovy', '.bat', '.cmd', '.ps1', '.awk', '.sed',
 }
 
-# Extensions that are NOT code (documents, data, config-as-doc)
+# 说明：Extensions that are NOT code (documents, data, config-as-doc)
 _NOT_CODE_EXTENSIONS = {
     '.md', '.markdown', '.mdx', '.txt', '.rst', '.org', '.adoc',
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
@@ -96,14 +96,14 @@ _NOT_CODE_EXTENSIONS = {
 
 
 def is_image_url(payload: str) -> bool:
-    """Return True if payload looks like an image URL or markdown image."""
+    """返回 True，如果 payload looks like 一个 image URL 或 markdown image."""
     if not payload:
         return False
     return bool(_IMAGE_URL_RE.search(payload))
 
 
 def is_json(payload: str) -> bool:
-    """Return True if payload is valid JSON (object or array)."""
+    """返回 True，如果 payload is valid JSON (object 或 array)."""
     if not payload:
         return False
     if not _JSON_START_RE.match(payload):
@@ -116,7 +116,7 @@ def is_json(payload: str) -> bool:
 
 
 def is_html(payload: str) -> bool:
-    """Return True if payload starts with an HTML tag.
+    """返回 True，如果 payload starts，使用 一个 HTML tag.
 
     Requires the first non-whitespace characters to be '<tag' or '</tag'
     or '<!--comment' to avoid false positives on markdown angle brackets.
@@ -126,17 +126,17 @@ def is_html(payload: str) -> bool:
     m = _HTML_TAG_RE.match(payload)
     if not m:
         return False
-    # Reject if it looks like a single short inline tag in prose
-    # (e.g. "Use <code> for inline code")
+    # Reject，如果 it looks like 一个 single short inline tag in prose
+    # (e.g. "Use <code>，用于 inline code")
     first_tag = m.group(0).strip()
     if len(payload.strip()) < 200 and first_tag.count('<') == 1 and first_tag.count('>') == 1:
-        # Short text with one inline tag — likely prose, not a full HTML doc
+        # Short text，使用 一个 inline tag — likely prose, not 一个 full HTML doc
         return False
     return True
 
 
 def is_code_block(payload: str, filename_hint: str = "") -> bool:
-    """Return True if payload looks like a code block.
+    """返回 True，如果 payload looks like 一个 code block.
 
     Checks for:
     1. Fenced code blocks (```)
@@ -146,11 +146,11 @@ def is_code_block(payload: str, filename_hint: str = "") -> bool:
     if not payload:
         return False
 
-    # Fenced code
+    # 说明：Fenced code
     if _FENCED_CODE_RE.match(payload):
         return True
 
-    # File extension hint
+    # 说明：File extension hint
     if filename_hint:
         lower = filename_hint.lower()
         for ext in _CODE_EXTENSIONS:
@@ -160,7 +160,7 @@ def is_code_block(payload: str, filename_hint: str = "") -> bool:
             if lower.endswith(ext):
                 return False
 
-    # Code pattern heuristics (at least one pattern must match near the start)
+    # Code pattern heuristics (at least 一个 pattern must match near 该 start)
     first_lines = "\n".join(payload.splitlines()[:10])
     for pattern in _CODE_PATTERNS:
         if pattern.search(first_lines):
@@ -170,7 +170,7 @@ def is_code_block(payload: str, filename_hint: str = "") -> bool:
 
 
 def detect_content_type(payload: str, filename_hint: str = "") -> str:
-    """Detect the ContentPartType for a payload string.
+    """Detect 该 ContentPartType，用于 一个 payload string.
 
     Order of checks (first match wins):
     1. image URL → "image"
@@ -201,12 +201,12 @@ def detect_content_type(payload: str, filename_hint: str = "") -> str:
     return ContentPartType.MARKDOWN
 
 
-# ─── ContentPart model ───────────────────────────────────────────────────
+# 说明：─── ContentPart model ───────────────────────────────────────────────────
 
 
 @dataclass
 class ContentPart:
-    """A single typed piece of message content.
+    """说明：A single typed piece of message content.
 
     Fields
     ------
@@ -297,7 +297,7 @@ class ContentPart:
     filename: str = ""
     metadata: dict = field(default_factory=dict)
 
-    # Multipart context fields (I-08)
+    # 说明：Multipart context fields (I-08)
     context_type: str = ContextPartType.UNKNOWN
     title: str = ""
     content_bytes: int = 0
@@ -305,7 +305,7 @@ class ContentPart:
 
     @staticmethod
     def from_dict(data: dict) -> ContentPart:
-        """Create a ContentPart from a dict (e.g. deserialized JSON)."""
+        """创建 一个 ContentPart，来源于 一个 dict (e.g. deserialized JSON)."""
         return ContentPart(
             part_type=data.get("part_type", ContentPartType.TEXT),
             content=data.get("content", ""),
@@ -319,7 +319,7 @@ class ContentPart:
         )
 
     def to_dict(self) -> dict:
-        """Serialize to a dict."""
+        """序列化 to 一个 dict."""
         return {
             "part_type": self.part_type,
             "content": self.content,
@@ -356,7 +356,7 @@ class ContentPart:
     def is_html(self) -> bool:
         return self.part_type == ContentPartType.HTML
 
-    # ─── Context type convenience properties ────────────────────────────
+    # 说明：─── Context type convenience properties ────────────────────────────
 
     @property
     def is_system_prompt(self) -> bool:
@@ -374,10 +374,10 @@ class ContentPart:
     def is_attachment(self) -> bool:
         return self.context_type == ContextPartType.ATTACHMENT
 
-    # ─── Auto-computed metadata ────────────────────────────────────────
+    # 说明：─── Auto-computed metadata ────────────────────────────────────────
 
     def compute_metadata(self) -> None:
-        """Set content_bytes and token_hint from current content.
+        """Set content_bytes 和 token_hint，来源于 current content.
 
         This is a no-op if the fields are already populated (preserves
         any values that were set by the caller during parsing).
@@ -387,13 +387,13 @@ class ContentPart:
         if self.content_bytes == 0 and self.content:
             self.content_bytes = len(self.content.encode("utf-8"))
         if self.token_hint == 0 and self.content:
-            # Heuristic: ~4 chars per token (English text average).
-            # For JSON/code the ratio is closer to 3-3.5; for prose ~4-5.
+            # 说明：Heuristic: ~4 chars per token (English text average).
+            # For JSON/code 该 ratio is closer to 3-3.5;，用于 prose ~4-5.
             self.token_hint = max(1, len(self.content) // 4)
 
     @staticmethod
     def compute_all(parts: list["ContentPart"]) -> list["ContentPart"]:
-        """Compute metadata for all parts in place and return the list."""
+        """计算 metadata，用于 所有 parts in place 和 return 该 list."""
         for part in parts:
             part.compute_metadata()
         return parts

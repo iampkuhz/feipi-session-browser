@@ -1,4 +1,4 @@
-"""Claude Code request tool definition resolver.
+"""说明：Claude Code request tool definition resolver.
 
 Claude Code JSONL stores the selected main agent name as an ``agent-setting``
 event, but it does not persist the request-side ``tools`` schema array.  This
@@ -33,7 +33,7 @@ class ClaudeCodeAvailableTools:
 
 
 def parse_agent_tools_from_frontmatter(text: str) -> list[str] | None:
-    """Parse a Claude agent markdown file's YAML frontmatter ``tools:`` field."""
+    """解析 一个 Claude agent markdown file's YAML frontmatter ``tools:`` field."""
     frontmatter = _frontmatter(text)
     if frontmatter is None:
         return None
@@ -59,7 +59,7 @@ def parse_agent_tools_from_frontmatter(text: str) -> list[str] | None:
 
 
 def parse_agent_name_from_frontmatter(text: str) -> str:
-    """Return the frontmatter ``name:`` value when present."""
+    """返回 该 frontmatter ``name:`` value，当 present."""
     frontmatter = _frontmatter(text)
     if frontmatter is None:
         return ""
@@ -74,7 +74,7 @@ def detect_main_agent_setting(
     *,
     call_timestamp: str | None = None,
 ) -> str:
-    """Read the selected main agent name from a Claude Code session JSONL file."""
+    """读取 该 selected main agent name，来源于 一个 Claude Code session JSONL file."""
     if not session_file:
         return ""
 
@@ -121,7 +121,7 @@ def read_agent_definition_tools(
     *,
     home_dir: str | Path | None = None,
 ) -> tuple[list[str], str]:
-    """Resolve one agent's explicit builtin tool list from project/global files."""
+    """Resolve 一个 agent's explicit builtin tool list，来源于 project/global files."""
     if not agent_name:
         return [], ""
 
@@ -152,7 +152,7 @@ def resolve_claude_code_available_tools(
     call_timestamp: str | None = None,
     home_dir: str | Path | None = None,
 ) -> ClaudeCodeAvailableTools:
-    """Resolve request-side Claude Code tool schemas for one main/subagent call."""
+    """Resolve request-side Claude Code tool schemas，用于 一个 main/subagent call."""
     target_agent = (subagent_type or "").strip()
     if not target_agent:
         target_agent = detect_main_agent_setting(

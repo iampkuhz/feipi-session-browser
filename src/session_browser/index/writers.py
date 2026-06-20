@@ -98,7 +98,7 @@ def upsert_session_artifact(
     source_mtime: float = 0,
     size_bytes: int = 0,
 ) -> None:
-    """Insert or update a generated artifact associated with one session."""
+    """Insert 或 update 一个 generated artifact associated，使用 一个 session."""
     now = time.time()
     conn.execute(
         """

@@ -1,1 +1,1 @@
-"""Presenters package for web layer."""
+"""Web 层 presenters 包。"""

@@ -1,4 +1,4 @@
-"""Codex attribution builder.
+"""说明：Codex attribution builder.
 
 Codex defaults to session jsonl / response items processing.
 Do NOT assume raw body availability.  Cache semantics are OpenAI/Codex style:
@@ -148,7 +148,7 @@ _CODEX_DEFAULT_TOOL_ORDER = ["exec_command", "apply_patch", "write_stdin", "upda
 
 
 def _parse_json_object(text: str) -> dict:
-    """Safely parse a JSON string into a dict."""
+    """Safely parse 一个 JSON string，转换为 一个 dict."""
     if not text:
         return {}
     try:
@@ -250,7 +250,7 @@ def _text_items(
 
 @lru_cache(maxsize=64)
 def _read_codex_visible_instruction_sources(file_path: str) -> tuple[tuple[str, str], ...]:
-    """Read locally visible Codex system/developer instruction sources.
+    """读取 locally visible Codex system/developer instruction sources.
 
     Codex rollout JSONL does not expose a raw HTTP request body, but the
     beginning of the file does persist base instructions and developer/system
@@ -305,7 +305,7 @@ def _extract_codex_usage_from_raw(raw: dict) -> dict:
 
 
 class CodexAttributionBuilder(BaseAttributionBuilder):
-    """Request / response attribution for Codex sessions.
+    """Request / response attribution，用于 Codex sessions.
 
     Codex provides session usage totals with OpenAI/Codex semantics:
     - input_tokens is the logical request input size shown as Fresh
@@ -314,10 +314,10 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
     - reasoning_output_tokens is part of output but hidden
     """
 
-    # ── Helpers ─────────────────────────────────────────────────────────
+    # 说明：── Helpers ─────────────────────────────────────────────────────────
 
     def _extract_prior_messages(self) -> list[dict]:
-        """Extract prior messages from session_context if available."""
+        """提取 prior messages，来源于 session_context，如果 available."""
         ctx = self.session_context or {}
         prior = ctx.get("prior_messages", ctx.get("conversation_history", []))
         if isinstance(prior, list):
@@ -325,7 +325,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         return []
 
     def _get_available_tools(self) -> list[str]:
-        """Get available tool schemas. Codex typically does not expose this."""
+        """说明：Get available tool schemas. Codex typically does not expose this."""
         ctx = self.session_context or {}
         available = ctx.get("available_tools", ctx.get("available_tool_schemas", []))
         if isinstance(available, list):
@@ -341,21 +341,21 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         return []
 
     def _get_raw_request_payload(self) -> dict:
-        """Parse raw HTTP request payload if available."""
+        """解析 raw HTTP request payload，如果 available."""
         return _parse_json_object(self.llm_call.request_payload_raw)
 
     def _get_raw_response_payload(self) -> dict:
-        """Parse raw HTTP response payload if available."""
+        """解析 raw HTTP response payload，如果 available."""
         return _parse_json_object(self.llm_call.response_payload_raw)
 
     def _estimate_json_tokens(self, obj: dict) -> int:
-        """Estimate tokens for a JSON object."""
+        """Estimate tokens，用于 一个 JSON object."""
         if not obj:
             return 0
         return estimate_tokens_from_text(json.dumps(obj, ensure_ascii=False, sort_keys=True))
 
     def _tool_schema_tokens_and_details(self, observed_tools: list[str]) -> tuple[int, dict, str, str, str]:
-        """Return a Codex tool-schema fallback footprint.
+        """返回 一个 Codex tool-schema fallback footprint.
 
         Codex rollout logs expose invoked tools, not the full tool schema list
         sent to the model.  Use a stable Codex builtin catalog as the baseline
@@ -431,7 +431,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         return total, details, summary, count_label, "codex_builtin_catalog"
 
     def _extract_request_buckets_from_raw(self, req_body: dict) -> dict:
-        """Extract request-side bucket info from raw OpenAI Responses request body.
+        """提取 request-side bucket info，来源于 raw OpenAI Responses request body.
 
         Returns dict with keys: instructions_text, input_texts, tool_schemas_obj,
         has_previous_response_id, reasoning_config_obj, metadata_obj.
@@ -450,12 +450,12 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         if not req_body:
             return result
 
-        # instructions field
+        # instructions 字段
         instructions = req_body.get("instructions", "")
         if isinstance(instructions, str) and instructions:
             result["instructions_text"] = instructions
 
-        # input array
+        # input 数组
         input_items = req_body.get("input", [])
         if isinstance(input_items, list):
             for item in input_items:
@@ -465,12 +465,12 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 item_type = item.get("type", "")
 
                 if item_type == "function_call_output" or item_type == "tool_output":
-                    # Tool output
+                    # 工具输出
                     output_text = item.get("output", "")
                     if isinstance(output_text, str) and output_text:
                         result["tool_outputs_texts"].append(output_text)
                 elif role == "user":
-                    # User message — last one is current, rest are history
+                    # User message — last 一个 is current, rest are history
                     content = item.get("content", "")
                     if isinstance(content, str) and content:
                         result["conversation_history_texts"].append(content)
@@ -485,25 +485,25 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                     if isinstance(content, str) and content:
                         result["conversation_history_texts"].append(content)
 
-            # Last user input is current
+            # 说明：Last user input is current
             if result["conversation_history_texts"]:
                 result["current_user_input_text"] = result["conversation_history_texts"].pop()
 
-        # tools array (schemas)
+        # tools 数组（schema）
         tools = req_body.get("tools")
         if isinstance(tools, list) and tools:
             result["tool_schemas_obj"] = tools
 
-        # previous_response_id
+        # previous_response_id 字段
         if req_body.get("previous_response_id"):
             result["has_previous_response_id"] = True
 
-        # reasoning config
+        # reasoning 配置
         reasoning = req_body.get("reasoning")
         if isinstance(reasoning, dict) and reasoning:
             result["reasoning_config_obj"] = reasoning
 
-        # metadata
+        # metadata 字段
         metadata = req_body.get("metadata")
         if isinstance(metadata, dict):
             result["metadata_tokens"] = self._estimate_json_tokens(metadata)
@@ -516,7 +516,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         *,
         current_user_text: str = "",
     ) -> dict:
-        """Split rendered Codex request context into visible local sources.
+        """拆分 rendered Codex request context，转换为 visible local sources.
 
         Codex rollout logs generally do not persist raw HTTP request bodies.
         The source parser therefore renders user input and tool outputs into
@@ -553,7 +553,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         return result
 
     def _prior_message_stats(self, prior_messages: list[dict]) -> tuple[list[str], int]:
-        """Return displayable prior snippets and full-content token estimates."""
+        """返回 displayable prior snippets 和 full-content token estimates."""
         texts: list[str] = []
         token_total = 0
         for pm in prior_messages:
@@ -578,7 +578,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
     def _remove_known_fragments_from_texts(
         self, texts: list[str], known: list[str]
     ) -> list[str]:
-        """Remove known text fragments from a list of texts."""
+        """Remove known text fragments，来源于 一个 list of texts."""
         if not known:
             return texts
         known_normalized = {_normalize_ws(t): t for t in known if t and len(t.strip()) >= 20}
@@ -766,7 +766,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
     def build_request(self) -> LLMRequestAttribution:
         lc = self.llm_call
 
-        # ── Step 1: total input from best available source ───────────────
+        # ── Step 1: total input，来源于 best available source ───────────────
         raw_input_total = 0
         request_input_tokens = 0
         cache_read_tokens = 0
@@ -774,7 +774,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         precision_total = ValuePrecision.UNAVAILABLE
         source_total = ValueSource.HEURISTIC
 
-        # Priority 1: token_breakdown_normalized
+        # 说明：Priority 1: token_breakdown_normalized
         if lc.token_breakdown_normalized:
             bd = lc.token_breakdown_normalized
             request_input_tokens = bd.fresh_input_tokens
@@ -783,7 +783,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
             precision_total = ValuePrecision.PROVIDER_REPORTED
             source_total = ValueSource.PROVIDER_USAGE
-        # Priority 2: llm_call fields
+        # 说明：Priority 2: llm_call fields
         elif lc.input_tokens > 0:
             cache_read_tokens = lc.cache_read_tokens
             cache_write_tokens = lc.cache_write_tokens
@@ -791,7 +791,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
             precision_total = ValuePrecision.PROVIDER_REPORTED
             source_total = ValueSource.PROVIDER_USAGE
-        # Priority 3: assistant_msg.usage
+        # 说明：Priority 3: assistant_msg.usage
         elif lc.round_index >= 0 and self.round_obj and self.round_obj.assistant_msg:
             msg_usage = self.round_obj.assistant_msg.usage
             if msg_usage and isinstance(msg_usage, dict):
@@ -805,7 +805,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                     raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
                     precision_total = ValuePrecision.PROVIDER_REPORTED
                     source_total = ValueSource.PROVIDER_USAGE
-        # Priority 4: raw response payload usage
+        # 说明：Priority 4: raw response payload usage
         if raw_input_total == 0:
             resp_body = self._get_raw_response_payload()
             if resp_body:
@@ -1032,7 +1032,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 availability_rows=avail_rows,
             )
 
-        # ── Step 2: parse raw request payload for content buckets ───────
+        # ── Step 2: parse raw request payload，用于 content buckets ───────
         req_body = self._get_raw_request_payload()
         raw_payload_available = bool(req_body)
 
@@ -1040,8 +1040,8 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         if raw_payload_available:
             rb = self._extract_request_buckets_from_raw(req_body)
 
-        # ── Step 3: estimate content buckets ────────────────────────────
-        # Current user instruction
+        # 说明：── Step 3: estimate content buckets ────────────────────────────
+        # 当前用户指令
         user_msg_content = self.round_obj.user_msg.content if self.round_obj.user_msg else ""
         request_full_parts = {}
         if not raw_payload_available and lc.request_full:
@@ -1055,7 +1055,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         else:
             current_user_tokens = estimate_tokens_from_text(user_msg_content)
 
-        # Prior messages / conversation history
+        # 说明：Prior messages / conversation history
         prior_messages = self._extract_prior_messages()
         history_texts = []
         history_tokens = 0
@@ -1067,11 +1067,11 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
         history_msg_count = len(history_texts)
 
-        # Tool outputs
+        # 工具输出
         tool_result_texts = self._get_preceding_tool_result_texts()
         tool_outputs_for_count = tool_result_texts
         if raw_payload_available and rb.get("tool_outputs_texts"):
-            # Dedup: remove known tool outputs from local tool_result_texts
+            # Dedup: remove known tool outputs，来源于 local tool_result_texts
             rb_tool = rb["tool_outputs_texts"]
             tool_result_texts = self._remove_known_fragments_from_texts(
                 tool_result_texts, rb_tool
@@ -1090,9 +1090,9 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 tool_outputs_for_count = tool_result_texts
             tool_outputs_tokens = estimate_tokens_from_text("\n".join(tool_outputs_for_count))
 
-        # Captured request context from rendered request_full.  This is visible
-        # local context that is neither the current user message nor a tool
-        # output.  File-like snippets are also credited below as repo context.
+        # Captured request context，来源于 rendered request_full.  This is visible
+        # local context that is neither 该 current user message nor 一个 tool
+        # 说明：output.  File-like snippets are also credited below as repo context.
         captured_context_texts = request_full_parts.get("context_texts") or []
         captured_context_texts = self._remove_known_fragments_from_texts(
             captured_context_texts,
@@ -1101,7 +1101,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         captured_context_text = "\n\n".join(captured_context_texts)
         captured_context_tokens = estimate_tokens_from_text(captured_context_text)
 
-        # Instructions
+        # 指令内容
         instructions_tokens = 0
         instruction_sources: tuple[tuple[str, str], ...] = tuple()
         instructions_source_summary = "OpenAI Responses instructions field token estimate."
@@ -1122,7 +1122,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                     f"上下文估算（{source_labels}）。"
                 )
 
-        # Tool schemas from raw request or Codex builtin fallback
+        # Tool schemas，来源于 raw request 或 Codex builtin fallback
         tool_schema_tokens = 0
         available_tools = []
         tool_schema_source_label = ""
@@ -1143,11 +1143,11 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 tool_schema_source_label,
             ) = self._tool_schema_tokens_and_details(available_tools)
 
-        # Repository / file context from request_full or raw input
+        # Repository / file context，来源于 request_full 或 raw input
         repo_context_tokens = 0
         repo_context_text = ""
         if raw_payload_available:
-            # Extract file refs from raw input
+            # 提取 file refs，来源于 raw input
             input_items = req_body.get("input", [])
             file_texts = []
             for item in input_items:
@@ -1170,7 +1170,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 repo_context_text = "\n".join(file_refs)[:3000]
                 repo_context_tokens = estimate_tokens_from_text(repo_context_text)
 
-        # Reasoning config bucket
+        # 说明：Reasoning config bucket
         reasoning_config_tokens = 0
         if raw_payload_available and rb.get("reasoning_config_obj"):
             reasoning_config_tokens = self._estimate_json_tokens(rb["reasoning_config_obj"])
@@ -1194,10 +1194,10 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             if overhead_fields:
                 provider_wrapper_tokens = self._estimate_json_tokens(overhead_fields)
 
-        # ── Step 4: previous_response_id residual handling ──────────────
+        # 说明：── Step 4: previous_response_id residual handling ──────────────
         has_previous_response_id = raw_payload_available and rb.get("has_previous_response_id", False)
 
-        # ── Step 5: normalize and assemble buckets ─────────────────────
+        # ── Step 5: normalize 和 assemble buckets ─────────────────────
         estimated_buckets = [
             instructions_tokens,
             current_user_tokens,
@@ -1341,7 +1341,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
         buckets = []
 
-        # Instructions bucket
+        # 说明：Instructions bucket
         if instructions_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="instructions",
@@ -1364,7 +1364,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 ),
             ))
 
-        # Current user instruction
+        # 当前用户指令
         if current_user_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="current_user_instruction",
@@ -1379,7 +1379,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 details=current_user_details,
             ))
 
-        # Conversation history
+        # 对话历史
         if history_tokens > 0 and history_texts:
             buckets.append(RequestAttributionBucket(
                 key="conversation_history",
@@ -1394,7 +1394,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 details=history_details,
             ))
 
-        # Previous response state / server-side conversation state
+        # 说明：Previous response state / server-side conversation state
         if has_previous_response_id:
             prev_resp_id = req_body.get("previous_response_id", "")
             summary_text = (
@@ -1419,7 +1419,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 display_group="metadata",
             ))
 
-        # Tool outputs
+        # 工具输出
         if tool_outputs_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="tool_outputs",
@@ -1434,7 +1434,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 details=tool_outputs_details,
             ))
 
-        # Captured request context
+        # 捕获的请求上下文
         if captured_context_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="captured_context_fragment",
@@ -1450,7 +1450,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 details=captured_context_details,
             ))
 
-        # Repository / file context
+        # 仓库 / 文件上下文
         if repo_context_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="repository_file_context",
@@ -1465,7 +1465,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 details=repo_context_details,
             ))
 
-        # Tool schemas
+        # 工具定义 schema
         if tool_schema_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="tool_definitions",
@@ -1495,7 +1495,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 },
             ))
 
-        # Reasoning config
+        # reasoning 配置
         if reasoning_config_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="reasoning_config",
@@ -1511,7 +1511,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 display_group="metadata",
             ))
 
-        # Provider wrapper overhead
+        # provider 包装开销
         if provider_wrapper_tokens > 0:
             buckets.append(RequestAttributionBucket(
                 key="provider_wrapper_overhead",
@@ -1550,7 +1550,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             },
         ))
 
-        # ── Step 6: coverage ───────────────────────────────────────────
+        # 说明：── Step 6: coverage ───────────────────────────────────────────
         known_bucket_sum = sum(
             b.tokens for b in buckets
             if b.key not in ("unknown_overhead",) and b.contributes_to_total
@@ -1558,7 +1558,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         coverage_val = (min(known_bucket_sum / request_content_denominator, 1.0)
                         if request_content_denominator > 0 else 0.0)
 
-        # ── Step 7: availability rows ──────────────────────────────────
+        # 说明：── Step 7: availability rows ──────────────────────────────────
         avail_rows = [
             self._avail("input_side_component_total", "Input-side component total", raw_input_total > 0,
                         precision=precision_total,
@@ -1627,7 +1627,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="fresh_input - known request content buckets"),
         ]
 
-        # ── Step 8: notes ──────────────────────────────────────────────
+        # 说明：── Step 8: notes ──────────────────────────────────────────────
         notes = []
         if cache_read_tokens > 0:
             notes.append(
@@ -1695,13 +1695,13 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
     def build_response(self) -> LLMResponseAttribution:
         lc = self.llm_call
 
-        # ── Step 1: total output from best available source ──────────────
+        # ── Step 1: total output，来源于 best available source ──────────────
         total_output_val = 0
         reasoning_output_tokens = 0
         precision_total = ValuePrecision.UNAVAILABLE
         source_total = ValueSource.HEURISTIC
 
-        # Priority 1: token_breakdown_normalized
+        # 说明：Priority 1: token_breakdown_normalized
         if lc.token_breakdown_normalized:
             bd = lc.token_breakdown_normalized
             total_output_val = lc.output_tokens or bd.output_tokens
@@ -1715,7 +1715,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 reasoning_output_tokens = reasoning_from_bd
             precision_total = ValuePrecision.PROVIDER_REPORTED
             source_total = ValueSource.PROVIDER_USAGE
-        # Priority 2: llm_call.output_tokens + assistant_msg.usage
+        # 说明：Priority 2: llm_call.output_tokens + assistant_msg.usage
         if total_output_val == 0:
             total_output_val = lc.output_tokens or 0
             if total_output_val > 0:
@@ -1731,7 +1731,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                     reasoning_output_tokens = extracted.get("reasoning_output_tokens", 0)
                     precision_total = ValuePrecision.PROVIDER_REPORTED
                     source_total = ValueSource.PROVIDER_USAGE
-        # Priority 3: raw response payload usage
+        # 说明：Priority 3: raw response payload usage
         if total_output_val == 0:
             resp_body = self._get_raw_response_payload()
             if resp_body:
@@ -1741,7 +1741,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                     reasoning_output_tokens = usage.get("reasoning_output_tokens", 0)
                     precision_total = ValuePrecision.PROVIDER_REPORTED
                     source_total = ValueSource.PROVIDER_USAGE
-        # Check raw response for reasoning even if total is known
+        # 检查 raw response，用于 reasoning even，如果 total is known
         if reasoning_output_tokens == 0:
             resp_body = self._get_raw_response_payload()
             if resp_body:
@@ -1987,11 +1987,11 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 availability_rows=avail_rows,
             )
 
-        # ── Step 2: visible content ────────────────────────────────────
+        # 说明：── Step 2: visible content ────────────────────────────────────
         response_text = lc.response_full or ""
         visible_text_tokens = estimate_tokens_from_text(response_text)
 
-        # Tool/function call / apply_patch / shell command blocks
+        # 说明：Tool/function call / apply_patch / shell command blocks
         tool_use_tokens = 0
         block_refs = []
         for cb in (lc.content_blocks or []):
@@ -2001,20 +2001,20 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         if tool_use_tokens == 0 and lc.tool_calls_raw:
             tool_use_tokens = estimate_tokens_from_text(lc.tool_calls_raw)
 
-        # Metadata
+        # metadata 字段
         metadata_tokens = 0
         if lc.finish_reason:
             metadata_tokens += 10
 
-        # ── Step 3: normalize with provider total ──────────────────────
+        # ── Step 3: normalize，使用 provider total ──────────────────────
         known_sum = visible_text_tokens + tool_use_tokens + metadata_tokens + reasoning_output_tokens
 
         if total_output_val > 0:
             if known_sum > total_output_val:
-                # Scale estimated buckets, but DO NOT scale provider_reported reasoning tokens
+                # 说明：Scale estimated buckets, but DO NOT scale provider_reported reasoning tokens
                 estimated_sum = visible_text_tokens + tool_use_tokens + metadata_tokens
                 if estimated_sum > 0:
-                    # Check if reasoning > total (anomalous)
+                    # 检查，如果 reasoning > total (anomalous)
                     if reasoning_output_tokens > total_output_val:
                         reasoning_output_tokens = total_output_val
                     scale = (total_output_val - reasoning_output_tokens) / estimated_sum
@@ -2039,7 +2039,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             fill_strategy="provider output_tokens" if precision_total == ValuePrecision.PROVIDER_REPORTED else "sum of visible content",
         )
 
-        # ── Step 4: buckets ────────────────────────────────────────────
+        # 说明：── Step 4: buckets ────────────────────────────────────────────
         buckets = []
 
         if visible_text_tokens > 0:
@@ -2068,7 +2068,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 contributes_to_total=True,
             ))
 
-        # Reasoning output tokens bucket (hidden, provider_reported)
+        # reasoning 输出 token bucket（隐藏，provider_reported）
         if reasoning_output_tokens > 0:
             buckets.append(ResponseAttributionBucket(
                 key="reasoning_output_tokens",
@@ -2107,7 +2107,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             summary="Total output 减去已知 bucket 后的剩余部分。",
         ))
 
-        # structured_items: display-only bucket
+        # structured_items：仅用于展示的 bucket
         if lc.content_blocks:
             structured_tokens_val = estimate_tokens_from_text(
                 json.dumps(lc.content_blocks, ensure_ascii=False))
@@ -2125,7 +2125,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                     display_group="structured_items",
                 ))
 
-        # ── Step 5: coverage ───────────────────────────────────────────
+        # 说明：── Step 5: coverage ───────────────────────────────────────────
         known_bucket_sum = sum(
             b.tokens for b in buckets
             if b.key not in ("unknown",) and b.contributes_to_total
@@ -2180,7 +2180,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                         fill_strategy="residual"),
         ]
 
-        # Notes
+        # 备注
         notes = []
         if reasoning_output_tokens > 0:
             notes.append(
@@ -2244,7 +2244,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
 
 
 def _normalize_ws(text: str) -> str:
-    """Collapse whitespace for normalized comparison."""
+    """Collapse whitespace，用于 normalized comparison."""
     import re
     return re.sub(r'\s+', ' ', text).strip()
 

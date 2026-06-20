@@ -23,7 +23,7 @@ class ContentRef:
     can_load_full: 是否支持动态加载全文
     redaction_applied: 是否已脱敏
     """
-    kind: str                           # inline / file_slice / session_event / unavailable
+    kind: str                           # 枚举值：inline / file_slice / session_event / unavailable
     pointer: str | None = None
     preview: str = ""
     can_load_full: bool = False
@@ -49,8 +49,8 @@ class Evidence:
     confidence: 0.0–1.0 置信度
     """
     evidence_id: str
-    scope: str                          # current_session / prior_session / project_repo / agent_app / provider_usage / inferred
-    kind: str                           # user_message / tool_result / tool_schema / system_prompt / …
+    scope: str                          # 枚举值：current_session / prior_session / project_repo / agent_app / provider_usage / inferred
+    kind: str                           # 枚举值：user_message / tool_result / tool_schema / system_prompt / …
     source_path: str | None = None
     source_event_id: str | None = None
     content_ref: ContentRef | None = None
@@ -74,7 +74,7 @@ class PromptSpan:
     order_index: int
     api_family: str
     api_path: str                       # 如 tools[3].input_schema / system[0] / messages[12].content[1]
-    semantic_kind: str                  # tool_schema / system_prompt / user_text / tool_result / assistant_text / tool_use / …
+    semantic_kind: str                  # 枚举值：tool_schema / system_prompt / user_text / tool_result / assistant_text / tool_use / …
     evidence_ids: list[str] = field(default_factory=list)
     content_ref: ContentRef | None = None
     text_preview: str = ""
@@ -107,7 +107,7 @@ class UsageBreakdown:
     hidden_reasoning: int | None = None
 
     # 元数据
-    usage_source: str = "unknown"       # provider_reported / local_reconstruction / unavailable
+    usage_source: str = "unknown"       # 枚举值：provider_reported / local_reconstruction / unavailable
     precision: str = "unavailable"
     note: str = ""
 
@@ -139,7 +139,7 @@ class CallCreditSlice:
     """单个 LLM call 的 credit 切片。"""
     call_id: str
     credits: float | None
-    precision: str                      # exact / estimated / unavailable
+    precision: str                      # 枚举值：exact / estimated / unavailable
     source: str = ""
 
 

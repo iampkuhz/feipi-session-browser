@@ -1,4 +1,4 @@
-"""Anthropic Messages API usage parser.
+"""说明：Anthropic Messages API usage parser.
 
 Anthropic usage 语义：
   total_input = cache_read_input_tokens + cache_creation_input_tokens + input_tokens

@@ -1,4 +1,4 @@
-"""ID resolution for session identifiers.
+"""ID resolution，用于 session identifiers.
 
 Extracted from routes.py. Handles Qoder short ID → canonical full UUID
 resolution.
@@ -14,7 +14,7 @@ _UUID_PATTERN = re.compile(
 
 
 def _resolve_qoder_short_id(short_id: str) -> tuple[str | None, str | None]:
-    """Resolve a Qoder short ID to its canonical full UUID.
+    """Resolve 一个 Qoder short ID to its canonical full UUID.
 
     Returns (resolved_id, error_message):
     - (full_uuid, None) when exactly one full UUID has short_id as prefix.
@@ -30,7 +30,7 @@ def _resolve_qoder_short_id(short_id: str) -> tuple[str | None, str | None]:
     if resolved:
         return resolved, None
 
-    # Not in pre-built map — fall back to direct prefix scan
+    # 说明：Not in pre-built map — fall back to direct prefix scan
     from session_browser.sources.qoder import _discover_sessions
     uuid_pattern = _UUID_PATTERN
     full_uuids: list[str] = []

@@ -1,4 +1,4 @@
-"""Model configuration resolution for Qoder sessions.
+"""Qoder session 的模型配置解析逻辑。
 
 Loads custom model names, selector labels, auth model names, and resolves
 model config IDs to human-readable labels from Qoder's Electron/VSCode-style
@@ -18,7 +18,7 @@ from session_browser.config import QODER_DATA_DIR
 
 
 def _qoder_app_support_dir() -> Path:
-    """Return Qoder's Electron/VSCode-style application support directory."""
+    """返回 Qoder's Electron/VSCode-style application support directory."""
     return Path(os.environ.get(
         "QODER_APP_SUPPORT_DIR",
         str(Path.home() / "Library" / "Application Support" / "Qoder"),
@@ -27,7 +27,7 @@ def _qoder_app_support_dir() -> Path:
 
 @lru_cache(maxsize=4)
 def _load_qoder_custom_model_names(app_support_dir: Path | None = None) -> dict[str, str]:
-    """Load custom model id -> display name from Qoder global state.
+    """加载 custom model id -> display name，来源于 Qoder global state.
 
     Qoder stores BYOK API keys separately under secret:// keys in the same DB.
     This function only reads the non-secret aicoding.customModels value.
@@ -73,7 +73,7 @@ def _load_qoder_custom_model_names(app_support_dir: Path | None = None) -> dict[
 
 @lru_cache(maxsize=4)
 def _load_qoder_model_selector_names(app_support_dir: Path | None = None) -> dict[str, str]:
-    """Load built-in Qoder model selector labels such as qmodel -> Qwen3.6-Plus."""
+    """加载 built-in Qoder model selector labels such as qmodel -> Qwen3.6-Plus."""
     app_support_dir = app_support_dir or _qoder_app_support_dir()
     cache_path = app_support_dir / "User" / "dynamic-text-cache.json"
     if not cache_path.exists():
@@ -107,7 +107,7 @@ def _load_qoder_model_selector_names(app_support_dir: Path | None = None) -> dic
 
 @lru_cache(maxsize=1)
 def _load_qoder_auth_model_names() -> dict[str, str]:
-    """Load model key -> display name from Qoder's model cache file."""
+    """加载 model key -> display name，来源于 Qoder's model cache file."""
     cache_path = QODER_DATA_DIR / ".auth" / "models"
     if not cache_path.exists():
         return {}
@@ -140,7 +140,7 @@ def _resolve_qoder_model_config_name(
     selector_names: dict[str, str] | None = None,
     auth_names: dict[str, str] | None = None,
 ) -> str:
-    """Resolve a Qoder model config id to a human-readable model label."""
+    """Resolve 一个 Qoder model config id to 一个 human-readable model label."""
     model_config = (model_config or "").strip()
     if not model_config:
         return ""
@@ -164,7 +164,7 @@ def _resolve_qoder_model_config_name(
     if model_config in auth_names:
         return auth_names[model_config]
 
-    # Qoder has scoped ids such as quest-auto and experts-ultimate.
+    # Qoder has scoped ids such as quest-auto 和 experts-ultimate.
     if "-" in model_config:
         suffix = model_config.rsplit("-", 1)[1]
         if suffix in selector_names:
@@ -177,7 +177,7 @@ def _resolve_qoder_model_config_name(
 
 @lru_cache(maxsize=4)
 def _load_qoder_current_assistant_model(app_support_dir: Path | None = None) -> str:
-    """Load Qoder's current assistant model selector from global state.
+    """加载 Qoder's current assistant model selector，来源于 global state.
 
     Some Qoder project sessions are created by the client without writing a
     per-session model into JSONL or agent.log. The selector state records the
@@ -211,7 +211,7 @@ def _load_qoder_current_assistant_model(app_support_dir: Path | None = None) -> 
 
 @lru_cache(maxsize=4)
 def _build_qoder_session_model_map(app_support_dir: Path | None = None) -> dict[str, str]:
-    """Build session_id -> model label from Qoder GUI agent logs."""
+    """构建 session_id -> model label，来源于 Qoder GUI agent logs."""
     app_support_dir = app_support_dir or _qoder_app_support_dir()
     logs_dir = app_support_dir / "logs"
     if not logs_dir.exists():
@@ -274,7 +274,7 @@ def _build_qoder_session_model_map(app_support_dir: Path | None = None) -> dict[
 
 
 def _infer_qoder_model_for_session(session_id: str) -> str:
-    """Infer a Qoder model from persisted GUI logs/config for one session."""
+    """推断 一个 Qoder model，来源于 persisted GUI logs/config，用于 一个 session."""
     if not session_id:
         return ""
     app_support_dir = _qoder_app_support_dir()

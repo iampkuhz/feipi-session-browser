@@ -1,4 +1,4 @@
-"""Session detail view model builder.
+"""说明：Session detail view model builder.
 
 Extracted from routes.py. Contains the large _build_v11_view_model function
 and the message content finder helpers used by the bucket-detail API.
@@ -65,7 +65,7 @@ from session_browser.attribution.context import (
 from session_browser.attribution.contracts import (
     LLMRequestAttribution,
     LLMResponseAttribution,
-)  # noqa: F401
+)  # 说明：noqa: F401
 from session_browser.attribution.serializers import (
     request_attribution_to_payload,
     response_attribution_to_payload,
@@ -204,7 +204,7 @@ def _token_provider_for_agent(agent: str) -> str | None:
 
 
 def _usage_parts_from_mapping(usage: dict | None, *, agent: str = "", model: str = "") -> dict:
-    """Return canonical token parts from a raw usage dict.
+    """返回 canonical token parts，来源于 一个 raw usage dict.
 
     Prefer normalized LLMCall values when available. This fallback keeps display
     code from silently dropping aliases such as cached_input_tokens.
@@ -320,7 +320,7 @@ def _build_payload_tab_index(
     *,
     agent: str = "",
 ) -> dict:
-    """Build the persistent Payload tab selector from API-compatible payload IDs."""
+    """构建 该 persistent Payload tab selector，来源于 API-compatible payload IDs."""
     payload_map = _build_payload_lookup(rounds, tool_calls, subagent_runs, truncate=True)
     groups: list[dict] = []
     group_by_round: dict[int, dict] = {}
@@ -1468,7 +1468,7 @@ def _build_session_diagnostics(
 
 
 def _find_user_message_content(all_messages, msg_array, target_index):
-    """Find the full text of a user_text message from all_messages."""
+    """查找 该 full text of 一个 user_text message，来源于 all_messages."""
     user_text_entries = [
         m for m in msg_array
         if m.get("content_type") == "user_text"
@@ -1496,7 +1496,7 @@ def _find_user_message_content(all_messages, msg_array, target_index):
 
 
 def _find_tool_result_content(all_messages, msg_array, target_index):
-    """Find the full text of a tool_result message."""
+    """查找 该 full text of 一个 tool_result message."""
     tr_entries = [
         m for m in msg_array
         if m.get("content_type") == "tool_result"
@@ -1526,7 +1526,7 @@ def _find_tool_result_content(all_messages, msg_array, target_index):
 
 
 def _find_assistant_message_content(all_messages, msg_array, target_index):
-    """Find the full text of an assistant_text message."""
+    """查找 该 full text of 一个 assistant_text message."""
     assistant_entries = [
         m for m in msg_array
         if m.get("content_type") == "assistant_text"
@@ -1564,7 +1564,7 @@ def _build_v11_view_model(
     round_filter: set[int] | None = None,
     skip_attribution: bool = False,
 ) -> dict:
-    """Build the timeline view model for session.html template.
+    """构建 该 timeline view model，用于 session.html template.
 
     When ``slim=True``, skip payload_sources building and timeline_items embedding.
     Only summary row data is produced for fast initial page render.
@@ -1591,7 +1591,7 @@ def _build_v11_view_model(
     parsed_failed_tools = sum(1 for tc in tool_calls if getattr(tc, "is_failed", False))
     total_failed = max(session.failed_tool_count or 0, parsed_failed_tools)
 
-    # -- Issue links --
+    # 说明：-- Issue links --
     issue_links = []
     for r_idx, r in enumerate(rounds):
         failed = [tc for tc in r.tool_calls if tc.is_failed]
@@ -1608,7 +1608,7 @@ def _build_v11_view_model(
             })
     issue_links = issue_links[:4]
 
-    # -- Payload sources (LIST, not dict) --
+    # 说明：-- Payload sources (LIST, not dict) --
     payload_sources = []
 
     def add_payload(payload_id: str, kind: str, title: str, status: str = "available",
@@ -1806,7 +1806,7 @@ def _build_v11_view_model(
             continue
         sub_llm_calls_by_agent.setdefault(getattr(call, "subagent_id", "") or "", []).append(call)
 
-    # -- Build subagent lookup --
+    # 说明：-- Build subagent lookup --
     subagent_lookup = {}
     for run in subagent_runs:
         sa_id = run["summary"]["agent_id"]
@@ -2162,7 +2162,7 @@ def _build_v11_view_model(
             "sub_rounds": sub_rounds,
         }
 
-    # -- Trace rows --
+    # 说明：-- Trace rows --
     trace_rows = []
     global_main_call_num = 0
     sa_parent_map: dict[str, dict] = {}

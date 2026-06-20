@@ -1,4 +1,4 @@
-"""Multipart message content normalizer.
+"""说明：Multipart message content normalizer.
 
 Provides ``normalize_message_content(text)`` to convert raw
 ``request_full`` / ``response_full`` strings into a typed
@@ -23,11 +23,11 @@ from .content_part import ContentPart, ContentPartType, ContextPartType, is_json
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# 公开 API
 # ---------------------------------------------------------------------------
 
 def normalize_message_content(text: str) -> List[ContentPart]:
-    """Convert a raw message string into a list of ContentParts.
+    """转换 一个 raw message string，转换为 一个 list of ContentParts.
 
     Parameters
     ----------
@@ -60,11 +60,11 @@ def normalize_message_content(text: str) -> List[ContentPart]:
     parts: List[ContentPart] = []
     for seg_type, seg_content in segments:
         if seg_type == "code":
-            # Try to parse as fenced code block (with language hint).
+            # 说明：Try to parse as fenced code block (with language hint).
             if seg_content.startswith(("```", "~~~")):
                 lang, code = _parse_code_fence(seg_content)
             else:
-                # Pattern-detected code without fences.
+                # 说明：Pattern-detected code without fences.
                 lang, code = "", seg_content
             parts.append(ContentPart(
                 part_type=ContentPartType.CODE,
@@ -95,7 +95,7 @@ def normalize_context_parts(
     default_context_type: str = ContextPartType.UNKNOWN,
     title: str = "",
 ) -> List[ContentPart]:
-    """Convert raw context text into enriched ContentParts with context-level metadata.
+    """转换 raw context text，转换为 enriched ContentParts，使用 context-level metadata.
 
     This is a higher-level wrapper around ``normalize_message_content`` that
     additionally sets:
@@ -150,7 +150,7 @@ def normalize_context_parts(
 
 
 def detect_multipart_messages(text: str) -> List[ContentPart]:
-    """Attempt to parse *text* as a JSON messages array and return typed parts.
+    """Attempt to parse *text* as 一个 JSON messages array 和 return typed parts.
 
     If *text* looks like a JSON array of API-style messages (each with
     ``role`` and ``content``), this function extracts each message as a
@@ -187,7 +187,7 @@ def detect_multipart_messages(text: str) -> List[ContentPart]:
     if not isinstance(messages, list) or len(messages) == 0:
         return []
 
-    # Validate: each message should have at least a "role" key.
+    # Validate: each message should have at least 一个 "role" key.
     if not all(isinstance(m, dict) and "role" in m for m in messages):
         return []
 
@@ -196,7 +196,7 @@ def detect_multipart_messages(text: str) -> List[ContentPart]:
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
 
-        # Complex content: flatten list of content blocks into a string.
+        # Complex content: flatten list of content blocks，转换为 一个 string.
         if isinstance(content, list):
             pieces = []
             for block in content:
@@ -226,7 +226,7 @@ def detect_multipart_messages(text: str) -> List[ContentPart]:
         elif not isinstance(content, str):
             content = json.dumps(content, indent=2)
 
-        # Map role to context_type and title.
+        # 映射 role to context_type 和 title.
         ctx_type, part_title = _role_to_context_type(role, i)
 
         part = ContentPart(
@@ -242,7 +242,7 @@ def detect_multipart_messages(text: str) -> List[ContentPart]:
 
 
 def _role_to_context_type(role: str, index: int) -> tuple[str, str]:
-    """Map an API message role to (context_type, human-readable title)."""
+    """映射 一个 API message role to (context_type, human-readable title)."""
     role_lower = role.lower()
     if role_lower == "system":
         return ContextPartType.SYSTEM_PROMPT, "System Prompt"
@@ -256,23 +256,23 @@ def _role_to_context_type(role: str, index: int) -> tuple[str, str]:
         return ContextPartType.UNKNOWN, f"Message #{index + 1} ({role})"
 
 
-# Import here to avoid circular import at module level.
+# 说明：Import here to avoid circular import at module level.
 def detect_content_type(payload: str, filename_hint: str = "") -> str:
-    """Delegate to content_part.detect_content_type."""
+    """说明：Delegate to content_part.detect_content_type."""
     from .content_part import detect_content_type as _detect
     return _detect(payload, filename_hint)
 
 
 # ---------------------------------------------------------------------------
-# Internal — segment splitting
+# 说明：Internal — segment splitting
 # ---------------------------------------------------------------------------
 
-# Match opening/closing fenced code blocks (```, ~~~ with optional language).
+# Match opening/closing fenced code blocks (```, ~~~，使用 optional language).
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})\s*([^\s`]*)\s*$", re.MULTILINE)
 
 
 def _split_segments(text: str) -> list[tuple[str, str]]:
-    """Split *text* into (type, content) segments.
+    """拆分 *text*，转换为 (type, content) segments.
 
     Types: ``"code"``, ``"text"``.
     JSON detection happens in a second pass over ``"text"`` segments.
@@ -283,7 +283,7 @@ def _split_segments(text: str) -> list[tuple[str, str]]:
     if not fences:
         return _split_text_segments(text)
 
-    # Match paired fences (same char, >= opening length).
+    # 说明：Match paired fences (same char, >= opening length).
     pairs = _pair_fences(fences, text)
     if not pairs:
         return _split_text_segments(text)
@@ -292,22 +292,22 @@ def _split_segments(text: str) -> list[tuple[str, str]]:
     cursor = 0
 
     for opening, closing, lang in pairs:
-        # Pre-fence text.
+        # 说明：Pre-fence text.
         if opening.start() > cursor:
             pre = text[cursor:opening.start()]
             parts.extend(_split_text_segments(pre))
 
-        # Code block content (between opening line end and closing line start).
+        # Code block content (between opening line end 和 closing line start).
         inner_start = text.index("\n", opening.start(), closing.start()) + 1
         code = text[inner_start:closing.start()]
 
-        # Find opening fence end for language hint.
+        # 查找 opening fence end，用于 language hint.
         open_end = text.index("\n", opening.start()) + 1
 
         parts.append(("code", text[opening.start():closing.end()]))
         cursor = closing.end()
 
-    # Trailing text.
+    # 说明：Trailing text.
     if cursor < len(text):
         trailing = text[cursor:]
         parts.extend(_split_text_segments(trailing))
@@ -316,7 +316,7 @@ def _split_segments(text: str) -> list[tuple[str, str]]:
 
 
 def _pair_fences(fences, text: str) -> list:
-    """Pair opening and closing fences greedily.
+    """Pair opening 和 closing fences greedily.
 
     Returns list of (opening_match, closing_match, lang).
     """
@@ -334,7 +334,7 @@ def _pair_fences(fences, text: str) -> list:
         fence_len = len(opening.group(1))
         lang = opening.group(2)
 
-        # Find matching closing fence.
+        # 查找 matching closing fence.
         for j in range(i + 1, len(fences)):
             if j in used:
                 continue
@@ -349,42 +349,42 @@ def _pair_fences(fences, text: str) -> list:
                 i = j + 1
                 break
         else:
-            # No match — skip this opening fence.
+            # 说明：No match — skip this opening fence.
             i += 1
 
     return pairs
 
 
 # ---------------------------------------------------------------------------
-# Internal — text segment splitting
+# 说明：Internal — text segment splitting
 # ---------------------------------------------------------------------------
 
-# Two or more blank lines indicate a segment boundary.
+# Two 或 more blank lines indicate 一个 segment boundary.
 _MULTI_BLANK_RE = re.compile(r"\n\s*\n\s*\n")
 
 
 def _split_text_segments(text: str) -> list[tuple[str, str]]:
-    """Split plain text into sub-segments at blank-line boundaries,
+    """拆分 plain text，转换为 sub-segments at blank-line boundaries,
     then classify each as ``"json"``, ``"code"``, or ``"text"``.
     """
     text = text.strip()
     if not text:
         return []
 
-    # Try to extract standalone JSON blocks.
+    # 说明：Try to extract standalone JSON blocks.
     if is_json(text):
         return [("json", text)]
 
-    # Check if the entire text looks like a code block.
+    # 检查，如果 该 entire text looks like 一个 code block.
     if is_code_block(text):
         return [("code", text)]
 
-    # Check for embedded JSON objects/arrays.
+    # 检查，用于 embedded JSON objects/arrays.
     json_candidates = _find_standalone_json(text)
     if json_candidates:
         return _assemble_with_json(text, json_candidates)
 
-    # Split on multi-blank-line boundaries.
+    # 拆分 on multi-blank-line boundaries.
     chunks = _MULTI_BLANK_RE.split(text)
     result = []
     for chunk in chunks:
@@ -401,7 +401,7 @@ def _split_text_segments(text: str) -> list[tuple[str, str]]:
 
 
 def _find_standalone_json(text: str) -> list[tuple[int, int]]:
-    """Find positions of standalone JSON objects/arrays in *text*.
+    """查找 positions of standalone JSON objects/arrays in *text*.
 
     A JSON block is considered "standalone" if it is:
     - On its own (possibly with leading/trailing whitespace), or
@@ -416,11 +416,11 @@ def _find_standalone_json(text: str) -> list[tuple[int, int]]:
     ]:
         for m in re.finditer(re.escape(open_ch), text):
             start = m.start()
-            # Check: either at start of text or on its own line (preceded by newline).
+            # Check: either at start of text 或 on its own line (preceded by newline).
             prefix = text[:start]
             stripped_prefix = prefix.rstrip()
             if stripped_prefix and not prefix.endswith("\n"):
-                # Something non-whitespace immediately precedes the JSON — not standalone.
+                # Something non-whitespace immediately precedes 该 JSON — not standalone.
                 continue
 
             depth = 0
@@ -452,11 +452,11 @@ def _find_standalone_json(text: str) -> list[tuple[int, int]]:
             if end is None:
                 continue
 
-            # Check: either at end of text or on its own line (followed by newline).
+            # Check: either at end of text 或 on its own line (followed by newline).
             suffix = text[end:]
             stripped_suffix = suffix.lstrip()
             if stripped_suffix and not suffix.startswith("\n"):
-                # Something non-whitespace immediately follows — not standalone.
+                # 说明：Something non-whitespace immediately follows — not standalone.
                 continue
 
             candidate = text[start:end]
@@ -467,9 +467,9 @@ def _find_standalone_json(text: str) -> list[tuple[int, int]]:
 
             results.append((start, end))
 
-    # Deduplicate and sort by position.
+    # 去重 和 sort by position.
     results.sort(key=lambda x: x[0])
-    # Remove overlapping ranges.
+    # 说明：Remove overlapping ranges.
     deduped = []
     for start, end in results:
         if deduped and start < deduped[-1][1]:
@@ -479,7 +479,7 @@ def _find_standalone_json(text: str) -> list[tuple[int, int]]:
 
 
 def _assemble_with_json(text: str, json_ranges: list[tuple[int, int]]) -> list[tuple[str, str]]:
-    """Assemble segments from *text*, extracting JSON at *json_ranges*.
+    """Assemble segments，来源于 *text*, extracting JSON at *json_ranges*.
 
     Each gap between JSON blocks becomes a ``"text"`` segment (if
     non-empty after stripping).
@@ -504,14 +504,14 @@ def _assemble_with_json(text: str, json_ranges: list[tuple[int, int]]) -> list[t
 
 
 # ---------------------------------------------------------------------------
-# Internal — code fence parsing
+# 说明：Internal — code fence parsing
 # ---------------------------------------------------------------------------
 
 _FENCE_LANG_RE = re.compile(r"^(`{3,}|~{3,})[ \t]*([^\s`]*)")
 
 
 def _parse_code_fence(block: str) -> tuple[str, str]:
-    """Extract (language, code_body) from a fenced code block string.
+    """提取 (language, code_body)，来源于 一个 fenced code block string.
 
     >>> _parse_code_fence("```python\\nprint(1)\\n```")
     ('python', 'print(1)')
@@ -519,25 +519,25 @@ def _parse_code_fence(block: str) -> tuple[str, str]:
     m = _FENCE_LANG_RE.match(block)
     lang = m.group(2) if m else ""
 
-    # Strip opening and closing fence lines.
+    # Strip opening 和 closing fence lines.
     lines = block.splitlines()
     if lines:
-        lines = lines[1:]  # Remove opening fence.
+        lines = lines[1:]  # 移除开头 fence。
     if lines and re.match(r"^`{3,}\s*$|^~{3,}\s*$", lines[-1]):
-        lines = lines[:-1]  # Remove closing fence.
+        lines = lines[:-1]  # 移除结尾 fence。
 
     return lang, "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# Title sanitization for list views
+# Title sanitization，用于 list views
 # ---------------------------------------------------------------------------
 
 _LIST_TITLE_MAX = 120
 
 
 def sanitize_list_title(text: str, max_len: int = _LIST_TITLE_MAX) -> str:
-    """Sanitize a session title for list-view display.
+    """Sanitize 一个 session title，用于 list-view display.
 
     Normalizes whitespace (newlines → space, collapses runs of whitespace,
     strips ends) and truncates to *max_len* characters with an ellipsis
@@ -550,7 +550,7 @@ def sanitize_list_title(text: str, max_len: int = _LIST_TITLE_MAX) -> str:
     if not text:
         return ""
     text = str(text)
-    # Replace all whitespace runs (including newlines) with a single space.
+    # Replace 所有 whitespace runs (including newlines)，使用 一个 single space.
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
         return ""

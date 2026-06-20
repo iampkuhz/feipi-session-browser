@@ -1,4 +1,4 @@
-"""Claude Code tool schema extraction and token pre-computation.
+"""Claude Code tool schema extraction 和 token pre-computation.
 
 Claude Code–specific module: extracts tool definitions from the Claude Code
 npm package (`sdk-tools.d.ts`), merges them with actual runtime descriptions
@@ -27,33 +27,33 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Cache file for extracted tool schemas (Claude Code only).
+# Cache file，用于 extracted tool schemas (Claude Code only).
 _SCHEMA_CACHE_PATH = Path(__file__).parent / ".tool_schemas_cache.json"
 
-# Fallback to npm package if local extraction fails.
+# 兜底 to npm package，如果 local extraction fails.
 _NPM_PACKAGE_PATHS = [
     Path("/tmp/claude-code-tools/package/sdk-tools.d.ts"),
 ]
 
 
 # ---------------------------------------------------------------------------
-# Full runtime descriptions extracted from the Claude Code binary.
+# Full runtime descriptions extracted，来源于 该 Claude Code binary.
 # ---------------------------------------------------------------------------
-# These are the ACTUAL descriptions sent to the Anthropic API, assembled at
-# runtime via Zod .describe() and template functions (uqK, $N9, etc.).
-# Significantly longer than TypeScript JSDoc for tools like Bash and Read.
+# These are 该 ACTUAL descriptions sent to 该 Anthropic API, assembled at
+# runtime via Zod .describe() 和 template functions (uqK, $N9, etc.).
+# Significantly longer than TypeScript JSDoc，用于 tools like Bash 和 Read.
 #
-# Extraction notes:
-#   Bash   – binary offset 197089397 (uqK function, normal mode, tJ()=false).
-#            Assembled from: base + working_dir + avoid + np(q) + transition
-#            + # Instructions (np(A) + T + $) + bqK() + xqK() sandbox +
-#            IqK() git/PR instructions.  Total ~12 K chars.
-#   Read   – binary offset ~197M ($N9 function).  ~1.4 K chars.
-#   Grep   – binary offset ~197M + TypeScript.  ~0.5 K chars.
-#   Edit   – binary + TypeScript.  ~0.3 K chars.
-#   Write  – binary + TypeScript.  ~0.3 K chars.
-#   Glob   – binary + TypeScript.  ~0.2 K chars.
-#   Others – from binary strings or TypeScript JSDoc (short descriptions).
+# 说明：Extraction notes:
+# 说明：Bash   – binary offset 197089397 (uqK function, normal mode, tJ()=false).
+# 说明：Assembled from: base + working_dir + avoid + np(q) + transition
+# 说明：+ # Instructions (np(A) + T + $) + bqK() + xqK() sandbox +
+# 说明：IqK() git/PR instructions.  Total ~12 K chars.
+# 读取   – binary offset ~197M ($N9 function).  ~1.4 K chars.
+# 说明：Grep   – binary offset ~197M + TypeScript.  ~0.5 K chars.
+# 说明：Edit   – binary + TypeScript.  ~0.3 K chars.
+# 写入  – binary + TypeScript.  ~0.3 K chars.
+# 说明：Glob   – binary + TypeScript.  ~0.2 K chars.
+# Others –，来源于 binary strings 或 TypeScript JSDoc (short descriptions).
 # ---------------------------------------------------------------------------
 _BINARY_TOOL_DESCRIPTIONS: dict[str, str] = {
     "Bash": (
@@ -622,7 +622,7 @@ _BINARY_TOOL_DESCRIPTIONS: dict[str, str] = {
     ),
 }
 
-# Ensure every tool has a description.
+# 确保 every tool has 一个 description.
 ALL_CLAUDE_CODE_TOOLS = [
     "Agent", "AskUserQuestion", "Bash", "CronCreate", "CronDelete", "CronList",
     "Edit", "EnterPlanMode", "EnterWorktree", "ExitPlanMode", "ExitWorktree",
@@ -639,7 +639,7 @@ for _tool in ALL_CLAUDE_CODE_TOOLS:
     )
 
 
-# Tool name mapping: TypeScript interface name -> actual tool name.
+# 说明：Tool name mapping: TypeScript interface name -> actual tool name.
 _TOOL_NAME_MAP: dict[str, str] = {
     "BashInput": "Bash",
     "FileReadInput": "Read",
@@ -679,7 +679,7 @@ _TOOL_NAME_MAP: dict[str, str] = {
 
 
 def _find_sdk_tools_file() -> Path | None:
-    """Locate the sdk-tools.d.ts file from Claude Code npm package."""
+    """Locate 该 sdk-tools.d.ts file，来源于 Claude Code npm package."""
     for p in _NPM_PACKAGE_PATHS:
         if p.exists():
             return p
@@ -712,13 +712,13 @@ def _find_sdk_tools_file() -> Path | None:
 def _parse_ts_interface(
     content: str,
 ) -> dict[str, dict[str, Any]]:
-    """Parse TypeScript interface blocks from sdk-tools.d.ts.
+    """解析 TypeScript interface blocks，来源于 sdk-tools.d.ts.
 
     Returns dict of {interface_name: {property_name: {type, description, required}}}.
     """
     result: dict[str, dict[str, Any]] = {}
 
-    # Match export interface blocks, handling nested braces for type literals.
+    # Match export interface blocks, handling nested braces，用于 type literals.
     interface_pattern = r'export interface (\w+Input) \{((?:[^{}]|\{[^{}]*\})*)\}'
 
     for match in re.finditer(interface_pattern, content, re.DOTALL):
@@ -726,28 +726,28 @@ def _parse_ts_interface(
         body = match.group(2)
         props: dict[str, Any] = {}
 
-        # Match JSDoc blocks of the form:
+        # Match JSDoc blocks of 该 form:
         #   /**
-        #    * Description text (may span multiple lines)
+        # 说明：* Description text (may span multiple lines)
         #    */
-        #   propertyName?: Type;
+        # 说明：propertyName?: Type;
         #
-        # The description is captured non-greedily up to the closing */,
-        # avoiding bleed into subsequent JSDoc blocks or TS code.
+        # The description is captured non-greedily up to 该 closing */,
+        # avoiding bleed，转换为 subsequent JSDoc blocks 或 TS code.
         prop_pattern = (
-            r'/\*\*\s*\n'           # opening /**
-            r'(?:\s*\*[^\n]*\n)*?'  # zero or more intermediate * lines
-            r'\s*\*\s+'             # final * followed by whitespace
-            r'((?:(?!\*/).)*?)'     # description: everything until */
-            r'\s*\*/'               # closing */
-            r'\s*\n\s*'             # whitespace/newline
-            r'("?\??-?[\w.-]+"?)'   # property name (may be quoted or contain -)
-            r'(\?)?:\s*'            # optional marker
-            r'([^;]+);'             # type until ;
+            r'/\*\*\s*\n'           # 匹配 opening /**
+            r'(?:\s*\*[^\n]*\n)*?'  # 匹配零行或多行中间的 * 行
+            r'\s*\*\s+'             # 匹配最后一个后接空白的 *
+            r'((?:(?!\*/).)*?)'     # description：捕获直到 */ 前的内容
+            r'\s*\*/'               # 匹配 closing */
+            r'\s*\n\s*'             # 匹配空白或换行
+            r'("?\??-?[\w.-]+"?)'   # property name：可带引号或包含 -
+            r'(\?)?:\s*'            # optional marker：可选标记
+            r'([^;]+);'             # type：捕获到 ; 为止
         )
         for jsdoc, prop_name, optional, prop_type in re.findall(prop_pattern, body):
             desc = re.sub(r'\n\s*\*\s*', ' ', jsdoc).strip()
-            # Clean up property name: strip surrounding quotes if present
+            # Clean up property name: strip surrounding quotes，如果 present
             prop_name = prop_name.strip('"')
             props[prop_name] = {
                 "description": desc[:300],
@@ -761,7 +761,7 @@ def _parse_ts_interface(
 
 
 def _map_ts_type(ts_type: str) -> str:
-    """Map TypeScript type to JSON Schema type string."""
+    """映射 TypeScript type to JSON Schema type string."""
     ts_type = ts_type.strip()
     if ts_type == "string":
         return "string"
@@ -783,7 +783,7 @@ def _build_json_schema(
     description: str,
     properties: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    """Build a JSON Schema tool definition matching the Anthropic API format."""
+    """构建 一个 JSON Schema tool definition matching 该 Anthropic API format."""
     props: dict[str, Any] = {}
     required: list[str] = []
 
@@ -813,7 +813,7 @@ def extract_tool_schemas(
     *,
     force: bool = False,
 ) -> dict[str, dict[str, Any]]:
-    """Extract tool schemas from Claude Code npm package.
+    """提取 tool schemas，来源于 Claude Code npm package.
 
     Merges TypeScript interface properties with actual runtime descriptions
     extracted from the Claude Code binary.
@@ -845,13 +845,13 @@ def extract_tool_schemas(
         schemas: dict[str, dict[str, Any]] = {}
         for ts_name, properties in ts_interfaces.items():
             tool_name = _TOOL_NAME_MAP.get(ts_name, ts_name.replace("Input", ""))
-            # Use binary description if available, otherwise TypeScript JSDoc.
+            # 使用 binary description，如果 available, otherwise TypeScript JSDoc.
             description = _BINARY_TOOL_DESCRIPTIONS.get(tool_name, f"Tool: {tool_name}")
             schema = _build_json_schema(tool_name, description, properties)
             schemas[tool_name] = schema
 
-        # Ensure ALL tools are present in the schema (fill gaps for tools whose
-        # TypeScript interfaces were not found in sdk-tools.d.ts).
+        # 确保 ALL tools are present in 该 schema (fill gaps，用于 tools whose
+        # 说明：TypeScript interfaces were not found in sdk-tools.d.ts).
         for tool_name in ALL_CLAUDE_CODE_TOOLS:
             if tool_name not in schemas:
                 schemas[tool_name] = {
@@ -879,7 +879,7 @@ def extract_tool_schemas(
 
 
 def _build_fallback_schemas() -> dict[str, dict[str, Any]]:
-    """Build fallback tool schemas when npm package is unavailable."""
+    """构建 fallback tool schemas，当 npm package is unavailable."""
     schemas: dict[str, dict[str, Any]] = {}
     for tool_name, description in _BINARY_TOOL_DESCRIPTIONS.items():
         schemas[tool_name] = {
@@ -895,11 +895,11 @@ def _build_fallback_schemas() -> dict[str, dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Token estimation helpers
+# token 估算辅助函数
 # ---------------------------------------------------------------------------
 
 def get_tool_schema_text(tool_name: str, schemas: dict[str, dict] | None = None) -> str:
-    """Get the serialized JSON text for a tool's schema.
+    """Get 该 serialized JSON text，用于 一个 tool's schema.
 
     Returns the actual JSON representation that approximates what gets sent to
     the API, suitable for accurate token counting.
@@ -919,7 +919,7 @@ def get_tool_schema_tokens(
     schemas: dict[str, dict] | None = None,
     model: str = "",
 ) -> int:
-    """Estimate token count for a single tool's JSON schema.
+    """Estimate token count，用于 一个 single tool's JSON schema.
 
     Uses the actual serialized JSON text for accurate counting.
     """
@@ -937,7 +937,7 @@ def get_all_tool_schema_tokens(
     schemas: dict[str, dict] | None = None,
     model: str = "",
 ) -> int:
-    """Estimate total token count for multiple tool schemas."""
+    """Estimate total token count，用于 multiple tool schemas."""
     return sum(
         get_tool_schema_tokens(name, schemas, model)
         for name in tool_names
@@ -945,14 +945,14 @@ def get_all_tool_schema_tokens(
 
 
 # ---------------------------------------------------------------------------
-# Module-level cache
+# 模块级缓存
 # ---------------------------------------------------------------------------
 
 _extracted_schemas: dict[str, dict] | None = None
 
 
 def get_cached_schemas() -> dict[str, dict]:
-    """Get cached tool schemas, extracting if necessary."""
+    """Get cached tool schemas, extracting，如果 necessary."""
     global _extracted_schemas
     if _extracted_schemas is None:
         _extracted_schemas = extract_tool_schemas()
@@ -960,6 +960,6 @@ def get_cached_schemas() -> dict[str, dict]:
 
 
 def invalidate_schema_cache() -> None:
-    """Invalidate the module-level schema cache."""
+    """Invalidate 该 module-level schema cache."""
     global _extracted_schemas
     _extracted_schemas = None

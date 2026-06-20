@@ -1,4 +1,4 @@
-"""HTTP server and routes for session-browser.
+"""session-browser 的 HTTP server 和路由。
 
 Uses Python's built-in http.server + jinja2 templates.
 No external web framework needed for MVP.
@@ -89,7 +89,7 @@ from session_browser.attribution.context import (
 from session_browser.attribution.contracts import (
     LLMRequestAttribution,
     LLMResponseAttribution,
-)  # noqa: F401 — contracts referenced by serializers and service layer
+)  # 说明：noqa: F401 — contracts referenced by serializers and service layer
 from session_browser.attribution.serializers import (
     request_attribution_to_payload,
     response_attribution_to_payload,
@@ -134,9 +134,9 @@ from session_browser.web.session_detail.view_model import (
 logger = logging.getLogger("session_browser.web")
 
 class SessionBrowserHandler(BaseHTTPRequestHandler):
-    """HTTP request handler for session-browser."""
+    """session-browser 的 HTTP request handler。"""
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:  # 说明：noqa: N802
         started_at = time.time()
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -155,7 +155,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             elif path == "/sessions":
                 self._serve_all_sessions()
             elif path.startswith("/sessions/"):
-                # Parse query params for export=mhtml
+                # 解析 query params，用于 export=mhtml
                 path_only = path.split("?", 1)[0]
                 export_mhtml = params.get("export") == ["mhtml"]
 
@@ -189,14 +189,14 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 elapsed_ms,
             )
         except BrokenPipeError:
-            # Client closed the connection before we could respond — normal.
+            # Client closed 该 connection，在之前 we could respond — normal.
             logger.debug("Client disconnected before response: path=%s", path)
         except Exception as exc:
             logger.exception("HTTP request failed: method=GET path=%s query=%s", path, parsed.query)
             self._send_500(exc, request_path=path)
 
     def log_message(self, format: str, *args) -> None:
-        """Route BaseHTTPRequestHandler access logs through configured logging."""
+        """转发 BaseHTTPRequestHandler access logs through configured logging."""
         logger.info(
             "HTTP access: client=%s message=%s",
             self.client_address[0] if self.client_address else "-",
@@ -204,7 +204,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         )
 
     def log_error(self, format: str, *args) -> None:
-        """Route BaseHTTPRequestHandler error logs through configured logging."""
+        """转发 BaseHTTPRequestHandler error logs through configured logging."""
         logger.error(
             "HTTP handler error: client=%s message=%s",
             self.client_address[0] if self.client_address else "-",
@@ -303,7 +303,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         conn.close()
 
         if session is None:
-            # For qoder, try resolving short ID -> canonical full UUID
+            # Qoder URL 可能只带短 ID；先解析为 canonical UUID 再查 DB。
             if agent == "qoder":
                 resolved_id, err_msg = _resolve_qoder_short_id(session_id)
                 if resolved_id:
@@ -320,8 +320,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 self._send_404()
                 return
 
-        # Try in-memory cache first (avoids re-parsing large JSONL files on
-        # every page refresh or round expansion).
+        # 优先使用内存缓存，避免页面刷新、round 展开和 attribution 请求重复解析大 JSONL。
         cache_key = f"{agent}:{session_id}"
         cached = _get_cached_session_data(agent, session_id)
         if cached is not None:
@@ -331,7 +330,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             subagent_runs = cached["subagent_runs"]
             logger.debug("Session data cache hit: %s", cache_key)
         else:
-            # Get raw conversation data from source
+            # 缓存未命中时才从各 agent source 读取原始会话详情。
             if agent == "claude_code":
                 from session_browser.sources.claude import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
@@ -339,7 +338,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 )
             elif agent == "qoder":
                 from session_browser.sources.qoder import parse_session_detail
-                # Prefer DB file_path; fallback to search if missing/invalid
+                # Qoder 优先使用 DB 记录的文件路径；缺失或失效时再走搜索兜底。
                 qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
                     session.project_key, session_id, session_file=qoder_file
@@ -348,8 +347,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 from session_browser.sources.codex_session_source import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
-            # Cache parsed data for subsequent API calls (round lazy-load,
-            # payload fetch, attribution).
+            # 同一次会话详情页后续会 lazy-load round、payload 和 attribution，共享解析结果。
             _set_cached_session_data(agent, session_id, {
                 "raw_summary": raw_summary,
                 "messages": messages,
@@ -357,27 +355,21 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 "subagent_runs": subagent_runs,
             })
 
-        # DB summary is canonical. raw parse only supplements detail; it must
-        # NOT overwrite confirmed fields (session_id, project_key, model,
-        # assistant_message_count, etc.). Only use raw values when the DB field
-        # is empty/null/zero, so that list-page and detail-page round counts
-        # stay consistent (SD-14 fix).
+        # DB summary 是列表页和详情页的一致性基准；raw parse 只能补齐空字段，
+        # 不覆盖已确认的 session_id、project_key、model、round count 等信息。
         session = _merge_raw_into_db_summary(session, raw_summary)
 
-        # ── Subagent count consistency guard ─────────────────────────
-        # The sessions list page reads subagent_instance_count from the DB.
-        # The detail page counts len(subagent_runs) from source parsing.
-        # If source parsing finds 0 but DB has a non-zero count (e.g. sidechain
-        # files moved, parser regression), use the DB count to keep both pages
-        # consistent and avoid showing "Subagents 0 runs" in the hero.
+        # ── Subagent count 一致性保护 ─────────────────────────
+        # 列表页读取 DB 中的 subagent_instance_count，详情页通常读取 source 解析出的
+        # subagent_runs。若 sidechain 文件移动或 parser 回归导致解析结果为空，则以 DB
+        # 计数兜底，避免同一会话在 hero 中显示为 “Subagents 0 runs”。
         if not subagent_runs and getattr(session, "subagent_instance_count", 0) > 0:
             logger.debug(
                 "Source parsed 0 subagent runs but DB has %d; "
                 "using DB count for hero display (session=%s)",
                 session.subagent_instance_count, cache_key,
             )
-            # Synthesize minimal subagent run entries so that
-            # _build_v11_view_model produces the correct count.
+            # 只合成最小 summary，让 ViewModel 维持正确计数；不伪造消息或工具调用。
             for _i in range(session.subagent_instance_count):
                 subagent_runs.append({
                     "summary": {
@@ -391,7 +383,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                     "tool_calls": [],
                 })
 
-        # Build conversation rounds with token data and markdown rendering
+        # 构建带 token 数据和 Markdown 渲染结果的 conversation rounds。
         rounds = build_rounds(
             messages,
             tool_calls,
@@ -403,23 +395,23 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             md_filter=_md_filter,
         )
 
-        # Build LLM calls and assign interactions to rounds
+        # 先构建 LLM calls，再把工具调用和 subagent 交互分配回对应 round。
         llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, agent)
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
-        # Compute preview text for each round after interactions are assigned
+        # preview 依赖已分配的交互，必须在 assign_interactions_to_rounds 之后计算。
         for r in rounds:
             r.compute_preview()
 
-        # Compute derived metrics
+        # 派生指标基于合并后的 session summary，保持与列表页口径一致。
         session_data = compute_derived_metrics(session.to_dict())
 
-        # Detect anomalies for this session
+        # anomaly 检测使用页面最终展示口径，避免 raw parse 和 DB summary 双轨。
         from session_browser.index.anomalies import detect_session_anomalies
         sa = detect_session_anomalies(session_data)
 
-        # Payload visibility mismatch: check actual llm_calls for missing payloads.
-        # Only flag when input tokens exist but NO call has request_full data.
+        # payload 可见性异常只在存在输入 token 且所有 call 都缺少 request/response
+        # 可见内容时触发，避免单个 call 缺字段造成误报。
         has_input = session.fresh_input_tokens > 0
         has_any_request = any(c.request_full for c in llm_calls) if llm_calls else False
         has_any_response = any(c.response_full for c in llm_calls) if llm_calls else False
@@ -432,7 +424,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 reason="Session has input tokens, but no LLM call has request/response payload data.",
             ))
 
-        # Compute signals for each round after interactions are assigned
+        # 计算 signals，用于 each round，在之后 interactions are assigned
         round_signals = []
         for i, r in enumerate(rounds):
             round_signals.append(
@@ -443,14 +435,14 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 )
             )
 
-        # Set repo root to session's project directory for relative path rendering
+        # Set repo root to session's project directory，用于 relative path rendering
         _template_mod._SESSION_REPO_ROOT = _template_mod._get_repo_root(session.project_key) if session.project_key else None
 
-        # Build timeline view model (slim for normal page load, full for MHTML export)
+        # 构建 timeline view model (slim，用于 normal page load, full，用于 MHTML export)
         slim_mode = not export_mhtml
         v11_vm = _build_v11_view_model(session, rounds, llm_calls, tool_calls, subagent_runs, sa, slim=slim_mode)
 
-        # MHTML context
+        # 说明：MHTML context
         if export_mhtml:
             logger.info("MHTML export: agent=%s session_id=%s", agent, session_id)
             from session_browser.web.mhtml import get_context
@@ -485,9 +477,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._send_html(html)
 
     def _serve_api_payload_path(self, path: str) -> None:
-        """Dispatch /api/sessions/{agent}/{session_id}/payload/{payload_id}."""
+        """分发 /api/sessions/{agent}/{session_id}/payload/{payload_id}."""
         parts = path.split("/")
-        # parts: ["", "api", "sessions", agent, session_id, "payload", payload_id]
+        # 说明：parts: ["", "api", "sessions", agent, session_id, "payload", payload_id]
         if len(parts) == 7 and parts[5] == "payload":
             agent = urllib.parse.unquote(parts[3])
             session_id = urllib.parse.unquote(parts[4])
@@ -497,14 +489,14 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "invalid API path", "expected": "/api/sessions/{agent}/{session_id}/payload/{payload_id}"}, status=400)
 
     def _serve_api_payload(self, agent: str, session_id: str, payload_id: str) -> None:
-        """Return the full, untruncated payload for a given session and payload_id."""
+        """返回 该 full, untruncated payload，用于 一个 given session 和 payload_id."""
         session_key = f"{agent}:{session_id}"
         conn = _get_connection()
         session = get_session(conn, session_key)
         conn.close()
 
         if session is None:
-            # For qoder, try resolving short ID -> canonical full UUID
+            # 说明：For qoder, try resolving short ID -> canonical full UUID
             if agent == "qoder":
                 resolved_id, err_msg = _resolve_qoder_short_id(session_id)
                 if resolved_id:
@@ -521,7 +513,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "session not found"}, status=404)
                 return
 
-        # Parse session detail using the same agent-specific logic as _serve_session
+        # 解析 session detail using 该 same agent-specific logic as _serve_session
         if agent == "claude_code":
             from session_browser.sources.claude import parse_session_detail
             raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
@@ -529,7 +521,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             )
         elif agent == "qoder":
             from session_browser.sources.qoder import parse_session_detail
-            # Prefer DB file_path; fallback to search if missing/invalid
+            # 优先使用 DB file_path; fallback to search，如果 missing/invalid
             qoder_file = Path(session.file_path) if session.file_path and Path(session.file_path).exists() else None
             raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
                 session.project_key, session_id, session_file=qoder_file
@@ -538,7 +530,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             from session_browser.sources.codex_session_source import parse_session_detail
             raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
-        # Build conversation rounds (same as _serve_session)
+        # 构建 conversation rounds (same as _serve_session)
         rounds = build_rounds(
             messages,
             tool_calls,
@@ -550,11 +542,11 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             md_filter=_md_filter,
         )
 
-        # Build LLM calls and assign interactions to rounds
+        # 构建 LLM calls 和 assign interactions to rounds
         llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, agent)
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
-        # Build payload lookup with NO truncation
+        # 构建 payload lookup，使用 NO truncation
         payload_map = _build_payload_lookup(rounds, tool_calls, subagent_runs, truncate=False)
 
         payload = payload_map.get(payload_id)
@@ -568,7 +560,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._send_json(payload)
 
     def _serve_api_attribution_path(self, path: str) -> None:
-        """Dispatch /api/sessions/{source}/{session_id}/attribution/{...}.
+        """分发 /api/sessions/{source}/{session_id}/attribution/{...}.
 
         Supports two URL patterns:
         - Main LLM call: /api/sessions/{source}/{session_id}/attribution/{round}/{call}/{kind}
@@ -576,8 +568,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         """
         parts = path.split("/")
 
-        # Detect subagent pattern: parts[5] == "subagent"
-        # sub-agent: ["", "api", "sessions", source, session_id, "attribution", "subagent", sa_id, call_idx, kind]
+        # 说明：Detect subagent pattern: parts[5] == "subagent"
+        # 说明：sub-agent: ["", "api", "sessions", source, session_id, "attribution", "subagent", sa_id, call_idx, kind]
         if len(parts) == 10 and parts[5] == "attribution" and parts[6] == "subagent":
             source = urllib.parse.unquote(parts[3])
             session_id = urllib.parse.unquote(parts[4])
@@ -599,7 +591,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             self._serve_api_attribution_subagent(source, session_id, sa_id, call_idx, kind)
             return
 
-        # Main LLM call pattern: parts: ["", "api", "sessions", source, session_id, "attribution", round_idx, call_idx, kind]
+        # 说明：Main LLM call pattern: parts: ["", "api", "sessions", source, session_id, "attribution", round_idx, call_idx, kind]
         if len(parts) == 9 and parts[5] == "attribution":
             source = urllib.parse.unquote(parts[3])
             session_id = urllib.parse.unquote(parts[4])
@@ -623,11 +615,11 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "invalid API path", "expected": "/api/sessions/{source}/{session_id}/attribution/{round_index}/{call_index}/{kind} or /api/sessions/{source}/{session_id}/attribution/subagent/{sa_id}/{call_idx}/{kind}"}, status=400)
 
     def _serve_api_attribution_main(self, source: str, session_id: str, round_index: int, call_index: int, kind: str) -> None:
-        """Handle attribution for main-agent LLM calls."""
+        """处理 attribution，用于 main-agent LLM calls."""
         session, messages, tool_calls, subagent_runs, llm_calls, rounds = \
             self._load_session_and_build_rounds(source, session_id)
         if session is None:
-            return  # Error already sent by helper
+            return  # 说明：Error already sent by helper
 
         target_round_idx = round_index - 1
         target_call_idx = call_index - 1
@@ -653,13 +645,13 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._build_and_send_attribution(source, session_id, session, r, ix, target_call_idx, round_index, kind, llm_calls, messages, tool_calls)
 
     def _serve_api_attribution_subagent(self, source: str, session_id: str, sa_id: str, call_idx: int, kind: str) -> None:
-        """Handle attribution for subagent LLM calls."""
+        """处理 attribution，用于 subagent LLM calls."""
         session, messages, tool_calls, subagent_runs, llm_calls, rounds = \
             self._load_session_and_build_rounds(source, session_id)
         if session is None:
-            return  # Error already sent by helper
+            return  # 说明：Error already sent by helper
 
-        # Find subagent LLM calls matching sa_id
+        # 查找 subagent LLM calls matching sa_id
         sa_llm_calls = [c for c in llm_calls if c.scope == "subagent" and c.subagent_id == sa_id]
         if not sa_llm_calls:
             self._send_json(attribution_error_to_payload(
@@ -669,8 +661,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             ), status=404)
             return
 
-        # call_idx is 1-based per-subagent index; find the matching call
-        # The per-subagent index maps to position in sa_llm_calls list
+        # call_idx is 1-based per-subagent index; find 该 matching call
+        # 说明：The per-subagent index maps to position in sa_llm_calls list
         if call_idx < 1 or call_idx > len(sa_llm_calls):
             self._send_json(attribution_error_to_payload(
                 agent=source, call_id="", round_id="",
@@ -681,30 +673,30 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         ix = sa_llm_calls[call_idx - 1]
 
-        # Determine subagent_type from subagent_runs or tool_calls
+        # Determine subagent_type，来源于 subagent_runs 或 tool_calls
         subagent_type = None
         for run in subagent_runs:
             if run["summary"]["agent_id"] == sa_id:
                 subagent_type = run["summary"].get("agent_type", "") or None
                 break
-        # Fallback: check parent Agent tool call's subagent_summary
+        # 说明：Fallback: check parent Agent tool call's subagent_summary
         if not subagent_type:
             for tc in tool_calls:
                 if tc.name == "Agent" and tc.subagent_id == sa_id:
                     subagent_type = tc.subagent_summary.get("agent_type", "") or None
                     break
 
-        # Find the parent round for this subagent call
+        # 查找 该 parent round，用于 this subagent call
         parent_round_idx = ix.round_index
         if parent_round_idx < 0 or parent_round_idx >= len(rounds):
             parent_round_idx = 0
 
         r = rounds[parent_round_idx]
 
-        # For subagent, we don't have a meaningful interaction_index within
-        # the round's interactions list. Use 0 as a safe default so that
-        # preceding_tool_results is empty (subagent calls don't have local
-        # preceding tool results in the same way).
+        # For subagent, we don't have 一个 meaningful interaction_index within
+        # the round's interactions list. Use 0 as 一个 安全 default so that
+        # 说明：preceding_tool_results is empty (subagent calls don't have local
+        # preceding tool results in 该 same way).
         self._build_and_send_attribution(
             source, session_id, session, r, ix, 0,
             parent_round_idx + 1, kind, llm_calls, messages, tool_calls,
@@ -712,7 +704,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         )
 
     def _load_session_and_build_rounds(self, source: str, session_id: str):
-        """Load session, parse data, build rounds and LLM calls.
+        """加载 session, parse data, build rounds 和 LLM calls.
 
         Uses in-memory cache to avoid re-parsing large JSONL files on every
         API call (round lazy-load, attribution, payload fetch).
@@ -748,7 +740,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 ), status=404)
                 return (None, [], [], [], [], [])
 
-        # Try in-memory cache first
+        # 说明：Try in-memory cache first
         cached = _get_cached_session_data(source, session_id)
         if cached is not None:
             raw_summary = cached["raw_summary"]
@@ -757,7 +749,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             subagent_runs = cached["subagent_runs"]
             logger.debug("_load_session_and_build_rounds cache hit: %s", session_key)
         else:
-            # Parse session detail
+            # 解析 session detail
             if source == "claude_code":
                 from session_browser.sources.claude import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
@@ -773,7 +765,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 from session_browser.sources.codex_session_source import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
-            # Cache for subsequent API calls
+            # Cache，用于 subsequent API calls
             _set_cached_session_data(source, session_id, {
                 "raw_summary": raw_summary,
                 "messages": messages,
@@ -781,7 +773,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 "subagent_runs": subagent_runs,
             })
 
-        # Build rounds and LLM calls
+        # 构建 rounds 和 LLM calls
         rounds = build_rounds(
             messages,
             tool_calls,
@@ -798,9 +790,9 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         return (session, messages, tool_calls, subagent_runs, llm_calls, rounds)
 
     def _serve_api_round_path(self, path: str) -> None:
-        """Dispatch /api/sessions/{agent}/{session_id}/round/{round_index}."""
+        """分发 /api/sessions/{agent}/{session_id}/round/{round_index}."""
         parts = path.split("/")
-        # parts: ["", "api", "sessions", agent, session_id, "round", round_index]
+        # 说明：parts: ["", "api", "sessions", agent, session_id, "round", round_index]
         if len(parts) == 7 and parts[5] == "round":
             try:
                 round_index = int(parts[6])
@@ -821,38 +813,38 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             }, status=400)
 
     def _serve_api_round(self, agent: str, session_id: str, round_index: int) -> None:
-        """Return the expanded round detail HTML for a given round_index (1-based)."""
+        """返回 该 expanded round detail HTML，用于 一个 given round_index (1-based)."""
         result = self._load_session_and_build_rounds(agent, session_id)
         if result[0] is None:
-            return  # Error already sent
+            return  # 说明：Error already sent
 
         _session, _messages, _tool_calls, _subagent_runs, llm_calls, rounds = result
 
-        # Validate round_index
-        target_idx = round_index - 1  # convert to 0-based
+        # 说明：Validate round_index
+        target_idx = round_index - 1  # 说明：convert to 0-based
         if target_idx < 0 or target_idx >= len(rounds):
             self._send_json({
                 "error": f"round_index {round_index} out of range (1-{len(rounds)})",
             }, status=404)
             return
 
-        # Compute preview text for rounds if not already done
+        # 计算 preview text，用于 rounds，如果 not already done
         for r in rounds:
             if not getattr(r, "preview_text", ""):
                 r.compute_preview()
 
-        # Compute signals for the target round
+        # 计算 signals，用于 该 target round
         r = rounds[target_idx]
         signals = compute_round_signals(
             r, round_index,
             _session.fresh_input_tokens + _session.cache_read_tokens + _session.cache_write_tokens,
         )
 
-        # Build view model for just this one round. Use skip_attribution=True
-        # because the expanded row HTML only renders timeline items (LLM call
-        # cards, tool batches, subagent blocks) — it never uses payload_sources
-        # inline. Attribution data is fetched on-demand when the user clicks
-        # Request/Response attribution buttons.
+        # 构建 view model，用于 just this 一个 round. Use skip_attribution=True
+        # because 该 expanded row HTML 仅 renders timeline items (LLM call
+        # 说明：cards, tool batches, subagent blocks) — it never uses payload_sources
+        # inline. Attribution data is fetched on-demand，当 该 user clicks
+        # 说明：Request/Response attribution buttons.
         vm = _build_v11_view_model(
             _session, rounds, llm_calls, _tool_calls, _subagent_runs,
             session_anomalies=type("FA", (), {"anomalies": []})(),
@@ -861,7 +853,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             skip_attribution=True,
         )
 
-        # Find the trace row for the target round
+        # 查找 该 trace row，用于 该 target round
         trace_row = None
         for tr in vm["trace_rows"]:
             if tr["round_id"] == round_index:
@@ -872,12 +864,12 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "round detail not found"}, status=404)
             return
 
-        # Render the expanded row HTML using Jinja template.
-        # round_table.html now imports llm_call/subagent with context,
-        # so the macro namespace is self-contained and works via template.module.
+        # Render 该 expanded row HTML using Jinja template.
+        # round_table.html now imports llm_call/subagent，使用 context,
+        # so 该 macro namespace is self-contained 和 works via template.module.
         template = _template_env.get_template("components/session_detail_timeline.html")
         expanded_html = template.module.expanded_row(trace_row)
-        # Strip <tr>/<td> wrapper tags — JS creates its own <tr><td> and injects inner content
+        # Strip <tr>/<td> wrapper tags — JS creates its own <tr><td> 和 injects inner content
         expanded_html = re.sub(r'^<tr[^>]*>\s*<td[^>]*>', '', expanded_html)
         expanded_html = re.sub(r'</td>\s*</tr>\s*$', '', expanded_html)
 
@@ -891,11 +883,11 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         })
 
     def _build_and_send_attribution(self, source, session_id, session, r, ix, interaction_index, round_index, kind, llm_calls, messages, tool_calls, subagent_type=None):
-        """Build attribution for an LLM call and send JSON response."""
+        """构建 attribution，用于 一个 LLM call 和 send JSON response."""
         all_messages = messages or []
         all_tool_calls = tool_calls or []
 
-        # Build call-scoped session context with hydration
+        # 构建 call-scoped session context，使用 hydration
         attrib_ctx = build_attribution_session_context(
             session=session,
             round_obj=r,
@@ -910,7 +902,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             subagent_type=subagent_type,
         )
 
-        # Build attribution
+        # 构建 attribution
         try:
             if kind == "request":
                 attr = build_llm_request_attribution(
@@ -941,7 +933,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             ), status=500)
             return
 
-        # Return API envelope
+        # 返回 API envelope
         envelope = {
             "kind": f"llm.{kind}_attribution",
             "source": source,
@@ -953,14 +945,14 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._send_json(envelope)
 
     def _serve_api_bucket_detail_path(self, path: str) -> None:
-        """Dispatch /api/sessions/{source}/{session_id}/bucket-detail/{round_index}/{bucket_key}.
+        """分发 /api/sessions/{source}/{session_id}/bucket-detail/{round_index}/{bucket_key}.
 
         Supports dynamic loading of bucket detail content:
         - current_user_message: full user message text for a given round
         - local_instruction_context: full CLAUDE.md content for the project
         """
         parts = path.split("/")
-        # parts: ["", "api", "sessions", source, session_id, "bucket-detail", round_index, bucket_key]
+        # 说明：parts: ["", "api", "sessions", source, session_id, "bucket-detail", round_index, bucket_key]
         if len(parts) == 8 and parts[5] == "bucket-detail":
             source = urllib.parse.unquote(parts[3])
             session_id = urllib.parse.unquote(parts[4])
@@ -976,7 +968,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "invalid API path", "expected": "/api/sessions/{source}/{session_id}/bucket-detail/{round_index}/{bucket_key}"}, status=400)
 
     def _serve_api_bucket_detail(self, source: str, session_id: str, round_index: int, bucket_key: str) -> None:
-        """Return full, untruncated bucket detail content for dynamic loading."""
+        """返回 full, untruncated bucket detail content，用于 dynamic loading."""
         session_key = f"{source}:{session_id}"
         conn = _get_connection()
         session = get_session(conn, session_key)
@@ -1000,7 +992,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 return
 
         if bucket_key == "current_user_message":
-            # Fetch the user message for the given round
+            # Fetch 该 user message，用于 该 given round
             if source == "claude_code":
                 from session_browser.sources.claude import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(
@@ -1042,7 +1034,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             return
 
         elif bucket_key == "local_instruction_context":
-            # Read CLAUDE.md from project directory
+            # 读取 CLAUDE.md，来源于 project directory
             project_dir = session.project_key
             if not project_dir:
                 self._send_json({"error": "project directory unknown", "text": ""}, status=404)
@@ -1074,7 +1066,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             return
 
         elif bucket_key.startswith("full_messages_array_item:"):
-            # Fetch a specific message item from the full_messages_array
+            # Fetch 一个 specific message item，来源于 该 full_messages_array
             try:
                 msg_index = int(bucket_key.split(":", 1)[1])
             except (ValueError, IndexError):
@@ -1109,8 +1101,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             from session_browser.attribution.agents.claude_code_parts.utils import mask_sensitive_keys
             from session_browser.attribution.token_estimator import estimate_tokens_from_text
 
-            # Build full_messages_array for the first interaction of the first round
-            # as a representative sample
+            # 构建 full_messages_array，用于 该 first interaction of 该 first round
+            # as 一个 representative sample
             target_idx = round_index - 1
             if target_idx < 0 or target_idx >= len(rounds):
                 self._send_json({"error": f"round_index {round_index} out of range (1-{len(rounds)})"}, status=404)
@@ -1139,7 +1131,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 return
 
             msg_entry = msg_array[msg_index]
-            # For full content, we need to reconstruct from the original messages
+            # For full content, we need to reconstruct，来源于 该 original messages
             content_text = ""
             if msg_entry.get("content_type") == "user_text":
                 content_text = self._find_user_message_content(messages, msg_array, msg_index)
@@ -1182,16 +1174,16 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self.wfile.write(filepath.read_bytes())
 
     def _serve_all_sessions(self) -> None:
-        """Global sessions page — all sessions across all projects."""
+        """Global sessions page — 所有 sessions across 所有 projects."""
         conn = _get_connection()
 
-        # ── Parse query parameters ──────────────────────────────────
+        # 说明：── Parse query parameters ──────────────────────────────────
         parsed = urllib.parse.urlparse(self.path)
         raw_params = urllib.parse.parse_qs(parsed.query)
 
         params = parse_sessions_query_params(raw_params)
 
-        # ── Fetch view model ────────────────────────────────────────
+        # 说明：── Fetch view model ────────────────────────────────────────
         total_count = count_sessions(
             conn,
             agent=params["filter_agent"],
@@ -1222,7 +1214,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
         conn.close()
 
-        # Normalize sort key for template (ui uses 'updated' for 'ended-at')
+        # 归一化 sort key，用于 template (ui uses 'updated'，用于 'ended-at')
         ui_sort = "updated" if params["raw_sort"] == "ended-at" else (params["raw_sort"] or "ended-at")
 
         filters_for_actions = {
@@ -1242,7 +1234,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             has_next=pagination["has_next"],
         )
 
-        # ── AJAX partial response (X-Requested-With header) ─────────
+        # 说明：── AJAX partial response (X-Requested-With header) ─────────
         is_ajax = self.headers.get("X-Requested-With") == "XMLHttpRequest"
         if is_ajax:
             html = self._render_template(
@@ -1300,7 +1292,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         self._send_html(html)
 
     def _serve_glossary(self) -> None:
-        """Token glossary page."""
+        """说明：Token glossary page."""
         html = self._render_template(
             "glossary.html",
             active_page="glossary",
@@ -1310,7 +1302,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
 
 
 class SessionBrowserServer(ThreadingHTTPServer):
-    """Threaded server keeps parallel browser tests from starving requests."""
+    """Threaded server keeps parallel browser tests，来源于 starving requests."""
 
     daemon_threads = True
 
@@ -1319,7 +1311,7 @@ def create_server(
     host: str = "127.0.0.1",
     port: int = 8899,
 ) -> HTTPServer:
-    """Create and return an HTTPServer instance."""
+    """创建 和 return 一个 HTTPServer instance."""
     server = SessionBrowserServer((host, port), SessionBrowserHandler)
     server.allow_reuse_address = True
     return server

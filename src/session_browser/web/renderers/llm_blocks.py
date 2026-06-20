@@ -1,4 +1,4 @@
-"""LLM content block normalization and HTML rendering.
+"""LLM content block 归一化和 HTML 渲染。
 
 Extracted from template_env.py to isolate LLM block rendering concerns.
 Provides:
@@ -17,17 +17,17 @@ from session_browser.web.renderers.markdown import render_markdown
 from session_browser.domain.normalizer import normalize_message_content
 from session_browser.domain.content_part import ContentPart
 
-# ─── LLM content block normalization patterns ───────────────────────
+# 说明：─── LLM content block normalization patterns ───────────────────────
 
 _TOOL_RESULT_RE = re.compile(r'^(Tool result for (?:toolu_\S+|[^:]+):)\s*$', re.MULTILINE)
 _FILE_MARKER_RE = re.compile(r'^#\s+([\w\-]+\.\w+)\s*$', re.MULTILINE)
 _LINE_NUM_RE = re.compile(r'^\d+\t', re.MULTILINE)
 
 
-# ─── Line number helpers ─────────────────────────────────────────────
+# 说明：─── Line number helpers ─────────────────────────────────────────────
 
 def _detect_line_number_gutter(text: str) -> bool:
-    """Return True if text looks like it has UI-added line numbers."""
+    """返回 True，如果 text looks like it has UI-added line numbers."""
     lines = text.splitlines()
     if len(lines) < 3:
         return False
@@ -36,16 +36,16 @@ def _detect_line_number_gutter(text: str) -> bool:
 
 
 def _strip_line_number_gutter(text: str) -> str:
-    """Remove leading 'N\\t' from each line when line numbers are detected."""
+    """Remove leading 'N\\t'，来源于 each line，当 line numbers are detected."""
     if not _detect_line_number_gutter(text):
         return text
     return re.sub(r'^\d+\t', '', text, flags=re.MULTILINE)
 
 
-# ─── Language inference ──────────────────────────────────────────────
+# 说明：─── Language inference ──────────────────────────────────────────────
 
 def _infer_code_language(filename_hint: str = "", content: str = "") -> str | None:
-    """Infer code block language from filename or content."""
+    """推断 code block language，来源于 filename 或 content."""
     filename_hint = (filename_hint or "").lower()
     lang_map = {
         ".py": "python", ".ts": "typescript", ".tsx": "tsx", ".js": "javascript",
@@ -71,10 +71,10 @@ def _infer_code_language(filename_hint: str = "", content: str = "") -> str | No
     return None
 
 
-# ─── Block builders ──────────────────────────────────────────────────
+# 说明：─── Block builders ──────────────────────────────────────────────────
 
 def _make_plain_block(text: str, title: str = "") -> dict:
-    """Create a plain text block."""
+    """创建 一个 plain text block."""
     if not text:
         return {"kind": "unknown", "title": title, "subtitle": "", "language": "", "content": text, "raw": text}
     lang = _infer_code_language(content=text)
@@ -89,7 +89,7 @@ def _make_plain_block(text: str, title: str = "") -> dict:
 
 
 def _make_block_from_content(text: str, title: str = "") -> dict:
-    """Create a block, trying to detect if it's code or markdown."""
+    """创建 一个 block, trying to detect，如果 it's code 或 markdown."""
     lang = _infer_code_language(content=text)
     if lang:
         return {
@@ -110,10 +110,10 @@ def _make_block_from_content(text: str, title: str = "") -> dict:
     }
 
 
-# ─── File marker detection ───────────────────────────────────────────
+# 说明：─── File marker detection ───────────────────────────────────────────
 
 def _detect_file_marker(text: str) -> str | None:
-    """Check if text starts with a file-like heading like '# AGENTS.md'."""
+    """检查，如果 text starts，使用 一个 file-like heading like '# AGENTS.md'."""
     first_lines = text.split("\n")[:5]
     for line in first_lines:
         stripped = line.strip()
@@ -124,7 +124,7 @@ def _detect_file_marker(text: str) -> str | None:
 
 
 def _try_split_files(text: str) -> list[dict]:
-    """Try to split text by file heading markers.
+    """说明：Try to split text by file heading markers.
 
     Returns list of blocks if split succeeds, empty list otherwise.
     """
@@ -181,10 +181,10 @@ def _try_split_files(text: str) -> list[dict]:
     return blocks if blocks else []
 
 
-# ─── LLM content normalization ───────────────────────────────────────
+# 说明：─── LLM content normalization ───────────────────────────────────────
 
 def normalize_llm_content(input: str) -> list[dict]:
-    """Split raw LLM request/response string into structured content blocks.
+    """拆分 raw LLM request/response string，转换为 structured content blocks.
 
     Returns a list of dicts with keys:
     - kind: 'tool_result' | 'file_code' | 'file_markdown' | 'plain_text' | 'unknown'
@@ -280,17 +280,17 @@ def normalize_llm_content(input: str) -> list[dict]:
     return blocks
 
 
-# ─── HTML escape ─────────────────────────────────────────────────────
+# 说明：─── HTML escape ─────────────────────────────────────────────────────
 
 def _html_escape(text: str) -> str:
-    """Escape HTML entities."""
+    """转义 HTML entities."""
     return html.escape(text)
 
 
-# ─── Render LLM blocks as HTML ───────────────────────────────────────
+# 说明：─── Render LLM blocks as HTML ───────────────────────────────────────
 
 def render_llm_blocks_html(input: str | list[dict]) -> str:
-    """Accept a raw string or pre-normalized blocks, render as HTML cards.
+    """Accept 一个 raw string 或 pre-normalized blocks, render as HTML cards.
 
     When given a string (the common template case), normalizes it into
     content blocks first.  When given a list[dict], renders directly.
@@ -340,10 +340,10 @@ def render_llm_blocks_html(input: str | list[dict]) -> str:
     return "\n".join(parts)
 
 
-# ─── Content parts bridge ────────────────────────────────────────────
+# 说明：─── Content parts bridge ────────────────────────────────────────────
 
 def _content_parts_to_blocks(parts: list) -> list[dict]:
-    """Convert [ContentPart, ...] to the dict format the viewer template expects.
+    """转换 [ContentPart, ...] to 该 dict format 该 viewer template expects.
 
     Maps ContentPart fields:
     - part_type -> kind
@@ -400,7 +400,7 @@ def _content_parts_to_blocks(parts: list) -> list[dict]:
 
 
 def _parts_mode_from_raw(text: str) -> list[dict]:
-    """Bridge: raw string -> normalize via new normalizer -> viewer-compatible dicts.
+    """说明：Bridge: raw string -> normalize via new normalizer -> viewer-compatible dicts.
 
     Usage in viewer.html: ``{% set blocks = content | parts_mode_from_raw %}``
     """

@@ -1,4 +1,4 @@
-"""Span Builder：Evidence -> ordered PromptSpan pipeline。
+"""说明：Span Builder：Evidence -> ordered PromptSpan pipeline。
 
 将 Evidence 列表按 API Family 的请求顺序组织成有序的 PromptSpan 列表。
 """

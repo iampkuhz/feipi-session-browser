@@ -1,4 +1,4 @@
-"""Percentile computation for session-browser anomaly detection.
+"""Percentile computation，用于 session-browser anomaly detection.
 
 Provides P90/P95 computation with fallback thresholds for small datasets.
 """
@@ -8,19 +8,19 @@ from __future__ import annotations
 from typing import Optional
 
 
-# Fallback thresholds when data is insufficient (< 20 rows)
-# Fixed thresholds — percentile-based computation is unreliable on skewed distributions.
+# 兜底 thresholds，当 data is insufficient (< 20 rows)
+# 说明：Fixed thresholds — percentile-based computation is unreliable on skewed distributions.
 FALLBACK_THRESHOLDS = {
     "duration_seconds": {"warning": 3600, "critical": 7200},  # 1h / 2h
     "tool_call_count": {"warning": 200, "critical": 500},
-    "cache_write_tokens": {"warning": 200000, "critical": 500000},  # cache write hotspot
+    "cache_write_tokens": {"warning": 200000, "critical": 500000},  # 说明：cache write hotspot
 }
 
 MIN_ROWS = 20
 
 
 def percentile(values: list[float], pct: float) -> Optional[float]:
-    """Compute the given percentile of a list of numbers.
+    """计算 该 given percentile of 一个 list of numbers.
 
     Returns None if the list is empty.
     """
@@ -42,7 +42,7 @@ def percentile(values: list[float], pct: float) -> Optional[float]:
 def compute_percentiles(
     values: list[float],
 ) -> dict[str, Optional[float]]:
-    """Compute P90 and P95 for a list of values.
+    """计算 P90 和 P95，用于 一个 list of values.
 
     Returns {"p90": ..., "p95": ..., "count": n}.
     """
@@ -58,7 +58,7 @@ def get_threshold(
     values: list[float],
     severity: str = "warning",
 ) -> Optional[float]:
-    """Get threshold for a metric, using percentile if enough data, else fallback.
+    """Get threshold，用于 一个 metric, using percentile，如果 enough data, else fallback.
 
     Args:
         metric: Key name (e.g., "duration_seconds").
@@ -73,7 +73,7 @@ def get_threshold(
     if threshold is not None:
         return float(threshold)
 
-    # For ratio-based metrics
+    # 说明：For ratio-based metrics
     ratio_key = f"{severity}_ratio"
     if ratio_key in fb:
         return fb[ratio_key]
@@ -84,7 +84,7 @@ def get_threshold(
 def compute_session_thresholds(
     sessions_data: list[dict],
 ) -> dict[str, dict]:
-    """Compute anomaly thresholds for all session-level metrics.
+    """计算 anomaly thresholds，用于 所有 session-level metrics.
 
     Args:
         sessions_data: List of dicts with session fields.

@@ -100,7 +100,7 @@ def resolve_call_mapping(
             raw_response=raw_response,
         )
 
-    # ── Step 2: unknown agent fallback ──────────────────────────
+    # 说明：── Step 2: unknown agent fallback ──────────────────────────
     usage_shape = detect_usage_shape(usage)
     if usage_shape == "anthropic_messages_like":
         api_family = "anthropic_messages_like"

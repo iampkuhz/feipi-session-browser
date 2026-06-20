@@ -1,4 +1,4 @@
-"""Token usage normalizer for session-browser.
+"""Token usage normalizer，用于 session-browser.
 
 Maps provider-specific usage fields into a unified NormalizedTokenBreakdown
 with a canonical 5-field breakdown.
@@ -35,11 +35,11 @@ from session_browser.domain.token_normalizers.codex_token_normalizer import (
 )
 
 
-# ─── Provider inference ──────────────────────────────────────────────────
+# 说明：─── Provider inference ──────────────────────────────────────────────────
 
 
 def _infer_provider(model: Optional[str]) -> str:
-    """Infer provider from model string."""
+    """推断 provider，来源于 model string."""
     if model is None:
         return TokenProvider.UNKNOWN
 
@@ -57,7 +57,7 @@ def _infer_provider(model: Optional[str]) -> str:
     return TokenProvider.UNKNOWN
 
 
-# ─── Alias extraction helpers ────────────────────────────────────────────
+# 说明：─── Alias extraction helpers ────────────────────────────────────────────
 
 
 def normalize_tokens(
@@ -65,7 +65,7 @@ def normalize_tokens(
     provider: Optional[str] = None,
     model: Optional[str] = None,
 ) -> NormalizedTokenBreakdown:
-    """Normalize provider usage into a unified 5-field breakdown.
+    """归一化 provider usage，转换为 一个 unified 5-field breakdown.
 
     Every return has all 5 int fields set (never None/NaN).
     """
@@ -97,11 +97,11 @@ def normalize_tokens(
     return _normalize_generic(usage)
 
 
-# ─── Alias extraction helpers ────────────────────────────────────────────
+# 说明：─── Alias extraction helpers ────────────────────────────────────────────
 
 
 def _get_int(d: dict, *keys: str) -> int:
-    """Return the first int found among keys; 0 if none."""
+    """返回 该 first int found among keys; 0，如果 none."""
     for k in keys:
         val = d.get(k)
         if val is not None:
@@ -113,7 +113,7 @@ def _get_int(d: dict, *keys: str) -> int:
 
 
 def _get_int_or_none(d: dict, *keys: str) -> Optional[int]:
-    """Return the first int found among keys; None if none."""
+    """返回 该 first int found among keys; None，如果 none."""
     for k in keys:
         val = d.get(k)
         if val is not None:
@@ -137,17 +137,17 @@ def _get_nested_int(d: dict, outer: str, inner: str) -> int:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Estimate tokens from text using ceil(utf8_byte_len / 3.5)."""
+    """Estimate tokens，来源于 text using ceil(utf8_byte_len / 3.5)."""
     if not text:
         return 0
     return max(1, math.ceil(len(text.encode("utf-8")) / 3.5))
 
 
-# ─── Claude Code unified normalizer ──────────────────────────────────────
+# 说明：─── Claude Code unified normalizer ──────────────────────────────────────
 
 
 def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
-    """Claude Code: input_tokens = fresh; cache buckets are separate.
+    """说明：Claude Code: input_tokens = fresh; cache buckets are separate.
 
     total = fresh + cache_read + cache_write + output (exclusive_components_sum).
     """
@@ -170,7 +170,7 @@ def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
     )
 
 
-# ─── Codex unified normalizer ────────────────────────────────────────────
+# 说明：─── Codex unified normalizer ────────────────────────────────────────────
 
 
 def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
@@ -186,11 +186,11 @@ def _normalize_codex_from_delta(
     return normalize_codex_from_delta(current, previous)
 
 
-# ─── Qoder unified normalizer ────────────────────────────────────────────
+# 说明：─── Qoder unified normalizer ────────────────────────────────────────────
 
 
 def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
-    """Qoder structured logs: input_tokens is the logical request input size.
+    """Qoder structured logs: input_tokens is 该 logical request input size.
 
     Fresh must remain the request input size. Cache read/write fields are
     reported separately and are not subtracted from Fresh.
@@ -208,11 +208,11 @@ def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
     fresh = raw_input
     precision = TokenPrecision.PROVIDER_REPORTED
 
-    # Output: include thinking tokens unless it would bloat the total
+    # Output: include thinking tokens unless it would bloat 该 total
     output = raw_output
     if raw_thinking > 0:
         if raw_total > 0 and (raw_output + raw_thinking) > raw_total:
-            # Don't double-add thinking; keep in raw_fields only
+            # 说明：Don't double-add thinking; keep in raw_fields only
             pass
         else:
             output = raw_output + raw_thinking
@@ -233,7 +233,7 @@ def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
 
 
 def normalize_qoder_sqlite_unified(token_info: dict) -> NormalizedTokenBreakdown:
-    """Qoder SQLite token_info: prompt_tokens is the request input size.
+    """Qoder SQLite token_info: prompt_tokens is 该 request input size.
 
     cached_tokens is tracked separately as cache read. UI total is the component
     sum so the tokenbar uses the same semantics as JSONL-derived Qoder usage.
@@ -270,17 +270,17 @@ def _normalize_qoder_with_text(
     assistant_text: str = "",
     request_text: str = "",
 ) -> NormalizedTokenBreakdown:
-    """Qoder fallback: use text estimation for missing fields."""
+    """Qoder fallback: use text estimation，用于 missing fields."""
     bd = _normalize_qoder(usage)
 
-    # Fill output from text if missing
+    # Fill output，来源于 text，如果 missing
     if bd.output_tokens == 0 and assistant_text:
         bd.output_tokens = _estimate_tokens(assistant_text)
         bd.precision = TokenPrecision.ESTIMATED_PARTIAL
         bd.total_tokens = bd.fresh_input_tokens + bd.cache_read_tokens + bd.cache_write_tokens + bd.output_tokens
         bd.notes.append("Output estimated from assistant text.")
 
-    # Fill input from text if missing
+    # Fill input，来源于 text，如果 missing
     if bd.fresh_input_tokens == 0 and request_text:
         bd.fresh_input_tokens = _estimate_tokens(request_text)
         bd.cache_read_tokens = 0
@@ -292,11 +292,11 @@ def _normalize_qoder_with_text(
     return bd
 
 
-# ─── OpenAI unified normalizer ───────────────────────────────────────────
+# 说明：─── OpenAI unified normalizer ───────────────────────────────────────────
 
 
 def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
-    """OpenAI: cached input is a subset of Provider Request Input."""
+    """OpenAI: cached input is 一个 subset of Provider Request Input."""
     input_tokens = _get_int(usage, "input_tokens") or _get_int(usage, "prompt_tokens")
     provider_output_total = _get_int(usage, "output_tokens") or _get_int(usage, "completion_tokens")
 
@@ -333,21 +333,21 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
     )
 
 
-# ─── Generic unified normalizer ──────────────────────────────────────────
+# 说明：─── Generic unified normalizer ──────────────────────────────────────────
 
 
 def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
-    """Generic fallback for unknown providers."""
+    """Generic fallback，用于 unknown providers."""
     total_only = _get_int(usage, "total_tokens", "total_token_usage", "tokens_used")
 
-    # Extract breakdown fields
+    # 提取 breakdown fields
     raw_input = _get_int(usage, "input_tokens", "prompt_tokens", "input")
     raw_cache_read = _get_int(usage, "cache_read_input_tokens", "cached_input_tokens", "cache_read_tokens", "cached_tokens")
     raw_cache_write = _get_int(usage, "cache_creation_input_tokens", "cache_write_input_tokens", "cache_write_tokens")
     raw_output = _get_int(usage, "output_tokens", "completion_tokens", "output")
 
     if raw_input or raw_cache_read or raw_cache_write or raw_output:
-        # Has some breakdown — compute from components
+        # Has some breakdown — compute，来源于 components
         fresh = raw_input
         total = fresh + raw_cache_read + raw_cache_write + raw_output
         notes = []
@@ -370,7 +370,7 @@ def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
         )
 
     if total_only > 0:
-        # Total-only fallback
+        # 说明：Total-only fallback
         return NormalizedTokenBreakdown(
             fresh_input_tokens=total_only,
             cache_read_tokens=0,
@@ -391,11 +391,11 @@ def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
     )
 
 
-# ─── Helpers ───────────────────────────────────────────────────────────────
+# 说明：─── Helpers ───────────────────────────────────────────────────────────────
 
 
 def format_tokens(n: Optional[int]) -> str:
-    """Format token count for display. Unknown/None returns '—'."""
+    """格式化 token count，用于 display. Unknown/None returns '—'."""
     if n is None:
         return "—"
     if n >= 1_000_000:
@@ -406,7 +406,7 @@ def format_tokens(n: Optional[int]) -> str:
 
 
 def precision_label(precision: str) -> str:
-    """Return a human-readable precision label."""
+    """返回 一个 human-readable precision label."""
     labels = {
         TokenPrecision.EXACT: "exact",
         TokenPrecision.PROVIDER_REPORTED: "provider_reported",
@@ -418,7 +418,7 @@ def precision_label(precision: str) -> str:
 
 
 def precision_color(precision: str) -> str:
-    """Return a CSS color for precision level."""
+    """返回 一个 CSS color，用于 precision level."""
     colors = {
         TokenPrecision.EXACT: "#10b981",
         TokenPrecision.PROVIDER_REPORTED: "#3b82f6",

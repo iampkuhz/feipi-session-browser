@@ -1,4 +1,4 @@
-"""Parser for Qoder local session data.
+"""Qoder 本地 session 数据解析器。
 
 Qoder is a Claude Code-based IDE agent. Its data format closely mirrors
 Claude Code's:
@@ -14,4 +14,4 @@ This module is a re-export facade. Actual implementations live in
 
 from __future__ import annotations
 
-from session_browser.sources.qoder_parts import *  # noqa: F401,F403
+from session_browser.sources.qoder_parts import *  # 说明：noqa: F401,F403

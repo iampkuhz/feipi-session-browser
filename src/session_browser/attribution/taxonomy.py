@@ -1,4 +1,4 @@
-"""Canonical token-attribution taxonomy.
+"""说明：canonical token attribution taxonomy。
 
 Agent builders may use runtime-specific raw bucket keys while extracting data.
 This module owns the stable request-side classification tree used by API
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RequestTokenCategory:
-    """One canonical request-side token attribution category."""
+    """说明：One canonical request-side token attribution category."""
 
     key: str
     label: str
@@ -317,7 +317,7 @@ _DEFAULT_BUCKET_CATEGORY_MAP = {
 
 
 def request_bucket_category(agent: str, bucket_key: str) -> RequestTokenCategory:
-    """Resolve an agent raw bucket key to a canonical category."""
+    """Resolve 一个 agent raw bucket key to 一个 canonical category."""
     category_key = _agent_bucket_map(agent).get(
         bucket_key,
         _DEFAULT_BUCKET_CATEGORY_MAP.get(bucket_key, "unlocated_residual"),
@@ -326,7 +326,7 @@ def request_bucket_category(agent: str, bucket_key: str) -> RequestTokenCategory
 
 
 def normalize_request_bucket_payload(agent: str, bucket: dict) -> dict:
-    """Attach canonical taxonomy metadata and unified label to a bucket payload."""
+    """附加 canonical taxonomy metadata 和 unified label to 一个 bucket payload."""
     raw_key = str(bucket.get("key") or "")
     category = request_bucket_category(agent, raw_key)
     normalized = dict(bucket)
@@ -344,7 +344,7 @@ def normalize_request_bucket_payload(agent: str, bucket: dict) -> dict:
 
 
 def sort_request_buckets(agent: str, buckets: list[dict]) -> list[dict]:
-    """Sort request buckets by canonical taxonomy while keeping agent order ties stable."""
+    """说明：Sort request buckets by canonical taxonomy while keeping agent order ties stable."""
     indexed = list(enumerate(buckets))
     indexed.sort(
         key=lambda item: (
@@ -356,7 +356,7 @@ def sort_request_buckets(agent: str, buckets: list[dict]) -> list[dict]:
 
 
 def request_color_index(color_key: str) -> int:
-    """Stable color slot for the current CSS palette."""
+    """Stable color slot，用于 该 current CSS palette."""
     order = [
         "current_user_input",
         "conversation_messages",

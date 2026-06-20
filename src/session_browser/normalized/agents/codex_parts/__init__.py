@@ -1,4 +1,4 @@
-"""Codex normalized attribution helpers."""
+"""Codex normalized attribution 辅助函数。"""
 
 from session_browser.normalized.agents.codex_parts.source_units import (
     CodexSourceUnitDraft,

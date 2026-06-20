@@ -1,4 +1,4 @@
-"""Jinja2 template environment and filter registrations.
+"""Jinja2 template environment 和 filter registrations.
 
 Extracted from routes.py to isolate template construction logic.
 LLM block rendering is delegated to renderers.llm_blocks.
@@ -30,14 +30,14 @@ from session_browser.web.safe_render import register_filters as _register_safe_f
 
 logger = logging.getLogger("session_browser.web")
 
-# ─── Template directory ─────────────────────────────────────────────
+# 说明：─── Template directory ─────────────────────────────────────────────
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
-# ─── Formatting helpers ──────────────────────────────────────────────
+# 说明：─── Formatting helpers ──────────────────────────────────────────────
 
 def _format_bytes(n) -> str:
-    """Format byte count to human-readable string."""
+    """格式化 byte count to human-readable string."""
     if n is None or n == 0:
         return "0 B"
     n = int(n)
@@ -51,7 +51,7 @@ def _format_bytes(n) -> str:
 
 
 def _format_compact_token(n: int | float | None) -> str:
-    """Format token count to compact string (e.g. 1.5K, 2.3M)."""
+    """格式化 token count to compact string (e.g. 1.5K, 2.3M)."""
     if n is None:
         return "0"
     if n >= 1_000_000:
@@ -62,7 +62,7 @@ def _format_compact_token(n: int | float | None) -> str:
 
 
 def _format_compact_num(n: int | float | None) -> str:
-    """Format number with K/M suffix for display."""
+    """格式化 number，使用 K/M suffix，用于 display."""
     if n is None:
         return "0"
     if n >= 1_000_000:
@@ -73,7 +73,7 @@ def _format_compact_num(n: int | float | None) -> str:
 
 
 def _renumber_lines(text: str) -> str:
-    """Renumber lines starting from 1, preserving tab-separated gutter."""
+    """Renumber lines starting，来源于 1, preserving tab-separated gutter."""
     if not text or not re.search(r'^\d+\t', text, flags=re.MULTILINE):
         return text
     tab = '\t'
@@ -84,10 +84,10 @@ def _renumber_lines(text: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-# ─── Git repo root detection ─────────────────────────────────────────
+# 说明：─── Git repo root detection ─────────────────────────────────────────
 
 def _get_repo_root(cwd: str | None = None) -> str | None:
-    """Detect git repo root from cwd. Returns None if not in a git repo."""
+    """Detect git repo root，来源于 cwd. Returns None，如果 not in 一个 git repo."""
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -101,28 +101,28 @@ def _get_repo_root(cwd: str | None = None) -> str | None:
     return None
 
 
-# Cache the repo root at module load time
+# Cache 该 repo root at module load time
 _REPO_ROOT = _get_repo_root()
 
-# Per-request repo root (set before template render by routes.py)
+# Per-request repo root (set，在之前 template render by routes.py)
 _SESSION_REPO_ROOT: str | None = None
 
 
-# ─── Path helpers ────────────────────────────────────────────────────
+# 说明：─── Path helpers ────────────────────────────────────────────────────
 
 def _truncate_path(path: str) -> str:
-    """Truncate a long path, keeping first and last segments."""
+    """截断 一个 long path, keeping first 和 last segments."""
     if not path or len(path) <= 40:
         return path or ""
     parts = path.replace("\\", "/").split("/")
     if len(parts) <= 3:
         return path[:40] + "…"
-    # Keep first 2 and last 2 segments
+    # 保留 first 2 和 last 2 segments
     return "/".join(parts[:2]) + "/…/" + "/".join(parts[-2:])
 
 
 def _display_path(path: str) -> str:
-    """Replace the user's home prefix with ``~`` for display.
+    """Replace 该 user's home prefix，使用 ``~``，用于 display.
 
     Only affects paths that start with the current user's home directory.
     Non-home and short paths are returned unchanged.
@@ -139,7 +139,7 @@ def _display_path(path: str) -> str:
 
 
 def _relative_to_repo(path: str) -> str:
-    """If path is within the current session's git repo, return relative path.
+    """If path is within 该 current session's git repo, return relative path.
     Falls back to server-level _REPO_ROOT, then absolute path."""
     if not path:
         return path or ""
@@ -156,14 +156,14 @@ def _relative_to_repo(path: str) -> str:
 
 
 def _shorten_path(path: str) -> str:
-    """Shorten a path for display: repo-relative -> ~ -> truncate.
+    """Shorten 一个 path，用于 display: repo-relative -> ~ -> truncate.
 
     Order matters: repo-relative comparison requires absolute path,
     so we try that before replacing home with ~.
     """
     if not path:
         return path or ""
-    # Step 1: try repo-relative (needs absolute path for comparison)
+    # Step 1: try repo-relative (needs absolute path，用于 comparison)
     abs_path = os.path.abspath(path)
     repo_root = _SESSION_REPO_ROOT or _REPO_ROOT
     if repo_root:
@@ -173,16 +173,16 @@ def _shorten_path(path: str) -> str:
                 return _truncate_path(result)
         except Exception:
             pass
-    # Not in repo: replace home with ~
+    # Not in repo: replace home，使用 ~
     result = _display_path(path)
-    # Step 2: truncate if still long
+    # Step 2: truncate，如果 still long
     return _truncate_path(result)
 
 
-# ─── Time helpers ────────────────────────────────────────────────────
+# 说明：─── Time helpers ────────────────────────────────────────────────────
 
 def _relative_time(iso_str: str) -> str:
-    """Convert ISO8601 to relative time string."""
+    """转换 ISO8601 to relative time string."""
     if not iso_str:
         return ""
     try:
@@ -204,7 +204,7 @@ def _relative_time(iso_str: str) -> str:
 
 
 def _to_local_time(iso_str: str) -> str:
-    """Convert UTC ISO8601 timestamp to local-time display string.
+    """转换 UTC ISO8601 timestamp to local-time display string.
 
     E.g. "2026-05-12T06:20:29+00:00" -> "2026-05-12 14:20:29" (Beijing UTC+8).
     If already in local time (has non-zero offset), just reformat.
@@ -219,10 +219,10 @@ def _to_local_time(iso_str: str) -> str:
         return str(iso_str)[:19].replace("T", " ")
 
 
-# ─── JSON helpers with relative path support ─────────────────────────
+# ─── JSON helpers，使用 relative path support ─────────────────────────
 
 def _relative_paths_in_json(obj: any) -> any:
-    """Recursively replace file_path values in a dict with relative-to-repo paths."""
+    """Recursively replace file_path values in 一个 dict，使用 relative-to-repo paths."""
     if isinstance(obj, dict):
         return {
             k: (_relative_to_repo(v) if k == "file_path" and isinstance(v, str) else _relative_paths_in_json(v))
@@ -234,14 +234,14 @@ def _relative_paths_in_json(obj: any) -> any:
 
 
 def _tojson_repo_html(v: Any, indent: int | None = None) -> str:
-    """tojson_repo with HTML escaping -- safe for <pre> embedding."""
+    """tojson_repo，使用 HTML escaping -- 安全，用于 <pre> embedding."""
     if not v:
         return "null"
     raw = json.dumps(_relative_paths_in_json(v), indent=indent, ensure_ascii=False)
     return html.escape(raw)
 
 
-# ─── Template environment ────────────────────────────────────────────
+# 说明：─── Template environment ────────────────────────────────────────────
 
 env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
@@ -249,7 +249,7 @@ env = jinja2.Environment(
 )
 _register_safe_filters(env)
 
-# Register custom filters and globals
+# 注册 custom filters 和 globals
 env.filters["format_number"] = _format_compact_num
 env.filters["format_number_short"] = _format_compact_num
 env.filters["format_compact_token"] = _format_compact_token
@@ -292,14 +292,14 @@ _PRECISION_LABEL_MAP = {
 
 
 def _format_coverage(value: float | None) -> str:
-    """Format coverage ratio as integer percentage."""
+    """格式化 coverage ratio as integer percentage."""
     if value is None:
         return "—"
     return f"{round(value * 100)}%"
 
 
 def _precision_label(precision: str | None) -> str:
-    """Map raw precision key to a short display label."""
+    """映射 raw precision key to 一个 short display label."""
     if not precision:
         return "不可用"
     return _PRECISION_LABEL_MAP.get(precision, precision)
@@ -310,24 +310,24 @@ env.filters["precision_label"] = _precision_label
 env.globals["precision_label"] = _precision_label
 env.filters["format_coverage"] = _format_coverage
 
-# ─── Dashboard-specific filters ─────────────────────────────────────
+# 说明：─── Dashboard-specific filters ─────────────────────────────────────
 
 _KPI_ICON_COLORS = ['purple', 'blue', 'orange', 'green', 'red', 'purple']
 _KPI_ICONS = ['📁', '🧭', '🪙', '💬', '⚡', '🚨']
 
 
 def _kpi_icon_color(index: int) -> str:
-    """Map 1-based KPI index to icon color class."""
+    """映射 1-based KPI index to icon color class."""
     return _KPI_ICON_COLORS[(index - 1) % len(_KPI_ICON_COLORS)]
 
 
 def _kpi_icon(index: int) -> str:
-    """Map 1-based KPI index to icon emoji."""
+    """映射 1-based KPI index to icon emoji."""
     return _KPI_ICONS[(index - 1) % len(_KPI_ICONS)]
 
 
 def _sum_attribute(seq, attr, default=0):
-    """Sum an attribute across a sequence of dicts."""
+    """求和 一个 attribute across 一个 sequence of dicts."""
     total = 0
     for item in (seq or []):
         val = item.get(attr, default) if isinstance(item, dict) else getattr(item, attr, default)
@@ -344,19 +344,19 @@ _DB_TO_SCOPE = {
 
 
 def _db_agent_to_scope(db_agent: str) -> str:
-    """Convert DB agent value to URL scope parameter."""
+    """转换 DB agent value to URL scope parameter."""
     return _DB_TO_SCOPE.get(db_agent, db_agent)
 
 
 def _scope_to_agent_url(scope: str) -> str:
-    """Convert URL scope to agent path segment for /sessions/<agent>/... URLs."""
+    """转换 URL scope to agent path segment，用于 /sessions/<agent>/... URLs."""
     if scope == 'all':
-        return 'claude_code'  # default; should not happen for single-agent rows
+        return 'claude_code'  # 说明：default; should not happen for single-agent rows
     return _DB_TO_SCOPE.get(scope, scope).replace('-', '_') if '-' in scope else scope
 
 
 def _severity_variant(severity: str) -> str:
-    """Map severity string to badge variant class."""
+    """映射 severity string to badge variant class."""
     s = (severity or '').lower()
     if 'high' in s or 'error' in s:
         return 'danger'

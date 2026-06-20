@@ -1,4 +1,4 @@
-"""Web rendering modules."""
+"""Web rendering 模块。"""
 
 from session_browser.web.renderers.markdown import render_markdown
 from session_browser.web.renderers.llm_blocks import (

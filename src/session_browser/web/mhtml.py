@@ -1,4 +1,4 @@
-"""MHTML/self-contained rendering helper.
+"""MHTML / self-contained 渲染辅助函数。
 
 Provides cached access to CSS and JS files for inlining into HTML output.
 """
@@ -11,8 +11,8 @@ import re
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-# Ordered list of JS files that must be inlined for a self-contained session page.
-# Order matches base.html load order.
+# Ordered list of JS files that must be inlined，用于 一个 self-contained session page.
+# 说明：Order matches base.html load order.
 JS_LOAD_ORDER = [
     "js/arp-storage.js",
     "js/view-state.js",
@@ -24,8 +24,8 @@ JS_LOAD_ORDER = [
 ]
 
 
-# Ordered list of CSS files that must be inlined for a self-contained page.
-# Order matches base.html <link> load order.
+# Ordered list of CSS files that must be inlined，用于 一个 self-contained page.
+# 说明：Order matches base.html <link> load order.
 CSS_LOAD_ORDER = [
     "css/tokens.css",
     "css/base.css",
@@ -33,8 +33,8 @@ CSS_LOAD_ORDER = [
     "css/ui-primitives.css",
 ]
 
-# Page-specific CSS files keyed by page identifier used in routes.
-# These are appended after the shared CSS_LOAD_ORDER layers.
+# 说明：Page-specific CSS files keyed by page identifier used in routes.
+# These are appended，在之后 该 shared CSS_LOAD_ORDER layers.
 PAGE_CSS = {
     "session": "css/session-detail.css",
 }
@@ -46,7 +46,7 @@ _IMPORT_RE = re.compile(
 
 
 def _read_css_bundle(rel: str, seen: set[Path] | None = None) -> str:
-    """Read a CSS file and inline its local @import dependencies.
+    """读取 一个 CSS file 和 inline its local @import dependencies.
 
     MHTML export places multiple CSS files into one <style> block. Plain
     @import wrappers are valid as standalone linked files, but invalid after
@@ -79,7 +79,7 @@ def _read_css_bundle(rel: str, seen: set[Path] | None = None) -> str:
 
 @lru_cache(maxsize=1)
 def get_css() -> str:
-    """Read and bundle all modular CSS files in base.html load order."""
+    """读取 和 bundle 所有 modular CSS files in base.html load order."""
     parts = []
     for rel in CSS_LOAD_ORDER:
         parts.append(f"/* === {rel} === */\n")
@@ -88,7 +88,7 @@ def get_css() -> str:
 
 
 def get_page_css(page: str) -> str:
-    """Return inline CSS for a specific page, or empty string if none."""
+    """返回 inline CSS，用于 一个 specific page, 或 empty string，如果 none."""
     rel = PAGE_CSS.get(page)
     if not rel:
         return ""
@@ -97,7 +97,7 @@ def get_page_css(page: str) -> str:
 
 @lru_cache(maxsize=1)
 def get_js() -> str:
-    """Read and merge all JS files in base.html load order."""
+    """读取 和 merge 所有 JS files in base.html load order."""
     parts = []
     for rel in JS_LOAD_ORDER:
         js_path = _STATIC_DIR / rel
@@ -110,7 +110,7 @@ def get_js() -> str:
 
 
 def get_context(page: str = "session", export_mhtml: bool = True) -> dict:
-    """Return template context vars for MHTML rendering."""
+    """返回 template context vars，用于 MHTML rendering."""
     if not export_mhtml:
         return {}
     return {

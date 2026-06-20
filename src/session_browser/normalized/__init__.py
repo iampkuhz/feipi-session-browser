@@ -1,4 +1,4 @@
-"""Normalized session JSON adapters.
+"""Normalized session JSON 适配器。
 
 The normalized layer is the intermediate contract between agent-specific
 local logs and Session Detail presentation/import code.

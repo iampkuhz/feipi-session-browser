@@ -1,4 +1,4 @@
-"""Anthropic Messages API normalizer.
+"""说明：Anthropic Messages API normalizer.
 
 将 parsed usage 标准化为统一格式，供下游 pipeline 使用。
 """

@@ -1,4 +1,4 @@
-"""Anthropic Messages API cache allocator.
+"""说明：Anthropic Messages API cache allocator.
 
 按 ordered token offsets 分配 cache_read / cache_write / fresh：
   [0, cache_read)                         => cache_read
@@ -50,13 +50,13 @@ def allocate_anthropic_cache(
         span_start = offset
         span_end = offset + est
 
-        # [0, cache_read) => cache_read
+        # 区间映射：[0, cache_read) => cache_read
         overlap_read_start = max(span_start, 0)
         overlap_read_end = min(span_end, cache_read)
         if overlap_read_end > overlap_read_start:
             span_cache_read = overlap_read_end - overlap_read_start
 
-        # [cache_read, cache_read + cache_write) => cache_write
+        # 区间映射：[cache_read, cache_read + cache_write) => cache_write
         write_start = cache_read
         write_end = cache_read + cache_write
         overlap_write_start = max(span_start, write_start)

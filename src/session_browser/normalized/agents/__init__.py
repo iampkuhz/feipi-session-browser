@@ -1,1 +1,1 @@
-"""Agent-specific normalized JSON adapters."""
+"""agent 专属 normalized JSON 适配器。"""

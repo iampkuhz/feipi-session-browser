@@ -20,15 +20,15 @@ def detect_model_family(model_string: str) -> dict[str, str]:
 
     s = model_string.lower()
 
-    # Anthropic models
+    # 说明：Anthropic models
     if "claude" in s:
         return {"provider_hint": "anthropic", "model_hint": model_string}
 
-    # OpenAI models
+    # 说明：OpenAI models
     if "gpt" in s or "o1" in s or "o3" in s or "o4" in s:
         return {"provider_hint": "openai", "model_hint": model_string}
 
-    # Qoder models (performance/standard, etc.)
+    # 说明：Qoder models (performance/standard, etc.)
     if "performance" in s or "standard" in s or "qoder" in s:
         return {"provider_hint": "qoder", "model_hint": model_string}
 

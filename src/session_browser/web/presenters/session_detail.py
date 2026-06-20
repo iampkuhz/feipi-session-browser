@@ -1,4 +1,4 @@
-"""Session detail presenter.
+"""说明：Session detail presenter。
 
 Extracted view-model construction logic for the session-detail page.
 Kept in a separate module so it can be unit-tested in isolation and
@@ -20,19 +20,19 @@ from session_browser.domain.token_normalizer import normalize_tokens
 
 
 def _merge_messages(msgs: list[ChatMessage]) -> ChatMessage:
-    """Merge a list of same-role messages into one ChatMessage."""
+    """合并 一个 list of same-role messages，转换为 一个 ChatMessage."""
     if len(msgs) == 1:
         return msgs[0]
 
     content = "\n\n".join(m.content for m in msgs if m.content)
     content_html = "\n\n".join(m.content_html for m in msgs if m.content_html)
-    # Use the latest timestamp
+    # 使用 该 latest timestamp
     timestamp = msgs[-1].timestamp
-    # Merge tool_calls from all messages
+    # 合并 tool_calls，来源于 所有 messages
     all_tool_calls = []
     for m in msgs:
         all_tool_calls.extend(m.tool_calls)
-    # Merge usage (take the last non-None)
+    # 合并 usage (take 该 last non-None)
     usage = None
     for m in msgs:
         if m.usage:
@@ -52,11 +52,11 @@ def _merge_messages(msgs: list[ChatMessage]) -> ChatMessage:
 
 
 def _append_tool_calls_to_round(
-    round_obj,  # ConversationRound
+    round_obj,  # 说明：ConversationRound
     assistant_tool_refs: list[dict],
     all_tool_calls: list[ToolCall],
 ) -> None:
-    """Append tool calls from a skipped (no-text) assistant to an existing round."""
+    """Append tool calls，来源于 一个 skipped (no-text) assistant to 一个 existing round."""
     matched_ids = {mt.get("id") for mt in assistant_tool_refs if mt.get("id")}
     for tc in all_tool_calls:
         if tc.tool_use_id and tc.tool_use_id in matched_ids and tc not in round_obj.tool_calls:
@@ -73,8 +73,8 @@ def _make_round(
     agent: str,
     session_cache_write_tokens: int = 0,
 ) -> ConversationRound:
-    """Create a ConversationRound with token calculation and tool call matching."""
-    # Match tool calls from assistant message
+    """创建 一个 ConversationRound，使用 token calculation 和 tool call matching."""
+    # Match tool calls，来源于 assistant message
     round_tool_calls = []
     if assistant_msg.tool_calls:
         matched_ids = {
@@ -86,7 +86,7 @@ def _make_round(
             if tc.tool_use_id and tc.tool_use_id in matched_ids:
                 round_tool_calls.append(tc)
 
-    # Token info (Claude Code, Qoder, and Codex all have per-message usage data)
+    # Token info (Claude Code, Qoder, 和 Codex 所有 have per-message usage data)
     round_input = 0
     round_output = 0
     round_cached = 0
@@ -135,17 +135,17 @@ def _derive_prompt_preview(
     messages: list[ChatMessage],
     call_index_in_round: int,
 ) -> str:
-    """Derive a human-readable hint for what was sent as prompt to this LLM call.
+    """Derive 一个 human-readable hint，用于 what was sent as prompt to this LLM call.
 
     Returns a short string (<=120 chars) summarising the prompt context.
     """
-    # First call in round -> show user message
+    # 说明：First call in round -> show user message
     if call_index_in_round == 0:
         user_text = round.user_msg.content[:80] if round.user_msg.content else ""
         if user_text:
             return f"User: {user_text}"
 
-    # Subsequent calls -> tool results from prior call(s)
+    # Subsequent calls -> tool results，来源于 prior call(s)
     if prev_call_tools:
         tool_names = ", ".join(tc.name for tc in prev_call_tools[:3])
         suffix = f" +{len(prev_call_tools) - 3}" if len(prev_call_tools) > 3 else ""
@@ -220,7 +220,7 @@ def _codex_usage_is_cumulative(usage: dict) -> bool:
 
 
 def _codex_usage_for_llm_call(usage: dict, cumulative_state: dict) -> dict:
-    """Return per-call Codex usage for interaction rows.
+    """返回 per-call Codex usage，用于 interaction rows.
 
     ``sources.codex_session_source._extract_messages`` already aggregates
     ``last_token_usage`` into per-assistant-message usage.  Only records that
@@ -256,7 +256,7 @@ def _token_breakdown_for_agent(usage: dict, agent: str):
 
 
 def _find_subagent_parent_tool(tool_calls: list[ToolCall], agent_id: str) -> ToolCall | None:
-    """Find the main-scope tool call that spawned a subagent run.
+    """查找 该 main-scope tool call that spawned 一个 subagent run.
 
     Claude records this as an ``Agent`` tool, while Codex records it as
     ``spawn_agent``.  The stable association is the normalized subagent id, not
@@ -281,7 +281,7 @@ def build_llm_calls(
     subagent_runs: list[dict],
     agent: str = "",
 ) -> list[LLMCall]:
-    """Extract LLMCall objects, the token/attribution semantic boundary.
+    """提取 LLMCall objects, 该 token/attribution semantic boundary.
 
     Main agent: one call per assistant response usage boundary.
     Subagent: one call per sidechain LLM call.
@@ -291,43 +291,43 @@ def build_llm_calls(
     """
     llm_calls: list[LLMCall] = []
 
-    # Map assistant llm_call_id -> round_index
+    # 映射 assistant llm_call_id -> round_index
     call_id_to_round: dict[str, int] = {}
     for r_idx, r in enumerate(rounds):
         if r.assistant_msg.llm_call_id:
             call_id_to_round[r.assistant_msg.llm_call_id] = r_idx
 
-    # For agents without llm_call_id, build a position-based mapping:
-    # assistant message index -> round_index by sequential match.
+    # For agents without llm_call_id, build 一个 position-based mapping:
+    # 说明：assistant message index -> round_index by sequential match.
     assistant_msg_indices: list[int] = [
         i for i, msg in enumerate(messages) if msg.role == "assistant"
     ]
-    # Map message_index -> round_index for messages without llm_call_id
+    # 映射 message_index -> round_index，用于 messages without llm_call_id
     msg_idx_to_round: dict[int, int] = {}
     round_cursor = 0
     for msg_idx in assistant_msg_indices:
         msg = messages[msg_idx]
         if msg.llm_call_id and msg.llm_call_id in call_id_to_round:
-            # Already mapped by ID
+            # 说明：Already mapped by ID
             msg_idx_to_round[msg_idx] = call_id_to_round[msg.llm_call_id]
         else:
-            # Assign to current round cursor, advance when round assistant
-            # message timestamp matches (or just assign sequentially).
+            # Assign to current round cursor, advance，当 round assistant
+            # 说明：message timestamp matches (or just assign sequentially).
             if round_cursor < len(rounds):
                 msg_idx_to_round[msg_idx] = round_cursor
                 round_cursor += 1
 
-    # Shared cumulative state for Codex usage normalization (Issue 2: first call
-    # should never show cache reads — deltas are computed from cumulative totals)
+    # Shared cumulative state，用于 Codex usage normalization (Issue 2: first call
+    # should never show cache reads — deltas are computed，来源于 cumulative totals)
     codex_cumulative: dict = {}
 
-    # Main agent calls - track prior call's tools for prompt context
+    # Main agent calls - track prior call's tools，用于 prompt context
     main_calls_in_round: dict[int, list[LLMCall]] = {}
     for msg_idx, msg in enumerate(messages):
         if msg.role != "assistant":
             continue
 
-        # Determine round index: by llm_call_id or by position mapping
+        # Determine round index: by llm_call_id 或 by position mapping
         if msg.llm_call_id and msg.llm_call_id in call_id_to_round:
             r_idx = call_id_to_round[msg.llm_call_id]
         elif msg_idx in msg_idx_to_round:
@@ -358,7 +358,7 @@ def build_llm_calls(
         request_full = msg.request_full
         request_preview = request_full[:200] if request_full else prompt_hint
 
-        # Generate synthetic ID for agents without llm_call_id
+        # Generate synthetic ID，用于 agents without llm_call_id
         call_id = msg.llm_call_id or f"synthetic-R{r_idx + 1}-M{call_index + 1}"
 
         llm_call = LLMCall(
@@ -395,7 +395,7 @@ def build_llm_calls(
         main_calls_in_round.setdefault(r_idx, []).append(llm_call)
         llm_calls.append(llm_call)
 
-    # Subagent individual calls - one per internal LLM turn
+    # Subagent individual calls - 一个 per internal LLM turn
     for run in subagent_runs:
         summary = run["summary"]
         agent_id = summary["agent_id"]
@@ -466,7 +466,7 @@ def _build_subagent_interactions(
     subagent_runs: list[dict],
     tool_calls: list[ToolCall],
 ) -> list[LLMCall]:
-    """Build one aggregated interaction per subagent run (for rounds view).
+    """构建 一个 aggregated interaction per subagent run (for rounds view).
 
     Each subagent run becomes a single interaction that aggregates all its
     internal LLM calls and tools, so the round expand shows it as one nested
@@ -479,7 +479,7 @@ def _build_subagent_interactions(
 
         parent_tc = _find_subagent_parent_tool(tool_calls, agent_id)
 
-        # Find individual subagent calls for this run
+        # 查找 individual subagent calls，用于 this run
         sub_calls = [c for c in llm_calls if c.scope == "subagent" and c.subagent_id == agent_id]
         if not sub_calls:
             continue
@@ -542,14 +542,14 @@ def assign_interactions_to_rounds(
     tool_calls: list[ToolCall],
     subagent_runs: list[dict],
 ) -> None:
-    """Populate round.interactions.
+    """说明：Populate round.interactions.
 
     Main agent: individual calls stay as individual interactions.
     Subagent: NOT added to r.interactions directly. Instead, they will be
     attached to their parent LLM call in the view model, so the round expand
     shows them as nested items under the Agent tool call that spawned them.
     """
-    # Group main-agent calls by round
+    # 分组 main-agent calls by round
     main_by_round: dict[int, list[LLMCall]] = {}
     for call in llm_calls:
         if call.scope == "main":
@@ -557,7 +557,7 @@ def assign_interactions_to_rounds(
 
     for r_idx, r in enumerate(rounds):
         main_calls = main_by_round.get(r_idx, [])
-        # Only main calls in r.interactions; subagents are nested in view model
+        # 说明：Only main calls in r.interactions; subagents are nested in view model
         r.interactions = main_calls
 
 
@@ -571,7 +571,7 @@ def build_rounds(
     agent: str,
     md_filter: Callable[[str], str],
 ) -> list[ConversationRound]:
-    """Group messages into conversation rounds and compute token ratios.
+    """分组 messages，转换为 conversation rounds 和 compute token ratios.
 
     Each assistant LLM response becomes its own round. Consecutive user
     messages before an assistant response are merged; assistant responses that
@@ -589,9 +589,9 @@ def build_rounds(
 
     total_session_tokens = session_input_tokens + session_output_tokens + session_cached_tokens + session_cache_write_tokens
 
-    # Step 1: Render markdown and pair each assistant LLM response into its
-    # own round. Tool-result pseudo-user messages are filtered in sources, so
-    # consecutive assistant responses are expected during tool loops.
+    # Step 1: Render markdown 和 pair each assistant LLM response，转换为 its
+    # 说明：own round. Tool-result pseudo-user messages are filtered in sources, so
+    # 说明：consecutive assistant responses are expected during tool loops.
     pending_users: list[ChatMessage] = []
     rounds: list[ConversationRound] = []
     for msg in messages:
@@ -602,14 +602,14 @@ def build_rounds(
             continue
 
         if msg.role == "assistant":
-            # Skip if assistant has no text content - merge tool calls into
-            # the previous round and defer user input to the next meaningful
-            # round. This handles tool-loop follow-ups where the model only
-            # emits tool_use blocks without any visible text.
+            # 跳过，如果 assistant has no text content - merge tool calls into
+            # the previous round 和 defer user input to 该 next meaningful
+            # round. This handles tool-loop follow-ups where 该 model only
+            # 说明：emits tool_use blocks without any visible text.
             has_content = bool(msg.content and msg.content.strip())
             has_codex_call_usage = bool(agent == "codex" and msg.usage)
             if not has_content and msg.tool_calls and not has_codex_call_usage:
-                # Merge this assistant's tool calls into the last round.
+                # 合并 this assistant's tool calls，转换为 该 last round.
                 if rounds:
                     _append_tool_calls_to_round(rounds[-1], msg.tool_calls, tool_calls)
                 continue

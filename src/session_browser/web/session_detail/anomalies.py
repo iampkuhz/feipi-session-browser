@@ -1,4 +1,4 @@
-"""Round-level signals and summary merging.
+"""Round-level signals 和 summary merging.
 
 Extracted from routes.py. Computes actionable round-level signals for the
 Timeline tab and merges raw parse summaries into DB canonical summaries.
@@ -10,7 +10,7 @@ from session_browser.domain.models import ConversationRound
 
 
 def compute_bar_scale(round_tokens: int, max_round_tokens: int) -> float:
-    """Compute the proportional width for a round's token bar.
+    """计算 该 proportional width，用于 一个 round's token bar.
 
     Returns a percentage (0-100) representing how wide this round's
     bar should be relative to the maximum round in the timeline.
@@ -22,11 +22,11 @@ def compute_bar_scale(round_tokens: int, max_round_tokens: int) -> float:
 
 
 def compute_round_signals(
-    round,  # ConversationRound
-    round_index: int,  # 1-based
+    round,  # 说明：ConversationRound
+    round_index: int,  # 说明：1-based
     session_input_tokens: int = 0,
 ) -> list[dict]:
-    """Compute actionable round-level signals for the Timeline tab.
+    """计算 actionable round-level signals，用于 该 Timeline tab.
 
     Only returns signals that represent "worth opening to investigate" events.
     Normal/positive/low-value states (warm-up, cache-hit, low-output) are
@@ -40,14 +40,14 @@ def compute_round_signals(
     round_input_total = rb["input"] + rb["cache_read"] + rb["cache_write"]
     round_tools = round.tool_calls
     failed_tools = [tc for tc in round_tools if tc.is_failed]
-    # The caller should pass session input-side total:
-    # fresh + cache read + cache write. Older callers may pass Fresh only;
-    # in that case the relative guard remains conservative for tests.
+    # 说明：The caller should pass session input-side total:
+    # 说明：fresh + cache read + cache write. Older callers may pass Fresh only;
+    # in that case 该 relative guard remains conservative，用于 tests.
     total_session_input = session_input_tokens
 
-    # ── Critical signals ────────────────────────────────────────────
+    # 说明：── Critical signals ────────────────────────────────────────────
 
-    # Failed tool calls in a single round: warning at 1-2, critical at >= 3
+    # Failed tool calls in 一个 single round: warning at 1-2, critical at >= 3
     if len(failed_tools) >= 3:
         count = len(failed_tools)
         names = ", ".join(tc.name for tc in failed_tools[:3])
@@ -68,7 +68,7 @@ def compute_round_signals(
             "reason": f"{count} failed tool{'s' if count != 1 else ''}: {names}",
         })
 
-    # LLM errors in a single round: warning at 1-2, critical at >= 3
+    # LLM errors in 一个 single round: warning at 1-2, critical at >= 3
     if round.llm_error_count >= 3:
         signals.append({
             "key": "llm-error",
@@ -84,9 +84,9 @@ def compute_round_signals(
             "reason": f"{round.llm_error_count} LLM error{'s' if round.llm_error_count != 1 else ''} in this round",
         })
 
-    # ── Warning signals ─────────────────────────────────────────────
+    # 说明：── Warning signals ─────────────────────────────────────────────
 
-    # Single tool taking >= 5 minutes
+    # 说明：Single tool taking >= 5 minutes
     long_tools = [tc for tc in round_tools if tc.duration_ms >= 300_000]
     if long_tools:
         names = ", ".join(tc.name for tc in long_tools[:2])
@@ -98,13 +98,13 @@ def compute_round_signals(
             "reason": f"{len(long_tools)} tool{'s' if len(long_tools) != 1 else ''} >= 5 min: {names}{suffix}",
         })
 
-    # >= 20 tool calls in a round (possible loop / efficiency issue)
+    # >= 20 tool calls in 一个 round (possible loop / efficiency issue)
     if len(round_tools) >= 20:
-        # Exclude the case where it's just a handful of small repeated tools
+        # Exclude 该 case where it's just 一个 handful of small repeated tools
         tool_name_counts: dict[str, int] = {}
         for tc in round_tools:
             tool_name_counts[tc.name] = tool_name_counts.get(tc.name, 0) + 1
-        # If top 3 tools account for >= 90% of calls, it's likely a tight loop
+        # If top 3 tools account，用于 >= 90% of calls, it's likely 一个 tight loop
         sorted_counts = sorted(tool_name_counts.values(), reverse=True)
         top3 = sum(sorted_counts[:3])
         is_tight_loop = top3 >= int(len(round_tools) * 0.9)
@@ -116,8 +116,8 @@ def compute_round_signals(
                 "reason": f"{len(round_tools)} tool calls in round {round_index}",
             })
 
-    # Cache write >= 300K tokens in a single round
-    # (100K is common in long sessions; 300K+ indicates unusual context accumulation)
+    # Cache write >= 300K tokens in 一个 single round
+    # 说明：(100K is common in long sessions; 300K+ indicates unusual context accumulation)
     if rb["cache_write"] >= 300_000:
         signals.append({
             "key": "high-write",
@@ -126,10 +126,10 @@ def compute_round_signals(
             "reason": f"{rb['cache_write']:,} cache write tokens in round {round_index}",
         })
 
-    # Large input: requires BOTH absolute (>= 200K) AND relative (>= 50% of session)
-    # thresholds. An absolute-only check fires constantly as session context grows;
-    # the percentage guard ensures it only fires when the round is truly
-    # disproportionate to the session overall.
+    # 说明：Large input: requires BOTH absolute (>= 200K) AND relative (>= 50% of session)
+    # 说明：thresholds. An absolute-only check fires constantly as session context grows;
+    # the percentage guard ensures it 仅 fires，当 该 round is truly
+    # disproportionate to 该 session overall.
     if (round_input_total >= 200_000
             and total_session_input > 0
             and round_input_total / total_session_input >= 0.5):

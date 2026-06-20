@@ -1,4 +1,4 @@
-"""Sessions list presenter.
+"""说明：Sessions list presenter。
 
 Extracted view-model construction logic for the /sessions list page.
 Kept in a separate module so it can be unit-tested in isolation and
@@ -21,7 +21,7 @@ from session_browser.index.anomalies import (
 )
 
 
-# ── Query parameter defaults ─────────────────────────────────────────
+# 说明：── Query parameter defaults ─────────────────────────────────────────
 
 VALID_PAGE_SIZES = {25, 50, 100}
 
@@ -41,7 +41,7 @@ SORT_KEY_MAP = {
 
 
 def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, Any]:
-    """Parse URL query parameters into a typed dict.
+    """解析 URL query parameters，转换为 一个 typed dict.
 
     Args:
         raw_params: Result of urllib.parse.parse_qs().
@@ -50,7 +50,7 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
         Dict with keys: page, page_size, filter_agent, filter_model,
         filter_project, filter_q, sort_by, raw_sort, sort_dir.
     """
-    # Pagination — page
+    # 说明：Pagination — page
     try:
         page = int(raw_params.get("page", ["1"])[0])
         if page < 1:
@@ -58,7 +58,7 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
     except (ValueError, IndexError):
         page = 1
 
-    # Pagination — page_size
+    # 说明：Pagination — page_size
     raw_size = raw_params.get("page_size", ["25"])[0].strip().lower()
     try:
         page_size_int = int(raw_size)
@@ -69,7 +69,7 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
     except ValueError:
         page_size = 25
 
-    # Filters
+    # 说明：Filters
     filter_agent = raw_params.get("agent", [""])[0].strip() or None
     filter_model = raw_params.get("model", [""])[0].strip() or None
     filter_project = raw_params.get("project", [""])[0].strip() or None
@@ -77,7 +77,7 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
     raw_status = raw_params.get("status", [""])[0].strip().lower()
     filter_status = raw_status if raw_status in {"failed", "no-failures"} else None
 
-    # Sort
+    # 说明：Sort
     raw_sort = raw_params.get("sort", [""])[0].strip().lower()
     raw_dir = raw_params.get("dir", ["desc"])[0].strip().lower()
     if raw_dir not in ("asc", "desc"):
@@ -103,7 +103,7 @@ def compute_pagination(
     page: int,
     page_size: int | str,
 ) -> dict[str, Any]:
-    """Compute limit, offset and pagination metadata.
+    """计算 limit, offset 和 pagination metadata.
 
     Returns:
         Dict with keys: limit, offset, effective_page_size, total_pages,
@@ -122,7 +122,7 @@ def compute_pagination(
         offset = (page - 1) * page_size
         effective_page_size = page_size
 
-    # page_start / page_end
+    # 说明：page_start / page_end
     if total_count == 0:
         page_start = 0
         page_end = 0
@@ -142,7 +142,7 @@ def compute_pagination(
         "page_end": page_end,
         "has_prev": has_prev,
         "has_next": has_next,
-        "page": page,  # possibly clamped
+        "page": page,  # 说明：possibly clamped
     }
 
 
@@ -158,7 +158,7 @@ def fetch_sessions_view_model(
     limit: int,
     offset: int,
 ) -> dict[str, Any]:
-    """Fetch data needed for the sessions list view model.
+    """Fetch data needed，用于 该 sessions list view model.
 
     Args:
         conn: SQLite connection.
@@ -171,7 +171,7 @@ def fetch_sessions_view_model(
         Dict with keys: sessions_enriched, total_count, sessions_aggregate,
         model_list, project_list.
     """
-    # Total count
+    # 说明：Total count
     total_count = count_sessions(
         conn,
         agent=filter_agent,
@@ -181,7 +181,7 @@ def fetch_sessions_view_model(
         failure_status=filter_status,
     )
 
-    # Aggregate stats
+    # 聚合 stats
     sessions_aggregate = get_sessions_list_aggregate(
         conn,
         agent=filter_agent,
@@ -191,7 +191,7 @@ def fetch_sessions_view_model(
         failure_status=filter_status,
     )
 
-    # Paginated sessions
+    # 说明：Paginated sessions
     sessions = list_sessions(
         conn,
         agent=filter_agent,
@@ -205,7 +205,7 @@ def fetch_sessions_view_model(
         order_dir=sort_dir,
     )
 
-    # Filter dropdowns
+    # 说明：Filter dropdowns
     models = conn.execute(
         "SELECT DISTINCT model FROM sessions WHERE model != '' ORDER BY model"
     ).fetchall()
@@ -213,7 +213,7 @@ def fetch_sessions_view_model(
         "SELECT DISTINCT project_key, project_name FROM sessions ORDER BY project_name"
     ).fetchall()
 
-    # Anomaly detection (scoped to filtered set for performance)
+    # Anomaly detection (scoped to filtered set，用于 performance)
     all_sessions_raw = list_sessions(conn, limit=2000, order_by="ended_at")
     sessions_data = []
     sessions_lookup = {}
@@ -241,7 +241,7 @@ def build_sessions_context(
     raw_params: dict[str, list[str]],
     conn: sqlite3.Connection,
 ) -> dict[str, Any]:
-    """High-level helper: parse params, fetch data, return template context.
+    """说明：High-level helper: parse params, fetch data, return template context.
 
     This is the main entry point for the /sessions page presenter.
     It returns everything the template needs (minus the actions URLs,
@@ -257,7 +257,7 @@ def build_sessions_context(
     params = parse_sessions_query_params(raw_params)
 
     pagination = compute_pagination(
-        # We need total_count first, so do a preliminary fetch
+        # We need total_count first, so do 一个 preliminary fetch
         total_count=count_sessions(
             conn,
             agent=params["filter_agent"],
@@ -283,7 +283,7 @@ def build_sessions_context(
         offset=pagination["offset"],
     )
 
-    # Normalize sort key for template (ui uses 'updated' for 'ended-at')
+    # 归一化 sort key，用于 template (ui uses 'updated'，用于 'ended-at')
     ui_sort = "updated" if params["raw_sort"] == "ended-at" else (params["raw_sort"] or "ended-at")
 
     return {

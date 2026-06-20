@@ -1,4 +1,4 @@
-"""Safe rendering helpers for JSON/Code/HTML in Jinja2 templates.
+"""Jinja2 模板中 JSON/Code/HTML 的安全渲染辅助函数。
 
 Purpose: ensure that JSON, code, and arbitrary data are never executed as
 HTML when embedded in <pre>, <code>, <script>, or attribute contexts.
@@ -19,7 +19,7 @@ import jinja2
 
 
 def safe_json_display(value: Any, indent: int | None = None) -> str:
-    """Serialize *value* to JSON and HTML-escape the result.
+    """序列化 *value* to JSON 和 HTML-escape 该 result.
 
     Safe for embedding inside <pre><code> … </code></pre> without
     allowing </pre>/<script> breakout or other HTML injection.
@@ -34,7 +34,7 @@ def safe_json_display(value: Any, indent: int | None = None) -> str:
 
 
 def safe_html_block(html_content: str, class_name: str = "safe-html-block") -> str:
-    """Wrap *html_content* in a <div> with *class_name*.
+    """包装 *html_content* in 一个 <div>，使用 *class_name*.
 
     The content itself is **not** escaped — the caller is responsible for
     deciding whether the HTML is trusted.  The wrapper provides a CSS hook
@@ -48,7 +48,7 @@ def safe_html_block(html_content: str, class_name: str = "safe-html-block") -> s
 
 
 def tojson_safe_html(value: Any, indent: int | None = None) -> str:
-    """Like Jinja2's built-in ``|tojson`` but also HTML-escapes the result.
+    """Like Jinja2's built-in ``|tojson`` but also HTML-escapes 该 result.
 
     Jinja2's native ``|tojson`` produces a JSON string that is safe inside
     <script> blocks, but it does NOT escape HTML entities — meaning
@@ -64,7 +64,7 @@ def tojson_safe_html(value: Any, indent: int | None = None) -> str:
 
 
 def register_filters(env: jinja2.Environment) -> None:
-    """Register safe-render filters onto a Jinja2 Environment."""
+    """注册 safe-render filters onto 一个 Jinja2 Environment."""
     env.filters["safe_json_display"] = safe_json_display
     env.filters["safe_html_block"] = safe_html_block
     env.filters["tojson_safe_html"] = tojson_safe_html

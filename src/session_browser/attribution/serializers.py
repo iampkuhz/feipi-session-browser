@@ -437,7 +437,7 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
     )
 
     payload = {
-        # ── v2 schema ──
+        # 说明：── v2 schema ──
         "schema_version": "llm_attribution_v2",
 
         # ── 调用身份（v2） ──
@@ -541,7 +541,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
     )
 
     payload = {
-        # ── v2 schema ──
+        # 说明：── v2 schema ──
         "schema_version": "llm_attribution_v2",
 
         # ── 调用身份（v2） ──
@@ -598,7 +598,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
     return payload
 
 
-# ─── v2 helper functions ─────────────────────────────────────────────
+# 说明：─── v2 helper functions ─────────────────────────────────────────────
 
 
 def _build_call_identity(attr) -> dict:

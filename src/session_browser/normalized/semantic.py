@@ -1,4 +1,4 @@
-"""Build the normalized session semantic model."""
+"""构建 normalized session 的语义模型。"""
 
 from __future__ import annotations
 
@@ -15,12 +15,11 @@ def build_normalized_session_model(
     call_drafts: list[dict[str, Any]],
     parse_warnings: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Convert parsed agent output into the current LLM-call semantic model.
+    """把各 agent 的解析结果转换为当前 LLM call 语义模型。
 
-    Existing adapters still reconstruct agent-specific transcript details.
-    This layer persists only scan-time facts: LLM calls, usage totals, and
-    tool-call edges. Heavy attribution buckets and payload indexes are rebuilt
-    on demand from the source JSONL.
+    适配器仍负责还原 agent 专属 transcript 细节。本层只持久化扫描期事实：
+    LLM call、usage 汇总和 tool-call 边；较重的 attribution buckets 与 payload
+    indexes 在请求时从源 JSONL 重建。
     """
     calls: list[dict[str, Any]] = []
     tool_executions: list[dict[str, Any]] = []

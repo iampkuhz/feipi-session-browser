@@ -1,4 +1,4 @@
-"""Metrics aggregation utilities for session-browser."""
+"""Metrics aggregation utilities，用于 session-browser."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class TokenBreakdown:
 
 @dataclass
 class ModelDistribution:
-    """Count of sessions per model."""
+    """统计 of sessions per model."""
 
     distribution: dict[str, int] = None
 
@@ -54,7 +54,7 @@ def get_token_breakdown(conn: sqlite3.Connection) -> TokenBreakdown:
 
 
 def get_model_distribution(conn: sqlite3.Connection) -> ModelDistribution:
-    """Get session count per model."""
+    """说明：Get session count per model."""
     rows = conn.execute(
         """
         SELECT model, COUNT(*) as cnt
@@ -70,7 +70,7 @@ def get_model_distribution(conn: sqlite3.Connection) -> ModelDistribution:
 
 
 def get_agent_distribution(conn: sqlite3.Connection) -> dict[str, int]:
-    """Get session count per agent type."""
+    """说明：Get session count per agent type."""
     rows = conn.execute(
         """
         SELECT agent, COUNT(*) as cnt
@@ -83,7 +83,7 @@ def get_agent_distribution(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def get_tool_distribution(conn: sqlite3.Connection) -> dict[str, int]:
-    """Get total tool call count per session (top sessions by tool usage).
+    """说明：Get total tool call count per session (top sessions by tool usage).
 
     This returns per-session tool counts, not per-tool-name counts.
     Per-tool-name breakdown requires parsing raw events.
@@ -101,7 +101,7 @@ def get_tool_distribution(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def get_top_projects_by_tokens(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
-    """Get top projects by total token usage."""
+    """说明：Get top projects by total token usage."""
     rows = conn.execute(
         """
         SELECT
@@ -120,7 +120,7 @@ def get_top_projects_by_tokens(conn: sqlite3.Connection, limit: int = 10) -> lis
 
 
 def get_top_projects_by_tools(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
-    """Get top projects by tool call count."""
+    """说明：Get top projects by tool call count."""
     rows = conn.execute(
         """
         SELECT
@@ -140,7 +140,7 @@ def get_top_projects_by_tools(conn: sqlite3.Connection, limit: int = 10) -> list
 
 
 def get_slowest_sessions(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
-    """Get sessions with longest duration."""
+    """Get sessions，使用 longest duration."""
     rows = conn.execute(
         """
         SELECT session_key, title, agent, model, duration_seconds, project_name
@@ -155,7 +155,7 @@ def get_slowest_sessions(conn: sqlite3.Connection, limit: int = 10) -> list[dict
 
 
 def get_failed_tool_sessions(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
-    """Get sessions with failed tool calls."""
+    """Get sessions，使用 failed tool calls."""
     rows = conn.execute(
         """
         SELECT session_key, title, agent, model, failed_tool_count, project_name
@@ -170,7 +170,7 @@ def get_failed_tool_sessions(conn: sqlite3.Connection, limit: int = 10) -> list[
 
 
 def get_high_cache_read_sessions(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
-    """Get sessions with highest cache read ratio."""
+    """Get sessions，使用 highest cache read ratio."""
     rows = conn.execute(
         """
         SELECT
@@ -196,18 +196,18 @@ def get_high_cache_read_sessions(conn: sqlite3.Connection, limit: int = 10) -> l
     return [dict(r) for r in rows]
 
 
-# ─── Derived metrics ─────────────────────────────────────────────────────
+# 说明：─── Derived metrics ─────────────────────────────────────────────────────
 
 
 def safe_div(a: int | float | None, b: int | float | None) -> float | None:
-    """Safe division: returns None when denominator is 0 or inputs are None."""
+    """Safe division: returns None，当 denominator is 0 或 inputs are None."""
     if a is None or b is None or b == 0:
         return None
     return a / b
 
 
 def compute_derived_metrics(session_row: dict) -> dict:
-    """Compute derived metrics for a single session row.
+    """计算 derived metrics，用于 一个 single session row.
 
     Adds: input_side_total, cache_reuse_ratio, cache_write_ratio,
           output_ratio, tools_per_round, tokens_per_round, tokens_per_minute, output_per_minute.
@@ -249,7 +249,7 @@ def compute_derived_metrics(session_row: dict) -> dict:
 
 
 def compute_aggregate_metrics(conn: sqlite3.Connection) -> dict:
-    """Compute dashboard-level aggregate derived metrics.
+    """计算 dashboard-level aggregate derived metrics.
 
     Returns dict with cache_reuse, output_ratio, tools_per_round, etc.
     """
@@ -286,7 +286,7 @@ def compute_aggregate_metrics(conn: sqlite3.Connection) -> dict:
 
 
 def compute_agent_efficiency(conn: sqlite3.Connection) -> list[dict]:
-    """Compute per-agent/model efficiency metrics.
+    """计算 per-agent/model efficiency metrics.
 
     Returns list of {agent, model, session_count, avg_duration, p95_duration,
                      avg_input_side, avg_tools, tools_per_round, cache_reuse_ratio,
@@ -310,7 +310,7 @@ def compute_agent_efficiency(conn: sqlite3.Connection) -> list[dict]:
         """
     ).fetchall()
 
-    # Get duration values per agent/model for P95
+    # Get duration values per agent/model，用于 P95
     duration_rows = conn.execute(
         """
         SELECT agent, COALESCE(model, 'unknown') as model, duration_seconds
@@ -320,14 +320,14 @@ def compute_agent_efficiency(conn: sqlite3.Connection) -> list[dict]:
         """
     ).fetchall()
 
-    # Build duration lists per (agent, model)
+    # 构建 duration lists per (agent, model)
     from collections import defaultdict
     durations: dict[str, list] = defaultdict(list)
     for r in duration_rows:
         key = f"{r['agent']}|||{r['model']}"
         durations[key].append(r["duration_seconds"])
 
-    # Compute P95
+    # 计算 P95
     def p95(values):
         if not values:
             return 0

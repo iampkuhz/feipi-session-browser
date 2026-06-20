@@ -27,9 +27,9 @@ API_FAMILY_VALUES = frozenset({
 # 各 API Family 的 cache 语义能力
 # cache_write_available: 是否报告 Anthropic-style cache_creation_input_tokens
 # cache_read_field: usage 中 cache read 的字段名
-# provider_request_input_field: provider raw request input field
-# fresh_formula: UI Fresh component formula
-# input_side_component_total_formula: input-side component total formula
+# 说明：provider_request_input_field: provider raw request input field
+# 说明：fresh_formula: UI Fresh component formula
+# 说明：input_side_component_total_formula: input-side component total formula
 
 API_FAMILY_CAPABILITIES: dict[str, dict] = {
     "anthropic_messages": {

@@ -1,4 +1,4 @@
-"""LLM call attribution package.
+"""LLM call attribution 包。
 
 Provides unified interfaces for token usage attribution across
 Claude Code, Qoder, and Codex agents.

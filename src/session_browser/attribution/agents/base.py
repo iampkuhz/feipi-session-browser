@@ -1,4 +1,4 @@
-"""Base attribution builder shared by all agent-specific implementations."""
+"""Base attribution builder shared by 所有 agent-specific implementations."""
 
 from __future__ import annotations
 
@@ -24,13 +24,13 @@ from session_browser.attribution.token_estimator import estimate_tokens_from_tex
 
 
 def _normalize_whitespace(text: str) -> str:
-    """Collapse consecutive whitespace to a single space for normalized comparison."""
+    """Collapse consecutive whitespace to 一个 single space，用于 normalized comparison."""
     import re
     return re.sub(r'\s+', ' ', text).strip()
 
 
 class BaseAttributionBuilder:
-    """Minimal fallback attribution when no agent-specific builder is available."""
+    """Minimal fallback attribution，当 no agent-specific builder is available."""
 
     def __init__(
         self,
@@ -44,10 +44,10 @@ class BaseAttributionBuilder:
         self.session_summary = session_summary
         self.session_context = session_context or {}
 
-    # ── Deduplication helpers ─────────────────────────────────────────
+    # 说明：── Deduplication helpers ─────────────────────────────────────────
 
     def _remove_known_fragments(self, text: str, fragments: list[str]) -> str:
-        """Remove known already-attributed text fragments from a larger captured context.
+        """Remove known already-attributed text fragments，来源于 一个 larger captured context.
 
         - Deterministic, no fuzzy LLM inference.
         - Removes only exact or normalized exact fragments.
@@ -60,22 +60,22 @@ class BaseAttributionBuilder:
             if not frag or len(frag.strip()) < 20:
                 continue
             frag_stripped = frag.strip()
-            # Exact remove: delete first occurrence only
+            # 说明：Exact remove: delete first occurrence only
             if frag_stripped in text:
                 text = text.replace(frag_stripped, "", 1)
 
-            # Normalized pass: try with collapsed whitespace
+            # Normalized pass: try，使用 collapsed whitespace
             normalized_frag = _normalize_whitespace(frag_stripped)
             normalized_text = _normalize_whitespace(text)
             if normalized_frag in normalized_text and len(normalized_frag) >= 20:
-                # First period: record note but don't surgically delete
-                # (normalized removal is risky for code/structured text)
+                # 说明：First period: record note but don't surgically delete
+                # (normalized removal is risky，用于 code/structured text)
                 pass
 
         return text.strip()
 
     def _get_preceding_tool_result_texts(self) -> list[str]:
-        """Extract preceding tool result texts from session_context.
+        """提取 preceding tool result texts，来源于 session_context.
 
         Reads from session_context['preceding_tool_results'] which should
         contain only tool results that occurred BEFORE the current LLM call.
@@ -85,11 +85,11 @@ class BaseAttributionBuilder:
         result: list[str] = []
         for item in items:
             if hasattr(item, "result") and item.result:
-                # ToolCall object
+                # ToolCall 对象
                 if not getattr(item, "subagent_id", ""):
                     result.append(item.result)
             elif isinstance(item, dict):
-                # dict — try common keys
+                # dict 输入：尝试常见字段
                 text = item.get("result") or item.get("content") or item.get("text") or item.get("output")
                 if text:
                     result.append(str(text))
@@ -97,7 +97,7 @@ class BaseAttributionBuilder:
                 result.append(item)
         return result
 
-    # ── Availability row builder ──────────────────────────────────────
+    # 说明：── Availability row builder ──────────────────────────────────────
 
     def _avail(
         self,
@@ -110,7 +110,7 @@ class BaseAttributionBuilder:
         fill_strategy: str = "",
         note: str = "",
     ) -> AvailabilityRow:
-        """Build a full availability row for UI parameter table."""
+        """构建 一个 full availability row，用于 UI parameter table."""
         if not precision:
             precision = ValuePrecision.EXACT if exact else (
                 ValuePrecision.UNAVAILABLE if not available else ValuePrecision.ESTIMATED
@@ -131,12 +131,12 @@ class BaseAttributionBuilder:
         )
 
     def _request_id(self) -> str:
-        """Fallback chain: provider request_id > llm_call.id > unavailable."""
+        """兜底 chain: provider request_id > llm_call.id > unavailable."""
         lc = self.llm_call
         return lc.id or "unavailable"
 
     def build_request(self) -> LLMRequestAttribution:
-        """Build a minimal request attribution with all unknowns."""
+        """构建 一个 minimal request attribution，使用 所有 unknowns."""
         lc = self.llm_call
         total = lc.input_tokens or 0
 
@@ -199,7 +199,7 @@ class BaseAttributionBuilder:
         )
 
     def build_response(self) -> LLMResponseAttribution:
-        """Build a minimal response attribution with all unknowns."""
+        """构建 一个 minimal response attribution，使用 所有 unknowns."""
         lc = self.llm_call
         total = lc.output_tokens or 0
 

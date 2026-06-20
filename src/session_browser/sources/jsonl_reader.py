@@ -1,4 +1,4 @@
-"""Mixed JSONL reader for agent session event streams.
+"""agent session event stream 的混合 JSONL 读取器。
 
 This module extracts the shared JSONL parsing logic that was duplicated
 across the Claude Code, Codex, and Qoder adapters.  It handles:
@@ -26,11 +26,11 @@ from pathlib import Path
 from typing import Iterator
 
 
-# ─── Severity & Issue enums ──────────────────────────────────────────────
+# 说明：─── Severity & Issue enums ──────────────────────────────────────────────
 
 
 class ParseSeverity(Enum):
-    """How severe a JSONL parsing issue is."""
+    """How severe 一个 JSONL parsing issue is."""
 
     INFO = auto()
     WARNING = auto()
@@ -38,20 +38,20 @@ class ParseSeverity(Enum):
 
 
 class ParseIssue(Enum):
-    """Categories of JSONL parse-time issues."""
+    """说明：Categories of JSONL parse-time issues."""
 
-    # Format-level problems
-    BAD_JSON = "BAD_JSON"            # Unparseable JSON
-    NON_OBJECT_SKIPPED = "NON_OBJECT_SKIPPED"  # Valid JSON but not a dict
-    CONCATENATED_OBJECTS = "CONCATENATED_OBJECTS"  # Split ``}{`` boundary detected
+    # 说明：Format-level problems
+    BAD_JSON = "BAD_JSON"            # 说明：Unparseable JSON
+    NON_OBJECT_SKIPPED = "NON_OBJECT_SKIPPED"  # 说明：Valid JSON but not a dict
+    CONCATENATED_OBJECTS = "CONCATENATED_OBJECTS"  # 说明：Split ``}{`` boundary detected
 
 
-# ─── Data classes ────────────────────────────────────────────────────────
+# 说明：─── Data classes ────────────────────────────────────────────────────────
 
 
 @dataclass
 class ParseIssueItem:
-    """One parsing issue detected during a scan."""
+    """One parsing issue detected during 一个 scan."""
 
     issue: ParseIssue
     severity: ParseSeverity
@@ -62,7 +62,7 @@ class ParseIssueItem:
 
 @dataclass
 class JsonlDiagnostics:
-    """Aggregate diagnostics for a single JSONL parse run."""
+    """聚合 diagnostics，用于 一个 single JSONL parse run."""
 
     issues: list[ParseIssueItem] = field(default_factory=list)
     total_lines: int = 0
@@ -83,11 +83,11 @@ class JsonlDiagnostics:
         )
 
 
-# ─── Internal helpers ────────────────────────────────────────────────────
+# 说明：─── Internal helpers ────────────────────────────────────────────────────
 
 
 def _brace_chars_outside_strings(text: str) -> str:
-    """Return only ``{}[]`` characters that appear outside JSON strings.
+    """返回 仅 ``{}[]`` characters that appear outside JSON strings.
 
     This prevents ``{"key": "{value}"}`` from incorrectly altering depth.
     """
@@ -110,7 +110,7 @@ def _brace_chars_outside_strings(text: str) -> str:
 
 
 def _split_at_depth0(text: str) -> list[str]:
-    """Split concatenated JSON objects at top-level ``}{`` boundaries.
+    """拆分 concatenated JSON objects at top-level ``}{`` boundaries.
 
     Returns ``[text]`` if no split points found.
     """
@@ -157,7 +157,7 @@ def _try_parse_json(
     events: list[dict],
     skipped: list[tuple[int, str, str]],
 ) -> None:
-    """Try to parse ``text`` as JSON, handling concatenated ``}{...}{`` forms."""
+    """说明：Try to parse ``text`` as JSON, handling concatenated ``}{...}{`` forms."""
     try:
         obj = json.loads(text)
         if isinstance(obj, dict):
@@ -168,7 +168,7 @@ def _try_parse_json(
     except json.JSONDecodeError:
         pass
 
-    # Split at top-level ``}{`` boundaries.
+    # 拆分 at top-level ``}{`` boundaries.
     parts = _split_at_depth0(text)
     if len(parts) > 1:
         for part in parts:
@@ -186,11 +186,11 @@ def _try_parse_json(
         skipped.append((line_no, "BAD_JSON", repr(text[:120])))
 
 
-# ─── Public API ──────────────────────────────────────────────────────────
+# 说明：─── Public API ──────────────────────────────────────────────────────────
 
 
 def _iter_lines(path: Path) -> Iterator[tuple[int, str]]:
-    """Yield (line_no, stripped_line) tuples from a JSONL file."""
+    """Yield (line_no, stripped_line) tuples，来源于 一个 JSONL file."""
     with open(path, "r", encoding="utf-8") as fh:
         for line_no, raw_line in enumerate(fh, 1):
             stripped = raw_line.rstrip()
@@ -203,7 +203,7 @@ def _build_diagnostics(
     skipped: list[tuple[int, str, str]],
     events: list[dict],
 ) -> JsonlDiagnostics:
-    """Populate diagnostics from parse results."""
+    """Populate diagnostics，来源于 parse results."""
     diagnostics.events_parsed = len(events)
     diagnostics.events_skipped = len(skipped)
 
@@ -232,7 +232,7 @@ def parse_jsonl_events(
     path: Path | str,
     verbose: bool = False,
 ) -> tuple[list[dict], JsonlDiagnostics]:
-    """Parse a JSONL event stream file.
+    """解析 一个 JSONL event stream file.
 
     Handles standard JSONL, pretty-printed multi-line JSON, and mixed
     formats (including concatenated ``}{...}{`` on transition lines).
@@ -256,7 +256,7 @@ def parse_jsonl_events(
     depth = 0
 
     diagnostics = JsonlDiagnostics()
-    line_no = 0  # Initialize to handle empty files without UnboundLocalError
+    line_no = 0  # 说明：Initialize to handle empty files without UnboundLocalError
 
     for line_no, stripped in _iter_lines(path):
         diagnostics.non_empty_lines += 1
@@ -274,7 +274,7 @@ def parse_jsonl_events(
             current_lines = []
             _try_parse_json(full, line_no, events, skipped)
 
-    diagnostics.total_lines = line_no  # last line_no seen
+    diagnostics.total_lines = line_no  # 说明：last line_no seen
     _build_diagnostics(diagnostics, skipped, events)
 
     if verbose and skipped:

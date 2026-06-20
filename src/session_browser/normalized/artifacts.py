@@ -1,4 +1,4 @@
-"""Persist normalized session JSON artifacts next to the SQLite index."""
+"""在 SQLite index 旁持久化 normalized session JSON artifact。"""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def normalized_artifact_path(
     agent: str,
     session_id: str,
 ) -> Path:
-    """Return the canonical path for one session's normalized JSON artifact."""
+    """返回 该 canonical path，用于 一个 session's normalized JSON artifact."""
     safe_agent = _safe_path_component(agent)
     safe_session_id = _safe_path_component(session_id)
     return Path(index_dir) / "artifacts" / "normalized-sessions" / safe_agent / f"{safe_session_id}.json"
@@ -37,7 +37,7 @@ def write_normalized_session_artifact(
     source_path: str = "",
     source_mtime: float = 0,
 ) -> tuple[Path, int]:
-    """Write one normalized session JSON artifact atomically.
+    """写入 一个 normalized session JSON artifact atomically.
 
     Returns:
         ``(path, size_bytes)`` for DB association.
@@ -93,7 +93,7 @@ def persist_normalized_session_artifact(
     validate: bool = True,
     pretty: bool = False,
 ) -> Path:
-    """Write normalized JSON and upsert the DB association row."""
+    """写入 normalized JSON 和 upsert 该 DB association row."""
     path, size_bytes = write_normalized_session_artifact(
         normalized,
         index_dir=index_dir,
@@ -128,7 +128,7 @@ def persist_current_normalized_session_artifact_reference(
     source_mtime: float,
     index_dir: str | Path | None = None,
 ) -> Path | None:
-    """Upsert DB row for a current on-disk artifact, if its sidecar matches."""
+    """Upsert DB row，用于 一个 current on-disk artifact,，如果 its sidecar matches."""
     agent, session_id = _split_session_key(session_key)
     if not agent or not session_id:
         return None
@@ -168,7 +168,7 @@ def persist_current_normalized_session_artifact_reference(
 
 
 def read_normalized_session_artifact(path: str | Path) -> dict[str, Any]:
-    """Read a normalized session JSON artifact from disk."""
+    """读取 一个 normalized session JSON artifact，来源于 disk."""
     with Path(path).open("r", encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):

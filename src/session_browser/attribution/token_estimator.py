@@ -1,4 +1,4 @@
-"""Centralised token estimation utilities.
+"""集中式 token 估算工具。
 
 All token-count estimations go through this module so that heuristics
 are consistent and auditable.  No heavy dependencies (tiktoken, etc.)
@@ -10,45 +10,45 @@ from __future__ import annotations
 import re
 
 
-# ─── Character classification helpers ──────────────────────────────────
+# 说明：─── Character classification helpers ──────────────────────────────────
 
-# CJK (Chinese, Japanese, Korean) characters
+# 说明：CJK (Chinese, Japanese, Korean) characters
 _CJK_RE = re.compile(r'[一-鿿぀-ゟ゠-ヿ가-힯]')
-# ASCII printable (letters, digits, common punctuation, spaces)
+# 说明：ASCII printable (letters, digits, common punctuation, spaces)
 _ASCII_RE = re.compile(r'[\x20-\x7e]')
-# Code-like punctuation (braces, brackets, quotes used in code/JSON)
+# 说明：Code-like punctuation (braces, brackets, quotes used in code/JSON)
 _CODE_PUNCT_RE = re.compile(r'[{}()\[\]\"\'\\;:,.<>+=~`/@#$%^&*|]')
 
 
 def count_cjk(text: str) -> int:
-    """Count CJK characters in text."""
+    """统计 CJK characters in text."""
     return len(_CJK_RE.findall(text))
 
 
 def count_ascii(text: str) -> int:
-    """Count ASCII characters in text."""
+    """统计 ASCII characters in text."""
     return len(_ASCII_RE.findall(text))
 
 
 def count_code_punctuation(text: str) -> int:
-    """Count code-like punctuation characters."""
+    """统计 code-like punctuation characters."""
     return len(_CODE_PUNCT_RE.findall(text))
 
 
-# ─── Core estimator ────────────────────────────────────────────────────
+# 说明：─── Core estimator ────────────────────────────────────────────────────
 
-# Heuristic ratios tuned for common LLM tokenisers (cl100k_base style):
-#   CJK: ~1.8 chars per token (Chinese characters are often 1 token each,
-#          but some multi-char terms compress)
-#   ASCII: ~4.0 chars per token
-#   Code punctuation: ~3.0 chars per token (denser than prose)
+# Heuristic ratios tuned，用于 common LLM tokenisers (cl100k_base style):
+# 说明：CJK: ~1.8 chars per token (Chinese characters are often 1 token each,
+# 说明：but some multi-char terms compress)
+# 说明：ASCII: ~4.0 chars per token
+# 说明：Code punctuation: ~3.0 chars per token (denser than prose)
 _CJK_RATIO = 1.8
 _ASCII_RATIO = 4.0
 _CODE_PUNCT_RATIO = 3.0
 
 
 def estimate_tokens_from_text(text: str, model: str = "") -> int:
-    """Estimate token count from plain text.
+    """Estimate token count，来源于 plain text.
 
     Uses mutually exclusive character-class weighted heuristic:
       - CJK chars / 1.8
@@ -74,11 +74,11 @@ def estimate_tokens_from_text(text: str, model: str = "") -> int:
     ascii_chars = count_ascii(text)
     code_punct = count_code_punctuation(text)
 
-    # Mutually exclusive: subtract code punctuation from ASCII
+    # Mutually exclusive: subtract code punctuation，来源于 ASCII
     ascii_non_code = max(0, ascii_chars - code_punct)
 
-    # Other unicode: total length minus CJK, ASCII, and other unicode
-    # (non-ASCII, non-CJK characters like emoji, mathematical symbols, etc.)
+    # Other unicode: total length minus CJK, ASCII, 和 other unicode
+    # 说明：(non-ASCII, non-CJK characters like emoji, mathematical symbols, etc.)
     total_len = len(text)
     other_unicode = max(0, total_len - chinese_chars - ascii_chars)
 
@@ -91,5 +91,5 @@ def estimate_tokens_from_text(text: str, model: str = "") -> int:
 
 
 def estimate_tokens_from_list(texts: list[str], model: str = "") -> int:
-    """Estimate total tokens from a list of text fragments."""
+    """Estimate total tokens，来源于 一个 list of text fragments."""
     return sum(estimate_tokens_from_text(t, model) for t in texts if t)

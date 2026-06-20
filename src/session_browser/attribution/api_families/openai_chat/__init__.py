@@ -1,1 +1,1 @@
-# OpenAI Chat Completions API family.
+# 说明：OpenAI Chat Completions API family.

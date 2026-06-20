@@ -1,4 +1,4 @@
-"""Dashboard presenter.
+"""说明：Dashboard presenter。
 
 Builds the complete view model for the dashboard page, supporting:
 - Agent scope: all / claude-code / qoder / codex
@@ -37,15 +37,15 @@ from session_browser.index.anomalies import (
 )
 
 
-# Valid agent scope values
+# 说明：Valid agent scope values
 VALID_AGENT_SCOPES = {"all", "claude-code", "qoder", "codex"}
 VALID_GRAINS = {"day", "week", "month"}
 
-# Grain -> days mapping for trend windows
+# Grain -> days mapping，用于 trend windows
 GRAIN_DAYS = {
     "day": 30,
-    "week": 20 * 7,  # 20 ISO weeks
-    "month": 12 * 30,  # 12 months
+    "week": 20 * 7,  # 说明：20 ISO weeks
+    "month": 12 * 30,  # 说明：12 months
 }
 
 _AGENT_DISPLAY = {
@@ -127,7 +127,7 @@ _GRAIN_NOTE_LABELS = {
 
 
 def _build_chart_notes(agent_scope: str, grain: str) -> dict[str, str]:
-    """Build chart notes that match the active scope and grain controls."""
+    """构建 chart notes that match 该 active scope 和 grain controls."""
     grain_label = _GRAIN_NOTE_LABELS.get(grain, "按天")
     agent_label = _AGENT_DISPLAY.get(agent_scope, "")
     if agent_scope == "all":
@@ -152,14 +152,14 @@ def _build_chart_notes(agent_scope: str, grain: str) -> dict[str, str]:
 
 
 def _fmt(n: int | float) -> str:
-    """Format a number with commas."""
+    """格式化 一个 number，使用 commas."""
     if n is None:
         return "0"
     return f"{int(n):,}"
 
 
 def _fmt_compact(n: int | float) -> str:
-    """Format token count with compact suffix (K/M/B), 1 decimal."""
+    """格式化 token count，使用 compact suffix (K/M/B), 1 decimal."""
     if n is None or n == 0:
         return "0"
     n = float(n)
@@ -173,21 +173,21 @@ def _fmt_compact(n: int | float) -> str:
 
 
 def _safe_ratio(num: int | float, den: int | float, fmt_func=_fmt) -> str:
-    """Compute ratio safely, returning N/A when denominator is 0."""
+    """计算 ratio 安全地, returning N/A，当 denominator is 0."""
     if not den or den == 0:
         return "N/A"
     return f"{num / den * 100:.1f}%"
 
 
 def _safe_ratio_float(num: int | float, den: int | float) -> float | None:
-    """Compute ratio as float, returning None when denominator is 0."""
+    """计算 ratio as float, returning None，当 denominator is 0."""
     if not den or den == 0:
         return None
     return num / den
 
 
 def _fmt_percent_share(value: float) -> str:
-    """Format a share while preserving non-zero tiny contributors."""
+    """格式化 一个 share while preserving non-zero tiny contributors."""
     if value > 0 and value < 0.1:
         return "<0.1%"
     return f"{value:.1f}%"
@@ -200,7 +200,7 @@ def build_dashboard_view_model(
     page: int | None = None,
     page_size: int = 20,
 ) -> dict[str, Any]:
-    """Build the complete view model for the dashboard page.
+    """构建 该 complete view model，用于 该 dashboard page.
 
     Args:
         conn: SQLite connection.
@@ -210,7 +210,7 @@ def build_dashboard_view_model(
     Returns:
         Dict ready for Jinja template rendering.
     """
-    # Normalize inputs
+    # 归一化 inputs
     agent_scope = agent_scope or "all"
     if agent_scope not in VALID_AGENT_SCOPES:
         agent_scope = "all"
@@ -221,30 +221,30 @@ def build_dashboard_view_model(
     is_single_agent = agent_scope != "all"
     db_agent = _DB_AGENT.get(agent_scope)
 
-    # ── Core stats ─────────────────────────────────────────────────────
+    # 说明：── Core stats ─────────────────────────────────────────────────────
     stats = get_dashboard_stats(conn, agent_scope=agent_scope)
 
-    # ── Trend data ─────────────────────────────────────────────────────
+    # 说明：── Trend data ─────────────────────────────────────────────────────
     days = GRAIN_DAYS[grain]
     trend = get_trend_data(conn, days=days, agent_scope=agent_scope)
     prompt_activity = get_prompt_activity_trend(conn, days=days, agent_scope=agent_scope)
 
-    # ── KPIs ───────────────────────────────────────────────────────────
+    # 说明：── KPIs ───────────────────────────────────────────────────────────
     kpis = _compute_kpis(stats, conn, agent_scope, trend, prompt_activity)
 
-    # ── All agents branch data ─────────────────────────────────────────
+    # 说明：── All agents branch data ─────────────────────────────────────────
     all_agents_branch = None
     if not is_single_agent:
         all_agents_branch = _compute_all_agents_branch(conn)
 
-    # ── Single agent branch data ───────────────────────────────────────
+    # 说明：── Single agent branch data ───────────────────────────────────────
     single_agent_branch = None
     if is_single_agent and db_agent:
         single_agent_branch = _compute_single_agent_branch(
             conn, db_agent, agent_scope, page=page, page_size=page_size,
         )
 
-    # ── Anomaly / needs attention (only for all agents) ────────────────
+    # ── Anomaly / needs attention (only，用于 所有 agents) ────────────────
     needs_attention = []
     if not is_single_agent:
         all_sessions_raw = list_sessions(conn, limit=2000, order_by="ended_at")
@@ -252,16 +252,16 @@ def build_dashboard_view_model(
         for s in all_sessions_raw:
             sessions_data.append(compute_derived_metrics(s.to_dict()))
         anomalies_map = detect_all_anomalies(sessions_data)
-        # Convert list to dict lookup keyed by session_key
+        # 转换 list to dict lookup keyed by session_key
         sessions_lookup = {s.get("session_key", ""): s for s in sessions_data}
         needs_attention = get_needs_attention(anomalies_map, sessions_lookup, limit=8)
 
-    # ── Cache Health stats ─────────────────────────────────────────
+    # 说明：── Cache Health stats ─────────────────────────────────────────
     cache_health_series = _compute_cache_health_series(conn, days)
     cache_health = _compute_cache_health_stats(cache_health_series, agent_scope)
     chart_notes = _build_chart_notes(agent_scope, grain)
 
-    # ── Single-agent sessions count for View Sessions CTA ─────────
+    # ── Single-agent sessions count，用于 View Sessions CTA ─────────
     total_agent_sessions = 0
     total_pages = 1
     current_page = 1
@@ -298,7 +298,7 @@ def _compute_kpis(
     trend: list[dict] | None = None,
     prompt_activity: list[dict] | None = None,
 ) -> list[dict]:
-    """Compute 6 KPI cards with secondary metrics."""
+    """计算 6 KPI cards，使用 secondary metrics."""
     total_sessions = stats.get("total_sessions", 0)
     project_count = stats.get("project_count", 0)
     total_tokens = stats.get("total_tokens", 0)
@@ -320,7 +320,7 @@ def _compute_kpis(
     project_badge_delta = project_recent_7d - project_previous_7d
     project_new_7d = _count_new_projects(conn, agent_scope, 7)
 
-    # 1. Projects
+    # 说明：1. Projects
     kpis.append({
         "label": "Projects",
         "value": _fmt(project_count),
@@ -333,7 +333,7 @@ def _compute_kpis(
         ],
     })
 
-    # 2. Sessions
+    # 说明：2. Sessions
     median_duration = _median_duration(conn, agent_scope)
     avg_rounds = total_assistant_messages / total_sessions if total_sessions > 0 else 0
     kpis.append({
@@ -349,7 +349,7 @@ def _compute_kpis(
         ],
     })
 
-    # 3. Total Tokens
+    # 说明：3. Total Tokens
     kpis.append({
         "label": "Total Tokens",
         "value": _fmt_compact(total_tokens),
@@ -363,7 +363,7 @@ def _compute_kpis(
         ],
     })
 
-    # 4. Prompt Activity
+    # 说明：4. Prompt Activity
     prompts_per_session = total_user_messages / total_sessions if total_sessions > 0 else 0
     kpis.append({
         "label": "Prompt Activity",
@@ -377,7 +377,7 @@ def _compute_kpis(
         ],
     })
 
-    # 5. Cache Read Ratio
+    # 说明：5. Cache Read Ratio
     cache_ratio = _safe_ratio_float(total_cache_read, input_side)
     eligible_sessions = _count_eligible_sessions(conn, agent_scope)
     p50_ratio = _p50_cache_ratio(conn, agent_scope)
@@ -394,7 +394,7 @@ def _compute_kpis(
         ],
     })
 
-    # 6. Failed Tools
+    # 说明：6. Failed Tools
     failure_rate = _safe_ratio_float(total_failed_tools, total_tool_calls)
     affected_sessions = _count_affected_failure_sessions(conn, agent_scope)
     repeated_failure = _count_repeated_failure_sessions(conn, agent_scope)
@@ -414,7 +414,7 @@ def _compute_kpis(
 
 
 def _attach_kpi_descriptions(kpi: dict[str, Any]) -> dict[str, Any]:
-    """Attach concrete tooltip descriptions to KPI secondary metrics."""
+    """附加 concrete tooltip descriptions to KPI secondary metrics."""
     kpi = dict(kpi)
     label = kpi.get("label", "")
     kpi["description"] = _KPI_PRIMARY_DESCRIPTIONS.get(
@@ -438,7 +438,7 @@ def _attach_kpi_descriptions(kpi: dict[str, Any]) -> dict[str, Any]:
 
 
 def _format_delta_badge(delta: int | float | None, suffix: str = "") -> str:
-    """Format a compact KPI badge value."""
+    """格式化 一个 compact KPI badge value."""
     if delta is None:
         return "N/A"
     if delta > 0:
@@ -449,7 +449,7 @@ def _format_delta_badge(delta: int | float | None, suffix: str = "") -> str:
 
 
 def _badge_tone(delta: int | float | None, inverse: bool = False) -> str:
-    """Map delta to a visual badge tone."""
+    """映射 delta to 一个 visual badge tone."""
     if delta is None or delta == 0:
         return "neutral"
     positive = delta > 0
@@ -514,7 +514,7 @@ def _cache_ratio_delta_tone(series: list[dict]) -> str:
 
 
 def _count_active_projects(conn: sqlite3.Connection, agent_scope: str, days: int) -> int:
-    """Count distinct projects with session events in the last N days."""
+    """统计 distinct projects，使用 session events in 该 last N days."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(DISTINCT project_key) FROM sessions {where} AND ended_at >= date('now', '-{days} days')",
@@ -529,7 +529,7 @@ def _count_active_projects_window(
     start_days_ago: int,
     end_days_ago: int,
 ) -> int:
-    """Count distinct projects active in a relative day window."""
+    """统计 distinct projects active in 一个 relative day window."""
     where, params = _build_agent_where(agent_scope)
     upper_bound = (
         f"AND ended_at < date('now', '-{end_days_ago} days')"
@@ -545,7 +545,7 @@ def _count_active_projects_window(
 
 
 def _count_new_projects(conn: sqlite3.Connection, agent_scope: str, days: int) -> int:
-    """Count distinct projects first seen in the last N days."""
+    """统计 distinct projects first seen in 该 last N days."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(DISTINCT project_key) FROM sessions {where} AND started_at >= date('now', '-{days} days')",
@@ -555,7 +555,7 @@ def _count_new_projects(conn: sqlite3.Connection, agent_scope: str, days: int) -
 
 
 def _count_today_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
-    """Count sessions with first user message today."""
+    """统计 sessions，使用 first user message today."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(*) FROM sessions {where} AND DATE(started_at) = DATE('now')",
@@ -565,7 +565,7 @@ def _count_today_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
 
 
 def _avg_daily_sessions(conn: sqlite3.Connection, agent_scope: str, days: int) -> float:
-    """Average daily session count over last N days."""
+    """说明：Average daily session count over last N days."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(*) FROM sessions {where} AND ended_at >= date('now', '-{days} days')",
@@ -576,7 +576,7 @@ def _avg_daily_sessions(conn: sqlite3.Connection, agent_scope: str, days: int) -
 
 
 def _median_duration(conn: sqlite3.Connection, agent_scope: str) -> float:
-    """Median session duration in seconds."""
+    """说明：Median session duration in seconds."""
     where, params = _build_agent_where(agent_scope)
     rows = conn.execute(
         f"SELECT duration_seconds FROM sessions {where} AND duration_seconds > 0 ORDER BY duration_seconds",
@@ -595,7 +595,7 @@ def _median_duration(conn: sqlite3.Connection, agent_scope: str) -> float:
 
 
 def _count_eligible_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
-    """Count sessions with input-side tokens > 0."""
+    """统计 sessions，使用 input-side tokens > 0."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(*) FROM sessions {where} AND (fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0",
@@ -605,7 +605,7 @@ def _count_eligible_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
 
 
 def _p50_cache_ratio(conn: sqlite3.Connection, agent_scope: str) -> float | None:
-    """Median per-session cache read ratio."""
+    """说明：Median per-session cache read ratio."""
     where, params = _build_agent_where(agent_scope)
     rows = conn.execute(
         f"""SELECT cache_read_tokens * 1.0 / NULLIF(fresh_input_tokens + cache_read_tokens + cache_write_tokens, 0) as ratio
@@ -627,7 +627,7 @@ def _p50_cache_ratio(conn: sqlite3.Connection, agent_scope: str) -> float | None
 
 
 def _count_low_read_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
-    """Count eligible sessions with cache read ratio < 20%."""
+    """统计 eligible sessions，使用 cache read ratio < 20%."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"""SELECT COUNT(*) FROM sessions {where}
@@ -639,7 +639,7 @@ def _count_low_read_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
 
 
 def _count_affected_failure_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
-    """Count sessions with failed_tool_count > 0."""
+    """统计 sessions，使用 failed_tool_count > 0."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(*) FROM sessions {where} AND failed_tool_count > 0",
@@ -649,7 +649,7 @@ def _count_affected_failure_sessions(conn: sqlite3.Connection, agent_scope: str)
 
 
 def _count_repeated_failure_sessions(conn: sqlite3.Connection, agent_scope: str) -> int:
-    """Count sessions with failed_tool_count > 1."""
+    """统计 sessions，使用 failed_tool_count > 1."""
     where, params = _build_agent_where(agent_scope)
     row = conn.execute(
         f"SELECT COUNT(*) FROM sessions {where} AND failed_tool_count > 1",
@@ -659,7 +659,7 @@ def _count_repeated_failure_sessions(conn: sqlite3.Connection, agent_scope: str)
 
 
 def _format_duration(seconds: float) -> str:
-    """Format seconds to human-readable duration."""
+    """格式化 seconds to human-readable duration."""
     if seconds <= 0:
         return "0s"
     if seconds < 60:
@@ -670,7 +670,7 @@ def _format_duration(seconds: float) -> str:
 
 
 def _build_model_donut_gradient(model_rows: list[dict[str, Any]]) -> str:
-    """Build a CSS conic-gradient for model token share."""
+    """构建 一个 CSS conic-gradient，用于 model token share."""
     if not model_rows:
         return "conic-gradient(#cbd5e1 0% 100%)"
 
@@ -711,7 +711,7 @@ _QODER_CACHE_METRIC_KEYS = (
 
 @lru_cache(maxsize=4096)
 def _qoder_file_reports_cache_metrics(file_path: str) -> bool:
-    """Return whether a Qoder raw session contains provider cache fields."""
+    """返回 whether 一个 Qoder raw session contains provider cache fields."""
     if not file_path:
         return False
     try:
@@ -725,7 +725,7 @@ def _qoder_file_reports_cache_metrics(file_path: str) -> bool:
 
 
 def _compute_cache_health_series(conn: sqlite3.Connection, days: int) -> list[dict]:
-    """Compute daily token inputs for Average and each known agent."""
+    """计算 daily token inputs，用于 Average 和 each known agent."""
     agent_keys = ["claude_code", "qoder", "codex"]
     fields = ["fresh_input_tokens", "cache_read_tokens", "cache_write_tokens"]
     try:
@@ -783,7 +783,7 @@ def _compute_cache_health_series(conn: sqlite3.Connection, days: int) -> list[di
 
 
 def _compute_cache_health_stats(series: list[dict], agent_scope: str) -> dict:
-    """Compute Cache Health card stats from highlighted cache-ratio series."""
+    """计算 Cache Health card stats，来源于 highlighted cache-ratio series."""
     if not series:
         return {"latest_ratio": "N/A", "lowest_ratio": "N/A", "series": []}
 
@@ -810,7 +810,7 @@ def _compute_cache_health_stats(series: list[dict], agent_scope: str) -> dict:
 
 
 def _count_agent_sessions(conn: sqlite3.Connection, db_agent: str) -> int:
-    """Count total sessions for a specific agent (for pagination)."""
+    """统计 total sessions，用于 一个 specific agent (for pagination)."""
     try:
         row = conn.execute(
             "SELECT COUNT(*) FROM sessions WHERE agent = ?", [db_agent],
@@ -821,7 +821,7 @@ def _count_agent_sessions(conn: sqlite3.Connection, db_agent: str) -> int:
 
 
 def _build_agent_where(agent_scope: str) -> tuple[str, list]:
-    """Build WHERE clause for agent filtering.
+    """构建 WHERE clause，用于 agent filtering.
 
     Always returns a valid WHERE prefix so callers can safely append 'AND'.
     For 'all' scope, returns 'WHERE 1=1' as a no-op filter.
@@ -833,7 +833,7 @@ def _build_agent_where(agent_scope: str) -> tuple[str, list]:
 
 
 def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
-    """Compute data for All agents mode: contribution comparison, all agents table, efficiency."""
+    """计算 data，用于 All agents mode: contribution comparison, 所有 agents table, efficiency."""
     agents = list_agents(conn)
     agent_map = {}
     for a in agents:
@@ -848,7 +848,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "cache_read": a.get("total_cache_read_tokens", 0),
             "cache_write": a.get("total_cache_write_tokens", 0),
             "output": a.get("total_output_tokens", 0),
-            "prompts": 0,  # will be filled
+            "prompts": 0,  # 说明：will be filled
             "projects": a.get("project_count", 0),
             "failed": a.get("total_failed_tools", 0),
             "tools": a.get("total_tool_calls", 0),
@@ -856,9 +856,9 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "rounds": a.get("total_assistant_messages", 0),
         }
 
-    # Fill prompts from prompt activity
+    # Fill prompts，来源于 prompt activity
     total_prompts_data = get_prompt_activity_trend(conn, days=365)
-    # Ensure all agent entries exist with full defaults
+    # 确保 所有 agent entries exist，使用 full defaults
     for db_a in ["claude_code", "codex", "qoder"]:
         if db_a not in agent_map:
             agent_map[db_a] = {
@@ -874,7 +874,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             if db_a in agent_map:
                 agent_map[db_a]["prompts"] = agent_map.get(db_a, {}).get("prompts", 0) + day_data.get(key, 0)
 
-    # Build agent rows
+    # 构建 agent rows
     total_sessions_all = sum(a["sessions"] for a in agent_map.values())
     total_tokens_all = sum(a["tokens"] for a in agent_map.values())
     total_prompts_all = sum(a.get("prompts", 0) for a in agent_map.values())
@@ -938,7 +938,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "last_active_raw": last_active,
         })
 
-    # Agent / Model Efficiency
+    # 说明：Agent / Model Efficiency
     model_stats = list_model_stats(conn)
     efficiency_rows = []
     for m in model_stats:
@@ -975,7 +975,7 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
             "failure_raw": failure_per_session,
         })
 
-    # Sort by sessions desc
+    # 说明：Sort by sessions desc
     efficiency_rows.sort(key=lambda x: x["sessions"], reverse=True)
 
     return {
@@ -988,10 +988,10 @@ def _compute_all_agents_branch(conn: sqlite3.Connection) -> dict:
 
 
 def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_key: str, page: int | None = None, page_size: int = 20) -> dict:
-    """Compute data for single agent mode: Model Mix, Tool Distribution, Failure Signals, etc."""
+    """计算 data，用于 single agent mode: Model Mix, Tool Distribution, Failure Signals, etc."""
     display_name = _AGENT_DISPLAY.get(scope_key, db_agent)
 
-    # Model Mix data
+    # 说明：Model Mix data
     model_stats = list_model_stats(conn)
     model_rows = []
     total_agent_tokens = 0
@@ -1062,12 +1062,12 @@ def _compute_single_agent_branch(conn: sqlite3.Connection, db_agent: str, scope_
     model_rows_by_sessions = sorted(model_rows, key=lambda x: x["sessions"], reverse=True)
     model_donut_gradient = _build_model_donut_gradient(model_rows)
 
-    # Model Efficiency Detail
+    # 说明：Model Efficiency Detail
     eff_rows = []
     for m in model_rows:
         sessions_count = m["sessions"]
 
-        # Determine notes per spec
+        # 说明：Determine notes per spec
         notes = []
         avg_tokens_val = m["tokens"] // max(1, m["sessions"]) if m["sessions"] > 0 else 0
         if sessions_count >= 10:

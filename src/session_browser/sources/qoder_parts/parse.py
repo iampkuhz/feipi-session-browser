@@ -1,4 +1,4 @@
-"""Session parsing for Qoder sessions.
+"""Qoder session 解析逻辑。
 
 Contains parse_session_detail, _build_summary_from_events, _extract_messages,
 _fill_estimates, _extract_tool_calls, _parse_cache_session, and supporting
@@ -49,7 +49,7 @@ def parse_session_detail(
     session_file: Path | None = None,
     verbose: bool = False,
 ) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
-    """Parse a single Qoder session's full event stream.
+    """解析 一个 single Qoder session's full event stream.
 
     Args:
         project_key: The project path segment.
@@ -83,21 +83,21 @@ def parse_session_detail(
 
     events, jsonl_diag = parse_jsonl_events(session_file, verbose=verbose)
 
-    # Normalize cache-format events: cache uses "role" instead of "type".
-    # Convert so the rest of the pipeline can process them uniformly.
+    # 归一化 cache-format events: cache uses "role" instead of "type".
+    # 转换 so 该 rest of 该 pipeline can process them uniformly.
     if events and "type" not in events[0] and "role" in events[0]:
         for ev in events:
             if "role" in ev and "type" not in ev:
                 ev["type"] = ev["role"]
 
-    # Detect cache format: no timestamps, no structured events. Use simpler pipeline.
+    # 说明：Detect cache format: no timestamps, no structured events. Use simpler pipeline.
     is_cache_format = all(
         not ev.get("timestamp") and not ev.get("cwd") and not ev.get("sessionId")
         for ev in events
     ) if events else False
 
     if is_cache_format:
-        # Cache format: build summary via _parse_cache_session, then extract messages
+        # 说明：Cache format: build summary via _parse_cache_session, then extract messages
         file_mtime = os.path.getmtime(session_file) if session_file.exists() else 0
         summary = _parse_cache_session(
             project_key,
@@ -115,7 +115,7 @@ def parse_session_detail(
         tool_calls = _extract_tool_calls(events, messages)
         subagent_runs = []
 
-    # Attach parse diagnostics from JSONL reader
+    # 附加 parse diagnostics，来源于 JSONL reader
     parse_diag = build_parse_diagnostics(
         session_key=summary.session_key,
         file_path=str(session_file),
@@ -132,7 +132,7 @@ def parse_session_detail_normalized(
     session_id: str,
     session_file: Path | None = None,
 ) -> dict:
-    """Parse a Qoder session into the normalized intermediate contract."""
+    """解析 一个 Qoder session，转换为 该 normalized intermediate contract."""
     from session_browser.normalized.agents.qoder_normalization import parse_qoder_session_file
 
     target_file = session_file or _find_session_file(project_key, session_id)
@@ -150,7 +150,7 @@ def parse_normalized_session_file(
     project_key: str = "",
     session_id: str | None = None,
 ) -> dict:
-    """Parse a Qoder JSONL file directly into normalized JSON."""
+    """解析 一个 Qoder JSONL file directly，转换为 normalized JSON."""
     from session_browser.normalized.agents.qoder_normalization import parse_qoder_session_file
 
     return parse_qoder_session_file(
@@ -168,7 +168,7 @@ def build_normalized_session(
     subagent_runs: list[dict],
     source_path: str,
 ) -> dict:
-    """Build normalized JSON from the models already parsed for indexing."""
+    """构建 normalized JSON，来源于 该 models already parsed，用于 indexing."""
     from session_browser.normalized.agents.qoder_normalization import build_qoder_normalized_session
 
     return build_qoder_normalized_session(
@@ -181,7 +181,7 @@ def build_normalized_session(
 
 
 def _find_session_file(project_key: str, session_id: str) -> Path | None:
-    """Search for a Qoder session file under projects/ and cache/projects/.
+    """搜索，用于 一个 Qoder session file under projects/ 和 cache/projects/.
 
     Search order:
     1. Resolve short ID alias -> full UUID via canonical map, then search projects/.
@@ -194,26 +194,26 @@ def _find_session_file(project_key: str, session_id: str) -> Path | None:
         r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
     )
 
-    # Step 1: resolve short ID alias -> full UUID, then try projects/ direct
+    # 说明：Step 1: resolve short ID alias -> full UUID, then try projects/ direct
     if not uuid_pattern.match(session_id):
         canonical_map = _build_canonical_id_map()
         resolved_id = canonical_map.get(session_id.lower(), session_id)
         if resolved_id != session_id.lower():
-            # Short ID resolved to full UUID -- try projects/ direct match
+            # 说明：Short ID resolved to full UUID -- try projects/ direct match
             projects_dir = QODER_DATA_DIR / "projects"
             if projects_dir.exists():
                 candidate = projects_dir / project_key / f"{resolved_id}.jsonl"
                 if candidate.exists():
                     return candidate
 
-    # Step 2: search projects/ by original session_id
+    # 说明：Step 2: search projects/ by original session_id
     projects_dir = QODER_DATA_DIR / "projects"
     if projects_dir.exists():
         candidate = projects_dir / project_key / f"{session_id}.jsonl"
         if candidate.exists():
             return candidate
 
-    # Step 3: fall back to cache/projects/
+    # 说明：Step 3: fall back to cache/projects/
     cache_dir = QODER_DATA_DIR / "cache" / "projects"
     if cache_dir.exists():
         for root, _dirs, files in os.walk(cache_dir):
@@ -224,7 +224,7 @@ def _find_session_file(project_key: str, session_id: str) -> Path | None:
 
 
 def _empty_session(session_id: str, project_key: str) -> SessionSummary:
-    """Create an empty session summary as fallback."""
+    """创建 一个 empty session summary as fallback."""
     from pathlib import PurePosixPath
     project_name = PurePosixPath(project_key).name if project_key else "unknown"
     now = datetime.now(tz=timezone.utc).astimezone().isoformat()
@@ -245,7 +245,7 @@ def _build_summary_from_events(
     session_id: str,
     project_key: str,
 ) -> SessionSummary:
-    """Build SessionSummary from parsed Qoder events.
+    """构建 SessionSummary，来源于 parsed Qoder events.
 
     Computes timeline-based execution times:
     - model_execution_seconds: merged LLM response intervals (user msg -> assistant msg)
@@ -288,21 +288,21 @@ def _build_summary_from_events(
     if not model:
         model = _infer_qoder_model_for_session(session_id)
 
-    # Fallback: Qoder may not report usage -- estimate from event text.
-    # Use per-message estimates to ensure session summary matches LLM Calls detail.
+    # Fallback: Qoder may not report usage -- estimate，来源于 event text.
+    # 使用 per-message estimates to ensure session summary matches LLM Calls detail.
     est_input, est_output, has_estimated = _estimate_tokens_from_events(events)
     if has_estimated and input_tokens == 0 and output_tokens == 0:
         input_tokens = est_input
         output_tokens = est_output
-        # Qoder has no cache metrics; do not fabricate cache values.
+        # 说明：Qoder has no cache metrics; do not fabricate cache values.
         cached_tokens = 0
         cache_write_tokens = 0
 
-    # --- Collect timestamps for interval calculation ---
+    # --- Collect timestamps，用于 interval calculation ---
     user_event_timestamps: list[int] = []
     assistant_event_timestamps: list[int] = []
-    tool_use_map: dict[str, int] = {}       # tool_use_id -> start_ts_ms
-    tool_result_map: dict[str, int] = {}    # tool_use_id -> end_ts_ms
+    tool_use_map: dict[str, int] = {}       # 说明：tool_use_id -> start_ts_ms
+    tool_result_map: dict[str, int] = {}    # 说明：tool_use_id -> end_ts_ms
 
     for ev in events:
         etype = ev.get("type", "")
@@ -319,7 +319,7 @@ def _build_summary_from_events(
                 user_count += 1
             if ts_ms and not first_ts:
                 first_ts = ts_ms
-            # Extract title from first non-meta user message
+            # 提取 title，来源于 first non-meta user message
             if not title and user_text:
                 title = _extract_readable_title(user_text)
             if not cwd:
@@ -327,7 +327,7 @@ def _build_summary_from_events(
             if not git_branch:
                 git_branch = ev.get("gitBranch", "")
 
-            # Check for failed tool results in user events (tool results come as user type)
+            # 检查，用于 failed tool results in user events (tool results come as user type)
             content = ev.get("message", {}).get("content", "") if isinstance(ev.get("message"), dict) else ""
             if isinstance(content, list):
                 for item in content:
@@ -361,7 +361,7 @@ def _build_summary_from_events(
     if first_ts and last_ts:
         duration = (last_ts - first_ts) / 1000
 
-    # --- Model execution: LLM response intervals (user -> next assistant) ---
+    # 说明：--- Model execution: LLM response intervals (user -> next assistant) ---
     llm_intervals: list[tuple[int, int]] = []
     sorted_user_ts = sorted(user_event_timestamps)
     sorted_assistant_ts = sorted(assistant_event_timestamps)
@@ -371,7 +371,7 @@ def _build_summary_from_events(
                 llm_intervals.append((u_ts, a_ts))
                 break
 
-    # --- Tool execution: tool_use -> tool_result intervals ---
+    # 说明：--- Tool execution: tool_use -> tool_result intervals ---
     tool_intervals: list[tuple[int, int]] = []
     for tool_id, use_ts in tool_use_map.items():
         if tool_id in tool_result_map:
@@ -380,24 +380,24 @@ def _build_summary_from_events(
     model_execution_seconds = _merge_intervals(llm_intervals) / 1000.0
     tool_execution_seconds = _merge_intervals(tool_intervals) / 1000.0
 
-    # Use cwd from events as the primary project_key -- it holds the actual
-    # filesystem path. Fall back to the directory-based project_key (URL-decoded).
-    # Guard against cwd being "." or a relative path that would produce a
-    # meaningless project_key / project_name.
+    # 使用 cwd，来源于 events as 该 primary project_key -- it holds 该 actual
+    # filesystem path. Fall back to 该 directory-based project_key (URL-decoded).
+    # Guard against cwd being "." 或 一个 relative path that would produce a
+    # 说明：meaningless project_key / project_name.
     actual_project = cwd if (cwd and cwd != "." and not cwd.startswith("./")) else project_key
     project_name = PurePosixPath(actual_project).name if actual_project else "unknown"
 
-    # Unified 5-field breakdown: Qoder input_tokens is Fresh request input size.
-    # Cache read/write stay as separate accounting fields and are not subtracted.
+    # 说明：Unified 5-field breakdown: Qoder input_tokens is Fresh request input size.
+    # Cache read/write stay as separate accounting fields 和 are not subtracted.
     fresh_input_tokens = input_tokens
     cache_read_tokens_session = cached_tokens
     cache_write_tokens_session = cache_write_tokens
     total_tokens = fresh_input_tokens + cache_read_tokens_session + cache_write_tokens_session + output_tokens
 
-    # Use cwd from events as the primary project_key -- it holds the actual
-    # filesystem path. Fall back to the directory-based project_key (URL-decoded).
-    # Guard against cwd being "." or a relative path that would produce a
-    # meaningless project_key / project_name.
+    # 使用 cwd，来源于 events as 该 primary project_key -- it holds 该 actual
+    # filesystem path. Fall back to 该 directory-based project_key (URL-decoded).
+    # Guard against cwd being "." 或 一个 relative path that would produce a
+    # 说明：meaningless project_key / project_name.
     actual_project = cwd if (cwd and cwd != "." and not cwd.startswith("./")) else project_key
     project_name = PurePosixPath(actual_project).name if actual_project else "unknown"
 
@@ -429,7 +429,7 @@ def _build_summary_from_events(
 
 
 def _extract_messages(events: list[dict]) -> list[ChatMessage]:
-    """Extract user and assistant chat messages from Qoder events.
+    """提取 user 和 assistant chat messages，来源于 Qoder events.
 
     When Qoder does not report real usage, per-message token counts are
     estimated by walking events in order and accumulating visible context.
@@ -441,7 +441,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
     assistant_by_id = {rec["id"]: rec for rec in _assistant_records(events)}
     emitted_assistant_ids: set[str] = set()
 
-    # Pre-pass: check if real usage exists; if not, compute per-message estimates
+    # Pre-pass: check，如果 real usage exists;，如果 not, compute per-message estimates
     has_real_usage = False
     for rec in assistant_by_id.values():
         if rec.get("usage") and rec["usage"].get("input_tokens"):
@@ -453,8 +453,8 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
     if not has_real_usage:
         _fill_estimates(events, assistant_by_id, est_input_map, est_output_map)
 
-    # Collect pending request context between user events and the next
-    # assistant message.
+    # Collect pending request context between user events 和 该 next
+    # 说明：assistant message.
     pending_request_parts: list[str] = []
 
     for ev in events:
@@ -464,7 +464,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
             content = _extract_user_text(ev)
             ts_str = ev.get("timestamp", "")
 
-            # Collect tool_result text for request context
+            # Collect tool_result text，用于 request context
             msg = ev.get("message", {})
             if isinstance(msg, dict) and isinstance(msg.get("content"), list):
                 for item in msg["content"]:
@@ -500,7 +500,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
             usage = rec.get("usage", {})
             model = rec.get("model", "")
             if text_parts or tool_calls or content_blocks:
-                # Use real usage if present, otherwise fall back to estimates
+                # 使用 real usage，如果 present, otherwise fall back to estimates
                 if usage and usage.get("input_tokens"):
                     final_usage = usage
                 elif not has_real_usage and key in est_input_map:
@@ -518,7 +518,7 @@ def _extract_messages(events: list[dict]) -> list[ChatMessage]:
                 request_full = "\n\n".join(p for p in pending_request_parts if p)
                 pending_request_parts = []
 
-                # For tool-only responses, include a summary so response_full is not empty
+                # For tool-only responses, include 一个 summary so response_full is not empty
                 content_text = "\n".join(text_parts)
                 if not content_text and tool_calls:
                     content_text = "\n".join(
@@ -548,7 +548,7 @@ def _fill_estimates(
     est_input_map: dict,
     est_output_map: dict,
 ) -> None:
-    """Walk events and populate est_input_map / est_output_map by message key.
+    """Walk events 和 populate est_input_map / est_output_map by message key.
 
     Each assistant output's estimated input = current visible-context tokens;
     estimated output = accumulated text/tool tokens across all fragments of
@@ -564,7 +564,7 @@ def _fill_estimates(
 
         if cat.startswith("assistant"):
             key = _assistant_message_key(ev)
-            # Only set input on first encounter; accumulate output across fragments
+            # 说明：Only set input on first encounter; accumulate output across fragments
             if key not in est_input_map:
                 est_input_map[key] = visible_context
                 est_output_map[key] = tok
@@ -578,16 +578,16 @@ def _extract_tool_calls(
     events: list[dict],
     messages: list[ChatMessage],
 ) -> list[ToolCall]:
-    """Extract tool call records from assistant messages.
+    """提取 tool call records，来源于 assistant messages.
 
     Also populates ToolCall.duration_ms from tool_use/tool_result timestamps.
     """
     tool_calls = []
 
-    # Build a map of tool_use_id -> tool_result for status/result display
-    # and tool_use_id -> result timestamp for duration_ms calculation
+    # 构建 一个 map of tool_use_id -> tool_result，用于 status/result display
+    # and tool_use_id -> result timestamp，用于 duration_ms calculation
     tool_results: dict[str, dict] = {}
-    tool_result_timestamps: dict[str, int] = {}  # tool_use_id -> end_ts_ms
+    tool_result_timestamps: dict[str, int] = {}  # 说明：tool_use_id -> end_ts_ms
     for ev in events:
         if ev.get("type") != "user":
             continue
@@ -609,15 +609,15 @@ def _extract_tool_calls(
                     if exit_match:
                         exit_code = int(exit_match.group(1))
 
-                    # Store raw result content; apply heuristic later when we
-                    # know the tool name from assistant messages.
+                    # Store raw result content; apply heuristic later，当 we
+                    # know 该 tool name，来源于 assistant messages.
                     tool_results[tool_use_id] = {
                         "is_error_raw": is_error,
                         "result_text": result_text,
                         "exit_code_raw": exit_code,
                     }
 
-                    # Capture result timestamp for duration_ms
+                    # Capture result timestamp，用于 duration_ms
                     ts_str = ev.get("timestamp", "")
                     if ts_str and tool_use_id:
                         dt_local = normalize_timestamp(ts_str)
@@ -626,7 +626,7 @@ def _extract_tool_calls(
                                 datetime.fromisoformat(dt_local).timestamp() * 1000
                             )
 
-    # Extract tool calls from assistant messages
+    # 提取 tool calls，来源于 assistant messages
     for msg in messages:
         if msg.role != "assistant":
             continue
@@ -639,7 +639,7 @@ def _extract_tool_calls(
             is_error = result_info.get("is_error_raw", False)
             result_text = result_info.get("result_text", "")
 
-            # Apply heuristic now that we know the tool name
+            # Apply heuristic now that we know 该 tool name
             if _tool_result_looks_failed(result_text, tool_name=name):
                 is_error = True
 
@@ -657,8 +657,8 @@ def _extract_tool_calls(
             if file_path:
                 files_touched.append(file_path)
 
-            # Compute duration_ms from tool_use timestamp (from msg) and
-            # tool_result timestamp (captured above)
+            # 计算 duration_ms，来源于 tool_use timestamp (from msg) and
+            # 说明：tool_result timestamp (captured above)
             duration_ms = 0.0
             if tool_use_id and tool_use_id in tool_result_timestamps:
                 ts_str = msg.timestamp
@@ -693,7 +693,7 @@ def _parse_cache_session(
     file_mtime: float = 0,
     events: list[dict] | None = None,
 ) -> SessionSummary:
-    """Parse a cache-format JSONL session into a minimal SessionSummary.
+    """解析 一个 cache-format JSONL session，转换为 一个 minimal SessionSummary.
 
     Cache format uses {"role": "user|assistant", "message": {"content": [...]}}
     with no timestamps, tool calls, or usage data. Returns best-effort summary.
@@ -702,7 +702,7 @@ def _parse_cache_session(
     if events is None:
         events, _ = parse_jsonl_events(session_file)
 
-    # Extract user text for title
+    # 提取 user text，用于 title
     user_texts = []
     for ev in events:
         if ev.get("role") == "user":
@@ -715,7 +715,7 @@ def _parse_cache_session(
                     if isinstance(item, dict) and item.get("type") == "text":
                         user_texts.append(item.get("text", ""))
 
-    # Estimate tokens
+    # 说明：Estimate tokens
     input_tokens = 0
     output_tokens = 0
     user_count = 0
@@ -746,7 +746,7 @@ def _parse_cache_session(
     title = _extract_readable_title(user_texts[0]) if user_texts else ""
     model = _infer_qoder_model_for_session(session_id)
 
-    # When cache-format events lack timestamps, derive from file mtime.
+    # When cache-format events lack timestamps, derive，来源于 file mtime.
     if file_mtime > 0:
         fallback_ts = datetime.fromtimestamp(file_mtime, tz=timezone.utc).astimezone().isoformat()
     else:
@@ -780,7 +780,7 @@ def _parse_cache_session(
 
 
 def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
-    """Scan all Qoder sessions and yield SessionSummary for each.
+    """扫描 所有 Qoder sessions 和 yield SessionSummary，用于 each.
 
     Walks ~/.qoder/projects/ (CLI sessions) and ~/.qoder/cache/projects/
     (GUI sessions) to discover session files, then parses each.
@@ -793,14 +793,14 @@ def scan_all_sessions(verbose: bool = False) -> Iterator[SessionSummary]:
         )
         yield summary
 
-    # Scan cache (GUI) sessions -- canonicalize short IDs to full UUIDs
+    # 扫描 cache (GUI) sessions -- canonicalize short IDs to full UUIDs
     cache_sessions = _discover_cache_sessions()
     canonical_map = _build_canonical_id_map()
-    # Collect all projects/ session IDs to detect full overlap
+    # Collect 所有 projects/ session IDs to detect full overlap
     projects_ids = {sid.lower() for _pk, sid, _fp in _discover_sessions()}
     for project_key, session_id, fpath in cache_sessions:
         canonical_id = canonical_map.get(session_id.lower(), session_id)
-        # Skip cache sessions that resolve to a projects/ session already yielded
+        # 跳过 cache sessions that resolve to 一个 projects/ session already yielded
         if canonical_id != session_id.lower() and canonical_id in projects_ids:
             continue
         file_mtime = os.path.getmtime(fpath) if fpath.exists() else 0

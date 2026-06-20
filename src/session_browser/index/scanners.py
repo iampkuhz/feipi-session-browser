@@ -1,4 +1,4 @@
-"""Scanning functions for the session index: full scan, incremental scan,
+"""Scanning functions，用于 该 session index: full scan, incremental scan,
 file locators, and Qoder project key normalization."""
 
 from __future__ import annotations
@@ -23,23 +23,23 @@ def _commit_periodically(conn, count: int) -> None:
         conn.commit()
 
 
-# --- File location helpers ---------------------------------------------------
+# 说明：--- File location helpers ---------------------------------------------------
 
 
 def _locate_claude_session_file(project_key: str, session_id: str) -> Path | None:
-    """Find a Claude session .jsonl file on disk."""
+    """查找 一个 Claude session .jsonl file on disk."""
     from session_browser.config import CLAUDE_DATA_DIR
 
     projects_dir = CLAUDE_DATA_DIR / "projects"
     if not projects_dir.exists():
         return None
 
-    # Try direct match
+    # 说明：Try direct match
     candidate = projects_dir / project_key / f"{session_id}.jsonl"
     if candidate.exists():
         return candidate
 
-    # Search all project directories
+    # 搜索 所有 project directories
     for proj_dir in projects_dir.iterdir():
         if not proj_dir.is_dir():
             continue
@@ -50,7 +50,7 @@ def _locate_claude_session_file(project_key: str, session_id: str) -> Path | Non
 
 
 def _locate_codex_session_file(session_id: str, rollout_path: str = "") -> Path | None:
-    """Find a Codex session .jsonl file on disk."""
+    """查找 一个 Codex session .jsonl file on disk."""
     from session_browser.config import CODEX_DATA_DIR
 
     if rollout_path:
@@ -78,7 +78,7 @@ def _locate_codex_session_file(session_id: str, rollout_path: str = "") -> Path 
 
 
 def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None:
-    """Find a Qoder session .jsonl file on disk.
+    """查找 一个 Qoder session .jsonl file on disk.
 
     Searches both projects/ (CLI) and cache/projects/ (GUI) directories.
 
@@ -96,7 +96,7 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
         r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
     )
 
-    # Step 1: resolve short ID alias -> full UUID, then try projects/ direct
+    # 说明：Step 1: resolve short ID alias -> full UUID, then try projects/ direct
     if not uuid_pattern.match(session_id):
         canonical_map = qoder_source._build_canonical_id_map()
         resolved_id = canonical_map.get(session_id.lower(), session_id)
@@ -107,14 +107,14 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
                 if candidate.exists():
                     return candidate
 
-    # Step 2: search projects/ by original session_id
+    # 说明：Step 2: search projects/ by original session_id
     projects_dir = QODER_DATA_DIR / "projects"
     if projects_dir.exists():
         candidate = projects_dir / project_key / f"{session_id}.jsonl"
         if candidate.exists():
             return candidate
 
-    # Step 3: fall back to cache/projects/
+    # 说明：Step 3: fall back to cache/projects/
     cache_dir = QODER_DATA_DIR / "cache" / "projects"
     if cache_dir.exists():
         for root, _dirs, files in os.walk(cache_dir):
@@ -133,7 +133,7 @@ def _persist_normalized_artifact_safe(
     build_normalized,
     verbose: bool,
 ) -> None:
-    """Persist normalized JSON for a session without blocking the index scan."""
+    """Persist normalized JSON，用于 一个 session without blocking 该 index scan."""
     if not file_path:
         return
     try:
@@ -163,7 +163,7 @@ def _persist_normalized_artifact_safe(
 
 
 def _index_dir_from_connection(conn) -> Path | None:
-    """Return the directory containing the active SQLite main database."""
+    """返回 该 directory containing 该 active SQLite main database."""
     try:
         for row in conn.execute("PRAGMA database_list").fetchall():
             seq = row[0]
@@ -196,11 +196,11 @@ def _should_force_normalized_artifact_rebuild() -> bool:
     }
 
 
-# --- Qoder cache project key normalization -----------------------------------
+# 说明：--- Qoder cache project key normalization -----------------------------------
 
 
 def _normalize_qoder_cache_projects(conn) -> None:
-    """Fix Qoder cache session project_keys to match other agents.
+    """说明：Fix Qoder cache session project_keys to match other agents.
 
     Qoder cache sessions (from ~/.qoder/cache/projects/) have no ``cwd``
     and use a hash-stripped directory name as ``project_key`` (e.g.
@@ -232,9 +232,9 @@ def _normalize_qoder_cache_projects(conn) -> None:
         if project_name in resolved_cache:
             resolved = resolved_cache[project_name]
         else:
-            # Look for a unique absolute project_key from sessions
-            # that already have proper paths. Priority: Claude Code + Codex
-            # first, then Qoder CLI (which has cwd != '').
+            # Look，用于 一个 unique absolute project_key，来源于 sessions
+            # 说明：that already have proper paths. Priority: Claude Code + Codex
+            # 说明：first, then Qoder CLI (which has cwd != '').
             matches = conn.execute(
                 "SELECT DISTINCT project_key FROM sessions "
                 "WHERE project_name = ? "
@@ -255,7 +255,7 @@ def _normalize_qoder_cache_projects(conn) -> None:
     conn.commit()
 
 
-# --- Full scan ----------------------------------------------------------------
+# 说明：--- Full scan ----------------------------------------------------------------
 
 
 def full_scan(
@@ -263,7 +263,7 @@ def full_scan(
     verbose: bool = False,
     agent: str | None = None,
 ) -> dict:
-    """Run a full scan of both Claude Code and Codex data sources.
+    """Run 一个 full scan of both Claude Code 和 Codex data sources.
 
     Args:
         conn: SQLite connection. If None, creates a new one.
@@ -295,14 +295,14 @@ def full_scan(
     scan_codex = agent is None or agent == "codex"
     scan_qoder = agent is None or agent == "qoder"
 
-    # Scan Claude Code
+    # 扫描 Claude Code
     if scan_claude:
         if verbose:
             print("Scanning Claude Code...")
-        # Pre-load history to build session->project mapping
+        # 说明：Pre-load history to build session->project mapping
         history = claude_source.parse_history()
-        # Deduplicate by session_id -- history.jsonl can have multiple entries
-        # for the same session (continuations). Keep the last (most recent).
+        # 去重 by session_id -- history.jsonl can have multiple entries
+        # for 该 same session (continuations). Keep 该 last (most recent).
         seen = {}
         for entry in history:
             seen[entry["session_id"]] = entry
@@ -320,13 +320,13 @@ def full_scan(
             if not summary.title and entry.get("display"):
                 summary.title = claude_source._extract_readable_title(entry["display"])
 
-            # Skip sessions with no valid timestamps (e.g., all events were non-dict JSON)
+            # 跳过 sessions，使用 no valid timestamps (e.g., 所有 events were non-dict JSON)
             if not summary.ended_at:
                 if verbose:
                     print(f"  Skipping {sid}: no valid ended_at timestamp")
                 continue
 
-            # Record file mtime + path for future incremental scans
+            # 记录 file mtime + path，用于 future incremental scans
             file_mtime = 0.0
             file_path = ""
             fpath = _locate_claude_session_file(project, sid)
@@ -356,7 +356,7 @@ def full_scan(
 
         conn.commit()
 
-    # Scan Codex (pre-load threads DB once)
+    # 扫描 Codex (pre-load threads DB once)
     if scan_codex:
         if verbose:
             print("Scanning Codex...")
@@ -394,7 +394,7 @@ def full_scan(
                     verbose=verbose,
                 )
             )
-            # Enrich title from index if empty, matching scan_all_sessions.
+            # Enrich title，来源于 index，如果 empty, matching scan_all_sessions.
             if not summary.title:
                 idx_entry = index_entries.get(sid)
                 if idx_entry and idx_entry.get("thread_name"):
@@ -404,13 +404,13 @@ def full_scan(
             if normalized and summary.title and not (normalized.get("session") or {}).get("title"):
                 normalized["session"]["title"] = summary.title[:160]
 
-            # Skip sessions with no valid timestamps
+            # 跳过 sessions，使用 no valid timestamps
             if not summary.ended_at:
                 if verbose:
                     print(f"  Skipping {summary.session_id}: no valid ended_at timestamp")
                 continue
 
-            # Record file mtime + path for future incremental scans
+            # 记录 file mtime + path，用于 future incremental scans
             file_mtime = 0.0
             file_path = ""
             fpath = session_file
@@ -434,7 +434,7 @@ def full_scan(
 
         conn.commit()
 
-    # Scan Qoder (walk projects/ directory)
+    # 扫描 Qoder (walk projects/ directory)
     if scan_qoder:
         from session_browser.config import QODER_DATA_DIR
 
@@ -461,7 +461,7 @@ def full_scan(
             if is_cache:
                 summary.file_path = str(fpath)
 
-            # Skip sessions with no valid timestamps
+            # 跳过 sessions，使用 no valid timestamps
             if not summary.ended_at:
                 if verbose:
                     print(f"  Skipping {summary.session_id}: no valid ended_at timestamp")
@@ -490,18 +490,18 @@ def full_scan(
 
         conn.commit()
 
-    # -- Normalize Qoder cache project keys --------------------------------
-    # Qoder cache sessions (from ~/.qoder/cache/projects/) have no cwd
-    # and use a hash-stripped directory name as project_key (e.g.
-    # "openspec-research-blockchain").  This diverges from Claude Code
-    # and Codex which use the full filesystem path as project_key.
-    # After all agents are scanned, look up matching project paths from
-    # non-Qoder sessions and update Qoder cache sessions so the same
-    # repo is grouped under a single project_key.
+    # 说明：-- Normalize Qoder cache project keys --------------------------------
+    # 说明：Qoder cache sessions (from ~/.qoder/cache/projects/) have no cwd
+    # and use 一个 hash-stripped directory name as project_key (e.g.
+    # "openspec-research-blockchain").  This diverges，来源于 Claude Code
+    # and Codex which use 该 full filesystem path as project_key.
+    # After 所有 agents are scanned, look up matching project paths from
+    # non-Qoder sessions 和 update Qoder cache sessions so 该 same
+    # repo is grouped under 一个 single project_key.
     if scan_qoder:
         _normalize_qoder_cache_projects(conn)
 
-    # Update log
+    # 说明：Update log
     conn.execute(
         "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, qoder_count=?, status='done' WHERE id=?",
         (time.time(), claude_count, codex_count, qoder_count, log_id),
@@ -516,7 +516,7 @@ def full_scan(
     }
 
 
-# --- Incremental scan ---------------------------------------------------------
+# 说明：--- Incremental scan ---------------------------------------------------------
 
 
 def incremental_scan(
@@ -525,7 +525,7 @@ def incremental_scan(
     agent: str | None = None,
     max_age_seconds: float | None = None,
 ) -> dict:
-    """Scan only sessions whose source files have changed.
+    """扫描 仅 sessions whose source files have changed.
 
     Uses file mtime comparison to skip sessions that haven't been modified
     since the last index. Only scans sessions within max_age_seconds (by
@@ -564,7 +564,7 @@ def incremental_scan(
         cutoff_dt = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
         cutoff_iso = cutoff_dt.isoformat()
 
-    # Load existing sessions from DB: session_key -> {ended_at, file_mtime, file_path, agent, model_execution_seconds, tool_execution_seconds, model}
+    # 加载 existing sessions，来源于 DB: session_key -> {ended_at, file_mtime, file_path, agent, model_execution_seconds, tool_execution_seconds, model}
     existing = {}
     columns = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
     has_model_exec = "model_execution_seconds" in columns
@@ -585,7 +585,7 @@ def incremental_scan(
             "tool_execution_seconds": row["tool_execution_seconds"] if has_tool_exec else 0,
         }
 
-    # Also load session_id -> project_key mapping from DB for Claude sessions
+    # Also load session_id -> project_key mapping，来源于 DB，用于 Claude sessions
     claude_project_map = {}
     for row in conn.execute(
         "SELECT session_id, project_key FROM sessions WHERE agent='claude_code'"
@@ -602,11 +602,10 @@ def incremental_scan(
     scan_codex = agent is None or agent == "codex"
     scan_qoder = agent is None or agent == "qoder"
 
-    # -- Scan Claude -------------------------------------------------------
+    # -- 扫描 Claude Code --------------------------------------------------
     if scan_claude:
         history = claude_source.parse_history()
-        # Deduplicate by session_id -- history.jsonl can have multiple entries
-        # for the same session (continuations). Keep the last (most recent).
+        # history.jsonl 可能为同一 session 记录多次 continuation；保留最后一条作为最新入口。
         seen = {}
         for entry in history:
             seen[entry["session_id"]] = entry
@@ -619,7 +618,7 @@ def incremental_scan(
             project = entry["project"]
             skey = f"claude_code:{sid}"
 
-            # Check if session exists in DB and is within age window
+            # 已索引 session 先检查年龄窗口，过旧时本轮增量扫描不再解析源文件。
             info = existing.get(skey)
             if info:
                 ended_at = info["ended_at"] or ""
@@ -627,7 +626,7 @@ def incremental_scan(
                     skipped_count += 1
                     continue
 
-                # Check file mtime -- skip if unchanged.
+                # mtime 未变化即可跳过；路径失效时尝试重新定位，避免移动文件后永久失联。
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
                 path_relocated = False
@@ -639,7 +638,7 @@ def incremental_scan(
                             skipped_count += 1
                             continue
                     else:
-                        # File deleted, try to locate it again
+                        # 记录路径已删除时，用 project/session_id 再定位一次源文件。
                         fpath = _locate_claude_session_file(project, sid)
                         if fpath and fpath.exists() and str(fpath) != stored_path:
                             path_relocated = True
@@ -649,18 +648,18 @@ def incremental_scan(
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Skip unchanged files unless the stored path was relocated.
+                    # 路径迁移即使 mtime 未变也要重写索引中的 file_path。
                     if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
                 else:
-                    # Can't find file, skip
+                    # 找不到源文件时只能跳过，避免用旧路径覆盖当前索引。
                     skipped_count += 1
                     continue
             else:
                 new_count += 1
 
-            # Parse session detail
+            # 只有新增、变更或重新定位的 session 才解析详情。
             summary, _msgs, _tcs, _sa = claude_source.parse_session_detail(
                 project, sid, history_entry=entry
             )
@@ -668,7 +667,7 @@ def incremental_scan(
             if not summary.title and entry.get("display"):
                 summary.title = claude_source._extract_readable_title(entry["display"])
 
-            # Record file info
+            # 记录当前源文件路径和 mtime，供下一轮增量扫描判定。
             file_mtime = 0.0
             file_path_str = ""
             fpath = _locate_claude_session_file(project, sid)
@@ -696,10 +695,10 @@ def incremental_scan(
 
         conn.commit()
 
-    # -- Scan Codex --------------------------------------------------------
+    # -- 扫描 Codex --------------------------------------------------------
     if scan_codex:
         threads_db = codex_source.read_threads_db()
-        # Also load session_index.jsonl for fallback discovery
+        # threads DB 不完整时，用 session_index.jsonl 作为发现兜底。
         index_entries = {e["id"]: e for e in codex_source.parse_session_index()}
 
         all_ids = list(threads_db.keys())
@@ -728,7 +727,7 @@ def incremental_scan(
                             skipped_count += 1
                             continue
                     else:
-                        # File moved/deleted, try to locate again
+                        # rollout 文件被移动或删除时，结合 threads DB 路径提示重新定位。
                         thread_info = threads_db.get(sid, {})
                         rollout_path = thread_info.get("rollout_path", "")
                         fpath = _locate_codex_session_file(sid, rollout_path)
@@ -740,7 +739,7 @@ def incremental_scan(
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Skip unchanged files unless the stored path was relocated.
+                    # 路径迁移即使 mtime 未变也要刷新 DB 中的 file_path。
                     if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
@@ -750,7 +749,7 @@ def incremental_scan(
             else:
                 new_count += 1
 
-            # Parse session and normalized JSON from one rollout read.
+            # 同一次 rollout 读取同时产出 summary 和 normalized JSON，避免重复读大文件。
             if sid in threads_db:
                 thread_info = threads_db.get(sid, {})
                 parse_threads_db = threads_db
@@ -778,7 +777,7 @@ def incremental_scan(
                     parse_threads_db,
                 )
             )
-            # Enrich title from index if empty
+            # Enrich title，来源于 index，如果 empty
             if not summary.title:
                 idx_entry = index_entries.get(sid)
                 if idx_entry and idx_entry.get("thread_name"):
@@ -788,7 +787,7 @@ def incremental_scan(
             if normalized and summary.title and not (normalized.get("session") or {}).get("title"):
                 normalized["session"]["title"] = summary.title[:160]
 
-            # Record file info
+            # 记录 file info
             file_mtime = 0.0
             file_path_str = ""
             fpath = session_file
@@ -810,20 +809,20 @@ def incremental_scan(
 
         conn.commit()
 
-    # -- Scan Qoder --------------------------------------------------------
+    # -- 扫描 Qoder --------------------------------------------------------
     if scan_qoder:
         discovered = qoder_source._discover_sessions()
         cache_discovered = qoder_source._discover_cache_sessions()
-        # Canonicalize short IDs to full UUIDs before processing
+        # cache 目录可能只有短 ID，先映射到 canonical UUID 再和 projects/ 结果去重。
         canonical_map = qoder_source._build_canonical_id_map()
-        # Collect all projects/ session IDs to detect full overlap
+        # projects/ 中已有完整 session 时，跳过同一 UUID 对应的 cache 副本。
         projects_ids = {sid.lower() for _pk, sid, _fp in discovered}
         all_discovered = []
         for project_key, sid, fpath in discovered:
             all_discovered.append((project_key, sid, fpath))
         for project_key, sid, fpath in cache_discovered:
             canonical_id = canonical_map.get(sid.lower(), sid)
-            # Skip cache sessions that resolve to a projects/ session
+            # 跳过 cache sessions that resolve to 一个 projects/ session
             if canonical_id != sid.lower() and canonical_id in projects_ids:
                 continue
             all_discovered.append((project_key, canonical_id, fpath))
@@ -851,7 +850,7 @@ def incremental_scan(
                             skipped_count += 1
                             continue
                     else:
-                        # Stored path no longer valid -- relocate
+                        # 记录路径失效时重新定位，防止 cache/projects 迁移后索引卡在旧路径。
                         fpath = _locate_qoder_session_file(project_key, sid)
                         if fpath and fpath.exists() and str(fpath) != stored_path:
                             path_relocated = True
@@ -861,7 +860,7 @@ def incremental_scan(
 
                 if fpath and fpath.exists():
                     current_mtime = os.path.getmtime(fpath)
-                    # Skip unchanged files unless the stored path was relocated.
+                    # 路径迁移即使 mtime 未变也要刷新 DB 中的 file_path。
                     if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
@@ -871,7 +870,7 @@ def incremental_scan(
             else:
                 new_count += 1
 
-            # Cache sessions use a simpler format without timing data
+            # Qoder cache session 格式较简化，缺少完整 timing 数据。
             is_cache = str(fpath).startswith(str(QODER_DATA_DIR / "cache"))
             file_mtime = 0.0
             file_path_str = ""
@@ -909,11 +908,11 @@ def incremental_scan(
 
         conn.commit()
 
-    # -- Normalize Qoder cache project keys (same as full_scan) -----------
+    # 说明：-- Normalize Qoder cache project keys (same as full_scan) -----------
     if scan_qoder:
         _normalize_qoder_cache_projects(conn)
 
-    # Update log
+    # 说明：Update log
     conn.execute(
         "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, qoder_count=?, status='done' WHERE id=?",
         (time.time(), claude_count, codex_count, qoder_count, log_id),

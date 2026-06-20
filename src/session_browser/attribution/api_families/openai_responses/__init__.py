@@ -1,1 +1,1 @@
-# OpenAI Responses API family.
+# 说明：OpenAI Responses API family.

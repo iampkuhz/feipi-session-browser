@@ -1,4 +1,4 @@
-"""SQLite indexer for session-browser.
+"""SQLite indexer，用于 session-browser.
 
 Manages a local SQLite index of all sessions from both Claude Code and Codex.
 Supports:
@@ -16,7 +16,7 @@ This module exposes the public index API. Implementation lives in:
 
 from __future__ import annotations
 
-# --- Schema & connection ------------------------------------------------------
+# 说明：--- Schema & connection ------------------------------------------------------
 from session_browser.index.schema import (
     _get_connection,
     init_schema,
@@ -26,13 +26,13 @@ from session_browser.index.schema import (
     TIER_WARM_INTERVAL,
 )
 
-# --- Writers ------------------------------------------------------------------
+# 说明：--- Writers ------------------------------------------------------------------
 from session_browser.index.writers import (
     upsert_session,
     _row_to_summary,
 )
 
-# --- Scanners -----------------------------------------------------------------
+# 说明：--- Scanners -----------------------------------------------------------------
 from session_browser.index.scanners import (
     full_scan,
     incremental_scan,
@@ -42,7 +42,7 @@ from session_browser.index.scanners import (
     _normalize_qoder_cache_projects,
 )
 
-# --- Queries ------------------------------------------------------------------
+# 说明：--- Queries ------------------------------------------------------------------
 from session_browser.index.queries import (
     get_session,
     list_sessions,

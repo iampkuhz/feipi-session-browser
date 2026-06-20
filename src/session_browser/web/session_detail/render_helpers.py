@@ -1,4 +1,4 @@
-"""Session detail rendering helpers.
+"""说明：Session detail rendering helpers.
 
 Extracted from routes.py: content block rendering, HTML escaping, and
 local-time formatting. These are pure functions used by the view model
@@ -18,7 +18,7 @@ from session_browser.web.renderers.markdown import render_markdown as _md_filter
 
 
 def _html_escape(text: str) -> str:
-    """Escape HTML special characters."""
+    """转义 HTML special characters."""
     text = str(text or "")
     return (
         text.replace("&", "&amp;")
@@ -29,7 +29,7 @@ def _html_escape(text: str) -> str:
 
 
 def _to_local_time_hms(iso_str: str) -> str:
-    """Convert UTC ISO8601 timestamp to local-time HH:MM:SS only."""
+    """转换 UTC ISO8601 timestamp to local-time HH:MM:SS only."""
     if not iso_str:
         return ""
     from datetime import datetime
@@ -42,7 +42,7 @@ def _to_local_time_hms(iso_str: str) -> str:
 
 
 def _build_tool_command_summary(tool_name: str, params: dict) -> str:
-    """Build a short command/summary string for a tool call.
+    """构建 一个 short command/summary string，用于 一个 tool call.
 
     For Read/Write/Edit tools: show file path.
     For Bash: show first 120 chars of the command.
@@ -59,11 +59,11 @@ def _build_tool_command_summary(tool_name: str, params: dict) -> str:
     if params is None:
         params = {}
 
-    # ── File tools: show file_path ──────────────────────────────
+    # 说明：── File tools: show file_path ──────────────────────────────
     if name in ("Read", "Write", "Edit"):
         return str(params.get("file_path", "") or params.get("path", ""))
 
-    # ── Bash: first 120 chars of command ────────────────────────
+    # 说明：── Bash: first 120 chars of command ────────────────────────
     if name == "Bash":
         cmd = params.get("command", "")
         if cmd:
@@ -71,7 +71,7 @@ def _build_tool_command_summary(tool_name: str, params: dict) -> str:
             return cmd[:120] + ("..." if len(cmd) > 120 else "")
         return name
 
-    # ── Grep: pattern + path/glob ───────────────────────────────
+    # 说明：── Grep: pattern + path/glob ───────────────────────────────
     if name == "Grep":
         parts = []
         pattern = params.get("pattern", "")
@@ -87,21 +87,21 @@ def _build_tool_command_summary(tool_name: str, params: dict) -> str:
             parts.append(f"--glob {glob_p}")
         return " ".join(parts) if parts else name
 
-    # ── Glob: show pattern ──────────────────────────────────────
+    # 说明：── Glob: show pattern ──────────────────────────────────────
     if name == "Glob":
         pattern = params.get("pattern", "")
         if pattern:
             return str(pattern)
         return name
 
-    # ── LS: show path ───────────────────────────────────────────
+    # 说明：── LS: show path ───────────────────────────────────────────
     if name == "LS":
         path = params.get("path", "")
         if path:
             return str(path)
         return name
 
-    # ── MCP: show server/tool + key args ────────────────────────
+    # 说明：── MCP: show server/tool + key args ────────────────────────
     if name == "MCP" or name.lower().startswith("mcp"):
         parts = []
         server = params.get("server", "")
@@ -110,7 +110,7 @@ def _build_tool_command_summary(tool_name: str, params: dict) -> str:
             parts.append(str(server))
         if tool:
             parts.append(str(tool))
-        # Add a few key args
+        # Add 一个 few key args
         for key in ("query", "input", "text", "url", "path"):
             val = params.get(key, "")
             if val:
@@ -119,15 +119,15 @@ def _build_tool_command_summary(tool_name: str, params: dict) -> str:
                 break
         return "/".join(parts) if parts else name
 
-    # ── Agent: show agent_type ──────────────────────────────────
+    # 说明：── Agent: show agent_type ──────────────────────────────────
     if name == "Agent":
         agent_type = params.get("agent_type", "")
         if agent_type:
             return str(agent_type)
         return name
 
-    # ── Unknown: compact JSON key subset ────────────────────────
-    # Show up to 3 key=value pairs (values truncated to 40 chars)
+    # 说明：── Unknown: compact JSON key subset ────────────────────────
+    # 说明：Show up to 3 key=value pairs (values truncated to 40 chars)
     if params:
         parts = []
         for key in list(params.keys())[:3]:
@@ -214,7 +214,7 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                     grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(_shorten_path(str(params["file_path"])))}</div>')
                 if params.get("command"):
                     grid_rows.append(f'<div class="key">command</div><div>{_html_escape(_shorten_path(str(params["command"]))[:200])}</div>')
-                # Unified command summary for all tool types
+                # Unified command summary，用于 所有 tool types
                 cmd_summary = _build_tool_command_summary(tool_name, params)
                 if cmd_summary and cmd_summary != tool_name:
                     grid_rows.append(f'<div class="key">summary</div><div>{_html_escape(_shorten_path(str(cmd_summary))[:200])}</div>')
@@ -238,7 +238,7 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                     f'</article>'
                 )
     else:
-        # Legacy fallback: text then tool_uses (no interleaving)
+        # 说明：Legacy fallback: text then tool_uses (no interleaving)
         if response_text and response_text.strip():
             block_index += 1
             char_count = len(response_text.encode("utf-8"))
@@ -269,7 +269,7 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
                     grid_rows.append(f'<div class="key">file_path</div><div>{_html_escape(_shorten_path(str(params["file_path"])))}</div>')
                 if params.get("command"):
                     grid_rows.append(f'<div class="key">command</div><div>{_html_escape(_shorten_path(str(params["command"]))[:200])}</div>')
-                # Unified command summary for all tool types
+                # Unified command summary，用于 所有 tool types
                 cmd_summary = _build_tool_command_summary(tool_name, params)
                 if cmd_summary and cmd_summary != tool_name:
                     grid_rows.append(f'<div class="key">summary</div><div>{_html_escape(_shorten_path(str(cmd_summary))[:200])}</div>')
@@ -300,7 +300,7 @@ def _render_response_content_blocks(content_blocks: list[dict] = None,
 
 
 def _render_context_content_blocks(content_blocks: list[dict], max_blocks: int = 30) -> str:
-    """Render context (request) content as structured block cards.
+    """说明：Render context (request) content as structured block cards.
 
     Takes blocks from normalize_llm_content() which parses request_full text
     into typed blocks: tool_result, file_code, file_markdown, plain_text, unknown.
@@ -323,8 +323,8 @@ def _render_context_content_blocks(content_blocks: list[dict], max_blocks: int =
 
         block_index += 1
 
-        # normalize_llm_content returns plain_text/file_* kinds;
-        # tool results are identified by title prefix "Tool Result:"
+        # 说明：normalize_llm_content returns plain_text/file_* kinds;
+        # 说明：tool results are identified by title prefix "Tool Result:"
         is_tool_result = title.startswith("Tool Result:")
         is_file = kind in ("file_code", "file_markdown")
 
@@ -363,7 +363,7 @@ def _render_context_content_blocks(content_blocks: list[dict], max_blocks: int =
             )
 
         else:
-            # plain_text or unknown
+            # plain_text 或 unknown
             char_count = len(content.encode("utf-8"))
             preview = content[:500]
             block_title = title if title else (subtitle if subtitle else "text")

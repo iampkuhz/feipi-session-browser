@@ -1,4 +1,4 @@
-"""Codex request attribution bucket-to-taxonomy mapping."""
+"""说明：Codex request attribution bucket-to-taxonomy mapping."""
 
 from __future__ import annotations
 

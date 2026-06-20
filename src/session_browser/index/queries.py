@@ -8,7 +8,7 @@ from session_browser.domain.models import SessionSummary, ProjectStats
 from session_browser.index.writers import _row_to_summary
 
 
-# --- Single session queries ---------------------------------------------------
+# 说明：--- Single session queries ---------------------------------------------------
 
 
 def get_session(conn: sqlite3.Connection, session_key: str) -> SessionSummary | None:
@@ -21,7 +21,7 @@ def get_session(conn: sqlite3.Connection, session_key: str) -> SessionSummary | 
     return _row_to_summary(row)
 
 
-# --- Session list queries -----------------------------------------------------
+# 说明：--- Session list queries -----------------------------------------------------
 
 
 def list_sessions(
@@ -50,8 +50,8 @@ def list_sessions(
         clauses.append("model = ?")
         params.append(model)
     if title_like:
-        # NOTE: title_like now searches both title and session_id,
-        # case-insensitively.
+        # NOTE: title_like now searches both title 和 session_id,
+        # 说明：case-insensitively.
         clauses.append(
             "(LOWER(title) LIKE LOWER(?) OR LOWER(session_id) LIKE LOWER(?))"
         )
@@ -95,7 +95,7 @@ def count_sessions(
     title_like: str | None = None,
     failure_status: str | None = None,
 ) -> int:
-    """Count sessions with optional filtering."""
+    """统计 sessions，使用 optional filtering."""
     clauses = []
     params: list = []
     if agent:
@@ -108,8 +108,8 @@ def count_sessions(
         clauses.append("model = ?")
         params.append(model)
     if title_like:
-        # NOTE: title_like now searches both title and session_id,
-        # case-insensitively.
+        # NOTE: title_like now searches both title 和 session_id,
+        # 说明：case-insensitively.
         clauses.append(
             "(LOWER(title) LIKE LOWER(?) OR LOWER(session_id) LIKE LOWER(?))"
         )
@@ -133,7 +133,7 @@ def get_sessions_list_aggregate(
     title_like: str | None = None,
     failure_status: str | None = None,
 ) -> dict:
-    """Get aggregate stats for filtered sessions list."""
+    """Get aggregate stats，用于 filtered sessions list."""
     clauses = []
     params: list = []
     if agent:
@@ -146,8 +146,8 @@ def get_sessions_list_aggregate(
         clauses.append("model = ?")
         params.append(model)
     if title_like:
-        # NOTE: title_like now searches both title and session_id,
-        # case-insensitively.
+        # NOTE: title_like now searches both title 和 session_id,
+        # 说明：case-insensitively.
         clauses.append(
             "(LOWER(title) LIKE LOWER(?) OR LOWER(session_id) LIKE LOWER(?))"
         )
@@ -173,11 +173,11 @@ def get_sessions_list_aggregate(
     }
 
 
-# --- Project queries ----------------------------------------------------------
+# 说明：--- Project queries ----------------------------------------------------------
 
 
 def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStats:
-    """Get aggregated statistics for a project."""
+    """Get aggregated statistics，用于 一个 project."""
     row = conn.execute(
         """
         SELECT
@@ -228,7 +228,7 @@ def get_project_stats(conn: sqlite3.Connection, project_key: str) -> ProjectStat
 
 
 def count_projects(conn: sqlite3.Connection, title_like: str | None = None) -> int:
-    """Count total number of distinct projects."""
+    """统计 total number of distinct projects."""
     clauses = []
     params: list = []
     if title_like:
@@ -251,7 +251,7 @@ def list_projects(
     order_by: str = "last_active",
     order_dir: str = "desc",
 ) -> list[ProjectStats]:
-    """List projects sorted by most recent activity with pagination."""
+    """List projects sorted by most recent activity，使用 pagination."""
     clauses = []
     params: list = []
     if title_like:
@@ -321,9 +321,9 @@ def list_projects(
     ]
 
 
-# --- Dashboard queries --------------------------------------------------------
+# 说明：--- Dashboard queries --------------------------------------------------------
 
-# Agent scope mapping: URL value -> DB agent value
+# 说明：Agent scope mapping: URL value -> DB agent value
 _AGENT_SCOPE_MAP = {
     "claude-code": "claude_code",
     "qoder": "qoder",
@@ -332,7 +332,7 @@ _AGENT_SCOPE_MAP = {
 
 
 def _agent_clause(agent_scope: str | None) -> tuple[str, list]:
-    """Return SQL WHERE clause and params for agent scope filtering."""
+    """返回 SQL WHERE clause 和 params，用于 agent scope filtering."""
     if not agent_scope or agent_scope == "all":
         return "", []
     db_agent = _AGENT_SCOPE_MAP.get(agent_scope)
@@ -342,7 +342,7 @@ def _agent_clause(agent_scope: str | None) -> tuple[str, list]:
 
 
 def get_dashboard_stats(conn: sqlite3.Connection, agent_scope: str | None = None) -> dict:
-    """Get dashboard-level aggregated stats, optionally scoped to a single agent."""
+    """Get dashboard-level aggregated stats, optionally scoped to 一个 single agent."""
     where, params = _agent_clause(agent_scope)
     row = conn.execute(
         f"""
@@ -389,15 +389,15 @@ def get_trend_data(
     days: int = 30,
     agent_scope: str | None = None,
 ) -> list[dict]:
-    """Get daily session/trend counts for the last N days.
+    """Get daily session/trend counts，用于 该 last N days.
 
     Returns list of {date, claude_count, codex_count, input_tokens, output_tokens,
                       cache_read, cache_write, tool_calls, failed_tools}.
     """
     where, params = _agent_clause(agent_scope)
-    # Convert WHERE to AND if needed
+    # 转换 WHERE to AND，如果 needed
     where_sql = where.replace("WHERE", "AND") if where else ""
-    # SQL has date('now', ?) before agent = ?, so date param must come first
+    # SQL has date('now', ?)，在之前 agent = ?, so date param must come first
     params.insert(0, f"-{days} days")
     rows = conn.execute(
         f"""
@@ -449,14 +449,14 @@ def get_trend_data(
 
 
 def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30, agent_scope: str | None = None) -> list[dict]:
-    """Get daily user message counts for the last N days, broken down by agent.
+    """Get daily user message counts，用于 该 last N days, broken down by agent.
 
     Returns list of {date, claude_prompts, codex_prompts, qoder_prompts,
                      total_prompts, assistant_turns, tool_calls}.
     """
     where, params = _agent_clause(agent_scope)
     where_sql = where.replace("WHERE", "AND") if where else ""
-    # SQL has date('now', ?) before agent = ?, so date param must come first
+    # SQL has date('now', ?)，在之前 agent = ?, so date param must come first
     params.insert(0, f"-{days} days")
     rows = conn.execute(
         f"""
@@ -491,11 +491,11 @@ def get_prompt_activity_trend(conn: sqlite3.Connection, days: int = 30, agent_sc
     ]
 
 
-# --- Agent queries ------------------------------------------------------------
+# 说明：--- Agent queries ------------------------------------------------------------
 
 
 def list_agents(conn: sqlite3.Connection) -> list[dict]:
-    """List all agents with session counts.
+    """List 所有 agents，使用 session counts.
 
     Returns list of {agent, session_count, last_active, total_tokens,
                      total_fresh_input_tokens, total_cache_read_tokens, total_cache_write_tokens,

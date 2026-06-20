@@ -1,4 +1,4 @@
-"""Codex normalized source unit helpers.
+"""说明：Codex normalized source unit helpers.
 
 Source unit 是 Codex 归因链路的 normalized 边界：这里记录可见来源、
 统一 candidate 和稳定去重键；mapping 层再决定它们如何解释 accounting fields。

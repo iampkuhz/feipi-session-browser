@@ -1,4 +1,4 @@
-"""Configuration for session-browser.
+"""session-browser 配置。
 
 Fixed defaults for all paths. INDEX_DIR, SERVER_HOST, and SERVER_PORT
 can be overridden via environment variables for shell/container handoff.
@@ -14,19 +14,19 @@ def _home() -> Path:
     return Path.home()
 
 
-# ─── Data source paths ──────────────────────────────────────────────────
+# 说明：─── Data source paths ──────────────────────────────────────────────────
 
-# Base directories for agent session data.
-# CLAUDE_DATA_DIR can be overridden via environment variable (used by tests).
+# Base directories，用于 agent session data.
+# 说明：CLAUDE_DATA_DIR can be overridden via environment variable (used by tests).
 CLAUDE_DATA_DIR = Path(os.environ.get("CLAUDE_DATA_DIR", str(_home() / ".claude")))
 CODEX_DATA_DIR = Path(os.environ.get("CODEX_DATA_DIR", str(_home() / ".codex")))
 QODER_DATA_DIR = Path(os.environ.get("QODER_DATA_DIR", str(_home() / ".qoder")))
 
 
-# ─── Index storage ───────────────────────────────────────────────────────
+# 说明：─── Index storage ───────────────────────────────────────────────────────
 
-# SQLite index file location.
-# Local foreground testing intentionally uses a different default from Podman.
+# 说明：SQLite index file location.
+# Local foreground testing intentionally uses 一个 different default，来源于 Podman.
 INDEX_DIR = Path(os.environ.get(
     "INDEX_DIR",
     str(_home() / ".local" / "share" / "feipi" / "session-browser" / "local-test-index"),
@@ -38,13 +38,13 @@ def ensure_index_dir() -> None:
     INDEX_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ─── Server ──────────────────────────────────────────────────────────────
+# 说明：─── Server ──────────────────────────────────────────────────────────────
 
 SERVER_HOST = os.environ.get("SERVER_HOST", "127.0.0.1")
 SERVER_PORT = int(os.environ.get("SERVER_PORT", "18999"))
 
 
-# ─── Logging / release metadata ─────────────────────────────────────────
+# 说明：─── Logging / release metadata ─────────────────────────────────────────
 
 
 def _default_version() -> str:

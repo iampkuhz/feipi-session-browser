@@ -33,7 +33,7 @@ def extract_usage_from_events(events: list[dict], call_id: str) -> dict | None:
             usage = ev.get("usage", ev.get("usage_metadata", None))
             if usage and isinstance(usage, dict):
                 return usage
-            # Qoder nested: message.usage
+            # 说明：Qoder nested: message.usage
             if isinstance(msg, dict):
                 nested_usage = msg.get("usage")
                 if nested_usage and isinstance(nested_usage, dict):

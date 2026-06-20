@@ -1,4 +1,4 @@
-"""Agent-specific attribution mapping classes."""
+"""说明：Agent-specific attribution mapping classes."""
 
 from session_browser.attribution.mapping.agents.codex_token_accounting_mapping import (
     CodexCallMappingResolver,

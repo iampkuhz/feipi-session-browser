@@ -1,4 +1,4 @@
-"""OpenAI Responses API usage parser.
+"""说明：OpenAI Responses API usage parser.
 
 OpenAI Responses usage 语义：
   provider_request_input = input_tokens

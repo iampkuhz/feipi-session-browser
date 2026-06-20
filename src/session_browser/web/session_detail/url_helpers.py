@@ -1,4 +1,4 @@
-"""URL builder helpers for /sessions query state.
+"""URL builder helpers，用于 /sessions query state.
 
 Extracted from routes.py. Preserves query params across filter/sort/page
 changes to build consistent pagination and filter URLs.
@@ -20,7 +20,7 @@ def build_sessions_url(
     updates: dict[str, str | None] | None = None,
     reset_page: bool = False,
 ) -> str:
-    """Build a /sessions URL preserving query state.
+    """构建 一个 /sessions URL preserving query state.
 
     Args:
         current: Existing query params (e.g. from template context).
@@ -32,7 +32,7 @@ def build_sessions_url(
 
     merged = dict(current)
 
-    # Apply updates (None means delete)
+    # 说明：Apply updates (None means delete)
     for key, value in updates.items():
         if value is None:
             merged.pop(key, None)
@@ -42,15 +42,15 @@ def build_sessions_url(
     if reset_page:
         merged.pop("page", None)
 
-    # Filter out empty values
+    # 说明：Filter out empty values
     params = [(k, v) for k, v in merged.items() if v and v.strip()]
 
-    # Stable ordering
+    # 说明：Stable ordering
     ordered = []
     for key in _SESSIONS_URL_PARAM_ORDER:
         if key in {k for k, _ in params}:
             ordered.append((key, merged[key]))
-    # Append any keys not in the standard order
+    # Append any keys not in 该 standard order
     seen = {k for k, _ in ordered}
     for k, v in params:
         if k not in seen:
@@ -69,7 +69,7 @@ def _build_view_actions(
     has_prev: bool,
     has_next: bool,
 ) -> dict:
-    """Build action URLs for template rendering."""
+    """构建 action URLs，用于 template rendering."""
     current = {k: v for k, v in filters.items() if v}
     if sort_key:
         current["sort"] = sort_key
@@ -80,7 +80,7 @@ def _build_view_actions(
     if page_size and page_size != 25:
         current["page_size"] = str(page_size)
 
-    # Sort URLs: toggle dir on active column, set new column otherwise
+    # 说明：Sort URLs: toggle dir on active column, set new column otherwise
     sort_keys = [
         "tokens", "rounds", "tools", "subagents", "duration",
         "process-time", "failure", "created", "updated",
@@ -94,7 +94,7 @@ def _build_view_actions(
             reset_page=True,
         )
 
-    # Pagination URLs
+    # 说明：Pagination URLs
     prev_url = ""
     next_url = ""
     if has_prev:
@@ -108,7 +108,7 @@ def _build_view_actions(
             updates={"page": str(page + 1)},
         )
 
-    # Page size URLs
+    # 说明：Page size URLs
     page_size_urls = {}
     for ps in ("25", "50", "100"):
         page_size_urls[ps] = build_sessions_url(
@@ -117,7 +117,7 @@ def _build_view_actions(
             reset_page=True,
         )
 
-    # Filter chip removal URLs
+    # 说明：Filter chip removal URLs
     remove_urls = {}
     for fk in ("q", "agent", "model", "project", "status"):
         if filters.get(fk):
@@ -127,13 +127,13 @@ def _build_view_actions(
                 reset_page=True,
             )
 
-    # Clear All: remove all filters, keep sort
+    # Clear All: remove 所有 filters, keep sort
     clear_all_url = build_sessions_url(
         current={},
         updates={"sort": sort_key} if sort_key else None,
     )
 
-    # Clear Session ID only
+    # 说明：Clear Session ID only
     clear_session_id_url = build_sessions_url(
         current=current,
         updates={"q": None},
