@@ -120,10 +120,14 @@ class TestPayloadApi404:
         url = f"{base_url}/api/sessions/{agent}/nonexistent-session-xyz/payload/some-id"
         try:
             resp = urllib.request.urlopen(url, timeout=10)
-            data = json.loads(resp.read().decode("utf-8"))
-            assert "error" in data, "Expected error in response"
+            with resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                assert "error" in data, "Expected error in response"
         except urllib.error.HTTPError as e:
-            assert e.code == 404, f"Expected 404, got {e.code}"
+            try:
+                assert e.code == 404, f"Expected 404, got {e.code}"
+            finally:
+                e.close()
 
     @pytest.mark.contract_case("ROUTE-API-002")
     @pytest.mark.contract_case("UI-SD-026")
@@ -133,10 +137,14 @@ class TestPayloadApi404:
         url = f"{base_url}/api/sessions/{agent}/{session_id}/payload/nonexistent-payload-xyz"
         try:
             resp = urllib.request.urlopen(url, timeout=10)
-            data = json.loads(resp.read().decode("utf-8"))
-            assert "error" in data, "Expected error in response"
+            with resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                assert "error" in data, "Expected error in response"
         except urllib.error.HTTPError as e:
-            assert e.code == 404, f"Expected 404, got {e.code}"
+            try:
+                assert e.code == 404, f"Expected 404, got {e.code}"
+            finally:
+                e.close()
 
     @pytest.mark.contract_case("ROUTE-API-002")
     def test_invalid_agent_returns_404(self, api_payload_ids):
@@ -145,7 +153,11 @@ class TestPayloadApi404:
         url = f"{base_url}/api/sessions/nonexistent-agent/{session_id}/payload/some-id"
         try:
             resp = urllib.request.urlopen(url, timeout=10)
-            data = json.loads(resp.read().decode("utf-8"))
-            assert "error" in data, "Expected error in response"
+            with resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                assert "error" in data, "Expected error in response"
         except urllib.error.HTTPError as e:
-            assert e.code == 404, f"Expected 404, got {e.code}"
+            try:
+                assert e.code == 404, f"Expected 404, got {e.code}"
+            finally:
+                e.close()

@@ -7,6 +7,7 @@ both title and session_id as substrings (S-13: session id 搜索支持
 
 import pytest
 import sqlite3
+from contextlib import closing
 
 from session_browser.domain.models import SessionSummary
 from session_browser.index.indexer import (
@@ -52,48 +53,48 @@ class TestTitleCaseInsensitive:
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_lowercase_query_matches_mixed_case_title(self):
-        conn = _make_conn()
-        _insert(conn, session_id="sess-001", title="MyProject Alpha Build")
+        with closing(_make_conn()) as conn:
+            _insert(conn, session_id="sess-001", title="MyProject Alpha Build")
 
-        results = list_sessions(conn, title_like="myproject")
+            results = list_sessions(conn, title_like="myproject")
         assert len(results) == 1
         assert results[0].title == "MyProject Alpha Build"
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_uppercase_query_matches_mixed_case_title(self):
-        conn = _make_conn()
-        _insert(conn, session_id="sess-002", title="debug session for beta")
+        with closing(_make_conn()) as conn:
+            _insert(conn, session_id="sess-002", title="debug session for beta")
 
-        results = list_sessions(conn, title_like="DEBUG")
+            results = list_sessions(conn, title_like="DEBUG")
         assert len(results) == 1
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_partial_case_insensitive_substring(self):
-        conn = _make_conn()
-        _insert(conn, session_id="sess-003", title="Feipi Session Browser")
+        with closing(_make_conn()) as conn:
+            _insert(conn, session_id="sess-003", title="Feipi Session Browser")
 
-        # 混合大小写查询
-        results = list_sessions(conn, title_like="sSiOn")
+            # 混合大小写查询
+            results = list_sessions(conn, title_like="sSiOn")
         assert len(results) == 1
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_no_match_for_unrelated_query(self):
-        conn = _make_conn()
-        _insert(conn, session_id="sess-004", title="Some Random Title")
+        with closing(_make_conn()) as conn:
+            _insert(conn, session_id="sess-004", title="Some Random Title")
 
-        results = list_sessions(conn, title_like="foobar")
+            results = list_sessions(conn, title_like="foobar")
         assert len(results) == 0
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_count_sessions_case_insensitive(self):
-        conn = _make_conn()
-        _insert(conn, session_id="sess-c1", title="Alpha Session")
-        _insert(conn, session_id="sess-c2", title="Beta Session")
-        _insert(conn, session_id="sess-c3", title="alpha session two")
+        with closing(_make_conn()) as conn:
+            _insert(conn, session_id="sess-c1", title="Alpha Session")
+            _insert(conn, session_id="sess-c2", title="Beta Session")
+            _insert(conn, session_id="sess-c3", title="alpha session two")
 
-        assert count_sessions(conn, title_like="alpha") == 2
-        assert count_sessions(conn, title_like="ALPHA") == 2
-        assert count_sessions(conn, title_like="beta") == 1
+            assert count_sessions(conn, title_like="alpha") == 2
+            assert count_sessions(conn, title_like="ALPHA") == 2
+            assert count_sessions(conn, title_like="beta") == 1
 
 
 # ─── Session ID substring search (S-13) ─────────────────────────────────────
@@ -110,6 +111,9 @@ class TestSessionIdCaseInsensitiveSubstring:
             session_id=self.MIXED_CASE_SID,
             title="Unrelated Title ZZZ",
         )
+
+    def teardown_method(self):
+        self.conn.close()
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_lowercase_session_id_matches(self):
@@ -159,6 +163,9 @@ class TestDualMatchTitleOrSessionId:
         self.conn = _make_conn()
         _insert(self.conn, session_id="SID-AAAA-1111", title="Frontend Refactor Q2")
         _insert(self.conn, session_id="SID-BBBB-2222", title="Backend API Gateway")
+
+    def teardown_method(self):
+        self.conn.close()
 
     @pytest.mark.contract_case("DATA-INDEX-012")
     def test_match_by_title_only(self):

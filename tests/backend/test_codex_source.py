@@ -534,6 +534,64 @@ def test_read_threads_db_empty_when_missing():
             codex.CODEX_DATA_DIR = original
 
 
+@pytest.mark.contract_case("DATA-SOURCE-006")
+def test_codex_subagent_thread_info_detection():
+    """Codex thread metadata with stable parent evidence is a subagent thread."""
+    from session_browser.sources.codex_session_source import is_codex_subagent_thread_info
+
+    assert is_codex_subagent_thread_info({"thread_source": "subagent"})
+    assert is_codex_subagent_thread_info({
+        "source": json.dumps({
+            "subagent": {
+                "thread_spawn": {
+                    "parent_thread_id": "parent-thread",
+                    "agent_role": "implementer",
+                }
+            }
+        })
+    })
+    assert not is_codex_subagent_thread_info({
+        "thread_source": "user",
+        "source": "vscode",
+        "agent_role": "implementer",
+    })
+
+
+@pytest.mark.contract_case("DATA-SOURCE-006")
+def test_codex_subagent_session_meta_peek(tmp_path):
+    """Fallback rollout detection reads session_meta only, not the whole rollout."""
+    from session_browser.sources.codex_session_source import (
+        is_codex_subagent_session_file,
+        is_codex_subagent_session_meta,
+        peek_codex_session_meta,
+    )
+
+    rollout = tmp_path / "rollout-2026-06-19T00-00-00-child-thread.jsonl"
+    meta = {
+        "id": "child-thread",
+        "thread_source": "subagent",
+        "parent_thread_id": "parent-thread",
+        "source": {
+            "subagent": {
+                "thread_spawn": {
+                    "parent_thread_id": "parent-thread",
+                    "agent_role": "implementer",
+                }
+            }
+        },
+    }
+    rollout.write_text(
+        json.dumps({"type": "not_session_meta", "payload": {}}, ensure_ascii=False) + "\n"
+        + json.dumps({"type": "session_meta", "payload": meta}, ensure_ascii=False) + "\n"
+        + "{bad json}\n",
+        encoding="utf-8",
+    )
+
+    assert peek_codex_session_meta(rollout) == meta
+    assert is_codex_subagent_session_meta(meta)
+    assert is_codex_subagent_session_file(rollout)
+
+
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_session_file_search():
     """测试 _find_session_file 遍历层级目录。"""

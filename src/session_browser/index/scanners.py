@@ -23,6 +23,18 @@ def _commit_periodically(conn, count: int) -> None:
         conn.commit()
 
 
+def _delete_indexed_sessions(conn, agent: str, session_ids: set[str] | list[str]) -> int:
+    """Delete stale indexed rows for session IDs that are no longer top-level."""
+    deleted = 0
+    for sid in session_ids:
+        session_key = f"{agent}:{sid}"
+        conn.execute("DELETE FROM session_artifacts WHERE session_key = ?", (session_key,))
+        cur = conn.execute("DELETE FROM sessions WHERE session_key = ?", (session_key,))
+        if cur.rowcount and cur.rowcount > 0:
+            deleted += cur.rowcount
+    return deleted
+
+
 # 说明：--- File location helpers ---------------------------------------------------
 
 
@@ -362,13 +374,22 @@ def full_scan(
             print("Scanning Codex...")
         threads_db = codex_source.read_threads_db()
         index_entries = {e["id"]: e for e in codex_source.parse_session_index()}
-        codex_ids = list(threads_db.keys())
+        subagent_ids = {
+            sid for sid, info in threads_db.items()
+            if codex_source.is_codex_subagent_thread_info(info)
+        }
+        codex_ids = [sid for sid in threads_db.keys() if sid not in subagent_ids]
         codex_ids.extend(sid for sid in index_entries if sid not in threads_db)
         for sid in codex_ids:
             if sid in threads_db:
                 parse_threads_db = threads_db
                 thread_info = threads_db.get(sid, {})
             else:
+                fallback_file = _locate_codex_session_file(sid, "")
+                if codex_source.is_codex_subagent_session_file(fallback_file):
+                    if verbose:
+                        print(f"  Skipping Codex subagent thread {sid}")
+                    continue
                 idx_entry = index_entries.get(sid, {})
                 thread_info = {
                     "id": sid,
@@ -597,6 +618,7 @@ def incremental_scan(
     qoder_count = 0
     new_count = 0
     skipped_count = 0
+    pruned_subagent_count = 0
 
     scan_claude = agent is None or agent == "claude_code"
     scan_codex = agent is None or agent == "codex"
@@ -701,15 +723,32 @@ def incremental_scan(
         # threads DB 不完整时，用 session_index.jsonl 作为发现兜底。
         index_entries = {e["id"]: e for e in codex_source.parse_session_index()}
 
-        all_ids = list(threads_db.keys())
+        subagent_ids = {
+            sid for sid, info in threads_db.items()
+            if codex_source.is_codex_subagent_thread_info(info)
+        }
+        pruned = _delete_indexed_sessions(conn, "codex", subagent_ids)
+        if pruned:
+            pruned_subagent_count += pruned
+            conn.commit()
+
+        all_ids = [sid for sid in threads_db.keys() if sid not in subagent_ids]
         all_ids.extend(sid for sid in index_entries if sid not in threads_db)
         if verbose:
             print(f"Incremental scan: {len(all_ids)} Codex sessions...")
 
         for sid in all_ids:
             skey = f"codex:{sid}"
-
             info = existing.get(skey)
+
+            if sid not in threads_db:
+                stored_path = (info or {}).get("file_path", "")
+                fallback_file = Path(stored_path) if stored_path and Path(stored_path).exists() else _locate_codex_session_file(sid, "")
+                if codex_source.is_codex_subagent_session_file(fallback_file):
+                    pruned_subagent_count += _delete_indexed_sessions(conn, "codex", [sid])
+                    skipped_count += 1
+                    continue
+
             if info:
                 ended_at = info["ended_at"] or ""
                 if cutoff_iso and ended_at < cutoff_iso:
@@ -926,4 +965,5 @@ def incremental_scan(
         "total": claude_count + codex_count + qoder_count,
         "new_count": new_count,
         "skipped": skipped_count,
+        "pruned_subagents": pruned_subagent_count,
     }

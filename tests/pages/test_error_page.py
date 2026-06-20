@@ -37,9 +37,13 @@ def error_404_response(hifi_fixture_session):
     url = f"{base_url}/__nonexistent_test_path_xyz__"
     try:
         resp = urllib.request.urlopen(url, timeout=10)
-        return resp.status, resp.read().decode("utf-8")
+        with resp:
+            return resp.status, resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read().decode("utf-8")
+        try:
+            return exc.code, exc.read().decode("utf-8")
+        finally:
+            exc.close()
 
 
 # ── 错误模板渲染辅助函数 ──────────────────────────────────────────────

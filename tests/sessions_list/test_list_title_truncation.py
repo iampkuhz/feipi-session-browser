@@ -163,6 +163,7 @@ def tmp_db(tmp_path):
     for s in sessions:
         upsert_session(conn, s)
     conn.commit()
+    conn.close()
     return db_path
 
 

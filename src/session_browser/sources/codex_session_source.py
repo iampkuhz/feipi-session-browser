@@ -122,35 +122,130 @@ def read_threads_db() -> dict[str, dict]:
     conn = sqlite3.connect(str(db_path), timeout=5)
     conn.row_factory = sqlite3.Row
     try:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(threads)")}
+        select_columns = [
+            "id",
+            "title",
+            "cwd",
+            "model",
+            "tokens_used",
+            "created_at",
+            "updated_at",
+            "git_branch",
+            "source",
+            "model_provider",
+            "cli_version",
+            "rollout_path",
+            "first_user_message",
+            "thread_source",
+            "agent_role",
+            "agent_nickname",
+            "agent_path",
+        ]
+        present_columns = [name for name in select_columns if name in columns]
         cursor = conn.execute(
-            "SELECT id, title, cwd, model, tokens_used, created_at, updated_at, "
-            "git_branch, source, model_provider, cli_version, rollout_path, "
-            "first_user_message "
-            "FROM threads"
+            f"SELECT {', '.join(present_columns)} FROM threads"
         )
         result = {}
         for row in cursor:
             tid = row["id"]
+            def value(name: str, default=None):
+                return row[name] if name in columns else default
+
             result[tid] = {
                 "id": tid,
-                "title": row["title"],
-                "cwd": row["cwd"],
-                "model": row["model"] or "",
-                "tokens_used": row["tokens_used"] or 0,
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
-                "git_branch": row["git_branch"] or "",
-                "source": row["source"] or "",
-                "model_provider": row["model_provider"] or "",
-                "cli_version": row["cli_version"] or "",
-                "rollout_path": row["rollout_path"] or "",
-                "first_user_message": row["first_user_message"] or "",
+                "title": value("title", "") or "",
+                "cwd": value("cwd", "") or "",
+                "model": value("model", "") or "",
+                "tokens_used": value("tokens_used", 0) or 0,
+                "created_at": value("created_at", 0) or 0,
+                "updated_at": value("updated_at", 0) or 0,
+                "git_branch": value("git_branch", "") or "",
+                "source": value("source", "") or "",
+                "model_provider": value("model_provider", "") or "",
+                "cli_version": value("cli_version", "") or "",
+                "rollout_path": value("rollout_path", "") or "",
+                "first_user_message": value("first_user_message", "") or "",
+                "thread_source": value("thread_source", "") or "",
+                "agent_role": value("agent_role", "") or "",
+                "agent_nickname": value("agent_nickname", "") or "",
+                "agent_path": value("agent_path", "") or "",
             }
         return result
     except sqlite3.OperationalError:
         return {}
     finally:
         conn.close()
+
+
+def _source_subagent_spawn(source: object) -> dict:
+    """Return Codex subagent spawn metadata embedded in a source payload."""
+    data = source if isinstance(source, dict) else _json_dict(source)
+    subagent = data.get("subagent") if isinstance(data.get("subagent"), dict) else {}
+    spawn = subagent.get("thread_spawn") if isinstance(subagent.get("thread_spawn"), dict) else {}
+    return spawn if isinstance(spawn, dict) else {}
+
+
+def is_codex_subagent_thread_info(thread_info: dict | None) -> bool:
+    """Whether a Codex threads row represents a spawned subagent thread.
+
+    The predicate intentionally requires stable subagent evidence.  Agent role
+    metadata alone is not enough because future top-level threads may carry a
+    role-like label without being children of another thread.
+    """
+    if not isinstance(thread_info, dict):
+        return False
+    if str(thread_info.get("thread_source") or "").strip().lower() == "subagent":
+        return True
+    if str(thread_info.get("parent_thread_id") or "").strip():
+        return True
+    spawn = _source_subagent_spawn(thread_info.get("source"))
+    return bool(str(spawn.get("parent_thread_id") or "").strip())
+
+
+def is_codex_subagent_session_meta(meta: dict | None) -> bool:
+    """Whether a rollout session_meta payload identifies a subagent child."""
+    if not isinstance(meta, dict):
+        return False
+    if str(meta.get("thread_source") or "").strip().lower() == "subagent":
+        return True
+    if str(meta.get("parent_thread_id") or "").strip():
+        return True
+    spawn = _source_subagent_spawn(meta.get("source"))
+    return bool(str(spawn.get("parent_thread_id") or "").strip())
+
+
+def peek_codex_session_meta(session_file: str | Path) -> dict:
+    """Read only the first session_meta payload from a Codex rollout file."""
+    path = Path(session_file)
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(event, dict)
+                    and event.get("type") == "session_meta"
+                    and isinstance(event.get("payload"), dict)
+                ):
+                    return event["payload"]
+    except OSError:
+        return {}
+    return {}
+
+
+def is_codex_subagent_session_file(session_file: str | Path | None) -> bool:
+    """Cheaply identify fallback rollout files that are subagent children."""
+    if session_file is None:
+        return False
+    return is_codex_subagent_session_meta(peek_codex_session_meta(session_file))
 
 
 def _find_session_file(session_id: str, rollout_path: str = "") -> Path | None:

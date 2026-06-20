@@ -72,9 +72,13 @@ def fetch_page(base_url: str, path: str) -> tuple[int, str]:
     })
     try:
         resp = urllib.request.urlopen(req, timeout=15)
-        return resp.status, resp.read().decode("utf-8")
+        with resp:
+            return resp.status, resp.read().decode("utf-8")
     except urllib.error.HTTPError as e:
-        return e.code, e.read().decode("utf-8") if e.fp else ""
+        try:
+            return e.code, e.read().decode("utf-8") if e.fp else ""
+        finally:
+            e.close()
 
 
 # ─── 测试：页面加载 ──────────────────────────────────────────────────────────

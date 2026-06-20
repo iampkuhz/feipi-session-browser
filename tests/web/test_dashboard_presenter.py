@@ -308,7 +308,10 @@ class TestCacheHealthSeries:
             ("", "qoder", 100, 0, 0, str(raw)),
         ])
 
-        series = dashboard_presenter._compute_cache_health_series(conn, 10000)
+        try:
+            series = dashboard_presenter._compute_cache_health_series(conn, 10000)
+        finally:
+            conn.close()
 
         assert series[0]["qoder_cache_metric_known"] is False
         assert series[0]["qoder_unreported_input_side_tokens"] == 100
@@ -325,7 +328,10 @@ class TestCacheHealthSeries:
             ("", "qoder", 100, 0, 0, str(raw)),
         ])
 
-        series = dashboard_presenter._compute_cache_health_series(conn, 10000)
+        try:
+            series = dashboard_presenter._compute_cache_health_series(conn, 10000)
+        finally:
+            conn.close()
 
         assert series[0]["qoder_cache_metric_known"] is True
         assert series[0]["qoder_fresh_input_tokens"] == 100
