@@ -1,44 +1,171 @@
 {
-  "schema_version": "session-detail.normalized.v2",
   "agent": "codex",
-  "source": {
-    "files": [
-      {
-        "role": "codex_rollout",
-        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl"
-      }
-    ]
-  },
-  "session": {
-    "session_key": "codex:codex-fixture-tool-loop",
-    "session_id": "codex-fixture-tool-loop",
-    "title": "Codex fixture tool loop",
-    "agent": "codex",
-    "model": "gpt-5.5",
-    "cwd": "/repo",
-    "started_at": "2026-06-10T00:00:00.000Z",
-    "ended_at": "2026-06-10T00:00:07.500Z",
-    "git_branch": "main",
-    "source": "fixture"
-  },
   "calls": [
     {
+      "attribution_candidates": {
+        "request": {
+          "runtime_context": [
+            {
+              "event_order": 1,
+              "label": "session runtime metadata",
+              "payload": {
+                "cli_version": "0.test",
+                "cwd": "/repo",
+                "git": {
+                  "branch": "main",
+                  "commit_hash": "abc123",
+                  "repository_url": "git@example.com/repo.git"
+                },
+                "model_provider": "openai",
+                "originator": "Codex Desktop",
+                "source": "fixture"
+              },
+              "preview": "{\"cli_version\":\"0.test\",\"cwd\":\"/repo\",\"git\":{\"branch\":\"main\",\"commit_hash\":\"abc123\",\"repository_url\":\"git@example.com/repo.git\"},\"model_provider\":\"openai\",\"originator\":\"Codex Desktop\",\"source\":\"fixture\"}",
+              "source": "session_meta.payload.runtime",
+              "source_id": "codex-call-0001:session_meta.payload.runtime:1:0:session_runtime_metadata:0-203:2",
+              "timestamp": "2026-06-10T00:00:00.000Z",
+              "unit_type": "session_runtime_metadata"
+            },
+            {
+              "event_order": 3,
+              "label": "turn runtime context",
+              "payload": {
+                "approval_policy": "never",
+                "current_date": "2026-06-10",
+                "cwd": "/repo",
+                "effort": "high",
+                "model": "gpt-5.5",
+                "sandbox_policy": {
+                  "type": "danger-full-access"
+                },
+                "timezone": "UTC",
+                "turn_id": "turn-001",
+                "workspace_roots": [
+                  "/repo"
+                ]
+              },
+              "preview": "{\"approval_policy\":\"never\",\"current_date\":\"2026-06-10\",\"cwd\":\"/repo\",\"effort\":\"high\",\"model\":\"gpt-5.5\",\"sandbox_policy\":{\"type\":\"danger-full-access\"},\"timezone\":\"UTC\",\"turn_id\":\"turn-001\",\"workspace_roots\":[\"/repo\"]}",
+              "source": "turn_context.payload",
+              "source_id": "codex-call-0001:turn_context.payload:3:0:turn_runtime_context:0-216:3",
+              "timestamp": "2026-06-10T00:00:01.100Z",
+              "unit_type": "turn_runtime_context"
+            },
+            {
+              "event_order": 5,
+              "label": "environment_context_block",
+              "preview": "<environment_context><cwd>/repo</cwd></environment_context>",
+              "source": "response_item.message(role=user).content[0].text",
+              "source_id": "codex-call-0001:response_item.message-role-user-.content-0-.text:5:0:environment_context_block:37-96:5",
+              "text": "<environment_context><cwd>/repo</cwd></environment_context>",
+              "timestamp": "2026-06-10T00:00:01.300Z",
+              "unit_type": "environment_context_block"
+            }
+          ],
+          "system_instructions": [
+            {
+              "event_order": 1,
+              "label": "base instructions",
+              "preview": "You are Codex.",
+              "source": "session_meta.payload.base_instructions.text",
+              "source_id": "codex-call-0001:session_meta.payload.base_instructions.text:1:0:base_instructions_text:0-14:0",
+              "text": "You are Codex.",
+              "timestamp": "2026-06-10T00:00:00.000Z",
+              "unit_type": "base_instructions_text"
+            },
+            {
+              "event_order": 4,
+              "label": "prompt_plain_text",
+              "preview": "Developer: be precise.",
+              "source": "response_item.message(role=developer).content[0].text",
+              "source_id": "codex-call-0001:response_item.message-role-developer-.content-0-.text:4:1:prompt_plain_text:0-22:4",
+              "text": "Developer: be precise.",
+              "timestamp": "2026-06-10T00:00:01.200Z",
+              "unit_type": "prompt_plain_text"
+            }
+          ],
+          "tool_definitions": [
+            {
+              "event_order": 1,
+              "label": "exec_command",
+              "payload": {
+                "description": "Run a command",
+                "name": "exec_command",
+                "namespace": "functions"
+              },
+              "preview": "{\"description\":\"Run a command\",\"name\":\"exec_command\",\"namespace\":\"functions\"}",
+              "source": "session_meta.payload.dynamic_tools[0]",
+              "source_id": "codex-call-0001:session_meta.payload.dynamic_tools-0-:1:0:dynamic_tool_schema:0-77:1",
+              "timestamp": "2026-06-10T00:00:00.000Z",
+              "unit_type": "dynamic_tool_schema"
+            }
+          ],
+          "user_input": [
+            {
+              "event_order": 7,
+              "label": "current user input",
+              "preview": "Run tests",
+              "source": "event_msg.user_message.message",
+              "source_id": "codex-call-0001:event_msg.user_message.message:7:0:current_user_text:0-9:6",
+              "text": "Run tests",
+              "timestamp": "2026-06-10T00:00:01.500Z",
+              "unit_type": "current_user_text"
+            }
+          ]
+        },
+        "response": {
+          "assistant_output": [
+            {
+              "event_order": 10,
+              "label": "output_text",
+              "preview": "I will inspect and run tests.",
+              "source": "response_item.message(role=assistant).content[].text",
+              "source_id": "codex-call-0001:response_item.message-role-assistant-.content-.text:10:0:assistant_output_text:0-29:8",
+              "text": "I will inspect and run tests.",
+              "timestamp": "2026-06-10T00:00:02.600Z",
+              "unit_type": "assistant_output_text"
+            }
+          ],
+          "reasoning_output": [
+            {
+              "event_order": 8,
+              "label": "reasoning output",
+              "payload": {
+                "encrypted_content_unavailable": true,
+                "has_encrypted_content": true,
+                "summary": []
+              },
+              "preview": "{\"encrypted_content_unavailable\":true,\"has_encrypted_content\":true,\"summary\":[]}",
+              "source": "response_item.reasoning",
+              "source_id": "codex-call-0001:response_item.reasoning:8:0:reasoning_output:0-80:7",
+              "timestamp": "2026-06-10T00:00:02.000Z",
+              "unit_type": "reasoning_output"
+            }
+          ],
+          "tool_calls": [
+            {
+              "event_order": 11,
+              "label": "exec_command",
+              "payload": {
+                "arguments": "{\"cmd\":\"pytest tests/unit\",\"workdir\":\"/repo\"}",
+                "call_id": "call_run_tests",
+                "name": "exec_command",
+                "type": "function_call"
+              },
+              "preview": "{\"arguments\":\"{\\\"cmd\\\":\\\"pytest tests/unit\\\",\\\"workdir\\\":\\\"/repo\\\"}\",\"call_id\":\"call_run_tests\",\"name\":\"exec_command\",\"type\":\"function_call\"}",
+              "source": "response_item.function_call",
+              "source_id": "codex-call-0001:response_item.function_call:11:0:model_tool_call:0-141:9",
+              "timestamp": "2026-06-10T00:00:03.000Z",
+              "unit_type": "model_tool_call"
+            }
+          ]
+        }
+      },
       "call_id": "codex-call-0001",
       "call_index": 1,
       "call_key": "C1",
-      "scope": "main",
+      "model": "gpt-5.5",
       "parent_call_id": "",
       "parent_tool_call_id": "",
-      "turn_id": "turn-001",
-      "model": "gpt-5.5",
-      "timestamp": "2026-06-10T00:00:05.500Z",
-      "usage": {
-        "fresh": 60,
-        "cache_read": 40,
-        "cache_write": 0,
-        "output": 30,
-        "total": 130
-      },
       "request": {
         "tool_result_ids": []
       },
@@ -46,25 +173,480 @@
         "tool_call_ids": [
           "call_run_tests"
         ]
+      },
+      "scope": "main",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            14
+          ],
+          "candidate": "system_instructions",
+          "canonical_source_locator": "session_meta.payload.base_instructions.text",
+          "content_hash": "a1df88fb0f98e634223f2525081beded08ec03a0ebc915ce1acd7686ee310b99",
+          "dedupe_key": "b5f6b9348f58226579cd833e5073ae47d63df276b44d6e89a787dfea76fe4966",
+          "direction": "request",
+          "event_order": 1,
+          "label": "base instructions",
+          "origin_path": "session_meta.payload.base_instructions.text",
+          "part_index": 0,
+          "preview": "You are Codex.",
+          "priority": 70,
+          "source_id": "codex-call-0001:session_meta.payload.base_instructions.text:1:0:base_instructions_text:0-14:0",
+          "text": "You are Codex.",
+          "timestamp": "2026-06-10T00:00:00.000Z",
+          "unit_type": "base_instructions_text"
+        },
+        {
+          "byte_range": [
+            0,
+            77
+          ],
+          "candidate": "tool_definitions",
+          "canonical_source_locator": "session_meta.payload.dynamic_tools[0]",
+          "content_hash": "84a7a1519cd45aa590d4f96afd595c7a4066015d5bbf8203d93808b52b9122d0",
+          "dedupe_key": "dd6c1875e7b5467941f69f82751aee0eb9f72ddf73d004630fe44cec52c15103",
+          "direction": "request",
+          "event_order": 1,
+          "label": "exec_command",
+          "origin_path": "session_meta.payload.dynamic_tools[0]",
+          "part_index": 0,
+          "payload": {
+            "description": "Run a command",
+            "name": "exec_command",
+            "namespace": "functions"
+          },
+          "preview": "{\"description\":\"Run a command\",\"name\":\"exec_command\",\"namespace\":\"functions\"}",
+          "priority": 70,
+          "source_id": "codex-call-0001:session_meta.payload.dynamic_tools-0-:1:0:dynamic_tool_schema:0-77:1",
+          "timestamp": "2026-06-10T00:00:00.000Z",
+          "unit_type": "dynamic_tool_schema"
+        },
+        {
+          "byte_range": [
+            0,
+            203
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session_meta.payload.runtime",
+          "content_hash": "eb07bcf772f8e7f01a26455a7f0682c9ee523953e62718b747c14a810d5ad6d1",
+          "dedupe_key": "95e437f68fcd72818da1148944ec2a05e737b81d57ebdbebbe8967978d902fac",
+          "direction": "request",
+          "event_order": 1,
+          "label": "session runtime metadata",
+          "origin_path": "session_meta.payload.runtime",
+          "part_index": 0,
+          "payload": {
+            "cli_version": "0.test",
+            "cwd": "/repo",
+            "git": {
+              "branch": "main",
+              "commit_hash": "abc123",
+              "repository_url": "git@example.com/repo.git"
+            },
+            "model_provider": "openai",
+            "originator": "Codex Desktop",
+            "source": "fixture"
+          },
+          "preview": "{\"cli_version\":\"0.test\",\"cwd\":\"/repo\",\"git\":{\"branch\":\"main\",\"commit_hash\":\"abc123\",\"repository_url\":\"git@example.com/repo.git\"},\"model_provider\":\"openai\",\"originator\":\"Codex Desktop\",\"source\":\"fixture\"}",
+          "priority": 65,
+          "source_id": "codex-call-0001:session_meta.payload.runtime:1:0:session_runtime_metadata:0-203:2",
+          "timestamp": "2026-06-10T00:00:00.000Z",
+          "unit_type": "session_runtime_metadata"
+        },
+        {
+          "byte_range": [
+            0,
+            216
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "turn_context.payload",
+          "content_hash": "41af10a4456bbbcbbf6e74c9b6a1ce6a4aaeec3f964b89af05ab480f4cb7bb84",
+          "dedupe_key": "6df2e07c6222678389dd039856af54066a18d203680f50e7d1506b2b710c50e9",
+          "direction": "request",
+          "event_order": 3,
+          "label": "turn runtime context",
+          "origin_path": "turn_context.payload",
+          "part_index": 0,
+          "payload": {
+            "approval_policy": "never",
+            "current_date": "2026-06-10",
+            "cwd": "/repo",
+            "effort": "high",
+            "model": "gpt-5.5",
+            "sandbox_policy": {
+              "type": "danger-full-access"
+            },
+            "timezone": "UTC",
+            "turn_id": "turn-001",
+            "workspace_roots": [
+              "/repo"
+            ]
+          },
+          "preview": "{\"approval_policy\":\"never\",\"current_date\":\"2026-06-10\",\"cwd\":\"/repo\",\"effort\":\"high\",\"model\":\"gpt-5.5\",\"sandbox_policy\":{\"type\":\"danger-full-access\"},\"timezone\":\"UTC\",\"turn_id\":\"turn-001\",\"workspace_roots\":[\"/repo\"]}",
+          "priority": 60,
+          "source_id": "codex-call-0001:turn_context.payload:3:0:turn_runtime_context:0-216:3",
+          "timestamp": "2026-06-10T00:00:01.100Z",
+          "unit_type": "turn_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            22
+          ],
+          "candidate": "system_instructions",
+          "canonical_source_locator": "response_item.message(role=developer).content[0].text",
+          "content_hash": "93a8791664d09d48fc50dd517b12d5686f66e1ae4e408342addbab37284164ea",
+          "dedupe_key": "70a025f97102233de9e3f4a7877a259c71b07b56c8f41e53b2d9d7cfa0b92a1d",
+          "direction": "request",
+          "event_order": 4,
+          "label": "prompt_plain_text",
+          "origin_path": "response_item.message(role=developer).content[0].text",
+          "part_index": 1,
+          "preview": "Developer: be precise.",
+          "priority": 67,
+          "source_id": "codex-call-0001:response_item.message-role-developer-.content-0-.text:4:1:prompt_plain_text:0-22:4",
+          "text": "Developer: be precise.",
+          "timestamp": "2026-06-10T00:00:01.200Z",
+          "unit_type": "prompt_plain_text"
+        },
+        {
+          "byte_range": [
+            37,
+            96
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "response_item.message(role=user).content[0].text",
+          "content_hash": "460c25b56f372411253f135aeacbdd1b3226c3b1e37e8a19c3783d195c1ca29c",
+          "dedupe_key": "5abaee53adebcca92578ad86f378d10970b7e0ab132f97df7b0e91ec0581e16c",
+          "direction": "request",
+          "event_order": 5,
+          "label": "environment_context_block",
+          "origin_path": "response_item.message(role=user).content[0].text",
+          "part_index": 0,
+          "preview": "<environment_context><cwd>/repo</cwd></environment_context>",
+          "priority": 55,
+          "source_id": "codex-call-0001:response_item.message-role-user-.content-0-.text:5:0:environment_context_block:37-96:5",
+          "text": "<environment_context><cwd>/repo</cwd></environment_context>",
+          "timestamp": "2026-06-10T00:00:01.300Z",
+          "unit_type": "environment_context_block"
+        },
+        {
+          "byte_range": [
+            0,
+            9
+          ],
+          "candidate": "user_input",
+          "canonical_source_locator": "event_msg.user_message.message",
+          "content_hash": "3f6d6baf482b1dc0f98b22715a15ec258561d1374e251315436de3c3ad599304",
+          "dedupe_key": "3a2d2e2813933ff8df032cccc8da5dcfb9eb0d3cd14cded2722b9e35161f7a27",
+          "direction": "request",
+          "event_order": 7,
+          "label": "current user input",
+          "origin_path": "event_msg.user_message.message",
+          "part_index": 0,
+          "preview": "Run tests",
+          "priority": 80,
+          "source_id": "codex-call-0001:event_msg.user_message.message:7:0:current_user_text:0-9:6",
+          "text": "Run tests",
+          "timestamp": "2026-06-10T00:00:01.500Z",
+          "unit_type": "current_user_text"
+        },
+        {
+          "byte_range": [
+            0,
+            80
+          ],
+          "candidate": "reasoning_output",
+          "canonical_source_locator": "response_item.reasoning",
+          "content_hash": "fc54aa6c5b02034099d4baaf909a030c72b1cfcd829bcbf48f326e83b78d2f29",
+          "dedupe_key": "0f3ca1f07a8c483290480b973af254aa0461b25cf5b90b5bbee119f1ff0bc41e",
+          "direction": "response",
+          "event_order": 8,
+          "label": "reasoning output",
+          "origin_path": "response_item.reasoning",
+          "part_index": 0,
+          "payload": {
+            "encrypted_content_unavailable": true,
+            "has_encrypted_content": true,
+            "summary": []
+          },
+          "preview": "{\"encrypted_content_unavailable\":true,\"has_encrypted_content\":true,\"summary\":[]}",
+          "priority": 50,
+          "source_id": "codex-call-0001:response_item.reasoning:8:0:reasoning_output:0-80:7",
+          "timestamp": "2026-06-10T00:00:02.000Z",
+          "unit_type": "reasoning_output"
+        },
+        {
+          "byte_range": [
+            0,
+            29
+          ],
+          "candidate": "assistant_output",
+          "canonical_source_locator": "response_item.message(role=assistant).content[].text",
+          "content_hash": "3ca7ba49c0cceb94721e33d0d012388ec554b32b60175ead6612cf69e901762c",
+          "dedupe_key": "a08ce078201b902a4b0821d66f5239ccd62537402cb94e6145bc95ea5d7f5a89",
+          "direction": "response",
+          "event_order": 10,
+          "label": "output_text",
+          "origin_path": "response_item.message(role=assistant).content[].text",
+          "part_index": 0,
+          "preview": "I will inspect and run tests.",
+          "priority": 50,
+          "source_id": "codex-call-0001:response_item.message-role-assistant-.content-.text:10:0:assistant_output_text:0-29:8",
+          "text": "I will inspect and run tests.",
+          "timestamp": "2026-06-10T00:00:02.600Z",
+          "unit_type": "assistant_output_text"
+        },
+        {
+          "byte_range": [
+            0,
+            141
+          ],
+          "candidate": "tool_calls",
+          "canonical_source_locator": "response_item.function_call",
+          "content_hash": "522ec90a5184251234c3e04bda7f9ac51c74c121f70cd2298ae967caae2cc0fb",
+          "dedupe_key": "a043ba861be6624160e1b981b9825762947293e4b66008d4eb568ea0f807795f",
+          "direction": "response",
+          "event_order": 11,
+          "label": "exec_command",
+          "origin_path": "response_item.function_call",
+          "part_index": 0,
+          "payload": {
+            "arguments": "{\"cmd\":\"pytest tests/unit\",\"workdir\":\"/repo\"}",
+            "call_id": "call_run_tests",
+            "name": "exec_command",
+            "type": "function_call"
+          },
+          "preview": "{\"arguments\":\"{\\\"cmd\\\":\\\"pytest tests/unit\\\",\\\"workdir\\\":\\\"/repo\\\"}\",\"call_id\":\"call_run_tests\",\"name\":\"exec_command\",\"type\":\"function_call\"}",
+          "priority": 50,
+          "source_id": "codex-call-0001:response_item.function_call:11:0:model_tool_call:0-141:9",
+          "timestamp": "2026-06-10T00:00:03.000Z",
+          "unit_type": "model_tool_call"
+        }
+      ],
+      "timestamp": "2026-06-10T00:00:05.500Z",
+      "turn_id": "turn-001",
+      "usage": {
+        "cache_read": 40,
+        "cache_write": 0,
+        "fresh": 60,
+        "output": 30,
+        "total": 130
       }
     },
     {
+      "attribution_candidates": {
+        "request": {
+          "conversation_history": [
+            {
+              "event_order": 7,
+              "label": "current user input",
+              "preview": "Run tests",
+              "source": "conversation_history.user_input",
+              "source_candidate": "user_input",
+              "source_id": "codex-call-0002:conversation_history.user_input:7:0:prior_user_input:0-9:6",
+              "sub_source": "user_input",
+              "text": "Run tests",
+              "timestamp": "2026-06-10T00:00:01.500Z",
+              "unit_type": "prior_user_input"
+            },
+            {
+              "event_order": 8,
+              "label": "reasoning output",
+              "payload": {
+                "encrypted_content_unavailable": true,
+                "has_encrypted_content": true,
+                "summary": []
+              },
+              "preview": "{\"encrypted_content_unavailable\":true,\"has_encrypted_content\":true,\"summary\":[]}",
+              "source": "conversation_history.reasoning_output",
+              "source_candidate": "reasoning_output",
+              "source_id": "codex-call-0002:conversation_history.reasoning_output:8:0:prior_reasoning_output:0-80:7",
+              "sub_source": "reasoning_output",
+              "timestamp": "2026-06-10T00:00:02.000Z",
+              "unit_type": "prior_reasoning_output"
+            },
+            {
+              "event_order": 10,
+              "label": "output_text",
+              "preview": "I will inspect and run tests.",
+              "source": "conversation_history.assistant_output",
+              "source_candidate": "assistant_output",
+              "source_id": "codex-call-0002:conversation_history.assistant_output:10:0:prior_assistant_output:0-29:8",
+              "sub_source": "assistant_output",
+              "text": "I will inspect and run tests.",
+              "timestamp": "2026-06-10T00:00:02.600Z",
+              "unit_type": "prior_assistant_output"
+            },
+            {
+              "event_order": 11,
+              "label": "exec_command",
+              "payload": {
+                "arguments": "{\"cmd\":\"pytest tests/unit\",\"workdir\":\"/repo\"}",
+                "call_id": "call_run_tests",
+                "name": "exec_command",
+                "type": "function_call"
+              },
+              "preview": "{\"arguments\":\"{\\\"cmd\\\":\\\"pytest tests/unit\\\",\\\"workdir\\\":\\\"/repo\\\"}\",\"call_id\":\"call_run_tests\",\"name\":\"exec_command\",\"type\":\"function_call\"}",
+              "source": "conversation_history.tool_calls",
+              "source_candidate": "tool_calls",
+              "source_id": "codex-call-0002:conversation_history.tool_calls:11:0:prior_tool_calls:0-141:9",
+              "sub_source": "tool_calls",
+              "timestamp": "2026-06-10T00:00:03.000Z",
+              "unit_type": "prior_tool_calls"
+            }
+          ],
+          "runtime_context": [
+            {
+              "event_order": 1,
+              "label": "session runtime metadata",
+              "payload": {
+                "cli_version": "0.test",
+                "cwd": "/repo",
+                "git": {
+                  "branch": "main",
+                  "commit_hash": "abc123",
+                  "repository_url": "git@example.com/repo.git"
+                },
+                "model_provider": "openai",
+                "originator": "Codex Desktop",
+                "source": "fixture"
+              },
+              "preview": "{\"cli_version\":\"0.test\",\"cwd\":\"/repo\",\"git\":{\"branch\":\"main\",\"commit_hash\":\"abc123\",\"repository_url\":\"git@example.com/repo.git\"},\"model_provider\":\"openai\",\"originator\":\"Codex Desktop\",\"source\":\"fixture\"}",
+              "source": "session_meta.payload.runtime",
+              "source_id": "codex-call-0002:session_meta.payload.runtime:1:0:session_runtime_metadata:0-203:2",
+              "timestamp": "2026-06-10T00:00:00.000Z",
+              "unit_type": "session_runtime_metadata"
+            },
+            {
+              "event_order": 3,
+              "label": "turn runtime context",
+              "payload": {
+                "approval_policy": "never",
+                "current_date": "2026-06-10",
+                "cwd": "/repo",
+                "effort": "high",
+                "model": "gpt-5.5",
+                "sandbox_policy": {
+                  "type": "danger-full-access"
+                },
+                "timezone": "UTC",
+                "turn_id": "turn-001",
+                "workspace_roots": [
+                  "/repo"
+                ]
+              },
+              "preview": "{\"approval_policy\":\"never\",\"current_date\":\"2026-06-10\",\"cwd\":\"/repo\",\"effort\":\"high\",\"model\":\"gpt-5.5\",\"sandbox_policy\":{\"type\":\"danger-full-access\"},\"timezone\":\"UTC\",\"turn_id\":\"turn-001\",\"workspace_roots\":[\"/repo\"]}",
+              "source": "turn_context.payload",
+              "source_id": "codex-call-0002:turn_context.payload:3:0:turn_runtime_context:0-216:3",
+              "timestamp": "2026-06-10T00:00:01.100Z",
+              "unit_type": "turn_runtime_context"
+            },
+            {
+              "event_order": 5,
+              "label": "environment_context_block",
+              "preview": "<environment_context><cwd>/repo</cwd></environment_context>",
+              "source": "response_item.message(role=user).content[0].text",
+              "source_id": "codex-call-0002:response_item.message-role-user-.content-0-.text:5:0:environment_context_block:37-96:5",
+              "text": "<environment_context><cwd>/repo</cwd></environment_context>",
+              "timestamp": "2026-06-10T00:00:01.300Z",
+              "unit_type": "environment_context_block"
+            }
+          ],
+          "system_instructions": [
+            {
+              "event_order": 1,
+              "label": "base instructions",
+              "preview": "You are Codex.",
+              "source": "session_meta.payload.base_instructions.text",
+              "source_id": "codex-call-0002:session_meta.payload.base_instructions.text:1:0:base_instructions_text:0-14:0",
+              "text": "You are Codex.",
+              "timestamp": "2026-06-10T00:00:00.000Z",
+              "unit_type": "base_instructions_text"
+            },
+            {
+              "event_order": 4,
+              "label": "prompt_plain_text",
+              "preview": "Developer: be precise.",
+              "source": "response_item.message(role=developer).content[0].text",
+              "source_id": "codex-call-0002:response_item.message-role-developer-.content-0-.text:4:1:prompt_plain_text:0-22:4",
+              "text": "Developer: be precise.",
+              "timestamp": "2026-06-10T00:00:01.200Z",
+              "unit_type": "prompt_plain_text"
+            }
+          ],
+          "tool_definitions": [
+            {
+              "event_order": 1,
+              "label": "exec_command",
+              "payload": {
+                "description": "Run a command",
+                "name": "exec_command",
+                "namespace": "functions"
+              },
+              "preview": "{\"description\":\"Run a command\",\"name\":\"exec_command\",\"namespace\":\"functions\"}",
+              "source": "session_meta.payload.dynamic_tools[0]",
+              "source_id": "codex-call-0002:session_meta.payload.dynamic_tools-0-:1:0:dynamic_tool_schema:0-77:1",
+              "timestamp": "2026-06-10T00:00:00.000Z",
+              "unit_type": "dynamic_tool_schema"
+            }
+          ],
+          "tool_results": [
+            {
+              "event_order": 12,
+              "label": "call_run_tests",
+              "payload": {
+                "call_id": "call_run_tests",
+                "output": "Process exited with code 0\nOutput: 2 passed",
+                "status": ""
+              },
+              "preview": "Process exited with code 0 Output: 2 passed",
+              "source": "response_item.function_call_output.output",
+              "source_id": "codex-call-0002:response_item.function_call_output.output:12:0:request_tool_result:0-96:10",
+              "text": "Process exited with code 0\nOutput: 2 passed",
+              "timestamp": "2026-06-10T00:00:05.000Z",
+              "unit_type": "request_tool_result"
+            }
+          ]
+        },
+        "response": {
+          "assistant_output": [
+            {
+              "event_order": 17,
+              "label": "output_text",
+              "preview": "Tests passed.",
+              "source": "response_item.message(role=assistant).content[].text",
+              "source_id": "codex-call-0002:response_item.message-role-assistant-.content-.text:17:0:assistant_output_text:0-13:12",
+              "text": "Tests passed.",
+              "timestamp": "2026-06-10T00:00:06.600Z",
+              "unit_type": "assistant_output_text"
+            }
+          ],
+          "reasoning_output": [
+            {
+              "event_order": 15,
+              "label": "reasoning output",
+              "payload": {
+                "encrypted_content_unavailable": true,
+                "has_encrypted_content": true,
+                "summary": []
+              },
+              "preview": "{\"encrypted_content_unavailable\":true,\"has_encrypted_content\":true,\"summary\":[]}",
+              "source": "response_item.reasoning",
+              "source_id": "codex-call-0002:response_item.reasoning:15:0:reasoning_output:0-80:11",
+              "timestamp": "2026-06-10T00:00:06.000Z",
+              "unit_type": "reasoning_output"
+            }
+          ]
+        }
+      },
       "call_id": "codex-call-0002",
       "call_index": 2,
       "call_key": "C2",
-      "scope": "main",
+      "model": "gpt-5.5",
       "parent_call_id": "",
       "parent_tool_call_id": "",
-      "turn_id": "turn-001",
-      "model": "gpt-5.5",
-      "timestamp": "2026-06-10T00:00:07.000Z",
-      "usage": {
-        "fresh": 60,
-        "cache_read": 20,
-        "cache_write": 0,
-        "output": 16,
-        "total": 96
-      },
       "request": {
         "tool_result_ids": [
           "call_run_tests"
@@ -72,18 +654,379 @@
       },
       "response": {
         "tool_call_ids": []
+      },
+      "scope": "main",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            14
+          ],
+          "candidate": "system_instructions",
+          "canonical_source_locator": "session_meta.payload.base_instructions.text",
+          "content_hash": "a1df88fb0f98e634223f2525081beded08ec03a0ebc915ce1acd7686ee310b99",
+          "dedupe_key": "46d5717172a311379e7b84a6221884be2597220bc56eff4b1c52af1c798ade90",
+          "direction": "request",
+          "event_order": 1,
+          "label": "base instructions",
+          "origin_path": "session_meta.payload.base_instructions.text",
+          "part_index": 0,
+          "preview": "You are Codex.",
+          "priority": 70,
+          "source_id": "codex-call-0002:session_meta.payload.base_instructions.text:1:0:base_instructions_text:0-14:0",
+          "text": "You are Codex.",
+          "timestamp": "2026-06-10T00:00:00.000Z",
+          "unit_type": "base_instructions_text"
+        },
+        {
+          "byte_range": [
+            0,
+            77
+          ],
+          "candidate": "tool_definitions",
+          "canonical_source_locator": "session_meta.payload.dynamic_tools[0]",
+          "content_hash": "84a7a1519cd45aa590d4f96afd595c7a4066015d5bbf8203d93808b52b9122d0",
+          "dedupe_key": "bc88c01f2bf9c260791ed367929637a5e999941a7c5b956e8dd3cf8a4ff4bf90",
+          "direction": "request",
+          "event_order": 1,
+          "label": "exec_command",
+          "origin_path": "session_meta.payload.dynamic_tools[0]",
+          "part_index": 0,
+          "payload": {
+            "description": "Run a command",
+            "name": "exec_command",
+            "namespace": "functions"
+          },
+          "preview": "{\"description\":\"Run a command\",\"name\":\"exec_command\",\"namespace\":\"functions\"}",
+          "priority": 70,
+          "source_id": "codex-call-0002:session_meta.payload.dynamic_tools-0-:1:0:dynamic_tool_schema:0-77:1",
+          "timestamp": "2026-06-10T00:00:00.000Z",
+          "unit_type": "dynamic_tool_schema"
+        },
+        {
+          "byte_range": [
+            0,
+            203
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session_meta.payload.runtime",
+          "content_hash": "eb07bcf772f8e7f01a26455a7f0682c9ee523953e62718b747c14a810d5ad6d1",
+          "dedupe_key": "cd0e5d037dcfcb17da0133617ed89ab290a57d07b1598311db7e821b64ea679b",
+          "direction": "request",
+          "event_order": 1,
+          "label": "session runtime metadata",
+          "origin_path": "session_meta.payload.runtime",
+          "part_index": 0,
+          "payload": {
+            "cli_version": "0.test",
+            "cwd": "/repo",
+            "git": {
+              "branch": "main",
+              "commit_hash": "abc123",
+              "repository_url": "git@example.com/repo.git"
+            },
+            "model_provider": "openai",
+            "originator": "Codex Desktop",
+            "source": "fixture"
+          },
+          "preview": "{\"cli_version\":\"0.test\",\"cwd\":\"/repo\",\"git\":{\"branch\":\"main\",\"commit_hash\":\"abc123\",\"repository_url\":\"git@example.com/repo.git\"},\"model_provider\":\"openai\",\"originator\":\"Codex Desktop\",\"source\":\"fixture\"}",
+          "priority": 65,
+          "source_id": "codex-call-0002:session_meta.payload.runtime:1:0:session_runtime_metadata:0-203:2",
+          "timestamp": "2026-06-10T00:00:00.000Z",
+          "unit_type": "session_runtime_metadata"
+        },
+        {
+          "byte_range": [
+            0,
+            216
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "turn_context.payload",
+          "content_hash": "41af10a4456bbbcbbf6e74c9b6a1ce6a4aaeec3f964b89af05ab480f4cb7bb84",
+          "dedupe_key": "eccd51ca03ba1c97878eb46adaf125e8a2b78362b4651b818282d09f7090366f",
+          "direction": "request",
+          "event_order": 3,
+          "label": "turn runtime context",
+          "origin_path": "turn_context.payload",
+          "part_index": 0,
+          "payload": {
+            "approval_policy": "never",
+            "current_date": "2026-06-10",
+            "cwd": "/repo",
+            "effort": "high",
+            "model": "gpt-5.5",
+            "sandbox_policy": {
+              "type": "danger-full-access"
+            },
+            "timezone": "UTC",
+            "turn_id": "turn-001",
+            "workspace_roots": [
+              "/repo"
+            ]
+          },
+          "preview": "{\"approval_policy\":\"never\",\"current_date\":\"2026-06-10\",\"cwd\":\"/repo\",\"effort\":\"high\",\"model\":\"gpt-5.5\",\"sandbox_policy\":{\"type\":\"danger-full-access\"},\"timezone\":\"UTC\",\"turn_id\":\"turn-001\",\"workspace_roots\":[\"/repo\"]}",
+          "priority": 60,
+          "source_id": "codex-call-0002:turn_context.payload:3:0:turn_runtime_context:0-216:3",
+          "timestamp": "2026-06-10T00:00:01.100Z",
+          "unit_type": "turn_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            22
+          ],
+          "candidate": "system_instructions",
+          "canonical_source_locator": "response_item.message(role=developer).content[0].text",
+          "content_hash": "93a8791664d09d48fc50dd517b12d5686f66e1ae4e408342addbab37284164ea",
+          "dedupe_key": "7a2c7ebd3571b98fcdf9e67fd3c86cd607ee30c6fe288584b80dd0ecf07dfe5e",
+          "direction": "request",
+          "event_order": 4,
+          "label": "prompt_plain_text",
+          "origin_path": "response_item.message(role=developer).content[0].text",
+          "part_index": 1,
+          "preview": "Developer: be precise.",
+          "priority": 67,
+          "source_id": "codex-call-0002:response_item.message-role-developer-.content-0-.text:4:1:prompt_plain_text:0-22:4",
+          "text": "Developer: be precise.",
+          "timestamp": "2026-06-10T00:00:01.200Z",
+          "unit_type": "prompt_plain_text"
+        },
+        {
+          "byte_range": [
+            37,
+            96
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "response_item.message(role=user).content[0].text",
+          "content_hash": "460c25b56f372411253f135aeacbdd1b3226c3b1e37e8a19c3783d195c1ca29c",
+          "dedupe_key": "95a7a2eed128905190ae5dd28e713685c7dcedd5b8bdb6eb3c4df0767e40f2f7",
+          "direction": "request",
+          "event_order": 5,
+          "label": "environment_context_block",
+          "origin_path": "response_item.message(role=user).content[0].text",
+          "part_index": 0,
+          "preview": "<environment_context><cwd>/repo</cwd></environment_context>",
+          "priority": 55,
+          "source_id": "codex-call-0002:response_item.message-role-user-.content-0-.text:5:0:environment_context_block:37-96:5",
+          "text": "<environment_context><cwd>/repo</cwd></environment_context>",
+          "timestamp": "2026-06-10T00:00:01.300Z",
+          "unit_type": "environment_context_block"
+        },
+        {
+          "byte_range": [
+            0,
+            9
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "conversation_history.user_input",
+          "content_hash": "3f6d6baf482b1dc0f98b22715a15ec258561d1374e251315436de3c3ad599304",
+          "dedupe_key": "d759e989e8e01266567dd9929e0af8d24482baf76f9ae6fc08ef1050817580b6",
+          "direction": "request",
+          "event_order": 7,
+          "label": "current user input",
+          "origin_path": "conversation_history.user_input",
+          "part_index": 0,
+          "preview": "Run tests",
+          "priority": 40,
+          "source_candidate": "user_input",
+          "source_id": "codex-call-0002:conversation_history.user_input:7:0:prior_user_input:0-9:6",
+          "sub_source": "user_input",
+          "text": "Run tests",
+          "timestamp": "2026-06-10T00:00:01.500Z",
+          "unit_type": "prior_user_input"
+        },
+        {
+          "byte_range": [
+            0,
+            80
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "conversation_history.reasoning_output",
+          "content_hash": "fc54aa6c5b02034099d4baaf909a030c72b1cfcd829bcbf48f326e83b78d2f29",
+          "dedupe_key": "162c1eeddcf7ff33cdb864f7b9b43ea0fcd0cc102cfb96e47b73064a62a0f07a",
+          "direction": "request",
+          "event_order": 8,
+          "label": "reasoning output",
+          "origin_path": "conversation_history.reasoning_output",
+          "part_index": 0,
+          "payload": {
+            "encrypted_content_unavailable": true,
+            "has_encrypted_content": true,
+            "summary": []
+          },
+          "preview": "{\"encrypted_content_unavailable\":true,\"has_encrypted_content\":true,\"summary\":[]}",
+          "priority": 40,
+          "source_candidate": "reasoning_output",
+          "source_id": "codex-call-0002:conversation_history.reasoning_output:8:0:prior_reasoning_output:0-80:7",
+          "sub_source": "reasoning_output",
+          "timestamp": "2026-06-10T00:00:02.000Z",
+          "unit_type": "prior_reasoning_output"
+        },
+        {
+          "byte_range": [
+            0,
+            29
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "conversation_history.assistant_output",
+          "content_hash": "3ca7ba49c0cceb94721e33d0d012388ec554b32b60175ead6612cf69e901762c",
+          "dedupe_key": "c774a52b6bbf612c8f3322a59e736cf1d0798a6d320cc94748440ca211c612e3",
+          "direction": "request",
+          "event_order": 10,
+          "label": "output_text",
+          "origin_path": "conversation_history.assistant_output",
+          "part_index": 0,
+          "preview": "I will inspect and run tests.",
+          "priority": 40,
+          "source_candidate": "assistant_output",
+          "source_id": "codex-call-0002:conversation_history.assistant_output:10:0:prior_assistant_output:0-29:8",
+          "sub_source": "assistant_output",
+          "text": "I will inspect and run tests.",
+          "timestamp": "2026-06-10T00:00:02.600Z",
+          "unit_type": "prior_assistant_output"
+        },
+        {
+          "byte_range": [
+            0,
+            141
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "conversation_history.tool_calls",
+          "content_hash": "522ec90a5184251234c3e04bda7f9ac51c74c121f70cd2298ae967caae2cc0fb",
+          "dedupe_key": "9ee4e45282a734693a26dbf2a1ea2207b66c204a8168ff5f0896952cc558669a",
+          "direction": "request",
+          "event_order": 11,
+          "label": "exec_command",
+          "origin_path": "conversation_history.tool_calls",
+          "part_index": 0,
+          "payload": {
+            "arguments": "{\"cmd\":\"pytest tests/unit\",\"workdir\":\"/repo\"}",
+            "call_id": "call_run_tests",
+            "name": "exec_command",
+            "type": "function_call"
+          },
+          "preview": "{\"arguments\":\"{\\\"cmd\\\":\\\"pytest tests/unit\\\",\\\"workdir\\\":\\\"/repo\\\"}\",\"call_id\":\"call_run_tests\",\"name\":\"exec_command\",\"type\":\"function_call\"}",
+          "priority": 40,
+          "source_candidate": "tool_calls",
+          "source_id": "codex-call-0002:conversation_history.tool_calls:11:0:prior_tool_calls:0-141:9",
+          "sub_source": "tool_calls",
+          "timestamp": "2026-06-10T00:00:03.000Z",
+          "unit_type": "prior_tool_calls"
+        },
+        {
+          "byte_range": [
+            0,
+            96
+          ],
+          "candidate": "tool_results",
+          "canonical_source_locator": "response_item.function_call_output.output",
+          "content_hash": "338337d8d7c77b9351dad8b66a496f09d6f29e69d87a0b4cf9466ed402cef8e1",
+          "dedupe_key": "6d17b807fe6212a6d17be4a6629e8e3de109e8265a10f9abec678f3a2528e416",
+          "direction": "request",
+          "event_order": 12,
+          "label": "call_run_tests",
+          "origin_path": "response_item.function_call_output.output",
+          "part_index": 0,
+          "payload": {
+            "call_id": "call_run_tests",
+            "output": "Process exited with code 0\nOutput: 2 passed",
+            "status": ""
+          },
+          "preview": "Process exited with code 0 Output: 2 passed",
+          "priority": 80,
+          "source_id": "codex-call-0002:response_item.function_call_output.output:12:0:request_tool_result:0-96:10",
+          "text": "Process exited with code 0\nOutput: 2 passed",
+          "timestamp": "2026-06-10T00:00:05.000Z",
+          "unit_type": "request_tool_result"
+        },
+        {
+          "byte_range": [
+            0,
+            80
+          ],
+          "candidate": "reasoning_output",
+          "canonical_source_locator": "response_item.reasoning",
+          "content_hash": "fc54aa6c5b02034099d4baaf909a030c72b1cfcd829bcbf48f326e83b78d2f29",
+          "dedupe_key": "a303f00376fba79829d1856dc957609ddc3cafe02fffe29c37ea93ab5f72184b",
+          "direction": "response",
+          "event_order": 15,
+          "label": "reasoning output",
+          "origin_path": "response_item.reasoning",
+          "part_index": 0,
+          "payload": {
+            "encrypted_content_unavailable": true,
+            "has_encrypted_content": true,
+            "summary": []
+          },
+          "preview": "{\"encrypted_content_unavailable\":true,\"has_encrypted_content\":true,\"summary\":[]}",
+          "priority": 50,
+          "source_id": "codex-call-0002:response_item.reasoning:15:0:reasoning_output:0-80:11",
+          "timestamp": "2026-06-10T00:00:06.000Z",
+          "unit_type": "reasoning_output"
+        },
+        {
+          "byte_range": [
+            0,
+            13
+          ],
+          "candidate": "assistant_output",
+          "canonical_source_locator": "response_item.message(role=assistant).content[].text",
+          "content_hash": "4a448e7fa8f8183656227b27f8af7f29aa0f08689c170d6cb1407bc1a11cc913",
+          "dedupe_key": "31eb1e7e34d5cb8d2f8a213d25b34fce87adb6cee8834dfa597d38c57eba562f",
+          "direction": "response",
+          "event_order": 17,
+          "label": "output_text",
+          "origin_path": "response_item.message(role=assistant).content[].text",
+          "part_index": 0,
+          "preview": "Tests passed.",
+          "priority": 50,
+          "source_id": "codex-call-0002:response_item.message-role-assistant-.content-.text:17:0:assistant_output_text:0-13:12",
+          "text": "Tests passed.",
+          "timestamp": "2026-06-10T00:00:06.600Z",
+          "unit_type": "assistant_output_text"
+        }
+      ],
+      "timestamp": "2026-06-10T00:00:07.000Z",
+      "turn_id": "turn-001",
+      "usage": {
+        "cache_read": 20,
+        "cache_write": 0,
+        "fresh": 60,
+        "output": 16,
+        "total": 96
       }
     }
   ],
+  "diagnostics": [],
+  "schema_version": "session-detail.normalized.v2",
+  "session": {
+    "agent": "codex",
+    "cwd": "/repo",
+    "ended_at": "2026-06-10T00:00:07.500Z",
+    "git_branch": "main",
+    "model": "gpt-5.5",
+    "session_id": "codex-fixture-tool-loop",
+    "session_key": "codex:codex-fixture-tool-loop",
+    "source": "fixture",
+    "started_at": "2026-06-10T00:00:00.000Z",
+    "title": "Codex fixture tool loop"
+  },
+  "source": {
+    "files": [
+      {
+        "path": "tests/fixtures/normalized/codex/tool_loop.input/rollout.jsonl",
+        "role": "codex_rollout"
+      }
+    ]
+  },
   "tool_executions": [
     {
-      "tool_call_id": "call_run_tests",
-      "name": "exec_command",
-      "scope": "main",
       "declared_by_call_id": "codex-call-0001",
+      "duration_ms": 2000,
+      "name": "exec_command",
       "result_consumed_by_call_id": "codex-call-0002",
-      "duration_ms": 2000
+      "scope": "main",
+      "tool_call_id": "call_run_tests"
     }
-  ],
-  "diagnostics": []
+  ]
 }

@@ -1,18 +1,11 @@
-"""Qoder specific attribution tests.
-
-Verifies:
-1. Qoder 使用标准化后的真实 usage 数据（fresh/cache_read/cache_write）。
-2. Qoder uses transcript-level reconstruction for semantic buckets.
-3. Bucket tokens sum does not exceed total input.
-4. 0 值是有效值，不显示为 unavailable。
-"""
+"""Qoder 专属 attribution 测试。"""
 
 import pytest
 
 from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
-from session_browser.attribution.agents.qoder import QoderAttributionBuilder
+from session_browser.attribution.agents.qoder_attribution_builder import QoderAttributionBuilder
 from session_browser.attribution.contracts import ValuePrecision, ValueSource
 from session_browser.attribution.serializers import request_attribution_to_payload
 
@@ -39,6 +32,28 @@ def _make_ro(user_content="hello", tool_calls=None, interactions=None):
     )
 
 
+def _unit(candidate: str, direction: str, text: str, index: int = 1) -> dict:
+    return {
+        "source_id": f"test:{direction}:{candidate}:{index}",
+        "dedupe_key": f"dedupe:{direction}:{candidate}:{index}",
+        "origin_path": f"fixture.{candidate}",
+        "canonical_source_locator": f"fixture:{candidate}:{index}",
+        "unit_type": f"{candidate}_unit",
+        "candidate": candidate,
+        "direction": direction,
+        "event_order": 1,
+        "part_index": index,
+        "byte_range": [0, len(text.encode("utf-8"))],
+        "text": text,
+        "label": candidate,
+        "preview": text[:120],
+    }
+
+
+def _ctx(*units: dict) -> dict:
+    return {"normalized_call": {"call_id": "qoder-call-001", "source_units": list(units)}}
+
+
 def test_qoder_cache_split_from_normalized():
     """Qoder 使用标准化后的真实 cache 数据。"""
     lc = _make_lc(input_tokens=500, cache_read_tokens=300, cache_write_tokens=50,
@@ -47,12 +62,10 @@ def test_qoder_cache_split_from_normalized():
     builder = QoderAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    # total = fresh + cache_read + cache_write = 500 + 300 + 50 = 850
     assert result.total_input.value == 850
     assert result.fresh_input.value == 500
     assert result.cache_read.value == 300
     assert result.cache_write.value == 50
-    # 所有值都是 provider_reported
     assert result.fresh_input.precision == ValuePrecision.PROVIDER_REPORTED
     assert result.cache_read.precision == ValuePrecision.PROVIDER_REPORTED
     assert result.cache_write.precision == ValuePrecision.PROVIDER_REPORTED
@@ -66,19 +79,14 @@ def test_qoder_zero_values_are_valid():
     builder = QoderAttributionBuilder(lc, ro)
     result = builder.build_request()
 
-    # 0 值应显示为 valid
     assert result.cache_read.value == 0
     assert result.cache_write.value == 0
-    # availability rows 应显示为 available
-    for row in result.availability_rows:
-        field_val = row.field if hasattr(row, "field") else row["field"]
-        avail_val = row.available if hasattr(row, "available") else row["available"]
-        if field_val in ("fresh_input", "cache_read", "cache_write"):
-            assert avail_val is True  # 有 usage 数据，0 也是有效值
+    assert result.accounting_attribution["cache_read_tokens"]["tokens"] == 0
+    assert result.accounting_attribution["cache_write_tokens"]["tokens"] == 0
 
 
 def test_qoder_availability_notes_cache_from_usage():
-    """Availability rows 应反映真实的 cache 数据来源。"""
+    """availability rows 应反映真实的 cache 数据来源。"""
     lc = _make_lc(input_tokens=5000, cache_read_tokens=2000, cache_write_tokens=500,
                    output_tokens=1000)
     ro = _make_ro(user_content="test")
@@ -89,20 +97,15 @@ def test_qoder_availability_notes_cache_from_usage():
         r.field if hasattr(r, "field") else r["field"]
         for r in result.availability_rows
     }
-    assert "fresh_input" in fields
-    assert "cache_read" in fields
-    assert "cache_write" in fields
+    assert fields == {"provider_usage", "normalized_source_units"}
 
-    # 有 usage 数据时，availability 应显示为 available
     for row in result.availability_rows:
-        field_val = row.field if hasattr(row, "field") else row["field"]
-        avail_val = row.available if hasattr(row, "available") else row["available"]
-        if field_val in ("fresh_input", "cache_read", "cache_write"):
-            assert avail_val is True
+        if row.field == "provider_usage":
+            assert row.available is True
 
 
 def test_qoder_transcript_reconstruction():
-    """Qoder should reconstruct from transcript."""
+    """没有 normalized source_units 时不再执行旧 transcript reconstruction。"""
     lc = _make_lc(input_tokens=10000, output_tokens=5000,
                    request_full="some request context\n\nmore context")
     ro = _make_ro(user_content="user prompt text here")
@@ -110,16 +113,19 @@ def test_qoder_transcript_reconstruction():
     result = builder.build_request()
 
     assert result.agent == "qoder"
-    assert result.source_label == "transcript"
-    # Should have buckets even without exact values
-    assert len(result.buckets) > 0
+    assert result.source_label == "normalized source_units unavailable"
+    assert result.buckets[-1].key == "unlocated_residual"
 
 
 def test_qoder_bucket_sum_within_total():
     lc = _make_lc(input_tokens=10000, output_tokens=5000,
                    request_full="context\n\nmore\n\ndata")
     ro = _make_ro(user_content="test user message")
-    builder = QoderAttributionBuilder(lc, ro)
+    builder = QoderAttributionBuilder(
+        lc,
+        ro,
+        session_context=_ctx(_unit("user_input", "request", "test user message")),
+    )
     result = builder.build_request()
 
     total = result.total_input.value or 0
@@ -135,7 +141,14 @@ def test_qoder_response_attribution():
                         "parameters": {"file_path": "/tmp/test.py"}},
                    ])
     ro = _make_ro()
-    builder = QoderAttributionBuilder(lc, ro)
+    builder = QoderAttributionBuilder(
+        lc,
+        ro,
+        session_context=_ctx(
+            _unit("assistant_output", "response", "Hello"),
+            _unit("tool_calls", "response", "Read({\"file_path\":\"/tmp/test.py\"})", 2),
+        ),
+    )
     result = builder.build_response()
 
     assert result.agent == "qoder"
@@ -171,11 +184,15 @@ def test_qoder_full_messages_are_request_buckets_cache_read_is_summary_only():
                 },
             ],
             "available_tools": [],
+            **_ctx(
+                _unit("conversation_history", "request", "prior user", 1),
+                _unit("tool_calls", "response", "Bash command", 2),
+            ),
         },
     )
 
     result = builder.build_request()
-    messages = next((b for b in result.buckets if b.key == "full_messages_array"), None)
+    messages = next((b for b in result.buckets if b.key == "conversation_messages"), None)
     cache = next((b for b in result.buckets if b.key == "provider_cached_context"), None)
     payload = request_attribution_to_payload(result)
 
@@ -183,8 +200,7 @@ def test_qoder_full_messages_are_request_buckets_cache_read_is_summary_only():
     assert result.fresh_input.value == 2000
     assert result.cache_read.value == 3000
     assert messages is not None
-    assert messages.details["kind"] == "full_messages_array"
-    assert messages.details["total_items"] == 2
+    assert messages.details["kind"] == "source_units"
     assert cache is None
     assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
     assert payload["coverage"]["input_side_component_total"] == 5000
@@ -198,34 +214,47 @@ def test_qoder_request_full_tool_result_is_not_captured_context():
     request_full = "Tool result for call_1:\n" + ("tool output body " * 80)
     lc = _make_lc(input_tokens=2500, request_full=request_full)
     ro = _make_ro(user_content="")
-    builder = QoderAttributionBuilder(lc, ro, session_context={"available_tools": []})
+    builder = QoderAttributionBuilder(
+        lc,
+        ro,
+        session_context={
+            "available_tools": [],
+            **_ctx(_unit("tool_results", "request", "tool output body " * 80)),
+        },
+    )
 
     result = builder.build_request()
-    tool_results = next((b for b in result.buckets if b.key == "tool_results"), None)
+    tool_results = next((b for b in result.buckets if b.key == "tool_result_context"), None)
     captured = next((b for b in result.buckets if b.key == "captured_context_fragment"), None)
 
     assert tool_results is not None
     assert tool_results.tokens > 0
-    assert tool_results.source == ValueSource.TOOL_LOGS
+    assert tool_results.source == ValueSource.TRANSCRIPT
     assert captured is None or "tool output body" not in (captured.content_preview or "")
 
 
 def test_qoder_tool_schema_uses_claude_like_default_registry():
     lc = _make_lc(input_tokens=20000)
     ro = _make_ro(user_content="task")
-    builder = QoderAttributionBuilder(lc, ro, session_context={"available_tools": ["Skill"]})
+    builder = QoderAttributionBuilder(
+        lc,
+        ro,
+        session_context={
+            "available_tools": ["Skill"],
+            **_ctx(_unit("tool_definitions", "request", "Skill tool schema")),
+        },
+    )
 
     result = builder.build_request()
     tool_definitions = next((b for b in result.buckets if b.key == "tool_definitions"), None)
 
     assert tool_definitions is not None
-    assert tool_definitions.tokens > 10000
-    assert tool_definitions.details["kind"] == "tools"
-    assert any(item["name"] == "Skill" for item in tool_definitions.details["items"])
+    assert tool_definitions.details["kind"] == "source_units"
+    assert any(item["unit_type"] == "tool_definitions_unit" for item in tool_definitions.details["items"])
 
 
-def test_qoder_availability_notes_cache_from_usage():
-    """Availability rows 应反映真实的 usage 数据，0 也是有效值。"""
+def test_qoder_availability_notes_zero_cache_from_usage():
+    """availability rows 应反映真实的 usage 数据，0 也是有效值。"""
     lc = _make_lc(input_tokens=5000, cache_read_tokens=0, cache_write_tokens=0)
     ro = _make_ro(user_content="test")
     builder = QoderAttributionBuilder(lc, ro)
@@ -235,13 +264,8 @@ def test_qoder_availability_notes_cache_from_usage():
         r.field if hasattr(r, "field") else r["field"]
         for r in result.availability_rows
     }
-    assert "fresh_input" in fields
-    assert "cache_read" in fields
-    assert "cache_write" in fields
+    assert fields == {"provider_usage", "normalized_source_units"}
 
-    # 有 usage 数据时，availability 应显示为 available（0 也是有效值）
     for row in result.availability_rows:
-        field_val = row.field if hasattr(row, "field") else row["field"]
-        avail_val = row.available if hasattr(row, "available") else row["available"]
-        if field_val in ("fresh_input", "cache_read", "cache_write"):
-            assert avail_val is True
+        if row.field == "provider_usage":
+            assert row.available is True

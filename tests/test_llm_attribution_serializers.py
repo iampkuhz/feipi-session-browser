@@ -1,11 +1,4 @@
-"""Tests for attribution serializers.
-
-Verifies:
-1. attributed_value_to_dict includes precision/source/fill_strategy.
-2. request_attribution_to_payload contains coverage, residual, captured_context_preview.
-3. response_attribution_to_payload contains coverage, residual, blocks, captured_output_preview.
-4. Every AttributedValue in payload has precision/source/fill_strategy.
-"""
+"""attribution serializer 测试。"""
 
 import pytest
 
@@ -99,7 +92,7 @@ def test_request_payload_has_required_fields():
     assert "confidence_label" in payload
     assert payload["raw_body_available"] is False
 
-    # Usage
+    # usage 字段
     assert "usage" in payload
     assert payload["usage_summary"]["request_content_denominator"]["value"] == payload["coverage"]["request_content_denominator"]
     assert "input_side_component_total" in payload["usage_summary"]
@@ -112,11 +105,11 @@ def test_request_payload_has_required_fields():
     assert "cache_read" in usage
     assert "cache_write" in usage
 
-    # Buckets
+    # buckets 字段
     assert "buckets" in payload
     assert isinstance(payload["buckets"], list)
 
-    # Additional fields
+    # 附加字段
     assert "captured_context_preview" in payload
     assert "attribution_notes" in payload
     assert isinstance(payload["attribution_notes"], list)
@@ -124,7 +117,7 @@ def test_request_payload_has_required_fields():
 
 
 def test_request_payload_attributed_values_have_provenance():
-    """Every AttributedValue in the request payload must have precision/source/fill_strategy."""
+    """request payload 中每个 AttributedValue 都包含 provenance 字段。"""
     lc = _make_lc(
         input_tokens=5000, output_tokens=2000,
         cache_read_tokens=3000, cache_write_tokens=500,
@@ -164,7 +157,7 @@ def test_response_payload_has_required_fields():
     assert "raw_body_available" in payload
     assert payload["raw_body_available"] is False
 
-    # Usage
+    # usage 字段
     assert "usage" in payload
     usage = payload["usage"]
     assert "coverage" in usage
@@ -176,7 +169,7 @@ def test_response_payload_has_required_fields():
     assert "metadata" in usage
     assert "finish_reason" in usage
 
-    # Additional fields
+    # 附加字段
     assert "buckets" in payload
     assert "blocks" in payload
     assert isinstance(payload["blocks"], list)
@@ -186,7 +179,7 @@ def test_response_payload_has_required_fields():
 
 
 def test_response_payload_attributed_values_have_provenance():
-    """Every AttributedValue in response payload must have precision/source/fill_strategy."""
+    """response payload 中每个 AttributedValue 都包含 provenance 字段。"""
     lc = _make_lc(output_tokens=3000, response_full="response text")
     ro = _make_ro()
     attr = build_llm_response_attribution("claude_code", lc, ro)
@@ -252,7 +245,7 @@ def test_response_bucket_serialized_with_contributes_to_total():
 
 
 def test_request_bucket_display_percent_uses_claude_request_denominator():
-    """Claude request bucket percentages use Request Content Denominator (Fresh)."""
+    """Claude request bucket 百分比使用 Fresh denominator。"""
     total_value = AttributedValue(
         value=28700, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
         source=ValueSource.PROVIDER_USAGE,
@@ -314,7 +307,7 @@ def test_request_bucket_display_percent_uses_claude_request_denominator():
 
 
 def test_codex_request_bucket_display_percent_uses_fresh_not_cache_read():
-    """Codex cache read is accounting metadata, not a request-content bucket denominator."""
+    """Codex cache read 是 accounting metadata，不是 request-content denominator。"""
     total_value = AttributedValue(
         value=5000, unit="tokens", precision=ValuePrecision.PROVIDER_REPORTED,
         source=ValueSource.PROVIDER_USAGE,
@@ -379,7 +372,7 @@ def test_codex_request_bucket_display_percent_uses_fresh_not_cache_read():
 
 
 def test_request_bucket_taxonomy_normalizes_labels_and_color_keys_across_agents():
-    """Equivalent request buckets should share canonical display metadata across agents."""
+    """等价 request bucket 在不同 agent 间共享 canonical 展示元数据。"""
     def make_attr(agent: str, raw_key: str, raw_label: str) -> LLMRequestAttribution:
         value = AttributedValue(
             value=1000,
@@ -441,7 +434,7 @@ def test_request_bucket_taxonomy_normalizes_labels_and_color_keys_across_agents(
 
 
 def test_request_bucket_taxonomy_maps_agent_specific_history_keys_to_one_category():
-    """Agent-specific history/message buckets should render as one global category."""
+    """agent-specific history/message bucket 应渲染为同一个全局类别。"""
     value = AttributedValue(
         value=1000,
         unit="tokens",
@@ -527,12 +520,38 @@ def test_response_tool_bucket_details_show_actual_command_not_schema():
             },
         ],
     )
-    attr = build_llm_response_attribution("claude_code", lc, _make_ro())
+    attr = build_llm_response_attribution(
+        "claude_code",
+        lc,
+        _make_ro(),
+        session_context={
+            "normalized_call": {
+                "call_id": "test-call-001",
+                "source_units": [
+                    {
+                        "source_id": "test:tool_calls:1",
+                        "dedupe_key": "dedupe:tool_calls:1",
+                        "origin_path": "assistant.content_blocks[1]",
+                        "canonical_source_locator": "tool_use:tu-bash-001",
+                        "unit_type": "tool_use_block",
+                        "candidate": "tool_calls",
+                        "direction": "response",
+                        "event_order": 1,
+                        "part_index": 1,
+                        "byte_range": [0, 27],
+                        "text": "Bash({command: pytest -q})",
+                        "label": "Bash",
+                        "preview": "Bash({command: pytest -q})",
+                    }
+                ],
+            }
+        },
+    )
     payload = response_attribution_to_payload(attr)
 
     tool_bucket = next(b for b in payload["buckets"] if b["key"] == "tool_call")
-    assert tool_bucket["label"] == "Tool call"
-    assert tool_bucket["details"]["kind"] == "tool_calls"
-    assert tool_bucket["details"]["items"][0]["command_preview"] == "pytest -q"
+    assert tool_bucket["label"] == "工具调用"
+    assert tool_bucket["details"]["kind"] == "source_units"
+    assert "pytest -q" in tool_bucket["details"]["items"][0]["preview"]
     assert "total_schema_tokens" not in tool_bucket["details"]
     assert "description_preview" not in tool_bucket["details"]["items"][0]

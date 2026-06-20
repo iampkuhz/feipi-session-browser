@@ -6,7 +6,7 @@ from pathlib import Path
 
 def test_extract_messages_carries_function_call_output_to_next_request():
     """Codex function_call_output 是下一次模型调用的 request-side tool output。"""
-    from session_browser.sources.codex import _extract_messages
+    from session_browser.sources.codex_session_source import _extract_messages
 
     events = [
         {
@@ -91,7 +91,7 @@ def test_extract_messages_carries_function_call_output_to_next_request():
 
 def test_extract_messages_uses_response_item_as_canonical_assistant_text():
     """同一 assistant 文案同时出现在 event_msg 和 response_item 时只展示一次。"""
-    from session_browser.sources.codex import _extract_messages
+    from session_browser.sources.codex_session_source import _extract_messages
 
     text = "我先按仓库规则做一次只读摸底。"
     events = [
@@ -274,7 +274,7 @@ def test_codex_interaction_metrics_do_not_delta_normalize_extracted_cumulative_d
 
 def test_codex_token_count_boundaries_create_call_rounds_and_skip_duplicates():
     """每条有效 token_count 都是 Codex call round；重复累计快照贡献 0。"""
-    from session_browser.sources.codex import _extract_messages
+    from session_browser.sources.codex_session_source import _extract_messages
     from session_browser.web.presenters.session_detail import build_rounds
 
     events = [
@@ -440,7 +440,7 @@ def test_codex_token_count_boundaries_create_call_rounds_and_skip_duplicates():
 
 def test_codex_tool_wall_time_parses_subsecond_duration():
     """Codex tool output Wall time should populate duration_ms."""
-    from session_browser.sources.codex import _extract_tool_calls
+    from session_browser.sources.codex_session_source import _extract_tool_calls
     from session_browser.web.session_detail.view_model import _format_duration_short
 
     events = [
@@ -472,7 +472,7 @@ def test_codex_tool_wall_time_parses_subsecond_duration():
 
 def test_codex_tool_duration_falls_back_to_output_timestamp_when_wall_time_is_zero():
     """Codex wrapper sometimes reports Wall time 0; event timestamps still give a useful duration."""
-    from session_browser.sources.codex import _extract_tool_calls
+    from session_browser.sources.codex_session_source import _extract_tool_calls
     from session_browser.web.session_detail.view_model import _format_duration_short
 
     events = [
@@ -505,7 +505,7 @@ def test_codex_tool_duration_falls_back_to_output_timestamp_when_wall_time_is_ze
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_parse_session_index_empty_when_missing():
     """测试无数据目录时 parse_session_index 返回空列表。"""
-    from session_browser.sources import codex
+    from session_browser.sources import codex_session_source as codex
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -521,7 +521,7 @@ def test_parse_session_index_empty_when_missing():
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_read_threads_db_empty_when_missing():
     """测试无数据库时 read_threads_db 返回空字典。"""
-    from session_browser.sources import codex
+    from session_browser.sources import codex_session_source as codex
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -537,7 +537,7 @@ def test_read_threads_db_empty_when_missing():
 @pytest.mark.contract_case("DATA-SOURCE-005", "DATA-SOURCE-006", "DATA-SOURCE-007")
 def test_session_file_search():
     """测试 _find_session_file 遍历层级目录。"""
-    from session_browser.sources import codex
+    from session_browser.sources import codex_session_source as codex
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -709,7 +709,7 @@ def _write_codex_tool_session(tmp_path: Path) -> tuple[str, dict]:
 
 def _find_session_with_tools(min_tools: int = 5, threads_db: dict | None = None) -> str | None:
     """找一个至少有 min_tools 个 tool calls 的 Codex session ID。"""
-    from session_browser.sources.codex import read_threads_db, parse_session_detail
+    from session_browser.sources.codex_session_source import read_threads_db, parse_session_detail
     threads = threads_db if threads_db is not None else read_threads_db()
     for sid, info in threads.items():
         if info.get("tokens_used", 0) < 10000:
@@ -731,7 +731,7 @@ def test_codex_round_tool_contract(tmp_path):
     4. round 的 token 统计必须非零（至少 input 或 output > 0）
     5. session 总 token 应 >= 各 round token 之和（允许误差）
     """
-    from session_browser.sources.codex import parse_session_detail
+    from session_browser.sources.codex_session_source import parse_session_detail
     from session_browser.web.presenters.session_detail import build_rounds
 
     sid, threads_db = _write_codex_tool_session(tmp_path)

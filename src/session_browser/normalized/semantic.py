@@ -103,6 +103,16 @@ def _call_from_round(
     usage_source = metrics.get("usage_source") if isinstance(metrics.get("usage_source"), dict) else {}
     request = round_obj.get("request") if isinstance(round_obj.get("request"), dict) else {}
     response = round_obj.get("response") if isinstance(round_obj.get("response"), dict) else {}
+    attribution_candidates = (
+        round_obj.get("attribution_candidates")
+        if isinstance(round_obj.get("attribution_candidates"), dict)
+        else {}
+    )
+    source_units = (
+        round_obj.get("source_units")
+        if isinstance(round_obj.get("source_units"), list)
+        else []
+    )
     tool_result_ids = _string_list(request.get("tool_result_ids"))
     tool_call_ids = _string_list(response.get("tool_call_ids"))
 
@@ -124,6 +134,10 @@ def _call_from_round(
             "tool_call_ids": tool_call_ids,
         },
     }
+    if attribution_candidates:
+        call["attribution_candidates"] = attribution_candidates
+    if source_units:
+        call["source_units"] = source_units
     if usage_source:
         call["usage_source"] = {
             "kind": str(usage_source.get("kind") or ""),

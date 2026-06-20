@@ -273,7 +273,7 @@ def full_scan(
     Returns a dict with scan statistics.
     """
     from session_browser.sources import claude as claude_source
-    from session_browser.sources import codex as codex_source
+    from session_browser.sources import codex_session_source as codex_source
     from session_browser.sources import qoder as qoder_source
 
     if conn is None:
@@ -542,7 +542,7 @@ def incremental_scan(
     """
     from session_browser.config import QODER_DATA_DIR
     from session_browser.sources import claude as claude_source
-    from session_browser.sources import codex as codex_source
+    from session_browser.sources import codex_session_source as codex_source
     from session_browser.sources import qoder as qoder_source
 
     if conn is None:

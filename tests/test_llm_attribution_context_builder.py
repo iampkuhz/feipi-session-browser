@@ -1,11 +1,4 @@
-"""Tests for the attribution session context builder (Task 02c).
-
-Verifies:
-1. build_attribution_session_context returns non-null context.
-2. First interaction has empty preceding_tool_results.
-3. Second interaction includes first interaction's tool results.
-4. interaction_index is correctly set.
-"""
+"""attribution session_context builder 测试。"""
 
 import json
 from pathlib import Path
@@ -69,15 +62,8 @@ def _write_agent(project_dir: Path, name: str, tools: str) -> None:
     )
 
 
-def _tool_schema_bucket_from_context(lc: LLMCall, ro: ConversationRound, ctx: dict):
-    from session_browser.attribution.agents.claude_code import ClaudeCodeAttributionBuilder
-
-    attr = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx).build_request()
-    return next(bucket for bucket in attr.buckets if bucket.key == "tool_definitions")
-
-
 def test_context_returns_non_null():
-    """build_attribution_session_context should always return a dict."""
+    """build_attribution_session_context 应始终返回 dict。"""
     lc = _make_lc()
     ro = _make_ro()
     ctx = build_attribution_session_context(
@@ -95,7 +81,7 @@ def test_context_returns_non_null():
 
 
 def test_first_interaction_has_empty_preceding_tool_results():
-    """First interaction (index=0) should have empty preceding_tool_results."""
+    """第一个 interaction 的 preceding_tool_results 为空。"""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="result1")
     lc = _make_lc()
     ro = _make_ro(tool_calls=[tc])
@@ -111,7 +97,7 @@ def test_first_interaction_has_empty_preceding_tool_results():
 
 
 def test_second_interaction_includes_first_tool_results():
-    """Second interaction (index=1) should include tool results from first interaction."""
+    """第二个 interaction 包含第一个 interaction 的工具结果。"""
     tc1 = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="result from first")
     tc2 = ToolCall(name="Bash", parameters={"command": "echo hi"}, result="result from second")
 
@@ -135,7 +121,7 @@ def test_second_interaction_includes_first_tool_results():
 
 
 def test_subagent_tool_results_excluded():
-    """Tool results with subagent_id should be excluded."""
+    """带 subagent_id 的工具结果不进入父 agent preceding_tool_results。"""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="sub result")
     tc.subagent_id = "sub-001"
 
@@ -150,12 +136,11 @@ def test_subagent_tool_results_excluded():
         interactions=[lc],
         round_tool_calls=[tc],
     )
-    # subagent tool results should be excluded
     assert "sub result" not in ctx["preceding_tool_results"]
 
 
 def test_no_interactions_returns_empty():
-    """When there are no prior interactions, preceding_tool_results is empty."""
+    """没有 prior interactions 时 preceding_tool_results 为空。"""
     lc = _make_lc()
     ro = _make_ro()
     ctx = build_attribution_session_context(
@@ -170,7 +155,7 @@ def test_no_interactions_returns_empty():
 
 
 def test_claude_code_default_config_uses_full_builtin_tools(tmp_path):
-    """Default Claude Code sessions use the full builtin registry, not observed calls."""
+    """默认 Claude Code session 使用完整 builtin registry，不使用 observed calls。"""
     from session_browser.attribution.agents.claude_code_tool_schemas import (
         ALL_CLAUDE_CODE_TOOLS,
     )
@@ -213,14 +198,9 @@ def test_claude_code_default_config_uses_full_builtin_tools(tmp_path):
     assert ctx["available_tools_source"] == "default_builtin"
     assert len(ctx["available_tools"]) == 34
 
-    bucket = _tool_schema_bucket_from_context(lc, ro, ctx)
-    assert bucket.count_label == "34 tools"
-    assert [item["name"] for item in bucket.details["items"]] == sorted(ALL_CLAUDE_CODE_TOOLS)
-    assert {item["source"] for item in bucket.details["items"]} == {"default_fallback"}
-
 
 def test_claude_code_main_custom_agent_uses_that_agent_tools(tmp_path):
-    """Main Claude Code calls use the selected agent-setting definition only."""
+    """Claude Code main call 使用选中的 agent-setting definition。"""
     session_file = tmp_path / "custom-main.jsonl"
     session_file.write_text(
         json.dumps({
@@ -256,14 +236,9 @@ def test_claude_code_main_custom_agent_uses_that_agent_tools(tmp_path):
     assert ctx["available_tools_source"] == "agent_definition"
     assert ctx["available_tools_agent_name"] == "qwen-main-default"
 
-    bucket = _tool_schema_bucket_from_context(lc, ro, ctx)
-    assert bucket.count_label == "7 tools"
-    assert [item["name"] for item in bucket.details["items"]] == expected
-    assert {item["source"] for item in bucket.details["items"]} == {"agent_definition"}
-
 
 def test_claude_code_subagent_uses_subagent_tools_not_main_or_observed(tmp_path):
-    """Subagent Claude Code calls use their own agent definition independently."""
+    """Claude Code subagent call 使用自己的 agent definition。"""
     session_file = tmp_path / "subagent-session.jsonl"
     session_file.write_text(
         json.dumps({
@@ -300,13 +275,9 @@ def test_claude_code_subagent_uses_subagent_tools_not_main_or_observed(tmp_path)
     assert ctx["available_tools_source"] == "agent_definition"
     assert ctx["available_tools_agent_name"] == "repo-mapper"
 
-    bucket = _tool_schema_bucket_from_context(lc, ro, ctx)
-    assert bucket.count_label == "2 tools"
-    assert [item["name"] for item in bucket.details["items"]] == ["Bash", "Read"]
-
 
 def test_qoder_available_tools_uses_observed():
-    """Qoder should use observed tool calls when available."""
+    """Qoder 可使用 observed tool calls。"""
     from session_browser.attribution.context import _build_available_tools
 
     all_tool_calls = [
@@ -322,7 +293,7 @@ def test_qoder_available_tools_uses_observed():
 
 
 def test_codex_available_tools_empty():
-    """Codex should return empty when no tools are available."""
+    """Codex 没有可用工具时返回空列表。"""
     from session_browser.attribution.context import _build_available_tools
 
     result = _build_available_tools(
@@ -333,7 +304,7 @@ def test_codex_available_tools_empty():
 
 
 def test_parse_agent_tools_from_frontmatter():
-    """Parse tools field from YAML frontmatter."""
+    """解析 YAML frontmatter 中的 tools 字段。"""
     from session_browser.attribution.agents.claude_code_parts.claude_code_agent_tools import (
         parse_agent_tools_from_frontmatter,
     )
@@ -350,7 +321,7 @@ def test_parse_agent_tools_from_frontmatter():
 
 
 def test_read_agent_definition_tools_is_agent_specific(tmp_path):
-    """Agent tool parsing should read one named agent, not the project union."""
+    """agent tool 解析只读取指定 agent 文件，不读取项目全集。"""
     from session_browser.attribution.agents.claude_code_parts.claude_code_agent_tools import (
         read_agent_definition_tools,
     )

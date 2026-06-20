@@ -8,17 +8,23 @@ import re
 from pathlib import Path
 from typing import Any
 
+from session_browser.domain.token_normalizers.codex_token_normalizer import (
+    CODEX_USAGE_FIELDS,
+    codex_is_duplicate_cumulative,
+    codex_usage_delta,
+    extract_codex_usage,
+    int_or_zero,
+)
+from session_browser.normalized.agents.codex_parts import (
+    CodexSourceUnitDraft,
+    finalize_source_units,
+    payload_unit,
+    source_units_to_candidates,
+    split_codex_prompt_text,
+    text_unit,
+)
 from session_browser.normalized.semantic import build_normalized_session_model
 from session_browser.sources.jsonl_reader import parse_jsonl_events
-
-
-_CODEX_USAGE_FIELDS = (
-    "input_tokens",
-    "cached_input_tokens",
-    "output_tokens",
-    "reasoning_output_tokens",
-    "total_tokens",
-)
 
 
 def parse_codex_rollout_file(
@@ -112,6 +118,12 @@ class _CodexBuildState:
         self.pending_tool_results: list[dict] = []
         self.segment_response_items: list[dict] = []
         self.segment_tool_events: list[dict] = []
+        self.persistent_request_units: list[CodexSourceUnitDraft] = []
+        self.current_user_units: list[CodexSourceUnitDraft] = []
+        self.conversation_history_units: list[CodexSourceUnitDraft] = []
+        self.pending_tool_result_units: list[CodexSourceUnitDraft] = []
+        self.segment_tool_result_units: list[CodexSourceUnitDraft] = []
+        self.response_units: list[CodexSourceUnitDraft] = []
 
         self.rounds: list[dict] = []
         self.parse_warnings: list[dict] = []
@@ -121,11 +133,103 @@ class _CodexBuildState:
     def accept_session_meta(self, payload: dict, timestamp: str) -> None:
         self._touch(timestamp)
         self.session_meta = payload or {}
+        base = payload.get("base_instructions")
+        base_text = ""
+        if isinstance(base, dict):
+            base_text = str(base.get("text") or "")
+        elif isinstance(base, str):
+            base_text = base
+        if base_text:
+            self.persistent_request_units.append(
+                text_unit(
+                    origin_path="session_meta.payload.base_instructions.text",
+                    unit_type="base_instructions_text",
+                    candidate="system_instructions",
+                    direction="request",
+                    text=base_text,
+                    timestamp=timestamp,
+                    event_order=self.event_order,
+                    label="base instructions",
+                    priority=70,
+                )
+            )
+        tools = payload.get("dynamic_tools")
+        if isinstance(tools, list) and tools:
+            for idx, tool in enumerate(tools):
+                self.persistent_request_units.append(
+                    payload_unit(
+                        origin_path=f"session_meta.payload.dynamic_tools[{idx}]",
+                        unit_type="dynamic_tool_schema",
+                        candidate="tool_definitions",
+                        direction="request",
+                        payload=tool,
+                        timestamp=timestamp,
+                        event_order=self.event_order,
+                        part_index=idx,
+                        label=str((tool or {}).get("name") or f"dynamic tool #{idx + 1}") if isinstance(tool, dict) else f"dynamic tool #{idx + 1}",
+                        priority=70,
+                    )
+                )
+        runtime_payload = {
+            key: payload.get(key)
+            for key in ("cwd", "originator", "cli_version", "source", "model_provider")
+            if payload.get(key) not in (None, "")
+        }
+        git = payload.get("git") if isinstance(payload.get("git"), dict) else {}
+        if git:
+            runtime_payload["git"] = {
+                key: git.get(key)
+                for key in ("branch", "commit_hash", "repository_url")
+                if git.get(key) not in (None, "")
+            }
+        if runtime_payload:
+            self.persistent_request_units.append(
+                payload_unit(
+                    origin_path="session_meta.payload.runtime",
+                    unit_type="session_runtime_metadata",
+                    candidate="runtime_context",
+                    direction="request",
+                    payload=runtime_payload,
+                    timestamp=timestamp,
+                    event_order=self.event_order,
+                    label="session runtime metadata",
+                    priority=65,
+                )
+            )
 
     def accept_turn_context(self, payload: dict, timestamp: str) -> None:
         self._touch(timestamp)
         self.latest_turn_context = payload or {}
         self.current_turn_id = str(payload.get("turn_id") or self.current_turn_id)
+        runtime_payload = {
+            key: payload.get(key)
+            for key in (
+                "turn_id",
+                "cwd",
+                "workspace_roots",
+                "current_date",
+                "timezone",
+                "approval_policy",
+                "sandbox_policy",
+                "model",
+                "effort",
+            )
+            if payload.get(key) not in (None, "")
+        }
+        if runtime_payload:
+            self.persistent_request_units.append(
+                payload_unit(
+                    origin_path="turn_context.payload",
+                    unit_type="turn_runtime_context",
+                    candidate="runtime_context",
+                    direction="request",
+                    payload=runtime_payload,
+                    timestamp=timestamp,
+                    event_order=self.event_order,
+                    label="turn runtime context",
+                    priority=60,
+                )
+            )
 
     def accept_compacted(self, payload: dict, timestamp: str) -> None:
         self._touch(timestamp)
@@ -133,8 +237,44 @@ class _CodexBuildState:
     def accept_response_item(self, payload: dict, timestamp: str) -> None:
         self._touch(timestamp)
         ptype = payload.get("type", "")
-        if ptype == "message" and payload.get("role") in {"developer", "user"}:
+        if ptype == "message" and payload.get("role") in {"developer", "system"}:
+            self._accept_instruction_message(payload, timestamp)
             return
+        if ptype == "message" and payload.get("role") == "user":
+            self._accept_user_request_message(payload, timestamp)
+            return
+        if ptype == "message" and payload.get("role") == "assistant":
+            self._accept_assistant_message(payload, timestamp)
+        elif ptype == "reasoning":
+            self.response_units.append(
+                payload_unit(
+                    origin_path="response_item.reasoning",
+                    unit_type="reasoning_output",
+                    candidate="reasoning_output",
+                    direction="response",
+                    payload=_reasoning_candidate_payload(payload),
+                    timestamp=timestamp,
+                    event_order=self.event_order,
+                    label="reasoning output",
+                )
+            )
+        elif ptype in {"function_call", "custom_tool_call", "tool_search_call", "web_search_call"}:
+            self.response_units.append(
+                payload_unit(
+                    origin_path=f"response_item.{ptype}",
+                    unit_type="model_tool_call",
+                    candidate="tool_calls",
+                    direction="response",
+                    payload=_tool_call_candidate_payload(payload),
+                    timestamp=timestamp,
+                    event_order=self.event_order,
+                    label=str(payload.get("name") or ptype),
+                )
+            )
+        elif ptype in {"function_call_output", "custom_tool_call_output"}:
+            unit = _tool_result_source_unit(payload, timestamp, self.event_order)
+            if unit:
+                self.segment_tool_result_units.append(unit)
         self.segment_response_items.append({
             "timestamp": timestamp,
             "event_order": self.event_order,
@@ -148,6 +288,21 @@ class _CodexBuildState:
             self.current_turn_id = str(payload.get("turn_id") or self.current_turn_id)
             return
         if ptype == "user_message":
+            text = _event_user_message_text(payload)
+            if text:
+                self.current_user_units.append(
+                    text_unit(
+                        origin_path="event_msg.user_message.message",
+                        unit_type="current_user_text",
+                        candidate="user_input",
+                        direction="request",
+                        text=text,
+                        timestamp=timestamp,
+                        event_order=self.event_order,
+                        label="current user input",
+                        priority=80,
+                    )
+                )
             return
         if ptype == "agent_message":
             return
@@ -169,6 +324,73 @@ class _CodexBuildState:
                 "payload": payload,
             })
             return
+
+    def _accept_instruction_message(self, payload: dict, timestamp: str) -> None:
+        texts = _message_texts(payload)
+        role = str(payload.get("role") or "")
+        for idx, text in enumerate(texts):
+            self.persistent_request_units.extend(
+                split_codex_prompt_text(
+                    text=text,
+                    origin_path=f"response_item.message(role={role}).content[{idx}].text",
+                    timestamp=timestamp,
+                    event_order=self.event_order,
+                    part_index=idx,
+                    default_candidate="system_instructions",
+                    default_unit_type="prompt_plain_text",
+                    priority=68,
+                )
+            )
+
+    def _accept_user_request_message(self, payload: dict, timestamp: str) -> None:
+        texts = _message_texts(payload)
+        for idx, text in enumerate(texts):
+            self.persistent_request_units.extend(
+                split_codex_prompt_text(
+                    text=text,
+                    origin_path=f"response_item.message(role=user).content[{idx}].text",
+                    timestamp=timestamp,
+                    event_order=self.event_order,
+                    part_index=idx,
+                    default_candidate=None,
+                    priority=55,
+                )
+            )
+
+    def _accept_assistant_message(self, payload: dict, timestamp: str) -> None:
+        for part in payload.get("content") or []:
+            if not isinstance(part, dict):
+                continue
+            text = str(part.get("text") or part.get("content") or "")
+            if not text.strip():
+                continue
+            ptype = str(part.get("type") or "")
+            if _looks_structured_output(text, ptype):
+                self.response_units.append(
+                    text_unit(
+                        origin_path="response_item.message(role=assistant).content[].text",
+                        unit_type="structured_output",
+                        candidate="structured_output",
+                        direction="response",
+                        text=text,
+                        timestamp=timestamp,
+                        event_order=self.event_order,
+                        label=ptype or "structured output",
+                    )
+                )
+            else:
+                self.response_units.append(
+                    text_unit(
+                        origin_path="response_item.message(role=assistant).content[].text",
+                        unit_type="assistant_output_text",
+                        candidate="assistant_output",
+                        direction="response",
+                        text=text,
+                        timestamp=timestamp,
+                        event_order=self.event_order,
+                        label=ptype or "assistant output",
+                    )
+                )
 
     def finish(self) -> None:
         if self.segment_response_items:
@@ -259,6 +481,7 @@ class _CodexBuildState:
         round_id = len(self.rounds) + 1
         call_id = f"{self.call_id_prefix}{round_id:04d}"
         request_tool_results = list(self.pending_tool_results)
+        attribution_snapshot = self._freeze_attribution_snapshot(call_id)
 
         tools = _collect_tools(self.segment_response_items, self.segment_tool_events)
 
@@ -276,6 +499,8 @@ class _CodexBuildState:
             subagent_id=self.subagent_id,
             parent_tool_use_id=self.parent_tool_use_id,
             parent_tool_name=self.parent_tool_name,
+            attribution_candidates=attribution_snapshot["attribution_candidates"],
+            source_units=attribution_snapshot["source_units"],
         )
         self.rounds.append(round_obj)
 
@@ -284,8 +509,34 @@ class _CodexBuildState:
             for t in tools
             if t.get("tool_call_id") and t.get("status") != "missing"
         ]
+        self._advance_candidate_state_after_close(attribution_snapshot["source_units"])
         self.segment_response_items = []
         self.segment_tool_events = []
+        self.segment_tool_result_units = []
+        self.response_units = []
+
+    def _freeze_attribution_snapshot(self, call_id: str) -> dict:
+        drafts = (
+            self.persistent_request_units
+            + self.conversation_history_units
+            + self.pending_tool_result_units
+            + self.current_user_units
+            + self.response_units
+        )
+        source_units = finalize_source_units(call_id, drafts)
+        return {
+            "source_units": source_units,
+            "attribution_candidates": source_units_to_candidates(source_units),
+        }
+
+    def _advance_candidate_state_after_close(self, source_units: list[dict]) -> None:
+        for unit in source_units:
+            candidate = str(unit.get("candidate") or "")
+            if candidate not in {"user_input", "assistant_output", "reasoning_output", "tool_calls", "structured_output"}:
+                continue
+            self.conversation_history_units.append(_history_source_unit(candidate, unit))
+        self.current_user_units = []
+        self.pending_tool_result_units = list(self.segment_tool_result_units)
 
     def _token_fragment(self, token_payload: dict, timestamp: str) -> dict:
         info = token_payload.get("info") if isinstance(token_payload.get("info"), dict) else {}
@@ -301,15 +552,15 @@ class _CodexBuildState:
             return {**record, "status": "fallback_last_usage", "contribution": record["last_total_tokens"]}
 
         delta = _token_usage_delta(cumulative_usage, self.previous_cumulative_usage)
-        record["cumulative_delta"] = {field: max(delta[field], 0) for field in _CODEX_USAGE_FIELDS}
+        record["cumulative_delta"] = {field: max(delta[field], 0) for field in CODEX_USAGE_FIELDS}
         record["contribution"] = record["cumulative_delta"]["total_tokens"]
 
-        if self.previous_cumulative_usage is not None and all(delta[field] == 0 for field in _CODEX_USAGE_FIELDS):
+        if codex_is_duplicate_cumulative(cumulative_usage, self.previous_cumulative_usage):
             self.previous_cumulative_usage = cumulative_usage
             return {**record, "status": "duplicate_token_count", "contribution": 0}
 
         status = "counted"
-        if any(delta[field] < 0 for field in _CODEX_USAGE_FIELDS):
+        if any(delta[field] < 0 for field in CODEX_USAGE_FIELDS):
             status = "cumulative_reset_or_invalid"
         self.previous_cumulative_usage = cumulative_usage
         return {**record, "status": status}
@@ -319,6 +570,115 @@ class _CodexBuildState:
             self.first_ts = timestamp
         if timestamp:
             self.last_ts = timestamp
+
+
+def _history_source_unit(candidate: str, unit: dict) -> CodexSourceUnitDraft:
+    text = str(unit.get("text") or "")
+    payload = unit.get("payload") if "payload" in unit else None
+    if text:
+        return text_unit(
+            origin_path=f"conversation_history.{candidate}",
+            unit_type=f"prior_{candidate}",
+            candidate="conversation_history",
+            direction="request",
+            text=text,
+            timestamp=str(unit.get("timestamp") or ""),
+            event_order=int(unit.get("event_order") or 0),
+            label=str(unit.get("label") or candidate),
+            priority=40,
+            sub_source=candidate,
+            source_candidate=candidate,
+        )
+    return payload_unit(
+        origin_path=f"conversation_history.{candidate}",
+        unit_type=f"prior_{candidate}",
+        candidate="conversation_history",
+        direction="request",
+        payload=payload if payload is not None else {
+            "source_id": unit.get("source_id", ""),
+            "unit_type": unit.get("unit_type", ""),
+        },
+        timestamp=str(unit.get("timestamp") or ""),
+        event_order=int(unit.get("event_order") or 0),
+        label=str(unit.get("label") or candidate),
+        priority=40,
+        sub_source=candidate,
+        source_candidate=candidate,
+    )
+
+
+def _message_texts(payload: dict) -> list[str]:
+    texts: list[str] = []
+    for part in payload.get("content") or []:
+        if not isinstance(part, dict):
+            continue
+        text = str(part.get("text") or part.get("content") or "")
+        if text.strip():
+            texts.append(text)
+    return texts
+
+
+def _event_user_message_text(payload: dict) -> str:
+    message = payload.get("message", "")
+    if isinstance(message, list):
+        return "\n".join(str(item) for item in message if item is not None)
+    return str(message or "")
+
+
+def _looks_structured_output(text: str, part_type: str) -> bool:
+    if part_type in {"json", "structured", "structured_output"}:
+        return True
+    return False
+
+
+def _reasoning_candidate_payload(payload: dict) -> dict:
+    summary = payload.get("summary") if isinstance(payload.get("summary"), list) else []
+    return {
+        "summary": _json_safe(summary),
+        "has_encrypted_content": bool(payload.get("encrypted_content")),
+        "encrypted_content_unavailable": bool(payload.get("encrypted_content")),
+    }
+
+
+def _tool_call_candidate_payload(payload: dict) -> dict:
+    return {
+        "type": payload.get("type") or "",
+        "call_id": payload.get("call_id") or "",
+        "name": payload.get("name") or "",
+        "arguments": payload.get("arguments", payload.get("input", "")),
+    }
+
+
+def _tool_result_source_unit(payload: dict, timestamp: str, event_order: int) -> CodexSourceUnitDraft | None:
+    call_id = str(payload.get("call_id") or "")
+    output = payload.get("output")
+    if not call_id and output in (None, ""):
+        return None
+    text = output if isinstance(output, str) else ""
+    return payload_unit(
+        origin_path=f"response_item.{payload.get('type')}.output",
+        unit_type="request_tool_result",
+        candidate="tool_results",
+        direction="request",
+        payload={
+            "call_id": call_id,
+            "output": output,
+            "status": payload.get("status") or "",
+        },
+        timestamp=timestamp,
+        event_order=event_order,
+        label=call_id or "tool result",
+        priority=80,
+        text=text,
+    )
+
+
+def _json_safe(value: Any) -> Any:
+    try:
+        json.dumps(value, ensure_ascii=False)
+        return value
+    except TypeError:
+        return str(value)
 
 
 def _build_round(
@@ -336,6 +696,8 @@ def _build_round(
     subagent_id: str,
     parent_tool_use_id: str,
     parent_tool_name: str,
+    attribution_candidates: dict,
+    source_units: list[dict],
 ) -> dict:
     fresh_tokens = max(usage["input_tokens"] - usage["cached_input_tokens"], 0)
     token_total = fresh_tokens + usage["cached_input_tokens"] + usage["output_tokens"]
@@ -372,47 +734,28 @@ def _build_round(
         "response": {
             "tool_call_ids": [t["tool_call_id"] for t in tools if t.get("tool_call_id")],
         },
+        "attribution_candidates": attribution_candidates,
+        "source_units": source_units,
         "steps": steps,
     }
 
 
 def _extract_token_count_usage(payload: dict) -> dict:
     info = payload.get("info") if isinstance(payload.get("info"), dict) else {}
-    usage = info.get("last_token_usage") or payload.get("last_token_usage") or {}
-    if not isinstance(usage, dict):
-        usage = {}
-    input_tokens = _int(usage.get("input_tokens") or usage.get("prompt_tokens"))
-    cached = (
-        _int(usage.get("cached_input_tokens"))
-        or _int(usage.get("cache_read_input_tokens"))
-        or _nested_int(usage, "input_tokens_details", "cached_tokens")
-        or _nested_int(usage, "prompt_tokens_details", "cached_tokens")
-    )
-    output = _int(usage.get("output_tokens") or usage.get("completion_tokens"))
-    reasoning = (
-        _int(usage.get("reasoning_output_tokens"))
-        or _nested_int(usage, "output_tokens_details", "reasoning_tokens")
-        or _nested_int(usage, "completion_tokens_details", "reasoning_tokens")
-    )
+    usage = extract_codex_usage(info.get("last_token_usage") or payload.get("last_token_usage") or {})
     return {
-        "input_tokens": input_tokens,
-        "cached_input_tokens": cached,
-        "output_tokens": output or reasoning,
-        "reasoning_output_tokens": reasoning,
-        "source_total_tokens": _int(usage.get("total_tokens")) or input_tokens + output,
-        "model_context_window": _int(info.get("model_context_window")),
+        "input_tokens": usage.get("input_tokens", 0),
+        "cached_input_tokens": usage.get("cached_input_tokens", 0),
+        "output_tokens": usage.get("output_tokens", 0),
+        "reasoning_output_tokens": usage.get("reasoning_output_tokens", 0),
+        "source_total_tokens": usage.get("total_tokens", 0)
+        or usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
+        "model_context_window": int_or_zero(info.get("model_context_window")),
     }
 
 
 def _token_usage_delta(current: dict, previous: dict | None) -> dict:
-    previous = previous if isinstance(previous, dict) else {}
-    return {
-        "input_tokens": _int(current.get("input_tokens")) - _int(previous.get("input_tokens")),
-        "cached_input_tokens": _int(current.get("cached_input_tokens")) - _int(previous.get("cached_input_tokens")),
-        "output_tokens": _int(current.get("output_tokens")) - _int(previous.get("output_tokens")),
-        "reasoning_output_tokens": _int(current.get("reasoning_output_tokens")) - _int(previous.get("reasoning_output_tokens")),
-        "total_tokens": _int(current.get("total_tokens")) - _int(previous.get("total_tokens")),
-    }
+    return codex_usage_delta(current, previous)
 
 
 def _collect_tools(response_items: list[dict], tool_events: list[dict]) -> list[dict]:

@@ -1,505 +1,128 @@
-"""Tests for LLM attribution bucket normalization.
+"""Field-first token accounting mapper 测试。"""
 
-Verifies:
-1. Heuristic buckets sum cannot exceed request_content_denominator.
-2. Hidden builtin / provider wrapper scaled down for small total.
-3. Unlocated_residual computed correctly.
-4. Coverage never exceeds 100%.
-5. Measured buckets never scaled down.
-6. Normalization with zero request_content_denominator.
-7. Percentages recomputed after normalization.
-"""
+from __future__ import annotations
 
 import pytest
 
-from session_browser.attribution.contracts import RequestAttributionBucket
-from session_browser.attribution.agents.claude_code import (
-    normalize_request_reconstruction_buckets,
+from session_browser.attribution.contracts import AttributedValue, ValuePrecision, ValueSource
+from session_browser.attribution.mapping.agents.claude_code_token_accounting_mapping import (
+    ClaudeCodeTokenAccountingMapper,
 )
-from session_browser.domain.models import LLMCall, ChatMessage, ConversationRound
+from session_browser.attribution.mapping.agents.qoder_token_accounting_mapping import (
+    QoderTokenAccountingMapper,
+)
 
 
-def _make_bucket(key, tokens, **kwargs):
-    """Helper to create a RequestAttributionBucket."""
-    defaults = dict(label=key, tokens=tokens, percent=0.0)
-    defaults.update(kwargs)
-    return RequestAttributionBucket(key=key, **defaults)
+FIELD_ORDER = [
+    "fresh_input_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "output_tokens",
+]
 
 
-# ── Heuristic bucket constraints ─────────────────────────────────────
-
-
-def test_heuristic_buckets_sum_cannot_exceed_request_content_denominator():
-    """Sum of measured + estimated + heuristic buckets must not exceed fresh_input."""
-    buckets = [
-        _make_bucket("current_user_message", 2000),
-        _make_bucket("tool_definitions", 500),
-        _make_bucket("local_instruction_context", 300),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 3000
-    request_content_denominator = fresh_input  # less than measured + heuristic
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
+def _value(tokens: int) -> AttributedValue:
+    return AttributedValue(
+        value=tokens,
+        unit="tokens",
+        precision=ValuePrecision.PROVIDER_REPORTED,
+        source=ValueSource.PROVIDER_USAGE,
+        fill_strategy="test value",
     )
 
-    measured = sum(b.tokens for b in buckets if b.key in ("current_user_message",))
-    estimated = sum(b.tokens for b in buckets if b.key in ("local_instruction_context",))
-    heuristic_fixed = sum(b.tokens for b in buckets if b.key == "tool_definitions")
-    heuristic_scaled = sum(b.tokens for b in buckets if b.key == "hidden_builtin_system_estimate")
 
-    # measured + estimated should fit within fresh_input (estimated is scaled)
-    assert measured + estimated <= fresh_input
-    # heuristic_fixed is scaled proportionally when budget exists but insufficient
-    # budget = 3000 - 2000 - 300 = 700, heuristic_fixed_sum = 1000, scale = 700/1000 = 0.7
-    assert heuristic_fixed + heuristic_scaled <= fresh_input - measured - estimated
-    # Each bucket scaled: 500 * 0.7 = 350, total heuristic = 700
-    assert heuristic_fixed == 350
-    assert heuristic_scaled == 350
-
-
-def test_hidden_builtin_scaled_down_for_small_total():
-    """When fresh_input is very small, heuristic_fixed should be scaled down."""
-    buckets = [
-        _make_bucket("current_user_message", 1000),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 1100
-    request_content_denominator = fresh_input  # barely above measured
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    hidden = next(b for b in buckets if b.key == "hidden_builtin_system_estimate")
-
-    # Should be scaled down from 500
-    assert hidden.tokens < 500
-
-
-def test_heuristic_fixed_not_zeroed_when_no_budget():
-    """When fresh_input equals measured, heuristic_fixed should keep values.
-
-    Previously heuristic_fixed was zeroed when budget was exhausted.
-    Now we preserve these values (e.g. tool_definitions represents real known
-    token costs from SDK definitions) and let residual absorb the overflow.
-    """
-    buckets = [
-        _make_bucket("current_user_message", 1000),
-        _make_bucket("preceding_tool_results", 500),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("tool_definitions", 300),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 1500
-    request_content_denominator = fresh_input  # exactly measured, no room for heuristic
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    hidden = next(b for b in buckets if b.key == "hidden_builtin_system_estimate")
-    tool_definitions = next(b for b in buckets if b.key == "tool_definitions")
-
-    # heuristic_fixed buckets keep their original values
-    assert hidden.tokens == 500
-    assert tool_definitions.tokens == 300
-
-    # residual absorbs the overflow (Fresh=1500, known=1000+500+500+300=2300 > Fresh)
-    residual = next(b for b in buckets if b.key == "unlocated_residual")
-    assert residual.tokens == 0  # max(1500 - 2300, 0) = 0
-
-
-# ── Unlocated residual ───────────────────────────────────────────────
-
-
-def test_unlocated_residual_computed_correctly():
-    """unlocated_residual should be max(request_content_denominator - known_sum, 0)."""
-    buckets = [
-        _make_bucket("current_user_message", 1000),
-        _make_bucket("tool_definitions", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    request_content_denominator = 3000
-    fresh_input = 3000
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    residual = next(b for b in buckets if b.key == "unlocated_residual")
-    known_sum = sum(b.tokens for b in buckets if b.key != "unlocated_residual")
-    assert residual.tokens == max(request_content_denominator - known_sum, 0)
-
-
-def test_unlocated_residual_non_negative():
-    """unlocated_residual should never be negative."""
-    buckets = [
-        _make_bucket("current_user_message", 5000),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    request_content_denominator = 3000  # less than measured!
-    fresh_input = 3000
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    residual = next(b for b in buckets if b.key == "unlocated_residual")
-    assert residual.tokens >= 0
-
-
-# ── Coverage ─────────────────────────────────────────────────────────
-
-
-def test_coverage_never_exceeds_100_percent():
-    """Coverage (known/total) should never exceed 1.0 after normalization."""
-    buckets = [
-        _make_bucket("current_user_message", 1000),
-        _make_bucket("tool_definitions", 500),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    request_content_denominator = 2000
-    fresh_input = 2000
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    contributing_sum = sum(
-        b.tokens for b in buckets
-        if b.key != "unlocated_residual" and b.contributes_to_total
-    )
-    coverage = contributing_sum / request_content_denominator if request_content_denominator > 0 else 0
-    assert coverage <= 1.0
-
-
-# ── Measured bucket protection ───────────────────────────────────────
-
-
-def test_measured_buckets_never_scaled_down():
-    """Measured buckets (current_user_message, preceding_tool_results, prior_conversation_messages)
-    should never be scaled down regardless of budget constraints."""
-    original_measured = 2000
-    buckets = [
-        _make_bucket("current_user_message", original_measured),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 2100
-    request_content_denominator = fresh_input  # barely above measured
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    measured = next(b for b in buckets if b.key == "current_user_message")
-    assert measured.tokens == original_measured
-
-
-def test_measured_bucket_preceding_tool_results_preserved():
-    """preceding_tool_results should not be scaled down."""
-    buckets = [
-        _make_bucket("preceding_tool_results", 1500),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 1600
-    request_content_denominator = fresh_input
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    measured = next(b for b in buckets if b.key == "preceding_tool_results")
-    assert measured.tokens == 1500
-
-
-# ── Zero request_content_denominator ─────────────────────────────────────────────────
-
-
-def test_normalization_with_zero_request_content_denominator():
-    """Normalization should handle zero request_content_denominator without crashing."""
-    buckets = [
-        _make_bucket("current_user_message", 0),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    # Should not crash
-    result = normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=0, fresh_input=0,
-    )
-    assert result is not None
-
-
-# ── Percentage recomputation ─────────────────────────────────────────
-
-
-def test_percentages_recomputed_after_normalization():
-    """Percentages should be recomputed to reflect new token values."""
-    buckets = [
-        _make_bucket("current_user_message", 1000, percent=50.0),
-        _make_bucket("hidden_builtin_system_estimate", 500, percent=25.0),
-        _make_bucket("unlocated_residual", 500, percent=25.0),
-    ]
-
-    request_content_denominator = 2000
-    fresh_input = 2000
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    total_pct = sum(b.percent for b in buckets)
-    assert abs(total_pct - 100.0) < 0.1  # should sum to ~100%
-
-
-def test_percentages_valid_range():
-    """All bucket percentages should be in [0, 100]."""
-    buckets = [
-        _make_bucket("current_user_message", 1000),
-        _make_bucket("tool_definitions", 500),
-        _make_bucket("local_instruction_context", 300),
-        _make_bucket("hidden_builtin_system_estimate", 500),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 3000
-    request_content_denominator = fresh_input
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    for b in buckets:
-        assert 0 <= b.percent <= 100, f"Bucket {b.key} has invalid percent: {b.percent}"
-
-
-# ── Estimated bucket scaling ──────────────────────────────────────────
-
-
-def test_estimated_buckets_scaled_when_exceed_remaining():
-    """Estimated buckets should be scaled proportionally when they exceed Fresh budget."""
-    buckets = [
-        _make_bucket("current_user_message", 500),
-        _make_bucket("local_instruction_context", 800),  # estimated
-        _make_bucket("agent_subagent_prompt", 600),  # estimated
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 1000  # measured(500) + estimated(1400) = 1900 > Fresh
-    request_content_denominator = fresh_input  # Fresh is the request content denominator
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    estimated_sum = sum(
-        b.tokens for b in buckets
-        if b.key in ("local_instruction_context", "agent_subagent_prompt")
-    )
-    # Estimated is scaled against Fresh: remaining = 1000 - 500 = 500
-    remaining = fresh_input - 500
-    assert estimated_sum <= remaining
-
-
-# ── Edge cases ───────────────────────────────────────────────────────
-
-
-def test_empty_buckets():
-    """Empty bucket list should return unchanged."""
-    result = normalize_request_reconstruction_buckets(
-        [], request_content_denominator=1000, fresh_input=1000,
-    )
-    assert result == []
-
-
-def test_single_bucket_no_normalization_needed():
-    """Single bucket within budget should not be modified."""
-    buckets = [
-        _make_bucket("current_user_message", 1000),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    request_content_denominator = 2000
-    fresh_input = 2000
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    measured = next(b for b in buckets if b.key == "current_user_message")
-    assert measured.tokens == 1000
-
-
-def test_all_bucket_keys_classified():
-    """All expected bucket keys should be classified by the normalization function."""
-    from session_browser.attribution.agents.claude_code_parts.constants import (
-        MEASURED_BUCKET_KEYS,
-        ESTIMATED_BUCKET_KEYS,
-        HEURISTIC_FIXED_KEYS,
-        HEURISTIC_SCALED_KEYS,
-    )
-
-    all_known = (
-        MEASURED_BUCKET_KEYS | ESTIMATED_BUCKET_KEYS |
-        HEURISTIC_FIXED_KEYS | HEURISTIC_SCALED_KEYS
-    )
-
-    # Should include the expected keys
-    assert "current_user_message" in MEASURED_BUCKET_KEYS
-    assert "preceding_tool_results" in MEASURED_BUCKET_KEYS
-    assert "tool_definitions" in HEURISTIC_FIXED_KEYS  # moved from estimated
-    assert "local_instruction_context" in ESTIMATED_BUCKET_KEYS
-    assert "hidden_builtin_system_estimate" in HEURISTIC_FIXED_KEYS
-    # provider_wrapper_estimate removed — now noted in attribution_notes instead
-    assert "top_level_system_estimate" in HEURISTIC_SCALED_KEYS
-
-
-def test_estimated_bucket_details_scaled_proportionally():
-    """When estimated buckets are scaled, their details.items tokens should also scale."""
-    buckets = [
-        _make_bucket(
-            "current_user_message", 500,
-        ),
-        _make_bucket(
-            "local_instruction_context", 800,
-            details={
-                "kind": "system_sources",
-                "items": [
-                    {"file_path": "CLAUDE.md", "tokens": 500, "preview": "test"},
-                    {"file_path": "system-reminder", "tokens": 300},
-                ],
-            },
-        ),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    # request_content_denominator < measured + estimated to trigger scaling
-    request_content_denominator = 900
-    fresh_input = 900
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    li_bucket = next(b for b in buckets if b.key == "local_instruction_context")
-    # remaining = 900 - 500 = 400, scale = 400/800 = 0.5
-    assert li_bucket.tokens == 400
-    # Detail items should also be scaled proportionally
-    items = li_bucket.details["items"]
-    assert items[0]["tokens"] == 250  # 500 * 0.5
-    assert items[1]["tokens"] == 150  # 300 * 0.5
-
-
-def test_estimated_buckets_preserve_floor_with_content():
-    """Estimated buckets with content should preserve original values when budget allows."""
-    buckets = [
-        _make_bucket("current_user_message", 1000),
-        _make_bucket(
-            "local_instruction_context", 200,
-            content_preview="Some content here",
-            details={
-                "kind": "system_sources",
-                "items": [{"file_path": "CLAUDE.md", "tokens": 200}],
-            },
-        ),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    # When measured already fills Fresh, estimated content is preserved and residual absorbs overflow.
-    fresh_input = 1000  # Fresh is fully used by measured content
-    request_content_denominator = fresh_input
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    li_bucket = next(b for b in buckets if b.key == "local_instruction_context")
-    # Estimated bucket keeps original value since budget allows
-    assert li_bucket.tokens == 200
-    assert li_bucket.details["items"][0]["tokens"] == 200
-
-
-def test_estimated_buckets_not_crushed_by_high_cache_hit():
-    """Estimated buckets should not be crushed to 0 when cache hit rate is high.
-
-    When most provider input is cached, Fresh can be smaller than measured content.
-    Estimated buckets with real content are preserved and residual absorbs overflow.
-    """
-    buckets = [
-        _make_bucket("current_user_message", 2000),
-        _make_bucket("preceding_tool_results", 3000),
-        _make_bucket("local_instruction_context", 500),
-        _make_bucket("tool_definitions", 800),
-        _make_bucket("unlocated_residual", 0),
-    ]
-
-    fresh_input = 2000  # very small due to high cache hit rate
-    request_content_denominator = fresh_input
-
-    normalize_request_reconstruction_buckets(
-        buckets, request_content_denominator=request_content_denominator, fresh_input=fresh_input,
-    )
-
-    li_bucket = next(b for b in buckets if b.key == "local_instruction_context")
-    # Should NOT be crushed to 0 or 1 — should keep original 500
-    assert li_bucket.tokens == 500
-
-
-def _make_full_lc(**kwargs):
-    """Helper to create a full LLMCall for builder tests."""
-    defaults = dict(
-        id="test-1", scope="round", subagent_id="", round_index=0,
-        parent_id="", parent_tool_name="",
-        timestamp="2025-01-01T00:00:00Z", status="ok",
-        input_tokens=5000, output_tokens=100,
-        cache_read_tokens=1000, cache_write_tokens=200,
-        model="claude-sonnet-4-20250514",
-        finish_reason="end_turn", content_blocks=[],
-        response_full="", request_full="", tool_calls_raw="",
-    )
-    defaults.update(kwargs)
-    return LLMCall(**defaults)
-
-
-def test_tool_definitions_details_sorted():
-    """工具定义 details items should be sorted by name for stable display."""
-    from session_browser.attribution.agents.claude_code import ClaudeCodeAttributionBuilder
-    from session_browser.domain.models import LLMCall, ChatMessage, ConversationRound
-
-    lc = _make_full_lc()
-    ro = ConversationRound(
-        round_index=0,
-        user_msg=ChatMessage(role="user", content="hello", timestamp="2025-01-01T00:00:00Z"),
-        assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        tool_calls=[],
-        interactions=[lc],
-    )
-    session_context = {
-        "available_tools": ["ZTool", "ATool", "MTool"],  # intentionally unsorted
-        "prior_messages": [],
-        "preceding_tool_results": [],
+def _unit(candidate: str, direction: str, text: str, index: int = 1) -> dict:
+    return {
+        "source_id": f"test:{direction}:{candidate}:{index}",
+        "dedupe_key": f"dedupe:{direction}:{candidate}:{index}",
+        "origin_path": f"fixture.{candidate}",
+        "canonical_source_locator": f"fixture:{candidate}:{index}",
+        "unit_type": f"{candidate}_unit",
+        "candidate": candidate,
+        "direction": direction,
+        "event_order": 1,
+        "part_index": index,
+        "byte_range": [0, len(text.encode("utf-8"))],
+        "text": text,
+        "label": candidate,
+        "preview": text[:120],
     }
 
-    builder = ClaudeCodeAttributionBuilder(lc, ro, None, session_context)
-    attr = builder.build_request()
 
-    # Find tool_definitions bucket
-    tool_bucket = next(b for b in attr.buckets if b.key == "tool_definitions")
-    items = tool_bucket.details["items"]
-    names = [item["name"] for item in items]
-    assert names == sorted(names), f"Tool names not sorted: {names}"
+@pytest.mark.parametrize("mapper_cls", [ClaudeCodeTokenAccountingMapper, QoderTokenAccountingMapper])
+def test_request_accounting_uses_four_stable_fields(mapper_cls):
+    """request accounting 只暴露四个稳定 fields。"""
+    mapper = mapper_cls()
+    payload = mapper.build_request_accounting(
+        source_units=[_unit("user_input", "request", "hello")],
+        fresh_input=_value(100),
+        cache_read=_value(40),
+        cache_write=_value(10),
+    )
+
+    assert payload["schema"] == "token_accounting_fields.v1"
+    assert payload["field_order"] == FIELD_ORDER
+    assert set(FIELD_ORDER) <= set(payload)
+    assert payload["fresh_input_tokens"]["tokens"] == 100
+    assert payload["cache_read_tokens"]["tokens"] == 40
+    assert payload["cache_write_tokens"]["tokens"] == 10
+    assert payload["output_tokens"]["tokens"] == 0
+
+
+@pytest.mark.parametrize("mapper_cls", [ClaudeCodeTokenAccountingMapper, QoderTokenAccountingMapper])
+def test_cache_fields_do_not_create_provider_cache_candidate(mapper_cls):
+    """cache read/write 是 accounting field，不创建 provider_cached_context candidate。"""
+    mapper = mapper_cls()
+    payload = mapper.build_request_accounting(
+        source_units=[_unit("conversation_history", "request", "prior message")],
+        fresh_input=_value(100),
+        cache_read=_value(900),
+        cache_write=_value(50),
+    )
+
+    for field in ("cache_read_tokens", "cache_write_tokens"):
+        assert payload[field]["candidates"] == []
+    candidates = payload["fresh_input_tokens"]["candidates"]
+    assert all(item["candidate"] != "provider_cached_context" for item in candidates)
+
+
+@pytest.mark.parametrize("mapper_cls", [ClaudeCodeTokenAccountingMapper, QoderTokenAccountingMapper])
+def test_request_candidates_scale_to_fresh_denominator(mapper_cls):
+    """request candidate 估算值超过 fresh 分母时按比例缩放。"""
+    mapper = mapper_cls()
+    payload = mapper.build_request_accounting(
+        source_units=[
+            _unit("user_input", "request", "x" * 400, 1),
+            _unit("tool_results", "request", "y" * 400, 2),
+        ],
+        fresh_input=_value(50),
+        cache_read=_value(0),
+        cache_write=_value(0),
+    )
+
+    fresh = payload["fresh_input_tokens"]
+    assert fresh["candidate_total_tokens"] <= 50
+    assert fresh["unattributed_tokens"] >= 0
+    assert {item["candidate"] for item in fresh["candidates"]} == {"user_input", "tool_results"}
+
+
+@pytest.mark.parametrize("mapper_cls", [ClaudeCodeTokenAccountingMapper, QoderTokenAccountingMapper])
+def test_response_candidates_only_enter_output_field(mapper_cls):
+    """response source_units 只映射到 output_tokens。"""
+    mapper = mapper_cls()
+    payload = mapper.build_response_accounting(
+        source_units=[
+            _unit("assistant_output", "response", "hello", 1),
+            _unit("tool_calls", "response", "Read({})", 2),
+        ],
+        total_output=_value(30),
+    )
+
+    assert payload["fresh_input_tokens"]["tokens"] == 0
+    assert payload["cache_read_tokens"]["tokens"] == 0
+    assert payload["cache_write_tokens"]["tokens"] == 0
+    assert payload["output_tokens"]["tokens"] == 30
+    assert {item["candidate"] for item in payload["output_tokens"]["candidates"]} == {
+        "assistant_output",
+        "tool_calls",
+    }

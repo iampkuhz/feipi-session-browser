@@ -133,7 +133,7 @@ def parse_session_detail_normalized(
     session_file: Path | None = None,
 ) -> dict:
     """Parse a Qoder session into the normalized intermediate contract."""
-    from session_browser.normalized.agents.qoder import parse_qoder_session_file
+    from session_browser.normalized.agents.qoder_normalization import parse_qoder_session_file
 
     target_file = session_file or _find_session_file(project_key, session_id)
     if target_file is None:
@@ -151,7 +151,7 @@ def parse_normalized_session_file(
     session_id: str | None = None,
 ) -> dict:
     """Parse a Qoder JSONL file directly into normalized JSON."""
-    from session_browser.normalized.agents.qoder import parse_qoder_session_file
+    from session_browser.normalized.agents.qoder_normalization import parse_qoder_session_file
 
     return parse_qoder_session_file(
         session_file,
@@ -169,7 +169,7 @@ def build_normalized_session(
     source_path: str,
 ) -> dict:
     """Build normalized JSON from the models already parsed for indexing."""
-    from session_browser.normalized.agents.qoder import build_qoder_normalized_session
+    from session_browser.normalized.agents.qoder_normalization import build_qoder_normalized_session
 
     return build_qoder_normalized_session(
         summary=summary,

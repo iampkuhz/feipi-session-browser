@@ -1,16 +1,8 @@
-"""Session context builder for attribution.
+"""为归因构造 call-scoped session_context。
 
-Provides ``build_attribution_session_context`` which constructs a call-scoped
-context dict that attribution builders use to determine:
-- preceding_tool_results: tool results that occur before the current LLM call
-- prior_messages: conversation history before this call
-- available_tools: request-side tool schemas available to the model
-- local_instructions: CLAUDE.md and agent prompt files
-- mcp_tools / mcp_servers: from .mcp.json (no credentials)
-
-This avoids passing session_context=None and enables proper call-scoped
-attribution rather than attributing the entire round's tool results to
-every LLM call.
+``build_attribution_session_context`` 会收集当前 LLM call 前已经可见的
+工具结果、历史消息、可用工具、项目指令和 MCP 元数据，避免把整个 round
+的运行时内容误归因到每一次 call。
 """
 
 from __future__ import annotations
@@ -34,9 +26,9 @@ from session_browser.attribution.agents.claude_code_parts.claude_code_agent_tool
 logger = logging.getLogger(__name__)
 
 _TRUNCATE_CONTENT_PREVIEW = 200
-_TRUNCATE_LOCAL_INSTRUCTIONS = 2048  # 2KB
+_TRUNCATE_LOCAL_INSTRUCTIONS = 2048  # 只保留 2KB 预览，真实 source_units 另行定位。
 
-# Sensitive key patterns for masking in bucket content extraction.
+# 展示上下文时需要屏蔽常见敏感字段值。
 _SENSITIVE_KEYS = frozenset({
     "api_key", "apikey", "api-key",
     "token", "auth_token", "access_token", "refresh_token",
@@ -56,16 +48,12 @@ _SENSITIVE_KEY_RE = re.compile(
 
 
 def _mask_sensitive_keys(text: str) -> str:
-    """Mask values for sensitive keys like api_key, token, secret, password, etc.
-
-    Replaces the value portion with "***MASKED***" while preserving the key name.
-    """
+    """屏蔽 api_key、token、secret、password 等敏感字段值。"""
     if not text:
         return ""
 
     def _replacer(m: re.Match) -> str:
         key_part = m.group(1)
-        # Reconstruct with masked value
         quote_open = m.group(2)[0] if m.group(2) else ""
         if quote_open in ('"', "'"):
             return f'{key_part}: {quote_open}***MASKED***{quote_open}'
@@ -75,7 +63,7 @@ def _mask_sensitive_keys(text: str) -> str:
 
 
 def _truncate_preview(text: str, max_len: int = 200) -> str:
-    """Truncate text to max_len characters, appending '…' if truncated."""
+    """把文本截断为展示预览。"""
     if not text:
         return ""
     if len(text) <= max_len:
@@ -98,59 +86,18 @@ def build_attribution_session_context(
     all_llm_calls: list[LLMCall] | None = None,
     subagent_type: str | None = None,
 ) -> dict:
-    """Build a call-scoped session context for attribution builders.
-
-    Args:
-        session: The session summary object.
-        round_obj: The current conversation round.
-        interaction_index: 0-based index of the current LLM interaction within the round.
-        interactions: List of LLM interactions in the current round.
-        round_tool_calls: All tool calls associated with this round.
-        all_messages: All messages from the session transcript (optional).
-            Used to build prior_messages and full_messages_array.
-        all_tool_calls: All tool calls from the entire session (optional).
-            Used only for agents whose local data does not have a better
-            request-side tool list source. Claude Code does not infer request
-            tool schemas from observed tool calls.
-        project_dir: Path to the project root (optional).
-            Used to read CLAUDE.md, .mcp.json, etc.
-        agent_name: Agent name like "claude_code", "qoder", "codex".
-            Used to locate agent-specific prompt files.
-        existing_context: Optional pre-existing context to extend.
-        subagent_type: Subagent type name (e.g. "implementer", "qa-verifier").
-            Used to read the correct subagent prompt file instead of the main agent prompt.
-
-    Returns:
-        A dict with at least:
-        - interaction_index: the 0-based index
-        - preceding_tool_results: list of tool result texts from interactions
-          that occurred BEFORE the current one
-        - prior_messages: messages before the current LLM call, each with
-          role, content_preview (truncated to 200 chars), content_token_estimate
-        - full_messages_array: list of messages in Anthropic API format, each with
-          role, content_type (user_text/tool_result/assistant_text/tool_use),
-          content_preview, content_token_estimate, and message_index
-        - available_tools: request-side tool names from the current agent
-          definition, or the default Claude Code tool registry as fallback
-        - local_instructions: CLAUDE.md content (truncated to 2KB)
-        - system_reminder_content: from transcript system-reminder (if any)
-        - agent_prompt_file / subagent_prompt: from .claude/agents/ if found
-        - mcp_tools / mcp_servers: from .mcp.json (names only, no credentials)
-    """
+    """为归因 builder 构造当前 call 可见的 session_context。"""
     preceding_tool_results: list[str] = []
 
     if interaction_index > 0:
-        # Gather tool results from prior interactions in this round
         for ix in interactions[:interaction_index]:
             if hasattr(ix, "tool_calls") and ix.tool_calls:
                 for tc in ix.tool_calls:
                     if tc.result and not getattr(tc, "subagent_id", ""):
                         preceding_tool_results.append(tc.result)
-    # else: first LLM call — no preceding tool results
 
     current_ix = _resolve_current_interaction(round_obj, interactions, interaction_index)
 
-    # -- prior_messages --
     prior_messages = _build_prior_messages(
         all_messages,
         interaction_index,
@@ -158,14 +105,12 @@ def build_attribution_session_context(
         current_interaction=current_ix,
     )
 
-    # -- full_messages_array (Anthropic API messages format) --
     full_messages_array = _build_full_messages_array(
         all_messages, interaction_index, round_obj, interactions,
     )
 
     resolved_project_dir = _resolve_project_dir(session, project_dir)
 
-    # -- available_tools --
     available_tool_context = _build_available_tool_context(
         all_tool_calls=all_tool_calls,
         agent_name=agent_name,
@@ -176,7 +121,6 @@ def build_attribution_session_context(
         call_timestamp=getattr(current_ix, "timestamp", "") if current_ix else "",
     )
 
-    # -- local_instructions, agent_prompt, mcp metadata --
     local_instructions = ""
     agent_prompt_file = ""
     subagent_prompt = ""
@@ -192,7 +136,6 @@ def build_attribution_session_context(
         )
         mcp_tools, mcp_servers = _read_mcp_metadata(project_path)
 
-    # -- Extract system-reminder from first assistant request_full --
     if not system_reminder_content and all_messages:
         system_reminder_content = _extract_system_reminder(all_messages)
 
@@ -213,9 +156,18 @@ def build_attribution_session_context(
         "mcp_tools": mcp_tools,
         "mcp_servers": mcp_servers,
     }
+    normalized_call = _load_normalized_call_for_context(
+        session=session,
+        agent_name=agent_name,
+        current_interaction=current_ix,
+        interaction_index=interaction_index,
+        interactions=interactions,
+        all_llm_calls=all_llm_calls,
+    )
+    if normalized_call:
+        base["normalized_call"] = normalized_call
 
     if existing_context:
-        # Merge: new keys override existing only if non-empty
         for k, v in base.items():
             if v or k in (
                 "prior_messages", "full_messages_array", "available_tools",
@@ -229,11 +181,147 @@ def build_attribution_session_context(
     return base
 
 
-# -- Internal helpers --
+def _load_normalized_call_for_context(
+    *,
+    session: SessionSummary | None,
+    agent_name: str | None,
+    current_interaction: LLMCall | None,
+    interaction_index: int,
+    interactions: list[LLMCall],
+    all_llm_calls: list[LLMCall] | None,
+) -> dict:
+    """为已迁移 agent 加载当前 call 的 normalized artifact。"""
+    agent = str(agent_name or getattr(session, "agent", "") or "")
+    if agent not in {"codex", "claude_code", "qoder"} or current_interaction is None:
+        return {}
+    session_key = _session_key_for_artifact(session, agent)
+    if not session_key:
+        return {}
+    try:
+        normalized = _read_normalized_artifact_for_session_key(session_key)
+    except Exception as exc:  # pragma: no cover - 防御性日志
+        logger.debug("normalized artifact hydration failed for %s: %s", session_key, exc, exc_info=True)
+        return {}
+    return _find_normalized_call_for_interaction(
+        normalized,
+        current_interaction=current_interaction,
+        interaction_index=interaction_index,
+        interactions=interactions,
+        all_llm_calls=all_llm_calls,
+    )
+
+
+def _session_key_for_artifact(session: SessionSummary | None, agent: str) -> str:
+    if session is None:
+        return ""
+    session_key = str(getattr(session, "session_key", "") or "")
+    if session_key:
+        return session_key
+    session_id = str(getattr(session, "session_id", "") or "")
+    return f"{agent}:{session_id}" if agent and session_id else ""
+
+
+def _read_normalized_artifact_for_session_key(session_key: str) -> dict:
+    from session_browser.index.schema import _get_connection, ensure_session_artifacts_schema
+    from session_browser.normalized.artifacts import (
+        NORMALIZED_SESSION_ARTIFACT_TYPE,
+        read_normalized_session_artifact,
+    )
+
+    conn = _get_connection()
+    try:
+        ensure_session_artifacts_schema(conn)
+        row = conn.execute(
+            """
+            SELECT path FROM session_artifacts
+            WHERE session_key = ? AND artifact_type = ?
+            """,
+            (session_key, NORMALIZED_SESSION_ARTIFACT_TYPE),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return {}
+    path = str(row["path"] if hasattr(row, "keys") else row[0])
+    return read_normalized_session_artifact(path)
+
+
+def _find_normalized_call_for_interaction(
+    normalized: dict,
+    *,
+    current_interaction: LLMCall,
+    interaction_index: int,
+    interactions: list[LLMCall],
+    all_llm_calls: list[LLMCall] | None,
+) -> dict:
+    """在 normalized.calls 中定位当前 LLMCall，先精确 ID，再同 scope 顺序 fallback。"""
+    calls = normalized.get("calls") if isinstance(normalized, dict) else []
+    if not isinstance(calls, list) or not calls:
+        return {}
+
+    call_id = str(getattr(current_interaction, "id", "") or "")
+    if call_id and not call_id.startswith("synthetic-"):
+        for call in calls:
+            if isinstance(call, dict) and str(call.get("call_id") or "") == call_id:
+                return call
+
+    scope = str(getattr(current_interaction, "scope", "") or "main")
+    subagent_id = str(getattr(current_interaction, "subagent_id", "") or "")
+    candidates = [
+        call for call in calls
+        if isinstance(call, dict)
+        and str(call.get("scope") or "main") == scope
+        and (scope != "subagent" or str(call.get("subagent_id") or "") == subagent_id)
+    ]
+    if not candidates:
+        return {}
+
+    ordinal = _interaction_ordinal_in_scope(
+        current_interaction=current_interaction,
+        all_llm_calls=all_llm_calls or interactions,
+        scope=scope,
+        subagent_id=subagent_id,
+    )
+    if 0 <= ordinal < len(candidates):
+        return candidates[ordinal]
+
+    if scope == "main":
+        try:
+            round_index = int(getattr(current_interaction, "round_index", -1))
+        except (TypeError, ValueError):
+            round_index = -1
+        if 0 <= round_index < len(candidates):
+            return candidates[round_index]
+
+    return candidates[interaction_index] if 0 <= interaction_index < len(candidates) else {}
+
+
+def _interaction_ordinal_in_scope(
+    *,
+    current_interaction: LLMCall,
+    all_llm_calls: list[LLMCall] | None,
+    scope: str,
+    subagent_id: str,
+) -> int:
+    if not all_llm_calls:
+        return -1
+    scoped: list[LLMCall] = []
+    for ix in all_llm_calls:
+        if str(getattr(ix, "scope", "") or "main") != scope:
+            continue
+        if scope == "subagent" and str(getattr(ix, "subagent_id", "") or "") != subagent_id:
+            continue
+        scoped.append(ix)
+    for idx, ix in enumerate(scoped):
+        if ix is current_interaction:
+            return idx
+        if getattr(ix, "id", None) and getattr(ix, "id", None) == getattr(current_interaction, "id", None):
+            return idx
+    return -1
 
 
 def _resolve_project_dir(session: SessionSummary | None, project_dir: str | None) -> str:
-    """Choose a readable repository path over Claude's encoded project segment."""
+    """优先选择可读的仓库路径，而不是 Claude 编码后的 project segment。"""
     candidates: list[str] = []
     if project_dir:
         candidates.append(str(project_dir))
@@ -262,11 +350,7 @@ def _build_prior_messages(
     round_obj=None,
     current_interaction=None,
 ) -> list[dict]:
-    """Build prior_messages from all session messages before the current call.
-
-    Each entry has: role, content_preview (truncated to 200 chars),
-    content_token_estimate (rough estimate).
-    """
+    """从当前 call 之前的 transcript 构造 prior_messages。"""
     if not all_messages:
         return []
 
@@ -309,7 +393,6 @@ def _build_prior_messages(
         ):
             continue
         preview = content_str[:_TRUNCATE_CONTENT_PREVIEW]
-        # Rough token estimate: ~4 chars per token for English
         token_estimate = max(1, len(content_str) // 4) if content_str else 0
 
         result.append({
@@ -331,30 +414,7 @@ def _build_full_messages_array(
     round_obj,
     interactions: list,
 ) -> list[dict]:
-    """Build full_messages_array: Anthropic API-style messages for attribution.
-
-    Unlike _build_prior_messages (which only stores 200-char previews), this
-    builds a structured array that mirrors the real Anthropic API ``messages``
-    field sent to the model. Each entry contains:
-
-    - role: "user" or "assistant"
-    - content_type: "user_text" | "tool_result" | "assistant_text" | "tool_use"
-    - content_preview: truncated to 200 chars for summary display
-    - content_token_estimate: rough token count
-    - message_index: 0-based index in the messages array
-    - has_full_content: whether full text is available for dynamic loading
-    - tool_name: tool name for tool_result / tool_use entries
-    - tool_use_id: tool_use_id for tool_result entries
-
-    The array includes:
-    - All prior user messages (user_text entries)
-    - All preceding tool results (tool_result entries, from prior interactions)
-    - The current user message (user_text entry)
-    - Prior assistant responses (assistant_text + tool_use entries)
-
-    NOTE: The current assistant response is NOT included — it's the OUTPUT,
-    not part of the INPUT messages array.
-    """
+    """构造 Anthropic messages 形态的输入消息数组，当前 assistant 输出不纳入 request。"""
     current_ix = _resolve_current_interaction(round_obj, interactions, interaction_index)
     current_call_id = getattr(current_ix, "id", "") if current_ix else ""
     current_request_full = getattr(current_ix, "request_full", "") if current_ix else ""
@@ -559,11 +619,7 @@ def _build_full_messages_array_from_transcript(all_messages: list | None, curren
 
 
 def _extract_tool_name_from_result(result_text: str) -> str:
-    """Extract tool name from a tool result text.
-
-    Looks for patterns like 'Tool result for <tool_use_id>:\\n<tool_name>...'
-    or header patterns like 'Tool Call: Name'.
-    """
+    """从工具结果文本中提取工具名。"""
     if not result_text:
         return "unknown"
     m = re.search(r'(?:Tool|tool)[\s_]*(?:Call|Result|Output)?[:\s]+(\w+)', result_text)
@@ -572,7 +628,6 @@ def _extract_tool_name_from_result(result_text: str) -> str:
     m = re.search(r'^###\s+(\w+)', result_text, re.MULTILINE)
     if m:
         return m.group(1)
-    # Fallback: first word
     first = result_text.split()[0] if result_text.split() else "unknown"
     return first[:30]
 
@@ -587,7 +642,7 @@ def _build_available_tool_context(
     subagent_type: str | None = None,
     call_timestamp: str | None = None,
 ) -> dict:
-    """Build available-tool context with source metadata."""
+    """构造可用工具上下文及其来源元数据。"""
     if agent_name == "claude_code":
         resolved = resolve_claude_code_available_tools(
             project_dir=project_dir,
@@ -623,12 +678,7 @@ def _build_available_tools(
     llm_calls: list | None = None,
     project_dir: str | None = None,
 ) -> list[str]:
-    """Collect request-side available tool names for attribution.
-
-    Claude Code is resolved from the selected main/subagent definition or from
-    the default built-in registry.  It never infers request ``tool_schemas``
-    from response-side tool calls.
-    """
+    """收集 request-side 可用工具名；Claude Code 不从 response tool_use 反推 schema。"""
     if agent_name == "claude_code":
         resolved = resolve_claude_code_available_tools(
             project_dir=project_dir,
@@ -676,10 +726,7 @@ def _build_available_tools(
 
 
 def _read_local_instructions(project_path: Path, agent_name: str | None) -> str:
-    """Read local instructions from project_dir, truncated to 2KB.
-
-    For Codex, prefers AGENTS.md / .codex/AGENTS.md over CLAUDE.md.
-    """
+    """读取项目指令预览；Codex 优先 AGENTS.md / .codex/AGENTS.md。"""
     if agent_name == "codex":
         candidates = [
             project_path / "AGENTS.md",
@@ -706,29 +753,17 @@ def _read_agent_prompt(
     project_path: Path, agent_name: str | None,
     subagent_type: str | None = None,
 ) -> tuple[str, str]:
-    """Read agent prompt file if agent_name or subagent_type is known.
-
-    Priority:
-    1. If subagent_type is provided (e.g. "implementer", "qa-verifier"),
-       read .claude/agents/{subagent_type}.md — this is the subagent's own prompt.
-    2. Otherwise read .claude/agents/{agent_name}.md for the main agent prompt.
-
-    For Codex, checks .codex/agents/ first, then falls back to .claude/agents/.
-    """
+    """读取 main/subagent prompt 文件预览；Codex 先查 .codex/agents。"""
     if not agent_name and not subagent_type:
         return "", ""
 
-    # Determine which agent file to read
     if subagent_type:
-        # For subagent calls, read the subagent's own prompt file
         target_name = subagent_type
     elif agent_name:
-        # For main agent calls, read the main agent prompt file
         target_name = agent_name
     else:
         return "", ""
 
-    # Try agent-specific directory first
     if agent_name == "codex":
         agents_dirs = [
             project_path / ".codex" / "agents",
@@ -749,10 +784,7 @@ def _read_agent_prompt(
 
 
 def _read_mcp_metadata(project_path: Path) -> tuple[list[str], list[str]]:
-    """Read .mcp.json from project_dir. Extract server names and tool names only.
-
-    Returns (mcp_tools, mcp_servers). NO credentials/values are returned.
-    """
+    """读取 .mcp.json 元数据，只返回 server/tool 名称，不返回凭据或配置值。"""
     mcp_path = project_path / ".mcp.json"
     if not mcp_path.exists() or not mcp_path.is_file():
         return [], []
@@ -767,19 +799,16 @@ def _read_mcp_metadata(project_path: Path) -> tuple[list[str], list[str]]:
     servers: list[str] = []
     tools: list[str] = []
 
-    # .mcp.json typically has "mcpServers" key with server objects
     mcp_servers_dict = data.get("mcpServers", data.get("mcp_servers", {}))
     if isinstance(mcp_servers_dict, dict):
         for server_name, server_config in mcp_servers_dict.items():
             servers.append(server_name)
             if isinstance(server_config, dict):
-                # Some configs have explicit tool lists
                 server_tools = server_config.get("tools", server_config.get("allowedTools", []))
                 if isinstance(server_tools, list):
                     for t in server_tools:
                         if isinstance(t, str):
                             tools.append(f"{server_name}:{t}")
-                # If no explicit tool list, the server name itself indicates availability
                 if not server_tools:
                     tools.append(f"{server_name}:*")
 
@@ -793,17 +822,8 @@ _SYSTEM_REMINDER_PATTERN = re.compile(
 
 
 def _extract_system_reminder(messages: list) -> str:
-    """Extract <system-reminder> content from the first assistant message's request_full.
-
-    Claude Code injects the built-in system prompt (CLAUDE.md + MEMORY.md + config)
-    as a <system-reminder> block in the first API request. This function extracts
-    that content so attribution builders can use actual token counts instead of
-    heuristics.
-
-    Returns the extracted system-reminder text, or empty string if not found.
-    """
+    """从 request_full 或 content 中提取 <system-reminder> 预览。"""
     for msg in messages:
-        # Check assistant message request_full
         request_full = ""
         if isinstance(msg, dict):
             request_full = msg.get("request_full", "") or msg.get("content", "")
@@ -817,7 +837,6 @@ def _extract_system_reminder(messages: list) -> str:
         if m:
             return m.group(1).strip()
 
-        # Also check if the content itself has system-reminder tags
         content = ""
         if isinstance(msg, dict):
             content = msg.get("content", "")

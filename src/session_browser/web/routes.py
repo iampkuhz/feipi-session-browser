@@ -345,7 +345,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                     session.project_key, session_id, session_file=qoder_file
                 )
             else:
-                from session_browser.sources.codex import parse_session_detail
+                from session_browser.sources.codex_session_source import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
             # Cache parsed data for subsequent API calls (round lazy-load,
@@ -535,7 +535,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 session.project_key, session_id, session_file=qoder_file
             )
         else:
-            from session_browser.sources.codex import parse_session_detail
+            from session_browser.sources.codex_session_source import parse_session_detail
             raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
         # Build conversation rounds (same as _serve_session)
@@ -770,7 +770,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                     session.project_key, session_id, session_file=qoder_file
                 )
             else:
-                from session_browser.sources.codex import parse_session_detail
+                from session_browser.sources.codex_session_source import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
             # Cache for subsequent API calls
@@ -1013,7 +1013,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                     session.project_key, session_id, session_file=qoder_file
                 )
             else:
-                from session_browser.sources.codex import parse_session_detail
+                from session_browser.sources.codex_session_source import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
             rounds = build_rounds(
@@ -1093,7 +1093,7 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                     session.project_key, session_id, session_file=qoder_file
                 )
             else:
-                from session_browser.sources.codex import parse_session_detail
+                from session_browser.sources.codex_session_source import parse_session_detail
                 raw_summary, messages, tool_calls, subagent_runs = parse_session_detail(session_id)
 
             rounds = build_rounds(

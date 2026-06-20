@@ -222,7 +222,7 @@ def _codex_usage_is_cumulative(usage: dict) -> bool:
 def _codex_usage_for_llm_call(usage: dict, cumulative_state: dict) -> dict:
     """Return per-call Codex usage for interaction rows.
 
-    ``sources.codex._extract_messages`` already aggregates
+    ``sources.codex_session_source._extract_messages`` already aggregates
     ``last_token_usage`` into per-assistant-message usage.  Only records that
     explicitly identify ``total_token_usage`` as their source should be
     converted from cumulative totals to deltas here.

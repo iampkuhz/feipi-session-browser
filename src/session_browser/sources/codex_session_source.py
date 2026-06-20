@@ -17,6 +17,12 @@ from typing import Iterator
 from session_browser.config import CODEX_DATA_DIR
 from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenPrecision
 from session_browser.domain.token_normalizer import normalize_tokens
+from session_browser.domain.token_normalizers.codex_token_normalizer import (
+    CODEX_USAGE_FIELDS,
+    codex_is_duplicate_cumulative,
+    codex_usage_delta,
+    extract_codex_usage,
+)
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 
@@ -44,118 +50,17 @@ def _nested_int(d, outer, inner):
 
 
 def _extract_codex_usage(raw: dict) -> dict:
-    """Extract OpenAI/Codex usage from various structures into a flat dict.
-
-    Supports:
-    - Direct usage dict (input_tokens, output_tokens, etc.)
-    - raw["usage"]
-    - raw["response"]["usage"]
-    - raw["data"]["usage"]
-    - raw["payload"]["usage"]
-    - raw["payload"]["info"]["last_token_usage"]
-    - raw["payload"]["info"]["total_token_usage"] (marked as cumulative)
-    - OpenAI nested: input_tokens_details.cached_tokens, output_tokens_details.reasoning_tokens
-    - Chat-compatible fallback: prompt_tokens, completion_tokens, etc.
-
-    Returns:
-        Flat dict with keys: input_tokens, cached_input_tokens, output_tokens,
-        reasoning_output_tokens, total_tokens, _usage_source.
-    """
-    if not isinstance(raw, dict):
-        return {}
-
-    candidates = []
-    candidates.append((raw, "direct"))
-    if isinstance(raw.get("usage"), dict):
-        candidates.append((raw["usage"], "usage"))
-    if isinstance(raw.get("response"), dict) and isinstance(raw["response"].get("usage"), dict):
-        candidates.append((raw["response"]["usage"], "response.usage"))
-    if isinstance(raw.get("data"), dict) and isinstance(raw["data"].get("usage"), dict):
-        candidates.append((raw["data"]["usage"], "data.usage"))
-
-    payload = raw.get("payload")
-    if isinstance(payload, dict):
-        if isinstance(payload.get("usage"), dict):
-            candidates.append((payload["usage"], "payload.usage"))
-        info = payload.get("info")
-        if isinstance(info, dict):
-            if isinstance(info.get("last_token_usage"), dict):
-                candidates.append((info["last_token_usage"], "payload.info.last_token_usage"))
-            if isinstance(info.get("total_token_usage"), dict):
-                candidates.append((info["total_token_usage"], "payload.info.total_token_usage"))
-
-    # Prefer per-call usage over cumulative; last_token_usage before total_token_usage
-    # (candidates are already in priority order due to insertion order)
-    for usage, source in candidates:
-        if not isinstance(usage, dict):
-            continue
-        has_any = any(k in usage for k in (
-            "input_tokens", "prompt_tokens", "output_tokens", "completion_tokens",
-            "cached_input_tokens", "cached_tokens", "total_tokens",
-            "input_tokens_details", "output_tokens_details",
-        ))
-        if not has_any:
-            continue
-        input_tokens = _int_or_zero(usage.get("input_tokens") or usage.get("prompt_tokens"))
-        cached = (
-            _int_or_zero(usage.get("cached_input_tokens"))
-            or _int_or_zero(usage.get("cache_read_input_tokens"))
-            or _int_or_zero(usage.get("cached_tokens"))
-            or _nested_int(usage, "input_tokens_details", "cached_tokens")
-            or _nested_int(usage, "prompt_tokens_details", "cached_tokens")
-        )
-        output_tokens = _int_or_zero(usage.get("output_tokens") or usage.get("completion_tokens"))
-        reasoning = (
-            _int_or_zero(usage.get("reasoning_output_tokens"))
-            or _int_or_zero(usage.get("reasoning_tokens"))
-            or _int_or_zero(usage.get("thinking_tokens"))
-            or _nested_int(usage, "output_tokens_details", "reasoning_tokens")
-            or _nested_int(usage, "completion_tokens_details", "reasoning_tokens")
-        )
-        total = (
-            _int_or_zero(usage.get("total_tokens"))
-            or _int_or_zero(usage.get("total_token_usage"))
-            or _int_or_zero(usage.get("tokens_used"))
-        )
-        result = {
-            "input_tokens": input_tokens,
-            "cached_input_tokens": min(cached, input_tokens) if input_tokens else cached,
-            "output_tokens": output_tokens if output_tokens else reasoning,
-            "reasoning_output_tokens": reasoning,
-            "total_tokens": total,
-            "_usage_source": source,
-        }
-        if "total_token_usage" in source:
-            result["_is_cumulative"] = True
-        return result
-    return {}
-
-
-_CODEX_USAGE_FIELDS = (
-    "input_tokens",
-    "cached_input_tokens",
-    "output_tokens",
-    "reasoning_output_tokens",
-    "total_tokens",
-)
+    """从多种 Codex/OpenAI Responses 结构中提取扁平 usage 字段。"""
+    return extract_codex_usage(raw)
 
 
 def _codex_usage_delta(current: dict, previous: dict | None) -> dict:
-    """Return cumulative usage delta for Codex token_count snapshots."""
-    current_usage = _extract_codex_usage(current) or current
-    previous_usage = _extract_codex_usage(previous) if isinstance(previous, dict) else {}
-    return {
-        field: _int_or_zero(_as_dict(current_usage).get(field))
-        - _int_or_zero(_as_dict(previous_usage).get(field))
-        for field in _CODEX_USAGE_FIELDS
-    }
+    """计算 Codex cumulative token_count 快照的有效增量。"""
+    return codex_usage_delta(current, previous)
 
 
 def _codex_is_duplicate_cumulative(current: dict, previous: dict | None) -> bool:
-    if not isinstance(previous, dict):
-        return False
-    delta = _codex_usage_delta(current, previous)
-    return all(delta[field] == 0 for field in _CODEX_USAGE_FIELDS)
+    return codex_is_duplicate_cumulative(current, previous)
 
 
 def _display_phase(phase: str) -> bool:
@@ -370,7 +275,7 @@ def parse_session_detail_with_normalized(
         ParseSeverity,
         build_parse_diagnostics,
     )
-    from session_browser.normalized.agents.codex import parse_codex_rollout_file
+    from session_browser.normalized.agents.codex_normalization import parse_codex_rollout_file
 
     thread_info = (threads_db or {}).get(session_id, {})
     rollout_path = thread_info.get("rollout_path", "")
@@ -438,7 +343,7 @@ def parse_session_detail_normalized(
     yet, so existing Session Detail behavior remains unchanged while the
     normalized contract is hardened.
     """
-    from session_browser.normalized.agents.codex import parse_codex_rollout_file
+    from session_browser.normalized.agents.codex_normalization import parse_codex_rollout_file
 
     thread_info = (threads_db or {}).get(session_id, {})
     session_file = _find_session_file(session_id, thread_info.get("rollout_path", ""))
@@ -456,7 +361,7 @@ def parse_normalized_session_file(
     Tests use this file-level entry point to avoid touching the user's live
     Codex data directory.
     """
-    from session_browser.normalized.agents.codex import parse_codex_rollout_file
+    from session_browser.normalized.agents.codex_normalization import parse_codex_rollout_file
 
     return parse_codex_rollout_file(session_file, thread_info=thread_info or {})
 
@@ -778,7 +683,7 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
                 usage["_usage_source"] = usage.get("_usage_source") or usage_source
                 if delta:
                     usage["_cumulative_delta"] = {
-                        field: max(delta[field], 0) for field in _CODEX_USAGE_FIELDS
+                        field: max(delta[field], 0) for field in CODEX_USAGE_FIELDS
                     }
                 if isinstance(cumulative_usage, dict):
                     usage["_cumulative_total_tokens"] = _get_int_safe(cumulative_usage, "total_tokens")
@@ -817,6 +722,8 @@ def _extract_messages(events: list[dict], model: str = "") -> list[ChatMessage]:
                 if not phase or _display_phase(phase):
                     for block in _response_item_text_blocks(payload):
                         response_blocks.append(block)
+            elif rtype == "reasoning":
+                response_blocks.append(_response_item_reasoning_block(payload))
             elif rtype in ("function_call", "custom_tool_call"):
                 call_id = payload.get("call_id", "")
                 tool_name = payload.get("name", "")
@@ -878,6 +785,17 @@ def _response_item_text_blocks(payload: dict) -> list[dict]:
             "phase": payload.get("phase") or "",
         })
     return blocks
+
+
+def _response_item_reasoning_block(payload: dict) -> dict:
+    """把 Codex reasoning item 保留为 response-side reasoning block。"""
+    summary = payload.get("summary") if isinstance(payload.get("summary"), list) else []
+    return {
+        "type": "reasoning",
+        "content": json.dumps(summary, ensure_ascii=False),
+        "has_encrypted_content": bool(payload.get("encrypted_content")),
+        "source": "response_item.reasoning",
+    }
 
 
 def _response_item_tool_block(payload: dict) -> dict:
@@ -1047,6 +965,7 @@ def _subagent_summary_from_events(
     output_tokens = 0
     first_ts = ""
     last_ts = ""
+    previous_cumulative: dict | None = None
     for event in events:
         ts = str(event.get("timestamp") or "")
         if ts and not first_ts:
@@ -1055,6 +974,13 @@ def _subagent_summary_from_events(
             last_ts = ts
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         if event.get("type") == "event_msg" and payload.get("type") == "token_count":
+            info = payload.get("info") if isinstance(payload.get("info"), dict) else {}
+            cumulative_usage = info.get("total_token_usage") or payload.get("total_token_usage")
+            if isinstance(cumulative_usage, dict):
+                if _codex_is_duplicate_cumulative(cumulative_usage, previous_cumulative):
+                    previous_cumulative = cumulative_usage
+                    continue
+                previous_cumulative = cumulative_usage
             usage = _extract_codex_usage({"payload": payload})
             if usage:
                 llm_calls += 1

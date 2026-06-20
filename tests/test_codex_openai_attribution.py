@@ -19,12 +19,12 @@ from session_browser.domain.models import (
     NormalizedTokenBreakdown, TokenPrecision, TokenSourceKind,
 )
 from session_browser.domain.token_normalizer import normalize_tokens
-from session_browser.attribution.agents.codex import (
+from session_browser.attribution.agents.codex_attribution_builder import (
     CodexAttributionBuilder,
     _extract_codex_usage_from_raw,
 )
 from session_browser.attribution.contracts import ValuePrecision
-from session_browser.sources.codex import _extract_codex_usage
+from session_browser.sources.codex_session_source import _extract_codex_usage
 from session_browser.web.presenters.session_detail import _normalize_codex_usage
 
 
@@ -452,8 +452,8 @@ class TestFlatCodexUsageVariants:
         bd = normalize_tokens(usage, provider=TokenProvider.OPENAI)
         assert bd.fresh_input_tokens == 2000
         assert bd.cache_read_tokens == 2000
-        assert bd.output_tokens == 400
-        assert bd.total_tokens == 4400
+        assert bd.output_tokens == 600
+        assert bd.total_tokens == 4600
 
 
 # ── Context builder Codex fixes ─────────────────────────────────────────────
@@ -484,7 +484,7 @@ class TestCodexSubagentAttributionFixture:
     """Codex spawn_agent evidence stays separate from child tool ownership."""
 
     def test_source_parser_marks_spawn_agent_and_child_tools(self):
-        from session_browser.sources.codex import (
+        from session_browser.sources.codex_session_source import (
             _attach_subagents_to_spawn_tools,
             _extract_tool_calls,
             _flatten_subagent_tool_calls,

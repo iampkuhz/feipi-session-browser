@@ -30,7 +30,7 @@ def test_openai_responses_fresh_subtracts_cache_read_subset():
     assert normalized.fresh_input == 2300
     assert normalized.cache_read == 1200
     assert normalized.cache_write is None
-    assert normalized.output == 680
+    assert normalized.output == 780
     assert normalized.total_input == 3500
 
 

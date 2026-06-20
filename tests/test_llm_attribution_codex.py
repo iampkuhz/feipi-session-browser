@@ -1,11 +1,4 @@
-"""Codex specific attribution tests.
-
-Verifies:
-1. Codex Fresh uses input_tokens; missing cache fields stay unknown.
-2. Codex uses session jsonl / response items.
-3. Bucket tokens sum does not exceed total input.
-4. Repository/file context estimation works.
-"""
+"""Codex 专属 attribution 测试。"""
 
 import json
 from types import SimpleNamespace
@@ -15,9 +8,12 @@ import pytest
 from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
-from session_browser.attribution.agents.codex import CodexAttributionBuilder
+from session_browser.attribution.agents.codex_attribution_builder import CodexAttributionBuilder
 from session_browser.attribution.contracts import ValuePrecision, ValueSource
-from session_browser.attribution.serializers import request_attribution_to_payload
+from session_browser.attribution.serializers import (
+    request_attribution_to_payload,
+    response_attribution_to_payload,
+)
 
 
 def _make_lc(**kwargs):
@@ -40,6 +36,33 @@ def _make_ro(user_content="hello", tool_calls=None, interactions=None):
         tool_calls=tool_calls or [],
         interactions=interactions or [],
     )
+
+
+def _source_unit(
+    *,
+    source_id: str,
+    candidate: str,
+    direction: str,
+    text: str = "",
+    payload: dict | None = None,
+    unit_type: str = "fixture_unit",
+) -> dict:
+    return {
+        "source_id": source_id,
+        "dedupe_key": f"dedupe:{source_id}",
+        "origin_path": f"fixture.{source_id}",
+        "canonical_source_locator": f"fixture.{source_id}",
+        "unit_type": unit_type,
+        "candidate": candidate,
+        "direction": direction,
+        "event_order": 1,
+        "part_index": 0,
+        "byte_range": [0, len((text or json.dumps(payload or {}, sort_keys=True)).encode("utf-8"))],
+        "text": text,
+        "payload": payload,
+        "label": candidate,
+        "preview": text or json.dumps(payload or {}, sort_keys=True),
+    }
 
 
 def test_codex_cache_split_unknown():
@@ -187,7 +210,7 @@ def test_codex_request_full_tool_outputs_are_buckets_cache_read_is_summary_only(
     """request_full tool outputs are content buckets; provider cache read is accounting-only."""
     request_full = "Tool output for call_1:\n" + ("tool output body " * 200)
     lc = _make_lc(
-        input_tokens=2000,
+        input_tokens=2800,
         cache_read_tokens=800,
         request_full=request_full,
     )
@@ -214,6 +237,175 @@ def test_codex_request_full_tool_outputs_are_buckets_cache_read_is_summary_only(
     assert payload["coverage"]["accounting_cache_read_tokens"] == 800
     assert result.coverage.value is not None
     assert 0 <= result.coverage.value <= 1
+
+
+def test_codex_request_builder_prefers_normalized_candidates():
+    candidates = {
+        "request": {
+            "user_input": [{"source": "event_msg.user_message", "text": "Run tests"}],
+            "tool_results": [{
+                "source": "response_item.function_call_output",
+                "text": "2 passed",
+                "payload": {"call_id": "call_1", "output": "2 passed"},
+            }],
+        },
+        "response": {},
+    }
+    lc = _make_lc(input_tokens=1000, cache_read_tokens=400, request_full="legacy should not win")
+    ro = _make_ro(user_content="Run tests")
+    builder = CodexAttributionBuilder(
+        lc,
+        ro,
+        session_context={"normalized_call": {"attribution_candidates": candidates}},
+    )
+
+    result = builder.build_request()
+    payload = request_attribution_to_payload(result)
+
+    assert result.source_label == "normalized artifact candidates"
+    assert result.fresh_input.value == 600
+    assert result.cache_read.value == 400
+    assert any(b.key == "current_user_instruction" for b in result.buckets)
+    assert any(b.key == "tool_outputs" for b in result.buckets)
+    accounting = payload["accounting_attribution"]["fresh_input_tokens"]["candidates"]
+    assert {item["candidate"] for item in accounting} >= {"user_input", "tool_results"}
+
+
+def test_codex_request_builder_prefers_normalized_source_units():
+    source_units = [
+        _source_unit(source_id="u1", candidate="user_input", direction="request", text="Run tests"),
+        _source_unit(
+            source_id="u2",
+            candidate="tool_results",
+            direction="request",
+            text="2 passed",
+            payload={"call_id": "call_1", "output": "2 passed"},
+            unit_type="request_tool_result",
+        ),
+    ]
+    lc = _make_lc(input_tokens=1000, cache_read_tokens=400, request_full="legacy should not win")
+    ro = _make_ro(user_content="Run tests")
+    builder = CodexAttributionBuilder(
+        lc,
+        ro,
+        session_context={
+            "normalized_call": {
+                "source_units": source_units,
+                "attribution_candidates": {
+                    "request": {"repo_context": [{"text": "legacy candidate should not win"}]},
+                    "response": {},
+                },
+            }
+        },
+    )
+
+    result = builder.build_request()
+    payload = request_attribution_to_payload(result)
+
+    assert result.source_label == "normalized artifact source_units"
+    assert result.fresh_input.value == 600
+    assert result.cache_read.value == 400
+    assert any(b.key == "current_user_instruction" for b in result.buckets)
+    assert any(b.key == "tool_outputs" for b in result.buckets)
+    accounting = payload["accounting_attribution"]
+    assert accounting["cache_read_tokens"]["tokens"] == 400
+    assert accounting["cache_write_tokens"]["tokens"] == 0
+    assert {item["candidate"] for item in accounting["fresh_input_tokens"]["candidates"]} >= {
+        "user_input",
+        "tool_results",
+    }
+    assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
+
+
+def test_codex_response_builder_prefers_normalized_candidates():
+    candidates = {
+        "request": {},
+        "response": {
+            "assistant_output": [{"source": "response_item.message", "text": "Done"}],
+            "reasoning_output": [{"source": "response_item.reasoning", "payload": {"has_encrypted_content": True}}],
+            "tool_calls": [{
+                "source": "response_item.function_call",
+                "payload": {"call_id": "call_1", "name": "exec_command"},
+            }],
+        },
+    }
+    lc = _make_lc(
+        output_tokens=100,
+        response_full="legacy should not win",
+        content_blocks=[{"type": "text", "content": "legacy"}],
+    )
+    lc.token_breakdown_normalized = SimpleNamespace(
+        output_tokens=100,
+        raw_fields={"reasoning_output_tokens": 30},
+    )
+    ro = _make_ro(user_content="")
+    builder = CodexAttributionBuilder(
+        lc,
+        ro,
+        session_context={"normalized_call": {"attribution_candidates": candidates}},
+    )
+
+    result = builder.build_response()
+    payload = response_attribution_to_payload(result)
+
+    assert result.source_label == "normalized artifact candidates"
+    assert any(b.key == "assistant_text" for b in result.buckets)
+    reasoning = next(b for b in result.buckets if b.key == "reasoning_output_tokens")
+    assert reasoning.tokens == 30
+    accounting = payload["accounting_attribution"]["output_tokens"]["candidates"]
+    assert {item["candidate"] for item in accounting} >= {
+        "assistant_output",
+        "reasoning_output",
+        "tool_calls",
+    }
+
+
+def test_codex_response_builder_prefers_normalized_source_units():
+    source_units = [
+        _source_unit(source_id="r1", candidate="assistant_output", direction="response", text="Done"),
+        _source_unit(
+            source_id="r2",
+            candidate="reasoning_output",
+            direction="response",
+            payload={"has_encrypted_content": True},
+            unit_type="reasoning_output",
+        ),
+        _source_unit(
+            source_id="r3",
+            candidate="tool_calls",
+            direction="response",
+            payload={"call_id": "call_1", "name": "exec_command"},
+            unit_type="model_tool_call",
+        ),
+    ]
+    lc = _make_lc(
+        output_tokens=100,
+        response_full="legacy should not win",
+        content_blocks=[{"type": "text", "content": "legacy"}],
+    )
+    lc.token_breakdown_normalized = SimpleNamespace(
+        output_tokens=100,
+        raw_fields={"reasoning_output_tokens": 30},
+    )
+    ro = _make_ro(user_content="")
+    builder = CodexAttributionBuilder(
+        lc,
+        ro,
+        session_context={"normalized_call": {"source_units": source_units}},
+    )
+
+    result = builder.build_response()
+    payload = response_attribution_to_payload(result)
+
+    assert result.source_label == "normalized artifact source_units"
+    reasoning = next(b for b in result.buckets if b.key == "reasoning_output_tokens")
+    assert reasoning.tokens == 30
+    accounting = payload["accounting_attribution"]["output_tokens"]["candidates"]
+    assert {item["candidate"] for item in accounting} >= {
+        "assistant_output",
+        "reasoning_output",
+        "tool_calls",
+    }
 
 
 def test_codex_prior_message_uses_full_token_estimate_from_context():

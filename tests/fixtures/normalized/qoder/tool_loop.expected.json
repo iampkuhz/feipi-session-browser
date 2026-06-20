@@ -1,46 +1,93 @@
 {
-  "schema_version": "session-detail.normalized.v2",
   "agent": "qoder",
-  "source": {
-    "files": [
-      {
-        "role": "main_session",
-        "path": "tests/fixtures/normalized/qoder/tool_loop.input/session-qoder-001.jsonl"
-      }
-    ]
-  },
-  "session": {
-    "session_key": "qoder:session-qoder-001",
-    "session_id": "session-qoder-001",
-    "title": "生成 PlantUML 并运行校验",
-    "agent": "qoder",
-    "model": "qwen3.6-plus",
-    "cwd": "/repo",
-    "started_at": "2026-06-10T10:00:00+08:00",
-    "ended_at": "2026-06-10T10:00:10+08:00",
-    "git_branch": "feature/diagram",
-    "source": "qoder",
-    "project_key": "/repo",
-    "project_name": "repo"
-  },
   "calls": [
     {
+      "attribution_candidates": {
+        "request": {
+          "runtime_context": [
+            {
+              "event_order": 1,
+              "label": "Qoder 运行上下文",
+              "payload": {
+                "cwd": "/repo",
+                "git_branch": "feature/diagram",
+                "model": "qwen3.6-plus",
+                "project_key": "/repo",
+                "source": "qoder"
+              },
+              "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"feature/diagram\",\"model\":\"qwen3.6-plus\",\"project_key\":\"/repo\",\"source\":\"qoder\"}",
+              "source": "session.runtime",
+              "source_id": "qoder-msg-1:session.runtime:1:0:qoder_runtime_context:0-108:0",
+              "timestamp": "2026-06-10T10:00:05+08:00",
+              "unit_type": "qoder_runtime_context"
+            }
+          ],
+          "user_input": [
+            {
+              "event_order": 1,
+              "label": "当前用户输入",
+              "preview": "生成 PlantUML 并运行校验",
+              "source": "messages[0].content",
+              "source_id": "qoder-msg-1:messages-0-.content:1:0:current_user_message:0-31:1",
+              "text": "生成 PlantUML 并运行校验",
+              "timestamp": "2026-06-10T10:00:00+08:00",
+              "unit_type": "current_user_message"
+            }
+          ]
+        },
+        "response": {
+          "assistant_output": [
+            {
+              "event_order": 1,
+              "label": "助手文本",
+              "preview": "我先生成图文件。",
+              "source": "assistant.content_blocks[2]",
+              "source_id": "qoder-msg-1:assistant.content_blocks-2-:1:2:assistant_text:0-24:3",
+              "text": "我先生成图文件。",
+              "timestamp": "2026-06-10T10:00:05+08:00",
+              "unit_type": "assistant_text"
+            }
+          ],
+          "reasoning_output": [
+            {
+              "event_order": 1,
+              "label": "可见 thinking",
+              "preview": "需要先写入 PlantUML 文件。",
+              "source": "assistant.content_blocks[1]",
+              "source_id": "qoder-msg-1:assistant.content_blocks-1-:1:1:visible_thinking:0-34:2",
+              "text": "需要先写入 PlantUML 文件。",
+              "timestamp": "2026-06-10T10:00:05+08:00",
+              "unit_type": "visible_thinking"
+            }
+          ],
+          "tool_calls": [
+            {
+              "event_order": 1,
+              "label": "Write",
+              "payload": {
+                "id": "toolu_qoder_write",
+                "name": "Write",
+                "parameters": {
+                  "content": "@startuml\n[A] --> [B]\n@enduml",
+                  "file_path": "diagram.puml"
+                },
+                "type": "tool_use"
+              },
+              "preview": "{\"id\":\"toolu_qoder_write\",\"name\":\"Write\",\"parameters\":{\"content\":\"@startuml\\n[A] --> [B]\\n@enduml\",\"file_path\":\"diagram.puml\"},\"type\":\"tool_use\"}",
+              "source": "assistant.content_blocks[3]",
+              "source_id": "qoder-msg-1:assistant.content_blocks-3-:1:3:tool_use_block:0-145:4",
+              "timestamp": "2026-06-10T10:00:05+08:00",
+              "unit_type": "tool_use_block"
+            }
+          ]
+        }
+      },
       "call_id": "qoder-msg-1",
       "call_index": 1,
       "call_key": "C1",
-      "scope": "main",
+      "model": "qwen3.6-plus",
       "parent_call_id": "",
       "parent_tool_call_id": "",
-      "turn_id": "",
-      "model": "qwen3.6-plus",
-      "timestamp": "2026-06-10T10:00:05+08:00",
-      "usage": {
-        "fresh": 800,
-        "cache_read": 0,
-        "cache_write": 100,
-        "output": 70,
-        "total": 970
-      },
       "request": {
         "tool_result_ids": []
       },
@@ -48,25 +95,216 @@
         "tool_call_ids": [
           "toolu_qoder_write"
         ]
+      },
+      "scope": "main",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            31
+          ],
+          "candidate": "user_input",
+          "canonical_source_locator": "messages[0].content",
+          "content_hash": "76943513f1cf6effcd6aed6d0fa12eb580bd08e3771c0c975ce610d2cc328854",
+          "dedupe_key": "51b9e1c64d145c5d59f41852c928f2b92bee5a4ffb913822a72276d82c502373",
+          "direction": "request",
+          "event_order": 1,
+          "label": "当前用户输入",
+          "origin_path": "messages[0].content",
+          "part_index": 0,
+          "preview": "生成 PlantUML 并运行校验",
+          "priority": 90,
+          "source_id": "qoder-msg-1:messages-0-.content:1:0:current_user_message:0-31:1",
+          "text": "生成 PlantUML 并运行校验",
+          "timestamp": "2026-06-10T10:00:00+08:00",
+          "unit_type": "current_user_message"
+        },
+        {
+          "byte_range": [
+            0,
+            108
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session.runtime",
+          "content_hash": "d08356ea2d4c4c675d2f087a98716e208bc9673f4b9e311bb7ac1b71d47d51b4",
+          "dedupe_key": "bb3774904a951022501b7100f365767fc1ab1bc9822109c6749eaadac02458bc",
+          "direction": "request",
+          "event_order": 1,
+          "label": "Qoder 运行上下文",
+          "origin_path": "session.runtime",
+          "part_index": 0,
+          "payload": {
+            "cwd": "/repo",
+            "git_branch": "feature/diagram",
+            "model": "qwen3.6-plus",
+            "project_key": "/repo",
+            "source": "qoder"
+          },
+          "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"feature/diagram\",\"model\":\"qwen3.6-plus\",\"project_key\":\"/repo\",\"source\":\"qoder\"}",
+          "priority": 40,
+          "source_id": "qoder-msg-1:session.runtime:1:0:qoder_runtime_context:0-108:0",
+          "timestamp": "2026-06-10T10:00:05+08:00",
+          "unit_type": "qoder_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            34
+          ],
+          "candidate": "reasoning_output",
+          "canonical_source_locator": "assistant.content_blocks[1]",
+          "content_hash": "bcd350eae02b852e3b0d3b85900a2f442b10d26dcb8245a8e8cf652d188a6e3e",
+          "dedupe_key": "12091d2f60a902e02060bfc0e95bfd0c67d5238f9741fc2dcc7c048fb87454ad",
+          "direction": "response",
+          "event_order": 1,
+          "label": "可见 thinking",
+          "origin_path": "assistant.content_blocks[1]",
+          "part_index": 1,
+          "preview": "需要先写入 PlantUML 文件。",
+          "priority": 50,
+          "source_id": "qoder-msg-1:assistant.content_blocks-1-:1:1:visible_thinking:0-34:2",
+          "text": "需要先写入 PlantUML 文件。",
+          "timestamp": "2026-06-10T10:00:05+08:00",
+          "unit_type": "visible_thinking"
+        },
+        {
+          "byte_range": [
+            0,
+            24
+          ],
+          "candidate": "assistant_output",
+          "canonical_source_locator": "assistant.content_blocks[2]",
+          "content_hash": "59d31d43b922069f02b7b03cdfe0d0489b3adc127c356dc86f91a56673c7172e",
+          "dedupe_key": "306ef318185b7b947e63b8d0fb73d15ea4b530dc6046acfaccbd2a47ccf5fc38",
+          "direction": "response",
+          "event_order": 1,
+          "label": "助手文本",
+          "origin_path": "assistant.content_blocks[2]",
+          "part_index": 2,
+          "preview": "我先生成图文件。",
+          "priority": 50,
+          "source_id": "qoder-msg-1:assistant.content_blocks-2-:1:2:assistant_text:0-24:3",
+          "text": "我先生成图文件。",
+          "timestamp": "2026-06-10T10:00:05+08:00",
+          "unit_type": "assistant_text"
+        },
+        {
+          "byte_range": [
+            0,
+            145
+          ],
+          "candidate": "tool_calls",
+          "canonical_source_locator": "tool_use:toolu_qoder_write",
+          "content_hash": "2d1a69eac9898d76fb6648fe508f51424fb01d5b5812c2cfd4fb62564a7506c3",
+          "dedupe_key": "0db28a11e7fa4e64353d7eb8dfe0fe751124e09b00635fbdc3c33cfe2d0f8eb4",
+          "direction": "response",
+          "event_order": 1,
+          "label": "Write",
+          "origin_path": "assistant.content_blocks[3]",
+          "part_index": 3,
+          "payload": {
+            "id": "toolu_qoder_write",
+            "name": "Write",
+            "parameters": {
+              "content": "@startuml\n[A] --> [B]\n@enduml",
+              "file_path": "diagram.puml"
+            },
+            "type": "tool_use"
+          },
+          "preview": "{\"id\":\"toolu_qoder_write\",\"name\":\"Write\",\"parameters\":{\"content\":\"@startuml\\n[A] --> [B]\\n@enduml\",\"file_path\":\"diagram.puml\"},\"type\":\"tool_use\"}",
+          "priority": 50,
+          "source_id": "qoder-msg-1:assistant.content_blocks-3-:1:3:tool_use_block:0-145:4",
+          "timestamp": "2026-06-10T10:00:05+08:00",
+          "unit_type": "tool_use_block"
+        }
+      ],
+      "timestamp": "2026-06-10T10:00:05+08:00",
+      "turn_id": "",
+      "usage": {
+        "cache_read": 0,
+        "cache_write": 100,
+        "fresh": 800,
+        "output": 70,
+        "total": 970
       }
     },
     {
+      "attribution_candidates": {
+        "request": {
+          "conversation_history": [
+            {
+              "event_order": 2,
+              "label": "历史 user 消息",
+              "preview": "生成 PlantUML 并运行校验",
+              "source": "messages[0].content",
+              "source_id": "qoder-msg-2:messages-0-.content:2:0:prior_user_message:0-31:1",
+              "text": "生成 PlantUML 并运行校验",
+              "timestamp": "2026-06-10T10:00:00+08:00",
+              "unit_type": "prior_user_message"
+            },
+            {
+              "event_order": 2,
+              "label": "历史 assistant 消息",
+              "preview": "需要先写入 PlantUML 文件。 我先生成图文件。",
+              "source": "messages[1].content",
+              "source_id": "qoder-msg-2:messages-1-.content:2:1:prior_assistant_message:0-59:2",
+              "text": "需要先写入 PlantUML 文件。\n我先生成图文件。",
+              "timestamp": "2026-06-10T10:00:05+08:00",
+              "unit_type": "prior_assistant_message"
+            }
+          ],
+          "runtime_context": [
+            {
+              "event_order": 2,
+              "label": "Qoder 运行上下文",
+              "payload": {
+                "cwd": "/repo",
+                "git_branch": "feature/diagram",
+                "model": "qwen3.6-plus",
+                "project_key": "/repo",
+                "source": "qoder"
+              },
+              "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"feature/diagram\",\"model\":\"qwen3.6-plus\",\"project_key\":\"/repo\",\"source\":\"qoder\"}",
+              "source": "session.runtime",
+              "source_id": "qoder-msg-2:session.runtime:2:0:qoder_runtime_context:0-108:0",
+              "timestamp": "2026-06-10T10:00:10+08:00",
+              "unit_type": "qoder_runtime_context"
+            }
+          ],
+          "tool_results": [
+            {
+              "event_order": 2,
+              "label": "工具结果 toolu_qoder_write",
+              "preview": "diagram.puml written",
+              "source": "request_full.tool_result[1]",
+              "source_id": "qoder-msg-2:request_full.tool_result-1-:2:1:tool_result_text:0-20:3",
+              "text": "diagram.puml written",
+              "timestamp": "2026-06-10T10:00:10+08:00",
+              "unit_type": "tool_result_text"
+            }
+          ]
+        },
+        "response": {
+          "assistant_output": [
+            {
+              "event_order": 2,
+              "label": "助手文本",
+              "preview": "校验通过。",
+              "source": "assistant.content_blocks[1]",
+              "source_id": "qoder-msg-2:assistant.content_blocks-1-:2:1:assistant_text:0-15:4",
+              "text": "校验通过。",
+              "timestamp": "2026-06-10T10:00:10+08:00",
+              "unit_type": "assistant_text"
+            }
+          ]
+        }
+      },
       "call_id": "qoder-msg-2",
       "call_index": 2,
       "call_key": "C2",
-      "scope": "main",
+      "model": "qwen3.6-plus",
       "parent_call_id": "",
       "parent_tool_call_id": "",
-      "turn_id": "",
-      "model": "qwen3.6-plus",
-      "timestamp": "2026-06-10T10:00:10+08:00",
-      "usage": {
-        "fresh": 500,
-        "cache_read": 100,
-        "cache_write": 0,
-        "output": 40,
-        "total": 640
-      },
       "request": {
         "tool_result_ids": [
           "toolu_qoder_write"
@@ -74,21 +312,167 @@
       },
       "response": {
         "tool_call_ids": []
+      },
+      "scope": "main",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            31
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "messages[0].content",
+          "content_hash": "76943513f1cf6effcd6aed6d0fa12eb580bd08e3771c0c975ce610d2cc328854",
+          "dedupe_key": "19a30961098e1ca860e843e06031ba6dcaf593f7b2bf173da12e1d8718ae2aae",
+          "direction": "request",
+          "event_order": 2,
+          "label": "历史 user 消息",
+          "origin_path": "messages[0].content",
+          "part_index": 0,
+          "preview": "生成 PlantUML 并运行校验",
+          "priority": 50,
+          "source_id": "qoder-msg-2:messages-0-.content:2:0:prior_user_message:0-31:1",
+          "text": "生成 PlantUML 并运行校验",
+          "timestamp": "2026-06-10T10:00:00+08:00",
+          "unit_type": "prior_user_message"
+        },
+        {
+          "byte_range": [
+            0,
+            108
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session.runtime",
+          "content_hash": "d08356ea2d4c4c675d2f087a98716e208bc9673f4b9e311bb7ac1b71d47d51b4",
+          "dedupe_key": "ee24e7cf4a3d6b60c6895dbf2ecc08c97dc9c6e2a9e601fdc195d834466ab52a",
+          "direction": "request",
+          "event_order": 2,
+          "label": "Qoder 运行上下文",
+          "origin_path": "session.runtime",
+          "part_index": 0,
+          "payload": {
+            "cwd": "/repo",
+            "git_branch": "feature/diagram",
+            "model": "qwen3.6-plus",
+            "project_key": "/repo",
+            "source": "qoder"
+          },
+          "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"feature/diagram\",\"model\":\"qwen3.6-plus\",\"project_key\":\"/repo\",\"source\":\"qoder\"}",
+          "priority": 40,
+          "source_id": "qoder-msg-2:session.runtime:2:0:qoder_runtime_context:0-108:0",
+          "timestamp": "2026-06-10T10:00:10+08:00",
+          "unit_type": "qoder_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            15
+          ],
+          "candidate": "assistant_output",
+          "canonical_source_locator": "assistant.content_blocks[1]",
+          "content_hash": "c54d8047dde2b74155a46f4685c029ccef717f43c9ee09b834a1cea869365085",
+          "dedupe_key": "06436c36190a2ced108917937d8a0f92692394f7c003601be68cfa2967bb7500",
+          "direction": "response",
+          "event_order": 2,
+          "label": "助手文本",
+          "origin_path": "assistant.content_blocks[1]",
+          "part_index": 1,
+          "preview": "校验通过。",
+          "priority": 50,
+          "source_id": "qoder-msg-2:assistant.content_blocks-1-:2:1:assistant_text:0-15:4",
+          "text": "校验通过。",
+          "timestamp": "2026-06-10T10:00:10+08:00",
+          "unit_type": "assistant_text"
+        },
+        {
+          "byte_range": [
+            0,
+            59
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "messages[1].content",
+          "content_hash": "cec69161b3c2925bb0b1a91fc90336f8454d9d43ece2ab6ad898258e003d5aa7",
+          "dedupe_key": "fa19d4d2ba67922f6ac902d10d884fbb0f5c5f71542dec8b1cfd2b0874fb39f5",
+          "direction": "request",
+          "event_order": 2,
+          "label": "历史 assistant 消息",
+          "origin_path": "messages[1].content",
+          "part_index": 1,
+          "preview": "需要先写入 PlantUML 文件。 我先生成图文件。",
+          "priority": 50,
+          "source_id": "qoder-msg-2:messages-1-.content:2:1:prior_assistant_message:0-59:2",
+          "text": "需要先写入 PlantUML 文件。\n我先生成图文件。",
+          "timestamp": "2026-06-10T10:00:05+08:00",
+          "unit_type": "prior_assistant_message"
+        },
+        {
+          "byte_range": [
+            0,
+            20
+          ],
+          "candidate": "tool_results",
+          "canonical_source_locator": "tool_result:toolu_qoder_write",
+          "content_hash": "33aabec5a9a3ffd1f71a7c3099b941bb833a974393af5e086bc7e353f81b3511",
+          "dedupe_key": "7d009c9fc3ad901a29d3df95438083574b1aa2d3e1e4bd7ad5a95f2062cde343",
+          "direction": "request",
+          "event_order": 2,
+          "label": "工具结果 toolu_qoder_write",
+          "origin_path": "request_full.tool_result[1]",
+          "part_index": 1,
+          "preview": "diagram.puml written",
+          "priority": 85,
+          "source_id": "qoder-msg-2:request_full.tool_result-1-:2:1:tool_result_text:0-20:3",
+          "text": "diagram.puml written",
+          "timestamp": "2026-06-10T10:00:10+08:00",
+          "unit_type": "tool_result_text"
+        }
+      ],
+      "timestamp": "2026-06-10T10:00:10+08:00",
+      "turn_id": "",
+      "usage": {
+        "cache_read": 100,
+        "cache_write": 0,
+        "fresh": 500,
+        "output": 40,
+        "total": 640
       }
     }
   ],
+  "diagnostics": [],
+  "schema_version": "session-detail.normalized.v2",
+  "session": {
+    "agent": "qoder",
+    "cwd": "/repo",
+    "ended_at": "2026-06-10T10:00:10+08:00",
+    "git_branch": "feature/diagram",
+    "model": "qwen3.6-plus",
+    "project_key": "/repo",
+    "project_name": "repo",
+    "session_id": "session-qoder-001",
+    "session_key": "qoder:session-qoder-001",
+    "source": "qoder",
+    "started_at": "2026-06-10T10:00:00+08:00",
+    "title": "生成 PlantUML 并运行校验"
+  },
+  "source": {
+    "files": [
+      {
+        "path": "tests/fixtures/normalized/qoder/tool_loop.input/session-qoder-001.jsonl",
+        "role": "main_session"
+      }
+    ]
+  },
   "tool_executions": [
     {
-      "tool_call_id": "toolu_qoder_write",
-      "name": "Write",
-      "scope": "main",
       "declared_by_call_id": "qoder-msg-1",
-      "result_consumed_by_call_id": "qoder-msg-2",
       "duration_ms": 3000,
       "files_touched": [
         "diagram.puml"
-      ]
+      ],
+      "name": "Write",
+      "result_consumed_by_call_id": "qoder-msg-2",
+      "scope": "main",
+      "tool_call_id": "toolu_qoder_write"
     }
-  ],
-  "diagnostics": []
+  ]
 }

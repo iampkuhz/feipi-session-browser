@@ -13,6 +13,11 @@ from session_browser.domain.models import (
     TokenTotalSemantics,
     TokenSourceKind,
 )
+from session_browser.domain.token_normalizers.codex_token_normalizer import (
+    codex_is_duplicate_cumulative,
+    codex_usage_delta,
+    normalize_codex_usage,
+)
 
 
 # ─── Claude Code tests ───────────────────────────────────────────────────
@@ -133,7 +138,7 @@ class TestOpenAINormalization:
         }
         result = normalize_tokens(usage, provider=TokenProvider.OPENAI)
 
-        assert result.output_tokens == 500
+        assert result.output_tokens == 800
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_openai_new_format(self):
@@ -147,7 +152,7 @@ class TestOpenAINormalization:
 
         assert result.fresh_input_tokens == 2000
         assert result.cache_read_tokens == 2000
-        assert result.output_tokens == 400
+        assert result.output_tokens == 600
 
 
 # ─── Codex tests ─────────────────────────────────────────────────────────
@@ -209,6 +214,56 @@ class TestCodexNormalization:
         assert result.cache_read_tokens == 200
         assert result.output_tokens == 400
         assert result.total_tokens == 1200
+
+    def test_codex_specific_normalizer_keeps_reasoning_in_output(self):
+        usage = {
+            "input_tokens": 4000,
+            "cached_input_tokens": 2000,
+            "output_tokens": 600,
+            "reasoning_output_tokens": 200,
+        }
+        result = normalize_codex_usage(usage)
+
+        assert result.fresh_input_tokens == 2000
+        assert result.cache_read_tokens == 2000
+        assert result.output_tokens == 600
+        assert result.raw_fields["reasoning_output_tokens"] == 200
+
+    def test_codex_specific_normalizer_reasoning_only_fallback(self):
+        usage = {
+            "input_tokens": 1000,
+            "cached_input_tokens": 500,
+            "reasoning_output_tokens": 80,
+        }
+        result = normalize_codex_usage(usage)
+
+        assert result.fresh_input_tokens == 500
+        assert result.cache_read_tokens == 500
+        assert result.output_tokens == 80
+
+    def test_codex_cumulative_delta_and_duplicate_detection(self):
+        previous = {
+            "input_tokens": 5000,
+            "cached_input_tokens": 3000,
+            "output_tokens": 100,
+            "reasoning_output_tokens": 20,
+            "total_tokens": 5100,
+        }
+        current = {
+            "input_tokens": 7000,
+            "cached_input_tokens": 3500,
+            "output_tokens": 160,
+            "reasoning_output_tokens": 40,
+            "total_tokens": 7160,
+        }
+
+        delta = codex_usage_delta(current, previous)
+
+        assert delta["input_tokens"] == 2000
+        assert delta["cached_input_tokens"] == 500
+        assert delta["output_tokens"] == 60
+        assert delta["reasoning_output_tokens"] == 20
+        assert codex_is_duplicate_cumulative(current, current)
 
     @pytest.mark.contract_case("DATA-PRESENTER-008")
     def test_codex_empty_usage(self):

@@ -29,6 +29,10 @@ from session_browser.domain.models import (
     TokenTotalSemantics,
     TokenSourceKind,
 )
+from session_browser.domain.token_normalizers.codex_token_normalizer import (
+    normalize_codex_from_delta,
+    normalize_codex_usage,
+)
 
 
 # ─── Provider inference ──────────────────────────────────────────────────
@@ -170,93 +174,16 @@ def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
 
 
 def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
-    """Codex: input_tokens is Provider Request Input, cache read is a subset.
-
-    Supports both flat Codex aliases and OpenAI Responses nested aliases.
-    OpenAI/Codex cached input is a subset of input_tokens, so UI token
-    composition uses mutually exclusive components: Fresh = input - cache read.
-    Cache Write always 0.
-    """
-    raw_input_total = _get_int(usage, "input_tokens", "prompt_tokens", "input")
-    raw_cache_read = (
-        _get_int(usage, "cached_input_tokens", "cache_read_input_tokens", "cached_tokens")
-        or _get_nested_int(usage, "input_tokens_details", "cached_tokens")
-        or _get_nested_int(usage, "prompt_tokens_details", "cached_tokens")
-    )
-    raw_output = _get_int(usage, "output_tokens", "completion_tokens", "output")
-    raw_total = _get_int(usage, "total_tokens", "total_token_usage", "tokens_used")
-    raw_reasoning = (
-        _get_int(usage, "reasoning_output_tokens", "reasoning_tokens", "thinking_tokens")
-        or _get_nested_int(usage, "output_tokens_details", "reasoning_tokens")
-        or _get_nested_int(usage, "completion_tokens_details", "reasoning_tokens")
-    )
-
-    cache_read = min(raw_cache_read, raw_input_total) if raw_input_total else raw_cache_read
-    fresh = max(raw_input_total - cache_read, 0) if raw_input_total else 0
-    cache_write = 0
-
-    # Codex rollout output_tokens is treated as visible output. If only hidden
-    # reasoning is reported, use it as a total-only output fallback so totals do
-    # not disappear.
-    output = raw_output
-    if raw_output == 0 and raw_reasoning > 0:
-        output = raw_reasoning
-
-    component_sum = fresh + cache_read + cache_write + output
-    total = component_sum
-    semantics = TokenTotalSemantics.EXCLUSIVE_COMPONENT_SUM
-    notes: list[str] = []
-
-    if component_sum == 0 and raw_total > 0:
-        total = raw_total
-        semantics = TokenTotalSemantics.REPORTED_TOTAL
-
-    if component_sum > 0 and raw_total > 0 and component_sum != raw_total:
-        notes.append(
-            f"Raw reported total ({raw_total}) differs from component sum ({component_sum}); "
-            "using mutually exclusive component sum for UI token composition."
-        )
-        semantics = TokenTotalSemantics.RECOMPUTED_DUE_TO_INCONSISTENT_RAW_TOTAL
-
-    return NormalizedTokenBreakdown(
-        fresh_input_tokens=fresh,
-        cache_read_tokens=cache_read,
-        cache_write_tokens=cache_write,
-        output_tokens=output,
-        total_tokens=total,
-        precision=TokenPrecision.PROVIDER_REPORTED,
-        total_semantics=semantics,
-        source_kind=TokenSourceKind.CODEX_ROLLOUT_TOKEN_COUNT,
-        raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
-        notes=notes,
-    )
+    """Codex 归一化委托给 agent 专属模块维护。"""
+    return normalize_codex_usage(usage)
 
 
 def _normalize_codex_from_delta(
     current: dict,
     previous: Optional[dict] = None,
 ) -> NormalizedTokenBreakdown:
-    """Codex: recover delta from cumulative totals.
-
-    If previous cumulative is provided, subtract to get delta,
-    then normalize the delta normally.
-    """
-    if previous and isinstance(previous, dict):
-        delta = {}
-        for key in ("input_tokens", "prompt_tokens", "cached_input_tokens",
-                     "cache_read_input_tokens", "cached_tokens",
-                     "output_tokens", "completion_tokens",
-                     "total_tokens", "total_token_usage", "tokens_used"):
-            cur_val = _get_int(current, key)
-            prev_val = _get_int(previous, key)
-            delta[key] = max(cur_val - prev_val, 0)
-
-        result = _normalize_codex(delta)
-        result.precision = TokenPrecision.PROVIDER_REPORTED_DELTA
-        result.total_semantics = TokenTotalSemantics.REPORTED_CUMULATIVE_DELTA
-        return result
-
-    return _normalize_codex(current)
+    """Codex cumulative delta 归一化委托给 agent 专属模块维护。"""
+    return normalize_codex_from_delta(current, previous)
 
 
 # ─── Qoder unified normalizer ────────────────────────────────────────────
@@ -382,16 +309,14 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
     fresh = max(input_tokens - cached, 0) if input_tokens else 0
 
     output_tokens = provider_output_total
-    if reasoning > 0 and provider_output_total >= reasoning:
-        output_tokens = provider_output_total - reasoning
 
     cache_write = 0
     total = fresh + cached + cache_write + output_tokens
     notes: list[str] = []
-    if reasoning > 0 and provider_output_total >= reasoning:
+    if reasoning > 0:
         notes.append(
-            "Hidden reasoning tokens were subtracted from provider output total "
-            "so Output remains the visible-output component."
+            "Hidden reasoning tokens are retained as an output breakdown; "
+            "Output keeps the provider reported output_tokens total."
         )
 
     return NormalizedTokenBreakdown(

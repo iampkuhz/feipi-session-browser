@@ -1,15 +1,4 @@
-"""Tests for the on-demand Attribution API endpoints.
-
-Verifies:
-1. Request attribution API returns JSON envelope with correct structure.
-2. Response attribution API returns JSON envelope with correct structure.
-3. Invalid round_index returns 400 JSON.
-4. Invalid call_index returns 400 JSON.
-5. Session not found returns 404 JSON.
-6. Call not found returns 404 JSON.
-7. Response payload contains kind/source/session_id/detail/data.
-8. Data contains buckets/usage/availability_rows.
-"""
+"""按需 Attribution API endpoint 测试。"""
 
 import json
 import pytest
@@ -17,13 +6,13 @@ import pytest
 from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
-from session_browser.attribution.agents.claude_code import (
-    ClaudeCodeAttributionBuilder,
-    normalize_request_reconstruction_buckets,
+from session_browser.attribution.agents.claude_code_attribution_builder import ClaudeCodeAttributionBuilder
+from session_browser.attribution.mapping.agents.claude_code_token_accounting_mapping import (
+    ClaudeCodeTokenAccountingMapper,
 )
-from session_browser.attribution.agents.codex import CodexAttributionBuilder
+from session_browser.attribution.agents.codex_attribution_builder import CodexAttributionBuilder
 from session_browser.attribution.context import build_attribution_session_context
-from session_browser.attribution.contracts import ValuePrecision, ValueSource
+from session_browser.attribution.contracts import AttributedValue, ValuePrecision, ValueSource
 from session_browser.attribution.serializers import (
     request_attribution_to_payload,
     response_attribution_to_payload,
@@ -60,11 +49,11 @@ class _FakeSession:
     project_key = "/tmp/test"
 
 
-# ── Serializer / envelope structure tests ─────────────────────────────
+# ── Serializer / envelope 结构测试 ─────────────────────────────
 
 
 def test_request_attribution_payload_contains_envelope_fields():
-    """Request attribution payload should have kind, agent, etc."""
+    """Request attribution payload 应包含 envelope 字段。"""
     lc = _make_lc()
     ro = _make_ro()
     builder = ClaudeCodeAttributionBuilder(lc, ro)
@@ -80,7 +69,7 @@ def test_request_attribution_payload_contains_envelope_fields():
 
 
 def test_codex_request_api_payload_has_complete_tool_schema_details():
-    """Codex request attribution API payload should not expose observed-tools-only schema."""
+    """Codex request payload 不应暴露 observed-tools-only schema。"""
     lc = _make_lc(
         id="codex-call-001",
         model="openai",
@@ -121,7 +110,7 @@ def test_codex_request_api_payload_has_complete_tool_schema_details():
 
 
 def test_response_attribution_payload_contains_envelope_fields():
-    """Response attribution payload should have kind, agent, etc."""
+    """Response attribution payload 应包含 envelope 字段。"""
     lc = _make_lc()
     ro = _make_ro()
     builder = ClaudeCodeAttributionBuilder(lc, ro)
@@ -136,7 +125,7 @@ def test_response_attribution_payload_contains_envelope_fields():
 
 
 def test_error_payload_structure():
-    """Error payload should have kind, error_type, message, fallback."""
+    """Error payload 应包含 kind、error_type、message 和 fallback。"""
     payload = attribution_error_to_payload(
         agent="claude_code", call_id="test-call", round_id="1",
         error_type="NotFound", message="call not found",
@@ -148,11 +137,11 @@ def test_error_payload_structure():
     assert "fallback" in payload
 
 
-# ── Context hydration integration tests ──────────────────────────────
+# ── Context hydration 集成测试 ──────────────────────────────
 
 
 def test_context_hydration_with_all_messages():
-    """build_attribution_session_context should populate prior_messages."""
+    """build_attribution_session_context 应填充 prior_messages。"""
     all_messages = [
         {"role": "user", "content": "Hello there"},
         {"role": "assistant", "content": "Hi!"},
@@ -176,7 +165,7 @@ def test_context_hydration_with_all_messages():
 
 
 def test_content_preview_truncated_to_200_chars():
-    """prior_messages content_preview should be truncated to 200 chars."""
+    """prior_messages content_preview 应截断到 200 字符。"""
     long_content = "x" * 500
     all_messages = [{"role": "user", "content": long_content}]
     ctx = build_attribution_session_context(
@@ -192,7 +181,7 @@ def test_content_preview_truncated_to_200_chars():
 
 
 def test_available_tools_from_observed_calls():
-    """available_tools should come from observed tool calls."""
+    """available_tools 可从 observed tool calls 收集。"""
     tc1 = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="content")
     tc2 = ToolCall(name="Bash", parameters={"command": "echo hi"}, result="ok")
     ctx = build_attribution_session_context(
@@ -209,7 +198,7 @@ def test_available_tools_from_observed_calls():
 
 
 def test_available_tools_fallback_when_empty():
-    """available_tools should fall back to default list when no observed tools."""
+    """没有 observed tools 时 available_tools 回退到默认列表。"""
     ctx = build_attribution_session_context(
         session=None,
         round_obj=_make_ro(),
@@ -225,7 +214,7 @@ def test_available_tools_fallback_when_empty():
 
 
 def test_prior_messages_not_contain_current_user_message():
-    """prior_messages should contain all messages (caller filters if needed)."""
+    """prior_messages 保留输入消息，由调用方按 call 边界过滤。"""
     all_messages = [
         {"role": "user", "content": "First message"},
         {"role": "assistant", "content": "Response"},
@@ -239,144 +228,62 @@ def test_prior_messages_not_contain_current_user_message():
         all_messages=all_messages,
     )
 
-    # prior_messages contains all messages; the builder can filter
     assert len(ctx["prior_messages"]) == 2
 
 
-# ── Bucket normalization tests ────────────────────────────────────────
+# ── Field-first source_units mapping 测试 ────────────────────────────────────────
 
 
-def test_normalization_heuristic_buckets_not_exceed_fresh():
-    """After normalization, heuristic buckets should not cause sum > fresh_input."""
-    from session_browser.attribution.contracts import RequestAttributionBucket
-
-    buckets = [
-        RequestAttributionBucket(key="current_user_message", label="User", tokens=1000, percent=0),
-        RequestAttributionBucket(key="tool_definitions", label="Schemas", tokens=500, percent=0),
-        RequestAttributionBucket(key="hidden_builtin_system_estimate", label="Hidden", tokens=500, percent=0),
-        RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
+def test_claude_code_mapper_scales_candidates_to_fresh_field():
+    """source_units candidate 总量超过 fresh field 时按 field 分母缩放。"""
+    mapper = ClaudeCodeTokenAccountingMapper()
+    source_units = [
+        {
+            "source_id": "u1",
+            "origin_path": "fixture.user",
+            "unit_type": "user",
+            "candidate": "user_input",
+            "direction": "request",
+            "text": "x" * 200,
+            "preview": "x" * 20,
+        },
+        {
+            "source_id": "u2",
+            "origin_path": "fixture.tools",
+            "unit_type": "tools",
+            "candidate": "tool_definitions",
+            "direction": "request",
+            "text": "y" * 200,
+            "preview": "y" * 20,
+        },
     ]
-
-    request_content_denominator = 2000
-    fresh_input = 1500  # less than total heuristic would allow
-
-    result = normalize_request_reconstruction_buckets(
-        buckets,
-        request_content_denominator=request_content_denominator,
-        fresh_input=fresh_input,
+    payload = mapper.build_request_accounting(
+        source_units=source_units,
+        fresh_input=AttributedValue(40, "tokens", ValuePrecision.PROVIDER_REPORTED, ValueSource.PROVIDER_USAGE, "fresh"),
+        cache_read=AttributedValue(80, "tokens", ValuePrecision.PROVIDER_REPORTED, ValueSource.PROVIDER_USAGE, "cache read"),
+        cache_write=AttributedValue(0, "tokens", ValuePrecision.PROVIDER_REPORTED, ValueSource.PROVIDER_USAGE, "cache write"),
     )
 
-    measured = sum(b.tokens for b in result if b.key == "current_user_message")
-    estimated = sum(b.tokens for b in result if b.key == "tool_definitions")
-    heuristic = sum(b.tokens for b in result if b.key == "hidden_builtin_system_estimate")
-
-    # measured + estimated + heuristic should not exceed fresh_input
-    assert measured + estimated + heuristic <= fresh_input
-
-
-def test_normalization_unlocated_residual_recomputed():
-    """unlocated_residual should be recomputed from the request content denominator."""
-    from session_browser.attribution.contracts import RequestAttributionBucket
-
-    buckets = [
-        RequestAttributionBucket(key="current_user_message", label="User", tokens=500, percent=0),
-        RequestAttributionBucket(key="hidden_builtin_system_estimate", label="Hidden", tokens=500, percent=0),
-        RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
-    ]
-
-    request_content_denominator = 2000
-    fresh_input = 2000
-
-    result = normalize_request_reconstruction_buckets(
-        buckets,
-        request_content_denominator=request_content_denominator,
-        fresh_input=fresh_input,
-    )
-
-    residual = next(b for b in result if b.key == "unlocated_residual")
-    known_sum = sum(b.tokens for b in result if b.key != "unlocated_residual")
-    assert residual.tokens == max(request_content_denominator - known_sum, 0)
-
-
-def test_normalization_measured_never_scaled_down():
-    """Measured buckets should never be scaled down."""
-    from session_browser.attribution.contracts import RequestAttributionBucket
-
-    original_tokens = 1000
-    buckets = [
-        RequestAttributionBucket(key="current_user_message", label="User", tokens=original_tokens, percent=0),
-        RequestAttributionBucket(key="hidden_builtin_system_estimate", label="Hidden", tokens=500, percent=0),
-        RequestAttributionBucket(key="provider_wrapper_estimate", label="Provider", tokens=500, percent=0),
-        RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
-    ]
-
-    # Very small fresh_input: heuristic must be scaled to near zero
-    request_content_denominator = 1500
-    fresh_input = 1100  # barely above measured
-
-    normalize_request_reconstruction_buckets(
-        buckets,
-        request_content_denominator=request_content_denominator,
-        fresh_input=fresh_input,
-    )
-
-    measured = next(b for b in buckets if b.key == "current_user_message")
-    assert measured.tokens >= original_tokens
-
-
-def test_normalization_zero_fresh_input():
-    """Normalization should handle zero fresh_input gracefully."""
-    from session_browser.attribution.contracts import RequestAttributionBucket
-
-    buckets = [
-        RequestAttributionBucket(key="current_user_message", label="User", tokens=500, percent=0),
-        RequestAttributionBucket(key="hidden_builtin_system_estimate", label="Hidden", tokens=500, percent=0),
-        RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=0, percent=0),
-    ]
-
-    # Should not crash
-    result = normalize_request_reconstruction_buckets(
-        buckets,
-        request_content_denominator=1000,
-        fresh_input=0,
-    )
-    assert result is not None
-
-
-def test_normalization_percentages_recomputed():
-    """Percentages should be recomputed after normalization."""
-    from session_browser.attribution.contracts import RequestAttributionBucket
-
-    buckets = [
-        RequestAttributionBucket(key="current_user_message", label="User", tokens=1000, percent=50.0),
-        RequestAttributionBucket(key="hidden_builtin_system_estimate", label="Hidden", tokens=500, percent=25.0),
-        RequestAttributionBucket(key="unlocated_residual", label="Unknown", tokens=500, percent=25.0),
-    ]
-
-    normalize_request_reconstruction_buckets(
-        buckets,
-        request_content_denominator=2000,
-        fresh_input=2000,
-    )
-
-    total_pct = sum(b.percent for b in buckets)
-    assert abs(total_pct - 100.0) < 0.1  # should sum to ~100%
+    fresh = payload["fresh_input_tokens"]
+    assert fresh["candidate_total_tokens"] <= 40
+    assert payload["cache_read_tokens"]["tokens"] == 80
+    assert payload["cache_read_tokens"]["candidates"] == []
 
 
 def test_builder_includes_normalization_note():
-    """Claude Code builder should include normalization note in attribution_notes."""
+    """Claude Code builder 缺少 source_units 时提示重新 scan。"""
     lc = _make_lc(input_tokens=8200, cache_read_tokens=88500, cache_write_tokens=3300)
     ro = _make_ro()
     builder = ClaudeCodeAttributionBuilder(lc, ro)
     result = builder.build_request()
 
     notes = result.attribution_notes
-    assert any("推断 bucket" in n or "not raw request" in n.lower() for n in notes), \
-        f"Expected normalization note in: {notes}"
+    assert any("normalized source_units" in n for n in notes), \
+        f"Expected source_units note in: {notes}"
 
 
 def test_located_rate_never_exceeds_100():
-    """Coverage value should never exceed 1.0."""
+    """Coverage value 不应超过 1.0。"""
     lc = _make_lc(input_tokens=8200, output_tokens=3000,
                    cache_read_tokens=88500, cache_write_tokens=3300)
     ro = _make_ro()
@@ -387,7 +294,7 @@ def test_located_rate_never_exceeds_100():
 
 
 def test_bucket_tokens_sum_not_exceed_request_content_denominator():
-    """Sum of all contributing buckets should not exceed the Fresh denominator."""
+    """contributing buckets 之和不应超过 Fresh denominator。"""
     lc = _make_lc(input_tokens=5000, output_tokens=2000,
                    cache_read_tokens=1000, cache_write_tokens=500)
     ro = _make_ro()
@@ -406,16 +313,30 @@ def test_bucket_tokens_sum_not_exceed_request_content_denominator():
 
 
 def test_request_bucket_serialization_includes_details():
-    """Serialized request bucket should include details field."""
+    """序列化 request bucket 应包含 source_units details。"""
     lc = _make_lc(input_tokens=10000, cache_read_tokens=5000, cache_write_tokens=1000)
     ro = _make_ro()
     ctx = {
-        "available_tools": ["Read", "Write", "Bash"],
-        "prior_messages": [
-            {"role": "user", "content": "Hello", "content_preview": "Hello", "content_token_estimate": 2},
-        ],
-        "preceding_tool_results": [],
-        "local_instructions": "Project rules here.",
+        "normalized_call": {
+            "call_id": "test-call-001",
+            "source_units": [
+                {
+                    "source_id": "test:tool_definitions:1",
+                    "dedupe_key": "dedupe:tool_definitions:1",
+                    "origin_path": "fixture.tools",
+                    "canonical_source_locator": "fixture:tools",
+                    "unit_type": "tool_definitions_unit",
+                    "candidate": "tool_definitions",
+                    "direction": "request",
+                    "event_order": 1,
+                    "part_index": 1,
+                    "byte_range": [0, 24],
+                    "text": "Read Write Bash schemas",
+                    "label": "工具定义",
+                    "preview": "Read Write Bash schemas",
+                }
+            ],
+        }
     }
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
@@ -424,16 +345,15 @@ def test_request_bucket_serialization_includes_details():
     buckets = payload["buckets"]
     assert len(buckets) > 0
 
-    # Check that details is present on buckets
     tool_definitions = next((b for b in buckets if b["key"] == "tool_definitions"), None)
     assert tool_definitions is not None
     assert "details" in tool_definitions
-    assert tool_definitions["details"].get("kind") == "tools"
+    assert tool_definitions["details"].get("kind") == "source_units"
     assert len(tool_definitions["details"].get("items", [])) > 0
 
 
 def test_response_bucket_serialization_includes_details():
-    """Serialized response bucket should include details field."""
+    """序列化 response bucket 应包含 details 字段。"""
     lc = _make_lc()
     ro = _make_ro()
     builder = ClaudeCodeAttributionBuilder(lc, ro)

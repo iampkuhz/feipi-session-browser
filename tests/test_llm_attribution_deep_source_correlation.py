@@ -1,39 +1,70 @@
-"""Tests for LLM attribution deep source correlation (bucket details).
-
-Covers:
-1. tool_definitions details.items contains tool name/source/description_preview/estimated_tokens
-2. local_instruction_context details.items contains CLAUDE.md/system-reminder/agent prompt sources
-3. message_history details.items contains prior rounds, not current call response
-4. current user message not double-counted in history
-5. preceding tool_results only contains calls before current LLM call
-6. unlocated details explains hidden/provider/tokenizer/unsafe sources
-7. sensitive keys masked, no secret values returned
-8. previews all truncated
-"""
+"""source_units 细粒度来源关联测试。"""
 
 from __future__ import annotations
 
-import pytest
-
-from session_browser.attribution.agents.claude_code import (
+from session_browser.attribution.agents.claude_code_attribution_builder import (
     ClaudeCodeAttributionBuilder,
 )
 from session_browser.attribution.agents.claude_code_parts.utils import (
-    tool_description,
     extract_tool_name,
     mask_sensitive_keys,
+    tool_description,
     truncate_preview,
 )
-from session_browser.attribution.agents.claude_code_tool_schemas import (
-    get_tool_schema_tokens,
-)
+from session_browser.attribution.agents.claude_code_tool_schemas import get_tool_schema_tokens
 from session_browser.attribution.context import (
     _mask_sensitive_keys as context_mask_sensitive_keys,
     _truncate_preview as context_truncate_preview,
 )
+from session_browser.domain.models import ChatMessage, ConversationRound, LLMCall
 
 
-# ── Tool description tests ─────────────────────────────────────────
+def _make_lc(**kwargs):
+    defaults = dict(
+        id="llm-test", model="claude-sonnet-4-20250514", scope="main",
+        subagent_id="", round_index=0, parent_id="", parent_tool_name="",
+        timestamp="2025-01-01T00:00:00Z", status="ok",
+        input_tokens=10000, output_tokens=3000,
+        cache_read_tokens=5000, cache_write_tokens=1000,
+        finish_reason="end_turn", content_blocks=[],
+        response_full="", request_full="", tool_calls_raw="",
+    )
+    defaults.update(kwargs)
+    return LLMCall(**defaults)
+
+
+def _make_ro(user_content: str = "hello") -> ConversationRound:
+    return ConversationRound(
+        round_index=0,
+        user_msg=ChatMessage(role="user", content=user_content, timestamp="2025-01-01T00:00:00Z"),
+        assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
+    )
+
+
+def _unit(candidate: str, direction: str, text: str, index: int = 1) -> dict:
+    return {
+        "source_id": f"test:{direction}:{candidate}:{index}",
+        "dedupe_key": f"dedupe:{direction}:{candidate}:{index}",
+        "origin_path": f"fixture.{candidate}",
+        "canonical_source_locator": f"fixture:{candidate}:{index}",
+        "unit_type": f"{candidate}_unit",
+        "candidate": candidate,
+        "direction": direction,
+        "event_order": 1,
+        "part_index": index,
+        "byte_range": [0, len(text.encode("utf-8"))],
+        "text": text,
+        "label": candidate,
+        "preview": text[:120],
+    }
+
+
+def _builder(*units: dict, input_tokens: int = 10000, output_tokens: int = 3000):
+    return ClaudeCodeAttributionBuilder(
+        llm_call=_make_lc(input_tokens=input_tokens, output_tokens=output_tokens),
+        round_obj=_make_ro("Tell me about cats"),
+        session_context={"normalized_call": {"call_id": "llm-test", "source_units": list(units)}},
+    )
 
 
 class TestToolDescriptions:
@@ -56,7 +87,6 @@ class TestToolDescriptions:
         assert "pattern" in tool_description("Glob")
 
     def test_known_tool_ls(self):
-        # LS is not in _BINARY_TOOL_DESCRIPTIONS, falls back to Chinese
         assert "目录" in tool_description("LS")
 
     def test_known_tool_agent(self):
@@ -69,26 +99,15 @@ class TestToolDescriptions:
         assert "URL" in tool_description("WebFetch")
 
     def test_unknown_tool_fallback(self):
-        desc = tool_description("SomeUnknownTool")
-        assert "未知" in desc
-
-
-# ── Tool schema token estimation ──────────────────────────────────
+        assert "未知" in tool_description("SomeUnknownTool")
 
 
 class TestToolSchemaTokens:
     def test_large_tool_has_more_tokens(self):
-        # Bash has a large description + input schema
-        bash_tokens = get_tool_schema_tokens("Bash")
-        assert bash_tokens >= 240
+        assert get_tool_schema_tokens("Bash") >= 240
 
     def test_small_tool_has_tokens(self):
-        # Even small tools like Agent have schema tokens
-        tokens = get_tool_schema_tokens("Agent")
-        assert tokens >= 200
-
-
-# ── Tool name extraction ──────────────────────────────────────────
+        assert get_tool_schema_tokens("Agent") >= 200
 
 
 class TestExtractToolName:
@@ -99,15 +118,11 @@ class TestExtractToolName:
         assert extract_tool_name(None) == "unknown"
 
     def test_fallback_first_word(self):
-        result = extract_tool_name("Read output: hello world")
-        assert result == "Read"
+        assert extract_tool_name("Read output: hello world") == "Read"
 
     def test_caps_long_name(self):
         name = extract_tool_name("abcdefghijklmnopqrstuvwxyz1234567890 result")
         assert len(name) <= 30
-
-
-# ── Sensitive key masking ─────────────────────────────────────────
 
 
 class TestMaskSensitiveKeys:
@@ -118,7 +133,7 @@ class TestMaskSensitiveKeys:
         assert "MASKED" in result
 
     def test_token_masked(self):
-        text = 'token = abc123secret'
+        text = "token = abc123secret"
         result = mask_sensitive_keys(text)
         assert "abc123secret" not in result
         assert "MASKED" in result
@@ -136,40 +151,31 @@ class TestMaskSensitiveKeys:
         assert "MASKED" in result
 
     def test_normal_text_unchanged(self):
-        text = "Hello world, this is normal content."
-        result = mask_sensitive_keys(text)
-        assert "Hello world" in result
+        assert "Hello world" in mask_sensitive_keys("Hello world, this is normal content.")
 
     def test_empty_string(self):
         assert mask_sensitive_keys("") == ""
 
     def test_context_masking_api_key(self):
-        text = '{"api_key": "secret-value-123"}'
-        result = context_mask_sensitive_keys(text)
+        result = context_mask_sensitive_keys('{"api_key": "secret-value-123"}')
         assert "secret-value-123" not in result
         assert "MASKED" in result
 
 
-# ── Truncate preview ──────────────────────────────────────────────
-
-
 class TestTruncatePreview:
     def test_short_text_unchanged(self):
-        text = "Hello"
-        assert truncate_preview(text, 200) == text
+        assert truncate_preview("Hello", 200) == "Hello"
 
     def test_long_text_truncated(self):
-        text = "A" * 300
-        result = truncate_preview(text, 100)
-        assert len(result) == 101  # 100 + ellipsis
+        result = truncate_preview("A" * 300, 100)
+        assert len(result) == 101
         assert result.endswith("…")
 
     def test_context_truncate_short(self):
         assert context_truncate_preview("Hi", 50) == "Hi"
 
     def test_context_truncate_long(self):
-        text = "X" * 500
-        result = context_truncate_preview(text, 50)
+        result = context_truncate_preview("X" * 500, 50)
         assert len(result) == 51
         assert result.endswith("…")
 
@@ -177,397 +183,50 @@ class TestTruncatePreview:
         assert truncate_preview("", 100) == ""
 
 
-# ── Bucket details on Claude Code builder ─────────────────────────
+class TestSourceUnitBucketDetails:
+    def test_tool_definitions_use_source_unit_details(self):
+        result = _builder(_unit("tool_definitions", "request", "Read Write Bash schemas")).build_request()
+        bucket = next(b for b in result.buckets if b.key == "tool_definitions")
 
+        assert bucket.details["kind"] == "source_units"
+        item = bucket.details["items"][0]
+        assert item["source_id"] == "test:request:tool_definitions:1"
+        assert item["origin_path"] == "fixture.tool_definitions"
+        assert item["unit_type"] == "tool_definitions_unit"
+        assert item["preview"]
 
-class TestBucketDetailsToolSchemas:
-    """Verify tool_definitions bucket has details.items with expected fields."""
+    def test_instruction_source_unit_maps_to_instruction_context(self):
+        result = _builder(_unit("system_instructions", "request", "项目行为规则")).build_request()
+        bucket = next(b for b in result.buckets if b.key == "instruction_context")
 
-    def _make_builder(self, session_context, **call_kwargs):
-        from session_browser.domain.models import LLMCall, ConversationRound, ChatMessage
-        defaults = dict(
-            id="llm-test", model="claude-sonnet-4-20250514", scope="main",
-            subagent_id="", round_index=0, parent_id="", parent_tool_name="",
-            timestamp="2025-01-01T00:00:00Z", status="ok",
-            input_tokens=10000, output_tokens=3000,
-            cache_read_tokens=5000, cache_write_tokens=1000,
-            finish_reason="end_turn", content_blocks=[],
-            response_full="", request_full="", tool_calls_raw="",
-        )
-        defaults.update(call_kwargs)
-        lc = LLMCall(**defaults)
-        ro = ConversationRound(
-            round_index=0,
-            user_msg=ChatMessage(role="user", content="hello", timestamp="2025-01-01T00:00:00Z"),
-            assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        )
-        return ClaudeCodeAttributionBuilder(
-            llm_call=lc,
-            round_obj=ro,
-            session_context=session_context,
-        )
+        assert bucket.details["candidate"] == "system_instructions"
+        assert bucket.details["items"][0]["label"] == "system_instructions"
 
-    def test_tool_schemas_details_has_items(self):
-        ctx = {
-            "available_tools": ["Read", "Write", "Bash"],
-            "prior_messages": [],
-            "preceding_tool_results": [],
-            "local_instructions": "",
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
+    def test_prior_messages_use_conversation_history_candidate(self):
+        result = _builder(_unit("conversation_history", "request", "prior user", 1)).build_request()
+        bucket = next(b for b in result.buckets if b.key == "conversation_messages")
 
-        schema_bucket = None
-        for b in result.buckets:
-            if b.key == "tool_definitions":
-                schema_bucket = b
-                break
+        assert bucket.details["kind"] == "source_units"
+        assert bucket.details["items"][0]["unit_type"] == "conversation_history_unit"
 
-        assert schema_bucket is not None
-        assert schema_bucket.details is not None
-        assert schema_bucket.details.get("kind") == "tools"
-        items = schema_bucket.details.get("items", [])
-        assert len(items) == 3
+    def test_current_user_input_has_preview(self):
+        result = _builder(_unit("user_input", "request", "Tell me about cats")).build_request()
+        bucket = next(b for b in result.buckets if b.key == "current_user_input")
 
-        item = items[0]
-        assert "name" in item
-        assert "source" in item
-        assert "description_preview" in item
-        assert "estimated_tokens" in item
-        assert "precision" in item
+        assert bucket.details["candidate"] == "user_input"
+        assert "cats" in bucket.details["items"][0]["preview"]
 
-    def test_tool_schemas_fallback_default_tools(self):
-        ctx = {
-            "available_tools": [],
-            "prior_messages": [],
-            "preceding_tool_results": [],
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
+    def test_unlocated_residual_is_not_fake_source_text(self):
+        result = _builder(_unit("user_input", "request", "small"), input_tokens=1000).build_request()
+        bucket = next(b for b in result.buckets if b.key == "unlocated_residual")
 
-        schema_bucket = None
-        for b in result.buckets:
-            if b.key == "tool_definitions":
-                schema_bucket = b
-                break
+        assert bucket.details == {}
+        assert bucket.tokens >= 0
 
-        assert schema_bucket is not None
-        items = schema_bucket.details.get("items", [])
-        assert len(items) > 0
-        # Should use default_fallback source
-        assert items[0]["source"] == "default_fallback"
+    def test_response_tool_call_details_are_actual_output_source_units(self):
+        result = _builder(_unit("tool_calls", "response", "Bash({command: pytest -q})")).build_response()
+        bucket = next(b for b in result.buckets if b.key == "tool_call")
 
-
-class TestBucketDetailsLocalInstructions:
-    """Verify local_instruction_context bucket details."""
-
-    def _make_builder(self, session_context, **call_kwargs):
-        from session_browser.domain.models import LLMCall, ConversationRound, ChatMessage
-        defaults = dict(
-            id="llm-test", model="claude-sonnet-4-20250514", scope="main",
-            subagent_id="", round_index=0, parent_id="", parent_tool_name="",
-            timestamp="2025-01-01T00:00:00Z", status="ok",
-            input_tokens=10000, output_tokens=3000,
-            cache_read_tokens=5000, cache_write_tokens=1000,
-            finish_reason="end_turn", content_blocks=[],
-            response_full="", request_full="", tool_calls_raw="",
-        )
-        defaults.update(call_kwargs)
-        lc = LLMCall(**defaults)
-        ro = ConversationRound(
-            round_index=0,
-            user_msg=ChatMessage(role="user", content="hello", timestamp="2025-01-01T00:00:00Z"),
-            assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        )
-        return ClaudeCodeAttributionBuilder(
-            llm_call=lc,
-            round_obj=ro,
-            session_context=session_context,
-        )
-
-    def test_local_instruction_has_claude_md_item(self):
-        ctx = {
-            "local_instructions": "Some project instructions here.",
-            "prior_messages": [],
-            "preceding_tool_results": [],
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        bucket = None
-        for b in result.buckets:
-            if b.key == "local_instruction_context":
-                bucket = b
-                break
-
-        assert bucket is not None
-        assert bucket.details.get("kind") == "system_sources"
-        items = bucket.details.get("items", [])
-        claude_items = [i for i in items if "CLAUDE.md" in i.get("file_path", "")]
-        assert len(claude_items) > 0
-        assert claude_items[0]["source_type"] == "project_instructions"
-
-    def test_local_instruction_has_system_reminder_item(self):
-        ctx = {
-            "local_instructions": "",
-            "system_reminder_content": "Some system reminder.",
-            "prior_messages": [],
-            "preceding_tool_results": [],
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        bucket = None
-        for b in result.buckets:
-            if b.key == "local_instruction_context":
-                bucket = b
-                break
-
-        assert bucket is not None
-        items = bucket.details.get("items", [])
-        reminder_items = [i for i in items if "system-reminder" in i.get("file_path", "")]
-        assert len(reminder_items) > 0
-
-    def test_hidden_builtin_uses_visible_system_reminder_preview(self):
-        ctx = {
-            "local_instructions": "",
-            "system_reminder_content": "Visible system reminder with token: abc123secret.",
-            "prior_messages": [],
-            "preceding_tool_results": [],
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        bucket = next(b for b in result.buckets if b.key == "hidden_builtin_system_estimate")
-        assert bucket.source == "transcript"
-        assert "本地 transcript 捕获" in bucket.summary
-        assert bucket.details.get("kind") == "hidden_estimate"
-        assert "Visible system reminder" in bucket.details.get("preview", "")
-        assert "abc123secret" not in bucket.details.get("preview", "")
-
-
-class TestBucketDetailsPriorMessages:
-    """Verify prior_conversation_messages bucket details."""
-
-    def _make_builder(self, session_context, **call_kwargs):
-        from session_browser.domain.models import LLMCall, ConversationRound, ChatMessage
-        defaults = dict(
-            id="llm-test", model="claude-sonnet-4-20250514", scope="main",
-            subagent_id="", round_index=0, parent_id="", parent_tool_name="",
-            timestamp="2025-01-01T00:00:00Z", status="ok",
-            input_tokens=10000, output_tokens=3000,
-            cache_read_tokens=5000, cache_write_tokens=1000,
-            finish_reason="end_turn", content_blocks=[],
-            response_full="", request_full="", tool_calls_raw="",
-        )
-        defaults.update(call_kwargs)
-        lc = LLMCall(**defaults)
-        ro = ConversationRound(
-            round_index=0,
-            user_msg=ChatMessage(role="user", content="hello", timestamp="2025-01-01T00:00:00Z"),
-            assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        )
-        return ClaudeCodeAttributionBuilder(
-            llm_call=lc,
-            round_obj=ro,
-            session_context=session_context,
-        )
-
-    def test_prior_messages_has_detail_items(self):
-        ctx = {
-            "full_messages_array": [
-                {"role": "user", "content_type": "user_text", "content_preview": "First...", "content_token_estimate": 3, "message_index": 0, "has_full_content": True, "tool_name": "", "tool_use_id": ""},
-                {"role": "assistant", "content_type": "assistant_text", "content_preview": "Second...", "content_token_estimate": 4, "message_index": 1, "has_full_content": True, "tool_name": "", "tool_use_id": ""},
-            ],
-            "preceding_tool_results": [],
-            "available_tools": [],
-            "local_instructions": "",
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        bucket = None
-        for b in result.buckets:
-            if b.key == "full_messages_array":
-                bucket = b
-                break
-
-        assert bucket is not None
-        details = bucket.details
-        assert details.get("kind") == "full_messages_array"
-        items = details.get("items", [])
-        assert len(items) == 2
-        assert items[0]["role"] == "user"
-        assert items[1]["role"] == "assistant"
-        assert bucket.tokens == 7
-        assert "message_index" in items[0]
-        assert "content_type" in items[0]
-        assert "summary" in items[0]
-        assert "tokens" in items[0]
-        assert "explanation" in details
-        assert "Anthropic API `messages`" in details["explanation"][0]
-
-
-class TestBucketDetailsUnlocated:
-    """Verify unlocated_residual bucket details."""
-
-    def _make_builder(self, session_context, **call_kwargs):
-        from session_browser.domain.models import LLMCall, ConversationRound, ChatMessage
-        defaults = dict(
-            id="llm-test", model="claude-sonnet-4-20250514", scope="main",
-            subagent_id="", round_index=0, parent_id="", parent_tool_name="",
-            timestamp="2025-01-01T00:00:00Z", status="ok",
-            input_tokens=10000, output_tokens=3000,
-            cache_read_tokens=5000, cache_write_tokens=1000,
-            finish_reason="end_turn", content_blocks=[],
-            response_full="", request_full="", tool_calls_raw="",
-        )
-        defaults.update(call_kwargs)
-        lc = LLMCall(**defaults)
-        ro = ConversationRound(
-            round_index=0,
-            user_msg=ChatMessage(role="user", content="hello", timestamp="2025-01-01T00:00:00Z"),
-            assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        )
-        return ClaudeCodeAttributionBuilder(
-            llm_call=lc,
-            round_obj=ro,
-            session_context=session_context,
-        )
-
-    def test_unlocated_has_explanation(self):
-        ctx = {
-            "prior_messages": [],
-            "preceding_tool_results": [],
-            "available_tools": [],
-            "local_instructions": "",
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        bucket = None
-        for b in result.buckets:
-            if b.key == "unlocated_residual":
-                bucket = b
-                break
-
-        assert bucket is not None
-        details = bucket.details
-        assert details.get("kind") == "unlocated"
-        assert "explanation" in details
-        assert len(details["explanation"]) > 0
-
-
-class TestBucketDetailsHiddenEstimates:
-    """Verify hidden_builtin_system_estimate and provider_wrapper_estimate details."""
-
-    def _make_builder(self, session_context, **call_kwargs):
-        from session_browser.domain.models import LLMCall, ConversationRound, ChatMessage
-        defaults = dict(
-            id="llm-test", model="claude-sonnet-4-20250514", scope="main",
-            subagent_id="", round_index=0, parent_id="", parent_tool_name="",
-            timestamp="2025-01-01T00:00:00Z", status="ok",
-            input_tokens=10000, output_tokens=3000,
-            cache_read_tokens=5000, cache_write_tokens=1000,
-            finish_reason="end_turn", content_blocks=[],
-            response_full="", request_full="", tool_calls_raw="",
-        )
-        defaults.update(call_kwargs)
-        lc = LLMCall(**defaults)
-        ro = ConversationRound(
-            round_index=0,
-            user_msg=ChatMessage(role="user", content="hello", timestamp="2025-01-01T00:00:00Z"),
-            assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        )
-        return ClaudeCodeAttributionBuilder(
-            llm_call=lc,
-            round_obj=ro,
-            session_context=session_context,
-        )
-
-    def test_hidden_builtin_has_explanation(self):
-        ctx = {
-            "prior_messages": [],
-            "preceding_tool_results": [],
-            "available_tools": [],
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        bucket = None
-        for b in result.buckets:
-            if b.key == "hidden_builtin_system_estimate":
-                bucket = b
-                break
-
-        assert bucket is not None
-        assert bucket.details.get("kind") == "hidden_estimate"
-        assert len(bucket.details.get("explanation", [])) > 0
-
-    def test_provider_wrapper_noted_in_attribution_notes(self):
-        """Provider wrapper is no longer a separate bucket — noted in attribution_notes instead."""
-        ctx = {
-            "prior_messages": [],
-            "preceding_tool_results": [],
-            "available_tools": [],
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        # No provider_wrapper_estimate bucket
-        provider_buckets = [b for b in result.buckets if b.key == "provider_wrapper_estimate"]
-        assert len(provider_buckets) == 0
-
-        # But the note should be in attribution_notes
-        notes_text = " ".join(result.attribution_notes)
-        assert "Provider 包装层" in notes_text or "provider" in notes_text.lower()
-
-
-class TestBucketDetailsCurrentUserMessage:
-    """Verify current_user_message bucket details."""
-
-    def _make_builder(self, session_context, **call_kwargs):
-        from session_browser.domain.models import LLMCall, ConversationRound, ChatMessage
-        defaults = dict(
-            id="llm-test", model="claude-sonnet-4-20250514", scope="main",
-            subagent_id="", round_index=0, parent_id="", parent_tool_name="",
-            timestamp="2025-01-01T00:00:00Z", status="ok",
-            input_tokens=10000, output_tokens=3000,
-            cache_read_tokens=5000, cache_write_tokens=1000,
-            finish_reason="end_turn", content_blocks=[],
-            response_full="", request_full="", tool_calls_raw="",
-        )
-        defaults.update(call_kwargs)
-        lc = LLMCall(**defaults)
-        ro = ConversationRound(
-            round_index=0,
-            user_msg=ChatMessage(role="user", content="Tell me about cats", timestamp="2025-01-01T00:00:00Z"),
-            assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        )
-        return ClaudeCodeAttributionBuilder(
-            llm_call=lc,
-            round_obj=ro,
-            session_context=session_context,
-        )
-
-    def test_current_user_message_has_preview(self):
-        ctx = {
-            "prior_messages": [],
-            "preceding_tool_results": [],
-            "available_tools": [],
-        }
-        builder = self._make_builder(ctx)
-        result = builder.build_request()
-
-        bucket = None
-        for b in result.buckets:
-            if b.key == "current_user_message":
-                bucket = b
-                break
-
-        assert bucket is not None
-        details = bucket.details
-        assert details.get("kind") == "current_user_message"
-        assert "preview" in details
-        assert "cats" in details["preview"]
-        assert "tokens" in details
+        assert bucket.details["kind"] == "source_units"
+        assert bucket.details["candidate"] == "tool_calls"
+        assert "pytest" in bucket.details["items"][0]["preview"]

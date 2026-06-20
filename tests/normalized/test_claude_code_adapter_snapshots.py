@@ -1,4 +1,4 @@
-"""Claude Code normalized adapter snapshot tests."""
+"""Claude Code normalized adapter 快照测试。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from session_browser.normalized import validate_normalized_session
-from session_browser.normalized.agents.claude_code import parse_claude_code_session_file
+from session_browser.normalized.agents.claude_code_normalization import parse_claude_code_session_file
 from session_browser.sources.claude import parse_normalized_session_file
 
 
@@ -73,6 +73,8 @@ def test_claude_code_subagent_normalized_semantics():
     assert "payload_index" not in actual
     assert "context_sources" not in actual
     assert "parse_diagnostics" not in actual
+    _assert_source_units(c1, request={"user_input", "runtime_context"}, response={"assistant_output", "tool_calls"})
+    _assert_source_units(c2, request={"tool_results", "conversation_history", "runtime_context"}, response={"assistant_output"})
 
 
 def test_claude_code_source_file_entrypoint_matches_adapter_snapshot():
@@ -153,7 +155,32 @@ def test_claude_code_away_summary_leaf_uuid_becomes_call_without_sidecar(tmp_pat
     }
     assert actual["diagnostics"] == [{
         "kind": "away_summary_usage_estimated",
-        "message": "Claude Code away_summary indicates a recap LLM call, but local JSONL does not persist provider usage for that call; usage is estimated from lastPrompt and summary text.",
+        "message": "Claude Code away_summary 表示一次 recap LLM call，但本地 JSONL 没有 provider usage；usage 由 lastPrompt 和 summary 文本估算。",
         "record_index": 3,
         "call_id": "recap-1",
     }]
+
+
+def _assert_source_units(call: dict, *, request: set[str], response: set[str]) -> None:
+    units = call.get("source_units") or []
+    assert units
+    required = {
+        "source_id",
+        "dedupe_key",
+        "origin_path",
+        "canonical_source_locator",
+        "unit_type",
+        "candidate",
+        "direction",
+        "event_order",
+        "part_index",
+        "byte_range",
+    }
+    for unit in units:
+        assert required <= set(unit)
+    by_direction = {
+        "request": {u["candidate"] for u in units if u["direction"] == "request"},
+        "response": {u["candidate"] for u in units if u["direction"] == "response"},
+    }
+    assert request <= by_direction["request"]
+    assert response <= by_direction["response"]

@@ -67,21 +67,21 @@ class TestPublicSignatures:
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_index_callable(self):
-        from session_browser.sources import codex
+        from session_browser.sources import codex_session_source as codex
         assert callable(codex.parse_session_index)
         sig = inspect.signature(codex.parse_session_index)
         assert isinstance(sig, inspect.Signature)
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_read_threads_db_callable(self):
-        from session_browser.sources import codex
+        from session_browser.sources import codex_session_source as codex
         assert callable(codex.read_threads_db)
         sig = inspect.signature(codex.read_threads_db)
         assert isinstance(sig, inspect.Signature)
 
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_detail_callable(self):
-        from session_browser.sources import codex
+        from session_browser.sources import codex_session_source as codex
         assert callable(codex.parse_session_detail)
         sig = inspect.signature(codex.parse_session_detail)
         params = list(sig.parameters.keys())
@@ -262,7 +262,7 @@ class TestReturnValueContracts:
     def test_codex_parse_session_detail_returns_correct_types(self):
         """parse_session_detail must return (SessionSummary, list[ChatMessage],
         list[ToolCall], list[dict]) for codex adapter."""
-        from session_browser.sources import codex
+        from session_browser.sources import codex_session_source as codex
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original = codex.CODEX_DATA_DIR
@@ -489,7 +489,7 @@ class TestEmptyFileTolerance:
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_adapter_with_missing_session_file(self):
         """Codex adapter 必须优雅处理缺失的会话文件。"""
-        from session_browser.sources import codex
+        from session_browser.sources import codex_session_source as codex
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original = codex.CODEX_DATA_DIR
@@ -543,7 +543,7 @@ class TestEmptyFileTolerance:
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_parse_session_index_with_no_data_dir(self):
         """当数据目录为空时，parse_session_index 必须返回空列表。"""
-        from session_browser.sources import codex
+        from session_browser.sources import codex_session_source as codex
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original = codex.CODEX_DATA_DIR
@@ -557,7 +557,7 @@ class TestEmptyFileTolerance:
     @pytest.mark.contract_case("DATA-SOURCE-001")
     def test_codex_read_threads_db_with_no_data_dir(self):
         """当数据目录为空时，read_threads_db 必须返回空字典。"""
-        from session_browser.sources import codex
+        from session_browser.sources import codex_session_source as codex
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original = codex.CODEX_DATA_DIR

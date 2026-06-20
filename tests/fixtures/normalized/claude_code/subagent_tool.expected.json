@@ -1,52 +1,102 @@
 {
-  "schema_version": "session-detail.normalized.v2",
   "agent": "claude_code",
-  "source": {
-    "files": [
-      {
-        "role": "main_session",
-        "path": "tests/fixtures/normalized/claude_code/subagent_tool.input/session-claude-001.jsonl"
-      },
-      {
-        "role": "subagent_session",
-        "path": "tests/fixtures/normalized/claude_code/subagent_tool.input/session-claude-001/subagents/agent-child.jsonl",
-        "subagent_id": "child",
-        "parent_tool_use_id": "toolu_agent_1"
-      }
-    ]
-  },
-  "session": {
-    "session_key": "claude_code:session-claude-001",
-    "session_id": "session-claude-001",
-    "title": "请检查项目并让子 agent 总结测试范围",
-    "agent": "claude_code",
-    "model": "claude-sonnet-4-20250514",
-    "cwd": "/repo",
-    "started_at": "2026-06-10T01:00:00+00:00",
-    "ended_at": "2026-06-10T01:00:12+00:00",
-    "git_branch": "main",
-    "source": "cli",
-    "project_key": "/repo",
-    "project_name": "repo"
-  },
   "calls": [
     {
+      "attribution_candidates": {
+        "request": {
+          "runtime_context": [
+            {
+              "event_order": 1,
+              "label": "Claude Code 运行上下文",
+              "payload": {
+                "cwd": "/repo",
+                "git_branch": "main",
+                "model": "claude-sonnet-4-20250514",
+                "project_key": "/repo",
+                "source": "cli"
+              },
+              "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+              "source": "session.runtime",
+              "source_id": "msg-main-1:session.runtime:1:0:claude_code_runtime_context:0-107:0",
+              "timestamp": "2026-06-10T01:00:03.000Z",
+              "unit_type": "claude_code_runtime_context"
+            }
+          ],
+          "user_input": [
+            {
+              "event_order": 1,
+              "label": "当前用户输入",
+              "preview": "请检查项目并让子 agent 总结测试范围",
+              "source": "messages[0].content",
+              "source_id": "msg-main-1:messages-0-.content:1:0:current_user_message:0-49:1",
+              "text": "请检查项目并让子 agent 总结测试范围",
+              "timestamp": "2026-06-10T01:00:00.000Z",
+              "unit_type": "current_user_message"
+            }
+          ]
+        },
+        "response": {
+          "assistant_output": [
+            {
+              "event_order": 1,
+              "label": "助手文本",
+              "preview": "我会先查看文件并派发子任务。",
+              "source": "assistant.content_blocks[1]",
+              "source_id": "msg-main-1:assistant.content_blocks-1-:1:1:assistant_text:0-42:2",
+              "text": "我会先查看文件并派发子任务。",
+              "timestamp": "2026-06-10T01:00:03.000Z",
+              "unit_type": "assistant_text"
+            }
+          ],
+          "tool_calls": [
+            {
+              "event_order": 1,
+              "label": "Bash",
+              "payload": {
+                "id": "toolu_bash_1",
+                "name": "Bash",
+                "parameters": {
+                  "command": "ls -1",
+                  "description": "列出仓库文件"
+                },
+                "timestamp": "2026-06-10T01:00:03.000Z",
+                "type": "tool_use"
+              },
+              "preview": "{\"id\":\"toolu_bash_1\",\"name\":\"Bash\",\"parameters\":{\"command\":\"ls -1\",\"description\":\"列出仓库文件\"},\"timestamp\":\"2026-06-10T01:00:03.000Z\",\"type\":\"tool_use\"}",
+              "source": "assistant.content_blocks[2]",
+              "source_id": "msg-main-1:assistant.content_blocks-2-:1:2:tool_use_block:0-160:3",
+              "timestamp": "2026-06-10T01:00:03.000Z",
+              "unit_type": "tool_use_block"
+            },
+            {
+              "event_order": 1,
+              "label": "Agent",
+              "payload": {
+                "id": "toolu_agent_1",
+                "name": "Agent",
+                "parameters": {
+                  "description": "Summarize tests",
+                  "prompt": "阅读测试目录并总结需要覆盖的解析场景。",
+                  "subagent_type": "analysis-agent"
+                },
+                "timestamp": "2026-06-10T01:00:03.000Z",
+                "type": "tool_use"
+              },
+              "preview": "{\"id\":\"toolu_agent_1\",\"name\":\"Agent\",\"parameters\":{\"description\":\"Summarize tests\",\"prompt\":\"阅读测试目录并总结需要覆盖的解析场景。\",\"subagent_type\":\"analysis-agent\"},\"timestamp\":\"2026-06-10T01:00:03.000Z\",\"type\":\"tool_use\"}",
+              "source": "assistant.content_blocks[3]",
+              "source_id": "msg-main-1:assistant.content_blocks-3-:1:3:tool_use_block:0-243:4",
+              "timestamp": "2026-06-10T01:00:03.000Z",
+              "unit_type": "tool_use_block"
+            }
+          ]
+        }
+      },
       "call_id": "msg-main-1",
       "call_index": 1,
       "call_key": "C1",
-      "scope": "main",
+      "model": "claude-sonnet-4-20250514",
       "parent_call_id": "",
       "parent_tool_call_id": "",
-      "turn_id": "",
-      "model": "claude-sonnet-4-20250514",
-      "timestamp": "2026-06-10T01:00:03.000Z",
-      "usage": {
-        "fresh": 1000,
-        "cache_read": 100,
-        "cache_write": 200,
-        "output": 60,
-        "total": 1360
-      },
       "request": {
         "tool_result_ids": []
       },
@@ -55,25 +105,225 @@
           "toolu_bash_1",
           "toolu_agent_1"
         ]
+      },
+      "scope": "main",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            107
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session.runtime",
+          "content_hash": "70cd7732798a4a4a7fa2f51f153244ab84d24c2983e1945a3b2ae1a583f5b8ef",
+          "dedupe_key": "be612fd0eaede2653a918fc8b22c0bdce3d40d0e77e38fd8a4f7d6b5a5133f05",
+          "direction": "request",
+          "event_order": 1,
+          "label": "Claude Code 运行上下文",
+          "origin_path": "session.runtime",
+          "part_index": 0,
+          "payload": {
+            "cwd": "/repo",
+            "git_branch": "main",
+            "model": "claude-sonnet-4-20250514",
+            "project_key": "/repo",
+            "source": "cli"
+          },
+          "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+          "priority": 40,
+          "source_id": "msg-main-1:session.runtime:1:0:claude_code_runtime_context:0-107:0",
+          "timestamp": "2026-06-10T01:00:03.000Z",
+          "unit_type": "claude_code_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            49
+          ],
+          "candidate": "user_input",
+          "canonical_source_locator": "messages[0].content",
+          "content_hash": "d8a5ec998a71d20f67c81dd275339651b90c15784dcdf4016ce85859ade747a7",
+          "dedupe_key": "1d1b9cacb01356c46923d2485dcbf2fc989245cfb6cf313a086ac4a6b27d97e7",
+          "direction": "request",
+          "event_order": 1,
+          "label": "当前用户输入",
+          "origin_path": "messages[0].content",
+          "part_index": 0,
+          "preview": "请检查项目并让子 agent 总结测试范围",
+          "priority": 90,
+          "source_id": "msg-main-1:messages-0-.content:1:0:current_user_message:0-49:1",
+          "text": "请检查项目并让子 agent 总结测试范围",
+          "timestamp": "2026-06-10T01:00:00.000Z",
+          "unit_type": "current_user_message"
+        },
+        {
+          "byte_range": [
+            0,
+            42
+          ],
+          "candidate": "assistant_output",
+          "canonical_source_locator": "assistant.content_blocks[1]",
+          "content_hash": "ff204f0365f36acfc74f5028a837aaf9413e7a760ece1975713bb4ce1a6de261",
+          "dedupe_key": "cf299663548e89d129dcd42185609c0b1059e87eab4ae08e7a86a295075dd4be",
+          "direction": "response",
+          "event_order": 1,
+          "label": "助手文本",
+          "origin_path": "assistant.content_blocks[1]",
+          "part_index": 1,
+          "preview": "我会先查看文件并派发子任务。",
+          "priority": 50,
+          "source_id": "msg-main-1:assistant.content_blocks-1-:1:1:assistant_text:0-42:2",
+          "text": "我会先查看文件并派发子任务。",
+          "timestamp": "2026-06-10T01:00:03.000Z",
+          "unit_type": "assistant_text"
+        },
+        {
+          "byte_range": [
+            0,
+            160
+          ],
+          "candidate": "tool_calls",
+          "canonical_source_locator": "tool_use:toolu_bash_1",
+          "content_hash": "1f9dcc150418383f96f8f75901dac530ea61562030c481ea54da8cbbcdc1711b",
+          "dedupe_key": "fec8ae42b3c595020951884ada6635ecd29c8c5eea8cffb7b104a9c1ef641cd9",
+          "direction": "response",
+          "event_order": 1,
+          "label": "Bash",
+          "origin_path": "assistant.content_blocks[2]",
+          "part_index": 2,
+          "payload": {
+            "id": "toolu_bash_1",
+            "name": "Bash",
+            "parameters": {
+              "command": "ls -1",
+              "description": "列出仓库文件"
+            },
+            "timestamp": "2026-06-10T01:00:03.000Z",
+            "type": "tool_use"
+          },
+          "preview": "{\"id\":\"toolu_bash_1\",\"name\":\"Bash\",\"parameters\":{\"command\":\"ls -1\",\"description\":\"列出仓库文件\"},\"timestamp\":\"2026-06-10T01:00:03.000Z\",\"type\":\"tool_use\"}",
+          "priority": 50,
+          "source_id": "msg-main-1:assistant.content_blocks-2-:1:2:tool_use_block:0-160:3",
+          "timestamp": "2026-06-10T01:00:03.000Z",
+          "unit_type": "tool_use_block"
+        },
+        {
+          "byte_range": [
+            0,
+            243
+          ],
+          "candidate": "tool_calls",
+          "canonical_source_locator": "tool_use:toolu_agent_1",
+          "content_hash": "c48919c0a70b42bb845cbe25ffede42617614b69e65ecc63587b13e54b45da5d",
+          "dedupe_key": "1aa0512431bafe33e567cfb8b2b8affe3c9e7263156270ed62afda86796d76b6",
+          "direction": "response",
+          "event_order": 1,
+          "label": "Agent",
+          "origin_path": "assistant.content_blocks[3]",
+          "part_index": 3,
+          "payload": {
+            "id": "toolu_agent_1",
+            "name": "Agent",
+            "parameters": {
+              "description": "Summarize tests",
+              "prompt": "阅读测试目录并总结需要覆盖的解析场景。",
+              "subagent_type": "analysis-agent"
+            },
+            "timestamp": "2026-06-10T01:00:03.000Z",
+            "type": "tool_use"
+          },
+          "preview": "{\"id\":\"toolu_agent_1\",\"name\":\"Agent\",\"parameters\":{\"description\":\"Summarize tests\",\"prompt\":\"阅读测试目录并总结需要覆盖的解析场景。\",\"subagent_type\":\"analysis-agent\"},\"timestamp\":\"2026-06-10T01:00:03.000Z\",\"type\":\"tool_use\"}",
+          "priority": 50,
+          "source_id": "msg-main-1:assistant.content_blocks-3-:1:3:tool_use_block:0-243:4",
+          "timestamp": "2026-06-10T01:00:03.000Z",
+          "unit_type": "tool_use_block"
+        }
+      ],
+      "timestamp": "2026-06-10T01:00:03.000Z",
+      "turn_id": "",
+      "usage": {
+        "cache_read": 100,
+        "cache_write": 200,
+        "fresh": 1000,
+        "output": 60,
+        "total": 1360
       }
     },
     {
+      "attribution_candidates": {
+        "request": {
+          "runtime_context": [
+            {
+              "event_order": 1,
+              "label": "Claude Code 运行上下文",
+              "payload": {
+                "cwd": "/repo",
+                "git_branch": "main",
+                "model": "claude-sonnet-4-20250514",
+                "project_key": "/repo",
+                "source": "cli"
+              },
+              "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+              "source": "session.runtime",
+              "source_id": "msg-child-1:session.runtime:1:0:claude_code_runtime_context:0-107:0",
+              "timestamp": "2026-06-10T01:00:06.000Z",
+              "unit_type": "claude_code_runtime_context"
+            }
+          ],
+          "user_input": [
+            {
+              "event_order": 1,
+              "label": "当前用户输入",
+              "preview": "阅读测试目录并总结需要覆盖的解析场景。",
+              "source": "messages[0].content",
+              "source_id": "msg-child-1:messages-0-.content:1:0:current_user_message:0-57:1",
+              "text": "阅读测试目录并总结需要覆盖的解析场景。",
+              "timestamp": "2026-06-10T01:00:04.000Z",
+              "unit_type": "current_user_message"
+            }
+          ]
+        },
+        "response": {
+          "reasoning_output": [
+            {
+              "event_order": 1,
+              "label": "可见 thinking",
+              "preview": "需要查看测试目录。",
+              "source": "assistant.content_blocks[1]",
+              "source_id": "msg-child-1:assistant.content_blocks-1-:1:1:visible_thinking:0-27:2",
+              "text": "需要查看测试目录。",
+              "timestamp": "2026-06-10T01:00:06.000Z",
+              "unit_type": "visible_thinking"
+            }
+          ],
+          "tool_calls": [
+            {
+              "event_order": 1,
+              "label": "Read",
+              "payload": {
+                "id": "toolu_child_read",
+                "name": "Read",
+                "parameters": {
+                  "file_path": "tests/backend/test_claude_source.py"
+                },
+                "timestamp": "2026-06-10T01:00:06.000Z",
+                "type": "tool_use"
+              },
+              "preview": "{\"id\":\"toolu_child_read\",\"name\":\"Read\",\"parameters\":{\"file_path\":\"tests/backend/test_claude_source.py\"},\"timestamp\":\"2026-06-10T01:00:06.000Z\",\"type\":\"tool_use\"}",
+              "source": "assistant.content_blocks[2]",
+              "source_id": "msg-child-1:assistant.content_blocks-2-:1:2:tool_use_block:0-161:3",
+              "timestamp": "2026-06-10T01:00:06.000Z",
+              "unit_type": "tool_use_block"
+            }
+          ]
+        }
+      },
       "call_id": "msg-child-1",
       "call_index": 2,
       "call_key": "C2",
-      "scope": "subagent",
+      "model": "claude-sonnet-4-20250514",
       "parent_call_id": "msg-main-1",
       "parent_tool_call_id": "toolu_agent_1",
-      "turn_id": "",
-      "model": "claude-sonnet-4-20250514",
-      "timestamp": "2026-06-10T01:00:06.000Z",
-      "usage": {
-        "fresh": 300,
-        "cache_read": 0,
-        "cache_write": 50,
-        "output": 30,
-        "total": 380
-      },
       "request": {
         "tool_result_ids": []
       },
@@ -81,25 +331,195 @@
         "tool_call_ids": [
           "toolu_child_read"
         ]
+      },
+      "scope": "subagent",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            107
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session.runtime",
+          "content_hash": "70cd7732798a4a4a7fa2f51f153244ab84d24c2983e1945a3b2ae1a583f5b8ef",
+          "dedupe_key": "aaa7f52231ac291beb9242b5d8d49868ee8187868811901e49228f962b95b2b1",
+          "direction": "request",
+          "event_order": 1,
+          "label": "Claude Code 运行上下文",
+          "origin_path": "session.runtime",
+          "part_index": 0,
+          "payload": {
+            "cwd": "/repo",
+            "git_branch": "main",
+            "model": "claude-sonnet-4-20250514",
+            "project_key": "/repo",
+            "source": "cli"
+          },
+          "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+          "priority": 40,
+          "source_id": "msg-child-1:session.runtime:1:0:claude_code_runtime_context:0-107:0",
+          "timestamp": "2026-06-10T01:00:06.000Z",
+          "unit_type": "claude_code_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            57
+          ],
+          "candidate": "user_input",
+          "canonical_source_locator": "messages[0].content",
+          "content_hash": "b9a3c143f9203e2f8c2b5ed434739bee4514f2a222917d1447156434c8eef2c9",
+          "dedupe_key": "8167beb2a25d89f0a2f36cc533ae541241a5481574a99d8229c70fc096a6421d",
+          "direction": "request",
+          "event_order": 1,
+          "label": "当前用户输入",
+          "origin_path": "messages[0].content",
+          "part_index": 0,
+          "preview": "阅读测试目录并总结需要覆盖的解析场景。",
+          "priority": 90,
+          "source_id": "msg-child-1:messages-0-.content:1:0:current_user_message:0-57:1",
+          "text": "阅读测试目录并总结需要覆盖的解析场景。",
+          "timestamp": "2026-06-10T01:00:04.000Z",
+          "unit_type": "current_user_message"
+        },
+        {
+          "byte_range": [
+            0,
+            27
+          ],
+          "candidate": "reasoning_output",
+          "canonical_source_locator": "assistant.content_blocks[1]",
+          "content_hash": "9670a6a4bf8bc8d2cb26d65bf15fe87aed21a471c81a9c5700fb4defd888f500",
+          "dedupe_key": "1c0fe605307ebe60fc4a613a5d51719bcd6e419ce95c5caa7abb9f5904361926",
+          "direction": "response",
+          "event_order": 1,
+          "label": "可见 thinking",
+          "origin_path": "assistant.content_blocks[1]",
+          "part_index": 1,
+          "preview": "需要查看测试目录。",
+          "priority": 50,
+          "source_id": "msg-child-1:assistant.content_blocks-1-:1:1:visible_thinking:0-27:2",
+          "text": "需要查看测试目录。",
+          "timestamp": "2026-06-10T01:00:06.000Z",
+          "unit_type": "visible_thinking"
+        },
+        {
+          "byte_range": [
+            0,
+            161
+          ],
+          "candidate": "tool_calls",
+          "canonical_source_locator": "tool_use:toolu_child_read",
+          "content_hash": "ecc06060ea962aab59333ccc2989c3c69d7a9a09395f28ea2bd415f679f4ce6f",
+          "dedupe_key": "322066b7ab2e508d7b1ec7075f8f8244c4c4e4108d2f4ad5ccdf76b42685db46",
+          "direction": "response",
+          "event_order": 1,
+          "label": "Read",
+          "origin_path": "assistant.content_blocks[2]",
+          "part_index": 2,
+          "payload": {
+            "id": "toolu_child_read",
+            "name": "Read",
+            "parameters": {
+              "file_path": "tests/backend/test_claude_source.py"
+            },
+            "timestamp": "2026-06-10T01:00:06.000Z",
+            "type": "tool_use"
+          },
+          "preview": "{\"id\":\"toolu_child_read\",\"name\":\"Read\",\"parameters\":{\"file_path\":\"tests/backend/test_claude_source.py\"},\"timestamp\":\"2026-06-10T01:00:06.000Z\",\"type\":\"tool_use\"}",
+          "priority": 50,
+          "source_id": "msg-child-1:assistant.content_blocks-2-:1:2:tool_use_block:0-161:3",
+          "timestamp": "2026-06-10T01:00:06.000Z",
+          "unit_type": "tool_use_block"
+        }
+      ],
+      "timestamp": "2026-06-10T01:00:06.000Z",
+      "turn_id": "",
+      "usage": {
+        "cache_read": 0,
+        "cache_write": 50,
+        "fresh": 300,
+        "output": 30,
+        "total": 380
       }
     },
     {
+      "attribution_candidates": {
+        "request": {
+          "conversation_history": [
+            {
+              "event_order": 2,
+              "label": "历史 user 消息",
+              "preview": "阅读测试目录并总结需要覆盖的解析场景。",
+              "source": "messages[0].content",
+              "source_id": "msg-child-2:messages-0-.content:2:0:prior_user_message:0-57:1",
+              "text": "阅读测试目录并总结需要覆盖的解析场景。",
+              "timestamp": "2026-06-10T01:00:04.000Z",
+              "unit_type": "prior_user_message"
+            },
+            {
+              "event_order": 2,
+              "label": "历史 assistant 消息",
+              "preview": "需要查看测试目录。",
+              "source": "messages[1].content",
+              "source_id": "msg-child-2:messages-1-.content:2:1:prior_assistant_message:0-27:2",
+              "text": "需要查看测试目录。",
+              "timestamp": "2026-06-10T01:00:06.000Z",
+              "unit_type": "prior_assistant_message"
+            }
+          ],
+          "runtime_context": [
+            {
+              "event_order": 2,
+              "label": "Claude Code 运行上下文",
+              "payload": {
+                "cwd": "/repo",
+                "git_branch": "main",
+                "model": "claude-sonnet-4-20250514",
+                "project_key": "/repo",
+                "source": "cli"
+              },
+              "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+              "source": "session.runtime",
+              "source_id": "msg-child-2:session.runtime:2:0:claude_code_runtime_context:0-107:0",
+              "timestamp": "2026-06-10T01:00:08.000Z",
+              "unit_type": "claude_code_runtime_context"
+            }
+          ],
+          "tool_results": [
+            {
+              "event_order": 2,
+              "label": "工具结果 toolu_child_read",
+              "preview": "test_parse_session_detail_includes_subagent_diagnostics",
+              "source": "request_full.tool_result[1]",
+              "source_id": "msg-child-2:request_full.tool_result-1-:2:1:tool_result_text:0-55:3",
+              "text": "test_parse_session_detail_includes_subagent_diagnostics",
+              "timestamp": "2026-06-10T01:00:08.000Z",
+              "unit_type": "tool_result_text"
+            }
+          ]
+        },
+        "response": {
+          "assistant_output": [
+            {
+              "event_order": 2,
+              "label": "助手文本",
+              "preview": "建议覆盖 Claude normalized snapshot。",
+              "source": "assistant.content_blocks[1]",
+              "source_id": "msg-child-2:assistant.content_blocks-1-:2:1:assistant_text:0-42:4",
+              "text": "建议覆盖 Claude normalized snapshot。",
+              "timestamp": "2026-06-10T01:00:08.000Z",
+              "unit_type": "assistant_text"
+            }
+          ]
+        }
+      },
       "call_id": "msg-child-2",
       "call_index": 3,
       "call_key": "C3",
-      "scope": "subagent",
+      "model": "claude-sonnet-4-20250514",
       "parent_call_id": "msg-main-1",
       "parent_tool_call_id": "toolu_agent_1",
-      "turn_id": "",
-      "model": "claude-sonnet-4-20250514",
-      "timestamp": "2026-06-10T01:00:08.000Z",
-      "usage": {
-        "fresh": 200,
-        "cache_read": 50,
-        "cache_write": 0,
-        "output": 40,
-        "total": 290
-      },
       "request": {
         "tool_result_ids": [
           "toolu_child_read"
@@ -107,25 +527,218 @@
       },
       "response": {
         "tool_call_ids": []
+      },
+      "scope": "subagent",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            107
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session.runtime",
+          "content_hash": "70cd7732798a4a4a7fa2f51f153244ab84d24c2983e1945a3b2ae1a583f5b8ef",
+          "dedupe_key": "f0f1bcc80168bebf3387d183e8651096106355d9aac21d9909fafed3fadf3269",
+          "direction": "request",
+          "event_order": 2,
+          "label": "Claude Code 运行上下文",
+          "origin_path": "session.runtime",
+          "part_index": 0,
+          "payload": {
+            "cwd": "/repo",
+            "git_branch": "main",
+            "model": "claude-sonnet-4-20250514",
+            "project_key": "/repo",
+            "source": "cli"
+          },
+          "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+          "priority": 40,
+          "source_id": "msg-child-2:session.runtime:2:0:claude_code_runtime_context:0-107:0",
+          "timestamp": "2026-06-10T01:00:08.000Z",
+          "unit_type": "claude_code_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            57
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "messages[0].content",
+          "content_hash": "b9a3c143f9203e2f8c2b5ed434739bee4514f2a222917d1447156434c8eef2c9",
+          "dedupe_key": "fd45b90ea64720fac79af4fd55c8574ac9d51993c246d1c3968cfd57b38f1f9a",
+          "direction": "request",
+          "event_order": 2,
+          "label": "历史 user 消息",
+          "origin_path": "messages[0].content",
+          "part_index": 0,
+          "preview": "阅读测试目录并总结需要覆盖的解析场景。",
+          "priority": 50,
+          "source_id": "msg-child-2:messages-0-.content:2:0:prior_user_message:0-57:1",
+          "text": "阅读测试目录并总结需要覆盖的解析场景。",
+          "timestamp": "2026-06-10T01:00:04.000Z",
+          "unit_type": "prior_user_message"
+        },
+        {
+          "byte_range": [
+            0,
+            42
+          ],
+          "candidate": "assistant_output",
+          "canonical_source_locator": "assistant.content_blocks[1]",
+          "content_hash": "e8f0d55bec9339c49d283dd4feb57d054e451d8f6c88f3863483062d0feefb5f",
+          "dedupe_key": "6ccb145981a5a3d7bb82050c9dd4d9d1a27f71b7b06314642189ed5af68fc102",
+          "direction": "response",
+          "event_order": 2,
+          "label": "助手文本",
+          "origin_path": "assistant.content_blocks[1]",
+          "part_index": 1,
+          "preview": "建议覆盖 Claude normalized snapshot。",
+          "priority": 50,
+          "source_id": "msg-child-2:assistant.content_blocks-1-:2:1:assistant_text:0-42:4",
+          "text": "建议覆盖 Claude normalized snapshot。",
+          "timestamp": "2026-06-10T01:00:08.000Z",
+          "unit_type": "assistant_text"
+        },
+        {
+          "byte_range": [
+            0,
+            27
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "messages[1].content",
+          "content_hash": "9670a6a4bf8bc8d2cb26d65bf15fe87aed21a471c81a9c5700fb4defd888f500",
+          "dedupe_key": "6a623877a1a86538b3d2d1f5d596098a0075c4192cfe365dee9a7a1f92675d52",
+          "direction": "request",
+          "event_order": 2,
+          "label": "历史 assistant 消息",
+          "origin_path": "messages[1].content",
+          "part_index": 1,
+          "preview": "需要查看测试目录。",
+          "priority": 50,
+          "source_id": "msg-child-2:messages-1-.content:2:1:prior_assistant_message:0-27:2",
+          "text": "需要查看测试目录。",
+          "timestamp": "2026-06-10T01:00:06.000Z",
+          "unit_type": "prior_assistant_message"
+        },
+        {
+          "byte_range": [
+            0,
+            55
+          ],
+          "candidate": "tool_results",
+          "canonical_source_locator": "tool_result:toolu_child_read",
+          "content_hash": "db9bba67566634aa5787c63b9cd047bf0afd9db497e8c591aa1a10b15dfa16e9",
+          "dedupe_key": "ae225d894a5238c7719bd4435e4738f40b863e3b3ae37add8d083ba5a1986300",
+          "direction": "request",
+          "event_order": 2,
+          "label": "工具结果 toolu_child_read",
+          "origin_path": "request_full.tool_result[1]",
+          "part_index": 1,
+          "preview": "test_parse_session_detail_includes_subagent_diagnostics",
+          "priority": 85,
+          "source_id": "msg-child-2:request_full.tool_result-1-:2:1:tool_result_text:0-55:3",
+          "text": "test_parse_session_detail_includes_subagent_diagnostics",
+          "timestamp": "2026-06-10T01:00:08.000Z",
+          "unit_type": "tool_result_text"
+        }
+      ],
+      "timestamp": "2026-06-10T01:00:08.000Z",
+      "turn_id": "",
+      "usage": {
+        "cache_read": 50,
+        "cache_write": 0,
+        "fresh": 200,
+        "output": 40,
+        "total": 290
       }
     },
     {
+      "attribution_candidates": {
+        "request": {
+          "conversation_history": [
+            {
+              "event_order": 2,
+              "label": "历史 user 消息",
+              "preview": "请检查项目并让子 agent 总结测试范围",
+              "source": "messages[0].content",
+              "source_id": "msg-main-2:messages-0-.content:2:0:prior_user_message:0-49:1",
+              "text": "请检查项目并让子 agent 总结测试范围",
+              "timestamp": "2026-06-10T01:00:00.000Z",
+              "unit_type": "prior_user_message"
+            },
+            {
+              "event_order": 2,
+              "label": "历史 assistant 消息",
+              "preview": "我会先查看文件并派发子任务。",
+              "source": "messages[1].content",
+              "source_id": "msg-main-2:messages-1-.content:2:1:prior_assistant_message:0-42:2",
+              "text": "我会先查看文件并派发子任务。",
+              "timestamp": "2026-06-10T01:00:03.000Z",
+              "unit_type": "prior_assistant_message"
+            }
+          ],
+          "runtime_context": [
+            {
+              "event_order": 2,
+              "label": "Claude Code 运行上下文",
+              "payload": {
+                "cwd": "/repo",
+                "git_branch": "main",
+                "model": "claude-sonnet-4-20250514",
+                "project_key": "/repo",
+                "source": "cli"
+              },
+              "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+              "source": "session.runtime",
+              "source_id": "msg-main-2:session.runtime:2:0:claude_code_runtime_context:0-107:0",
+              "timestamp": "2026-06-10T01:00:12.000Z",
+              "unit_type": "claude_code_runtime_context"
+            }
+          ],
+          "tool_results": [
+            {
+              "event_order": 2,
+              "label": "工具结果 toolu_bash_1",
+              "preview": "README.md src tests",
+              "source": "request_full.tool_result[1]",
+              "source_id": "msg-main-2:request_full.tool_result-1-:2:1:tool_result_text:0-19:3",
+              "text": "README.md\nsrc\ntests",
+              "timestamp": "2026-06-10T01:00:12.000Z",
+              "unit_type": "tool_result_text"
+            },
+            {
+              "event_order": 2,
+              "label": "工具结果 toolu_agent_1",
+              "preview": "子 agent 完成测试范围总结。",
+              "source": "request_full.tool_result[2]",
+              "source_id": "msg-main-2:request_full.tool_result-2-:2:2:tool_result_text:0-37:4",
+              "text": "子 agent 完成测试范围总结。",
+              "timestamp": "2026-06-10T01:00:12.000Z",
+              "unit_type": "tool_result_text"
+            }
+          ]
+        },
+        "response": {
+          "assistant_output": [
+            {
+              "event_order": 2,
+              "label": "助手文本",
+              "preview": "检查完成，测试范围是 parser 和 normalized adapter。",
+              "source": "assistant.content_blocks[1]",
+              "source_id": "msg-main-2:assistant.content_blocks-1-:2:1:assistant_text:0-63:5",
+              "text": "检查完成，测试范围是 parser 和 normalized adapter。",
+              "timestamp": "2026-06-10T01:00:12.000Z",
+              "unit_type": "assistant_text"
+            }
+          ]
+        }
+      },
       "call_id": "msg-main-2",
       "call_index": 4,
       "call_key": "C4",
-      "scope": "main",
+      "model": "claude-sonnet-4-20250514",
       "parent_call_id": "",
       "parent_tool_call_id": "",
-      "turn_id": "",
-      "model": "claude-sonnet-4-20250514",
-      "timestamp": "2026-06-10T01:00:12.000Z",
-      "usage": {
-        "fresh": 600,
-        "cache_read": 250,
-        "cache_write": 0,
-        "output": 80,
-        "total": 930
-      },
       "request": {
         "tool_result_ids": [
           "toolu_bash_1",
@@ -134,36 +747,209 @@
       },
       "response": {
         "tool_call_ids": []
+      },
+      "scope": "main",
+      "source_units": [
+        {
+          "byte_range": [
+            0,
+            107
+          ],
+          "candidate": "runtime_context",
+          "canonical_source_locator": "session.runtime",
+          "content_hash": "70cd7732798a4a4a7fa2f51f153244ab84d24c2983e1945a3b2ae1a583f5b8ef",
+          "dedupe_key": "e071a10a8cd1559a6df4efdafbeb349706748fdf246fbfbd436a86c69c7c9d2c",
+          "direction": "request",
+          "event_order": 2,
+          "label": "Claude Code 运行上下文",
+          "origin_path": "session.runtime",
+          "part_index": 0,
+          "payload": {
+            "cwd": "/repo",
+            "git_branch": "main",
+            "model": "claude-sonnet-4-20250514",
+            "project_key": "/repo",
+            "source": "cli"
+          },
+          "preview": "{\"cwd\":\"/repo\",\"git_branch\":\"main\",\"model\":\"claude-sonnet-4-20250514\",\"project_key\":\"/repo\",\"source\":\"cli\"}",
+          "priority": 40,
+          "source_id": "msg-main-2:session.runtime:2:0:claude_code_runtime_context:0-107:0",
+          "timestamp": "2026-06-10T01:00:12.000Z",
+          "unit_type": "claude_code_runtime_context"
+        },
+        {
+          "byte_range": [
+            0,
+            49
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "messages[0].content",
+          "content_hash": "d8a5ec998a71d20f67c81dd275339651b90c15784dcdf4016ce85859ade747a7",
+          "dedupe_key": "21fa30a16078cdbd86a73b1ed0aad9e2854ca5f2334c5761fedd2cef01d05a4b",
+          "direction": "request",
+          "event_order": 2,
+          "label": "历史 user 消息",
+          "origin_path": "messages[0].content",
+          "part_index": 0,
+          "preview": "请检查项目并让子 agent 总结测试范围",
+          "priority": 50,
+          "source_id": "msg-main-2:messages-0-.content:2:0:prior_user_message:0-49:1",
+          "text": "请检查项目并让子 agent 总结测试范围",
+          "timestamp": "2026-06-10T01:00:00.000Z",
+          "unit_type": "prior_user_message"
+        },
+        {
+          "byte_range": [
+            0,
+            63
+          ],
+          "candidate": "assistant_output",
+          "canonical_source_locator": "assistant.content_blocks[1]",
+          "content_hash": "8441cbd3b8e3bf7355e5eb19129d6ab82233f3f0982c549bfa41407e251ffa1e",
+          "dedupe_key": "3b889ae5f5b4e0d2d954af551671151bca2b07d59a31ad41c6c8141bf907a131",
+          "direction": "response",
+          "event_order": 2,
+          "label": "助手文本",
+          "origin_path": "assistant.content_blocks[1]",
+          "part_index": 1,
+          "preview": "检查完成，测试范围是 parser 和 normalized adapter。",
+          "priority": 50,
+          "source_id": "msg-main-2:assistant.content_blocks-1-:2:1:assistant_text:0-63:5",
+          "text": "检查完成，测试范围是 parser 和 normalized adapter。",
+          "timestamp": "2026-06-10T01:00:12.000Z",
+          "unit_type": "assistant_text"
+        },
+        {
+          "byte_range": [
+            0,
+            42
+          ],
+          "candidate": "conversation_history",
+          "canonical_source_locator": "messages[1].content",
+          "content_hash": "ff204f0365f36acfc74f5028a837aaf9413e7a760ece1975713bb4ce1a6de261",
+          "dedupe_key": "08a4aeacb8e46a33867f7701c2c640e654fba7f4d8555d5473eff4e1bc3dedd2",
+          "direction": "request",
+          "event_order": 2,
+          "label": "历史 assistant 消息",
+          "origin_path": "messages[1].content",
+          "part_index": 1,
+          "preview": "我会先查看文件并派发子任务。",
+          "priority": 50,
+          "source_id": "msg-main-2:messages-1-.content:2:1:prior_assistant_message:0-42:2",
+          "text": "我会先查看文件并派发子任务。",
+          "timestamp": "2026-06-10T01:00:03.000Z",
+          "unit_type": "prior_assistant_message"
+        },
+        {
+          "byte_range": [
+            0,
+            19
+          ],
+          "candidate": "tool_results",
+          "canonical_source_locator": "tool_result:toolu_bash_1",
+          "content_hash": "817b259b94e5ded22ba54d0474917900b7e982631a004b1923ddcf4ea7c26e48",
+          "dedupe_key": "2a05afae4ee38bb2b959c03473b908b8cdbd5d0af7683f54485839392c4b2796",
+          "direction": "request",
+          "event_order": 2,
+          "label": "工具结果 toolu_bash_1",
+          "origin_path": "request_full.tool_result[1]",
+          "part_index": 1,
+          "preview": "README.md src tests",
+          "priority": 85,
+          "source_id": "msg-main-2:request_full.tool_result-1-:2:1:tool_result_text:0-19:3",
+          "text": "README.md\nsrc\ntests",
+          "timestamp": "2026-06-10T01:00:12.000Z",
+          "unit_type": "tool_result_text"
+        },
+        {
+          "byte_range": [
+            0,
+            37
+          ],
+          "candidate": "tool_results",
+          "canonical_source_locator": "tool_result:toolu_agent_1",
+          "content_hash": "068a388d1edcffd16ae63efb165fa59e56ffbfeb4d4e5b20bea8c6840790688b",
+          "dedupe_key": "366e11b7c9580a140c6dda2ae5900db81bffbe48bf9931daac66d87618a2e24e",
+          "direction": "request",
+          "event_order": 2,
+          "label": "工具结果 toolu_agent_1",
+          "origin_path": "request_full.tool_result[2]",
+          "part_index": 2,
+          "preview": "子 agent 完成测试范围总结。",
+          "priority": 85,
+          "source_id": "msg-main-2:request_full.tool_result-2-:2:2:tool_result_text:0-37:4",
+          "text": "子 agent 完成测试范围总结。",
+          "timestamp": "2026-06-10T01:00:12.000Z",
+          "unit_type": "tool_result_text"
+        }
+      ],
+      "timestamp": "2026-06-10T01:00:12.000Z",
+      "turn_id": "",
+      "usage": {
+        "cache_read": 250,
+        "cache_write": 0,
+        "fresh": 600,
+        "output": 80,
+        "total": 930
       }
     }
   ],
+  "diagnostics": [],
+  "schema_version": "session-detail.normalized.v2",
+  "session": {
+    "agent": "claude_code",
+    "cwd": "/repo",
+    "ended_at": "2026-06-10T01:00:12+00:00",
+    "git_branch": "main",
+    "model": "claude-sonnet-4-20250514",
+    "project_key": "/repo",
+    "project_name": "repo",
+    "session_id": "session-claude-001",
+    "session_key": "claude_code:session-claude-001",
+    "source": "cli",
+    "started_at": "2026-06-10T01:00:00+00:00",
+    "title": "请检查项目并让子 agent 总结测试范围"
+  },
+  "source": {
+    "files": [
+      {
+        "path": "tests/fixtures/normalized/claude_code/subagent_tool.input/session-claude-001.jsonl",
+        "role": "main_session"
+      },
+      {
+        "parent_tool_use_id": "toolu_agent_1",
+        "path": "tests/fixtures/normalized/claude_code/subagent_tool.input/session-claude-001/subagents/agent-child.jsonl",
+        "role": "subagent_session",
+        "subagent_id": "child"
+      }
+    ]
+  },
   "tool_executions": [
     {
-      "tool_call_id": "toolu_bash_1",
+      "declared_by_call_id": "msg-main-1",
       "name": "Bash",
-      "scope": "main",
-      "declared_by_call_id": "msg-main-1",
-      "result_consumed_by_call_id": "msg-main-2"
-    },
-    {
-      "tool_call_id": "toolu_agent_1",
-      "name": "Agent",
-      "scope": "main",
-      "declared_by_call_id": "msg-main-1",
       "result_consumed_by_call_id": "msg-main-2",
-      "subagent_id": "child"
+      "scope": "main",
+      "tool_call_id": "toolu_bash_1"
     },
     {
-      "tool_call_id": "toolu_child_read",
-      "name": "Read",
-      "scope": "subagent",
+      "declared_by_call_id": "msg-main-1",
+      "name": "Agent",
+      "result_consumed_by_call_id": "msg-main-2",
+      "scope": "main",
+      "subagent_id": "child",
+      "tool_call_id": "toolu_agent_1"
+    },
+    {
       "declared_by_call_id": "msg-child-1",
-      "result_consumed_by_call_id": "msg-child-2",
       "files_touched": [
         "tests/backend/test_claude_source.py"
       ],
-      "subagent_id": "child"
+      "name": "Read",
+      "result_consumed_by_call_id": "msg-child-2",
+      "scope": "subagent",
+      "subagent_id": "child",
+      "tool_call_id": "toolu_child_read"
     }
-  ],
-  "diagnostics": []
+  ]
 }

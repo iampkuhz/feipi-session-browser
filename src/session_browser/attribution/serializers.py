@@ -430,6 +430,11 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
         request_buckets,
         _request_distribution_denominator(attr),
     )
+    accounting_attribution = (
+        getattr(attr, "accounting_attribution", None)
+        or v2_extra.get("accounting_attribution")
+        or _build_request_accounting_attribution(attr, request_buckets)
+    )
 
     payload = {
         # ── v2 schema ──
@@ -477,10 +482,7 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
         "diagnostics": v2_extra.get("diagnostics", _build_diagnostics(attr)),
 
         # ── field-first 归因（v2 additive） ──
-        "accounting_attribution": v2_extra.get(
-            "accounting_attribution",
-            _build_request_accounting_attribution(attr, request_buckets),
-        ),
+        "accounting_attribution": accounting_attribution,
 
         # ── route payload 字段 ──
         "kind": "llm.request_attribution",
@@ -532,6 +534,11 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
     response_buckets = _normalize_bucket_percents_for_display([
         _response_bucket_to_dict(b) for b in attr.buckets
     ])
+    accounting_attribution = (
+        getattr(attr, "accounting_attribution", None)
+        or v2_extra.get("accounting_attribution")
+        or _build_response_accounting_attribution(attr, response_buckets)
+    )
 
     payload = {
         # ── v2 schema ──
@@ -561,10 +568,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
         "diagnostics": v2_extra.get("diagnostics", _build_response_diagnostics(attr)),
 
         # ── field-first 归因（v2 additive） ──
-        "accounting_attribution": v2_extra.get(
-            "accounting_attribution",
-            _build_response_accounting_attribution(attr, response_buckets),
-        ),
+        "accounting_attribution": accounting_attribution,
 
         # ── route payload 字段 ──
         "kind": "llm.response_attribution",

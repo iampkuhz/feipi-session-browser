@@ -1,4 +1,4 @@
-"""Qoder normalized adapter snapshot tests."""
+"""Qoder normalized adapter 快照测试。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from session_browser.normalized import validate_normalized_session
-from session_browser.normalized.agents.qoder import parse_qoder_session_file
+from session_browser.normalized.agents.qoder_normalization import parse_qoder_session_file
 from session_browser.sources.qoder import parse_normalized_session_file
 
 
@@ -62,6 +62,8 @@ def test_qoder_tool_loop_normalized_semantics():
     assert "token_sources" not in c1["response"]
     assert "context_sources" not in actual
     assert "payload_index" not in actual
+    _assert_source_units(c1, request={"user_input", "runtime_context"}, response={"assistant_output", "tool_calls"})
+    _assert_source_units(c2, request={"tool_results", "conversation_history", "runtime_context"}, response={"assistant_output"})
 
 
 def test_qoder_source_file_entrypoint_matches_adapter_snapshot():
@@ -72,3 +74,28 @@ def test_qoder_source_file_entrypoint_matches_adapter_snapshot():
     )
 
     assert actual == _load_expected()
+
+
+def _assert_source_units(call: dict, *, request: set[str], response: set[str]) -> None:
+    units = call.get("source_units") or []
+    assert units
+    required = {
+        "source_id",
+        "dedupe_key",
+        "origin_path",
+        "canonical_source_locator",
+        "unit_type",
+        "candidate",
+        "direction",
+        "event_order",
+        "part_index",
+        "byte_range",
+    }
+    for unit in units:
+        assert required <= set(unit)
+    by_direction = {
+        "request": {u["candidate"] for u in units if u["direction"] == "request"},
+        "response": {u["candidate"] for u in units if u["direction"] == "response"},
+    }
+    assert request <= by_direction["request"]
+    assert response <= by_direction["response"]

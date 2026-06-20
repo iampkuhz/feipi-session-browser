@@ -6,7 +6,7 @@ OpenAI Responses usage 语义：
   fresh        = provider_request_input - cache_read
   input_side_component_total = fresh + cache_read
   cache_write  = unavailable（不报告 Anthropic-style cache_creation）
-  output       = output_tokens - hidden_reasoning（当 output_tokens 含 hidden reasoning）
+  output       = output_tokens（reasoning 是 output 的 breakdown/subset）
   hidden_reasoning = output_tokens_details.reasoning_tokens
 
 注意：OpenAI/Codex 的 cached_tokens 是 provider request input 的子集；
@@ -45,8 +45,6 @@ def parse_openai_responses_usage(usage: dict | None) -> UsageBreakdown:
     fresh = max(provider_request_input - cache_read, 0) if provider_request_input > 0 else 0
     input_side_component_total = fresh + cache_read
     output = provider_output_total
-    if hidden_reasoning > 0 and provider_output_total >= hidden_reasoning:
-        output = provider_output_total - hidden_reasoning
 
     # cache_write: OpenAI 不报告，标记 unavailable
     note = (

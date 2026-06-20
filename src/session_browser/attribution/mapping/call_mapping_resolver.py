@@ -29,14 +29,14 @@ class CallMappingDecision:
 
     所有字段都是最终决策，供下游 pipeline 使用。
     """
-    agent_runtime: str                  # claude_code / codex / qoder / unknown
-    api_family: str                     # anthropic_messages / openai_responses / …
-    provider_or_broker: str             # anthropic / openai / qoder / local_estimator / unknown
-    underlying_provider: str | None     # 如果 provider 是 broker，这里是真实 provider
+    agent_runtime: str                  # agent runtime，例如 claude_code / codex / qoder / unknown
+    api_family: str                     # API family，例如 anthropic_messages / openai_responses
+    provider_or_broker: str             # provider 或 broker，例如 anthropic / openai / qoder
+    underlying_provider: str | None     # provider 是 broker 时记录真实 provider
     model: str | None
-    billing_units: list[str]            # tokens / credits / dollars
-    usage_source: str                   # provider_reported / local_reconstruction / unavailable
-    confidence: float                   # 0.0–1.0
+    billing_units: list[str]            # billing units，例如 tokens / credits
+    usage_source: str                   # usage 来源，例如 provider_reported / local_reconstruction
+    confidence: float                   # 置信度，范围 0.0 到 1.0
     reasons: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -71,95 +71,54 @@ def resolve_call_mapping(
     api_family = "unknown"
     billing_units: list[str] = ["tokens"]
 
-    # ── Step 1: Determine provider/broker from agent runtime ─────
+    # ── Step 1: agent 专属 resolver ─────────────────────────────
     if agent_runtime == "claude_code":
-        provider_or_broker = "anthropic"
-        reasons.append("agent is claude_code -> provider anthropic")
-    elif agent_runtime == "codex":
-        provider_or_broker = "openai"
-        reasons.append("agent is codex -> provider openai")
-    elif agent_runtime == "qoder":
-        provider_or_broker = "qoder"
-        billing_units = ["tokens", "credits"]
-        reasons.append("agent is qoder -> provider/broker qoder")
+        from session_browser.attribution.mapping.agents.claude_code_token_accounting_mapping import ClaudeCodeCallMappingResolver
 
-    # ── Step 2: Detect API Family from usage shape ───────────────
-    usage_shape = detect_usage_shape(usage)
+        return ClaudeCodeCallMappingResolver().resolve(
+            usage=usage,
+            model=model,
+            raw_request=raw_request,
+            raw_response=raw_response,
+        )
+    if agent_runtime == "codex":
+        from session_browser.attribution.mapping.agents.codex_token_accounting_mapping import CodexCallMappingResolver
 
+        return CodexCallMappingResolver().resolve(
+            usage=usage,
+            model=model,
+            raw_request=raw_request,
+            raw_response=raw_response,
+        )
     if agent_runtime == "qoder":
-        # Qoder: 固定为 qoder_broker，不根据 usage shape 推断 underlying provider
-        api_family = "qoder_broker"
-        underlying_provider = None  # Qoder 是 broker，不伪装为 Anthropic/OpenAI
-        if usage_shape == "anthropic_messages_like":
-            reasons.append("qoder usage has Anthropic-like cache fields (broker-reported)")
-            confidence = 0.85
-            usage_source = "provider_reported"
-        elif usage_shape in ("openai_responses_like", "openai_chat_like"):
-            reasons.append("qoder usage has OpenAI-like fields (broker-reported)")
-            confidence = 0.85
-            usage_source = "provider_reported"
-        elif usage_shape == "token_reported_unknown_cache":
-            reasons.append("qoder usage has basic tokens but no cache info")
-            confidence = 0.6
-            usage_source = "provider_reported"
-        else:
-            # No usage or unrecognized -> estimate_only
-            api_family = "estimate_only"
-            reasons.append("qoder no usable usage data -> estimate_only")
-            confidence = 0.4
-            usage_source = "local_reconstruction"
-            warnings.append("Qoder 无 usage 数据，使用本地估算")
-    elif agent_runtime == "claude_code":
-        if usage_shape == "anthropic_messages_like":
-            api_family = "anthropic_messages"
-            confidence = 0.95
-            usage_source = "provider_reported"
-            reasons.append("claude_code with Anthropic usage -> anthropic_messages")
-        else:
-            api_family = "estimate_only"
-            confidence = 0.4
-            usage_source = "local_reconstruction"
-            warnings.append("Claude Code 无预期 Anthropic usage，使用本地估算")
-    elif agent_runtime == "codex":
-        if usage_shape == "openai_responses_like":
-            api_family = "openai_responses"
-            confidence = 0.95
-            usage_source = "provider_reported"
-            reasons.append("codex with OpenAI Responses usage -> openai_responses")
-        elif usage_shape == "openai_chat_like":
-            api_family = "openai_chat"
-            confidence = 0.9
-            usage_source = "provider_reported"
-            reasons.append("codex with OpenAI Chat usage -> openai_chat")
-        elif usage_shape == "token_reported_unknown_cache":
-            api_family = "openai_responses"
-            confidence = 0.7
-            usage_source = "provider_reported"
-            reasons.append("codex with basic tokens -> openai_responses (no cache)")
-        else:
-            api_family = "estimate_only"
-            confidence = 0.4
-            usage_source = "local_reconstruction"
-            warnings.append("Codex 无预期 OpenAI usage，使用本地估算")
+        from session_browser.attribution.mapping.agents.qoder_token_accounting_mapping import QoderCallMappingResolver
+
+        return QoderCallMappingResolver().resolve(
+            usage=usage,
+            model=model,
+            raw_request=raw_request,
+            raw_response=raw_response,
+        )
+
+    # ── Step 2: unknown agent fallback ──────────────────────────
+    usage_shape = detect_usage_shape(usage)
+    if usage_shape == "anthropic_messages_like":
+        api_family = "anthropic_messages_like"
+        provider_or_broker = "anthropic"
+        confidence = 0.7
+        usage_source = "provider_reported"
+        reasons.append("unknown agent with Anthropic-like usage")
+    elif usage_shape in ("openai_responses_like", "openai_chat_like"):
+        api_family = "openai_like"
+        provider_or_broker = "openai"
+        confidence = 0.7
+        usage_source = "provider_reported"
+        reasons.append("unknown agent with OpenAI-like usage")
     else:
-        # unknown agent
-        if usage_shape == "anthropic_messages_like":
-            api_family = "anthropic_messages_like"
-            provider_or_broker = "anthropic"
-            confidence = 0.7
-            usage_source = "provider_reported"
-            reasons.append("unknown agent with Anthropic-like usage")
-        elif usage_shape in ("openai_responses_like", "openai_chat_like"):
-            api_family = "openai_like"
-            provider_or_broker = "openai"
-            confidence = 0.7
-            usage_source = "provider_reported"
-            reasons.append("unknown agent with OpenAI-like usage")
-        else:
-            api_family = "estimate_only"
-            confidence = 0.3
-            usage_source = "local_reconstruction"
-            reasons.append("unknown agent, no usage -> estimate_only")
+        api_family = "estimate_only"
+        confidence = 0.3
+        usage_source = "local_reconstruction"
+        reasons.append("unknown agent, no usage -> estimate_only")
 
     return CallMappingDecision(
         agent_runtime=agent_runtime,

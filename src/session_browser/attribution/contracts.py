@@ -131,6 +131,7 @@ class LLMRequestAttribution:
     attribution_notes: list[str]
     availability_rows: list[AvailabilityRow | dict]
     timing: dict = field(default_factory=dict)
+    accounting_attribution: dict = field(default_factory=dict)
 
 
 # ─── Response attribution result ───────────────────────────────────────
@@ -160,6 +161,7 @@ class LLMResponseAttribution:
     captured_output_preview: str
     attribution_notes: list[str]
     availability_rows: list[AvailabilityRow | dict]
+    accounting_attribution: dict = field(default_factory=dict)
 
 
 __all__ = [

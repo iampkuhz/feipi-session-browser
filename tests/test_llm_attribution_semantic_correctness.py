@@ -1,12 +1,4 @@
-"""Semantic correctness tests for LLM attribution data layer.
-
-Verifies the core semantic fixes from Task 02b:
-1. 工具定义 != actual tool_calls without available_tools
-2. History messages require explicit prior_messages
-3. Captured context fragment handles unclassifiable request_full
-4. Response bucket double-count prevention via contributes_to_total
-5. Coverage only counts contributes_to_total=True
-"""
+"""LLM attribution 数据层语义正确性测试。"""
 
 import json
 import pytest
@@ -18,9 +10,9 @@ from session_browser.attribution.service import (
     build_llm_request_attribution,
     build_llm_response_attribution,
 )
-from session_browser.attribution.agents.claude_code import ClaudeCodeAttributionBuilder
-from session_browser.attribution.agents.qoder import QoderAttributionBuilder
-from session_browser.attribution.agents.codex import CodexAttributionBuilder
+from session_browser.attribution.agents.claude_code_attribution_builder import ClaudeCodeAttributionBuilder
+from session_browser.attribution.agents.qoder_attribution_builder import QoderAttributionBuilder
+from session_browser.attribution.agents.codex_attribution_builder import CodexAttributionBuilder
 from session_browser.attribution.contracts import ValuePrecision
 from session_browser.attribution.serializers import request_attribution_to_payload
 from session_browser.attribution.taxonomy import CATEGORY_BY_KEY
@@ -48,75 +40,88 @@ def _make_ro(user_content="hello", tool_calls=None, interactions=None):
     )
 
 
-# ─── P0-1: 工具定义 != actual tool_calls ───────────────────────────
+def _unit(candidate: str, direction: str, text: str, index: int = 1) -> dict:
+    return {
+        "source_id": f"test:{direction}:{candidate}:{index}",
+        "dedupe_key": f"dedupe:{direction}:{candidate}:{index}",
+        "origin_path": f"fixture.{candidate}",
+        "canonical_source_locator": f"fixture:{candidate}:{index}",
+        "unit_type": f"{candidate}_unit",
+        "candidate": candidate,
+        "direction": direction,
+        "event_order": 1,
+        "part_index": index,
+        "byte_range": [0, len(text.encode("utf-8"))],
+        "text": text,
+        "label": candidate,
+        "preview": text[:120],
+    }
+
+
+def _ctx(agent: str, *units: dict) -> dict | None:
+    if agent in {"claude_code", "qoder"}:
+        return {"normalized_call": {"call_id": "test-call-001", "source_units": list(units)}}
+    return None
+
+
+# ─── 工具定义来源 ───────────────────────────
 
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_tool_definitions_zero_without_available_tools(agent):
-    """When only actual tool_calls exist without available_tools,
-    tool_definitions tokens depend on agent fallback behavior."""
+    """Claude/Qoder 只接受 normalized source_units；Codex 保留自身默认 catalog。"""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="test", tool_calls=[tc])
-    result = build_llm_request_attribution(agent, lc, ro)
+    result = build_llm_request_attribution(agent, lc, ro, session_context=_ctx(agent))
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
-    assert schema_bucket is not None, f"Missing tool_definitions bucket for {agent}"
-    assert schema_bucket.tokens > 0, (
-        f"tool_definitions tokens should use default schema fallback for {agent}"
-    )
-    if agent == "codex":
+    if agent in {"claude_code", "qoder"}:
+        assert schema_bucket is None
+    else:
+        assert schema_bucket is not None
+        assert schema_bucket.tokens > 0
         assert "Codex builtin tool catalog" in schema_bucket.summary
         assert schema_bucket.count_label == "5 tools"
 
 
 def test_claude_code_tool_definitions_from_available_tools():
-    """Claude Code: with available_tools, tool_definitions uses real SDK token counts."""
+    """Claude Code 工具定义由 normalized source_units 提供。"""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="test", tool_calls=[tc])
-    ctx = {"available_tools": ["Read", "Bash", "Edit"]}
+    ctx = {"available_tools": ["Read", "Bash", "Edit"], **_ctx("claude_code", _unit("tool_definitions", "request", "Read Bash Edit schema"))}
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
-    # Now uses real SDK schema tokens instead of 240/tool heuristic
-    assert schema_bucket.tokens > 3 * 240, (
-        f"Expected real SDK tokens > {3 * 240}, got {schema_bucket.tokens}"
-    )
-    assert "3 tools" in schema_bucket.count_label
+    assert schema_bucket.details["kind"] == "source_units"
 
 
 def test_tool_definitions_count_label_from_available_not_observed():
-    """工具定义 count_label must come from available_tools count,
-    NOT observed tool_calls count."""
+    """工具定义不再从 observed tool_calls 或 available_tools 反推。"""
     tc = ToolCall(name="Read", parameters={"file_path": "/tmp/a.py"}, result="ok")
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="test", tool_calls=[tc])
-    ctx = {"available_tools": ["Read", "Bash", "Edit", "Grep", "Glob"]}
+    ctx = {"available_tools": ["Read", "Bash", "Edit", "Grep", "Glob"], **_ctx("claude_code", _unit("tool_definitions", "request", "five tool schema"))}
     builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
     result = builder.build_request()
 
     schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
     assert schema_bucket is not None
-    # Now uses real SDK schema tokens instead of 240/tool heuristic
-    assert schema_bucket.tokens > 5 * 240, (
-        f"Expected real SDK tokens > {5 * 240}, got {schema_bucket.tokens}"
-    )
-    assert "5 tools" in schema_bucket.count_label
+    assert schema_bucket.count_label == "1 sources"
 
 
-# ─── P0-2: History messages require prior_messages ─────────────────────
+# ─── 历史与 cache 语义 ─────────────────────
 
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_no_history_without_prior_messages(agent):
-    """Without prior messages, history_messages bucket should have 0 tokens
-    (or not exist as a positive bucket)."""
+    """没有历史 source_units 时不应产生正数 history bucket。"""
     lc = _make_lc(input_tokens=10000, request_full="role: user\n\nHello world\n\n")
     ro = _make_ro(user_content="test")
-    result = build_llm_request_attribution(agent, lc, ro)
+    result = build_llm_request_attribution(agent, lc, ro, session_context=_ctx(agent, _unit("user_input", "request", "test")))
 
     history_bucket = next(
         (b for b in result.buckets if b.key in (
@@ -132,21 +137,19 @@ def test_no_history_without_prior_messages(agent):
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_captured_context_when_request_full_exists(agent):
-    """When request_full has content but no prior messages, content should
-    go into captured_context_fragment, NOT history_messages."""
+    """Claude/Qoder 不再从 request_full 生成旧 captured_context_fragment。"""
     lc = _make_lc(
         input_tokens=10000,
         request_full="some context data here that is not classifiable as history",
     )
     ro = _make_ro(user_content="test")
-    result = build_llm_request_attribution(agent, lc, ro)
+    result = build_llm_request_attribution(agent, lc, ro, session_context=_ctx(agent))
 
     ctx_bucket = next(
         (b for b in result.buckets if b.key == "captured_context_fragment"),
         None,
     )
     if ctx_bucket is not None:
-        # captured_context_fragment exists with positive tokens
         assert ctx_bucket.tokens > 0
 
 
@@ -160,16 +163,23 @@ def test_captured_context_when_request_full_exists(agent):
 def test_provider_cache_accounting_is_not_a_request_content_bucket(
     agent, cache_read_tokens, cache_write_tokens
 ):
-    """OpenAI-like agents expose provider cache values as accounting metadata only."""
+    """provider cache 只作为 accounting metadata，不作为 request content bucket。"""
+    provider_input_tokens = 5000 if agent == "codex" else 2000
+    request_content_denominator = 2000
     lc = _make_lc(
-        input_tokens=2000,
+        input_tokens=provider_input_tokens,
         cache_read_tokens=cache_read_tokens,
         cache_write_tokens=cache_write_tokens,
         request_full="Tool output for call_1:\n" + ("result payload " * 200),
     )
     ro = _make_ro(user_content="summarize the previous tool result")
 
-    result = build_llm_request_attribution(agent, lc, ro)
+    result = build_llm_request_attribution(
+        agent,
+        lc,
+        ro,
+        session_context=_ctx(agent, _unit("tool_results", "request", "result payload " * 200)),
+    )
     payload = request_attribution_to_payload(result)
 
     assert result.cache_read.value == cache_read_tokens
@@ -179,35 +189,41 @@ def test_provider_cache_accounting_is_not_a_request_content_bucket(
     assert "provider_cache_read_context" not in CATEGORY_BY_KEY
 
     coverage = payload["coverage"]
-    assert coverage["input_side_component_total"] == 2000 + cache_read_tokens + cache_write_tokens
-    assert coverage["request_content_denominator"] == 2000
+    assert coverage["input_side_component_total"] == request_content_denominator + cache_read_tokens + cache_write_tokens
+    assert coverage["request_content_denominator"] == request_content_denominator
     assert coverage["accounting_cache_read_tokens"] == cache_read_tokens
-    assert coverage["reconstructed_total"] + coverage["residual_tokens"] == 2000
+    assert coverage["reconstructed_total"] + coverage["residual_tokens"] == request_content_denominator
 
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_current_user_message_not_double_counted(agent):
-    """current_user_message must not be double-counted in history_messages."""
+    """当前用户输入只在 user_input 中出现，不在 history 中重复。"""
     lc = _make_lc(input_tokens=10000)
     ro = _make_ro(user_content="unique user message text that should not appear in history")
-    result = build_llm_request_attribution(agent, lc, ro)
+    result = build_llm_request_attribution(
+        agent,
+        lc,
+        ro,
+        session_context=_ctx(agent, _unit("user_input", "request", "unique user message text that should not appear in history")),
+    )
 
-    # Check that user message tokens are in current_user_message bucket
     user_bucket = next(
         (b for b in result.buckets if b.key in (
             "current_user_message", "current_user_instruction"
         )),
         None,
     )
+    if agent in {"claude_code", "qoder"}:
+        user_bucket = next((b for b in result.buckets if b.key == "current_user_input"), user_bucket)
     assert user_bucket is not None
     assert user_bucket.tokens > 0
 
 
-# ─── P0-3: Response bucket double-count prevention ─────────────────────
+# ─── Response bucket 语义 ─────────────────────
 
 
 def test_claude_response_tool_use_children_not_contribute_to_total():
-    """Claude Code: per-tool child buckets should have contributes_to_total=False."""
+    """Claude Code 最终版只保留 tool_calls aggregate，不再维护旧 child buckets。"""
     lc = _make_lc(
         output_tokens=3000,
         response_full="text response",
@@ -220,24 +236,27 @@ def test_claude_response_tool_use_children_not_contribute_to_total():
         ],
     )
     ro = _make_ro()
-    result = build_llm_response_attribution("claude_code", lc, ro)
+    result = build_llm_response_attribution(
+        "claude_code",
+        lc,
+        ro,
+        session_context=_ctx(
+            "claude_code",
+            _unit("assistant_output", "response", "Hello"),
+            _unit("tool_calls", "response", "Read Bash tool calls", 2),
+        ),
+    )
 
-    # Check tool_call aggregate exists
     aggregate = next((b for b in result.buckets if b.key == "tool_call"), None)
     assert aggregate is not None
     assert aggregate.contributes_to_total is True
 
-    # Check child buckets
     children = [b for b in result.buckets if b.key.startswith("tool_call:") and b.key != "tool_call"]
-    assert len(children) == 2
-    for child in children:
-        assert child.contributes_to_total is False, (
-            f"Child bucket {child.key} should not contribute to total"
-        )
+    assert children == []
 
 
 def test_coverage_only_counts_contributes_to_total():
-    """Coverage calculation must only use contributes_to_total=True buckets."""
+    """Coverage 只统计 contributes_to_total=True 的 bucket。"""
     lc = _make_lc(
         output_tokens=5000,
         response_full="response text here",
@@ -248,9 +267,13 @@ def test_coverage_only_counts_contributes_to_total():
         ],
     )
     ro = _make_ro()
-    result = build_llm_response_attribution("claude_code", lc, ro)
+    result = build_llm_response_attribution(
+        "claude_code",
+        lc,
+        ro,
+        session_context=_ctx("claude_code", _unit("assistant_output", "response", "Hello world this is a response")),
+    )
 
-    # Manual sum of contributes_to_total buckets (excluding unknown)
     contributing_sum = sum(
         b.tokens for b in result.buckets
         if b.contributes_to_total and b.key != "unknown"
@@ -265,8 +288,7 @@ def test_coverage_only_counts_contributes_to_total():
 
 
 def test_bucket_sum_not_exceeding_total_with_children():
-    """Bucket sum should not exceed total even with child buckets present,
-    because children have contributes_to_total=False."""
+    """输出侧 contributing bucket 之和不超过 output total。"""
     lc = _make_lc(
         output_tokens=3000,
         response_full="text",
@@ -277,7 +299,12 @@ def test_bucket_sum_not_exceeding_total_with_children():
         ],
     )
     ro = _make_ro()
-    result = build_llm_response_attribution("claude_code", lc, ro)
+    result = build_llm_response_attribution(
+        "claude_code",
+        lc,
+        ro,
+        session_context=_ctx("claude_code", _unit("assistant_output", "response", "Hello")),
+    )
 
     total = result.total_output.value or 0
     contributing_sum = sum(
@@ -289,15 +316,15 @@ def test_bucket_sum_not_exceeding_total_with_children():
     )
 
 
-# ─── Every bucket has contributes_to_total ─────────────────────────────
+# ─── 所有 bucket 都带 contributes_to_total ─────────────────────────────
 
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_every_bucket_has_contributes_to_total_request(agent):
-    """Every request bucket must have contributes_to_total field."""
+    """所有 request bucket 都有 contributes_to_total 字段。"""
     lc = _make_lc(input_tokens=10000, request_full="some context", response_full="some response")
     ro = _make_ro(user_content="test user message")
-    result = build_llm_request_attribution(agent, lc, ro)
+    result = build_llm_request_attribution(agent, lc, ro, session_context=_ctx(agent, _unit("user_input", "request", "test user message")))
 
     for b in result.buckets:
         assert hasattr(b, "contributes_to_total"), (
@@ -307,14 +334,14 @@ def test_every_bucket_has_contributes_to_total_request(agent):
 
 @pytest.mark.parametrize("agent", ["claude_code", "qoder", "codex"])
 def test_every_bucket_has_contributes_to_total_response(agent):
-    """Every response bucket must have contributes_to_total field."""
+    """所有 response bucket 都有 contributes_to_total 字段。"""
     lc = _make_lc(output_tokens=3000, content_blocks=[
         {"type": "text", "content": "hello"},
         {"type": "tool_use", "name": "Read", "id": "tu-001",
          "parameters": {"file_path": "/tmp/test.py"}},
     ])
     ro = _make_ro()
-    result = build_llm_response_attribution(agent, lc, ro)
+    result = build_llm_response_attribution(agent, lc, ro, session_context=_ctx(agent, _unit("assistant_output", "response", "hello")))
 
     for b in result.buckets:
         assert hasattr(b, "contributes_to_total"), (

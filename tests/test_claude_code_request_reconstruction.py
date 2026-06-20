@@ -1,25 +1,8 @@
-"""Claude Code request reconstruction attribution tests.
+"""Claude Code 最终版 request attribution source_units 测试。"""
 
-Verifies the expanded bucket model from task-02d:
-1. current_user_message not double-counted
-2. prior_conversation_messages only from prior calls
-3. preceding_tool_results from session_context only
-4. tool_definitions generates non-zero estimate when available_tools exist
-5. tool_definitions precision=heuristic when no raw schema
-6. local_instruction_context from system-reminder/CLAUDE.md fixture
-7. agent_subagent_prompt from .claude/agents fixture
-8. hidden_builtin_system_estimate labeled heuristic, no fake content
-9. unlocated_residual = request content denominator - located
-10. located_rate = located / request content denominator
-"""
-
-import pytest
-
-from session_browser.domain.models import (
-    LLMCall, ChatMessage, ConversationRound, ToolCall,
-)
-from session_browser.attribution.agents.claude_code import ClaudeCodeAttributionBuilder
+from session_browser.attribution.agents.claude_code_attribution_builder import ClaudeCodeAttributionBuilder
 from session_browser.attribution.contracts import ValuePrecision, ValueSource
+from session_browser.domain.models import ChatMessage, ConversationRound, LLMCall
 
 
 def _make_lc(**kwargs):
@@ -27,7 +10,7 @@ def _make_lc(**kwargs):
         id="cc-recon-001", model="claude-sonnet-4", scope="main",
         subagent_id="", round_index=0, parent_id="", parent_tool_name="",
         timestamp="2025-01-01T00:00:00Z", status="ok",
-        input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0,
+        input_tokens=10000, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0,
         finish_reason="end_turn", content_blocks=[],
         response_full="", request_full="", tool_calls_raw="",
     )
@@ -35,250 +18,131 @@ def _make_lc(**kwargs):
     return LLMCall(**defaults)
 
 
-def _make_ro(user_content="hello", tool_calls=None, interactions=None):
+def _make_ro(user_content="hello"):
     return ConversationRound(
         user_msg=ChatMessage(role="user", content=user_content, timestamp="2025-01-01T00:00:00Z"),
         assistant_msg=ChatMessage(role="assistant", content="hi", timestamp="2025-01-01T00:00:00Z"),
-        tool_calls=tool_calls or [],
-        interactions=interactions or [],
+        tool_calls=[],
+        interactions=[],
     )
 
 
-# ── 1. current_user_message not double-counted ─────────────────────────
+def _unit(candidate: str, direction: str, text: str, index: int = 1) -> dict:
+    return {
+        "source_id": f"test:{direction}:{candidate}:{index}",
+        "dedupe_key": f"dedupe:{direction}:{candidate}:{index}",
+        "origin_path": f"fixture.{candidate}",
+        "canonical_source_locator": f"fixture:{candidate}:{index}",
+        "unit_type": f"{candidate}_unit",
+        "candidate": candidate,
+        "direction": direction,
+        "event_order": 1,
+        "part_index": index,
+        "byte_range": [0, len(text.encode("utf-8"))],
+        "text": text,
+        "label": candidate,
+        "preview": text[:120],
+    }
 
-def test_current_user_message_not_double_counted():
-    """current_user_message should appear only once, not in prior_conversation."""
-    lc = _make_lc(input_tokens=10000, cache_read_tokens=5000)
-    ro = _make_ro(user_content="unique user message text xyz")
-    builder = ClaudeCodeAttributionBuilder(lc, ro)
-    result = builder.build_request()
 
-    user_buckets = [b for b in result.buckets if "user" in b.key.lower()]
+def _ctx(*units: dict) -> dict:
+    return {"normalized_call": {"call_id": "cc-recon-001", "source_units": list(units)}}
+
+
+def _build_request(*units: dict, input_tokens: int = 10000):
+    return ClaudeCodeAttributionBuilder(
+        _make_lc(input_tokens=input_tokens),
+        _make_ro("unique user message text xyz"),
+        session_context=_ctx(*units),
+    ).build_request()
+
+
+def test_user_input_source_unit_not_double_counted_as_history():
+    """user_input candidate 只映射到 current_user_input bucket。"""
+    result = _build_request(_unit("user_input", "request", "unique user message text xyz"))
+
+    user_buckets = [b for b in result.buckets if b.key == "current_user_input"]
+    history_buckets = [b for b in result.buckets if b.key == "conversation_messages"]
     assert len(user_buckets) == 1
-    assert user_buckets[0].key == "current_user_message"
+    assert history_buckets == []
 
 
-# ── 2. prior_conversation_messages only from prior calls ───────────────
+def test_conversation_history_source_units_create_history_bucket():
+    """conversation_history candidate 映射到 conversation_messages bucket。"""
+    result = _build_request(
+        _unit("conversation_history", "request", "What is Python?", 1),
+        _unit("conversation_history", "request", "Python is a language.", 2),
+    )
 
-def test_prior_conversation_only_with_explicit_prior():
-    """prior_conversation_messages should only exist with explicit prior_messages."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello")
-    # No prior_messages in session_context
-    builder = ClaudeCodeAttributionBuilder(lc, ro)
-    result = builder.build_request()
-
-    prior_bucket = next((b for b in result.buckets if b.key == "prior_conversation_messages"), None)
-    if prior_bucket is not None:
-        assert prior_bucket.tokens == 0 or prior_bucket.precision == ValuePrecision.UNAVAILABLE
+    bucket = next(b for b in result.buckets if b.key == "conversation_messages")
+    assert bucket.tokens > 0
+    assert bucket.details["kind"] == "source_units"
+    assert len(bucket.details["items"]) == 2
 
 
-def test_prior_conversation_with_prior_messages():
-    """With full_messages_array, conversation messages should have tokens."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="current message")
-    ctx = {
-        "full_messages_array": [
-            {"role": "user", "content": "What is Python?", "content_token_estimate": 4},
-            {"role": "assistant", "content": "Python is a programming language.", "content_token_estimate": 6},
-            {"role": "user", "content": "current message", "content_token_estimate": 2},
-        ]
-    }
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
+def test_tool_results_source_units_create_tool_result_bucket():
+    """tool_results candidate 映射到 tool_result_context bucket。"""
+    result = _build_request(_unit("tool_results", "request", "file content here"))
 
-    full_messages_bucket = next((b for b in result.buckets if b.key == "full_messages_array"), None)
-    assert full_messages_bucket is not None
-    assert full_messages_bucket.tokens > 0
-    assert full_messages_bucket.precision == ValuePrecision.ESTIMATED
+    bucket = next(b for b in result.buckets if b.key == "tool_result_context")
+    assert bucket.tokens > 0
+    assert bucket.source == ValueSource.TRANSCRIPT
 
 
-# ── 3. preceding_tool_results from session_context only ────────────────
+def test_tool_definitions_from_source_units():
+    """tool_definitions 来自 normalized source_units，不从 available_tools fallback。"""
+    result = _build_request(_unit("tool_definitions", "request", "Read Bash Edit schema"))
 
-def test_preceding_tool_results_from_session_context():
-    """Tool results should come from session_context preceding_tool_results."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="do something")
-    ctx = {
-        "preceding_tool_results": [
-            {"result": "file content here, this is a substantial result"},
-        ]
-    }
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
-
-    tool_bucket = next((b for b in result.buckets if b.key == "preceding_tool_results"), None)
-    assert tool_bucket is not None
-    assert tool_bucket.tokens > 0
-    assert tool_bucket.source == ValueSource.TOOL_LOGS
+    bucket = next(b for b in result.buckets if b.key == "tool_definitions")
+    assert bucket.tokens > 0
+    assert bucket.precision == ValuePrecision.ESTIMATED
+    assert bucket.details["candidate"] == "tool_definitions"
 
 
-# ── 4. tool_definitions generates non-zero estimate when available_tools ───
+def test_system_instruction_source_units_create_instruction_bucket():
+    """system_instructions candidate 映射到 instruction_context bucket。"""
+    result = _build_request(_unit("system_instructions", "request", "Always use Python."))
 
-def test_tool_definitions_nonzero_with_available_tools():
-    """tool_definitions should have positive tokens when available_tools exist."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello")
-    ctx = {"available_tools": ["Read", "Bash", "Edit", "Grep"]}
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
-
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
-    assert schema_bucket is not None
-    # Uses real SDK schema tokens now, not 240/tool heuristic
-    assert schema_bucket.tokens > 0
-    assert "4 tools" in schema_bucket.count_label
+    bucket = next(b for b in result.buckets if b.key == "instruction_context")
+    assert bucket.tokens > 0
+    assert bucket.source == ValueSource.TRANSCRIPT
 
 
-# ── 5. tool_definitions precision=estimated when using real SDK schemas ────
+def test_no_source_units_keeps_low_confidence_residual_only():
+    """没有 normalized source_units 时不维护旧 reconstruction fallback。"""
+    result = ClaudeCodeAttributionBuilder(_make_lc(input_tokens=10000), _make_ro()).build_request()
 
-def test_tool_definitions_precision_heuristic():
-    """tool_definitions should be estimated precision when using real SDK schemas."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello")
-    ctx = {"available_tools": ["Read", "Bash"]}
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
-
-    schema_bucket = next((b for b in result.buckets if b.key == "tool_definitions"), None)
-    assert schema_bucket is not None
-    # Now uses real SDK schemas, so precision is 'estimated' not 'heuristic'
-    assert schema_bucket.precision == ValuePrecision.ESTIMATED
-    assert schema_bucket.source == ValueSource.TOOL_LIST
+    assert result.source_label == "normalized source_units unavailable"
+    assert [b.key for b in result.buckets] == ["unlocated_residual"]
+    assert result.buckets[0].tokens == 10000
 
 
-# ── 6. local_instruction_context from system-reminder ──────────────────
+def test_unlocated_residual_equals_fresh_minus_candidates():
+    """unlocated_residual 使用 fresh_input 减去已定位 candidates。"""
+    result = _build_request(_unit("user_input", "request", "hello world"), input_tokens=1000)
 
-def test_local_instruction_context_from_system_reminder():
-    """local_instruction_context should use system_reminder_content from ctx."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello")
-    ctx = {
-        "system_reminder_content": "# CLAUDE.md\n\nYou are a helpful assistant.\n\n" * 10,
-    }
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
+    residual = next(b for b in result.buckets if b.key == "unlocated_residual")
+    known = sum(b.tokens for b in result.buckets if b.key != "unlocated_residual")
+    assert residual.tokens == max(1000 - known, 0)
 
-    local_bucket = next((b for b in result.buckets if b.key == "local_instruction_context"), None)
-    assert local_bucket is not None
-    assert local_bucket.tokens > 0
-    assert local_bucket.precision == ValuePrecision.HEURISTIC
-    assert local_bucket.source == ValueSource.LOCAL_RULES
-
-
-def test_local_instruction_from_local_instructions():
-    """local_instruction_context should use local_instructions from ctx."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello")
-    ctx = {
-        "local_instructions": "Always use Python for code generation.\n" * 5,
-    }
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
-
-    local_bucket = next((b for b in result.buckets if b.key == "local_instruction_context"), None)
-    assert local_bucket is not None
-    assert local_bucket.tokens > 0
-
-
-# ── 7. agent_subagent_prompt from fixture ──────────────────────────────
-
-def test_agent_subagent_prompt_from_ctx():
-    """agent_subagent_prompt should use agent_prompt_file or subagent_prompt from ctx."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello")
-    ctx = {
-        "subagent_prompt": "You are a code reviewer. Review the code for bugs.\n" * 5,
-    }
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
-
-    agent_bucket = next((b for b in result.buckets if b.key == "agent_subagent_prompt"), None)
-    assert agent_bucket is not None
-    assert agent_bucket.tokens > 0
-    assert agent_bucket.source == ValueSource.LOCAL_RULES
-
-
-# ── 8. hidden_builtin_system_estimate labeled heuristic, no fake content
-
-def test_hidden_builtin_system_heuristic_label():
-    """hidden_builtin_system_estimate should be heuristic with no fake content."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello")
-    builder = ClaudeCodeAttributionBuilder(lc, ro)
-    result = builder.build_request()
-
-    builtin_bucket = next((b for b in result.buckets if b.key == "hidden_builtin_system_estimate"), None)
-    assert builtin_bucket is not None
-    assert builtin_bucket.precision == ValuePrecision.HEURISTIC
-    assert builtin_bucket.source == ValueSource.HEURISTIC
-    # Should NOT have actual content_preview
-    assert builtin_bucket.content_preview == ""
-
-
-# ── 9. unlocated_residual = request distribution input - located ────────
-
-def test_unlocated_residual_equals_total_minus_located():
-    """unlocated_residual should use Fresh, excluding Cache Read/Write."""
-    lc = _make_lc(input_tokens=8200, cache_read_tokens=5000, cache_write_tokens=500)
-    ro = _make_ro(user_content="hello world")
-    builder = ClaudeCodeAttributionBuilder(lc, ro)
-    result = builder.build_request()
-
-    total = result.fresh_input.value or 0
-    residual_bucket = next(b for b in result.buckets if b.key == "unlocated_residual")
-    other_sum = sum(b.tokens for b in result.buckets if b.key != "unlocated_residual")
-
-    assert residual_bucket.tokens == max(total - other_sum, 0)
-
-
-# ── 10. located_rate = located / request content denominator ───────────
-
-def test_located_rate_calculation():
-    """Coverage (located_rate) should be located / Fresh denominator."""
-    lc = _make_lc(input_tokens=10000)
-    ro = _make_ro(user_content="hello world test message")
-    builder = ClaudeCodeAttributionBuilder(lc, ro)
-    result = builder.build_request()
-
-    total = result.fresh_input.value
-    if total > 0:
-        located = sum(
-            b.tokens for b in result.buckets
-            if b.key != "unlocated_residual" and b.contributes_to_total
-        )
-        expected_coverage = min(located / total, 1.0)
-        assert abs(result.coverage.value - expected_coverage) < 0.001
-
-
-# ── Timing fields ──────────────────────────────────────────────────────
 
 def test_timing_fields_present():
-    """build_request should include timing dict with request_at, response_at, duration."""
-    lc = _make_lc(input_tokens=10000, timestamp="2025-01-01T00:00:01Z")
-    ro = _make_ro(user_content="hello")
-    builder = ClaudeCodeAttributionBuilder(lc, ro)
-    result = builder.build_request()
+    """build_request 保留 timing 字段。"""
+    result = ClaudeCodeAttributionBuilder(
+        _make_lc(input_tokens=10000, timestamp="2025-01-01T00:00:01Z"),
+        _make_ro(),
+        session_context=_ctx(_unit("user_input", "request", "hello")),
+    ).build_request()
 
-    assert hasattr(result, "timing")
     assert result.timing["request_at"] == "2025-01-01T00:00:01Z"
     assert result.timing["response_at"] == "—"
     assert result.timing["duration"] == "—"
 
 
-# ── Bucket ordering ────────────────────────────────────────────────────
-
-def test_bucket_order():
-    """Buckets should be ordered by determinism from high to low, unlocated_residual last."""
-    lc = _make_lc(input_tokens=10000, cache_read_tokens=5000)
-    ro = _make_ro(user_content="hello")
-    ctx = {"available_tools": ["Read"]}
-    builder = ClaudeCodeAttributionBuilder(lc, ro, session_context=ctx)
-    result = builder.build_request()
+def test_bucket_order_keeps_residual_last():
+    """兼容 bucket 列表中 residual 保持最后。"""
+    result = _build_request(_unit("user_input", "request", "hello"))
 
     keys = [b.key for b in result.buckets]
     assert keys[-1] == "unlocated_residual"
-
-    # Check that current_user_message comes before unlocated_residual
-    assert "current_user_message" in keys
-    assert keys.index("current_user_message") < keys.index("unlocated_residual")
+    assert keys.index("current_user_input") < keys.index("unlocated_residual")

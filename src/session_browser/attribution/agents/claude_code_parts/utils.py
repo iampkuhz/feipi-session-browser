@@ -1,58 +1,58 @@
-"""Utility functions for Claude Code attribution builder."""
+"""Claude Code attribution 共享展示工具函数。"""
 
 from __future__ import annotations
 
 import re
 
-from session_browser.attribution.agents.claude_code_parts.constants import (
-    TOOL_DESCRIPTIONS,
-)
 from session_browser.attribution.agents.claude_code_tool_schemas import (
     _BINARY_TOOL_DESCRIPTIONS,
 )
 
 
+TOOL_DESCRIPTIONS = {
+    "Read": "读取文件内容。",
+    "Write": "写入文件内容，创建新文件。",
+    "Edit": "对文件进行精确的局部修改。",
+    "Bash": "执行 shell 命令。",
+    "Grep": "在文件中搜索文本。",
+    "Glob": "按模式匹配查找文件。",
+    "LS": "列出目录内容。",
+    "Agent": "启动子 agent 执行任务。",
+    "TodoWrite": "创建/更新任务列表。",
+    "WebFetch": "获取网页内容。",
+}
+
+
 def _pct(part: int, total: int) -> float:
-    """Compute percentage, safe for zero total."""
+    """安全计算百分比。"""
     if total <= 0:
         return 0.0
     return round(part / total * 100, 1)
 
 
 def tool_description(name: str) -> str:
-    """Return description for a tool.
-
-    Uses _BINARY_TOOL_DESCRIPTIONS (full descriptions from Claude Code binary)
-    as primary source, then falls back to TOOL_DESCRIPTIONS (short Chinese),
-    then to a generic fallback.
-    """
+    """返回工具说明，优先使用 Claude Code binary 中解析出的完整描述。"""
     return _BINARY_TOOL_DESCRIPTIONS.get(
         name, TOOL_DESCRIPTIONS.get(name, "工具说明未知。")
     )
 
 
 def extract_tool_name(result_text: str) -> str:
-    """Attempt to extract tool name from a tool result text.
-
-    Looks for common patterns like 'Tool Call: Name', '### Name', etc.
-    Falls back to first word or 'unknown'.
-    """
+    """从工具结果文本中提取工具名。"""
     if not result_text:
         return "unknown"
-    # Try common header patterns
     m = re.search(r'(?:Tool|tool)[\s_]*(?:Call|Result|Output)?[:\s]+(\w+)', result_text)
     if m:
         return m.group(1)
     m = re.search(r'^###\s+(\w+)', result_text, re.MULTILINE)
     if m:
         return m.group(1)
-    # Fallback: first word
     first = result_text.split()[0] if result_text.split() else "unknown"
-    return first[:30]  # cap length
+    return first[:30]
 
 
 def mask_sensitive_keys(text: str) -> str:
-    """Mask sensitive key values in text for safe display."""
+    """屏蔽展示文本中的敏感字段值。"""
     sensitive_keys = frozenset({
         "api_key", "apikey", "token", "secret", "password",
         "authorization", "bearer", "credential", "env",
@@ -71,7 +71,7 @@ def mask_sensitive_keys(text: str) -> str:
 
 
 def truncate_preview(text: str, max_len: int = 200) -> str:
-    """Truncate text to max_len characters with ellipsis."""
+    """截断展示预览。"""
     if not text:
         return ""
     if len(text) <= max_len:

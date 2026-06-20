@@ -324,7 +324,7 @@ def parse_session_detail_normalized(
     history_entry: dict | None = None,
 ) -> dict:
     """Parse a Claude Code session into the normalized intermediate contract."""
-    from session_browser.normalized.agents.claude_code import parse_claude_code_session_file
+    from session_browser.normalized.agents.claude_code_normalization import parse_claude_code_session_file
 
     project_dir = CLAUDE_DATA_DIR / "projects" / _normalize_project_segment(project_key)
     session_file = project_dir / f"{session_id}.jsonl"
@@ -347,7 +347,7 @@ def parse_normalized_session_file(
     session_id: str | None = None,
 ) -> dict:
     """Parse a Claude Code JSONL file directly into normalized JSON."""
-    from session_browser.normalized.agents.claude_code import parse_claude_code_session_file
+    from session_browser.normalized.agents.claude_code_normalization import parse_claude_code_session_file
 
     return parse_claude_code_session_file(
         session_file,
@@ -365,7 +365,7 @@ def build_normalized_session(
     source_path: str,
 ) -> dict:
     """Build normalized JSON from the models already parsed for indexing."""
-    from session_browser.normalized.agents.claude_code import build_claude_code_normalized_session
+    from session_browser.normalized.agents.claude_code_normalization import build_claude_code_normalized_session
 
     return build_claude_code_normalized_session(
         summary=summary,

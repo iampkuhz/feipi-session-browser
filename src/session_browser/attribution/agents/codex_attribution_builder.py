@@ -30,6 +30,8 @@ from session_browser.attribution.contracts import (
 )
 from session_browser.attribution.token_estimator import estimate_tokens_from_text
 from session_browser.attribution.agents.base import BaseAttributionBuilder
+from session_browser.attribution.mapping.agents.codex_token_accounting_mapping import CodexTokenAccountingMapper
+from session_browser.domain.token_normalizers.codex_token_normalizer import extract_codex_usage, normalize_codex_usage
 
 
 _DEFAULT_SCHEMA_TOKENS_PER_TOOL = 240
@@ -165,13 +167,6 @@ def _int_or_zero(value) -> int:
         return 0
 
 
-def _nested_int(d: dict, outer: str, inner: str) -> int:
-    child = d.get(outer)
-    if isinstance(child, dict):
-        return _int_or_zero(child.get(inner))
-    return 0
-
-
 def _codex_message_text(content) -> str:
     if isinstance(content, str):
         return content
@@ -305,56 +300,8 @@ def _read_codex_visible_instruction_sources(file_path: str) -> tuple[tuple[str, 
 
 
 def _extract_codex_usage_from_raw(raw: dict) -> dict:
-    """Extract usage from a raw parsed JSON dict (request/response body).
-
-    Handles:
-    - Direct usage dict
-    - response.usage
-    - data.usage
-    - turn.completed with usage key
-    """
-    if not isinstance(raw, dict):
-        return {}
-
-    candidates = []
-    if any(k in raw for k in ("input_tokens", "prompt_tokens", "output_tokens", "completion_tokens")):
-        candidates.append((raw, "direct"))
-    if isinstance(raw.get("usage"), dict):
-        candidates.append((raw["usage"], "usage"))
-    if isinstance(raw.get("response"), dict) and isinstance(raw["response"].get("usage"), dict):
-        candidates.append((raw["response"]["usage"], "response.usage"))
-    if isinstance(raw.get("data"), dict) and isinstance(raw["data"].get("usage"), dict):
-        candidates.append((raw["data"]["usage"], "data.usage"))
-
-    for usage, source in candidates:
-        if not isinstance(usage, dict):
-            continue
-        input_tokens = _int_or_zero(usage.get("input_tokens") or usage.get("prompt_tokens"))
-        cached = (
-            _int_or_zero(usage.get("cached_input_tokens"))
-            or _int_or_zero(usage.get("cache_read_input_tokens"))
-            or _int_or_zero(usage.get("cached_tokens"))
-            or _nested_int(usage, "input_tokens_details", "cached_tokens")
-            or _nested_int(usage, "prompt_tokens_details", "cached_tokens")
-        )
-        output_tokens = _int_or_zero(usage.get("output_tokens") or usage.get("completion_tokens"))
-        reasoning = (
-            _int_or_zero(usage.get("reasoning_output_tokens"))
-            or _int_or_zero(usage.get("reasoning_tokens"))
-            or _int_or_zero(usage.get("thinking_tokens"))
-            or _nested_int(usage, "output_tokens_details", "reasoning_tokens")
-            or _nested_int(usage, "completion_tokens_details", "reasoning_tokens")
-        )
-        total = _int_or_zero(usage.get("total_tokens") or usage.get("total_token_usage"))
-        return {
-            "input_tokens": input_tokens,
-            "cached_input_tokens": min(cached, input_tokens) if input_tokens else cached,
-            "output_tokens": output_tokens,
-            "reasoning_output_tokens": reasoning,
-            "total_tokens": total,
-            "_usage_source": source,
-        }
-    return {}
+    """从 raw request/response JSON 中抽取 Codex usage。"""
+    return extract_codex_usage(raw)
 
 
 class CodexAttributionBuilder(BaseAttributionBuilder):
@@ -648,6 +595,174 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             result.append(t)
         return result
 
+    def _normalized_attribution_candidates(self) -> dict:
+        """从 session_context 读取 normalized call 绑定的 candidates。"""
+        ctx = self.session_context or {}
+        normalized_call = ctx.get("normalized_call") if isinstance(ctx.get("normalized_call"), dict) else {}
+        candidates = normalized_call.get("attribution_candidates") if isinstance(normalized_call, dict) else None
+        if isinstance(candidates, dict):
+            return candidates
+        candidates = ctx.get("attribution_candidates")
+        return candidates if isinstance(candidates, dict) else {}
+
+    def _normalized_source_units(self) -> list[dict]:
+        """从 session_context 读取 normalized call 绑定的 source_units。"""
+        ctx = self.session_context or {}
+        normalized_call = ctx.get("normalized_call") if isinstance(ctx.get("normalized_call"), dict) else {}
+        units = normalized_call.get("source_units") if isinstance(normalized_call, dict) else None
+        if isinstance(units, list):
+            return [u for u in units if isinstance(u, dict)]
+        units = ctx.get("source_units")
+        return [u for u in units if isinstance(u, dict)] if isinstance(units, list) else []
+
+    def _candidate_items_from_source_units(self, source_units: list[dict], direction: str) -> dict:
+        """把 source_units 转为 builder 现有 bucket helper 可消费的 candidate items。"""
+        groups: dict[str, list[dict]] = {}
+        for unit in source_units:
+            if unit.get("direction") != direction:
+                continue
+            candidate = str(unit.get("candidate") or "")
+            if not candidate:
+                continue
+            item = {
+                "source": unit.get("origin_path", ""),
+                "source_id": unit.get("source_id", ""),
+                "unit_type": unit.get("unit_type", ""),
+                "label": unit.get("label", ""),
+                "event_order": unit.get("event_order", 0),
+                "timestamp": unit.get("timestamp", ""),
+                "preview": unit.get("preview", ""),
+            }
+            if "text" in unit:
+                item["text"] = unit.get("text", "")
+            if "payload" in unit:
+                item["payload"] = unit.get("payload")
+            if unit.get("source_candidate"):
+                item["source_candidate"] = unit.get("source_candidate")
+            if unit.get("sub_source"):
+                item["sub_source"] = unit.get("sub_source")
+            groups.setdefault(candidate, []).append(item)
+        return groups
+
+    def _candidate_items_text(self, items: list[dict]) -> str:
+        """把 candidate item 的可见内容压成可估算 token 的文本。"""
+        parts: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if text:
+                parts.append(str(text))
+                continue
+            payload = item.get("payload")
+            if payload not in (None, ""):
+                parts.append(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return "\n\n".join(parts)
+
+    def _candidate_bucket_details(self, candidate: str, items: list[dict]) -> dict:
+        """构造 normalized candidate 的详情列表。"""
+        detail_items = []
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            payload = item.get("payload")
+            full_content = str(text) if text is not None else json.dumps(payload, ensure_ascii=False, sort_keys=True)
+            detail_items.append({
+                "label": item.get("label") or f"{candidate} #{idx + 1}",
+                "source_type": item.get("source") or "normalized_candidate",
+                "summary": _compact_preview(full_content, 180),
+                "preview": _compact_preview(full_content, 260),
+                "full_content": full_content,
+                "event_order": item.get("event_order"),
+                "timestamp": item.get("timestamp", ""),
+                "tokens": estimate_tokens_from_text(full_content),
+            })
+        return _source_items_details(
+            detail_items,
+            kind=f"normalized_candidate:{candidate}",
+            explanation=["从 normalized artifact 中该 call 绑定的 Attribution Candidate 读取。"],
+        )
+
+    def _request_buckets_from_normalized_candidates(
+        self,
+        request_candidates: dict,
+        *,
+        denominator: int,
+    ) -> list[RequestAttributionBucket]:
+        """将 request-side normalized candidates 转为 legacy-compatible buckets。"""
+        mapping = {
+            "user_input": ("current_user_instruction", "Current user instruction", ValueSource.TRANSCRIPT),
+            "system_instructions": ("instructions", "Instructions / system prompt", ValueSource.TRANSCRIPT),
+            "tool_definitions": ("tool_definitions", "Tool schemas", ValueSource.TOOL_LIST),
+            "skill_definitions": ("skill_plugin_catalog", "Skill / plugin catalog", ValueSource.TRANSCRIPT),
+            "runtime_context": ("captured_context_fragment", "Runtime context", ValueSource.TRANSCRIPT),
+            "conversation_history": ("conversation_history", "Conversation history", ValueSource.TRANSCRIPT),
+            "tool_results": ("tool_outputs", "Tool outputs", ValueSource.TOOL_LOGS),
+            "repo_context": ("repository_file_context", "Repository / file context", ValueSource.TRANSCRIPT),
+            "reasoning_state": ("reasoning_config", "Reasoning state", ValueSource.PROVIDER_USAGE),
+        }
+        buckets: list[RequestAttributionBucket] = []
+        for candidate, items in request_candidates.items():
+            if not isinstance(items, list) or not items:
+                continue
+            key, label, source = mapping.get(candidate, (candidate, candidate, ValueSource.TRANSCRIPT))
+            text = self._candidate_items_text(items)
+            tokens = estimate_tokens_from_text(text)
+            buckets.append(RequestAttributionBucket(
+                key=key,
+                label=label,
+                tokens=tokens,
+                percent=_pct(tokens, denominator),
+                count_label=f"{len(items)} candidates",
+                precision=ValuePrecision.ESTIMATED,
+                source=source,
+                confidence_label="中高",
+                summary=f"来自 normalized artifact 的 {candidate} candidates。",
+                content_preview=_compact_preview(text, 180),
+                details=self._candidate_bucket_details(candidate, items),
+            ))
+        return buckets
+
+    def _response_buckets_from_normalized_candidates(
+        self,
+        response_candidates: dict,
+        *,
+        total_output: int,
+        reasoning_output_tokens: int,
+    ) -> list[ResponseAttributionBucket]:
+        """将 response-side normalized candidates 转为 legacy-compatible buckets。"""
+        mapping = {
+            "assistant_output": ("assistant_text", "Assistant text", ValueSource.TRANSCRIPT, ValuePrecision.ESTIMATED),
+            "reasoning_output": ("reasoning_output_tokens", "Reasoning output", ValueSource.PROVIDER_USAGE, ValuePrecision.PROVIDER_REPORTED),
+            "tool_calls": ("tool_call", "Tool call", ValueSource.TRANSCRIPT, ValuePrecision.ESTIMATED),
+            "structured_output": ("structured_items", "Structured output", ValueSource.TRANSCRIPT, ValuePrecision.ESTIMATED),
+        }
+        buckets: list[ResponseAttributionBucket] = []
+        for candidate, items in response_candidates.items():
+            if not isinstance(items, list) or not items:
+                continue
+            key, label, source, precision = mapping.get(
+                candidate,
+                (candidate, candidate, ValueSource.TRANSCRIPT, ValuePrecision.ESTIMATED),
+            )
+            text = self._candidate_items_text(items)
+            tokens = reasoning_output_tokens if candidate == "reasoning_output" and reasoning_output_tokens > 0 else estimate_tokens_from_text(text)
+            buckets.append(ResponseAttributionBucket(
+                key=key,
+                label=label,
+                tokens=tokens,
+                percent=_pct(tokens, total_output),
+                count_label=f"{len(items)} candidates",
+                precision=precision,
+                source=source,
+                confidence_label="中高",
+                summary=f"来自 normalized artifact 的 {candidate} candidates。",
+                contributes_to_total=True,
+                details=self._candidate_bucket_details(candidate, items),
+            ))
+        return buckets
+
     def build_request(self) -> LLMRequestAttribution:
         lc = self.llm_call
 
@@ -670,9 +785,9 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             source_total = ValueSource.PROVIDER_USAGE
         # Priority 2: llm_call fields
         elif lc.input_tokens > 0:
-            request_input_tokens = lc.input_tokens
             cache_read_tokens = lc.cache_read_tokens
             cache_write_tokens = lc.cache_write_tokens
+            request_input_tokens = max(lc.input_tokens - cache_read_tokens, 0) if cache_read_tokens else lc.input_tokens
             raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
             precision_total = ValuePrecision.PROVIDER_REPORTED
             source_total = ValueSource.PROVIDER_USAGE
@@ -680,11 +795,13 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         elif lc.round_index >= 0 and self.round_obj and self.round_obj.assistant_msg:
             msg_usage = self.round_obj.assistant_msg.usage
             if msg_usage and isinstance(msg_usage, dict):
-                from session_browser.sources.codex import _extract_codex_usage
+                from session_browser.sources.codex_session_source import _extract_codex_usage
                 extracted = _extract_codex_usage(msg_usage)
                 if extracted:
-                    request_input_tokens = extracted.get("input_tokens", 0)
-                    cache_read_tokens = extracted.get("cached_input_tokens", 0)
+                    bd = normalize_codex_usage(extracted)
+                    request_input_tokens = bd.fresh_input_tokens
+                    cache_read_tokens = bd.cache_read_tokens
+                    cache_write_tokens = bd.cache_write_tokens
                     raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
                     precision_total = ValuePrecision.PROVIDER_REPORTED
                     source_total = ValueSource.PROVIDER_USAGE
@@ -694,8 +811,10 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             if resp_body:
                 usage = _extract_codex_usage_from_raw(resp_body)
                 if usage:
-                    request_input_tokens = usage.get("input_tokens", 0)
-                    cache_read_tokens = usage.get("cached_input_tokens", 0)
+                    bd = normalize_codex_usage(usage)
+                    request_input_tokens = bd.fresh_input_tokens
+                    cache_read_tokens = bd.cache_read_tokens
+                    cache_write_tokens = bd.cache_write_tokens
                     raw_input_total = request_input_tokens + cache_read_tokens + cache_write_tokens
                     precision_total = ValuePrecision.PROVIDER_REPORTED
                     source_total = ValueSource.PROVIDER_USAGE
@@ -715,7 +834,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             unit="tokens",
             precision=precision_total,
             source=source_total,
-            fill_strategy="input_tokens request input size",
+            fill_strategy="Codex Fresh = input_tokens - cached_input_tokens",
         )
 
         cache_read = AttributedValue(
@@ -736,6 +855,182 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             source=ValueSource.HEURISTIC,
             fill_strategy="OpenAI/Codex Responses usage does not expose Anthropic-style cache_write/cache_creation tokens",
         )
+
+        source_units = self._normalized_source_units()
+        request_candidates_from_units = (
+            self._candidate_items_from_source_units(source_units, "request")
+            if source_units else {}
+        )
+        if request_candidates_from_units:
+            request_content_denominator = max(0, fresh_input_tokens)
+            buckets = self._request_buckets_from_normalized_candidates(
+                request_candidates_from_units,
+                denominator=request_content_denominator,
+            )
+            known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            if request_content_denominator > 0 and known_sum > request_content_denominator:
+                scale = request_content_denominator / known_sum
+                for b in buckets:
+                    if b.contributes_to_total:
+                        b.tokens = max(0, int(b.tokens * scale))
+                        b.percent = _pct(b.tokens, request_content_denominator)
+                known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            unknown_val = max(request_content_denominator - known_sum, 0) if request_content_denominator > 0 else 0
+            buckets.append(RequestAttributionBucket(
+                key="unknown_overhead",
+                label="未定位",
+                tokens=unknown_val,
+                percent=_pct(unknown_val, request_content_denominator),
+                precision=ValuePrecision.RESIDUAL,
+                source=ValueSource.RESIDUAL,
+                confidence_label="中",
+                summary="Fresh input 减去 normalized source_units 后的剩余部分。",
+                details={
+                    "kind": "unlocated",
+                    "explanation": ["normalized source_units 未覆盖的 request-side Fresh input。"],
+                },
+            ))
+            coverage_val = (
+                min(known_sum / request_content_denominator, 1.0)
+                if request_content_denominator > 0 else 0.0
+            )
+            avail_rows = [
+                self._avail("normalized_source_units", "Normalized source units", True,
+                            exact=True, precision=ValuePrecision.EXACT, source=ValueSource.TRANSCRIPT,
+                            fill_strategy="from normalized call source_units"),
+                self._avail("fresh_input", "Fresh input tokens", fresh_input_tokens > 0,
+                            precision=precision_total, source=source_total,
+                            fill_strategy="Codex Fresh = input_tokens - cached_input_tokens"),
+                self._avail("cache_read", "Cache read tokens", cache_read_tokens > 0,
+                            precision=precision_total if cache_read_tokens > 0 else ValuePrecision.UNAVAILABLE,
+                            source=source_total if cache_read_tokens > 0 else ValueSource.HEURISTIC,
+                            fill_strategy="from cached_input_tokens"),
+                self._avail("cache_write", "Cache write tokens", False,
+                            precision=ValuePrecision.UNAVAILABLE, source=ValueSource.HEURISTIC,
+                            fill_strategy="Codex cache_write unavailable"),
+            ]
+            accounting = CodexTokenAccountingMapper().build_request_accounting(
+                source_units=source_units,
+                fresh_input=fresh_input,
+                cache_read=cache_read,
+                cache_write=cache_write,
+            )
+            return LLMRequestAttribution(
+                agent="codex",
+                model=lc.model or "unknown",
+                request_id=lc.id or "unavailable",
+                call_id=lc.id,
+                source_label="normalized artifact source_units",
+                confidence_label="高",
+                raw_body_available=False,
+                total_input=total_input,
+                fresh_input=fresh_input,
+                cache_read=cache_read,
+                cache_write=cache_write,
+                coverage=AttributedValue(
+                    value=coverage_val, unit="ratio",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.HEURISTIC,
+                    fill_strategy="normalized source_units / fresh_input",
+                ),
+                unknown=AttributedValue(
+                    value=unknown_val, unit="tokens",
+                    precision=ValuePrecision.RESIDUAL,
+                    source=ValueSource.RESIDUAL,
+                    fill_strategy="fresh_input - normalized source unit buckets",
+                ),
+                buckets=buckets,
+                captured_context_preview="",
+                attribution_notes=[
+                    "优先使用 normalized artifact 中当前 call 绑定的 Codex source_units。",
+                    "Cache Read/Write 只展示 provider accounting，不伪造 per-candidate cache split。",
+                ],
+                availability_rows=avail_rows,
+                accounting_attribution=accounting,
+            )
+
+        normalized_candidates = self._normalized_attribution_candidates()
+        request_candidates = normalized_candidates.get("request") if isinstance(normalized_candidates, dict) else {}
+        if isinstance(request_candidates, dict) and request_candidates:
+            request_content_denominator = max(0, fresh_input_tokens)
+            buckets = self._request_buckets_from_normalized_candidates(
+                request_candidates,
+                denominator=request_content_denominator,
+            )
+            known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            if request_content_denominator > 0 and known_sum > request_content_denominator:
+                scale = request_content_denominator / known_sum
+                for b in buckets:
+                    if b.contributes_to_total:
+                        b.tokens = max(0, int(b.tokens * scale))
+                        b.percent = _pct(b.tokens, request_content_denominator)
+                known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            unknown_val = max(request_content_denominator - known_sum, 0) if request_content_denominator > 0 else 0
+            buckets.append(RequestAttributionBucket(
+                key="unknown_overhead",
+                label="未定位",
+                tokens=unknown_val,
+                percent=_pct(unknown_val, request_content_denominator),
+                precision=ValuePrecision.RESIDUAL,
+                source=ValueSource.RESIDUAL,
+                confidence_label="中",
+                summary="Fresh input 减去 normalized candidates 后的剩余部分。",
+                details={
+                    "kind": "unlocated",
+                    "explanation": ["normalized candidates 未覆盖的 request-side Fresh input。"],
+                },
+            ))
+            coverage_val = (
+                min(known_sum / request_content_denominator, 1.0)
+                if request_content_denominator > 0 else 0.0
+            )
+            avail_rows = [
+                self._avail("normalized_attribution_candidates", "Normalized attribution candidates", True,
+                            exact=True, precision=ValuePrecision.EXACT, source=ValueSource.TRANSCRIPT,
+                            fill_strategy="from normalized call attribution_candidates"),
+                self._avail("fresh_input", "Fresh input tokens", fresh_input_tokens > 0,
+                            precision=precision_total, source=source_total,
+                            fill_strategy="Codex Fresh = input_tokens - cached_input_tokens"),
+                self._avail("cache_read", "Cache read tokens", cache_read_tokens > 0,
+                            precision=precision_total if cache_read_tokens > 0 else ValuePrecision.UNAVAILABLE,
+                            source=source_total if cache_read_tokens > 0 else ValueSource.HEURISTIC,
+                            fill_strategy="from cached_input_tokens"),
+                self._avail("cache_write", "Cache write tokens", False,
+                            precision=ValuePrecision.UNAVAILABLE, source=ValueSource.HEURISTIC,
+                            fill_strategy="Codex cache_write unavailable"),
+            ]
+            return LLMRequestAttribution(
+                agent="codex",
+                model=lc.model or "unknown",
+                request_id=lc.id or "unavailable",
+                call_id=lc.id,
+                source_label="normalized artifact candidates",
+                confidence_label="中高",
+                raw_body_available=False,
+                total_input=total_input,
+                fresh_input=fresh_input,
+                cache_read=cache_read,
+                cache_write=cache_write,
+                coverage=AttributedValue(
+                    value=coverage_val, unit="ratio",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.HEURISTIC,
+                    fill_strategy="normalized candidates / fresh_input",
+                ),
+                unknown=AttributedValue(
+                    value=unknown_val, unit="tokens",
+                    precision=ValuePrecision.RESIDUAL,
+                    source=ValueSource.RESIDUAL,
+                    fill_strategy="fresh_input - normalized candidate buckets",
+                ),
+                buckets=buckets,
+                captured_context_preview="",
+                attribution_notes=[
+                    "优先使用 normalized artifact 中当前 call 绑定的 request-side Attribution Candidates。",
+                    "Cache Read/Write 只展示 provider accounting，不伪造 per-candidate cache split。",
+                ],
+                availability_rows=avail_rows,
+            )
 
         # ── Step 2: parse raw request payload for content buckets ───────
         req_body = self._get_raw_request_payload()
@@ -1423,10 +1718,13 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
         # Priority 2: llm_call.output_tokens + assistant_msg.usage
         if total_output_val == 0:
             total_output_val = lc.output_tokens or 0
+            if total_output_val > 0:
+                precision_total = ValuePrecision.PROVIDER_REPORTED
+                source_total = ValueSource.PROVIDER_USAGE
         if total_output_val == 0 and self.round_obj and self.round_obj.assistant_msg:
             msg_usage = self.round_obj.assistant_msg.usage
             if msg_usage and isinstance(msg_usage, dict):
-                from session_browser.sources.codex import _extract_codex_usage
+                from session_browser.sources.codex_session_source import _extract_codex_usage
                 extracted = _extract_codex_usage(msg_usage)
                 if extracted:
                     total_output_val = extracted.get("output_tokens", 0)
@@ -1450,6 +1748,244 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 usage = _extract_codex_usage_from_raw(resp_body)
                 if usage:
                     reasoning_output_tokens = usage.get("reasoning_output_tokens", 0)
+
+        source_units = self._normalized_source_units()
+        response_candidates_from_units = (
+            self._candidate_items_from_source_units(source_units, "response")
+            if source_units else {}
+        )
+        if isinstance(response_candidates_from_units, dict) and response_candidates_from_units:
+            buckets = self._response_buckets_from_normalized_candidates(
+                response_candidates_from_units,
+                total_output=total_output_val,
+                reasoning_output_tokens=reasoning_output_tokens,
+            )
+            known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            if total_output_val > 0 and known_sum > total_output_val:
+                fixed_reasoning = sum(
+                    b.tokens for b in buckets
+                    if b.key == "reasoning_output_tokens" and b.contributes_to_total
+                )
+                adjustable = [b for b in buckets if b.contributes_to_total and b.key != "reasoning_output_tokens"]
+                adjustable_sum = sum(b.tokens for b in adjustable)
+                budget = max(total_output_val - fixed_reasoning, 0)
+                scale = budget / adjustable_sum if adjustable_sum > 0 else 0
+                for b in adjustable:
+                    b.tokens = max(0, int(b.tokens * scale))
+                    b.percent = _pct(b.tokens, total_output_val)
+                known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            if total_output_val <= 0:
+                total_output_val = known_sum
+                precision_total = ValuePrecision.ESTIMATED
+                source_total = ValueSource.HEURISTIC
+            unknown_val = max(total_output_val - known_sum, 0)
+            buckets.append(ResponseAttributionBucket(
+                key="unknown",
+                label="Unknown",
+                tokens=unknown_val,
+                percent=_pct(unknown_val, total_output_val),
+                precision=ValuePrecision.RESIDUAL,
+                source=ValueSource.RESIDUAL,
+                confidence_label="中",
+                summary="Total output 减去 normalized response source_units 后的剩余部分。",
+            ))
+            coverage_val = min(known_sum / total_output_val, 1.0) if total_output_val > 0 else 0.0
+            total_output = AttributedValue(
+                value=total_output_val,
+                unit="tokens",
+                precision=precision_total,
+                source=source_total,
+                fill_strategy="provider output_tokens" if precision_total == ValuePrecision.PROVIDER_REPORTED else "sum of normalized source_units",
+            )
+            visible_text_tokens = sum(b.tokens for b in buckets if b.key == "assistant_text")
+            tool_use_tokens = sum(b.tokens for b in buckets if b.key == "tool_call")
+            avail_rows = [
+                self._avail("normalized_source_units", "Normalized source units", True,
+                            exact=True, precision=ValuePrecision.EXACT, source=ValueSource.TRANSCRIPT,
+                            fill_strategy="from normalized call source_units"),
+                self._avail("total_output", "Total output tokens", total_output_val > 0,
+                            precision=precision_total, source=source_total,
+                            fill_strategy="provider output_tokens"),
+                self._avail("reasoning_output_tokens", "Reasoning output tokens",
+                            reasoning_output_tokens > 0,
+                            precision=ValuePrecision.PROVIDER_REPORTED if reasoning_output_tokens > 0 else ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.PROVIDER_USAGE if reasoning_output_tokens > 0 else ValueSource.HEURISTIC,
+                            fill_strategy="from provider usage reasoning_output_tokens"),
+            ]
+            accounting = CodexTokenAccountingMapper().build_response_accounting(
+                source_units=source_units,
+                total_output=total_output,
+            )
+            return LLMResponseAttribution(
+                agent="codex",
+                model=lc.model or "unknown",
+                request_id=lc.id or "unavailable",
+                call_id=lc.id,
+                source_label="normalized artifact source_units",
+                confidence_label="高",
+                raw_body_available=bool(lc.response_payload_raw),
+                total_output=total_output,
+                visible_text=AttributedValue(
+                    value=visible_text_tokens, unit="tokens",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.TRANSCRIPT,
+                    fill_strategy="normalized assistant_output source_units",
+                ),
+                tool_use=AttributedValue(
+                    value=tool_use_tokens, unit="tokens",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.TRANSCRIPT,
+                    fill_strategy="normalized tool_calls source_units",
+                ),
+                metadata=AttributedValue(
+                    value=0, unit="tokens",
+                    precision=ValuePrecision.UNAVAILABLE,
+                    source=ValueSource.HEURISTIC,
+                    fill_strategy="metadata not allocated on normalized source_units path",
+                ),
+                coverage=AttributedValue(
+                    value=coverage_val, unit="ratio",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.HEURISTIC,
+                    fill_strategy="normalized source_units / total_output",
+                ),
+                unknown=AttributedValue(
+                    value=unknown_val, unit="tokens",
+                    precision=ValuePrecision.RESIDUAL,
+                    source=ValueSource.RESIDUAL,
+                    fill_strategy="total - normalized source unit buckets",
+                ),
+                finish_reason=AttributedValue(
+                    value=lc.finish_reason or "", unit="str",
+                    precision=ValuePrecision.EXACT if lc.finish_reason else ValuePrecision.UNAVAILABLE,
+                    source=ValueSource.TRANSCRIPT,
+                    fill_strategy="from llm_call.finish_reason",
+                ),
+                buckets=buckets,
+                blocks=lc.content_blocks or [],
+                captured_output_preview=lc.response_preview or "",
+                attribution_notes=[
+                    "优先使用 normalized artifact 中当前 call 绑定的 Codex source_units。",
+                    "reasoning_output 是 output_tokens 子集，不从 total output 中扣除。",
+                ],
+                availability_rows=avail_rows,
+                accounting_attribution=accounting,
+            )
+
+        normalized_candidates = self._normalized_attribution_candidates()
+        response_candidates = normalized_candidates.get("response") if isinstance(normalized_candidates, dict) else {}
+        if isinstance(response_candidates, dict) and response_candidates:
+            buckets = self._response_buckets_from_normalized_candidates(
+                response_candidates,
+                total_output=total_output_val,
+                reasoning_output_tokens=reasoning_output_tokens,
+            )
+            known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            if total_output_val > 0 and known_sum > total_output_val:
+                fixed_reasoning = sum(
+                    b.tokens for b in buckets
+                    if b.key == "reasoning_output_tokens" and b.contributes_to_total
+                )
+                adjustable = [b for b in buckets if b.contributes_to_total and b.key != "reasoning_output_tokens"]
+                adjustable_sum = sum(b.tokens for b in adjustable)
+                budget = max(total_output_val - fixed_reasoning, 0)
+                scale = budget / adjustable_sum if adjustable_sum > 0 else 0
+                for b in adjustable:
+                    b.tokens = max(0, int(b.tokens * scale))
+                    b.percent = _pct(b.tokens, total_output_val)
+                known_sum = sum(b.tokens for b in buckets if b.contributes_to_total)
+            if total_output_val <= 0:
+                total_output_val = known_sum
+                precision_total = ValuePrecision.ESTIMATED
+                source_total = ValueSource.HEURISTIC
+            unknown_val = max(total_output_val - known_sum, 0)
+            buckets.append(ResponseAttributionBucket(
+                key="unknown",
+                label="Unknown",
+                tokens=unknown_val,
+                percent=_pct(unknown_val, total_output_val),
+                precision=ValuePrecision.RESIDUAL,
+                source=ValueSource.RESIDUAL,
+                confidence_label="中",
+                summary="Total output 减去 normalized response candidates 后的剩余部分。",
+            ))
+            coverage_val = min(known_sum / total_output_val, 1.0) if total_output_val > 0 else 0.0
+            total_output = AttributedValue(
+                value=total_output_val,
+                unit="tokens",
+                precision=precision_total,
+                source=source_total,
+                fill_strategy="provider output_tokens" if precision_total == ValuePrecision.PROVIDER_REPORTED else "sum of normalized candidates",
+            )
+            visible_text_tokens = sum(b.tokens for b in buckets if b.key == "assistant_text")
+            tool_use_tokens = sum(b.tokens for b in buckets if b.key == "tool_call")
+            avail_rows = [
+                self._avail("normalized_attribution_candidates", "Normalized attribution candidates", True,
+                            exact=True, precision=ValuePrecision.EXACT, source=ValueSource.TRANSCRIPT,
+                            fill_strategy="from normalized call attribution_candidates"),
+                self._avail("total_output", "Total output tokens", total_output_val > 0,
+                            precision=precision_total, source=source_total,
+                            fill_strategy="provider output_tokens"),
+                self._avail("reasoning_output_tokens", "Reasoning output tokens",
+                            reasoning_output_tokens > 0,
+                            precision=ValuePrecision.PROVIDER_REPORTED if reasoning_output_tokens > 0 else ValuePrecision.UNAVAILABLE,
+                            source=ValueSource.PROVIDER_USAGE if reasoning_output_tokens > 0 else ValueSource.HEURISTIC,
+                            fill_strategy="from provider usage reasoning_output_tokens"),
+            ]
+            return LLMResponseAttribution(
+                agent="codex",
+                model=lc.model or "unknown",
+                request_id=lc.id or "unavailable",
+                call_id=lc.id,
+                source_label="normalized artifact candidates",
+                confidence_label="中高",
+                raw_body_available=bool(lc.response_payload_raw),
+                total_output=total_output,
+                visible_text=AttributedValue(
+                    value=visible_text_tokens, unit="tokens",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.TRANSCRIPT,
+                    fill_strategy="normalized assistant_output candidates",
+                ),
+                tool_use=AttributedValue(
+                    value=tool_use_tokens, unit="tokens",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.TRANSCRIPT,
+                    fill_strategy="normalized tool_calls candidates",
+                ),
+                metadata=AttributedValue(
+                    value=0, unit="tokens",
+                    precision=ValuePrecision.UNAVAILABLE,
+                    source=ValueSource.HEURISTIC,
+                    fill_strategy="metadata not allocated on normalized candidate path",
+                ),
+                coverage=AttributedValue(
+                    value=coverage_val, unit="ratio",
+                    precision=ValuePrecision.ESTIMATED,
+                    source=ValueSource.HEURISTIC,
+                    fill_strategy="normalized candidates / total_output",
+                ),
+                unknown=AttributedValue(
+                    value=unknown_val, unit="tokens",
+                    precision=ValuePrecision.RESIDUAL,
+                    source=ValueSource.RESIDUAL,
+                    fill_strategy="total - normalized candidate buckets",
+                ),
+                finish_reason=AttributedValue(
+                    value=lc.finish_reason or "", unit="str",
+                    precision=ValuePrecision.EXACT if lc.finish_reason else ValuePrecision.UNAVAILABLE,
+                    source=ValueSource.TRANSCRIPT,
+                    fill_strategy="from llm_call.finish_reason",
+                ),
+                buckets=buckets,
+                blocks=lc.content_blocks or [],
+                captured_output_preview=lc.response_preview or "",
+                attribution_notes=[
+                    "优先使用 normalized artifact 中当前 call 绑定的 response-side Attribution Candidates。",
+                    "reasoning_output 是 output_tokens 子集，不从 total output 中扣除。",
+                ],
+                availability_rows=avail_rows,
+            )
 
         # ── Step 2: visible content ────────────────────────────────────
         response_text = lc.response_full or ""

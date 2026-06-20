@@ -107,6 +107,49 @@ def validate_normalized_session(data: dict) -> None:
                 _require(bool(usage_source.get("method")), f"{prefix}.usage_source.method is required", errors)
                 _require(bool(usage_source.get("reason")), f"{prefix}.usage_source.reason is required", errors)
 
+        for unit_idx, unit in enumerate(_as_list(call_obj.get("source_units"))):
+            unit_prefix = f"{prefix}.source_units[{unit_idx}]"
+            _require(isinstance(unit, dict), f"{unit_prefix} must be an object", errors)
+            if not isinstance(unit, dict):
+                continue
+            for field in (
+                "source_id",
+                "dedupe_key",
+                "origin_path",
+                "canonical_source_locator",
+                "unit_type",
+                "candidate",
+                "direction",
+                "event_order",
+                "part_index",
+                "byte_range",
+            ):
+                _require(field in unit, f"{unit_prefix}.{field} is required", errors)
+            _require(unit.get("direction") in {"request", "response"}, f"{unit_prefix}.direction invalid", errors)
+            _require(unit.get("candidate") in {
+                "user_input",
+                "system_instructions",
+                "tool_definitions",
+                "skill_definitions",
+                "runtime_context",
+                "conversation_history",
+                "tool_results",
+                "reasoning_state",
+                "repo_context",
+                "assistant_output",
+                "reasoning_output",
+                "tool_calls",
+                "structured_output",
+            }, f"{unit_prefix}.candidate invalid", errors)
+            byte_range = unit.get("byte_range")
+            _require(
+                isinstance(byte_range, list)
+                and len(byte_range) == 2
+                and all(isinstance(v, int) and v >= 0 for v in byte_range),
+                f"{unit_prefix}.byte_range must be [start,end]",
+                errors,
+            )
+
         declared_tool_ids_by_call[call_id] = set(_as_list(response.get("tool_call_ids")))
         consumed_tool_ids_by_call[call_id] = set(_as_list(request.get("tool_result_ids")))
 

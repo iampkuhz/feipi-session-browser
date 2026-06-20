@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from session_browser.domain.models import (
-    LLMCall, ChatMessage, ConversationRound, ToolCall,
+    LLMCall, ChatMessage, ConversationRound, ToolCall, SessionSummary,
 )
 from session_browser.attribution.context import (
     build_attribution_session_context,
@@ -362,3 +362,85 @@ def test_full_context_hydration_with_project_dir():
         assert "Read" in ctx["available_tools"]
         assert ctx["interaction_index"] == 0
         assert ctx["preceding_tool_results"] == []  # first interaction
+
+
+def test_codex_context_hydrates_normalized_call_from_artifact(tmp_path, monkeypatch):
+    import session_browser.config as config
+    from session_browser.index.schema import _get_connection, init_schema
+    from session_browser.index.writers import upsert_session
+    from session_browser.normalized.artifacts import persist_normalized_session_artifact
+
+    index_dir = tmp_path / "index"
+    monkeypatch.setattr(config, "INDEX_DIR", index_dir)
+    monkeypatch.setattr(config, "INDEX_PATH", index_dir / "index.sqlite")
+
+    summary = SessionSummary(
+        agent="codex",
+        session_id="codex-hydration",
+        title="Codex hydration",
+        project_key=str(tmp_path),
+        project_name="proj",
+        cwd=str(tmp_path),
+        started_at="2026-06-10T00:00:00Z",
+        ended_at="2026-06-10T00:00:10Z",
+    )
+    normalized = {
+        "schema_version": "session-detail.normalized.v2",
+        "agent": "codex",
+        "session": {
+            "session_key": summary.session_key,
+            "session_id": summary.session_id,
+            "agent": "codex",
+        },
+        "calls": [
+            {"call_id": "codex-call-0001", "call_index": 1, "scope": "main", "source_units": []},
+            {
+                "call_id": "codex-call-0002",
+                "call_index": 2,
+                "scope": "main",
+                "source_units": [
+                    {
+                        "source_id": "u2",
+                        "dedupe_key": "d2",
+                        "origin_path": "event_msg.user_message.message",
+                        "canonical_source_locator": "event_msg.user_message.message",
+                        "unit_type": "current_user_text",
+                        "candidate": "user_input",
+                        "direction": "request",
+                        "event_order": 2,
+                        "part_index": 0,
+                        "byte_range": [0, 4],
+                        "text": "next",
+                    }
+                ],
+            },
+        ],
+    }
+    conn = _get_connection()
+    try:
+        init_schema(conn)
+        upsert_session(conn, summary)
+        persist_normalized_session_artifact(
+            conn,
+            normalized,
+            index_dir=index_dir,
+            validate=False,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    first = _make_lc(id="synthetic-R1-M1", round_index=0)
+    second = _make_lc(id="synthetic-R2-M1", round_index=1)
+    ctx = build_attribution_session_context(
+        session=summary,
+        round_obj=_make_ro(interactions=[second]),
+        interaction_index=0,
+        interactions=[second],
+        round_tool_calls=[],
+        all_llm_calls=[first, second],
+        agent_name="codex",
+    )
+
+    assert ctx["normalized_call"]["call_id"] == "codex-call-0002"
+    assert ctx["normalized_call"]["source_units"][0]["candidate"] == "user_input"

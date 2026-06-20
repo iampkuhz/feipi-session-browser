@@ -375,20 +375,14 @@ def request_color_index(color_key: str) -> int:
 
 def _agent_bucket_map(agent: str) -> dict[str, str]:
     if agent == "claude_code":
-        from session_browser.attribution.agents.claude_code_parts.request_taxonomy import (
-            REQUEST_BUCKET_CATEGORY_MAP,
-        )
-        return REQUEST_BUCKET_CATEGORY_MAP
+        return {}
     if agent == "codex":
         from session_browser.attribution.agents.codex_request_taxonomy import (
             REQUEST_BUCKET_CATEGORY_MAP,
         )
         return REQUEST_BUCKET_CATEGORY_MAP
     if agent == "qoder":
-        from session_browser.attribution.agents.qoder_request_taxonomy import (
-            REQUEST_BUCKET_CATEGORY_MAP,
-        )
-        return REQUEST_BUCKET_CATEGORY_MAP
+        return {}
     return {}
 
 
