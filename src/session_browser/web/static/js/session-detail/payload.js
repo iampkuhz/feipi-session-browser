@@ -85,59 +85,6 @@
     return modal;
   }
 
-  function directPayloadTargetForAttribution(button) {
-    var kind = button.getAttribute("data-payload-kind") || "";
-    var payloadId = button.getAttribute("data-payload-id") || "";
-    var title = button.getAttribute("data-payload-title") || button.textContent.trim() || "";
-    var match;
-    if (kind === "llm.request_attribution") {
-      match = payloadId.match(/^sub-(.+)-IX([0-9]+)-request-attribution$/);
-      if (match) {
-        return {
-          payloadId: "sub-" + match[1] + "-" + match[2] + "-ctx",
-          kind: "context",
-          title: directPayloadTitle(title, "LLM Request", "Request")
-        };
-      }
-      if (/-request-attribution$/.test(payloadId)) {
-        return {
-          payloadId: payloadId.replace(/-request-attribution$/, "-context"),
-          kind: "context",
-          title: directPayloadTitle(title, "LLM Request", "Request")
-        };
-      }
-    }
-    if (kind === "llm.response_attribution") {
-      match = payloadId.match(/^sub-(.+)-IX([0-9]+)-response-attribution$/);
-      if (match) {
-        return {
-          payloadId: "sub-" + match[1] + "-" + match[2] + "-rsp",
-          kind: "response",
-          title: directPayloadTitle(title, "LLM Response", "Response")
-        };
-      }
-      if (/-response-attribution$/.test(payloadId)) {
-        return {
-          payloadId: payloadId.replace(/-response-attribution$/, "-output"),
-          kind: "response",
-          title: directPayloadTitle(title, "LLM Response", "Response")
-        };
-      }
-    }
-    return null;
-  }
-
-  function directPayloadTitle(title, fallback, label) {
-    var text = String(title || "").trim();
-    if (!text) return fallback;
-    text = text
-      .replace(/Request\s*归因/g, label)
-      .replace(/Response\s*归因/g, label)
-      .replace(/Req\s*归因/g, label)
-      .replace(/Resp\s*归因/g, label);
-    return text || fallback;
-  }
-
   function openPayloadContent(button, override) {
     override = override || {};
     var modal = ensurePayloadModal();
@@ -192,13 +139,8 @@
   }
 
   function openPayload(button) {
-    var directTarget = directPayloadTargetForAttribution(button);
-    if (directTarget) {
-      openPayloadContent(button, directTarget);
-      return;
-    }
-
-    // Non-request/response attribution payloads still use the attribution API.
+    // Attribution buttons should open the analysis modal directly; only
+    // ordinary payload buttons fall back to raw request/response/result data.
     if (typeof openAttributionModal === "function") {
       openAttributionModal(button).then(function(handled) {
         if (!handled) openPayloadContent(button);
