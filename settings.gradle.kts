@@ -9,9 +9,11 @@ pluginManagement {
 
 rootProject.name = "feipi-session-browser"
 
+includeBuild("build-logic")
+
 include(
     "java:app-cli",
     "java:core-domain",
     "java:test-support",
-    "java:architecture-tests"
+    "java:architecture-tests",
 )

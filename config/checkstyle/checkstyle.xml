@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+    Feipi lean Checkstyle configuration.
+    Project-specific rules – NOT based on full Google Checks or Sun Checks.
+-->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="error"/>
+    <property name="fileExtensions" value="java"/>
+
+    <!-- ============================================================ -->
+    <!-- Suppressions                                                  -->
+    <!-- ============================================================ -->
+    <module name="SuppressionFilter">
+        <property name="file" value="${config_loc}/suppressions.xml"/>
+        <property name="optional" value="true"/>
+    </module>
+
+    <!-- ============================================================ -->
+    <!-- File-level checks                                             -->
+    <!-- ============================================================ -->
+
+    <!-- No tab characters -->
+    <module name="FileTabCharacter">
+        <property name="eachLine" value="true"/>
+    </module>
+
+    <!-- ============================================================ -->
+    <!-- TreeWalker modules                                            -->
+    <!-- ============================================================ -->
+    <module name="TreeWalker">
+
+        <!-- ======================================================== -->
+        <!-- File structure                                            -->
+        <!-- ======================================================== -->
+
+        <!-- One top-level type per file -->
+        <module name="OneTopLevelClass"/>
+
+        <!-- Type name must match file name -->
+        <module name="OuterTypeFilename"/>
+
+        <!-- ======================================================== -->
+        <!-- Imports                                                   -->
+        <!-- ======================================================== -->
+
+        <!-- Wildcard imports forbidden -->
+        <module name="AvoidStarImport">
+            <property name="allowStaticMemberImports" value="false"/>
+        </module>
+
+        <!-- Unused imports -->
+        <module name="UnusedImports"/>
+
+        <!-- Redundant import (java.lang) -->
+        <module name="RedundantImport"/>
+
+        <!-- ======================================================== -->
+        <!-- Naming conventions                                        -->
+        <!-- ======================================================== -->
+
+        <module name="TypeName">
+            <property name="format" value="^[A-Z][a-zA-Z0-9]*$"/>
+        </module>
+
+        <module name="MethodName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+
+        <module name="ParameterName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+
+        <module name="LocalVariableName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+
+        <module name="LocalFinalVariableName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+
+        <module name="ConstantName">
+            <property name="format" value="^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$|^log(ger)?$"/>
+        </module>
+
+        <module name="PackageName">
+            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
+        </module>
+
+        <!-- ======================================================== -->
+        <!-- Javadoc – Day 0 enforcement                               -->
+        <!-- ======================================================== -->
+
+        <!-- All types must have Javadoc, all visibilities -->
+        <module name="MissingJavadocType">
+            <property name="scope" value="private"/>
+            <property name="tokens" value="CLASS_DEF,INTERFACE_DEF,ENUM_DEF,ANNOTATION_DEF,RECORD_DEF"/>
+        </module>
+
+        <!-- All public methods/constructors must have Javadoc -->
+        <module name="MissingJavadocMethod">
+            <property name="scope" value="public"/>
+            <property name="tokens" value="METHOD_DEF,CTOR_DEF,COMPACT_CTOR_DEF,ANNOTATION_FIELD_DEF"/>
+            <property name="allowMissingPropertyJavadoc" value="false"/>
+        </module>
+
+        <!-- Invalid Javadoc position -->
+        <module name="InvalidJavadocPosition"/>
+
+        <!-- Non-empty at-clause description -->
+        <module name="NonEmptyAtclauseDescription"/>
+
+    </module>
+
+</module>

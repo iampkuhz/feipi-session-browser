@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<!--
+    Feipi Checkstyle suppressions.
+    Only suppress for genuinely unmodifiable sources (e.g., generated code).
+    Do NOT use broad package-level suppressions to bypass rules.
+-->
+<suppressions>
+    <!-- Test code is exempt from Javadoc requirements -->
+    <suppress checks="MissingJavadocType" files="[\\/]src[\\/]test[\\/]"/>
+    <suppress checks="MissingJavadocMethod" files="[\\/]src[\\/]test[\\/]"/>
+    <!-- Test code may use camelCase for test rule fields -->
+    <suppress checks="ConstantName" files="[\\/]src[\\/]test[\\/]"/>
+</suppressions>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Feipi lean PMD rule set.
+    Whitelist only – individual high-signal-noise rules.
+    Do NOT enable full categories.
+-->
+<ruleset name="feipi-pmd-rules"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0
+                             https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>Feipi lean PMD whitelist rules for S1.</description>
+
+    <!-- ============================================================ -->
+    <!-- errorprone: empty catch, wrong comparison, unclosed resource  -->
+    <!-- ============================================================ -->
+    <rule ref="category/java/errorprone.xml/EmptyCatchBlock"/>
+    <rule ref="category/java/errorprone.xml/CompareObjectsWithEquals"/>
+    <rule ref="category/java/errorprone.xml/AvoidCatchingNPE"/>
+    <rule ref="category/java/errorprone.xml/ReturnFromFinallyBlock"/>
+    <rule ref="category/java/errorprone.xml/CloseResource"/>
+
+    <!-- ============================================================ -->
+    <!-- bestpractices: unused code, lost exception context            -->
+    <!-- ============================================================ -->
+    <rule ref="category/java/bestpractices.xml/PreserveStackTrace"/>
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateField"/>
+    <rule ref="category/java/bestpractices.xml/UnusedLocalVariable"/>
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod"/>
+
+</ruleset>
