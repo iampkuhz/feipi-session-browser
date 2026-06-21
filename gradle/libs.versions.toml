@@ -1,0 +1,99 @@
+[versions]
+# CLI
+picocli = "4.7.6"
+
+# JSON
+jackson = "2.18.2"
+
+# Testing
+junit-jupiter = "5.11.3"
+assertj = "3.26.0"
+jqwik = "1.9.1"
+mockito = "5.14.2"
+archunit = "1.3.0"
+
+# Code quality - plugins
+spotless = "8.7.0"
+google-java-format = "1.24.0"
+spotbugs-plugin = "6.5.8"
+forbiddenapis = "3.10"
+pitest = "1.19.0"
+pitest-junit5 = "1.2.1"
+cyclonedx = "3.2.4"
+
+# Code quality - libraries
+pmd = "7.9.0"
+errorprone = "2.35.1"
+nullaway = "0.12.1"
+spotbugs-annotations = "4.8.6"
+
+# Benchmarking
+jmh = "1.37"
+
+# Logging
+slf4j = "2.0.16"
+logback = "1.5.12"
+
+[libraries]
+# CLI
+picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
+picocli-processor = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
+
+# JSON - Jackson
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310", version.ref = "jackson" }
+
+# Testing - JUnit Jupiter
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit-jupiter" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit-jupiter" }
+junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params", version.ref = "junit-jupiter" }
+
+# Testing - AssertJ
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+
+# Testing - jqwik
+jqwik = { module = "net.jqwik:jqwik", version.ref = "jqwik" }
+
+# Testing - Mockito
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+
+# Testing - ArchUnit
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+
+# Code quality - PMD (built-in plugin, version for reference)
+pmd-core = { module = "net.sourceforge.pmd:pmd-core", version.ref = "pmd" }
+pmd-java = { module = "net.sourceforge.pmd:pmd-java", version.ref = "pmd" }
+
+# Code quality - Error Prone
+errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
+
+# Code quality - NullAway
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+
+# Code quality - SpotBugs annotations
+spotbugs-annotations = { module = "com.github.spotbugs:spotbugs-annotations", version.ref = "spotbugs-annotations" }
+
+# Benchmarking - JMH
+jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
+jmh-generator-annprocess = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh" }
+
+# Logging - SLF4J
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+
+# Logging - Logback
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+logback-core = { module = "ch.qos.logback:logback-core", version.ref = "logback" }
+
+[plugins]
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-plugin" }
+forbiddenapis = { id = "de.thetaphi.forbiddenapis", version.ref = "forbiddenapis" }
+pitest = { id = "info.solidsoft.pitest", version.ref = "pitest" }
+cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
+
+[bundles]
+junit = ["junit-jupiter", "junit-jupiter-api", "junit-jupiter-params"]
+jackson = ["jackson-databind", "jackson-datatype-jsr310"]
+logback = ["logback-classic", "logback-core"]
