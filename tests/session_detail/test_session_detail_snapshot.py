@@ -21,6 +21,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from session_browser.web.session_detail.preview import apply_round_preview
 
 SB_ROOT = Path(__file__).resolve().parent.parent.parent
 FIXTURES_DIR = SB_ROOT / "tests" / "fixtures" / "session_detail"
@@ -67,6 +68,7 @@ def _build_view_model():
             assign_interactions_to_rounds,
         )
         from session_browser.web.routes import compute_round_signals
+        from session_browser.domain.serializers import session_summary_to_dict
         from session_browser.index.metrics import compute_derived_metrics
         from session_browser.index.anomalies import detect_session_anomalies
 
@@ -96,7 +98,7 @@ def _build_view_model():
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
         for r in rounds:
-            r.compute_preview()
+            apply_round_preview(r)
 
         # ── 构建 snapshot 字典 ──────────────────────────────────────
 
@@ -159,7 +161,7 @@ def _build_view_model():
         sub_calls = [c for c in llm_calls if c.scope == "subagent"]
 
         # 异常
-        session_data = compute_derived_metrics(summary.to_dict())
+        session_data = compute_derived_metrics(session_summary_to_dict(summary))
         sa = detect_session_anomalies(session_data)
 
         # Round 信号

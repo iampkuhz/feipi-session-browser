@@ -9,13 +9,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+from session_browser.domain.enums import DomainStrEnum
+from session_browser.domain.serializers import session_summary_to_dict
+from session_browser.domain.session_models import SessionSummary
 from session_browser.index.percentiles import FALLBACK_THRESHOLDS
 from session_browser.index.diagnostics import SESSION_ANOMALY_DEFINITIONS
 
 
 # 说明：─── Anomaly types ────────────────────────────────────────────────────────
 
-class AnomalyType:
+class AnomalyType(DomainStrEnum):
+    """Finite anomaly kinds emitted by the anomaly detector."""
+
     LONG_DURATION = "long_duration"
     CACHE_WRITE_SPIKE = "cache_write_spike"
     FAILED_RUN = "failed_run"
@@ -278,7 +283,7 @@ def enrich_sessions_with_anomalies(
     for s in sessions:
         key = s.session_key if hasattr(s, "session_key") else s.get("session_key", "")
         sa = anomalies_map.get(key)
-        d = s.to_dict() if hasattr(s, "to_dict") else dict(s)
+        d = session_summary_to_dict(s) if isinstance(s, SessionSummary) else dict(s)
 
         if sa and sa.anomalies:
             d["anomalies"] = [

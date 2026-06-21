@@ -11,6 +11,8 @@ import pytest
 from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
+
+from session_browser.web.session_detail.preview import apply_round_preview
 from session_browser.web.routes import _build_v11_view_model
 
 
@@ -31,6 +33,7 @@ class _FakeSession:
         self.cache_write_tokens = kwargs.get("cache_write_tokens", 1000)
         self.total_tokens = kwargs.get("total_tokens", 21000)
         self.failed_tool_count = kwargs.get("failed_tool_count", 0)
+
 
 
 class _FakeAnomalies:
@@ -55,7 +58,7 @@ def _make_empty_round():
         interactions=[],
         round_index=0,
     )
-    ro.compute_preview()
+    apply_round_preview(ro)
     return ro
 
 

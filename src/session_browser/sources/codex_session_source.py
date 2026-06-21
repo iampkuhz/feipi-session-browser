@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Iterator
 
 from session_browser.config import CODEX_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall, TokenPrecision
+from session_browser.domain.models import ChatMessage, SessionSummary, SubagentRun, SubagentSummary, TokenPrecision, ToolCall
+from session_browser.domain.serializers import subagent_summary_to_dict
 from session_browser.domain.token_normalizer import normalize_tokens
 from session_browser.domain.token_normalizers.codex_token_normalizer import (
     CODEX_USAGE_FIELDS,
@@ -332,7 +333,7 @@ def parse_session_detail(
     session_id: str,
     threads_db: dict | None = None,
     verbose: bool = False,
-) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
+) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[SubagentRun]]:
     """解析 一个 single Codex session.
 
     Args:
@@ -406,7 +407,7 @@ def parse_session_detail_with_normalized(
     session_id: str,
     threads_db: dict | None = None,
     verbose: bool = False,
-) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict], dict, Path | None]:
+) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[SubagentRun], dict, Path | None]:
     """解析 一个 Codex session 和 normalized JSON，来源于 一个 single event pass."""
     from session_browser.index.diagnostics import (
         ParseDiagnostics,
@@ -1065,11 +1066,11 @@ def _extract_tool_calls(events: list[dict]) -> list[ToolCall]:
     return tool_calls
 
 
-def _parse_subagent_runs(session_file: Path, parent_session_id: str) -> list[dict]:
+def _parse_subagent_runs(session_file: Path, parent_session_id: str) -> list[SubagentRun]:
     """解析 Codex child rollout files that declare this thread as parent."""
     if not parent_session_id or not session_file.exists():
         return []
-    runs: list[dict] = []
+    runs: list[SubagentRun] = []
     for candidate in get_codex_subagent_child_paths(session_file, parent_session_id):
         events, _ = parse_jsonl_events(candidate)
         meta = _first_session_meta(events)
@@ -1085,12 +1086,12 @@ def _parse_subagent_runs(session_file: Path, parent_session_id: str) -> list[dic
             tc.subagent_id = agent_id
             tc.parent_tool_name = "spawn_agent"
         summary = _subagent_summary_from_events(events, candidate, agent_id, spawn)
-        runs.append({
-            "path": str(candidate),
-            "messages": messages,
-            "tool_calls": tool_calls,
-            "summary": summary,
-        })
+        runs.append(SubagentRun(
+            path=str(candidate),
+            messages=messages,
+            tool_calls=tool_calls,
+            summary=summary,
+        ))
     return runs
 
 
@@ -1113,7 +1114,7 @@ def _subagent_summary_from_events(
     path: Path,
     agent_id: str,
     spawn: dict,
-) -> dict:
+) -> SubagentSummary:
     llm_calls = 0
     input_tokens = 0
     cache_read = 0
@@ -1142,7 +1143,7 @@ def _subagent_summary_from_events(
                 input_tokens += max(_int_or_zero(usage.get("input_tokens")) - _int_or_zero(usage.get("cached_input_tokens")), 0)
                 cache_read += _int_or_zero(usage.get("cached_input_tokens"))
                 output_tokens += _int_or_zero(usage.get("output_tokens"))
-    return {
+    return SubagentSummary.from_dict({
         "agent_id": agent_id,
         "agent_type": str(spawn.get("agent_role") or ""),
         "agent_nickname": str(spawn.get("agent_nickname") or ""),
@@ -1163,10 +1164,10 @@ def _subagent_summary_from_events(
         "cache_read_input_tokens": cache_read,
         "cache_creation_input_tokens": 0,
         "output_tokens": output_tokens,
-    }
+    })
 
 
-def _attach_subagents_to_spawn_tools(tool_calls: list[ToolCall], subagent_runs: list[dict]) -> None:
+def _attach_subagents_to_spawn_tools(tool_calls: list[ToolCall], subagent_runs: list[SubagentRun]) -> None:
     by_id = {(run.get("summary") or {}).get("agent_id", ""): run for run in subagent_runs}
     for tc in tool_calls:
         if tc.name != "spawn_agent":
@@ -1177,11 +1178,12 @@ def _attach_subagents_to_spawn_tools(tool_calls: list[ToolCall], subagent_runs: 
         if not run:
             continue
         summary = run.get("summary") or {}
+        summary_payload = subagent_summary_to_dict(summary) if isinstance(summary, SubagentSummary) else dict(summary)
         tc.subagent_id = agent_id
-        tc.subagent_summary = {
-            **summary,
+        tc.subagent_summary = SubagentSummary.from_dict({
+            **summary_payload,
             "nickname": data.get("nickname") or summary.get("agent_nickname", ""),
-        }
+        })
         tc.llm_call_count = summary.get("llm_call_count", 0)
         tc.llm_error_count = 0
         tc.subagent_tool_call_count = summary.get("tool_call_count", 0)
@@ -1191,7 +1193,7 @@ def _attach_subagents_to_spawn_tools(tool_calls: list[ToolCall], subagent_runs: 
             child.parent_tool_name = tc.name
 
 
-def _flatten_subagent_tool_calls(subagent_runs: list[dict]) -> list[ToolCall]:
+def _flatten_subagent_tool_calls(subagent_runs: list[SubagentRun]) -> list[ToolCall]:
     result: list[ToolCall] = []
     for run in subagent_runs:
         result.extend(run.get("tool_calls") or [])

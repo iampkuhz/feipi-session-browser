@@ -18,6 +18,7 @@ from session_browser.domain.content_part import (
     is_code_block,
     detect_content_type,
 )
+from session_browser.domain.serializers import content_part_from_dict, content_part_to_dict
 
 
 # ─── is_json ──────────────────────────────────────────────────────────────
@@ -279,13 +280,13 @@ def test_content_part_serialization():
         filename='test.py',
         metadata={'line_count': 1},
     )
-    d = part.to_dict()
+    d = content_part_to_dict(part)
     assert d['part_type'] == 'code'
     assert d['language'] == 'python'
     assert d['filename'] == 'test.py'
     assert d['metadata']['line_count'] == 1
 
-    restored = ContentPart.from_dict(d)
+    restored = content_part_from_dict(d)
     assert restored.part_type == part.part_type
     assert restored.content == part.content
     assert restored.language == part.language
@@ -410,13 +411,13 @@ def test_content_part_serialization_includes_new_fields():
         content_bytes=4,
         token_hint=1,
     )
-    d = part.to_dict()
+    d = content_part_to_dict(part)
     assert d["context_type"] == "user_message"
     assert d["title"] == "User #1"
     assert d["content_bytes"] == 4
     assert d["token_hint"] == 1
 
-    restored = ContentPart.from_dict(d)
+    restored = content_part_from_dict(d)
     assert restored.context_type == part.context_type
     assert restored.title == part.title
     assert restored.content_bytes == part.content_bytes

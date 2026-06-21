@@ -13,6 +13,8 @@ import sqlite3
 from statistics import median
 from typing import Any
 
+from session_browser.web.view_models import ProjectDetailViewModel, ProjectsViewModel
+
 from session_browser.index.indexer import (
     list_projects,
     count_projects,
@@ -393,7 +395,7 @@ def _build_project_detail_stats(project: Any, sessions: list[Any], grain: str) -
 def build_projects_view_model(
     raw_params: dict[str, list[str]] | None = None,
     conn: sqlite3.Connection | None = None,
-) -> dict[str, Any]:
+) -> ProjectsViewModel:
     """构建 该 complete view model，用于 该 projects listing page.
 
     Args:
@@ -475,7 +477,7 @@ def build_project_detail_view_model(
     conn: sqlite3.Connection,
     project_key: str,
     raw_params: dict[str, list[str]] | None = None,
-) -> dict[str, Any]:
+) -> ProjectDetailViewModel:
     """构建 该 complete view model，用于 一个 single project page.
 
     Args:

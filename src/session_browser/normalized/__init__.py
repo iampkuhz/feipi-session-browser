@@ -16,11 +16,33 @@ from session_browser.normalized.artifacts import (
     read_normalized_session_artifact,
     write_normalized_session_artifact,
 )
+from session_browser.normalized.models import (
+    ByteRange,
+    NormalizedCall,
+    NormalizedCallRequest,
+    NormalizedCallResponse,
+    NormalizedCallUsage,
+    NormalizedSessionArtifact,
+    NormalizedSourceFile,
+    NormalizedToolExecution,
+    SourceUnitCatalogEntry,
+    SourceUnitRefRange,
+)
 
 __all__ = [
     "NORMALIZED_SCHEMA_VERSION",
     "NORMALIZED_SESSION_ARTIFACT_TYPE",
     "NormalizedValidationError",
+    "ByteRange",
+    "NormalizedCall",
+    "NormalizedCallRequest",
+    "NormalizedCallResponse",
+    "NormalizedCallUsage",
+    "NormalizedSessionArtifact",
+    "NormalizedSourceFile",
+    "NormalizedToolExecution",
+    "SourceUnitCatalogEntry",
+    "SourceUnitRefRange",
     "normalized_artifact_path",
     "persist_normalized_session_artifact",
     "read_normalized_session_artifact",

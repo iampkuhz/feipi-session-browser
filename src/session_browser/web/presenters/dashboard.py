@@ -16,6 +16,9 @@ import sqlite3
 from functools import lru_cache
 from typing import Any
 
+from session_browser.domain.serializers import session_summary_to_dict
+from session_browser.web.view_models import DashboardViewModel
+
 from session_browser.index.indexer import (
     get_dashboard_stats,
     list_sessions,
@@ -199,7 +202,7 @@ def build_dashboard_view_model(
     grain: str | None = None,
     page: int | None = None,
     page_size: int = 20,
-) -> dict[str, Any]:
+) -> DashboardViewModel:
     """构建 该 complete view model，用于 该 dashboard page.
 
     Args:
@@ -250,7 +253,7 @@ def build_dashboard_view_model(
         all_sessions_raw = list_sessions(conn, limit=2000, order_by="ended_at")
         sessions_data = []
         for s in all_sessions_raw:
-            sessions_data.append(compute_derived_metrics(s.to_dict()))
+            sessions_data.append(compute_derived_metrics(session_summary_to_dict(s)))
         anomalies_map = detect_all_anomalies(sessions_data)
         # 转换 list to dict lookup keyed by session_key
         sessions_lookup = {s.get("session_key", ""): s for s in sessions_data}

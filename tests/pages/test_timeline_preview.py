@@ -10,6 +10,8 @@ from session_browser.domain.models import (
     LLMCall,
 )
 
+from session_browser.web.session_detail.preview import apply_round_preview, compact_preview_text, format_tool_counts
+
 
 # ── _compact_preview_text 辅助函数 ────────────────────────────────────
 
@@ -17,45 +19,45 @@ from session_browser.domain.models import (
 class TestCompactPreviewText:
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_compresses_multiple_spaces(self):
-        result = ConversationRound._compact_preview_text("hello    world")
+        result = compact_preview_text("hello    world")
         assert result == "hello world"
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_compresses_newlines(self):
-        result = ConversationRound._compact_preview_text("line1\nline2\nline3")
+        result = compact_preview_text("line1\nline2\nline3")
         assert result == "line1 line2 line3"
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_compresses_mixed_whitespace(self):
-        result = ConversationRound._compact_preview_text("hello\t\tworld   ok")
+        result = compact_preview_text("hello\t\tworld   ok")
         assert result == "hello world ok"
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_strips_leading_trailing(self):
-        result = ConversationRound._compact_preview_text("  hello world  ")
+        result = compact_preview_text("  hello world  ")
         assert result == "hello world"
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_truncates_at_limit(self):
         long_text = "a" * 200
-        result = ConversationRound._compact_preview_text(long_text, limit=120)
+        result = compact_preview_text(long_text, limit=120)
         assert len(result) == 121  # 120 个字符 + 省略号
         assert result.endswith("…")
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_no_truncation_under_limit(self):
         text = "short text"
-        result = ConversationRound._compact_preview_text(text, limit=120)
+        result = compact_preview_text(text, limit=120)
         assert result == "short text"
         assert "…" not in result
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_empty_string(self):
-        assert ConversationRound._compact_preview_text("") == ""
+        assert compact_preview_text("") == ""
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_none(self):
-        assert ConversationRound._compact_preview_text(None) == ""
+        assert compact_preview_text(None) == ""
 
 
 # ── _format_tool_counts 辅助函数 ──────────────────────────────────────
@@ -64,24 +66,24 @@ class TestCompactPreviewText:
 class TestFormatToolCounts:
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_empty_list(self):
-        assert ConversationRound._format_tool_counts([]) == ""
+        assert format_tool_counts([]) == ""
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_single_tool(self):
         tools = [ToolCall(name="Read")]
-        result = ConversationRound._format_tool_counts(tools)
+        result = format_tool_counts(tools)
         assert '<span class="preview-tool">Read</span>×1' in result
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_two_same_tools(self):
         tools = [ToolCall(name="Read"), ToolCall(name="Read")]
-        result = ConversationRound._format_tool_counts(tools)
+        result = format_tool_counts(tools)
         assert '<span class="preview-tool">Read</span>×2' in result
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_two_different_tools(self):
         tools = [ToolCall(name="Read"), ToolCall(name="Bash")]
-        result = ConversationRound._format_tool_counts(tools)
+        result = format_tool_counts(tools)
         assert '<span class="preview-tool">Read</span>×1' in result
         assert '<span class="preview-tool">Bash</span>×1' in result
         assert '·' in result
@@ -96,7 +98,7 @@ class TestFormatToolCounts:
             ToolCall(name="Edit"),
             ToolCall(name="Bash"),
         ]
-        result = ConversationRound._format_tool_counts(tools)
+        result = format_tool_counts(tools)
         assert '<span class="preview-tool">Read</span>×2' in result
         assert '<span class="preview-tool">Bash</span>×3' in result
         assert '<span class="preview-tool">Edit</span>×1' in result
@@ -106,12 +108,12 @@ class TestFormatToolCounts:
         """
         工具名称现在包装在 preview-tool span 中以便 CSS 样式化。"""
         tools = [ToolCall(name="Read"), ToolCall(name="Bash")]
-        result = ConversationRound._format_tool_counts(tools)
+        result = format_tool_counts(tools)
         assert '<span class="preview-tool">Read</span>' in result
         assert '<span class="preview-tool">Bash</span>' in result
 
 
-# ── compute_preview() 场景 ─────────────────────────────────────
+# ── presenter preview 场景 ─────────────────────────────────────
 
 
 class TestComputePreviewLLMResponse:
@@ -129,7 +131,7 @@ class TestComputePreviewLLMResponse:
             timestamp="", status="ok", response_preview="Let me check",
             tool_calls=tools,
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         # preview_text：仅文本，无工具徽章
         assert "Let me check" in r.preview_text
         assert "preview-tool" not in r.preview_text
@@ -150,7 +152,7 @@ class TestComputePreviewLLMResponse:
             timestamp="", status="ok", response_preview=long_response,
             tool_calls=tools,
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         # preview_text：截断的响应，无工具徽章
         assert "…" in r.preview_text
         assert "preview-tool" not in r.preview_text
@@ -169,7 +171,7 @@ class TestComputePreviewLLMResponse:
             round_index=0, parent_id="", parent_tool_name="",
             timestamp="", status="ok", response_preview=long_response,
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         # 有 assistant 内容 → 显示 assistant（截断）
         assert "…" in r.preview_text
         assert r.tool_summary_html == ""
@@ -185,7 +187,7 @@ class TestComputePreviewLLMResponse:
             round_index=0, parent_id="", parent_tool_name="",
             timestamp="", status="ok", response_preview="",
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         # 无 assistant 内容 + 无工具 → 显示用户输入
         assert "Please explain this" in r.preview_text
         assert r.tool_summary_html == ""
@@ -204,7 +206,7 @@ class TestComputePreviewSubagent:
             round_index=0, parent_id="1", parent_tool_name="Agent",
             timestamp="", status="ok", response_preview="Subagent found 3 files",
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         assert "Subagent found 3 files" in r.preview_text
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
@@ -219,7 +221,7 @@ class TestComputePreviewSubagent:
             timestamp="", status="ok", response_preview="Done",
             tool_calls=tools,
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         assert "Done" in r.preview_text
         # 工具计数在 tool_summary_html 中，不在 preview_text 中
         assert "preview-tool" not in r.preview_text
@@ -237,7 +239,7 @@ class TestComputePreviewSubagent:
             timestamp="", status="ok", response_preview="",
             tool_calls=tools,
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         assert "Subagent" in r.preview_text
         assert "Agent" in r.preview_text
         # 工具计数在 tool_summary_html 中
@@ -258,7 +260,7 @@ class TestComputePreviewFallback:
             round_index=0, parent_id="", parent_tool_name="",
             timestamp="", status="ok", response_preview="",
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         assert "Please analyze this codebase for bugs" in r.preview_text
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
@@ -273,7 +275,7 @@ class TestComputePreviewFallback:
             timestamp="", status="ok", response_preview="",
             tool_calls=tools,
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         # assistant 和 user 都为空 → 仅 tool_summary_html
         assert r.preview_text == ""
         assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
@@ -287,13 +289,13 @@ class TestComputePreviewNoHTML:
     def test_compact_preview_preserves_raw_text(self):
         """_compact_preview_text 仅压缩空白；不执行清理。"""
         text = "use `<code>` here"
-        result = ConversationRound._compact_preview_text(text)
+        result = compact_preview_text(text)
         # 该辅助函数只是压缩空白 — 保留原始文本
         assert "`<code>`" in result
 
     @pytest.mark.contract_case("UI-INTERACTION-008")
     def test_preview_text_from_integration(self):
-        """集成测试：compute_preview() 拆分文本和工具摘要。"""
+        """集成测试：presenter preview 拆分文本和工具摘要。"""
         assistant = ChatMessage(role="assistant", content="See the code section", timestamp="")
         user = ChatMessage(role="user", content="task", timestamp="")
         tools = [ToolCall(name="Read")]
@@ -304,7 +306,7 @@ class TestComputePreviewNoHTML:
             timestamp="", status="ok", response_preview="See the code section",
             tool_calls=tools,
         )]
-        r.compute_preview()
+        apply_round_preview(r)
         # preview_text：仅文本，无工具徽章
         assert "See the code section" in r.preview_text
         assert "preview-tool" not in r.preview_text

@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from session_browser.domain.models import ChatMessage, SessionSummary, ToolCall
+from session_browser.domain.models import ChatMessage, SessionSummary, SubagentRun, ToolCall
 from session_browser.normalized.agents.qoder_parts import (
     QoderSourceUnitDraft,
     finalize_source_units,
@@ -29,7 +29,7 @@ class QoderNormalizationAdapter:
         messages: list[ChatMessage],
         tool_calls: list[ToolCall],
         source_path: str,
-        subagent_runs: list[dict] | None = None,
+        subagent_runs: list[SubagentRun] | None = None,
         parse_warnings: list[dict] | None = None,
     ) -> dict:
         subagent_runs = subagent_runs or []
@@ -71,7 +71,7 @@ class QoderNormalizationAdapter:
         scope: str,
         subagent_id: str,
         parent_tool_use_id: str,
-        subagent_runs: list[dict],
+        subagent_runs: list[SubagentRun],
     ) -> list[dict]:
         rounds: list[dict] = []
         tool_by_id = {tc.tool_use_id: tc for tc in tool_calls if tc.tool_use_id}
@@ -321,7 +321,7 @@ def build_qoder_normalized_session(
     messages,
     tool_calls,
     source_path: str,
-    subagent_runs: list[dict] | None = None,
+    subagent_runs: list[SubagentRun] | None = None,
     parse_warnings: list[dict] | None = None,
 ) -> dict:
     """从已解析模型构造 Qoder normalized JSON。"""
@@ -520,7 +520,7 @@ def _subagent_steps_for_tools(
     source_path: str,
     round_id: int,
     tools: list[dict],
-    subagent_by_parent: dict[str, dict],
+    subagent_by_parent: dict[str, SubagentRun],
 ) -> list[dict]:
     steps: list[dict] = []
     for tool in tools:
@@ -570,9 +570,9 @@ def _steps_for_round(*, timestamp: str, tools: list[dict], subagent_steps: list[
     return steps
 
 
-def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[dict]) -> dict[str, dict]:
+def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[SubagentRun]) -> dict[str, SubagentRun]:
     by_id = {(run.get("summary") or {}).get("agent_id", ""): run for run in subagent_runs}
-    result: dict[str, dict] = {}
+    result: dict[str, SubagentRun] = {}
     for tc in tool_calls:
         if tc.name != "Agent" or not tc.tool_use_id or not tc.subagent_id:
             continue
@@ -582,7 +582,7 @@ def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[dic
     return result
 
 
-def _parent_tool_for_subagent(tool_calls: list[ToolCall], run: dict) -> str:
+def _parent_tool_for_subagent(tool_calls: list[ToolCall], run: SubagentRun) -> str:
     agent_id = (run.get("summary") or {}).get("agent_id", "")
     for tc in tool_calls:
         if tc.subagent_id == agent_id:

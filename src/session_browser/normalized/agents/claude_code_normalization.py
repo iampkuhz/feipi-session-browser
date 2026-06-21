@@ -7,12 +7,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-from session_browser.domain.models import ChatMessage, SessionSummary, ToolCall
+from session_browser.domain.models import ChatMessage, SessionSummary, SubagentRun, ToolCall
 from session_browser.normalized.agents.claude_code_parts import (
     ClaudeCodeSourceUnitDraft,
-    finalize_source_units,
+    draft_to_catalog_unit,
+    hydrate_source_units,
     payload_unit,
-    source_units_to_candidates,
     text_unit,
 )
 from session_browser.normalized.semantic import build_normalized_session_model
@@ -22,6 +22,15 @@ from session_browser.sources.jsonl_reader import parse_jsonl_events
 class ClaudeCodeNormalizationAdapter:
     """Claude Code 专属 normalized source unit 构造器。"""
 
+    def __init__(self) -> None:
+        self.source_unit_catalog: dict[str, dict] = {}
+        self.source_unit_sequences: dict[str, list[str]] = {
+            "persistent_request": [],
+        }
+        self.source_unit_sequence_sets: dict[str, set[str]] = {
+            "persistent_request": set(),
+        }
+
     def build(
         self,
         *,
@@ -29,7 +38,7 @@ class ClaudeCodeNormalizationAdapter:
         messages: list[ChatMessage],
         tool_calls: list[ToolCall],
         source_path: str,
-        subagent_runs: list[dict] | None = None,
+        subagent_runs: list[SubagentRun] | None = None,
         parse_warnings: list[dict] | None = None,
     ) -> dict:
         subagent_runs = subagent_runs or []
@@ -53,13 +62,17 @@ class ClaudeCodeNormalizationAdapter:
                 "subagent_id": (run.get("summary") or {}).get("agent_id", ""),
                 "parent_tool_use_id": _parent_tool_for_subagent(main_tool_calls, run),
             })
-        return build_normalized_session_model(
+        normalized = build_normalized_session_model(
             agent="claude_code",
             session=_session_payload(summary),
             source_files=source_files,
             call_drafts=rounds,
             parse_warnings=parse_warnings or [],
         )
+        if self.source_unit_catalog:
+            normalized["source_unit_catalog"] = self.source_unit_catalog
+            normalized["source_unit_sequences"] = self.source_unit_sequences
+        return normalized
 
     def _build_rounds(
         self,
@@ -71,13 +84,17 @@ class ClaudeCodeNormalizationAdapter:
         scope: str,
         subagent_id: str,
         parent_tool_use_id: str,
-        subagent_runs: list[dict],
+        subagent_runs: list[SubagentRun],
     ) -> list[dict]:
         rounds: list[dict] = []
         tool_by_id = {tc.tool_use_id: tc for tc in tool_calls if tc.tool_use_id}
         subagent_by_parent = _subagent_runs_by_parent(tool_calls, subagent_runs)
         assistant_seen = 0
         instruction_units = _project_instruction_units(summary, source_path)
+        self._catalog_refs_for_drafts(instruction_units, sequence_name="persistent_request")
+        history_sequence_name = _history_sequence_name(scope, subagent_id)
+        self.source_unit_sequences.setdefault(history_sequence_name, [])
+        self.source_unit_sequence_sets.setdefault(history_sequence_name, set())
 
         for msg_index, msg in enumerate(messages):
             if msg.role != "assistant" or not msg.llm_call_id:
@@ -93,14 +110,23 @@ class ClaudeCodeNormalizationAdapter:
                 messages_before=messages[:msg_index],
                 summary=summary,
                 source_path=source_path,
-                instruction_units=instruction_units,
+                instruction_units=[],
                 event_order=assistant_seen,
+                include_history=False,
             )
             response_units = self._response_units_for_call(
                 msg=msg,
                 event_order=assistant_seen,
             )
-            source_units = finalize_source_units(call_id, request_units + response_units)
+            history_count = len(self.source_unit_sequences[history_sequence_name])
+            request_refs = self._catalog_refs_for_drafts(request_units)
+            response_refs = self._catalog_refs_for_drafts(response_units)
+            source_unit_ref_ranges = self._source_unit_ref_ranges(
+                history_sequence_name=history_sequence_name,
+                history_count=history_count,
+                request_refs=request_refs,
+                response_refs=response_refs,
+            )
             metrics = {
                 "tokens": {
                     "fresh": usage["fresh"],
@@ -135,11 +161,87 @@ class ClaudeCodeNormalizationAdapter:
                 "metrics": metrics,
                 "request": {"tool_result_ids": _tool_result_ids_from_request(msg.request_full or "")},
                 "response": {"tool_call_ids": _tool_call_ids_from_message(msg, tools)},
-                "source_units": source_units,
-                "attribution_candidates": source_units_to_candidates(source_units),
+                "source_unit_ref_ranges": source_unit_ref_ranges,
                 "steps": _steps_for_round(timestamp=msg.timestamp, tools=tools, subagent_steps=subagent_steps),
             })
+            self._append_history_refs(
+                call_id=call_id,
+                refs=request_refs + response_refs,
+                history_sequence_name=history_sequence_name,
+            )
         return rounds
+
+    def _source_unit_ref_ranges(
+        self,
+        *,
+        history_sequence_name: str,
+        history_count: int,
+        request_refs: list[str],
+        response_refs: list[str],
+    ) -> list[dict]:
+        ranges: list[dict] = []
+        persistent_count = len(self.source_unit_sequences["persistent_request"])
+        if persistent_count:
+            ranges.append({
+                "sequence": "persistent_request",
+                "start": 0,
+                "end": persistent_count,
+            })
+        if history_count:
+            ranges.append({
+                "sequence": history_sequence_name,
+                "start": 0,
+                "end": history_count,
+            })
+        if request_refs:
+            ranges.append({"refs": request_refs, "role": "request_current"})
+        if response_refs:
+            ranges.append({"refs": response_refs, "role": "response"})
+        return ranges
+
+    def _append_history_refs(
+        self,
+        *,
+        call_id: str,
+        refs: list[str],
+        history_sequence_name: str,
+    ) -> None:
+        source_units = hydrate_source_units(call_id, self._catalog_units_for_refs(refs))
+        history_drafts: list[ClaudeCodeSourceUnitDraft] = []
+        for unit in source_units:
+            candidate = str(unit.get("candidate") or "")
+            if candidate not in {"user_input", "assistant_output", "reasoning_output", "tool_calls", "structured_output"}:
+                continue
+            history_drafts.append(_history_source_unit(candidate, unit))
+        self._catalog_refs_for_drafts(history_drafts, sequence_name=history_sequence_name)
+
+    def _catalog_refs_for_drafts(
+        self,
+        drafts: list[ClaudeCodeSourceUnitDraft],
+        *,
+        sequence_name: str = "",
+    ) -> list[str]:
+        refs: list[str] = []
+        sequence = self.source_unit_sequences.get(sequence_name) if sequence_name else None
+        sequence_set = self.source_unit_sequence_sets.get(sequence_name) if sequence_name else None
+        for draft in drafts:
+            unit = draft_to_catalog_unit(draft)
+            key = str(unit["unit_key"])
+            existing = self.source_unit_catalog.get(key)
+            if existing is None or _catalog_rank(unit) > _catalog_rank(existing):
+                self.source_unit_catalog[key] = unit
+            refs.append(key)
+            if sequence is not None and sequence_set is not None and key not in sequence_set:
+                sequence.append(key)
+                sequence_set.add(key)
+        return refs
+
+    def _catalog_units_for_refs(self, refs: list[str]) -> list[dict]:
+        return [
+            self.source_unit_catalog[key]
+            for key in refs
+            if key in self.source_unit_catalog
+        ]
 
     def _request_units_for_call(
         self,
@@ -151,6 +253,7 @@ class ClaudeCodeNormalizationAdapter:
         source_path: str,
         instruction_units: list[ClaudeCodeSourceUnitDraft],
         event_order: int,
+        include_history: bool = True,
     ) -> list[ClaudeCodeSourceUnitDraft]:
         units: list[ClaudeCodeSourceUnitDraft] = []
         timestamp = msg.timestamp
@@ -189,21 +292,22 @@ class ClaudeCodeNormalizationAdapter:
                     label="当前用户输入",
                     priority=90,
                 ))
-        for idx, prior in enumerate(messages_before):
-            if idx == current_user_index or not prior.content:
-                continue
-            units.append(text_unit(
-                origin_path=f"messages[{idx}].content",
-                unit_type=f"prior_{prior.role}_message",
-                candidate="conversation_history",
-                direction="request",
-                text=prior.content,
-                timestamp=prior.timestamp,
-                event_order=event_order,
-                part_index=idx,
-                label=f"历史 {prior.role} 消息",
-                priority=50,
-            ))
+        if include_history:
+            for idx, prior in enumerate(messages_before):
+                if idx == current_user_index or not prior.content:
+                    continue
+                units.append(text_unit(
+                    origin_path=f"messages[{idx}].content",
+                    unit_type=f"prior_{prior.role}_message",
+                    candidate="conversation_history",
+                    direction="request",
+                    text=prior.content,
+                    timestamp=prior.timestamp,
+                    event_order=event_order,
+                    part_index=idx,
+                    label=f"历史 {prior.role} 消息",
+                    priority=50,
+                ))
 
         for idx, segment in enumerate(_request_segments(msg.request_full), 1):
             parsed = _parse_tool_result_segment(segment)
@@ -222,7 +326,7 @@ class ClaudeCodeNormalizationAdapter:
                     label=f"工具结果 {tool_id or idx}",
                     priority=85,
                 ))
-            elif segment and not _matches_current_user(segment, messages_before, current_user_index):
+            elif include_history and segment and not _matches_current_user(segment, messages_before, current_user_index):
                 units.append(text_unit(
                     origin_path=f"request_full.fragment[{idx}]",
                     unit_type="request_context_fragment",
@@ -321,7 +425,7 @@ def build_claude_code_normalized_session(
     messages,
     tool_calls,
     source_path: str,
-    subagent_runs: list[dict] | None = None,
+    subagent_runs: list[SubagentRun] | None = None,
     parse_warnings: list[dict] | None = None,
 ) -> dict:
     """从已解析模型构造 Claude Code normalized JSON。"""
@@ -470,6 +574,55 @@ def _clone_units_for_call(
     ]
 
 
+def _history_sequence_name(scope: str, subagent_id: str) -> str:
+    safe_scope = _safe_sequence_part(scope or "main")
+    safe_subagent = _safe_sequence_part(subagent_id or "main")
+    return f"{safe_scope}:{safe_subagent}:conversation_history"
+
+
+def _safe_sequence_part(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.:-]+", "-", value or "main")[:120]
+
+
+def _history_source_unit(candidate: str, unit: dict) -> ClaudeCodeSourceUnitDraft:
+    text = str(unit.get("text") or "")
+    payload = unit.get("payload") if "payload" in unit else None
+    if text:
+        return text_unit(
+            origin_path=f"conversation_history.{candidate}",
+            unit_type=f"prior_{candidate}",
+            candidate="conversation_history",
+            direction="request",
+            text=text,
+            timestamp=str(unit.get("timestamp") or ""),
+            event_order=int(unit.get("event_order") or 0),
+            label=str(unit.get("label") or candidate),
+            priority=40,
+            sub_source=candidate,
+            source_candidate=candidate,
+        )
+    return payload_unit(
+        origin_path=f"conversation_history.{candidate}",
+        unit_type=f"prior_{candidate}",
+        candidate="conversation_history",
+        direction="request",
+        payload=payload if payload is not None else {
+            "source_id": unit.get("source_id", ""),
+            "unit_type": unit.get("unit_type", ""),
+        },
+        timestamp=str(unit.get("timestamp") or ""),
+        event_order=int(unit.get("event_order") or 0),
+        label=str(unit.get("label") or candidate),
+        priority=40,
+        sub_source=candidate,
+        source_candidate=candidate,
+    )
+
+
+def _catalog_rank(unit: dict) -> tuple[int, int]:
+    return (int(unit.get("priority") or 0), -int(unit.get("event_order") or 0))
+
+
 def _session_payload(summary: SessionSummary) -> dict:
     return {
         "session_key": f"claude_code:{summary.session_id}",
@@ -541,7 +694,7 @@ def _subagent_steps_for_tools(
     source_path: str,
     round_id: int,
     tools: list[dict],
-    subagent_by_parent: dict[str, dict],
+    subagent_by_parent: dict[str, SubagentRun],
 ) -> list[dict]:
     steps: list[dict] = []
     for tool in tools:
@@ -591,9 +744,9 @@ def _steps_for_round(*, timestamp: str, tools: list[dict], subagent_steps: list[
     return steps
 
 
-def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[dict]) -> dict[str, dict]:
+def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[SubagentRun]) -> dict[str, SubagentRun]:
     by_id = {(run.get("summary") or {}).get("agent_id", ""): run for run in subagent_runs}
-    result: dict[str, dict] = {}
+    result: dict[str, SubagentRun] = {}
     for tc in tool_calls:
         if tc.name != "Agent" or not tc.tool_use_id or not tc.subagent_id:
             continue
@@ -603,7 +756,7 @@ def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[dic
     return result
 
 
-def _parent_tool_for_subagent(tool_calls: list[ToolCall], run: dict) -> str:
+def _parent_tool_for_subagent(tool_calls: list[ToolCall], run: SubagentRun) -> str:
     agent_id = (run.get("summary") or {}).get("agent_id", "")
     for tc in tool_calls:
         if tc.subagent_id == agent_id:

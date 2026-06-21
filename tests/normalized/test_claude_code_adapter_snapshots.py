@@ -7,6 +7,7 @@ from pathlib import Path
 
 from session_browser.normalized import validate_normalized_session
 from session_browser.normalized.agents.claude_code_normalization import parse_claude_code_session_file
+from session_browser.attribution.context import _hydrate_normalized_call
 from session_browser.sources.claude import parse_normalized_session_file
 
 
@@ -73,8 +74,13 @@ def test_claude_code_subagent_normalized_semantics():
     assert "payload_index" not in actual
     assert "context_sources" not in actual
     assert "parse_diagnostics" not in actual
-    _assert_source_units(c1, request={"user_input", "runtime_context"}, response={"assistant_output", "tool_calls"})
-    _assert_source_units(c2, request={"tool_results", "conversation_history", "runtime_context"}, response={"assistant_output"})
+    assert actual["source_unit_catalog"]
+    assert all("source_units" not in call for call in actual["calls"])
+    assert all("attribution_candidates" not in call for call in actual["calls"])
+    c1h = _hydrate_normalized_call(actual, c1)
+    c2h = _hydrate_normalized_call(actual, c2)
+    _assert_source_units(c1h, request={"user_input", "runtime_context"}, response={"assistant_output", "tool_calls"})
+    _assert_source_units(c2h, request={"tool_results", "conversation_history", "runtime_context"}, response={"assistant_output"})
 
 
 def test_claude_code_source_file_entrypoint_matches_adapter_snapshot():
@@ -159,6 +165,78 @@ def test_claude_code_away_summary_leaf_uuid_becomes_call_without_sidecar(tmp_pat
         "record_index": 3,
         "call_id": "recap-1",
     }]
+
+
+def test_claude_code_compact_source_units_stay_linear_and_hydrate_last_call(tmp_path, monkeypatch):
+    from session_browser.normalized.agents import claude_code_normalization as claude_norm
+
+    rounds = 24
+    session_file = tmp_path / "session-linear.jsonl"
+    events = _linear_claude_events(rounds)
+    session_file.write_text(
+        "\n".join(json.dumps(event, ensure_ascii=False) for event in events) + "\n",
+        encoding="utf-8",
+    )
+    original = claude_norm.draft_to_catalog_unit
+    finalize_count = 0
+
+    def counted_draft_to_catalog_unit(draft):
+        nonlocal finalize_count
+        finalize_count += 1
+        return original(draft)
+
+    monkeypatch.setattr(claude_norm, "draft_to_catalog_unit", counted_draft_to_catalog_unit)
+
+    actual = parse_claude_code_session_file(
+        session_file,
+        project_key="/repo",
+        session_id="session-linear",
+    )
+
+    validate_normalized_session(actual)
+    assert len(actual["calls"]) == rounds
+    assert all("source_units" not in call for call in actual["calls"])
+    assert all("attribution_candidates" not in call for call in actual["calls"])
+    assert len(actual["source_unit_catalog"]) <= rounds * 6 + 8
+    assert finalize_count <= rounds * 6 + 8
+
+    hydrated = _hydrate_normalized_call(actual, actual["calls"][-1])
+    request_candidates = hydrated["attribution_candidates"]["request"]
+    history_text = "\n".join(
+        str(item.get("text") or item.get("preview") or "")
+        for item in request_candidates["conversation_history"]
+    )
+    assert "request 1" in history_text
+    assert f"answer {rounds - 1}" in history_text
+
+
+def _linear_claude_events(rounds: int) -> list[dict]:
+    events: list[dict] = []
+    for idx in range(1, rounds + 1):
+        events.append({
+            "type": "user",
+            "uuid": f"user-{idx}",
+            "timestamp": f"2026-06-13T00:{idx:02d}:00.000Z",
+            "cwd": "/repo",
+            "sessionId": "session-linear",
+            "message": {"role": "user", "content": f"request {idx}"},
+        })
+        events.append({
+            "type": "assistant",
+            "uuid": f"assistant-event-{idx}",
+            "timestamp": f"2026-06-13T00:{idx:02d}:01.000Z",
+            "sessionId": "session-linear",
+            "message": {
+                "model": "claude-test",
+                "id": f"msg-{idx}",
+                "role": "assistant",
+                "type": "message",
+                "content": [{"type": "text", "text": f"answer {idx}"}],
+                "usage": {"input_tokens": 100 + idx, "output_tokens": 10 + idx},
+                "stop_reason": "end_turn",
+            },
+        })
+    return events
 
 
 def _assert_source_units(call: dict, *, request: set[str], response: set[str]) -> None:

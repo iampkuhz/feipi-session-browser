@@ -50,6 +50,7 @@ from session_browser.web.presenters.projects import (
     build_projects_view_model,
     build_project_detail_view_model,
 )
+from session_browser.domain.serializers import session_summary_to_dict
 from session_browser.domain.models import (
     ChatMessage,
     ConversationRound,
@@ -61,6 +62,7 @@ from session_browser.web.presenters.session_detail import (
     build_llm_calls,
     assign_interactions_to_rounds,
 )
+from session_browser.web.session_detail.preview import build_round_preview
 from session_browser.web.template_env import (
     env as _template_env,
     _relative_to_repo,
@@ -399,12 +401,8 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
         llm_calls = build_llm_calls(messages, tool_calls, rounds, subagent_runs, agent)
         assign_interactions_to_rounds(rounds, llm_calls, tool_calls, subagent_runs)
 
-        # preview 依赖已分配的交互，必须在 assign_interactions_to_rounds 之后计算。
-        for r in rounds:
-            r.compute_preview()
-
         # 派生指标基于合并后的 session summary，保持与列表页口径一致。
-        session_data = compute_derived_metrics(session.to_dict())
+        session_data = compute_derived_metrics(session_summary_to_dict(session))
 
         # anomaly 检测使用页面最终展示口径，避免 raw parse 和 DB summary 双轨。
         from session_browser.index.anomalies import detect_session_anomalies
@@ -467,8 +465,12 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
             ),
             slim_mode=slim_mode,
             session_rounds=[
-                {"idx": i + 1, "name": r.preview_text or f"Round {i + 1}",
-                 "status": getattr(r, "status", ""), "is_current": False}
+                {
+                    "idx": i + 1,
+                    "name": build_round_preview(r)["preview_text"] or f"Round {i + 1}",
+                    "status": getattr(r, "status", ""),
+                    "is_current": False,
+                }
                 for i, r in enumerate(rounds)
             ],
             **v11_vm,
@@ -827,11 +829,6 @@ class SessionBrowserHandler(BaseHTTPRequestHandler):
                 "error": f"round_index {round_index} out of range (1-{len(rounds)})",
             }, status=404)
             return
-
-        # 计算 preview text，用于 rounds，如果 not already done
-        for r in rounds:
-            if not getattr(r, "preview_text", ""):
-                r.compute_preview()
 
         # 计算 signals，用于 该 target round
         r = rounds[target_idx]

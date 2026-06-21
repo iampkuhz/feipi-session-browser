@@ -137,6 +137,73 @@ def source_units_to_candidates(source_units: list[dict[str, Any]]) -> dict[str, 
     return {side: {k: v for k, v in values.items() if v} for side, values in grouped.items()}
 
 
+def draft_to_catalog_unit(draft: ClaudeCodeSourceUnitDraft) -> dict[str, Any]:
+    """把 source unit 草稿转换成 call-independent catalog entry."""
+    normalized_content = _normalized_content(draft)
+    content_hash = hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
+    start, end = draft.byte_range
+    unit_key_basis = "|".join((
+        draft.canonical_source_locator,
+        draft.unit_type,
+        draft.candidate,
+        draft.direction,
+        str(draft.event_order),
+        str(draft.part_index),
+        str(start),
+        str(end),
+        content_hash,
+    ))
+    unit: dict[str, Any] = {
+        "unit_key": hashlib.sha256(unit_key_basis.encode("utf-8")).hexdigest(),
+        "origin_path": draft.origin_path,
+        "canonical_source_locator": draft.canonical_source_locator,
+        "unit_type": draft.unit_type,
+        "candidate": draft.candidate,
+        "direction": draft.direction,
+        "event_order": draft.event_order,
+        "part_index": draft.part_index,
+        "byte_range": [start, end],
+        "content_hash": content_hash,
+        "timestamp": draft.timestamp,
+        "label": draft.label or draft.unit_type,
+        "priority": draft.priority,
+        "preview": _preview(draft.text if draft.text else normalized_content),
+    }
+    if draft.text:
+        unit["text"] = draft.text
+    if draft.payload not in (None, ""):
+        unit["payload"] = _json_safe(draft.payload)
+    if draft.sub_source:
+        unit["sub_source"] = draft.sub_source
+    if draft.source_candidate:
+        unit["source_candidate"] = draft.source_candidate
+    if draft.diagnostics:
+        unit["diagnostics"] = list(draft.diagnostics)
+    return unit
+
+
+def hydrate_source_units(
+    call_id: str,
+    catalog_units: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """从 catalog entries 生成 legacy call-scoped source_units."""
+    prepared = [_catalog_unit_to_call_unit(call_id, idx, unit) for idx, unit in enumerate(catalog_units)]
+    by_key: dict[str, dict[str, Any]] = {}
+    for unit in prepared:
+        key = unit["dedupe_key"]
+        existing = by_key.get(key)
+        if existing is None or _dedupe_rank(unit) > _dedupe_rank(existing):
+            by_key[key] = unit
+    return sorted(
+        by_key.values(),
+        key=lambda item: (
+            int(item.get("event_order") or 0),
+            int(item.get("part_index") or 0),
+            item.get("unit_type", ""),
+        ),
+    )
+
+
 def _draft_to_unit(call_id: str, index: int, draft: ClaudeCodeSourceUnitDraft) -> dict[str, Any]:
     normalized_content = _normalized_content(draft)
     content_hash = hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
@@ -171,6 +238,46 @@ def _draft_to_unit(call_id: str, index: int, draft: ClaudeCodeSourceUnitDraft) -
         unit["source_candidate"] = draft.source_candidate
     if draft.diagnostics:
         unit["diagnostics"] = list(draft.diagnostics)
+    return unit
+
+
+def _catalog_unit_to_call_unit(call_id: str, index: int, catalog_unit: dict[str, Any]) -> dict[str, Any]:
+    start, end = _byte_range(catalog_unit.get("byte_range"))
+    safe_origin = _safe_id_part(str(catalog_unit.get("origin_path") or ""))
+    unit_type = str(catalog_unit.get("unit_type") or "")
+    event_order = int(catalog_unit.get("event_order") or 0)
+    part_index = int(catalog_unit.get("part_index") or 0)
+    content_hash = str(catalog_unit.get("content_hash") or "")
+    canonical_source_locator = str(catalog_unit.get("canonical_source_locator") or "")
+    source_id = f"{call_id}:{safe_origin}:{event_order}:{part_index}:{unit_type}:{start}-{end}:{index}"
+    dedupe_basis = "|".join((call_id, canonical_source_locator, unit_type, content_hash))
+    unit: dict[str, Any] = {
+        "source_id": source_id,
+        "dedupe_key": hashlib.sha256(dedupe_basis.encode("utf-8")).hexdigest(),
+        "origin_path": str(catalog_unit.get("origin_path") or ""),
+        "canonical_source_locator": canonical_source_locator,
+        "unit_type": unit_type,
+        "candidate": str(catalog_unit.get("candidate") or ""),
+        "direction": str(catalog_unit.get("direction") or ""),
+        "event_order": event_order,
+        "part_index": part_index,
+        "byte_range": [start, end],
+        "content_hash": content_hash,
+        "timestamp": str(catalog_unit.get("timestamp") or ""),
+        "label": str(catalog_unit.get("label") or unit_type),
+        "priority": int(catalog_unit.get("priority") or 0),
+        "preview": str(catalog_unit.get("preview") or ""),
+    }
+    if catalog_unit.get("text") is not None:
+        unit["text"] = catalog_unit.get("text", "")
+    if "payload" in catalog_unit:
+        unit["payload"] = catalog_unit.get("payload")
+    if catalog_unit.get("sub_source"):
+        unit["sub_source"] = catalog_unit.get("sub_source")
+    if catalog_unit.get("source_candidate"):
+        unit["source_candidate"] = catalog_unit.get("source_candidate")
+    if catalog_unit.get("diagnostics"):
+        unit["diagnostics"] = list(catalog_unit.get("diagnostics") or [])
     return unit
 
 
@@ -231,3 +338,12 @@ def _safe_id_part(value: str) -> str:
 
 def _dedupe_rank(unit: dict[str, Any]) -> tuple[int, int]:
     return (int(unit.get("priority") or 0), -int(unit.get("event_order") or 0))
+
+
+def _byte_range(value: Any) -> tuple[int, int]:
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        try:
+            return int(value[0]), int(value[1])
+        except (TypeError, ValueError):
+            return (0, 0)
+    return (0, 0)

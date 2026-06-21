@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from session_browser.config import QODER_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
+from session_browser.domain.models import ChatMessage, SessionSummary, SubagentRun, ToolCall
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
 from session_browser.sources.qoder_parts.utils import (
@@ -48,7 +48,7 @@ def parse_session_detail(
     session_id: str,
     session_file: Path | None = None,
     verbose: bool = False,
-) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
+) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[SubagentRun]]:
     """解析 一个 single Qoder session's full event stream.
 
     Args:
@@ -165,7 +165,7 @@ def build_normalized_session(
     summary: SessionSummary,
     messages: list[ChatMessage],
     tool_calls: list[ToolCall],
-    subagent_runs: list[dict],
+    subagent_runs: list[SubagentRun],
     source_path: str,
 ) -> dict:
     """构建 normalized JSON，来源于 该 models already parsed，用于 indexing."""

@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-
-NORMALIZED_SCHEMA_VERSION = "session-detail.normalized.v3"
+from session_browser.normalized.constants import NORMALIZED_SCHEMA_VERSION
 
 
 class NormalizedValidationError(ValueError):
@@ -244,6 +243,14 @@ def validate_normalized_session(data: dict) -> None:
 
     diagnostics = data.get("diagnostics", [])
     _require(isinstance(diagnostics, list), "diagnostics must be an array", errors)
+
+    if not errors:
+        try:
+            from session_browser.normalized.models import validate_normalized_artifact_model
+
+            validate_normalized_artifact_model(data)
+        except ValueError as exc:
+            errors.append(str(exc))
 
     if errors:
         raise NormalizedValidationError("; ".join(errors))

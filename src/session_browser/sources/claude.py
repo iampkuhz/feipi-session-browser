@@ -14,7 +14,7 @@ from collections import Counter
 from pathlib import Path
 
 from session_browser.config import CLAUDE_DATA_DIR
-from session_browser.domain.models import SessionSummary, ChatMessage, ToolCall
+from session_browser.domain.models import ChatMessage, SessionSummary, SubagentRun, SubagentSummary, ToolCall
 from session_browser.domain.token_normalizer import normalize_tokens
 from session_browser.sources.jsonl_reader import parse_jsonl_events
 
@@ -257,7 +257,7 @@ def parse_session_detail(
     session_id: str,
     history_entry: dict | None = None,
     verbose: bool = False,
-) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[dict]]:
+) -> tuple[SessionSummary, list[ChatMessage], list[ToolCall], list[SubagentRun]]:
     """解析 一个 single Claude session's full event stream.
 
     Args:
@@ -361,7 +361,7 @@ def build_normalized_session(
     summary: SessionSummary,
     messages: list[ChatMessage],
     tool_calls: list[ToolCall],
-    subagent_runs: list[dict],
+    subagent_runs: list[SubagentRun],
     source_path: str,
 ) -> dict:
     """构建 normalized JSON，来源于 该 models already parsed，用于 indexing."""
@@ -941,7 +941,7 @@ def _usage_totals_from_messages(messages: list[ChatMessage]) -> dict:
     return totals
 
 
-def _parse_subagent_runs(session_file: Path) -> list[dict]:
+def _parse_subagent_runs(session_file: Path) -> list[SubagentRun]:
     """解析 Claude Code subagent sidechain files，用于 一个 parent session."""
     subagents_dir = session_file.with_suffix("") / "subagents"
     if not subagents_dir.exists():
@@ -977,7 +977,7 @@ def _parse_subagent_runs(session_file: Path) -> list[dict]:
                 ended_at = ev.get("timestamp", "")
 
         agent_id = path.stem.replace("agent-", "")
-        summary = {
+        summary = SubagentSummary.from_dict({
             "agent_id": agent_id,
             "agent_type": meta.get("agentType", ""),
             "description": meta.get("description", ""),
@@ -994,25 +994,25 @@ def _parse_subagent_runs(session_file: Path) -> list[dict]:
             "started_at": started_at,
             "ended_at": ended_at,
             "status": "error" if failed_tool_count else "ok",
-        }
+        })
 
         for tc in tool_calls:
             tc.scope = "subagent"
             tc.subagent_id = agent_id
 
-        runs.append({
-            "path": path,
-            "summary": summary,
-            "tool_calls": tool_calls,
-            "messages": messages,
-        })
+        runs.append(SubagentRun(
+            path=path,
+            summary=summary,
+            tool_calls=tool_calls,
+            messages=messages,
+        ))
 
     return runs
 
 
 def _attach_subagents_to_agent_tools(
     tool_calls: list[ToolCall],
-    subagent_runs: list[dict],
+    subagent_runs: list[SubagentRun],
 ) -> None:
     """附加 parsed sidechain summaries to 该 matching parent Agent tool."""
     remaining = list(subagent_runs)
@@ -1048,7 +1048,7 @@ def _attach_subagents_to_agent_tools(
             child.parent_tool_name = tc.name
 
 
-def _flatten_subagent_tool_calls(subagent_runs: list[dict]) -> list[ToolCall]:
+def _flatten_subagent_tool_calls(subagent_runs: list[SubagentRun]) -> list[ToolCall]:
     """返回 所有 parsed child tool calls."""
     flattened: list[ToolCall] = []
     for run in subagent_runs:
@@ -1058,7 +1058,7 @@ def _flatten_subagent_tool_calls(subagent_runs: list[dict]) -> list[ToolCall]:
 
 def _apply_subagent_totals(
     summary: SessionSummary,
-    subagent_runs: list[dict],
+    subagent_runs: list[SubagentRun],
     tool_calls: list[ToolCall],
 ) -> None:
     """Add subagent traffic，转换为 session-level diagnostic totals."""

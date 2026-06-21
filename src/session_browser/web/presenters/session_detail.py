@@ -15,6 +15,7 @@ from session_browser.domain.models import (
     LLMCall,
     ToolCall,
     TokenProvider,
+    SubagentRun,
 )
 from session_browser.domain.token_normalizer import normalize_tokens
 
@@ -25,7 +26,6 @@ def _merge_messages(msgs: list[ChatMessage]) -> ChatMessage:
         return msgs[0]
 
     content = "\n\n".join(m.content for m in msgs if m.content)
-    content_html = "\n\n".join(m.content_html for m in msgs if m.content_html)
     # 使用 该 latest timestamp
     timestamp = msgs[-1].timestamp
     # 合并 tool_calls，来源于 所有 messages
@@ -45,7 +45,6 @@ def _merge_messages(msgs: list[ChatMessage]) -> ChatMessage:
         model=msgs[-1].model,
         tool_calls=all_tool_calls,
         usage=usage,
-        content_html=content_html,
         llm_call_id=msgs[-1].llm_call_id,
         llm_status=msgs[-1].llm_status,
     )
@@ -278,7 +277,7 @@ def build_llm_calls(
     messages: list[ChatMessage],
     tool_calls: list[ToolCall],
     rounds: list[ConversationRound],
-    subagent_runs: list[dict],
+    subagent_runs: list[SubagentRun],
     agent: str = "",
 ) -> list[LLMCall]:
     """提取 LLMCall objects, 该 token/attribution semantic boundary.
@@ -463,7 +462,7 @@ def build_llm_calls(
 
 def _build_subagent_interactions(
     llm_calls: list[LLMCall],
-    subagent_runs: list[dict],
+    subagent_runs: list[SubagentRun],
     tool_calls: list[ToolCall],
 ) -> list[LLMCall]:
     """构建 一个 aggregated interaction per subagent run (for rounds view).
@@ -540,7 +539,7 @@ def assign_interactions_to_rounds(
     rounds: list[ConversationRound],
     llm_calls: list[LLMCall],
     tool_calls: list[ToolCall],
-    subagent_runs: list[dict],
+    subagent_runs: list[SubagentRun],
 ) -> None:
     """说明：Populate round.interactions.
 
@@ -581,22 +580,20 @@ def build_rounds(
     Token ratio is derived from the assistant message's usage data (Claude, Qoder)
     or set to zero when usage data is unavailable (Codex).
 
-    ``md_filter`` is injected by the caller (e.g. routes._md_filter) so this
-    module stays independent of the HTTP layer.
+    ``md_filter`` is retained as a compatibility parameter; rendering now
+    happens in web renderers/view-model code instead of mutating ChatMessage.
     """
     if not messages:
         return []
 
     total_session_tokens = session_input_tokens + session_output_tokens + session_cached_tokens + session_cache_write_tokens
 
-    # Step 1: Render markdown 和 pair each assistant LLM response，转换为 its
+    # Step 1: Pair each assistant LLM response，转换为 its
     # 说明：own round. Tool-result pseudo-user messages are filtered in sources, so
     # 说明：consecutive assistant responses are expected during tool loops.
     pending_users: list[ChatMessage] = []
     rounds: list[ConversationRound] = []
     for msg in messages:
-        msg.content_html = md_filter(msg.content)
-
         if msg.role == "user":
             pending_users.append(msg)
             continue

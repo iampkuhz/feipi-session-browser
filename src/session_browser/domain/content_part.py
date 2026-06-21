@@ -14,10 +14,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from session_browser.domain.enums import DomainStrEnum
+
 # 说明：─── ContentPart type constants ──────────────────────────────────────────
 
 
-class ContentPartType:
+class ContentPartType(DomainStrEnum):
     """说明：Allowed content part types (format-level)."""
 
     TEXT = "text"
@@ -31,7 +33,7 @@ class ContentPartType:
 # 说明：─── Context-level part roles (structural, within API messages) ──────────
 
 
-class ContextPartType:
+class ContextPartType(DomainStrEnum):
     """Structural roles，用于 multipart context parts.
 
     These describe where a part sits in the API message structure
@@ -302,35 +304,6 @@ class ContentPart:
     title: str = ""
     content_bytes: int = 0
     token_hint: int = 0
-
-    @staticmethod
-    def from_dict(data: dict) -> ContentPart:
-        """创建 一个 ContentPart，来源于 一个 dict (e.g. deserialized JSON)."""
-        return ContentPart(
-            part_type=data.get("part_type", ContentPartType.TEXT),
-            content=data.get("content", ""),
-            language=data.get("language", ""),
-            filename=data.get("filename", ""),
-            metadata=data.get("metadata", {}),
-            context_type=data.get("context_type", ContextPartType.UNKNOWN),
-            title=data.get("title", ""),
-            content_bytes=data.get("content_bytes", 0),
-            token_hint=data.get("token_hint", 0),
-        )
-
-    def to_dict(self) -> dict:
-        """序列化 to 一个 dict."""
-        return {
-            "part_type": self.part_type,
-            "content": self.content,
-            "language": self.language,
-            "filename": self.filename,
-            "metadata": self.metadata,
-            "context_type": self.context_type,
-            "title": self.title,
-            "content_bytes": self.content_bytes,
-            "token_hint": self.token_hint,
-        }
 
     @property
     def is_text(self) -> bool:

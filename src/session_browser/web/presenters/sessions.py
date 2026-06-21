@@ -9,6 +9,9 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from session_browser.domain.serializers import session_summary_to_dict
+from session_browser.web.view_models import SessionsViewModel
+
 from session_browser.index.indexer import (
     list_sessions,
     count_sessions,
@@ -218,7 +221,7 @@ def fetch_sessions_view_model(
     sessions_data = []
     sessions_lookup = {}
     for s in all_sessions_raw:
-        d = compute_derived_metrics(s.to_dict())
+        d = compute_derived_metrics(session_summary_to_dict(s))
         sessions_data.append(d)
         sessions_lookup[d["session_key"]] = d
 
@@ -240,7 +243,7 @@ def fetch_sessions_view_model(
 def build_sessions_context(
     raw_params: dict[str, list[str]],
     conn: sqlite3.Connection,
-) -> dict[str, Any]:
+) -> SessionsViewModel:
     """说明：High-level helper: parse params, fetch data, return template context.
 
     This is the main entry point for the /sessions page presenter.

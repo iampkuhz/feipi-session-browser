@@ -5,6 +5,7 @@ from pathlib import Path
 from session_browser.domain.models import ChatMessage, ConversationRound, LLMCall, ToolCall
 from session_browser.web.routes import _build_v11_view_model
 from session_browser.web.session_detail.payloads import _build_payload_lookup
+from session_browser.web.session_detail.preview import apply_round_preview
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +34,7 @@ class _FakeSession:
         self.tool_execution_seconds = kwargs.get("tool_execution_seconds", 20)
 
 
+
 class _FakeAnomalies:
     anomalies = []
 
@@ -45,7 +47,7 @@ def _round(index: int, interaction: LLMCall, tools: list[ToolCall]) -> Conversat
         interactions=[interaction],
         round_index=index - 1,
     )
-    row.compute_preview()
+    apply_round_preview(row)
     return row
 
 

@@ -18,6 +18,8 @@ from session_browser.domain.models import (
     LLMCall,
 )
 
+from session_browser.web.session_detail.preview import apply_round_preview
+
 
 def _tool(name: str, scope: str = "main") -> ToolCall:
     return ToolCall(name=name, scope=scope)
@@ -63,7 +65,7 @@ class TestToolCountNoDuplication:
         r.interactions = [
             _llm_call(tool_calls=[_tool("Read"), _tool("Read"), _tool("Bash")]),
         ]
-        r.compute_preview()
+        apply_round_preview(r)
 
         # tool_summary_html 应包含每个工具恰好一次
         assert r.tool_summary_html.count("Read") == 1
@@ -96,7 +98,7 @@ class TestToolCountNoDuplication:
                 tool_calls=[_tool("Write", "subagent")],
             ),
         ]
-        r.compute_preview()
+        apply_round_preview(r)
 
         # 每个工具名在 tool_summary_html 中应最多出现一次
         for name in ["Read", "Bash", "Write"]:
@@ -119,7 +121,7 @@ class TestToolCountNoDuplication:
         r.interactions = [
             _llm_call(tool_calls=[_tool("Grep"), _tool("Read")]),
         ]
-        r.compute_preview()
+        apply_round_preview(r)
 
         assert "Fix the bug" not in r.preview_text  # 使用助手回复，而非用户消息
         assert "Found the issue" in r.preview_text
@@ -138,7 +140,7 @@ class TestToolCountNoDuplication:
             tool_calls=[],
         )
         r.interactions = []
-        r.compute_preview()
+        apply_round_preview(r)
 
         assert r.tool_summary_html == ""
         assert "Hi there!" in r.preview_text
@@ -154,7 +156,7 @@ class TestToolCountNoDuplication:
             tool_calls=[],
         )
         r.interactions = []
-        r.compute_preview()
+        apply_round_preview(r)
 
         assert "explain this code" in r.preview_text
         assert r.tool_summary_html == ""
@@ -170,7 +172,7 @@ class TestToolCountNoDuplication:
             tool_calls=[_tool("Read"), _tool("Read")],
         )
         r.interactions = [_llm_call(tool_calls=[_tool("Read"), _tool("Read")])]
-        r.compute_preview()
+        apply_round_preview(r)
 
         assert "Response text" in r.preview_text
         assert "preview-tool" not in r.preview_text  # preview_text 是纯文本
@@ -192,7 +194,7 @@ class TestPreviewDoesNotRepeatText:
             tool_calls=[_tool("Bash"), _tool("Read"), _tool("Read")],
         )
         r.interactions = [_llm_call(tool_calls=[_tool("Bash"), _tool("Read"), _tool("Read")])]
-        r.compute_preview()
+        apply_round_preview(r)
 
         assert "<span" not in r.preview_text
         assert "preview-tool" not in r.preview_text
@@ -208,7 +210,7 @@ class TestPreviewDoesNotRepeatText:
             tool_calls=[_tool("Bash"), _tool("Read")],
         )
         r.interactions = [_llm_call(tool_calls=[_tool("Bash"), _tool("Read")])]
-        r.compute_preview()
+        apply_round_preview(r)
 
         assert '<span class="preview-tool">' in r.tool_summary_html
         assert "Bash" in r.tool_summary_html
@@ -262,7 +264,7 @@ class TestTraceRowDOMContract:
                 _tool("TaskCreate"),
             ]),
         ]
-        r.compute_preview()
+        apply_round_preview(r)
 
         combined = r.preview_text + " " + r.tool_summary_html
         for name, expected_count in [("Read", 1), ("Bash", 1), ("TaskCreate", 1)]:

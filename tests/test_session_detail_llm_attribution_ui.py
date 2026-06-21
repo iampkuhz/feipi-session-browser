@@ -5,6 +5,8 @@ import pytest
 from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
+
+from session_browser.web.session_detail.preview import apply_round_preview
 from session_browser.web.routes import _build_v11_view_model
 from session_browser.web.template_env import env, _precision_label
 
@@ -85,13 +87,14 @@ def _make_round_with_llm_call():
         interactions=[llm_call],
         round_index=0,
     )
-    ro.compute_preview()
+    apply_round_preview(ro)
     return ro, llm_call
 
 
 def _render_payload_sources(payload_sources):
     macro = env.get_template("components/session_detail_timeline.html").module
     return macro.payload_sources(payload_sources)
+
 
 
 def _make_req_data(**overrides):

@@ -8,11 +8,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from session_browser.domain.enums import DomainStrEnum
+
 
 # 说明：─── Precision / Source enums ──────────────────────────────────────────
 
 
-class ValuePrecision:
+class ValuePrecision(DomainStrEnum):
+    """Precision states used by attribution values."""
+
     EXACT = "exact"
     PROVIDER_REPORTED = "provider_reported"
     TRANSCRIPT_EXACT = "transcript_exact"
@@ -22,7 +26,9 @@ class ValuePrecision:
     UNAVAILABLE = "unavailable"
 
 
-class ValueSource:
+class ValueSource(DomainStrEnum):
+    """Evidence source families used by attribution values."""
+
     PROVIDER_USAGE = "provider_usage"
     TRANSCRIPT = "transcript"
     TOOL_LOGS = "tool_logs"

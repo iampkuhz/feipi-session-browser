@@ -16,8 +16,11 @@ from session_browser.domain.models import (
     LLMCall,
     TokenProvider,
     ToolCall,
+    SubagentRun,
 )
 from session_browser.domain.token_normalizer import normalize_tokens
+from session_browser.web.session_detail.preview import build_round_preview
+from session_browser.web.view_models import SessionDetailViewModel
 from session_browser.web.template_env import (
     _relative_to_repo,
     _shorten_path,
@@ -315,7 +318,7 @@ def _append_payload_item(group: dict, item: dict, defaults: dict) -> None:
 def _build_payload_tab_index(
     rounds: list,
     tool_calls: list,
-    subagent_runs: list,
+    subagent_runs: list[SubagentRun],
     llm_calls: list | None = None,
     *,
     agent: str = "",
@@ -339,7 +342,12 @@ def _build_payload_tab_index(
 
     for r_idx, r in enumerate(rounds):
         rid = r_idx + 1
-        round_title = (r.preview_text or getattr(r.user_msg, "content", "") or "").strip()
+        round_preview = build_round_preview(r)
+        round_title = (
+            round_preview["preview_text"]
+            or getattr(r.user_msg, "content", "")
+            or ""
+        ).strip()
         if not round_title:
             round_title = "Untitled round"
         group = {
@@ -550,7 +558,7 @@ def _build_session_diagnostics(
     rounds: list,
     llm_calls: list,
     tool_calls: list,
-    subagent_runs: list,
+    subagent_runs: list[SubagentRun],
     trace_rows: list,
     session_anomalies,
     fresh_tokens: int,
@@ -1558,12 +1566,12 @@ def _build_v11_view_model(
     rounds: list,
     llm_calls: list,
     tool_calls: list,
-    subagent_runs: list,
+    subagent_runs: list[SubagentRun],
     session_anomalies,
     slim: bool = False,
     round_filter: set[int] | None = None,
     skip_attribution: bool = False,
-) -> dict:
+) -> SessionDetailViewModel:
     """构建 该 timeline view model，用于 session.html template.
 
     When ``slim=True``, skip payload_sources building and timeline_items embedding.
@@ -2185,6 +2193,7 @@ def _build_v11_view_model(
 
     for r_idx, r in enumerate(rounds):
         rid = r_idx + 1
+        round_preview = build_round_preview(r)
         rb = r.token_breakdown()
         rt = rb["input"] + rb["cache_read"] + rb["cache_write"] + rb["output"]
         has_failed = any(tc.is_failed for tc in r.tool_calls)
@@ -2208,7 +2217,7 @@ def _build_v11_view_model(
         if r.user_msg.content:
             preview_title = (r.user_msg.content or "")[:300]
         else:
-            preview_title = (r.preview_text or "")[:300]
+            preview_title = (round_preview["preview_text"] or "")[:300]
         for _fw in ["Map", "Inspector", "Focus", "Open selected", "Calls", "Hotspots", "High token", "Jump input"]:
             preview_title = preview_title.replace(_fw, "***")
         preview_subtitle = f"{len(r.tool_calls)} tool{'s' if len(r.tool_calls) != 1 else ''}" if r.tool_calls else "no tools"

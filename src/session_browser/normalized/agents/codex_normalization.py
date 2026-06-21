@@ -15,6 +15,7 @@ from session_browser.domain.token_normalizers.codex_token_normalizer import (
     extract_codex_usage,
     int_or_zero,
 )
+from session_browser.domain.subagent_models import SubagentRun, SubagentSummary
 from session_browser.normalized.agents.codex_parts import (
     CodexSourceUnitDraft,
     draft_to_catalog_unit,
@@ -49,7 +50,7 @@ def parse_codex_events(
     events: list[dict],
     source_path: str = "",
     thread_info: dict | None = None,
-    subagent_runs: list[dict] | None = None,
+    subagent_runs: list[SubagentRun] | None = None,
 ) -> dict:
     """解析 Codex rollout events，转换为 该 intermediate normalized contract."""
     thread_info = thread_info or {}
@@ -88,7 +89,7 @@ class _CodexBuildState:
         source_path: str,
         thread_info: dict,
         *,
-        subagent_runs: list[dict] | None = None,
+        subagent_runs: list[SubagentRun] | None = None,
         scope: str = "main",
         subagent_id: str = "",
         parent_tool_use_id: str = "",
@@ -101,7 +102,7 @@ class _CodexBuildState:
         self.subagent_runs_by_id = {
             str((run.get("summary") or {}).get("agent_id") or ""): run
             for run in self.subagent_runs
-            if isinstance(run, dict)
+            if run.get("summary")
         }
         self.scope = scope
         self.subagent_id = subagent_id
@@ -396,7 +397,7 @@ class _CodexBuildState:
     def _merged_source_unit_catalog(self) -> dict[str, dict]:
         catalog = dict(self.source_unit_catalog)
         for run in self.subagent_runs:
-            child_catalog = run.get("source_unit_catalog") if isinstance(run, dict) else None
+            child_catalog = run.get("source_unit_catalog")
             if not isinstance(child_catalog, dict):
                 continue
             for key, unit in child_catalog.items():
@@ -757,7 +758,7 @@ def _build_round(
     usage: dict,
     request_tool_results: list[dict],
     tools: list[dict],
-    subagent_runs_by_id: dict[str, dict],
+    subagent_runs_by_id: dict[str, SubagentRun],
     scope: str,
     subagent_id: str,
     parent_tool_use_id: str,
@@ -911,7 +912,7 @@ def _build_steps(
     *,
     timestamp: str,
     tools: list[dict],
-    subagent_runs_by_id: dict[str, dict],
+    subagent_runs_by_id: dict[str, SubagentRun],
 ) -> list[dict]:
     steps: list[dict] = []
     if tools:
@@ -972,10 +973,10 @@ def _subagent_summary_from_tool_result(name: str, output: Any) -> dict:
     }
 
 
-def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: str) -> list[dict]:
+def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: str) -> list[SubagentRun]:
     if not parent_session_id or not parent_path.exists():
         return []
-    runs: list[dict] = []
+    runs: list[SubagentRun] = []
     from session_browser.sources.codex_session_source import get_codex_subagent_child_paths
 
     for candidate in get_codex_subagent_child_paths(parent_path, parent_session_id):
@@ -1022,11 +1023,10 @@ def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: st
             state.rounds,
             state.source_unit_sequences,
         )
-        runs.append({
-            "path": str(candidate),
-            "parent_tool_use_id": "",
-            "source_unit_catalog": dict(state.source_unit_catalog),
-            "summary": {
+        runs.append(SubagentRun(
+            path=str(candidate),
+            parent_tool_use_id="",
+            summary=SubagentSummary.from_dict({
                 "agent_id": agent_id,
                 "agent_type": str(spawn.get("agent_role") or ""),
                 "agent_nickname": str(spawn.get("agent_nickname") or ""),
@@ -1042,9 +1042,12 @@ def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: st
                 "input_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("fresh", 0) for r in state.rounds),
                 "cache_read_input_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("cache_read", 0) for r in state.rounds),
                 "output_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("output", 0) for r in state.rounds),
+            }),
+            extras={
+                "source_unit_catalog": dict(state.source_unit_catalog),
+                "rounds": rounds,
             },
-            "rounds": rounds,
-        })
+        ))
     return runs
 
 

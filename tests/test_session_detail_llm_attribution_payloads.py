@@ -6,6 +6,8 @@ import pytest
 from session_browser.domain.models import (
     LLMCall, ChatMessage, ConversationRound, ToolCall,
 )
+
+from session_browser.web.session_detail.preview import apply_round_preview
 from session_browser.web.routes import _build_v11_view_model
 
 
@@ -85,7 +87,7 @@ def _make_round_with_llm_call():
         interactions=[llm_call],
         round_index=0,
     )
-    ro.compute_preview()
+    apply_round_preview(ro)
     return ro, llm_call
 
 
@@ -113,6 +115,7 @@ def test_attribution_payloads_exist_in_sources():
     assert "llm.response_attribution" in kinds, (
         f"Missing llm.response_attribution in payload_sources. Kinds: {kinds}"
     )
+
 
 
 def test_slim_initial_load_defers_attribution_payload_data():

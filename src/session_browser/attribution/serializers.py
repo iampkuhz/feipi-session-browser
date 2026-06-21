@@ -10,6 +10,11 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
+from session_browser.attribution.dto import (
+    AttributionErrorPayloadDTO,
+    LLMRequestAttributionPayloadDTO,
+    LLMResponseAttributionPayloadDTO,
+)
 from session_browser.attribution.contracts import (
     AttributedValue,
     AvailabilityRow,
@@ -525,7 +530,7 @@ def request_attribution_to_payload(attr: LLMRequestAttribution, v2_extra: dict |
             "duration": attr.timing.get("duration", "—") if hasattr(attr, "timing") and attr.timing else "—",
         },
     }
-    return payload
+    return LLMRequestAttributionPayloadDTO(**payload).to_dict()
 
 
 def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict | None = None) -> dict:
@@ -595,7 +600,7 @@ def response_attribution_to_payload(attr: LLMResponseAttribution, v2_extra: dict
         "attribution_notes": list(attr.attribution_notes),
         "availability_rows": [availability_row_to_dict(r) for r in attr.availability_rows],
     }
-    return payload
+    return LLMResponseAttributionPayloadDTO(**payload).to_dict()
 
 
 # 说明：─── v2 helper functions ─────────────────────────────────────────────
@@ -712,12 +717,12 @@ def attribution_error_to_payload(
 
     payload 故意保持最小；不包含完整 traceback，避免把敏感信息泄漏到 UI。
     """
-    return {
-        "kind": "llm.attribution_error",
-        "agent": agent,
-        "call_id": call_id,
-        "round_id": round_id,
-        "error_type": error_type,
-        "message": message,
-        "fallback": "归因数据不可用；基础 LLM 上下文和输出 payload 仍可查看。",
-    }
+    return AttributionErrorPayloadDTO(
+        kind="llm.attribution_error",
+        agent=agent,
+        call_id=call_id,
+        round_id=round_id,
+        error_type=error_type,
+        message=message,
+        fallback="归因数据不可用；基础 LLM 上下文和输出 payload 仍可查看。",
+    ).to_dict()
