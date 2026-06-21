@@ -676,12 +676,17 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 "full_content": full_content,
                 "event_order": item.get("event_order"),
                 "timestamp": item.get("timestamp", ""),
-                "tokens": estimate_tokens_from_text(full_content),
+                "tokens": 0,
+                "token_status": "unknown_mass",
+                "content_token_estimate": estimate_tokens_from_text(full_content),
             })
         return _source_items_details(
             detail_items,
             kind=f"normalized_candidate:{candidate}",
-            explanation=["从 normalized artifact 中该 call 绑定的 Attribution Candidate 读取。"],
+            explanation=[
+                "从 normalized artifact 中该 call 绑定的 Attribution Candidate 读取。",
+                "tokens=0 表示不声明 provider token mass；content_token_estimate 仅用于内容规模参考。",
+            ],
         )
 
     def _request_buckets_from_normalized_candidates(
@@ -708,20 +713,25 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 continue
             key, label, source = mapping.get(candidate, (candidate, candidate, ValueSource.TRANSCRIPT))
             text = self._candidate_items_text(items)
-            tokens = estimate_tokens_from_text(text)
+            content_estimate = estimate_tokens_from_text(text)
             buckets.append(RequestAttributionBucket(
                 key=key,
                 label=label,
-                tokens=tokens,
-                percent=_pct(tokens, denominator),
+                tokens=0,
+                percent=0.0,
                 count_label=f"{len(items)} candidates",
-                precision=ValuePrecision.ESTIMATED,
+                precision=ValuePrecision.UNAVAILABLE,
                 source=source,
                 confidence_label="中高",
-                summary=f"来自 normalized artifact 的 {candidate} candidates。",
+                summary=(
+                    f"来自 normalized artifact 的 {candidate} candidates；"
+                    "只表示 occurrence/content coverage，不声明 provider token mass。"
+                ),
                 content_preview=_compact_preview(text, 180),
                 details=self._candidate_bucket_details(candidate, items),
+                display_group="source_candidates",
             ))
+            buckets[-1].details["content_token_estimate"] = content_estimate
         return buckets
 
     def _response_buckets_from_normalized_candidates(
@@ -739,6 +749,12 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             "structured_output": ("structured_items", "Structured output", ValueSource.TRANSCRIPT, ValuePrecision.ESTIMATED),
         }
         buckets: list[ResponseAttributionBucket] = []
+        non_reasoning_candidates = [
+            candidate
+            for candidate, items in response_candidates.items()
+            if candidate != "reasoning_output" and isinstance(items, list) and items
+        ]
+        non_reasoning_total = max(total_output - reasoning_output_tokens, 0)
         for candidate, items in response_candidates.items():
             if not isinstance(items, list) or not items:
                 continue
@@ -747,7 +763,26 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 (candidate, candidate, ValueSource.TRANSCRIPT, ValuePrecision.ESTIMATED),
             )
             text = self._candidate_items_text(items)
-            tokens = reasoning_output_tokens if candidate == "reasoning_output" and reasoning_output_tokens > 0 else estimate_tokens_from_text(text)
+            if candidate == "reasoning_output" and reasoning_output_tokens > 0:
+                tokens = reasoning_output_tokens
+                contributes_to_total = True
+                summary = f"来自 normalized artifact 的 {candidate} candidates；token mass 使用 provider reasoning aggregate。"
+            elif len(non_reasoning_candidates) == 1 and non_reasoning_total > 0:
+                tokens = non_reasoning_total
+                precision = ValuePrecision.PROVIDER_REPORTED
+                contributes_to_total = True
+                summary = (
+                    f"来自 normalized artifact 的 {candidate} candidates；"
+                    "该 call 只有一个 non-reasoning candidate lane，显示 provider aggregate lane total。"
+                )
+            else:
+                tokens = 0
+                precision = ValuePrecision.UNAVAILABLE
+                contributes_to_total = True
+                summary = (
+                    f"来自 normalized artifact 的 {candidate} candidates；"
+                    "多个 non-reasoning lanes 无法从 aggregate usage 精确拆分。"
+                )
             buckets.append(ResponseAttributionBucket(
                 key=key,
                 label=label,
@@ -757,8 +792,8 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
                 precision=precision,
                 source=source,
                 confidence_label="中高",
-                summary=f"来自 normalized artifact 的 {candidate} candidates。",
-                contributes_to_total=True,
+                summary=summary,
+                contributes_to_total=contributes_to_total,
                 details=self._candidate_bucket_details(candidate, items),
             ))
         return buckets
@@ -1815,6 +1850,7 @@ class CodexAttributionBuilder(BaseAttributionBuilder):
             accounting = CodexTokenAccountingMapper().build_response_accounting(
                 source_units=source_units,
                 total_output=total_output,
+                reasoning_output_tokens=reasoning_output_tokens,
             )
             return LLMResponseAttribution(
                 agent="codex",

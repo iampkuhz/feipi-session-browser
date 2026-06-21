@@ -248,6 +248,51 @@ def is_codex_subagent_session_file(session_file: str | Path | None) -> bool:
     return is_codex_subagent_session_meta(peek_codex_session_meta(session_file))
 
 
+_SUBAGENT_CHILD_INDEX_CACHE: dict[Path, dict[str, list[Path]]] = {}
+
+
+def clear_codex_subagent_index_cache() -> None:
+    """Clear per-process Codex day-directory child rollout index cache."""
+    _SUBAGENT_CHILD_INDEX_CACHE.clear()
+
+
+def get_codex_subagent_child_paths(parent_path: Path, parent_session_id: str) -> list[Path]:
+    """Return child rollout files for a parent using one metadata scan per day dir."""
+    if not parent_session_id or not parent_path.exists():
+        return []
+    day_dir = parent_path.parent
+    index = _SUBAGENT_CHILD_INDEX_CACHE.get(day_dir)
+    if index is None:
+        index = _build_codex_subagent_child_index(day_dir)
+        _SUBAGENT_CHILD_INDEX_CACHE[day_dir] = index
+    return [
+        path for path in index.get(parent_session_id, [])
+        if path != parent_path
+    ]
+
+
+def _build_codex_subagent_child_index(day_dir: Path) -> dict[str, list[Path]]:
+    index: dict[str, list[Path]] = {}
+    if not day_dir.exists():
+        return index
+    for candidate in sorted(day_dir.glob("rollout-*.jsonl")):
+        meta = peek_codex_session_meta(candidate)
+        parent_id = _codex_parent_thread_id_from_meta(meta)
+        if parent_id:
+            index.setdefault(parent_id, []).append(candidate)
+    return index
+
+
+def _codex_parent_thread_id_from_meta(meta: dict | None) -> str:
+    if not isinstance(meta, dict):
+        return ""
+    parent_id = str(meta.get("parent_thread_id") or "").strip()
+    if parent_id:
+        return parent_id
+    spawn = _source_subagent_spawn(meta.get("source"))
+    return str(spawn.get("parent_thread_id") or "").strip()
+
+
 def _find_session_file(session_id: str, rollout_path: str = "") -> Path | None:
     """查找 一个 Codex session file under ~/.codex/sessions/.
 
@@ -370,7 +415,10 @@ def parse_session_detail_with_normalized(
         ParseSeverity,
         build_parse_diagnostics,
     )
-    from session_browser.normalized.agents.codex_normalization import parse_codex_rollout_file
+    from session_browser.normalized.agents.codex_normalization import (
+        _parse_subagent_rollouts_for_parent,
+        parse_codex_events,
+    )
 
     thread_info = (threads_db or {}).get(session_id, {})
     rollout_path = thread_info.get("rollout_path", "")
@@ -420,9 +468,11 @@ def parse_session_detail_with_normalized(
     normalized_thread_info.setdefault("cwd", summary.cwd)
     normalized_thread_info.setdefault("git_branch", summary.git_branch)
     normalized_thread_info.setdefault("model", summary.model)
-    normalized = parse_codex_rollout_file(
-        session_file,
+    normalized = parse_codex_events(
+        events,
+        source_path=str(session_file),
         thread_info=normalized_thread_info,
+        subagent_runs=_parse_subagent_rollouts_for_parent(session_file, session_id),
     )
     return summary, messages, tool_calls, subagent_runs, normalized, session_file
 
@@ -1020,9 +1070,7 @@ def _parse_subagent_runs(session_file: Path, parent_session_id: str) -> list[dic
     if not parent_session_id or not session_file.exists():
         return []
     runs: list[dict] = []
-    for candidate in sorted(session_file.parent.glob("rollout-*.jsonl")):
-        if candidate == session_file:
-            continue
+    for candidate in get_codex_subagent_child_paths(session_file, parent_session_id):
         events, _ = parse_jsonl_events(candidate)
         meta = _first_session_meta(events)
         spawn = _codex_thread_spawn(meta)

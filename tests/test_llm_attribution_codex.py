@@ -310,10 +310,15 @@ def test_codex_request_builder_prefers_normalized_source_units():
     accounting = payload["accounting_attribution"]
     assert accounting["cache_read_tokens"]["tokens"] == 400
     assert accounting["cache_write_tokens"]["tokens"] == 0
-    assert {item["candidate"] for item in accounting["fresh_input_tokens"]["candidates"]} >= {
+    fresh_candidates = accounting["fresh_input_tokens"]["candidates"]
+    assert {item["candidate"] for item in fresh_candidates} >= {
         "user_input",
         "tool_results",
     }
+    assert all(item["tokens"] == 0 for item in fresh_candidates)
+    assert all(item["token_status"] == "unknown_mass" for item in fresh_candidates)
+    assert accounting["fresh_input_tokens"]["candidate_total_tokens"] == 0
+    assert accounting["fresh_input_tokens"]["unattributed_tokens"] == 600
     assert all(b["key"] != "provider_cached_context" for b in payload["buckets"])
 
 
@@ -406,6 +411,12 @@ def test_codex_response_builder_prefers_normalized_source_units():
         "reasoning_output",
         "tool_calls",
     }
+    by_candidate = {item["candidate"]: item for item in accounting}
+    assert by_candidate["reasoning_output"]["tokens"] == 30
+    assert by_candidate["reasoning_output"]["token_status"] == "exact_provider"
+    assert by_candidate["assistant_output"]["tokens"] == 0
+    assert by_candidate["tool_calls"]["tokens"] == 0
+    assert by_candidate["tool_calls"]["token_status"] == "unknown_mass"
 
 
 def test_codex_prior_message_uses_full_token_estimate_from_context():

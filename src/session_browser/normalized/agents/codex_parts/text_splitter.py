@@ -18,6 +18,7 @@ _TAG_RULES: tuple[tuple[str, str, str], ...] = (
     ("app-context", "app_context_block", "runtime_context"),
     ("collaboration_mode", "collaboration_mode_block", "runtime_context"),
     ("environment_context", "environment_context_block", "runtime_context"),
+    ("subagent_notification", "subagent_notification", "tool_results"),
     ("INSTRUCTIONS", "visible_instructions_block", "system_instructions"),
 )
 

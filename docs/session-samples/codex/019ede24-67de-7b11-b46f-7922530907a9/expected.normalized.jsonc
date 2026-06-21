@@ -1,6 +1,6 @@
 {
   // schema_version: 当前唯一支持的 normalized contract 版本；只用于判断 artifact 是否需要重建。
-  "schema_version": "session-detail.normalized.v2",
+  "schema_version": "session-detail.normalized.v3",
   // agent: 生成该 artifact 的 agent 类型。
   "agent": "codex",
   // source: 原始会话来源定位信息；展示时据此重新读取 JSONL。
@@ -140,7 +140,9 @@
       // request: 本次 LLM call 的请求侧边关系；正文按需回读 JSONL。
       "request": {
         // tool_result_ids: 本次 request 消费到的工具结果 id 列表。
-        "tool_result_ids": []
+        "tool_result_ids": [
+          "call_XsbhHJb7vGOu1oAP5oFqgBr7"
+        ]
       },
       // response: 本次 LLM call 的响应侧边关系；正文按需回读 JSONL。
       "response": {
@@ -167,7 +169,7 @@
       // turn_id: Codex 原生 turn 标识；没有则为空字符串。
       "turn_id": "019ede26-ff74-7a61-a7d9-6215ddb8b668",
       // model: 本会话或本次 LLM call 的模型名。
-      "model": "litellm-local",
+      "model": "gpt-5.5",
       // timestamp: LLM call 对应 token_count 记录的时间戳。
       "timestamp": "2026-06-19T04:32:46.899Z",
       // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
@@ -216,7 +218,7 @@
       // turn_id: Codex 原生 turn 标识；没有则为空字符串。
       "turn_id": "019ede26-ff74-7a61-a7d9-6215ddb8b668",
       // model: 本会话或本次 LLM call 的模型名。
-      "model": "litellm-local",
+      "model": "gpt-5.5",
       // timestamp: LLM call 对应 token_count 记录的时间戳。
       "timestamp": "2026-06-19T04:32:49.292Z",
       // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
@@ -265,7 +267,7 @@
       // turn_id: Codex 原生 turn 标识；没有则为空字符串。
       "turn_id": "019ede27-004f-7d10-8a78-fcaf8a6e7cd6",
       // model: 本会话或本次 LLM call 的模型名。
-      "model": "litellm-local",
+      "model": "gpt-5.5",
       // timestamp: LLM call 对应 token_count 记录的时间戳。
       "timestamp": "2026-06-19T04:32:47.241Z",
       // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
@@ -314,7 +316,7 @@
       // turn_id: Codex 原生 turn 标识；没有则为空字符串。
       "turn_id": "019ede27-004f-7d10-8a78-fcaf8a6e7cd6",
       // model: 本会话或本次 LLM call 的模型名。
-      "model": "litellm-local",
+      "model": "gpt-5.5",
       // timestamp: LLM call 对应 token_count 记录的时间戳。
       "timestamp": "2026-06-19T04:32:49.682Z",
       // usage: 五字段 token 账本；Total = Fresh + Cache Read + Cache Write + Output。
@@ -500,9 +502,7 @@
       // declared_by_call_id: 声明该工具调用的 LLM call id。
       "declared_by_call_id": "codex-call-0001",
       // result_consumed_by_call_id: 消费该工具结果的后续 LLM call id；未知则为空。
-      "result_consumed_by_call_id": "",
-      // status: 非默认工具状态；缺省 completed，本样例保留 parser 对内置 tool_search 的 missing 标记。
-      "status": "missing"
+      "result_consumed_by_call_id": "codex-call-0002"
     },
     {
       // tool_call_id: 当前 normalized v2 字段。

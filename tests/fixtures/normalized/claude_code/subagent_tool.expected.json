@@ -895,7 +895,7 @@
     }
   ],
   "diagnostics": [],
-  "schema_version": "session-detail.normalized.v2",
+  "schema_version": "session-detail.normalized.v3",
   "session": {
     "agent": "claude_code",
     "cwd": "/repo",

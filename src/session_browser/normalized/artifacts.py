@@ -13,7 +13,7 @@ from session_browser.normalized.schema import NORMALIZED_SCHEMA_VERSION, validat
 
 
 NORMALIZED_SESSION_ARTIFACT_TYPE = "normalized_session_json"
-NORMALIZED_ARTIFACT_GENERATOR_VERSION = "normalized-session-artifact.v3"
+NORMALIZED_ARTIFACT_GENERATOR_VERSION = "normalized-session-artifact.v6"
 
 
 def normalized_artifact_path(
@@ -129,6 +129,38 @@ def persist_current_normalized_session_artifact_reference(
     index_dir: str | Path | None = None,
 ) -> Path | None:
     """Upsert DB row，用于 一个 current on-disk artifact,，如果 its sidecar matches."""
+    path = find_current_normalized_session_artifact(
+        session_key=session_key,
+        source_path=source_path,
+        source_mtime=source_mtime,
+        index_dir=index_dir,
+    )
+    if path is None:
+        return None
+    meta = _read_artifact_meta(path)
+    size_bytes = path.stat().st_size
+
+    upsert_session_artifact(
+        conn,
+        session_key=session_key,
+        artifact_type=NORMALIZED_SESSION_ARTIFACT_TYPE,
+        path=str(path),
+        schema_version=str(meta.get("schema_version") or NORMALIZED_SCHEMA_VERSION),
+        source_path=source_path,
+        source_mtime=source_mtime,
+        size_bytes=size_bytes,
+    )
+    return path
+
+
+def find_current_normalized_session_artifact(
+    *,
+    session_key: str,
+    source_path: str,
+    source_mtime: float,
+    index_dir: str | Path | None = None,
+) -> Path | None:
+    """Return current artifact path without writing SQLite rows."""
     agent, session_id = _split_session_key(session_key)
     if not agent or not session_id:
         return None
@@ -153,17 +185,6 @@ def persist_current_normalized_session_artifact_reference(
     size_bytes = path.stat().st_size
     if int(meta.get("size_bytes") or 0) != size_bytes:
         return None
-
-    upsert_session_artifact(
-        conn,
-        session_key=session_key,
-        artifact_type=NORMALIZED_SESSION_ARTIFACT_TYPE,
-        path=str(path),
-        schema_version=str(meta.get("schema_version") or NORMALIZED_SCHEMA_VERSION),
-        source_path=source_path,
-        source_mtime=source_mtime,
-        size_bytes=size_bytes,
-    )
     return path
 
 

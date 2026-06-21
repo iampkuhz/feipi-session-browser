@@ -1,6 +1,6 @@
 {
   // schema_version: 当前唯一支持的 normalized contract 版本；只用于判断 artifact 是否需要重建。
-  "schema_version": "session-detail.normalized.v2",
+  "schema_version": "session-detail.normalized.v3",
   // agent: 生成该 artifact 的 agent 类型。
   "agent": "claude_code",
   // source: 原始会话来源定位信息；展示时据此重新读取 JSONL。

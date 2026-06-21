@@ -385,7 +385,7 @@ def test_codex_context_hydrates_normalized_call_from_artifact(tmp_path, monkeypa
         ended_at="2026-06-10T00:00:10Z",
     )
     normalized = {
-        "schema_version": "session-detail.normalized.v2",
+        "schema_version": "session-detail.normalized.v3",
         "agent": "codex",
         "session": {
             "session_key": summary.session_key,

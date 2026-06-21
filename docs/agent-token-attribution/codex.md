@@ -1,209 +1,661 @@
 # Codex Token 归因适配器
 
-## 1. 适用范围
+> 本文只定义 **Codex rollout / OpenAI Responses 的通用提取逻辑**。
+> 具体会话、文件名、record 编号、逐 call 数据和反向验证结果放在样例文档中，不进入本文件。
+
+## 1. 目标与边界
 
 | 项 | 值 |
 |---|---|
 | Runtime key | `codex` |
 | API family | `openai_responses` |
-| Provider | `openai` |
-| 主数据源 | Codex rollout JSONL |
-| 可选数据源 | raw request body、raw response body、本地项目指令文件 |
-| 目标 | 将 Codex 可见来源映射到统一 `Attribution Candidate`，再映射到 token accounting fields。 |
+| 主事实源 | Codex rollout JSON object stream |
+| 可选证据 | raw request、raw response、调用时 tool snapshot、版本化 Codex catalog |
+| 输出 | 独立 `LLMCall`、request/response occurrence、usage accounting、source attribution、diagnostics |
 
-本适配器不定义跨 agent 模型，只把 `README.md` 的共享模型应用到 Codex rollout 事件。
+本适配器遵循两个分离原则：
 
-## 2. 调用边界
+1. **Token accounting** 回答“这一 call 如何计费”：`fresh_input_tokens`、`cache_read_tokens`、`cache_write_tokens`、`output_tokens`。
+2. **Attribution candidate** 回答“这些 token 可能来自哪里”：`user_input`、`system_instructions`、`tool_definitions`、`conversation_history`、`tool_results`、`reasoning_state` 等。
 
-有效的 `event_msg.token_count` 关闭一次 Codex `LLM call` 的 usage accounting。
+本文不声称能够：
 
-| 规则 | Codex 行为 |
-|---|---|
-| 有效关闭 | token-count event 相对上一累计快照有组件增量时，创建一个 `LLM call`。 |
-| 重复关闭 | token-count event 没有组件增量时只写 diagnostics，不创建 call、不贡献 token。 |
-| 只关闭 usage | `token_count` 只关闭 usage，不决定附近所有 item 的 request/response 方向。 |
-| Request snapshot | 当前 call 的 request input 必须在该 call 的模型输出前冻结。 |
-| Response snapshot | closing token count 前发出的 assistant message、reasoning item 和 tool call 属于当前 call output。 |
-| Runtime event | tool output 和 tool-search output 是 runtime event；只有被后续 request 消费时才变成 model input。 |
+- 从 `encrypted_content` 恢复 reasoning 明文；
+- 从 aggregate usage 精确反推出 request 内每个来源的 provider token 数；
+- 从被截断的 sidecar 恢复被删掉的字符；
+- 在没有版本或快照证据时，把当前 builtin/MCP schema 当成历史事实；
+- 复刻 provider 私有序列化或隐藏 prompt。
 
-Codex 不得用可见 UI round、phase label、`event_msg.agent_message` 或 `task_complete` 替代 `LLM call` 边界。
+---
 
-## 3. 方向规则
+## 2. 术语：`normalize_record` 与完整提取状态机
 
-方向由模型生产/消费决定，不由外层 `response_item` 名称决定。
+旧文档同时使用“normalize 函数”和“规范化算法”，边界不清。新版只保留下面两个术语。
 
-| Codex 事件或 item | 归因候选 | 方向 |
+### 2.1 单条记录规范化：`normalize_record`
+
+```text
+normalize_record(raw_record, static_config) -> NormalizedEvent[]
+```
+
+它是**无状态纯函数**：相同输入和相同静态配置必须产生相同输出。它只处理单条 artifact 的形状，不读取“前一条/后一条事件”。
+
+允许做：
+
+- 统一字段别名和 item type；
+- 保留原始 payload、source span、record index、provider `call_id`；
+- 把一个 message 拆成 content parts；
+- 按精确 wrapper/tag 拆分 developer/system 注入块；
+- 把 tool schema 统一为稳定形状；
+- 标记事件的**固有类别**：模型输出、请求侧事件、usage、镜像、metadata；
+- 生成内容哈希，但不据此跨记录删除内容。
+
+禁止做：
+
+- 决定该 item 属于第几个 `LLM call`；
+- 冻结 request snapshot；
+- 把上一 call 的 output 变成下一 call 的 input occurrence；
+- 计算累计 usage delta；
+- 更新 active tools；
+- 跨记录去重；
+- 把 cache token 分配给具体来源。
+
+### 2.2 完整 Call 提取状态机：`extract_calls`
+
+```text
+extract_calls(normalized_events, sidecars, catalogs) -> LLMCall[]
+```
+
+它是**按 thread 有状态**的流程，负责：
+
+- thread 分组和 parent/child 关联；
+- sidecar 匹配和质量判断；
+- generation segment 与 call 边界；
+- request snapshot 冻结；
+- item occurrence 的 request/response/runtime 方向；
+- active tool 状态迁移；
+- usage delta、accounting fields 和 diagnostics；
+- 只针对“同一物理 occurrence 的多份证据”去重。
+
+因此二者不是两个同义算法：
+
+```text
+parse_json_objects
+  -> normalize_record          # 单条、无状态、只改形状
+  -> extract_calls             # 跨记录、有状态、决定归属
+  -> attribute_and_report
+```
+
+`split_prompt_text`、`normalize_tool_schema` 只是 `normalize_record` 内部 helper，不再单独称为“规范化算法”。
+
+---
+
+## 3. 证据源与优先级
+
+优先级必须按“要证明什么”分别确定，不能简单规定 raw 永远优先或 rollout 永远优先。
+
+| 要证明的事实 | 首选证据 | 次选证据 |
 |---|---|---|
-| `response_item.reasoning` | `reasoning_output` | 当前 call 的 `output_tokens`；若 provider 后续复用，才可能成为后续 `reasoning_state`。 |
-| `response_item.function_call` | `tool_calls` | 当前 call 的 `output_tokens`。 |
-| `response_item.custom_tool_call` | `tool_calls` | 当前 call 的 `output_tokens`。 |
-| `response_item.message(role="assistant")` | `assistant_output` 或 `structured_output` | 当前 call 的 `output_tokens`。 |
-| `response_item.function_call_output` | `tool_results` | runtime event；被下一次 call 消费时才是 input。 |
-| `response_item.custom_tool_call_output` | `tool_results` | runtime event；被下一次 call 消费时才是 input。 |
-| `tool_search_output.tools[]` | `tool_definitions` | runtime-discovered tool definitions；被后续 call included 时成为 input。 |
-| `event_msg.user_message` | `user_input` | 供下一次有效 model call 消费的 request-side input。 |
-| `event_msg.agent_message` | 默认无 candidate | 展示镜像或 fallback preview；存在 canonical assistant message 时不得重复计数。 |
-| `task_started` / `task_complete` | 默认无 candidate | metadata 或 trace state；除非显式进入后续 request，否则不是模型 input/output。 |
+| rollout 事件顺序、typed item、provider call id | rollout | 无 |
+| 实际 request `input[]` / `tools[]` 顺序 | 未截断 raw request | rollout 状态重建 |
+| 当前模型生成的 output items | rollout `response_item` 或非空 raw `output[]` | `event_msg.agent_message` 仅作 fallback preview |
+| call 级 usage | 有效 `token_count` / raw usage 交叉校验 | 单一可用方 |
+| effective instructions/tools | 未截断 wire snapshot | raw request、rollout、版本化 catalog 综合 |
+| builtin/default prompt | 匹配 `cli_version` 和 hash 的 catalog | `unavailable` |
+| MCP/plugin schema | 调用时 snapshot 或未截断 wire | 事后查询只能 `estimated` |
 
-Codex 的关键规则是：
+### 3.1 Sidecar 质量
 
-```text
-tool_call = current call model output
-tool_result = runtime event
-tool_result becomes input only in a later model call
-```
-
-## 4. Codex 字段到候选的映射
-
-Codex 专用来源必须先映射到统一 `Attribution Candidate`。同一个 candidate 再根据 call 状态映射到不同 accounting field。
-
-本节只使用可代码化规则：字段路径、role、content part type、精确 tag、source locator、call 边界和内容哈希。不得用大模型或语义判断把一段文本再细分。
-
-### 4.1 拆分与去重规则
-
-scan 先把原始记录规范化为 `source_unit`，再按表格路由到 candidate。表格中的每一行都匹配一个独立 `source_unit`，不依赖上一行或下一行。
-
-`source_unit` 至少包含：
-
-```text
-source_id = call_id + origin_path + event_order + part_index + unit_type + byte_range
-dedupe_key = call_id + canonical_source_locator + unit_type + sha256(normalized_content)
-origin_path = JSONL 字段路径、raw request 字段路径或本地 source locator
-canonical_source_locator = project wrapper 中的文件路径；没有显式文件路径时等于 origin_path
-unit_type = 下表中的确定性类型
-content = 原始文本或 JSON payload
-```
-
-去重和优先级：
-
-- 同一个 `source_id` 只能贡献一次 token；父级容器只做 provenance，不再贡献 token。
-- 同一个 `dedupe_key` 在同一 call 中只保留优先级最高的来源；用于合并 raw request 和 rollout 中内容相同的可见注入。
-- 同一 call 同时有 raw request body 和 rollout fallback 时，raw request 的 `instructions` / `input[]` / `tools[]` 优先；fallback 只补 raw 中不存在的来源。
-- `AGENTS.md` / `CLAUDE.md` 可见注入和 `<INSTRUCTIONS>` 是同一个 project-instruction 来源的两种外观；命中 project instruction wrapper 后只生成一个 `project_instruction_bundle`，不得再按文件名或标签重复生成第二个来源。
-- 如果同一内容后来作为 tool output 再出现，它属于新的 runtime event；进入后续 call 时归为 `tool_results`，可带 `sub_source=repo_context`，但不得额外生成独立 `repo_context` token。
-
-对 `raw request instructions`、`response_item.message(role in {"developer","system"}).content[].text`，以及未匹配 `event_msg.user_message.message` 且整个 text part 命中下表任一精确 wrapper/tag 的 model-input 文本，使用下面的确定性 text splitter：
-
-1. 按精确起止标记抽取已知 block；匹配大小写敏感，tag 不完整或嵌套不配对时不抽取。
-2. 已抽取 block 的 byte range 标记为 consumed；不允许重叠 range。
-3. 未 consumed 的非空文本生成 `prompt_plain_text`；该默认归类只由容器来源决定，不分析文本语义。
-
-| text splitter 产物 | 精确匹配规则 | 来源内容说明 | 统一候选 |
-|---|---|---|---|
-| `project_instruction_bundle` | 整个 text part 符合 `# <file> instructions for <path>` + 空行 + `<INSTRUCTIONS>...</INSTRUCTIONS>`；`<file>` 只接受 `AGENTS.md`、`.codex/AGENTS.md`、`CLAUDE.md`、`.claude/CLAUDE.md`。 | Codex 注入的项目指令文件内容和其来源路径。 | `system_instructions` |
-| `visible_instructions_block` | 整个 text part 是完整 `<INSTRUCTIONS>...</INSTRUCTIONS>` block，且不带 `# <file> instructions for <path>` header。 | 无文件 header 的可见项目/会话指令块。 | `system_instructions` |
-| `skills_instructions_block` | 完整 `<skills_instructions>...</skills_instructions>` block。 | skill 清单、触发规则、读取方式和资源复用规则。 | `skill_definitions` |
-| `plugins_instructions_block` | 完整 `<plugins_instructions>...</plugins_instructions>` block。 | plugin 使用规则及其 skills、MCP tools、apps 能力关系。 | `skill_definitions` |
-| `permissions_block` | 完整 `<permissions instructions>...</permissions instructions>` block。 | sandbox、审批策略、文件系统和网络权限。 | `runtime_context` |
-| `app_context_block` | 完整 `<app-context>...</app-context>` block。 | Codex 桌面应用能力和交互约束。 | `runtime_context` |
-| `collaboration_mode_block` | 完整 `<collaboration_mode>...</collaboration_mode>` block。 | 当前协作模式和用户输入等待策略。 | `runtime_context` |
-| `environment_context_block` | 完整 `<environment_context>...</environment_context>` block。 | cwd、shell、日期时区、workspace root 和文件系统权限。 | `runtime_context` |
-| `prompt_plain_text` | 上述 block 抽取后剩余的非空文本，来源必须是 `raw request instructions` 或 role 为 `developer` / `system` 的 message text part。 | 未带已知 tag 的 developer/system 指令文本。 | `system_instructions` |
-
-Codex 适配器不按自然语言内容把 `AGENTS.md` / `CLAUDE.md` 拆成“行为规则”和“仓库内容”。这类可见注入整体归为 `system_instructions`；普通仓库文件、diff、搜索命中只在 raw input 文件上下文或 tool output 中出现时进入 `repo_context` 相关记录。
-
-### 4.2 Source unit 到候选的路由表
-
-| 匹配条件（确定性） | 来源内容说明 | 提取方法 | 统一候选 |
-|---|---|---|---|
-| `session_meta.payload.base_instructions.text` 为非空 string | 会话基础指令文本。 | 整个 string 生成一个 `base_instructions_text` unit。 | `system_instructions` |
-| `session_meta.payload.dynamic_tools[]` 为 array | 会话动态工具目录。 | 每个 top-level array item 生成一个结构化 unit；保留工具名、描述和 schema。 | `tool_definitions` |
-| `session_meta.payload.cwd`、`originator`、`cli_version`、`source`、`thread_source`、`model_provider`、`git.*` 非空 | 会话运行事实。 | 收集白名单字段为一个 `session_runtime_metadata` JSON unit。 | `runtime_context` |
-| raw request `instructions` 为 string | OpenAI Responses 顶层 instructions。 | 对该 string 运行 4.1 text splitter；按产物 candidate 输出。 | 由 splitter 产物决定 |
-| `response_item.message(role in {"developer","system"}).content[]` 中 text part 非空 | Codex rollout 可见 developer/system message。 | 对每个 text part 运行 4.1 text splitter；按产物 candidate 输出。 | 由 splitter 产物决定 |
-| raw request `tools[]` 为 array | 本次请求发送给模型的工具 schema。 | 每个 tool JSON 生成一个 `raw_tool_schema` unit。 | `tool_definitions` |
-| Codex builtin tool catalog fallback 被启用 | raw request `tools[]` 不可用时的内置工具目录。 | 仅在 raw tools 缺失时，按 catalog tool item 生成 unit。 | `tool_definitions` |
-| `tool_search_output.tools[]` 为 array | tool search 返回的工具定义候选。 | 记录为 `discovered_tool_schema`；只有该 tool 后续进入 raw `tools[]`、`dynamic_tools` 或 fallback catalog 时才计入对应 call input。 | `tool_definitions` |
-| `.mcp.json` reader 产出 `server/tool schema` unit | MCP server/tool 的名称、描述和参数 schema。 | 只读取 JSON 中确定字段：`mcpServers.*`、`tools[].name`、`tools[].description`、`tools[].inputSchema`。 | `tool_definitions` |
-| `.mcp.json` reader 产出 `connection metadata` unit | MCP server 启用、命令、连接或权限事实。 | 只读取 JSON 中确定字段：server key、`command`、`args`、`env` key 名、启用状态；敏感值脱敏。 | `runtime_context` |
-| `event_msg.user_message.message` 存在 | 当前用户输入文本。 | 整个 message 字段生成 `current_user_text` unit；不解析其中的 XML-like 文本。 | `user_input` |
-| `event_msg.user_message.images`、`local_images`、`text_elements` 非空 | 当前用户多模态输入。 | 每个图片引用、本地路径或 text element 生成 unit。 | `user_input` |
-| raw request `input[]` 中属于当前 call 的用户 item | 当前 call 消费的用户消息。 | 用 call 边界和对应 `event_msg.user_message` 匹配；生成 `current_user_input_item`。 | `user_input` |
-| raw request `input[]` 中 `type="message"` 且早于当前 call 的 user/assistant item | 历史对话消息。 | 按 item 原样生成 `prior_message_item`；不重新拆分为当前输出。 | `conversation_history` |
-| raw request `input[]` 中 `type` 为 `function_call` / `custom_tool_call` 且早于当前 call 的 item | 历史模型工具调用结构。 | 按 item 原样生成 `prior_tool_call_item`。 | `conversation_history` |
-| raw request `input[]` 中 `type` 为 `function_call_output` / `custom_tool_call_output` 的 item | 被当前 call 消费的工具结果。 | 提取 result `output` / `content` payload，生成 `request_tool_result`。 | `tool_results` |
-| raw request `input[]` 或 provider state 中显式 reasoning state item | provider 回传或复用的历史推理状态。 | 只在存在明确 reasoning/state item 或引用字段时生成 unit。 | `reasoning_state` |
-| rollout 中当前 call 之前的 assistant message 被后续 call 重放 | 后续 call 的历史 assistant 输出。 | 以原始 assistant output 的 content hash 关联，生成 `prior_assistant_message`。 | `conversation_history` |
-| `response_item.function_call_output.output` 或 `response_item.custom_tool_call_output.output` | tool runtime result。 | 当前 event 只入 pending；被下一次 call 消费时生成 `request_tool_result`。 | `tool_results` |
-| tool output 的 tool adapter 已确定 `output_kind` 为 `file` / `search` / `diff` | 工具返回的仓库文件片段、搜索命中或 diff。 | 仍按 `request_tool_result` 计入；只附加 `sub_source=repo_context`，不从文本内容二次判定。 | `tool_results` |
-| raw request `input[]` 中存在显式 file context item 或 text part 以 `File:` / `file:` / `path:` 行开头 | 请求直接携带的仓库文件上下文。 | 提取该 item/text part 为 `request_file_context`；不与 tool result 重复。 | `repo_context` |
-| 当前 call 的 `response_item.reasoning` | 当前 call 生成的 reasoning item。 | 在产生它的 call 中生成 `reasoning_output` unit。 | `reasoning_output` |
-| 当前 call 的 `response_item.function_call` 或 `response_item.custom_tool_call` | 当前 call 生成的工具调用请求。 | 提取工具名、参数和 call id。 | `tool_calls` |
-| 当前 call 的 `response_item.message(role="assistant").content[]` text / output_text part | 当前 call 生成的 assistant 自然语言或 Markdown。 | 提取 text 字段；annotations/citations 作为该 text 的 metadata，不单独计 token。 | `assistant_output` |
-| 当前 call 的 `response_item.message(role="assistant").content[]` 非 text part，或 raw response 中显式 JSON/schema/citation block item | 当前 call 生成的机器可读结构化输出。 | 只按 part `type` 或 raw response item type 判定；不根据文本长相猜测。 | `structured_output` |
-
-未命中任何匹配条件的记录不得强行归因；只能进入 diagnostics（例如 `unclassified_visible_input`），并保留 origin path 供后续补规则。
-
-raw request 或 raw response 可用时优先使用 raw body；不可用时从 rollout 可见事件重建，不编造 hidden content。
-
-## 5. Codex 中候选到 Token 类型的行为
-
-Codex 通常报告 OpenAI-style input、cached input 和 output usage。Candidate 归属取决于 call 状态：
-
-| 候选 | 首次模型消费 | 后续 call / 复用 |
+| 状态 | 判定 | 使用方式 |
 |---|---|---|
-| `user_input` | `fresh_input_tokens` | 通常不进入 `cache_read_tokens`；如果作为历史重放，则成为 `conversation_history`。 |
-| `system_instructions` | `fresh_input_tokens` | provider cache 报告复用时为 `cache_read_tokens`。 |
-| `tool_definitions` | `fresh_input_tokens` | cached 时为 `cache_read_tokens`；runtime-discovered tools 首次 included 时为 fresh。 |
-| `skill_definitions` | `fresh_input_tokens` | cached 时为 `cache_read_tokens`。 |
-| `runtime_context` | 新内容为 `fresh_input_tokens` | 复用且 provider 报告 cached 时为 `cache_read_tokens`。 |
-| `repo_context` | 新引入时为 `fresh_input_tokens` | 重放且 cached 时为 `cache_read_tokens`。 |
-| `conversation_history` | 取决于 provider accounting，可为 fresh 或 cache read | 稳定 cached history 通常为 `cache_read_tokens`。 |
-| `tool_results` | 被后续 call 首次消费时为 `fresh_input_tokens` | 重放或 cached 时为 `cache_read_tokens`。 |
-| `reasoning_state` | provider-dependent input state | provider-dependent。 |
-| `assistant_output` | 当前 call 的 `output_tokens` | 后续 call 可作为 `conversation_history` 被消费。 |
-| `reasoning_output` | 当前 call 的 `output_tokens` | provider 暴露/使用时，后续可作为 `reasoning_state`。 |
-| `tool_calls` | 当前 call 的 `output_tokens` | 后续可出现在 `conversation_history` 或 tool activity context 中。 |
-| `structured_output` | 当前 call 的 `output_tokens` | 后续可作为 `conversation_history` 被消费。 |
+| `sidecar_exact` | shape 正确，token-bearing 字段没有截断 | 可作 canonical request/response |
+| `sidecar_truncated` | token-bearing 字段出现截断占位符 | 只采用未截断部分，不做字符级完整性声明 |
+| `sidecar_envelope_only` | response envelope/usage 可用，但流式 `output=[]` | 校验 usage、id、effective context；output 取 rollout |
+| `sidecar_mislabeled` | 文件名是 response，实际内容是 request | 不作为 response |
+| `sidecar_unmatched` | 无法可靠关联 thread/call | 仅 diagnostics |
 
-Codex 文档不得暗示 `Fresh` 是 request source attribution 的固定分母。`fresh_input_tokens`、`cache_read_tokens` 和 `cache_write_tokens` 是 accounting fields；candidates 解释这些 fields 里的可能来源。
+**`output=[]` 不等于模型没有输出。** 对流式 callback，完整 item 可能只存在于 rollout。
 
-## 6. 子代理规则
+---
 
-Codex subagent rollout 拥有独立 token scope。
+## 4. Canonical 数据结构
 
-| 事件 | 规则 |
-|---|---|
-| parent `spawn_agent` function call | parent 当前 call 的 `tool_calls`，计入 parent `output_tokens`。 |
-| parent `spawn_agent` function output | parent-side runtime tool result；只有被后续 parent call 消费时才成为 parent `tool_results`。 |
-| child rollout `session_meta.source.subagent.thread_spawn` | 证明 child rollout 属于 subagent scope。 |
-| child `event_msg.token_count` | 创建 child scope 内的 child `LLM call`；child tokens 留在 child scope。 |
-| child tool calls/results | 留在 child scope，不得膨胀 parent tool 或 token totals。 |
-| parent `wait_agent` result | 被后续 parent call 消费时为 parent-side `tool_results`。 |
-| parent assistant message 中的 `subagent_notification` | parent assistant output 或 metadata；不是 child output，也不能替代 child rollout usage。 |
-
-parent 和 child attribution 可以为 trace navigation 建立关联，但 accounting fields 必须分开。
-
-## 7. 用量字段映射
-
-Codex usage 必须归一化为四个共享 accounting fields。
-
-| 共享字段 | Codex/OpenAI 来源 |
-|---|---|
-| `fresh_input_tokens` | `input_tokens - cached_input_tokens`，下限为 0；只有累计 usage 时先计算有效 delta。 |
-| `cache_read_tokens` | `cached_input_tokens`、`input_tokens_details.cached_tokens` 或等价 per-call/cumulative delta 字段。 |
-| `cache_write_tokens` | provider cache write 字段；不可用时为 unavailable 或 0，不从 residual 推断。 |
-| `output_tokens` | `output_tokens`、`completion_tokens` 或有效 cumulative output delta。 |
-
-派生规则：
+### 4.1 `NormalizedEvent`
 
 ```text
-input_tokens = fresh_input_tokens + cache_read_tokens
-total_tokens = fresh_input_tokens + cache_read_tokens + cache_write_tokens + output_tokens
-reasoning_tokens <= output_tokens
+NormalizedEvent {
+  event_id
+  thread_hint
+  record_index
+  source_locator
+  raw_payload
+  event_kind          # MODEL_OUTPUT | REQUEST_EVENT | USAGE | MIRROR | METADATA
+  item_type?
+  role?
+  provider_call_id?
+  content_parts[]
+  intrinsic_units[]
+  evidence_level
+}
 ```
 
-`reasoning_tokens` 是 `output_tokens` 的子集或 breakdown，不是额外顶层 accounting field。raw `total_tokens` 可以作为 diagnostics evidence，但除非实现进入 total-only fallback，否则不得覆盖归一化组件公式。
+### 4.2 `ItemOccurrence`
 
-## 8. 适配器非目标
+同一个 canonical item 可以在不同 call 中有不同 occurrence：
 
-本适配器不定义：
+```text
+ItemOccurrence {
+  occurrence_id
+  canonical_item_id
+  llm_call_id
+  direction           # request_input | response_output | runtime_between_calls | display_mirror
+  physical_plane      # instructions | input[i] | tools[i] | rollout record
+  candidate
+  source_locator
+  evidence_level
+  token_status        # exact_aggregate | estimated | unknown | not_token_bearing
+}
+```
 
-- normalized artifact schema；
-- on-demand attribution API payload shape；
-- preview 截断或 source locator 格式；
-- coverage、residual、precision 或 evidence bookkeeping 的核心模型；
-- UI bucket label、颜色、排序或 modal 行为；
-- `pending_request_refs` 等 parser 变量名作为适配器契约。
+例如同一 reasoning item：
 
-这些细节属于实现文档、代码、测试或独立 OpenSpec 变更。
+```text
+产生时：Call N     / response_output / reasoning_output
+重放时：Call N + 1 / request_input   / reasoning_state
+```
+
+不得在 canonical item 上保存永久的 `direction=response`。
+
+### 4.3 `LLMCall`
+
+```text
+LLMCall {
+  llm_call_id
+  thread_id
+  ordinal
+  request_snapshot {
+    instructions_plane
+    input_plane
+    tools_plane
+    settings_plane
+  }
+  response_occurrences[]
+  runtime_events_after_output[]
+  usage
+  raw_request_ref?
+  raw_response_ref?
+  diagnostics[]
+}
+```
+
+---
+
+## 5. JSON object stream 与 thread 分组
+
+### 5.1 解析
+
+Codex rollout 可能是 pretty-printed、连续拼接的顶层 JSON object，不保证“一物理行一个对象”。解析器必须：
+
+1. 读取完整字节流；
+2. 跳过空白/BOM；
+3. 用 streaming decoder 连续解析顶层 object；
+4. 保存 `record_index`、byte range 和原始字节 hash；
+5. 遇到损坏 object 时输出明确 diagnostic，不把内部文本行当事件。
+
+### 5.2 Thread scope
+
+优先使用：
+
+1. `session_meta.payload.id`；
+2. raw request 的显式 thread id；
+3. 可靠 correlation metadata；
+4. `prompt_cache_key` 只能辅助，不能单独作真值。
+
+每个 thread 独立维护 history、active tools、open segments、usage baseline 和 call ordinal。并发 child 的 token 不得按时间窗口混入 parent。
+
+---
+
+## 6. `normalize_record` 的确定性规则
+
+### 6.1 事件固有类别
+
+| 原始 item | `event_kind` |
+|---|---|
+| `reasoning` | `MODEL_OUTPUT` |
+| `function_call` / `custom_tool_call` / `tool_search_call` | `MODEL_OUTPUT` |
+| `message(role="assistant")` | `MODEL_OUTPUT` |
+| `function_call_output` / `custom_tool_call_output` / `tool_search_output` | `REQUEST_EVENT` |
+| `message(role="developer"/"system"/"user")` | `REQUEST_EVENT` |
+| `event_msg.token_count` | `USAGE` |
+| `event_msg.user_message` / `event_msg.agent_message` | `MIRROR` |
+| `task_started` / `task_complete` / `turn_context` | `METADATA` |
+
+该表只标记“固有事件类型”；最终属于哪一个 call，由 `extract_calls` 决定。
+
+### 6.2 Message 拆分
+
+每个 content part 单独生成 unit，并保留父 message locator。只按明确字段和完整 tag 拆分，不做自然语言语义分类。
+
+| 精确形状 | unit | candidate hint |
+|---|---|---|
+| `# AGENTS.md instructions for ...` + 完整 `<INSTRUCTIONS>...</INSTRUCTIONS>` | `project_instruction_bundle` | `system_instructions` |
+| 完整 `<INSTRUCTIONS>...</INSTRUCTIONS>` | `visible_instructions_block` | `system_instructions` |
+| `<skills_instructions>...</skills_instructions>` | `skills_instructions_block` | `skill_definitions` |
+| `<plugins_instructions>...</plugins_instructions>` | `plugins_instructions_block` | `skill_definitions` |
+| `<permissions instructions>...</permissions instructions>` | `permissions_block` | `runtime_context` |
+| `<app-context>...</app-context>` | `app_context_block` | `runtime_context` |
+| `<collaboration_mode>...</collaboration_mode>` | `collaboration_mode_block` | `runtime_context` |
+| `<environment_context>...</environment_context>` | `environment_context_block` | `runtime_context` |
+| `<subagent_notification>...</subagent_notification>` | `subagent_notification` | `tool_results` / runtime input |
+
+规则：
+
+- tag 必须完整、大小写匹配、不可重叠；
+- 已抽取 byte range 不再生成第二份 token-bearing unit；
+- developer/system 容器的未匹配非空文本为 `prompt_plain_text`；
+- role 为 `user` 的文本不能仅凭 role 一律归 `user_input`，要在状态机中结合 wrapper 和镜像关系判断。
+
+### 6.3 Tool schema 规范形状
+
+统一为：
+
+```text
+ToolDefinition {
+  type
+  namespace?
+  name
+  description?
+  parameters?        # inputSchema / parameters 的规范字段
+  strict?
+  defer_loading?
+  raw_payload
+}
+```
+
+这只是字段形状转换，不表示该工具已经进入某次 request。
+
+`session_meta.dynamic_tools` 是 catalog/provenance。只有在以下任一条件成立时才生成 token-bearing occurrence：
+
+- 未截断 raw request 的 `tools[]` 明确包含；
+- rollout 中的 `tool_search_output` 被某次 request 消费；
+- raw 不可用，且版本化 fallback 明确证明该动态工具在当次请求中激活。
+
+fallback 从 `dynamic_tools` 构造首轮 active tools 时，默认只纳入 `deferLoading != true` 的工具；不得把整个延迟目录都算进 request。
+
+---
+
+## 7. `extract_calls` 状态机
+
+### 7.1 每 thread 状态
+
+```text
+history
+active_tools
+instructions_state
+open_generation_segment?
+unclosed_segments_fifo[]
+request_event_seen_after_model_output
+last_cumulative_usage
+matched_sidecars
+```
+
+### 7.2 Segment 构造
+
+```text
+for event in thread_order:
+  if event.kind == MODEL_OUTPUT:
+    if no open segment or request_event_seen_after_model_output:
+      segment = new segment
+      segment.request_snapshot_fallback = freeze_current_request_state()
+      enqueue segment
+    append event to segment.response_items
+    append canonical item to replayable history
+    request_event_seen_after_model_output = false
+
+  elif event.kind == REQUEST_EVENT:
+    append event to history
+    apply_request_state_transition(event)   # 如 tool_search_output 更新 semantic active tool view
+    if open segment exists:
+      append event to segment.runtime_events_after_output
+    request_event_seen_after_model_output = true
+
+  elif event.kind == MIRROR:
+    correlate_with_canonical_item_or_keep_as_fallback()
+
+  elif event.kind == USAGE:
+    usage = normalize_usage(event)
+    if usage is duplicate/zero:
+      record diagnostic
+    else:
+      close oldest compatible unclosed segment
+
+  elif event.kind == METADATA:
+    update provenance only
+```
+
+关键点：
+
+- `token_count` **只关闭 usage**，不把它之前的所有记录都判为 response；
+- request snapshot 在该 segment 第一个模型输出之前冻结；
+- tool result 即使出现在 closing `token_count` 之前，也不会回写刚冻结的 request；
+- 若 request event 之后又出现模型输出，应开始新 segment，即使前一 usage 事件晚到；
+- 有 exact raw request 时，raw request 覆盖 fallback snapshot，rollout 只用于对齐和 provenance。
+
+### 7.3 Sidecar 与 segment 匹配
+
+优先级：
+
+```text
+explicit correlation id
+(thread_id, turn_id, provider timestamp, model)
+(thread_id, ordinal, typed-input fingerprint)
+(thread_id, usage tuple, narrow time window)
+```
+
+匹配后必须校验 input item 序列、tool set、model 和 usage；不能只按文件名编号配对。
+
+---
+
+## 8. Request 还原
+
+### 8.1 四个平面
+
+| 平面 | 内容 |
+|---|---|
+| `instructions_plane` | 顶层 instructions、base instructions、developer/system 注入 |
+| `input_plane` | user/assistant/reasoning/tool call/tool result 等 typed history |
+| `tools_plane` | 当次实际发送或被加载的 tool definitions |
+| `settings_plane` | model、reasoning、text、tool choice、store 等；通常只作配置 provenance |
+
+不要把整份 raw request JSON 当作一个 source bucket。
+
+### 8.2 首轮 seed
+
+在没有 exact raw request 时，首轮 fallback request 由以下内容构成：
+
+- 可证明 token-bearing 的 instructions；
+- 首个模型输出前的 developer/system/user typed items；
+- 已激活工具集合；
+- 必要的显式 multimodal input。
+
+`session_meta.cwd`、`cli_version`、`git`、`source` 等默认是 provenance，不因出现在 metadata 就自动贡献 prompt token。若相同信息出现在 `<environment_context>` 或 raw request 中，则以该真实 occurrence 计入。
+
+### 8.3 Role=`user` 的分类顺序
+
+对每个 user message occurrence，按顺序判断：
+
+1. 是否是已知 project/environment wrapper；
+2. 是否是 `<subagent_notification>` 或其他 runtime notification；
+3. 是否与 `event_msg.user_message` 构成同一用户输入的镜像；
+4. 是否是 raw request 中重放的历史 user message；
+5. 最后才归当前 `user_input`。
+
+### 8.4 历史 typed items
+
+| request 中的 item | candidate |
+|---|---|
+| 早于当前 call 的 user/assistant message | `conversation_history`；当前新 user message例外 |
+| 早于当前 call 的 function/custom/tool-search call | `conversation_history` |
+| `function_call_output` / `custom_tool_call_output` | `tool_results` |
+| reasoning item / encrypted reasoning state | `reasoning_state` |
+| 显式 file context | `repo_context` |
+
+上一 call 的 output token 数不能直接当成下一 call 中该 item 的 input token 数。只能确认 item 存在、顺序和内容；输入侧 token mass 仍由当次 provider 序列化决定。
+
+### 8.5 `tool_search_output` 特殊规则
+
+`tool_search_call` 是当前 call 的模型输出；`tool_search_output` 是 runtime 产生、供后续模型消费的 request item。
+
+对后者同时保留两种视图：
+
+- **物理视图**：它在 raw `input[]` 中是一个 typed item；
+- **语义视图**：其中 `tools[]` 归到 `tool_definitions`，并更新后续 effective tool view。
+
+但它只是一份物理 token-bearing occurrence，不能同时按“history blob”和“active tools”计两次。
+
+若未截断 wire request 确实同时包含：
+
+1. `input[]` 内的 `tool_search_output`；
+2. 顶层 `tools[]` 内独立重复的 schema；
+
+则二者是两个真实物理 occurrence，不能因为内容相同而删除。response envelope 的 effective tools 回显只作验证，不是第三份 request token 来源。
+
+### 8.6 Full replay 与 continuation
+
+- `previous_response_id` 存在：不能假设 raw `input[]` 是完整历史；还要考虑 provider-side continuation。
+- `previous_response_id` 为空且 raw `input[]` 明确包含既往 items：按 full replay 处理。
+- input token 下降不能单独证明发生删除、压缩或 compaction；必须比较 typed payload 或显式 compaction evidence。
+
+---
+
+## 9. Response 还原与可展示内容
+
+### 9.1 Canonical response items
+
+| item | candidate | UI 可展示 |
+|---|---|---|
+| `reasoning` | `reasoning_output` | summary（若存在）、密文状态、hash、长度、aggregate reasoning token |
+| `function_call` / `custom_tool_call` | `tool_calls` | 工具名、namespace、call id、完整 arguments |
+| `tool_search_call` | `tool_calls` | query、limit、call id、execution metadata |
+| `message(role="assistant")` | `assistant_output` / `structured_output` | 原始 text/part、annotations、phase/status |
+
+以下内容不进入当前 response 正文：
+
+- `function_call_output`、`custom_tool_call_output`、`tool_search_output`；
+- developer/system/user input message；
+- `event_msg.agent_message` 的重复镜像；
+- `task_complete` 等生命周期事件；
+- raw response 顶层 `instructions` / `tools` 回显。
+
+### 9.2 Token 精度
+
+```text
+reasoning_output_tokens = provider 报告的 reasoning aggregate
+non_reasoning_output_tokens = output_tokens - reasoning_output_tokens
+```
+
+`non_reasoning_output_tokens` 不是“纯可读文本 token”的通用同义词，它还可能包含 tool call、structured/protocol output 和不可见格式开销。
+
+若同一 call 有多个 tool call 或 text item，而 provider 只给 aggregate usage：
+
+- 可以精确展示每个 item 的原始内容；
+- 可以精确展示 call 级合计；
+- **不能**声称每个 item 的独立 token 数，除非另有 per-item usage。
+
+### 9.3 `encrypted_content`
+
+可以：
+
+- 原样保存；
+- 计算 hash、字符/字节长度；
+- 在受控 debug/admin 界面显示密文或截断预览；
+- 在兼容的后续 Responses 请求中原样回传；
+- 展示 provider 报告的 aggregate reasoning token 数。
+
+不可以：
+
+- 用客户端密钥或常规算法解密成 reasoning 明文；
+- 把 base64/密文长度换算成真实 reasoning token；
+- 根据后续回答反推原始 chain of thought；
+- 在 `summary=[]` 时生成“看似真实”的推理摘要。
+
+可读推理只能来自调用当时显式请求并返回的 reasoning summary；summary 与原始 reasoning tokens 也不是同一内容。
+
+---
+
+## 10. Usage 与 Token accounting
+
+### 10.1 有效 usage
+
+优先使用 per-call `last_token_usage`，并用累计 `total_token_usage` delta 校验：
+
+```text
+fresh_input_tokens = max(input_tokens - cached_input_tokens, 0)
+cache_read_tokens  = cached_input_tokens
+cache_write_tokens = provider 明确字段；否则 unavailable
+output_tokens      = output_tokens
+reasoning_tokens   = reasoning_output_tokens  # output 的子集
+```
+
+规则：
+
+- 所有累计 delta 为 0：重复快照，不创建 call；
+- per-call 与累计 delta 不一致：保留两份证据并报 mismatch；
+- 累计计数回退：建立新 baseline，不产生负 token；
+- 只有 total、没有组件：进入 `total_only_fallback`，不伪造 cache/reasoning breakdown。
+
+### 10.2 来源 bucket 的精度
+
+Call 总 usage 可以精确；request source bucket 通常不能精确。每个 bucket 必须标记：
+
+| 状态 | 含义 |
+|---|---|
+| `exact_provider` | provider 明确给出该项 token |
+| `exact_content` | 内容和 occurrence 精确，但 token mass 未必精确 |
+| `estimated_tokenizer` | 用公开 tokenizer/序列化近似 |
+| `unknown_mass` | 可知来源存在，但无法可靠估 token |
+| `unavailable` | 内容本身不可恢复 |
+
+不得为了让 bucket 总和等于 input usage 而任意缩放。正确报告应保留：
+
+```text
+known/estimated buckets
++ unresolved provider serialization / hidden context residual
+= exact aggregate input usage
+```
+
+### 10.3 Cache 的分配边界
+
+`cached_input_tokens` 只精确到 accounting field。除非 provider 给出 cache-span 或可验证前缀边界，否则不能断言具体哪些 source token 命中 cache。UI 可显示候选或估计，但必须标记 `estimated`。
+
+---
+
+## 11. 去重规则
+
+### 11.1 可以合并
+
+- raw request 与 rollout 对同一 `input[i]` 的两份证据；
+- canonical assistant message 与内容相同、时间相邻的 `event_msg.agent_message` 镜像；
+- canonical user input 与对应 `event_msg.user_message` 镜像；
+- parent text part 与其拆出的 child units：parent 只作 provenance；
+- response envelope 中 request-context 回显与原 request occurrence。
+
+合并必须依赖 locator、index、call id、role、时间和结构关系，不能只靠普通内容 hash。
+
+### 11.2 不能合并
+
+- tool result 与内容相近的 subagent notification；
+- 同一文本在不同 turn 的真实重放；
+- 相同 schema 在两个真实 request plane 中的独立 occurrence；
+- parent 与 child thread 中相似的 handoff；
+- 同 call 内两个不同 call id 的相同 arguments；
+- reasoning 密文相同但 occurrence 不同的异常重放。
+
+---
+
+## 12. Subagent
+
+- child rollout 是独立 thread 和独立 token scope；
+- parent `spawn_agent` 是 parent response 的 `tool_calls`；
+- spawn result 是 parent runtime event，被后续 parent call 消费时为 `tool_results`；
+- child `session_meta.source.subagent.thread_spawn` 建立 parent-child 关系；
+- child usage、tool calls/results 留在 child scope；
+- parent `wait_agent` result 和 `<subagent_notification>` 是两个独立 parent-side input occurrence；
+- `fork_context=false`：不得自动复制 parent history，只使用 child 自身 seed/handoff；
+- `fork_context=true`：只有实际 raw child input 或明确 snapshot 能证明继承内容，不能只凭布尔值臆造具体 token。
+
+---
+
+## 13. 输出证据等级与 diagnostics
+
+### 13.1 Evidence level
+
+```text
+exact_rollout
+exact_sidecar
+sidecar_truncated
+versioned_hardcode
+snapshot_exact
+estimated
+unavailable
+```
+
+每个 source occurrence 都应保留：
+
+```text
+source_locator
+content_hash
+raw/normalized preview
+physical plane
+candidate
+call/direction
+quality/evidence level
+diagnostics
+```
+
+### 13.2 必须暴露的 diagnostics
+
+至少包括：
+
+- `duplicate_usage_snapshot`
+- `usage_component_mismatch`
+- `usage_without_generation_segment`
+- `sidecar_truncated`
+- `sidecar_mislabeled`
+- `sidecar_unmatched`
+- `raw_rollout_input_mismatch`
+- `mirror_without_canonical_item`
+- `unclassified_request_text`
+- `tool_schema_version_unknown`
+- `reasoning_summary_unavailable`
+- `provider_serialization_residual`
+
+---
+
+## 14. 最低验收测试
+
+实现至少覆盖：
+
+1. pretty-printed 连续 JSON objects；
+2. `tool_search_output` 位于 closing usage 之前，但归下一 request；
+3. `function_call_output` 位于 closing usage 之前，但归下一 request；
+4. reasoning/tool call 在产生 call 是 output，在下一 call 是 input；
+5. streaming response envelope 为 `output=[]`；
+6. mislabeled response 实际是 request；
+7. developer message 多 content parts 的精确拆分；
+8. role=user 的 AGENTS/environment wrapper 不归 human `user_input`；
+9. `event_msg.*_message` 镜像去重；
+10. tool result 与 subagent notification 不去重；
+11. `deferLoading` 工具不被首轮 fallback 全量激活；
+12. parent/child usage 完全分离；
+13. `previous_response_id` full replay/continuation 两种模式；
+14. aggregate usage 可精确、bucket mass 保持 estimated/unknown；
+15. `encrypted_content` 只能保存/回传，不生成明文。
+
+---
+
+## 15. 参考伪代码
+
+```text
+records = parse_json_objects(rollout_bytes)
+events = []
+for record in records:
+  events.extend(normalize_record(record, static_config))
+
+threads = group_by_thread(events)
+for thread in threads:
+  matched = match_and_classify_sidecars(thread, sidecars)
+  calls = extract_calls(thread.events, matched, catalogs)
+  calls = attach_occurrences_and_candidates(calls)
+  calls = normalize_accounting(calls)
+  emit(calls, diagnostics)
+```
+
+实现上的核心不变量是：
+
+```text
+typed item 决定固有事件类别
+状态机决定 call occurrence
+provider usage 决定 accounting 总量
+证据等级决定可以声称的精度
+```

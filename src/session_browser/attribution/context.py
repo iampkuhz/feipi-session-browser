@@ -202,13 +202,14 @@ def _load_normalized_call_for_context(
     except Exception as exc:  # pragma: no cover - 防御性日志
         logger.debug("normalized artifact hydration failed for %s: %s", session_key, exc, exc_info=True)
         return {}
-    return _find_normalized_call_for_interaction(
+    normalized_call = _find_normalized_call_for_interaction(
         normalized,
         current_interaction=current_interaction,
         interaction_index=interaction_index,
         interactions=interactions,
         all_llm_calls=all_llm_calls,
     )
+    return _hydrate_normalized_call(normalized, normalized_call)
 
 
 def _session_key_for_artifact(session: SessionSummary | None, agent: str) -> str:
@@ -294,6 +295,73 @@ def _find_normalized_call_for_interaction(
             return candidates[round_index]
 
     return candidates[interaction_index] if 0 <= interaction_index < len(candidates) else {}
+
+
+def _hydrate_normalized_call(normalized: dict, call: dict) -> dict:
+    """Expand compact call refs into legacy source_units for attribution builders."""
+    if not isinstance(call, dict) or not call:
+        return {}
+    if call.get("source_units"):
+        return call
+    ranges = call.get("source_unit_ref_ranges")
+    catalog = normalized.get("source_unit_catalog") if isinstance(normalized, dict) else None
+    sequences = normalized.get("source_unit_sequences") if isinstance(normalized, dict) else None
+    if not isinstance(ranges, list) or not isinstance(catalog, dict):
+        return call
+
+    refs: list[str] = []
+    for item in ranges:
+        if not isinstance(item, dict):
+            continue
+        sequence_name = str(item.get("sequence") or "")
+        if sequence_name and isinstance(sequences, dict):
+            sequence = sequences.get(sequence_name)
+            if isinstance(sequence, list):
+                start = _int_or_zero(item.get("start"))
+                end = _int_or_zero(item.get("end"))
+                refs.extend(str(ref) for ref in sequence[start:end])
+        item_refs = item.get("refs")
+        if isinstance(item_refs, list):
+            refs.extend(str(ref) for ref in item_refs)
+    catalog_units = [
+        catalog[ref]
+        for ref in refs
+        if ref in catalog and isinstance(catalog.get(ref), dict)
+    ]
+    if not catalog_units:
+        return call
+    hydrate_source_units, source_units_to_candidates = _source_unit_hydrators(normalized)
+
+    hydrated = dict(call)
+    source_units = hydrate_source_units(str(call.get("call_id") or ""), catalog_units)
+    hydrated["source_units"] = source_units
+    if not isinstance(hydrated.get("attribution_candidates"), dict):
+        hydrated["attribution_candidates"] = source_units_to_candidates(source_units)
+    return hydrated
+
+
+def _source_unit_hydrators(normalized: dict):
+    agent = str(normalized.get("agent") or "") if isinstance(normalized, dict) else ""
+    if agent == "claude_code":
+        from session_browser.normalized.agents.claude_code_parts.source_units import (
+            hydrate_source_units,
+            source_units_to_candidates,
+        )
+
+        return hydrate_source_units, source_units_to_candidates
+    from session_browser.normalized.agents.codex_parts.source_units import (
+        hydrate_source_units,
+        source_units_to_candidates,
+    )
+
+    return hydrate_source_units, source_units_to_candidates
+
+
+def _int_or_zero(value) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _interaction_ordinal_in_scope(

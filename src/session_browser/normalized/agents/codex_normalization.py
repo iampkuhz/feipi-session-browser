@@ -17,9 +17,9 @@ from session_browser.domain.token_normalizers.codex_token_normalizer import (
 )
 from session_browser.normalized.agents.codex_parts import (
     CodexSourceUnitDraft,
-    finalize_source_units,
+    draft_to_catalog_unit,
+    hydrate_source_units,
     payload_unit,
-    source_units_to_candidates,
     split_codex_prompt_text,
     text_unit,
 )
@@ -124,6 +124,16 @@ class _CodexBuildState:
         self.pending_tool_result_units: list[CodexSourceUnitDraft] = []
         self.segment_tool_result_units: list[CodexSourceUnitDraft] = []
         self.response_units: list[CodexSourceUnitDraft] = []
+        self.source_unit_catalog: dict[str, dict] = {}
+        self.source_unit_sequences: dict[str, list[str]] = {
+            "persistent_request": [],
+            "conversation_history": [],
+        }
+        self.source_unit_sequence_sets: dict[str, set[str]] = {
+            "persistent_request": set(),
+            "conversation_history": set(),
+        }
+        self._persistent_request_units_flushed = 0
 
         self.rounds: list[dict] = []
         self.parse_warnings: list[dict] = []
@@ -153,83 +163,11 @@ class _CodexBuildState:
                     priority=70,
                 )
             )
-        tools = payload.get("dynamic_tools")
-        if isinstance(tools, list) and tools:
-            for idx, tool in enumerate(tools):
-                self.persistent_request_units.append(
-                    payload_unit(
-                        origin_path=f"session_meta.payload.dynamic_tools[{idx}]",
-                        unit_type="dynamic_tool_schema",
-                        candidate="tool_definitions",
-                        direction="request",
-                        payload=tool,
-                        timestamp=timestamp,
-                        event_order=self.event_order,
-                        part_index=idx,
-                        label=str((tool or {}).get("name") or f"dynamic tool #{idx + 1}") if isinstance(tool, dict) else f"dynamic tool #{idx + 1}",
-                        priority=70,
-                    )
-                )
-        runtime_payload = {
-            key: payload.get(key)
-            for key in ("cwd", "originator", "cli_version", "source", "model_provider")
-            if payload.get(key) not in (None, "")
-        }
-        git = payload.get("git") if isinstance(payload.get("git"), dict) else {}
-        if git:
-            runtime_payload["git"] = {
-                key: git.get(key)
-                for key in ("branch", "commit_hash", "repository_url")
-                if git.get(key) not in (None, "")
-            }
-        if runtime_payload:
-            self.persistent_request_units.append(
-                payload_unit(
-                    origin_path="session_meta.payload.runtime",
-                    unit_type="session_runtime_metadata",
-                    candidate="runtime_context",
-                    direction="request",
-                    payload=runtime_payload,
-                    timestamp=timestamp,
-                    event_order=self.event_order,
-                    label="session runtime metadata",
-                    priority=65,
-                )
-            )
 
     def accept_turn_context(self, payload: dict, timestamp: str) -> None:
         self._touch(timestamp)
         self.latest_turn_context = payload or {}
         self.current_turn_id = str(payload.get("turn_id") or self.current_turn_id)
-        runtime_payload = {
-            key: payload.get(key)
-            for key in (
-                "turn_id",
-                "cwd",
-                "workspace_roots",
-                "current_date",
-                "timezone",
-                "approval_policy",
-                "sandbox_policy",
-                "model",
-                "effort",
-            )
-            if payload.get(key) not in (None, "")
-        }
-        if runtime_payload:
-            self.persistent_request_units.append(
-                payload_unit(
-                    origin_path="turn_context.payload",
-                    unit_type="turn_runtime_context",
-                    candidate="runtime_context",
-                    direction="request",
-                    payload=runtime_payload,
-                    timestamp=timestamp,
-                    event_order=self.event_order,
-                    label="turn runtime context",
-                    priority=60,
-                )
-            )
 
     def accept_compacted(self, payload: dict, timestamp: str) -> None:
         self._touch(timestamp)
@@ -271,7 +209,7 @@ class _CodexBuildState:
                     label=str(payload.get("name") or ptype),
                 )
             )
-        elif ptype in {"function_call_output", "custom_tool_call_output"}:
+        elif ptype in {"function_call_output", "custom_tool_call_output", "tool_search_output"}:
             unit = _tool_result_source_unit(payload, timestamp, self.event_order)
             if unit:
                 self.segment_tool_result_units.append(unit)
@@ -447,9 +385,26 @@ class _CodexBuildState:
             parse_warnings=self.parse_warnings,
         )
         _annotate_subagent_calls(normalized, self.rounds)
+        catalog = self._merged_source_unit_catalog()
+        if catalog:
+            normalized["source_unit_catalog"] = catalog
+            normalized["source_unit_sequences"] = self.source_unit_sequences
         if self.token_fragments:
             normalized["diagnostics"].extend(self.token_fragments)
         return normalized
+
+    def _merged_source_unit_catalog(self) -> dict[str, dict]:
+        catalog = dict(self.source_unit_catalog)
+        for run in self.subagent_runs:
+            child_catalog = run.get("source_unit_catalog") if isinstance(run, dict) else None
+            if not isinstance(child_catalog, dict):
+                continue
+            for key, unit in child_catalog.items():
+                if isinstance(unit, dict):
+                    existing = catalog.get(str(key))
+                    if existing is None or _catalog_rank(unit) > _catalog_rank(existing):
+                        catalog[str(key)] = unit
+        return catalog
 
     def _close_llm_call(self, token_payload: dict, timestamp: str) -> None:
         fragment = self._token_fragment(token_payload, timestamp)
@@ -490,7 +445,13 @@ class _CodexBuildState:
             call_id=call_id,
             turn_id=self.current_turn_id,
             timestamp=timestamp,
-            model=self.thread_info.get("model") or self.latest_turn_context.get("model") or "",
+            model=(
+                self.latest_turn_context.get("model")
+                or self.thread_info.get("model")
+                or self.session_meta.get("model")
+                or self.session_meta.get("model_provider")
+                or ""
+            ),
             usage=usage,
             request_tool_results=request_tool_results,
             tools=tools,
@@ -499,8 +460,7 @@ class _CodexBuildState:
             subagent_id=self.subagent_id,
             parent_tool_use_id=self.parent_tool_use_id,
             parent_tool_name=self.parent_tool_name,
-            attribution_candidates=attribution_snapshot["attribution_candidates"],
-            source_units=attribution_snapshot["source_units"],
+            source_unit_ref_ranges=attribution_snapshot["source_unit_ref_ranges"],
         )
         self.rounds.append(round_obj)
 
@@ -509,34 +469,106 @@ class _CodexBuildState:
             for t in tools
             if t.get("tool_call_id") and t.get("status") != "missing"
         ]
-        self._advance_candidate_state_after_close(attribution_snapshot["source_units"])
+        self._advance_candidate_state_after_close(
+            call_id,
+            attribution_snapshot["new_history_source_refs"],
+        )
         self.segment_response_items = []
         self.segment_tool_events = []
         self.segment_tool_result_units = []
         self.response_units = []
 
     def _freeze_attribution_snapshot(self, call_id: str) -> dict:
-        drafts = (
-            self.persistent_request_units
-            + self.conversation_history_units
-            + self.pending_tool_result_units
-            + self.current_user_units
-            + self.response_units
+        new_persistent_units = self.persistent_request_units[self._persistent_request_units_flushed:]
+        self._catalog_refs_for_drafts(
+            new_persistent_units,
+            sequence_name="persistent_request",
         )
-        source_units = finalize_source_units(call_id, drafts)
+        self._persistent_request_units_flushed = len(self.persistent_request_units)
+        history_count = len(self.source_unit_sequences["conversation_history"])
+        pending_refs = self._catalog_refs_for_drafts(self.pending_tool_result_units)
+        current_refs = self._catalog_refs_for_drafts(self.current_user_units)
+        response_refs = self._catalog_refs_for_drafts(self.response_units)
+
+        ranges: list[dict] = []
+        persistent_count = len(self.source_unit_sequences["persistent_request"])
+        if persistent_count:
+            ranges.append({
+                "sequence": "persistent_request",
+                "start": 0,
+                "end": persistent_count,
+            })
+        if history_count:
+            ranges.append({
+                "sequence": "conversation_history",
+                "start": 0,
+                "end": history_count,
+            })
+        if pending_refs:
+            ranges.append({"refs": pending_refs, "role": "pending_tool_results"})
+        if current_refs:
+            ranges.append({"refs": current_refs, "role": "current"})
+        if response_refs:
+            ranges.append({"refs": response_refs, "role": "response"})
+
         return {
-            "source_units": source_units,
-            "attribution_candidates": source_units_to_candidates(source_units),
+            "source_unit_ref_ranges": ranges,
+            "new_history_source_refs": pending_refs + current_refs + response_refs,
         }
 
-    def _advance_candidate_state_after_close(self, source_units: list[dict]) -> None:
+    def _advance_candidate_state_after_close(self, call_id: str, source_refs: list[str]) -> None:
+        source_units = hydrate_source_units(call_id, self._catalog_units_for_refs(source_refs))
+        history_drafts: list[CodexSourceUnitDraft] = []
         for unit in source_units:
             candidate = str(unit.get("candidate") or "")
-            if candidate not in {"user_input", "assistant_output", "reasoning_output", "tool_calls", "structured_output"}:
+            if candidate not in {
+                "user_input",
+                "assistant_output",
+                "reasoning_output",
+                "tool_calls",
+                "structured_output",
+                "tool_results",
+                "tool_definitions",
+            }:
                 continue
-            self.conversation_history_units.append(_history_source_unit(candidate, unit))
+            history_drafts.append(_history_source_unit(candidate, unit))
+        history_refs = self._catalog_refs_for_drafts(
+            history_drafts,
+            sequence_name="conversation_history",
+        )
+        if history_refs:
+            # Keep the draft list empty; future calls refer to the sequence range instead.
+            self.conversation_history_units = []
         self.current_user_units = []
         self.pending_tool_result_units = list(self.segment_tool_result_units)
+
+    def _catalog_refs_for_drafts(
+        self,
+        drafts: list[CodexSourceUnitDraft],
+        *,
+        sequence_name: str = "",
+    ) -> list[str]:
+        refs: list[str] = []
+        sequence = self.source_unit_sequences.get(sequence_name) if sequence_name else None
+        sequence_set = self.source_unit_sequence_sets.get(sequence_name) if sequence_name else None
+        for draft in drafts:
+            unit = draft_to_catalog_unit(draft)
+            key = str(unit["unit_key"])
+            existing = self.source_unit_catalog.get(key)
+            if existing is None or _catalog_rank(unit) > _catalog_rank(existing):
+                self.source_unit_catalog[key] = unit
+            refs.append(key)
+            if sequence is not None and sequence_set is not None and key not in sequence_set:
+                sequence.append(key)
+                sequence_set.add(key)
+        return refs
+
+    def _catalog_units_for_refs(self, refs: list[str]) -> list[dict]:
+        return [
+            self.source_unit_catalog[key]
+            for key in refs
+            if key in self.source_unit_catalog
+        ]
 
     def _token_fragment(self, token_payload: dict, timestamp: str) -> dict:
         info = token_payload.get("info") if isinstance(token_payload.get("info"), dict) else {}
@@ -573,13 +605,18 @@ class _CodexBuildState:
 
 
 def _history_source_unit(candidate: str, unit: dict) -> CodexSourceUnitDraft:
+    target_candidate = {
+        "reasoning_output": "reasoning_state",
+        "tool_results": "tool_results",
+        "tool_definitions": "tool_definitions",
+    }.get(candidate, "conversation_history")
     text = str(unit.get("text") or "")
     payload = unit.get("payload") if "payload" in unit else None
     if text:
         return text_unit(
             origin_path=f"conversation_history.{candidate}",
             unit_type=f"prior_{candidate}",
-            candidate="conversation_history",
+            candidate=target_candidate,
             direction="request",
             text=text,
             timestamp=str(unit.get("timestamp") or ""),
@@ -592,7 +629,7 @@ def _history_source_unit(candidate: str, unit: dict) -> CodexSourceUnitDraft:
     return payload_unit(
         origin_path=f"conversation_history.{candidate}",
         unit_type=f"prior_{candidate}",
-        candidate="conversation_history",
+        candidate=target_candidate,
         direction="request",
         payload=payload if payload is not None else {
             "source_id": unit.get("source_id", ""),
@@ -652,24 +689,49 @@ def _tool_call_candidate_payload(payload: dict) -> dict:
 def _tool_result_source_unit(payload: dict, timestamp: str, event_order: int) -> CodexSourceUnitDraft | None:
     call_id = str(payload.get("call_id") or "")
     output = payload.get("output")
-    if not call_id and output in (None, ""):
+    tools = payload.get("tools")
+    if not call_id and output in (None, "") and not tools:
         return None
+    ptype = str(payload.get("type") or "")
     text = output if isinstance(output, str) else ""
-    return payload_unit(
-        origin_path=f"response_item.{payload.get('type')}.output",
-        unit_type="request_tool_result",
-        candidate="tool_results",
-        direction="request",
-        payload={
+    if ptype == "tool_search_output":
+        unit_type = "request_tool_search_output"
+        candidate = "tool_definitions"
+        unit_payload = {
+            "call_id": call_id,
+            "status": payload.get("status") or "",
+            "execution": payload.get("execution") or "",
+            "tools": tools if isinstance(tools, list) else [],
+        }
+        label = call_id or "tool search output"
+        sub_source = "tool_results"
+    else:
+        unit_type = "request_tool_result"
+        candidate = "tool_results"
+        unit_payload = {
             "call_id": call_id,
             "output": output,
             "status": payload.get("status") or "",
-        },
+        }
+        label = call_id or "tool result"
+        sub_source = ""
+    origin_path = (
+        "response_item.tool_search_output.tools"
+        if ptype == "tool_search_output"
+        else f"response_item.{payload.get('type')}.output"
+    )
+    return payload_unit(
+        origin_path=origin_path,
+        unit_type=unit_type,
+        candidate=candidate,
+        direction="request",
+        payload=unit_payload,
         timestamp=timestamp,
         event_order=event_order,
-        label=call_id or "tool result",
+        label=label,
         priority=80,
         text=text,
+        sub_source=sub_source,
     )
 
 
@@ -679,6 +741,10 @@ def _json_safe(value: Any) -> Any:
         return value
     except TypeError:
         return str(value)
+
+
+def _catalog_rank(unit: dict) -> tuple[int, int]:
+    return (int(unit.get("priority") or 0), -int(unit.get("event_order") or 0))
 
 
 def _build_round(
@@ -696,8 +762,7 @@ def _build_round(
     subagent_id: str,
     parent_tool_use_id: str,
     parent_tool_name: str,
-    attribution_candidates: dict,
-    source_units: list[dict],
+    source_unit_ref_ranges: list[dict],
 ) -> dict:
     fresh_tokens = max(usage["input_tokens"] - usage["cached_input_tokens"], 0)
     token_total = fresh_tokens + usage["cached_input_tokens"] + usage["output_tokens"]
@@ -734,8 +799,7 @@ def _build_round(
         "response": {
             "tool_call_ids": [t["tool_call_id"] for t in tools if t.get("tool_call_id")],
         },
-        "attribution_candidates": attribution_candidates,
-        "source_units": source_units,
+        "source_unit_ref_ranges": source_unit_ref_ranges,
         "steps": steps,
     }
 
@@ -764,7 +828,7 @@ def _collect_tools(response_items: list[dict], tool_events: list[dict]) -> list[
     for item in response_items:
         payload = item["payload"]
         ptype = payload.get("type")
-        if ptype in {"function_call_output", "custom_tool_call_output"}:
+        if ptype in {"function_call_output", "custom_tool_call_output", "tool_search_output"}:
             call_id = payload.get("call_id") or ""
             if call_id:
                 result = outputs.setdefault(call_id, {"observed": True})
@@ -774,6 +838,8 @@ def _collect_tools(response_items: list[dict], tool_events: list[dict]) -> list[
                 output = payload.get("output")
                 if output is not None:
                     result["output"] = output
+                if ptype == "tool_search_output" and isinstance(payload.get("tools"), list):
+                    result["output"] = {"tools": payload.get("tools") or []}
     for event in tool_events:
         payload = event["payload"]
         call_id = payload.get("call_id") or ""
@@ -910,9 +976,9 @@ def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: st
     if not parent_session_id or not parent_path.exists():
         return []
     runs: list[dict] = []
-    for candidate in sorted(parent_path.parent.glob("rollout-*.jsonl")):
-        if candidate == parent_path:
-            continue
+    from session_browser.sources.codex_session_source import get_codex_subagent_child_paths
+
+    for candidate in get_codex_subagent_child_paths(parent_path, parent_session_id):
         events, _ = parse_jsonl_events(candidate)
         meta = _first_session_meta(events)
         spawn = _codex_subagent_spawn(meta)
@@ -927,7 +993,7 @@ def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: st
                 "title": f"subagent {spawn.get('agent_role') or ''}".strip(),
                 "cwd": meta.get("cwd") or "",
                 "source": "subagent",
-                "model": meta.get("model_provider") or "",
+                "model": "",
             },
             scope="subagent",
             subagent_id=agent_id,
@@ -952,9 +1018,14 @@ def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: st
             elif etype == "event_msg":
                 state.accept_event_msg(payload, timestamp)
         state.finish()
+        rounds = _rounds_with_expanded_source_refs(
+            state.rounds,
+            state.source_unit_sequences,
+        )
         runs.append({
             "path": str(candidate),
             "parent_tool_use_id": "",
+            "source_unit_catalog": dict(state.source_unit_catalog),
             "summary": {
                 "agent_id": agent_id,
                 "agent_type": str(spawn.get("agent_role") or ""),
@@ -972,9 +1043,70 @@ def _parse_subagent_rollouts_for_parent(parent_path: Path, parent_session_id: st
                 "cache_read_input_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("cache_read", 0) for r in state.rounds),
                 "output_tokens": sum((r.get("metrics") or {}).get("tokens", {}).get("output", 0) for r in state.rounds),
             },
-            "rounds": state.rounds,
+            "rounds": rounds,
         })
     return runs
+
+
+def _rounds_with_expanded_source_refs(
+    rounds: list[dict],
+    sequences: dict[str, list[str]],
+) -> list[dict]:
+    """Convert child-local sequence ranges into explicit refs before embedding."""
+    expanded: list[dict] = []
+    for round_obj in rounds:
+        if not isinstance(round_obj, dict):
+            continue
+        clone = dict(round_obj)
+        ref_ranges = clone.get("source_unit_ref_ranges")
+        if isinstance(ref_ranges, list):
+            clone["source_unit_ref_ranges"] = [
+                _expand_source_ref_range(ref_range, sequences)
+                for ref_range in ref_ranges
+                if isinstance(ref_range, dict)
+            ]
+        steps = clone.get("steps")
+        if isinstance(steps, list):
+            clone["steps"] = [
+                _step_with_expanded_source_refs(step, sequences)
+                for step in steps
+                if isinstance(step, dict)
+            ]
+        expanded.append(clone)
+    return expanded
+
+
+def _step_with_expanded_source_refs(step: dict, sequences: dict[str, list[str]]) -> dict:
+    clone = dict(step)
+    sub_rounds = clone.get("sub_rounds")
+    if isinstance(sub_rounds, list):
+        clone["sub_rounds"] = _rounds_with_expanded_source_refs(
+            [r for r in sub_rounds if isinstance(r, dict)],
+            sequences,
+        )
+    return clone
+
+
+def _expand_source_ref_range(ref_range: dict, sequences: dict[str, list[str]]) -> dict:
+    refs: list[str] = []
+    sequence_name = str(ref_range.get("sequence") or "")
+    if sequence_name:
+        sequence = sequences.get(sequence_name) if isinstance(sequences, dict) else None
+        if isinstance(sequence, list):
+            start = _int(ref_range.get("start"))
+            end = _int(ref_range.get("end"))
+            refs.extend(str(ref) for ref in sequence[start:end])
+    item_refs = ref_range.get("refs")
+    if isinstance(item_refs, list):
+        refs.extend(str(ref) for ref in item_refs)
+    clone = {
+        key: value
+        for key, value in ref_range.items()
+        if key not in {"sequence", "start", "end", "refs"}
+    }
+    if refs:
+        clone["refs"] = refs
+    return clone
 
 
 def _first_session_meta(events: list[dict]) -> dict:

@@ -130,11 +130,15 @@ class CodexTokenAccountingMapper:
         *,
         source_units: list[dict],
         total_output: AttributedValue,
+        reasoning_output_tokens: int = 0,
     ) -> dict:
         output_total = _num(total_output.value)
         candidates, unattributed = self._candidate_entries(
             self.source_units_for_direction(source_units, "response"),
             denominator=output_total,
+            exact_candidate_tokens={
+                "reasoning_output": max(int(reasoning_output_tokens or 0), 0),
+            } if reasoning_output_tokens else None,
         )
         return {
             "schema": "token_accounting_fields.v1",
@@ -163,34 +167,47 @@ class CodexTokenAccountingMapper:
             ),
         }
 
-    def _candidate_entries(self, units: list[dict], *, denominator: float) -> tuple[list[dict], int]:
+    def _candidate_entries(
+        self,
+        units: list[dict],
+        *,
+        denominator: float,
+        exact_candidate_tokens: dict[str, int] | None = None,
+    ) -> tuple[list[dict], int]:
         entries: dict[str, dict[str, Any]] = {}
+        exact_candidate_tokens = exact_candidate_tokens or {}
         for unit in units:
             candidate = str(unit.get("candidate") or "")
             if not candidate:
                 continue
-            tokens = _unit_tokens(unit)
+            content_estimate = _unit_tokens(unit)
             entry = entries.setdefault(candidate, {
                 "candidate": candidate,
                 "tokens": 0,
                 "percent": 0.0,
+                "token_status": "unknown_mass",
+                "token_precision": "unknown_mass",
                 "sources": [],
             })
-            entry["tokens"] += tokens
+            if candidate in exact_candidate_tokens:
+                entry["tokens"] = exact_candidate_tokens[candidate]
+                entry["token_status"] = "exact_provider"
+                entry["token_precision"] = "provider_reported"
             entry["sources"].append({
                 "source_id": unit.get("source_id", ""),
                 "origin_path": unit.get("origin_path", ""),
                 "unit_type": unit.get("unit_type", ""),
                 "label": unit.get("label", ""),
-                "tokens": tokens,
+                "tokens": 0,
+                "token_status": entry["token_status"],
+                "content_token_estimate": content_estimate,
                 "preview": unit.get("preview", ""),
             })
 
         total = sum(float(entry["tokens"]) for entry in entries.values())
-        scale = denominator / total if denominator > 0 and total > denominator and total > 0 else 1.0
         result: list[dict] = []
         for entry in entries.values():
-            tokens = int(entry["tokens"] * scale)
+            tokens = min(int(entry["tokens"]), int(denominator)) if denominator > 0 else int(entry["tokens"])
             entry["tokens"] = tokens
             entry["percent"] = round((tokens / denominator) * 100.0, 1) if denominator > 0 else 0.0
             result.append(entry)

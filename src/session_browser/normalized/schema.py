@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 
-NORMALIZED_SCHEMA_VERSION = "session-detail.normalized.v2"
+NORMALIZED_SCHEMA_VERSION = "session-detail.normalized.v3"
 
 
 class NormalizedValidationError(ValueError):
@@ -63,6 +63,40 @@ def validate_normalized_session(data: dict) -> None:
 
     calls = data.get("calls")
     _require(isinstance(calls, list), "calls must be an array", errors)
+    catalog = data.get("source_unit_catalog")
+    if catalog is not None:
+        _require(isinstance(catalog, dict), "source_unit_catalog must be an object", errors)
+        if isinstance(catalog, dict):
+            for key, unit in catalog.items():
+                prefix = f"source_unit_catalog[{key!r}]"
+                _require(isinstance(unit, dict), f"{prefix} must be an object", errors)
+                if not isinstance(unit, dict):
+                    continue
+                _require(unit.get("unit_key") == key, f"{prefix}.unit_key must match its catalog key", errors)
+                for field in (
+                    "unit_key",
+                    "origin_path",
+                    "canonical_source_locator",
+                    "unit_type",
+                    "candidate",
+                    "direction",
+                    "event_order",
+                    "part_index",
+                    "byte_range",
+                    "content_hash",
+                ):
+                    _require(field in unit, f"{prefix}.{field} is required", errors)
+                _require(unit.get("direction") in {"request", "response"}, f"{prefix}.direction invalid", errors)
+
+    sequences = data.get("source_unit_sequences")
+    if sequences is not None:
+        _require(isinstance(sequences, dict), "source_unit_sequences must be an object", errors)
+        if isinstance(sequences, dict):
+            for name, refs in sequences.items():
+                _require(isinstance(refs, list), f"source_unit_sequences.{name} must be an array", errors)
+                if isinstance(refs, list) and isinstance(catalog, dict):
+                    for ref in refs:
+                        _require(str(ref) in catalog, f"source_unit_sequences.{name} references missing catalog unit", errors)
 
     known_call_ids: set[str] = set()
     declared_tool_ids_by_call: dict[str, set[str]] = {}
@@ -85,6 +119,29 @@ def validate_normalized_session(data: dict) -> None:
 
         for field in ("request", "response", "usage"):
             _require(field in call_obj, f"{prefix}.{field} is required", errors)
+
+        ref_ranges = call_obj.get("source_unit_ref_ranges")
+        if ref_ranges is not None:
+            _require(isinstance(ref_ranges, list), f"{prefix}.source_unit_ref_ranges must be an array", errors)
+            if isinstance(ref_ranges, list):
+                for range_idx, ref_range in enumerate(ref_ranges):
+                    range_prefix = f"{prefix}.source_unit_ref_ranges[{range_idx}]"
+                    _require(isinstance(ref_range, dict), f"{range_prefix} must be an object", errors)
+                    if not isinstance(ref_range, dict):
+                        continue
+                    if ref_range.get("sequence"):
+                        seq_name = str(ref_range.get("sequence"))
+                        _require(
+                            isinstance(sequences, dict) and seq_name in sequences,
+                            f"{range_prefix}.sequence references missing sequence",
+                            errors,
+                        )
+                    refs = ref_range.get("refs")
+                    if refs is not None:
+                        _require(isinstance(refs, list), f"{range_prefix}.refs must be an array", errors)
+                        if isinstance(refs, list) and isinstance(catalog, dict):
+                            for ref in refs:
+                                _require(str(ref) in catalog, f"{range_prefix}.refs references missing catalog unit", errors)
 
         request = call_obj.get("request") if isinstance(call_obj.get("request"), dict) else {}
         response = call_obj.get("response") if isinstance(call_obj.get("response"), dict) else {}

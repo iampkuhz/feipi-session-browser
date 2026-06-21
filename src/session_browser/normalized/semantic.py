@@ -112,6 +112,11 @@ def _call_from_round(
         if isinstance(round_obj.get("source_units"), list)
         else []
     )
+    source_unit_ref_ranges = (
+        round_obj.get("source_unit_ref_ranges")
+        if isinstance(round_obj.get("source_unit_ref_ranges"), list)
+        else []
+    )
     tool_result_ids = _string_list(request.get("tool_result_ids"))
     tool_call_ids = _string_list(response.get("tool_call_ids"))
 
@@ -137,6 +142,8 @@ def _call_from_round(
         call["attribution_candidates"] = attribution_candidates
     if source_units:
         call["source_units"] = source_units
+    if source_unit_ref_ranges:
+        call["source_unit_ref_ranges"] = source_unit_ref_ranges
     if usage_source:
         call["usage_source"] = {
             "kind": str(usage_source.get("kind") or ""),
